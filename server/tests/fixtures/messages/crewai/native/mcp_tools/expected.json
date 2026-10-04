@@ -1,0 +1,404 @@
+{
+  "label": "crewai/native/mcp_tools",
+  "request_count": 2,
+  "span_count": 5,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1//opt/homebrew/bin/uv_run_--locked_--directory_/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a303a146a047db1b0/tools/mcp-calculator_mcp-calculator_calculate.run/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-1//opt/homebrew/bin/uv_run_--locked_--directory_/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a303a146a047db1b0/tools/mcp-calculator_mcp-calculator_calculate.run/span-5": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-1/Crew_8efef3be-eff9-4fc2-98b5-726c376e2dd2.kickoff/span-2": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Use the calculator to compute (17 * 23) + 4, then report the result. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a s…[247 chars]",
+          "content_digest": "0cdb1557d73d947c",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_MO3bWesFP3rlaYVZ2DFU6X\",\"name\":\"opt_homebrew_bin_uv_run_locked_directory_users_sideseat_aa4c75f4\",\"input\":{}}",
+          "content_digest": "1d935ba30e439f9d",
+          "tool_name": "opt_homebrew_bin_uv_run_locked_directory_users_sideseat_aa4c75f4",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "1 validation error for call[calculate] expression Missing required argument [type=missing_argument, input_value={}, input_type=dict] For further information visit https://errors.pydantic.dev/2.13/v/missing_argument",
+          "content_digest": "79908242f37b4e24",
+          "observation_type": "chain"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_COifDyEbQI8UXeaz5w0HBy\",\"name\":\"opt_homebrew_bin_uv_run_locked_directory_users_sideseat_aa4c75f4\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+          "content_digest": "3e9f57e29580f664",
+          "tool_name": "opt_homebrew_bin_uv_run_locked_directory_users_sideseat_aa4c75f4",
+          "observation_type": "chain"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "395.0",
+          "content_digest": "4d630bdef759b0bf",
+          "observation_type": "chain"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "(17 × 23) + 4 = **395**.",
+          "content_digest": "52aaa6c961cd0f52",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/Travel assistant._execute_core/span-3": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Use the calculator to compute (17 * 23) + 4, then report the result. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a s…[247 chars]",
+          "content_digest": "0cdb1557d73d947c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_MO3bWesFP3rlaYVZ2DFU6X\",\"name\":\"opt_homebrew_bin_uv_run_locked_directory_users_sideseat_aa4c75f4\",\"input\":{}}",
+          "content_digest": "1d935ba30e439f9d",
+          "tool_name": "opt_homebrew_bin_uv_run_locked_directory_users_sideseat_aa4c75f4",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "1 validation error for call[calculate] expression Missing required argument [type=missing_argument, input_value={}, input_type=dict] For further information visit https://errors.pydantic.dev/2.13/v/missing_argument",
+          "content_digest": "79908242f37b4e24",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_COifDyEbQI8UXeaz5w0HBy\",\"name\":\"opt_homebrew_bin_uv_run_locked_directory_users_sideseat_aa4c75f4\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+          "content_digest": "3e9f57e29580f664",
+          "tool_name": "opt_homebrew_bin_uv_run_locked_directory_users_sideseat_aa4c75f4",
+          "observation_type": "agent"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "395.0",
+          "content_digest": "4d630bdef759b0bf",
+          "observation_type": "agent"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "(17 × 23) + 4 = **395**.",
+          "content_digest": "52aaa6c961cd0f52",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/mcp-tools/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Use the calculator to compute (17 * 23) + 4, then report the result. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a s…[247 chars]",
+          "content_digest": "0cdb1557d73d947c",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_MO3bWesFP3rlaYVZ2DFU6X\",\"name\":\"opt_homebrew_bin_uv_run_locked_directory_users_sideseat_aa4c75f4\",\"input\":{}}",
+          "content_digest": "1d935ba30e439f9d",
+          "tool_name": "opt_homebrew_bin_uv_run_locked_directory_users_sideseat_aa4c75f4",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "1 validation error for call[calculate] expression Missing required argument [type=missing_argument, input_value={}, input_type=dict] For further information visit https://errors.pydantic.dev/2.13/v/missing_argument",
+          "content_digest": "79908242f37b4e24",
+          "observation_type": "chain"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_COifDyEbQI8UXeaz5w0HBy\",\"name\":\"opt_homebrew_bin_uv_run_locked_directory_users_sideseat_aa4c75f4\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+          "content_digest": "3e9f57e29580f664",
+          "tool_name": "opt_homebrew_bin_uv_run_locked_directory_users_sideseat_aa4c75f4",
+          "observation_type": "chain"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "395.0",
+          "content_digest": "4d630bdef759b0bf",
+          "observation_type": "chain"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "(17 × 23) + 4 = **395**.",
+          "content_digest": "52aaa6c961cd0f52",
+          "observation_type": "chain"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "crewai-mcp_tools": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Use the calculator to compute (17 * 23) + 4, then report the result. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a s…[247 chars]",
+          "content_digest": "0cdb1557d73d947c",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_MO3bWesFP3rlaYVZ2DFU6X\",\"name\":\"opt_homebrew_bin_uv_run_locked_directory_users_sideseat_aa4c75f4\",\"input\":{}}",
+          "content_digest": "1d935ba30e439f9d",
+          "tool_name": "opt_homebrew_bin_uv_run_locked_directory_users_sideseat_aa4c75f4",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "1 validation error for call[calculate] expression Missing required argument [type=missing_argument, input_value={}, input_type=dict] For further information visit https://errors.pydantic.dev/2.13/v/missing_argument",
+          "content_digest": "79908242f37b4e24",
+          "observation_type": "chain"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_COifDyEbQI8UXeaz5w0HBy\",\"name\":\"opt_homebrew_bin_uv_run_locked_directory_users_sideseat_aa4c75f4\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+          "content_digest": "3e9f57e29580f664",
+          "tool_name": "opt_homebrew_bin_uv_run_locked_directory_users_sideseat_aa4c75f4",
+          "observation_type": "chain"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "395.0",
+          "content_digest": "4d630bdef759b0bf",
+          "observation_type": "chain"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "(17 × 23) + 4 = **395**.",
+          "content_digest": "52aaa6c961cd0f52",
+          "observation_type": "chain"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 7,
+    "role_sequence": [
+      "system",
+      "user",
+      "assistant",
+      "tool",
+      "assistant",
+      "tool",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+        "content_digest": "9c00dff086e79acc",
+        "observation_type": "chain"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Current Task: Use the calculator to compute (17 * 23) + 4, then report the result. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a s…[247 chars]",
+        "content_digest": "0cdb1557d73d947c",
+        "observation_type": "chain"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_MO3bWesFP3rlaYVZ2DFU6X\",\"name\":\"opt_homebrew_bin_uv_run_locked_directory_users_sideseat_aa4c75f4\",\"input\":{}}",
+        "content_digest": "1d935ba30e439f9d",
+        "tool_name": "opt_homebrew_bin_uv_run_locked_directory_users_sideseat_aa4c75f4",
+        "observation_type": "chain"
+      },
+      {
+        "index": 3,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "1 validation error for call[calculate] expression Missing required argument [type=missing_argument, input_value={}, input_type=dict] For further information visit https://errors.pydantic.dev/2.13/v/missing_argument",
+        "content_digest": "79908242f37b4e24",
+        "observation_type": "chain"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_COifDyEbQI8UXeaz5w0HBy\",\"name\":\"opt_homebrew_bin_uv_run_locked_directory_users_sideseat_aa4c75f4\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+        "content_digest": "3e9f57e29580f664",
+        "tool_name": "opt_homebrew_bin_uv_run_locked_directory_users_sideseat_aa4c75f4",
+        "observation_type": "chain"
+      },
+      {
+        "index": 5,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "395.0",
+        "content_digest": "4d630bdef759b0bf",
+        "observation_type": "chain"
+      },
+      {
+        "index": 6,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "(17 × 23) + 4 = **395**.",
+        "content_digest": "52aaa6c961cd0f52",
+        "observation_type": "chain"
+      }
+    ]
+  }
+}

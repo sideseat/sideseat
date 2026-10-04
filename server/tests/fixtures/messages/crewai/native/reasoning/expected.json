@@ -1,0 +1,200 @@
+{
+  "label": "crewai/native/reasoning",
+  "request_count": 1,
+  "span_count": 3,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/Crew_8bee8c3d-3435-425a-9d30-49c882e8bc88.kickoff/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the …[446 chars]",
+          "content_digest": "a9a04fcc0ae0c006",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The fastest total crossing time is **17 minutes**. The schedule is: 1 and 2 cross together (2 min), 1 returns with the torch (1 min), 5 and 10 cross together (10 min), 2 returns with the torch (2 min), then 1 and 2 cross again (2 min). That…[364 chars]",
+          "content_digest": "d7890433c4425b62",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/Travel assistant._execute_core/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the …[446 chars]",
+          "content_digest": "a9a04fcc0ae0c006",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The fastest total crossing time is **17 minutes**. The schedule is: 1 and 2 cross together (2 min), 1 returns with the torch (1 min), 5 and 10 cross together (10 min), 2 returns with the torch (2 min), then 1 and 2 cross again (2 min). That…[364 chars]",
+          "content_digest": "d7890433c4425b62",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/reasoning/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the …[446 chars]",
+          "content_digest": "a9a04fcc0ae0c006",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The fastest total crossing time is **17 minutes**. The schedule is: 1 and 2 cross together (2 min), 1 returns with the torch (1 min), 5 and 10 cross together (10 min), 2 returns with the torch (2 min), then 1 and 2 cross again (2 min). That…[364 chars]",
+          "content_digest": "d7890433c4425b62",
+          "observation_type": "chain"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "crewai-reasoning": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the …[446 chars]",
+          "content_digest": "a9a04fcc0ae0c006",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The fastest total crossing time is **17 minutes**. The schedule is: 1 and 2 cross together (2 min), 1 returns with the torch (1 min), 5 and 10 cross together (10 min), 2 returns with the torch (2 min), then 1 and 2 cross again (2 min). That…[364 chars]",
+          "content_digest": "d7890433c4425b62",
+          "observation_type": "chain"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 3,
+    "role_sequence": [
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+        "content_digest": "9c00dff086e79acc",
+        "observation_type": "chain"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Current Task: Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the …[446 chars]",
+        "content_digest": "a9a04fcc0ae0c006",
+        "observation_type": "chain"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The fastest total crossing time is **17 minutes**. The schedule is: 1 and 2 cross together (2 min), 1 returns with the torch (1 min), 5 and 10 cross together (10 min), 2 returns with the torch (2 min), then 1 and 2 cross again (2 min). That…[364 chars]",
+        "content_digest": "d7890433c4425b62",
+        "observation_type": "chain"
+      }
+    ]
+  }
+}

@@ -270,22 +270,38 @@ fn stable_span_name(span_name: &str) -> String {
         })
         .unwrap_or_else(|| span_name.to_string());
 
-    without_duration
-        .split_whitespace()
-        .map(|token| {
-            let bytes = token.as_bytes();
-            let is_uuid = bytes.len() == 36
-                && bytes
-                    .iter()
-                    .enumerate()
-                    .all(|(index, byte)| match index {
-                        8 | 13 | 18 | 23 => *byte == b'-',
-                        _ => byte.is_ascii_hexdigit(),
-                    });
-            if is_uuid { "<uuid>" } else { token }
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
+    let is_uuid = |candidate: &[u8]| {
+        candidate.len() == 36
+            && candidate
+                .iter()
+                .enumerate()
+                .all(|(index, byte)| match index {
+                    8 | 13 | 18 | 23 => *byte == b'-',
+                    _ => byte.is_ascii_hexdigit(),
+                })
+    };
+    // A UUID is a whole word, or embedded between separators that are neither hex nor `-`: CrewAI
+    // names a crew's span `Crew_<uuid>.kickoff`.
+    let joins_uuid = |byte: Option<&u8>| byte.is_some_and(|b| b.is_ascii_hexdigit() || *b == b'-');
+    let bytes = without_duration.as_bytes();
+    let mut out = String::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        let end = index + 36;
+        if end <= bytes.len()
+            && is_uuid(&bytes[index..end])
+            && !joins_uuid(index.checked_sub(1).and_then(|before| bytes.get(before)))
+            && !joins_uuid(bytes.get(end))
+        {
+            out.push_str("<uuid>");
+            index = end;
+        } else {
+            let ch = without_duration[index..].chars().next().expect("index is on a char boundary");
+            out.push(ch);
+            index += ch.len_utf8();
+        }
+    }
+    out.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 /// Serialize with object keys in sorted order, recursively.

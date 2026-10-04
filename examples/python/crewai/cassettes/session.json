@@ -1,0 +1,24 @@
+{
+ "interactions": [
+  {
+   "method": "POST",
+   "path": "/model/global.anthropic.claude-sonnet-5-5/converse",
+   "status": 200,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "eyJtZXRyaWNzIjp7ImxhdGVuY3lNcyI6MTM0OX0sIm91dHB1dCI6eyJtZXNzYWdlIjp7ImNvbnRlbnQiOlt7InRleHQiOiJWaXNpdCB0aGUgKipNdXNlbyBOYWNpb25hbCBkZWwgUHJhZG8qKiwgb25lIG9mIHRoZSB3b3JsZCdzIGdyZWF0IGFydCBtdXNldW1zLiBJdCBob3VzZXMgbWFzdGVycGllY2VzIGJ5IFZlbMOhenF1ZXogKCpMYXMgTWVuaW5hcyopLCBHb3lhLCBhbmQgRWwgR3JlY28sIGFuZCBpdCdzIGEgc2hvcnQgd2FsayBmcm9tIFJldGlybyBQYXJrLiBCb29raW5nIGEgdGltZWQgdGlja2V0IG9ubGluZSBpbiBhZHZhbmNlIGhlbHBzIHlvdSBhdm9pZCBsb25nIHF1ZXVlcy4ifV0sInJvbGUiOiJhc3Npc3RhbnQifX0sInN0b3BSZWFzb24iOiJlbmRfdHVybiIsInVzYWdlIjp7ImNhY2hlUmVhZElucHV0VG9rZW5Db3VudCI6MCwiY2FjaGVSZWFkSW5wdXRUb2tlbnMiOjAsImNhY2hlV3JpdGVJbnB1dFRva2VuQ291bnQiOjAsImNhY2hlV3JpdGVJbnB1dFRva2VucyI6MCwiaW5wdXRUb2tlbnMiOjE1NSwib3V0cHV0VG9rZW5zIjoxMDIsInNlcnZlclRvb2xVc2FnZSI6e30sInRvdGFsVG9rZW5zIjoyNTd9fQ==",
+   "request_sha256": "c8c7c1efa76bb1b59ae9c0b1d0f76d4590d9a24443df31786e98a5ddd2bbd56d"
+  },
+  {
+   "method": "POST",
+   "path": "/model/global.anthropic.claude-sonnet-5-5/converse",
+   "status": 200,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "eyJtZXRyaWNzIjp7ImxhdGVuY3lNcyI6MTQ2NH0sIm91dHB1dCI6eyJtZXNzYWdlIjp7ImNvbnRlbnQiOlt7InRleHQiOiJWaXNpdCAqKlJldGlybyBQYXJrIChQYXJxdWUgZGVsIEJ1ZW4gUmV0aXJvKSoqLCBNYWRyaWQncyBtb3N0IGljb25pYyBncmVlbiBzcGFjZS4gWW91IGNhbiByZW50IGEgcm93Ym9hdCBvbiB0aGUgY2VudHJhbCBsYWtlLCBzZWUgdGhlIGdsYXNzIENyeXN0YWwgUGFsYWNlLCBhbmQgc3Ryb2xsIHNoYWRlZCBwcm9tZW5hZGVzLiBJdCdzIGNlbnRyYWwsIGZyZWUgdG8gZW50ZXIsIGFuZCBlYXN5IHRvIHBhaXIgd2l0aCBhIHZpc2l0IHRvIHRoZSBuZWFyYnkgUHJhZG8gTXVzZXVtLiJ9XSwicm9sZSI6ImFzc2lzdGFudCJ9fSwic3RvcFJlYXNvbiI6ImVuZF90dXJuIiwidXNhZ2UiOnsiY2FjaGVSZWFkSW5wdXRUb2tlbkNvdW50IjowLCJjYWNoZVJlYWRJbnB1dFRva2VucyI6MCwiY2FjaGVXcml0ZUlucHV0VG9rZW5Db3VudCI6MCwiY2FjaGVXcml0ZUlucHV0VG9rZW5zIjowLCJpbnB1dFRva2VucyI6MTU0LCJvdXRwdXRUb2tlbnMiOjEwOCwic2VydmVyVG9vbFVzYWdlIjp7fSwidG90YWxUb2tlbnMiOjI2Mn19",
+   "request_sha256": "72710d3cb4d0961347e38b0b4a7a672b823ceefdd3521315031c5d62e62e6168"
+  }
+ ]
+}

@@ -1,0 +1,34 @@
+{
+ "interactions": [
+  {
+   "method": "POST",
+   "path": "/model/global.anthropic.claude-sonnet-5-5/converse",
+   "status": 200,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "eyJtZXRyaWNzIjp7ImxhdGVuY3lNcyI6MTQ1N30sIm91dHB1dCI6eyJtZXNzYWdlIjp7ImNvbnRlbnQiOlt7InRleHQiOiJTdGF5IGluICoqQWxmYW1hKiosIExpc2JvbidzIG9sZGVzdCBuZWlnaGJvdXJob29kLiBJdCBoYXMgd2luZGluZyBjb2JibGVkIHN0cmVldHMsIHRyYWRpdGlvbmFsIGZhZG8gYmFycywgYW5kIHN3ZWVwaW5nIHJpdmVyIHZpZXdzLCBhbmQgaXQncyB3aXRoaW4gd2Fsa2luZyBkaXN0YW5jZSBvZiB0aGUgbWFpbiBzaWdodHMgbGlrZSB0aGUgU8OjbyBKb3JnZSBDYXN0bGUgYW5kIHRoZSBTw6kgQ2F0aGVkcmFsLiBJZiB5b3UgcHJlZmVyIHNvbWV0aGluZyBmbGF0dGVyIGFuZCBtb3JlIGNlbnRyYWwsIEJhaXhhIGlzIGEgZ29vZCBhbHRlcm5hdGl2ZS4ifV0sInJvbGUiOiJhc3Npc3RhbnQifX0sInN0b3BSZWFzb24iOiJlbmRfdHVybiIsInVzYWdlIjp7ImNhY2hlUmVhZElucHV0VG9rZW5Db3VudCI6MCwiY2FjaGVSZWFkSW5wdXRUb2tlbnMiOjAsImNhY2hlV3JpdGVJbnB1dFRva2VuQ291bnQiOjAsImNhY2hlV3JpdGVJbnB1dFRva2VucyI6MCwiaW5wdXRUb2tlbnMiOjE2OCwib3V0cHV0VG9rZW5zIjoxMTQsInNlcnZlclRvb2xVc2FnZSI6e30sInRvdGFsVG9rZW5zIjoyODJ9fQ==",
+   "request_sha256": "50a4829a522c24244e0201c81856bda58c6d603a48e8f601b6d1e6e11fdc4dbb"
+  },
+  {
+   "method": "POST",
+   "path": "/model/global.anthropic.claude-sonnet-5-5/converse",
+   "status": 200,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "eyJtZXRyaWNzIjp7ImxhdGVuY3lNcyI6MTQ1NH0sIm91dHB1dCI6eyJtZXNzYWdlIjp7ImNvbnRlbnQiOlt7InRleHQiOiJUcnkgKipwYXN0w6lpcyBkZSBuYXRhKiosIExpc2JvbidzIGZhbW91cyBjdXN0YXJkIHRhcnRzLCB3aXRoIGEgZHVzdGluZyBvZiBjaW5uYW1vbiBhbmQgYSBjb2ZmZWUuIEZvciBhIGhlYXJ0aWVyIGxvY2FsIGRpc2gsIG9yZGVyICoqYmFjYWxoYXUgw6AgQnLDoXMqKiwgYSBjb21mb3J0aW5nIG1peCBvZiBzaHJlZGRlZCBzYWx0IGNvZCwgZWdncywgYW5kIGNyaXNweSBwb3RhdG9lcywgYXQgb25lIG9mIEFsZmFtYSdzIHNtYWxsIHRhc2Nhcy4ifV0sInJvbGUiOiJhc3Npc3RhbnQifX0sInN0b3BSZWFzb24iOiJlbmRfdHVybiIsInVzYWdlIjp7ImNhY2hlUmVhZElucHV0VG9rZW5Db3VudCI6MCwiY2FjaGVSZWFkSW5wdXRUb2tlbnMiOjAsImNhY2hlV3JpdGVJbnB1dFRva2VuQ291bnQiOjAsImNhY2hlV3JpdGVJbnB1dFRva2VucyI6MCwiaW5wdXRUb2tlbnMiOjI3Miwib3V0cHV0VG9rZW5zIjoxMDgsInNlcnZlclRvb2xVc2FnZSI6e30sInRvdGFsVG9rZW5zIjozODB9fQ==",
+   "request_sha256": "57d8a2555d5b3a3c391f9417e24426fe1ff807f2302aafcbf129e2925de52adb"
+  },
+  {
+   "method": "POST",
+   "path": "/model/global.anthropic.claude-sonnet-5-5/converse",
+   "status": 200,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "eyJtZXRyaWNzIjp7ImxhdGVuY3lNcyI6MTA3Nn0sIm91dHB1dCI6eyJtZXNzYWdlIjp7ImNvbnRlbnQiOlt7InRleHQiOiJTdGF5IGluIGhpc3RvcmljIEFsZmFtYSAob3IgZmxhdHRlciwgbW9yZSBjZW50cmFsIEJhaXhhKSBmb3IgY29iYmxlZCBzdHJlZXRzLCBmYWRvLCBhbmQgcml2ZXIgdmlld3MsIGFuZCB0cnkgcGFzdMOpaXMgZGUgbmF0YSB3aXRoIGNvZmZlZSBwbHVzIGEgaGVhcnR5IGJhY2FsaGF1IMOgIEJyw6FzIGF0IGEgbG9jYWwgdGFzY2EuIn1dLCJyb2xlIjoiYXNzaXN0YW50In19LCJzdG9wUmVhc29uIjoiZW5kX3R1cm4iLCJ1c2FnZSI6eyJjYWNoZVJlYWRJbnB1dFRva2VuQ291bnQiOjAsImNhY2hlUmVhZElucHV0VG9rZW5zIjowLCJjYWNoZVdyaXRlSW5wdXRUb2tlbkNvdW50IjowLCJjYWNoZVdyaXRlSW5wdXRUb2tlbnMiOjAsImlucHV0VG9rZW5zIjozODgsIm91dHB1dFRva2VucyI6NzUsInNlcnZlclRvb2xVc2FnZSI6e30sInRvdGFsVG9rZW5zIjo0NjN9fQ==",
+   "request_sha256": "998e5b19f0af443b92f52f5d67df5b8b09226d59e816966a2a3d26f9db1b5447"
+  }
+ ]
+}

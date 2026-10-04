@@ -1,0 +1,446 @@
+{
+  "label": "crewai/sdk/multi_agent",
+  "request_count": 1,
+  "span_count": 5,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/Crew_68a28cf7-9766-45c2-b62e-95fcfacab3e2.kickoff/span-2": {
+      "message_count": 8,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Weather researcher. You research weather with the tool, then hand off to the writer. Your personal goal is: Find the forecast the traveller needs",
+          "content_digest": "59bbba328db87fc8",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it. This is the expected criteria for your final answer: The forecast for each day. you MUST return the actual complete …[283 chars]",
+          "content_digest": "fcea22ca8ad10fad",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_O3ewzuYyOQmQhCFHYxLqLY\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "ee79d565ea89ad36",
+          "tool_name": "get_weather",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_O3ewzuYyOQmQhCFHYxLqLY\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "9848c8382e1d0a94",
+          "observation_type": "chain"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Barcelona forecast for the next two days** - **Day 1:** Rain, with a high of 21°C. - **Day 2:** Sunny, with a high of 22°C. **Packing list:** Pack for mild weather with one wet day followed by a sunny one. Bring a light waterproof jacket …[672 chars]",
+          "content_digest": "5ea94542cabdde51",
+          "observation_type": "chain"
+        },
+        {
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Packing list writer. You write the final packing list from the researcher's findings. Your personal goal is: Write the packing list",
+          "content_digest": "32b6c8681e7ed86f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Write the one-paragraph packing list the request asks for. This is the expected criteria for your final answer: A one-paragraph packing list. you MUST return the actual complete content as the final answer, not a summary. This…[981 chars]",
+          "content_digest": "0ff426bb367ecc0a",
+          "observation_type": "chain"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "For Barcelona's mild two-day forecast, with rain on Day 1 (high of 21°C) and sun on Day 2 (high of 22°C), pack a light waterproof jacket or compact umbrella and water-resistant closed shoes for the wet first day. Bring breathable layers suc…[590 chars]",
+          "content_digest": "be593850f9651352",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/Packing list writer._execute_core/span-5": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Packing list writer. You write the final packing list from the researcher's findings. Your personal goal is: Write the packing list",
+          "content_digest": "32b6c8681e7ed86f",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Write the one-paragraph packing list the request asks for. This is the expected criteria for your final answer: A one-paragraph packing list. you MUST return the actual complete content as the final answer, not a summary. This…[981 chars]",
+          "content_digest": "0ff426bb367ecc0a",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "For Barcelona's mild two-day forecast, with rain on Day 1 (high of 21°C) and sun on Day 2 (high of 22°C), pack a light waterproof jacket or compact umbrella and water-resistant closed shoes for the wet first day. Bring breathable layers suc…[590 chars]",
+          "content_digest": "be593850f9651352",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/Weather researcher._execute_core/span-3": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Weather researcher. You research weather with the tool, then hand off to the writer. Your personal goal is: Find the forecast the traveller needs",
+          "content_digest": "59bbba328db87fc8",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it. This is the expected criteria for your final answer: The forecast for each day. you MUST return the actual complete …[283 chars]",
+          "content_digest": "fcea22ca8ad10fad",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_O3ewzuYyOQmQhCFHYxLqLY\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "ee79d565ea89ad36",
+          "tool_name": "get_weather",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_O3ewzuYyOQmQhCFHYxLqLY\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "9848c8382e1d0a94",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Barcelona forecast for the next two days** - **Day 1:** Rain, with a high of 21°C. - **Day 2:** Sunny, with a high of 22°C. **Packing list:** Pack for mild weather with one wet day followed by a sunny one. Bring a light waterproof jacket …[672 chars]",
+          "content_digest": "5ea94542cabdde51",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/get_weather.run/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-1/multi-agent/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 8,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Weather researcher. You research weather with the tool, then hand off to the writer. Your personal goal is: Find the forecast the traveller needs",
+          "content_digest": "59bbba328db87fc8",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it. This is the expected criteria for your final answer: The forecast for each day. you MUST return the actual complete …[283 chars]",
+          "content_digest": "fcea22ca8ad10fad",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_O3ewzuYyOQmQhCFHYxLqLY\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "ee79d565ea89ad36",
+          "tool_name": "get_weather",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_O3ewzuYyOQmQhCFHYxLqLY\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "9848c8382e1d0a94",
+          "observation_type": "chain"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Barcelona forecast for the next two days** - **Day 1:** Rain, with a high of 21°C. - **Day 2:** Sunny, with a high of 22°C. **Packing list:** Pack for mild weather with one wet day followed by a sunny one. Bring a light waterproof jacket …[672 chars]",
+          "content_digest": "5ea94542cabdde51",
+          "observation_type": "chain"
+        },
+        {
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Packing list writer. You write the final packing list from the researcher's findings. Your personal goal is: Write the packing list",
+          "content_digest": "32b6c8681e7ed86f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Write the one-paragraph packing list the request asks for. This is the expected criteria for your final answer: A one-paragraph packing list. you MUST return the actual complete content as the final answer, not a summary. This…[981 chars]",
+          "content_digest": "0ff426bb367ecc0a",
+          "observation_type": "chain"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "For Barcelona's mild two-day forecast, with rain on Day 1 (high of 21°C) and sun on Day 2 (high of 22°C), pack a light waterproof jacket or compact umbrella and water-resistant closed shoes for the wet first day. Bring breathable layers suc…[590 chars]",
+          "content_digest": "be593850f9651352",
+          "observation_type": "chain"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "crewai-multi_agent": {
+      "message_count": 8,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Weather researcher. You research weather with the tool, then hand off to the writer. Your personal goal is: Find the forecast the traveller needs",
+          "content_digest": "59bbba328db87fc8",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it. This is the expected criteria for your final answer: The forecast for each day. you MUST return the actual complete …[283 chars]",
+          "content_digest": "fcea22ca8ad10fad",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_O3ewzuYyOQmQhCFHYxLqLY\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "ee79d565ea89ad36",
+          "tool_name": "get_weather",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_O3ewzuYyOQmQhCFHYxLqLY\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "9848c8382e1d0a94",
+          "observation_type": "chain"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Barcelona forecast for the next two days** - **Day 1:** Rain, with a high of 21°C. - **Day 2:** Sunny, with a high of 22°C. **Packing list:** Pack for mild weather with one wet day followed by a sunny one. Bring a light waterproof jacket …[672 chars]",
+          "content_digest": "5ea94542cabdde51",
+          "observation_type": "chain"
+        },
+        {
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Packing list writer. You write the final packing list from the researcher's findings. Your personal goal is: Write the packing list",
+          "content_digest": "32b6c8681e7ed86f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Write the one-paragraph packing list the request asks for. This is the expected criteria for your final answer: A one-paragraph packing list. you MUST return the actual complete content as the final answer, not a summary. This…[981 chars]",
+          "content_digest": "0ff426bb367ecc0a",
+          "observation_type": "chain"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "For Barcelona's mild two-day forecast, with rain on Day 1 (high of 21°C) and sun on Day 2 (high of 22°C), pack a light waterproof jacket or compact umbrella and water-resistant closed shoes for the wet first day. Bring breathable layers suc…[590 chars]",
+          "content_digest": "be593850f9651352",
+          "observation_type": "chain"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 8,
+    "role_sequence": [
+      "system",
+      "user",
+      "assistant",
+      "tool",
+      "assistant",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are Weather researcher. You research weather with the tool, then hand off to the writer. Your personal goal is: Find the forecast the traveller needs",
+        "content_digest": "59bbba328db87fc8",
+        "observation_type": "chain"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Current Task: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it. This is the expected criteria for your final answer: The forecast for each day. you MUST return the actual complete …[283 chars]",
+        "content_digest": "fcea22ca8ad10fad",
+        "observation_type": "chain"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_O3ewzuYyOQmQhCFHYxLqLY\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+        "content_digest": "ee79d565ea89ad36",
+        "tool_name": "get_weather",
+        "observation_type": "chain"
+      },
+      {
+        "index": 3,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_O3ewzuYyOQmQhCFHYxLqLY\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+        "content_digest": "9848c8382e1d0a94",
+        "observation_type": "chain"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "**Barcelona forecast for the next two days** - **Day 1:** Rain, with a high of 21°C. - **Day 2:** Sunny, with a high of 22°C. **Packing list:** Pack for mild weather with one wet day followed by a sunny one. Bring a light waterproof jacket …[672 chars]",
+        "content_digest": "5ea94542cabdde51",
+        "observation_type": "chain"
+      },
+      {
+        "index": 5,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are Packing list writer. You write the final packing list from the researcher's findings. Your personal goal is: Write the packing list",
+        "content_digest": "32b6c8681e7ed86f",
+        "observation_type": "chain"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Current Task: Write the one-paragraph packing list the request asks for. This is the expected criteria for your final answer: A one-paragraph packing list. you MUST return the actual complete content as the final answer, not a summary. This…[981 chars]",
+        "content_digest": "0ff426bb367ecc0a",
+        "observation_type": "chain"
+      },
+      {
+        "index": 7,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "For Barcelona's mild two-day forecast, with rain on Day 1 (high of 21°C) and sun on Day 2 (high of 22°C), pack a light waterproof jacket or compact umbrella and water-resistant closed shoes for the wet first day. Bring breathable layers suc…[590 chars]",
+        "content_digest": "be593850f9651352",
+        "observation_type": "chain"
+      }
+    ]
+  }
+}

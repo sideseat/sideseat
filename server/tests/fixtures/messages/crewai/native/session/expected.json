@@ -1,0 +1,369 @@
+{
+  "label": "crewai/native/session",
+  "request_count": 2,
+  "span_count": 6,
+  "trace_count": 2,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/Crew_28e6d05d-13d7-4db0-a788-50bda17dc756.kickoff/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Suggest one museum to visit in Madrid. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. Provide your complete …[249 chars]",
+          "content_digest": "b0546bbf93e97804",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Visit the **Museo Nacional del Prado**, one of the world's great art museums. It houses masterpieces by Velázquez (*Las Meninas*), Goya, and El Greco, and it's a short walk from Retiro Park. Booking a timed ticket online in advance helps yo…[260 chars]",
+          "content_digest": "0d0892def089e521",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/Travel assistant._execute_core/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Suggest one museum to visit in Madrid. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. Provide your complete …[249 chars]",
+          "content_digest": "b0546bbf93e97804",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Visit the **Museo Nacional del Prado**, one of the world's great art museums. It houses masterpieces by Velázquez (*Las Meninas*), Goya, and El Greco, and it's a short walk from Retiro Park. Booking a timed ticket online in advance helps yo…[260 chars]",
+          "content_digest": "0d0892def089e521",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/session-turn-1/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/Crew_c8dc904c-2b90-4166-b23b-0eb3567f9a0c.kickoff/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Suggest one park to visit in Madrid. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. Provide your complete re…[247 chars]",
+          "content_digest": "573c3d42eb5f65ff",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Visit **Retiro Park (Parque del Buen Retiro)**, Madrid's most iconic green space. You can rent a rowboat on the central lake, see the glass Crystal Palace, and stroll shaded promenades. It's central, free to enter, and easy to pair with a v…[272 chars]",
+          "content_digest": "a191ae72129d6638",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-2/Travel assistant._execute_core/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Suggest one park to visit in Madrid. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. Provide your complete re…[247 chars]",
+          "content_digest": "573c3d42eb5f65ff",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Visit **Retiro Park (Parque del Buen Retiro)**, Madrid's most iconic green space. You can rent a rowboat on the central lake, see the glass Crystal Palace, and stroll shaded promenades. It's central, free to enter, and easy to pair with a v…[272 chars]",
+          "content_digest": "a191ae72129d6638",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-2/session-turn-2/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Suggest one museum to visit in Madrid. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. Provide your complete …[249 chars]",
+          "content_digest": "b0546bbf93e97804",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Visit the **Museo Nacional del Prado**, one of the world's great art museums. It houses masterpieces by Velázquez (*Las Meninas*), Goya, and El Greco, and it's a short walk from Retiro Park. Booking a timed ticket online in advance helps yo…[260 chars]",
+          "content_digest": "0d0892def089e521",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Suggest one park to visit in Madrid. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. Provide your complete re…[247 chars]",
+          "content_digest": "573c3d42eb5f65ff",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Visit **Retiro Park (Parque del Buen Retiro)**, Madrid's most iconic green space. You can rent a rowboat on the central lake, see the glass Crystal Palace, and stroll shaded promenades. It's central, free to enter, and easy to pair with a v…[272 chars]",
+          "content_digest": "a191ae72129d6638",
+          "observation_type": "chain"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "crewai-session": {
+      "message_count": 6,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Suggest one museum to visit in Madrid. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. Provide your complete …[249 chars]",
+          "content_digest": "b0546bbf93e97804",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Visit the **Museo Nacional del Prado**, one of the world's great art museums. It houses masterpieces by Velázquez (*Las Meninas*), Goya, and El Greco, and it's a short walk from Retiro Park. Booking a timed ticket online in advance helps yo…[260 chars]",
+          "content_digest": "0d0892def089e521",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "chain"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Suggest one park to visit in Madrid. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. Provide your complete re…[247 chars]",
+          "content_digest": "573c3d42eb5f65ff",
+          "observation_type": "chain"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Visit **Retiro Park (Parque del Buen Retiro)**, Madrid's most iconic green space. You can rent a rowboat on the central lake, see the glass Crystal Palace, and stroll shaded promenades. It's central, free to enter, and easy to pair with a v…[272 chars]",
+          "content_digest": "a191ae72129d6638",
+          "observation_type": "chain"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 6,
+    "role_sequence": [
+      "system",
+      "user",
+      "assistant",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+        "content_digest": "9c00dff086e79acc",
+        "observation_type": "chain"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Current Task: Suggest one park to visit in Madrid. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. Provide your complete re…[247 chars]",
+        "content_digest": "573c3d42eb5f65ff",
+        "observation_type": "chain"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Visit **Retiro Park (Parque del Buen Retiro)**, Madrid's most iconic green space. You can rent a rowboat on the central lake, see the glass Crystal Palace, and stroll shaded promenades. It's central, free to enter, and easy to pair with a v…[272 chars]",
+        "content_digest": "a191ae72129d6638",
+        "observation_type": "chain"
+      },
+      {
+        "index": 3,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+        "content_digest": "9c00dff086e79acc",
+        "observation_type": "chain"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Current Task: Suggest one museum to visit in Madrid. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. Provide your complete …[249 chars]",
+        "content_digest": "b0546bbf93e97804",
+        "observation_type": "chain"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Visit the **Museo Nacional del Prado**, one of the world's great art museums. It houses masterpieces by Velázquez (*Las Meninas*), Goya, and El Greco, and it's a short walk from Retiro Park. Booking a timed ticket online in advance helps yo…[260 chars]",
+        "content_digest": "0d0892def089e521",
+        "observation_type": "chain"
+      }
+    ]
+  }
+}

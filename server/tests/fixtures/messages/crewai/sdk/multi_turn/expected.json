@@ -1,0 +1,452 @@
+{
+  "label": "crewai/sdk/multi_turn",
+  "request_count": 1,
+  "span_count": 7,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/Crew_1703993e-00ba-4878-ba15-fd6d665a9099.kickoff/span-4": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: What is one dish I should try there? This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. This is the context you'…[599 chars]",
+          "content_digest": "9da7928d4a20d84c",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, with a dusting of cinnamon and a coffee. For a heartier local dish, order **bacalhau à Brás**, a comforting mix of shredded salt cod, eggs, and crispy potatoes, at one of Alfama's smal…[249 chars]",
+          "content_digest": "0f28a1c5179f22dc",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/Crew_686ef08d-b897-486c-96c4-94cdb098667d.kickoff/span-6": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Summarise your two suggestions in one sentence. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. This is the c…[871 chars]",
+          "content_digest": "f74a8c07be465a9a",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in historic Alfama (or flatter, more central Baixa) for cobbled streets, fado, and river views, and try pastéis de nata with coffee plus a hearty bacalhau à Brás at a local tasca.",
+          "content_digest": "a1e8bf9d26668131",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/Crew_abdd9b59-1fb1-44a7-bbe8-1871c1026d5a.kickoff/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: I am planning a weekend in Lisbon. Name one neighbourhood to stay in. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a …[280 chars]",
+          "content_digest": "424a1552a4c81276",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has winding cobbled streets, traditional fado bars, and sweeping river views, and it's within walking distance of the main sights like the São Jorge Castle and the Sé Cathedral. If you p…[310 chars]",
+          "content_digest": "9ba6c28e796ebd92",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/Travel assistant._execute_core/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: I am planning a weekend in Lisbon. Name one neighbourhood to stay in. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a …[280 chars]",
+          "content_digest": "424a1552a4c81276",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has winding cobbled streets, traditional fado bars, and sweeping river views, and it's within walking distance of the main sights like the São Jorge Castle and the Sé Cathedral. If you p…[310 chars]",
+          "content_digest": "9ba6c28e796ebd92",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/Travel assistant._execute_core/span-5": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: What is one dish I should try there? This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. This is the context you'…[599 chars]",
+          "content_digest": "9da7928d4a20d84c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, with a dusting of cinnamon and a coffee. For a heartier local dish, order **bacalhau à Brás**, a comforting mix of shredded salt cod, eggs, and crispy potatoes, at one of Alfama's smal…[249 chars]",
+          "content_digest": "0f28a1c5179f22dc",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/Travel assistant._execute_core/span-7": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Summarise your two suggestions in one sentence. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. This is the c…[871 chars]",
+          "content_digest": "f74a8c07be465a9a",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in historic Alfama (or flatter, more central Baixa) for cobbled streets, fado, and river views, and try pastéis de nata with coffee plus a hearty bacalhau à Brás at a local tasca.",
+          "content_digest": "a1e8bf9d26668131",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/multi-turn/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: I am planning a weekend in Lisbon. Name one neighbourhood to stay in. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a …[280 chars]",
+          "content_digest": "424a1552a4c81276",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has winding cobbled streets, traditional fado bars, and sweeping river views, and it's within walking distance of the main sights like the São Jorge Castle and the Sé Cathedral. If you p…[310 chars]",
+          "content_digest": "9ba6c28e796ebd92",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: What is one dish I should try there? This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. This is the context you'…[599 chars]",
+          "content_digest": "9da7928d4a20d84c",
+          "observation_type": "chain"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, with a dusting of cinnamon and a coffee. For a heartier local dish, order **bacalhau à Brás**, a comforting mix of shredded salt cod, eggs, and crispy potatoes, at one of Alfama's smal…[249 chars]",
+          "content_digest": "0f28a1c5179f22dc",
+          "observation_type": "chain"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Summarise your two suggestions in one sentence. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. This is the c…[871 chars]",
+          "content_digest": "f74a8c07be465a9a",
+          "observation_type": "chain"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in historic Alfama (or flatter, more central Baixa) for cobbled streets, fado, and river views, and try pastéis de nata with coffee plus a hearty bacalhau à Brás at a local tasca.",
+          "content_digest": "a1e8bf9d26668131",
+          "observation_type": "chain"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "crewai-multi_turn": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: I am planning a weekend in Lisbon. Name one neighbourhood to stay in. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a …[280 chars]",
+          "content_digest": "424a1552a4c81276",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has winding cobbled streets, traditional fado bars, and sweeping river views, and it's within walking distance of the main sights like the São Jorge Castle and the Sé Cathedral. If you p…[310 chars]",
+          "content_digest": "9ba6c28e796ebd92",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: What is one dish I should try there? This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. This is the context you'…[599 chars]",
+          "content_digest": "9da7928d4a20d84c",
+          "observation_type": "chain"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, with a dusting of cinnamon and a coffee. For a heartier local dish, order **bacalhau à Brás**, a comforting mix of shredded salt cod, eggs, and crispy potatoes, at one of Alfama's smal…[249 chars]",
+          "content_digest": "0f28a1c5179f22dc",
+          "observation_type": "chain"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: Summarise your two suggestions in one sentence. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. This is the c…[871 chars]",
+          "content_digest": "f74a8c07be465a9a",
+          "observation_type": "chain"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in historic Alfama (or flatter, more central Baixa) for cobbled streets, fado, and river views, and try pastéis de nata with coffee plus a hearty bacalhau à Brás at a local tasca.",
+          "content_digest": "a1e8bf9d26668131",
+          "observation_type": "chain"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 7,
+    "role_sequence": [
+      "user",
+      "assistant",
+      "user",
+      "assistant",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Current Task: Summarise your two suggestions in one sentence. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. This is the c…[871 chars]",
+        "content_digest": "f74a8c07be465a9a",
+        "observation_type": "chain"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Stay in historic Alfama (or flatter, more central Baixa) for cobbled streets, fado, and river views, and try pastéis de nata with coffee plus a hearty bacalhau à Brás at a local tasca.",
+        "content_digest": "a1e8bf9d26668131",
+        "observation_type": "chain"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Current Task: What is one dish I should try there? This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. This is the context you'…[599 chars]",
+        "content_digest": "9da7928d4a20d84c",
+        "observation_type": "chain"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, with a dusting of cinnamon and a coffee. For a heartier local dish, order **bacalhau à Brás**, a comforting mix of shredded salt cod, eggs, and crispy potatoes, at one of Alfama's smal…[249 chars]",
+        "content_digest": "0f28a1c5179f22dc",
+        "observation_type": "chain"
+      },
+      {
+        "index": 4,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+        "content_digest": "9c00dff086e79acc",
+        "observation_type": "chain"
+      },
+      {
+        "index": 5,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Current Task: I am planning a weekend in Lisbon. Name one neighbourhood to stay in. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a …[280 chars]",
+        "content_digest": "424a1552a4c81276",
+        "observation_type": "chain"
+      },
+      {
+        "index": 6,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has winding cobbled streets, traditional fado bars, and sweeping river views, and it's within walking distance of the main sights like the São Jorge Castle and the Sé Cathedral. If you p…[310 chars]",
+        "content_digest": "9ba6c28e796ebd92",
+        "observation_type": "chain"
+      }
+    ]
+  }
+}

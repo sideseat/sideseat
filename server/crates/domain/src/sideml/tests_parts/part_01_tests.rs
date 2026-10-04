@@ -463,6 +463,25 @@ fn test_haystack_reasoning_part_is_thinking() {
     assert_eq!(first["signature"], "sig");
 }
 
+/// Regression: a tool message whose content is a number written as text keeps it as the result.
+///
+/// CrewAI recorded the calculator's `"395.0"` this way. Read as a JSON number it had no content
+/// block, so the result vanished and its call looked unanswered.
+#[test]
+fn test_tool_message_with_numeric_text_content() {
+    let input = json!({
+        "role": "tool",
+        "content": "395.0",
+        "tool_call_id": "tooluse_1",
+        "name": "calculate"
+    });
+    let output = normalize(&input);
+    assert_eq!(output.content.len(), 1, "{:?}", output.content);
+    let result = block_to_json(&output.content[0]);
+    assert_eq!(result["type"], "tool_result");
+    assert_eq!(result["tool_use_id"], "tooluse_1");
+}
+
 #[test]
 fn test_gemini_function_call() {
     let input = json!({

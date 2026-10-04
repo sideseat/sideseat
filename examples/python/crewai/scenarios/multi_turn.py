@@ -1,18 +1,22 @@
-from typing import Any
-
-from crew import travel_agent
+from crew import kickoff, travel_agent
+from crewai import Crew, Task
 
 from harness import Run, content
 
 
-async def run(run: Run) -> None:
-    # A crew runs tasks, not conversations; an agent kicked off with the message history is how
-    # CrewAI holds one.
+def run(run: Run) -> None:
+    # CrewAI holds a conversation as tasks: each question is a task that takes the earlier ones,
+    # already answered, as context, so its request carries the conversation so far. One crew per
+    # question, so each kickoff is one turn.
     agent = travel_agent(run.llm)
-    history: list[Any] = []
+    answered: list[Task] = []
     with run.trace():
         for question in content.MULTI_TURN:
-            history.append({"role": "user", "content": question})
-            reply = (await agent.kickoff_async(history)).raw
-            history.append({"role": "assistant", "content": reply})
-            print(reply)
+            task = Task(
+                description=question,
+                expected_output="A direct answer to the request.",
+                agent=agent,
+                context=list(answered),
+            )
+            print(kickoff(Crew(agents=[agent], tasks=[task], verbose=False)).raw)
+            answered.append(task)

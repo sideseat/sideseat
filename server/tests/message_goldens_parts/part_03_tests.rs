@@ -726,6 +726,10 @@ fn stable_span_names_normalize_runtime_ids_and_durations_only() {
         "invoke_agent assistant"
     );
     assert_eq!(
+        stable_span_name("Crew_26a6a15d-e291-496f-a550-60c96caa8406.kickoff"),
+        "Crew_<uuid>.kickoff"
+    );
+    assert_eq!(
         stable_span_name("not-a-uuid-26a6a15d-e291-496f-a550-60c96caa8406"),
         "not-a-uuid-26a6a15d-e291-496f-a550-60c96caa8406"
     );
