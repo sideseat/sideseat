@@ -298,7 +298,18 @@ pub(super) fn readings(
                         }
                     }
                 }
-                let candidate = candidate;
+                let candidate = match &alternative.collect_members {
+                    Some(pattern) => {
+                        match candidate
+                            .as_object()
+                            .and_then(|object| pattern.collect(object))
+                        {
+                            Some(collected) => collected,
+                            None => continue,
+                        }
+                    }
+                    None => candidate,
+                };
                 // Trim declared per reading, because trimming a payload meant to be verbatim would change it.
                 let candidate = match (alternative.trim, candidate.as_str()) {
                     (true, Some(text)) => json!(text.trim()),

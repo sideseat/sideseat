@@ -363,6 +363,40 @@ pub struct Alternative {
     /// falling through to the next path would answer from a representation the producer did not use.
     #[serde(default)]
     pub on_malformed: Option<PresenceFallback>,
+    /// Rebuild the candidate object from its members named `prefix` + *name* + `suffix`, as `{name: value}`.
+    ///
+    /// An object's member names can encode a structure the way an indexed attribute family encodes a
+    /// list: one instrumentation writes a call's arguments as `<prefix><name>.value` beside
+    /// `<prefix><name>.type`, so the arguments are the members a pattern picks out, not the object.
+    /// A candidate with no matching member is not this shape, and the reading moves on.
+    #[serde(default)]
+    pub collect_members: Option<CollectMembers>,
+}
+
+/// The member-name pattern of [`Alternative::collect_members`].
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct CollectMembers {
+    pub prefix: String,
+    pub suffix: String,
+}
+
+impl CollectMembers {
+    /// `{name: value}` for every member of `object` matching the pattern, in the object's order;
+    /// `None` when no member matches.
+    pub fn collect(
+        &self,
+        object: &serde_json::Map<String, serde_json::Value>,
+    ) -> Option<serde_json::Value> {
+        let collected: serde_json::Map<String, serde_json::Value> = object
+            .iter()
+            .filter_map(|(key, value)| {
+                let name = key.strip_prefix(&self.prefix)?.strip_suffix(&self.suffix)?;
+                (!name.is_empty()).then(|| (name.to_string(), value.clone()))
+            })
+            .collect();
+        (!collected.is_empty()).then_some(serde_json::Value::Object(collected))
+    }
 }
 
 /// What a presence coalesce falls back to.

@@ -613,6 +613,54 @@ fn a_langchain_message_dict_reads_its_data_member() {
     assert_eq!(messages[3].content["tool_call_id"].as_str(), Some("call_1"));
 }
 
+/// OpenTelemetry's Google Gen AI instrumentation writes a called function's arguments as
+/// `code.function.parameters.<name>.value` beside each argument's Python type. Read as written, the
+/// call's input matched no copy of the same call on the model span, so a streamed tool loop showed
+/// the call twice; the arguments are the members that pattern picks out.
+#[test]
+fn google_genai_flattened_tool_arguments_are_the_arguments_the_model_sent() {
+    let flattened = r#"{"code.function.parameters.city.type": "str", "code.function.parameters.city.value": "Rome", "code.function.parameters.days.type": "int", "code.function.parameters.days.value": 1}"#;
+    let extract = |scope: &str, arguments: &str| {
+        let attrs = make_attrs(&[
+            ("gen_ai.operation.name", "execute_tool"),
+            ("gen_ai.tool.name", "get_weather"),
+            ("gen_ai.tool.call.arguments", arguments),
+        ]);
+        let mut messages = Vec::new();
+        let mut tools = Vec::new();
+        extract_messages_from_context(
+            &mut messages,
+            &mut tools,
+            SpanExtraction {
+                name: "execute_tool get_weather",
+                attrs: &attrs,
+                scope_name: Some(scope),
+                scope_version: Some("1.2b0"),
+                is_tool_span: true,
+            },
+            Utc::now(),
+            ExtractionMode::PerCarrier,
+        );
+        assert_eq!(messages.len(), 1);
+        messages[0].content["content"][0].clone()
+    };
+
+    let call = extract("opentelemetry.instrumentation.google_genai", flattened);
+    assert_eq!(call["type"].as_str(), Some("tool_use"));
+    assert_eq!(call["name"].as_str(), Some("get_weather"));
+    assert_eq!(call["input"], serde_json::json!({"city": "Rome", "days": 1}));
+
+    // Arguments in the conventions' own shape fall through to the generic rule unchanged.
+    let plain = extract("opentelemetry.instrumentation.google_genai", r#"{"city": "Rome"}"#);
+    assert_eq!(plain["input"], serde_json::json!({"city": "Rome"}));
+    // Another instrumentation's flattened-looking keys are its own business.
+    let other = extract("another.instrumentation", flattened);
+    assert_eq!(
+        other["input"]["code.function.parameters.city.value"].as_str(),
+        Some("Rome")
+    );
+}
+
 /// A carrier whose whole content is a tool list is not also a conversation.
 ///
 /// The repr grammar runs on the metadata axis, outside claiming, which is right - a tool definition is not

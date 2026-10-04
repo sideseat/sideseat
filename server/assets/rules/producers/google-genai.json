@@ -1,0 +1,81 @@
+{
+  "id": "google-genai",
+  "doc": "OpenTelemetry's Google Gen AI instrumentation, which serves both the Gemini Developer API and Vertex AI modes of the `google-genai` client. Identity lives in `vertex-ai.json`; this asset holds the instrumentation's own message shapes.",
+  "carriers": [],
+  "content_blocks": [
+    {
+      "id": "google-genai.blob_part",
+      "doc": "An inline image or document. The semantic conventions' BlobPart holds its bytes, base64-encoded, under `content` beside `mime_type` and `modality`; this instrumentation writes it without the `type` member, so it reached no media reading and was kept as an unknown block.",
+      "at": "before_provider_formats",
+      "legacy_rank": 85,
+      "require": {
+        "all": [
+          {
+            "path": "$.mime_type",
+            "kind": "string"
+          },
+          {
+            "path": "$.modality",
+            "kind": "string"
+          },
+          {
+            "path": "$.content",
+            "kind": "string"
+          }
+        ]
+      },
+      "media": {
+        "media_type": [
+          "$.mime_type"
+        ],
+        "data": [
+          "$.content"
+        ]
+      }
+    }
+  ],
+  "messages": [
+    {
+      "id": "google-genai.tool_call_arguments",
+      "doc": "A function the client called itself, recorded on its `execute_tool` span. The instrumentation writes each argument as `code.function.parameters.<name>.value` beside its Python type, so the arguments the model sent are those members, not the object; read as written, the call matched no copy of itself on the model span and appeared twice. Arguments in any other shape fall through to the semantic-conventions rule.",
+      "instrumentation_scope": {
+        "name": "opentelemetry.instrumentation.google_genai"
+      },
+      "read": {
+        "attribute": "gen_ai.tool.call.arguments"
+      },
+      "parse": "json",
+      "alternatives": [
+        {
+          "id": "flattened_parameters",
+          "collect_members": {
+            "prefix": "code.function.parameters.",
+            "suffix": ".value"
+          }
+        }
+      ],
+      "wrap": {
+        "role": "assistant",
+        "block": {
+          "type": "tool_use",
+          "content_as": "input",
+          "attach": [
+            {
+              "from": "gen_ai.tool.name",
+              "as": "name",
+              "or_span_name_after": "execute_tool ",
+              "default": ""
+            },
+            {
+              "from": "gen_ai.tool.call.id",
+              "as": "id"
+            }
+          ]
+        }
+      },
+      "emit": "message",
+      "legacy_rank": 155,
+      "reads_tool_spans": true
+    }
+  ]
+}
