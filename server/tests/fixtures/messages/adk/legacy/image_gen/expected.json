@@ -1231,6 +1231,7 @@
       "tool",
       "tool",
       "tool",
+      "assistant",
       "system",
       "user",
       "user",
@@ -1243,7 +1244,6 @@
       "user",
       "user",
       "user",
-      "assistant",
       "assistant",
       "assistant",
       "assistant",
@@ -1298,6 +1298,15 @@
       },
       {
         "index": 4,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "I'll examine each of these three dog images to evaluate them based on creativity, composition, and appeal.",
+        "content_digest": "e7851f8bae41f145",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
         "role": "system",
         "entry_type": "text",
         "content": "You are an experienced art critic. Use the read_image tool to load and visually inspect each image. Evaluate based on creativity, composition, and appeal. Your final line must include: FINAL DECISION: [path to best image] You are an agent. …[271 chars]",
@@ -1305,7 +1314,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 5,
+        "index": 6,
         "role": "user",
         "entry_type": "text",
         "content": "For context:",
@@ -1313,7 +1322,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 6,
+        "index": 7,
         "role": "user",
         "entry_type": "text",
         "content": "[artist] called tool `generate_image` with parameters: {'prompt': 'playful golden retriever puppy running through a sunny park with green grass and trees, wagging tail, joyful expression'}",
@@ -1321,7 +1330,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 7,
+        "index": 8,
         "role": "user",
         "entry_type": "text",
         "content": "[artist] called tool `generate_image` with parameters: {'prompt': 'majestic dog portrait, noble German Shepherd with piercing eyes, dramatic studio lighting, dark background, professional photography style'}",
@@ -1329,7 +1338,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 8,
+        "index": 9,
         "role": "user",
         "entry_type": "text",
         "content": "[artist] called tool `generate_image` with parameters: {'prompt': 'fluffy white dog playing in fresh snow during winter, jumping and rolling in snowdrifts, snowy landscape with evergreen trees, festive winter mood'}",
@@ -1337,7 +1346,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 9,
+        "index": 10,
         "role": "user",
         "entry_type": "text",
         "content": "For context:",
@@ -1345,7 +1354,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 10,
+        "index": 11,
         "role": "user",
         "entry_type": "text",
         "content": "[artist] `generate_image` tool returned result: {'result': '/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png'}",
@@ -1353,7 +1362,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 11,
+        "index": 12,
         "role": "user",
         "entry_type": "text",
         "content": "[artist] `generate_image` tool returned result: {'result': '/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_a8a_ndn6/generated_280c6e84.png'}",
@@ -1361,7 +1370,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 12,
+        "index": 13,
         "role": "user",
         "entry_type": "text",
         "content": "[artist] `generate_image` tool returned result: {'result': '/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_p9ahn9ej/generated_996a2312.png'}",
@@ -1369,7 +1378,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 13,
+        "index": 14,
         "role": "user",
         "entry_type": "text",
         "content": "For context:",
@@ -1377,7 +1386,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 14,
+        "index": 15,
         "role": "user",
         "entry_type": "text",
         "content": "[artist] said: Perfect! I've generated 3 diverse dog images for you: **/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png, /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_a8a_ndn6/generat…[1099 chars]",
@@ -1385,20 +1394,11 @@
         "observation_type": "generation"
       },
       {
-        "index": 15,
+        "index": 16,
         "role": "user",
         "entry_type": "text",
         "content": "Evaluate these generated images and select the best one: Perfect! I've generated 3 diverse dog images for you: **/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/adk_images_kow_bmr2/generated_c77949c5.png, /var/folders/n_/kvwhfj054zx3zjmwj9…[1141 chars]",
         "content_digest": "529b479df82f45d4",
-        "observation_type": "generation"
-      },
-      {
-        "index": 16,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "I'll examine each of these three dog images to evaluate them based on creativity, composition, and appeal.",
-        "content_digest": "e7851f8bae41f145",
-        "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {

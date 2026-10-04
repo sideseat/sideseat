@@ -342,23 +342,46 @@ fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &Pos
     // turns. It is distinguishable from multiple candidates: every intermediate chunk is
     // text-only and unfinished, while the final chunk alone carries a finish reason.
     //
+    // A span covering several model responses - a client that runs the tool loop itself streams
+    // one response per round - holds several such streams back to back, each ended by the one
+    // chunk with a finish reason. Each stream is combined on its own; finished messages between
+    // them, such as a round's function call, stay as they are.
+    //
     // Do this at query time so captures already stored with that shape are repaired too. Keep
     // the first item's position because the combined observation starts where the stream starts.
     let source_name = match &raw.source {
         MessageSource::Event { name, .. } => name.as_str(),
         MessageSource::Attribute { key, .. } => key.as_str(),
     };
-    if source_name == "gen_ai.output.messages"
-        && let Some(combined) = coalesce_streamed_output_messages(arr)
-    {
-        result.push((
-            RawMessage {
-                source: raw.source.clone(),
-                content: combined,
-            },
-            array_path.child_index(0),
-        ));
-        return;
+    if source_name == "gen_ai.output.messages" {
+        let runs = streamed_runs(arr);
+        if runs.iter().any(|run| run.combined.is_some()) {
+            for run in runs {
+                match run.combined {
+                    Some(combined) => result.push((
+                        RawMessage {
+                            source: raw.source.clone(),
+                            content: combined,
+                        },
+                        array_path.child_index(run.start),
+                    )),
+                    None => {
+                        for position in run.start..run.end {
+                            if is_message_like_object(&arr[position]) {
+                                result.push((
+                                    RawMessage {
+                                        source: raw.source.clone(),
+                                        content: arr[position].clone(),
+                                    },
+                                    array_path.child_index(position),
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+            return;
+        }
     }
 
     // Expand array into individual messages
@@ -387,6 +410,35 @@ fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &Pos
             "Expanded message array with some non-message items skipped"
         );
     }
+}
+
+/// One response of an output array: the messages `start..end`, the last of which is the first to
+/// carry a finish reason (or the array's end), and their combination when they are chunk framing.
+struct StreamedRun {
+    start: usize,
+    end: usize,
+    combined: Option<JsonValue>,
+}
+
+fn streamed_runs(messages: &[JsonValue]) -> Vec<StreamedRun> {
+    let mut runs = Vec::new();
+    let mut start = 0;
+    for (index, message) in messages.iter().enumerate() {
+        let finished = message
+            .get("finish_reason")
+            .and_then(JsonValue::as_str)
+            .is_some_and(|finish| !finish.is_empty());
+        if finished || index + 1 == messages.len() {
+            let end = index + 1;
+            runs.push(StreamedRun {
+                start,
+                end,
+                combined: coalesce_streamed_output_messages(&messages[start..end]),
+            });
+            start = end;
+        }
+    }
+    runs
 }
 
 /// Combine a text-only output stream into the single assistant turn it represents.

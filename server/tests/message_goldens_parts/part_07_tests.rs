@@ -13,6 +13,7 @@ fn occurrence_row(index: usize, position: &str, proves_occurrence: bool) -> Inva
         carrier: "attr:ordered-conversation".to_string(),
         carrier_orders_positions: true,
         carrier_proves_occurrence: proves_occurrence,
+        order_time: chrono::DateTime::UNIX_EPOCH,
         position: position.to_string(),
     }
 }
@@ -37,6 +38,7 @@ fn reused_id_row(index: usize, kind: &str) -> InvariantRow {
         carrier: "attr:test".to_string(),
         carrier_orders_positions: true,
         carrier_proves_occurrence: true,
+        order_time: chrono::DateTime::UNIX_EPOCH,
         position: index.to_string(),
     }
 }

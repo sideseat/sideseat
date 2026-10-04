@@ -733,3 +733,57 @@ fn an_overlapping_generation_span_is_ordered_without_a_manufactured_cycle() {
          itself - if this stops firing the case no longer exercises the overlap branch"
     );
 }
+
+/// A client that runs the tool loop itself reports every round on one generation span: the output
+/// array holds the call and, after it, the answer the model wrote once the result came back. Both
+/// rounds carry the one attribute's timestamp, and read as one response they left no room for the
+/// tool span's result, which came back last - after the answer it produced.
+#[test]
+fn a_tool_result_sits_between_the_rounds_of_one_generation_span() {
+    let t0 = fixed_time();
+    let at = |ms: i64| t0 + chrono::Duration::milliseconds(ms);
+    let generation = json!([
+        {
+            "source": {"attribute": {"key": "gen_ai.input.messages", "time": at(0).to_rfc3339()}},
+            "content": [{"role": "user", "parts": [{"type": "text", "content": "Weather in Rome?"}]}]
+        },
+        {
+            "source": {"attribute": {"key": "gen_ai.output.messages", "time": at(30).to_rfc3339()}},
+            "content": [
+                {"role": "assistant", "finish_reason": "stop", "parts": [
+                    {"type": "tool_call", "id": "call-1", "name": "get_weather", "arguments": {"city": "Rome"}}
+                ]},
+                {"role": "assistant", "finish_reason": "stop", "parts": [
+                    {"type": "text", "content": "Sunny, wear light layers."}
+                ]}
+            ]
+        }
+    ]);
+    let tool = json!([{
+        "source": {"attribute": {"key": "gen_ai.tool.call.result", "time": at(20).to_rfc3339()}},
+        "content": {"role": "tool", "content": [
+            {"type": "tool_result", "tool_use_id": "call-1", "name": "get_weather", "content": "sunny"}
+        ]}
+    }]);
+    let mut tool_row = make_span_row_with_timestamps(
+        "trace1",
+        "tool",
+        Some("generation"),
+        &tool.to_string(),
+        at(10),
+        Some(at(20)),
+    );
+    tool_row.observation_type = Some("tool".to_string());
+    let rows = vec![
+        make_span_row_with_timestamps("trace1", "generation", None, &generation.to_string(), at(0), Some(at(30))),
+        tool_row,
+    ];
+
+    let kinds: Vec<String> = process_spans(rows, &FeedOptions::new())
+        .messages
+        .iter()
+        .map(|b| b.entry_type.clone())
+        .collect();
+
+    assert_eq!(kinds, ["text", "tool_use", "tool_result", "text"]);
+}

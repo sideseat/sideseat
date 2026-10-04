@@ -9,6 +9,7 @@ fn invariant_checks_are_not_vacuous() {
             carrier: "attr:test".to_string(),
             carrier_orders_positions: true,
             carrier_proves_occurrence: false,
+            order_time: chrono::DateTime::UNIX_EPOCH,
             position: index.to_string(),
             trace_id: trace.to_string(),
             span_id: "span-1".to_string(),
@@ -28,6 +29,7 @@ fn invariant_checks_are_not_vacuous() {
             carrier: "attr:test".to_string(),
             carrier_orders_positions: true,
             carrier_proves_occurrence: false,
+            order_time: chrono::DateTime::UNIX_EPOCH,
             position: index.to_string(),
             trace_id: trace.to_string(),
             span_id: "span-1".to_string(),
@@ -117,6 +119,7 @@ fn invariant_checks_are_not_vacuous() {
     let leaked = vec![InvariantRow {
         carrier_orders_positions: true,
         carrier_proves_occurrence: false,
+        order_time: chrono::DateTime::UNIX_EPOCH,
         carrier: "attr:test".to_string(),
         position: "0".to_string(),
         trace_id: "aaaaaaaa1111".to_string(),

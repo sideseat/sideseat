@@ -376,6 +376,8 @@ struct InvariantRow {
     carrier_proves_occurrence: bool,
     /// Where the block sat in that carrier's payload, as a sortable string.
     position: String,
+    /// The response the block belongs to, by its anchor: the project feed descends across responses.
+    order_time: chrono::DateTime<chrono::Utc>,
 }
 
 /// Which API endpoint a view reproduces. Every one of them calls `process_spans`; what
@@ -469,6 +471,7 @@ fn build_view(rows: Vec<MessageSpanRow>, view: View<'_>) -> (GoldenView, Vec<Inv
                 position: block.position.to_string(),
                 carrier_orders_positions: semantics.position_provides_sequence_order,
                 carrier_proves_occurrence: semantics.position_proves_distinct_occurrence,
+                order_time: block.order_time,
             }
         })
         .collect();

@@ -101,10 +101,22 @@ fn assert_tool_causality(label: &str, view_name: &str, rows: &[InvariantRow]) {
 /// diverge at an index, and to nothing else.
 ///
 /// Scoped per (trace, span, carrier): across carriers or spans, order comes from other evidence, and
-/// demanding a global position order would falsely accuse every re-sent history.
-fn assert_carrier_subsequence(label: &str, view_name: &str, rows: &[InvariantRow]) {
-    /// One carrier of one span: (trace, span, carrier).
-    type CarrierKey<'a> = (&'a str, &'a str, &'a str);
+/// demanding a global position order would falsely accuse every re-sent history. In the project feed
+/// it is scoped per response as well, because the feed descends across responses by contract and one
+/// carrier can hold several - a client that runs its own tool loop reports every round on one span.
+fn assert_carrier_subsequence(
+    label: &str,
+    view_name: &str,
+    rows: &[InvariantRow],
+    per_response: bool,
+) {
+    /// One carrier of one span, and in the feed one response of it.
+    type CarrierKey<'a> = (
+        &'a str,
+        &'a str,
+        &'a str,
+        Option<chrono::DateTime<chrono::Utc>>,
+    );
     /// A block of that carrier: (position path, index in the returned feed).
     type Placed<'a> = (&'a str, usize);
 
@@ -124,12 +136,13 @@ fn assert_carrier_subsequence(label: &str, view_name: &str, rows: &[InvariantRow
             row.trace_id.as_str(),
             row.span_id.as_str(),
             row.carrier.as_str(),
+            per_response.then_some(row.order_time),
         ))
         .or_default()
         .push((row.position.as_str(), position));
     }
 
-    for ((_, span_id, carrier), blocks) in seen {
+    for ((_, span_id, carrier, _), blocks) in seen {
         for (i, (earlier_path, earlier_index)) in blocks.iter().enumerate() {
             for (later_path, later_index) in blocks.iter().skip(i + 1) {
                 let Some((earlier_sibling, later_sibling)) =
@@ -367,7 +380,7 @@ fn check_invariants(label: &str, built: &Built) {
     for (name, scope, rows) in &built.invariants {
         assert_scope(label, name, scope, rows);
         assert_no_duplicates(label, name, rows);
-        assert_carrier_subsequence(label, name, rows);
+        assert_carrier_subsequence(label, name, rows, matches!(scope, Scope::Feed));
         // Causality applies to every chronological view, span views included. It reads only *matched*
         // pairs, so it is vacuous for the usual span holding one half - while a span that holds both,
         // as an ADK `call_llm` does, is exactly where an inversion hides: one such view listed both

@@ -162,6 +162,7 @@ pub(super) fn collect_order_evidence(
     // `gcp.vertex.agent.llm_request` and LangGraph's `output.value`.
     let mut carriers: HashMap<PayloadKey<'_>, usize> = HashMap::new();
     let mut input_families: HashMap<(String, String), usize> = HashMap::new();
+    let responses = attribute_responses(blocks);
     blocks
         .iter()
         .map(|block| {
@@ -212,8 +213,12 @@ pub(super) fn collect_order_evidence(
                 .or_insert(next_carrier);
             let emission = credible.then(|| {
                 let next = instances.len();
+                let scope = match responses.response_of(block) {
+                    0 => emission_scope(block),
+                    response => format!("{}#{response}", emission_scope(block)),
+                };
                 *instances
-                    .entry((block.span_id.clone(), emission_scope(block)))
+                    .entry((block.span_id.clone(), scope))
                     .or_insert(next)
             });
             // Two fragmented input families, each measured on its own, deliberately not every ordered
@@ -284,6 +289,47 @@ pub(super) fn collect_order_evidence(
             }
         })
         .collect()
+}
+
+/// Where each output attribute's responses end: the messages that carry a finish reason.
+///
+/// An output attribute is one payload, but not always one response. A client that runs the tool loop
+/// itself reports every round on one span - the call, then the answer written after the call's result
+/// - so contracting the whole payload into one emission left no room for the result between them.
+/// A message with a finish reason closes its response; the payload keeps its order across them,
+/// through the carrier sequence, while each response is atomic on its own. Only a generation span's
+/// output is read this way: an agent span re-listing a turn reports one message, not model rounds.
+struct AttributeResponses<'a> {
+    finished: HashMap<(&'a str, &'a str), BTreeSet<i32>>,
+}
+
+impl AttributeResponses<'_> {
+    /// Which response of its attribute payload `block` belongs to; 0 for anything else.
+    fn response_of(&self, block: &BlockEntry) -> usize {
+        let Some(attribute) = block.source_attribute.as_deref() else {
+            return 0;
+        };
+        self.finished
+            .get(&(block.span_id.as_str(), attribute))
+            .map_or(0, |ends| ends.range(..block.message_index).count())
+    }
+}
+
+fn attribute_responses(blocks: &[BlockEntry]) -> AttributeResponses<'_> {
+    let mut finished: HashMap<(&str, &str), BTreeSet<i32>> = HashMap::new();
+    for block in blocks {
+        if let (true, Some(attribute), Some(_)) = (
+            block.is_output_source() && block.is_generation_span(),
+            block.source_attribute.as_deref(),
+            block.finish_reason.as_ref(),
+        ) {
+            finished
+                .entry((block.span_id.as_str(), attribute))
+                .or_default()
+                .insert(block.message_index);
+        }
+    }
+    AttributeResponses { finished }
 }
 
 /// Which emission of its span an observation belongs to.

@@ -252,6 +252,56 @@ fn test_expand_message_array_coalesces_google_genai_stream_chunks() {
     );
 }
 
+/// A client that runs the tool loop itself streams one response per round, and its span holds them
+/// all: the first round's function call, then the answer in chunks. The answer used to stay split,
+/// because the function call disqualified the whole array from coalescing.
+#[test]
+fn test_expand_message_array_coalesces_each_stream_of_a_tool_loop() {
+    let call = json!({
+        "role": "assistant",
+        "parts": [{"type": "tool_call", "id": "c1", "name": "get_weather", "arguments": {"city": "Rome"}}],
+        "finish_reason": "stop"
+    });
+    let raw = RawMessage {
+        source: MessageSource::Attribute {
+            key: "gen_ai.output.messages".to_string(),
+            time: Utc::now(),
+        },
+        content: json!([
+            call,
+            {
+                "role": "assistant",
+                "parts": [{"content": "Rome is sunny. Wea", "type": "text"}],
+                "finish_reason": ""
+            },
+            {
+                "role": "assistant",
+                "parts": [{"content": "r light layers.", "type": "text"}],
+                "finish_reason": "stop"
+            }
+        ]),
+    };
+
+    let mut result = Vec::new();
+    expand_message_array(&mut result, &raw, &PositionPath::root(0));
+
+    let contents: Vec<_> = result.iter().map(|(raw, _)| raw.content.clone()).collect();
+    assert_eq!(
+        contents,
+        vec![
+            call,
+            json!({
+                "role": "assistant",
+                "parts": [{"content": "Rome is sunny. Wear light layers.", "type": "text"}],
+                "finish_reason": "stop"
+            })
+        ]
+    );
+    let positions: Vec<_> = result.iter().map(|(_, path)| path.clone()).collect();
+    let root = PositionPath::root(0);
+    assert_eq!(positions, vec![root.child_index(0), root.child_index(1)]);
+}
+
 #[test]
 fn test_expand_message_array_keeps_multiple_finished_candidates_separate() {
     let raw = RawMessage {

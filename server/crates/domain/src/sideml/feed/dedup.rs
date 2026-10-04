@@ -161,14 +161,50 @@ fn batch_key(block: &BlockEntry) -> (String, String, DateTime<Utc>, bool) {
     )
 }
 
+/// A response: the batch a block belongs to, and which response of that batch.
+type ResponseKey = ((String, String, DateTime<Utc>, bool), usize);
+
+/// The response each block belongs to, in the order of `blocks`.
+///
+/// One output carrier can hold several responses. A client that runs the tool loop itself reports
+/// every round of it on one span - the call, then the answer written after the call's result - and
+/// all of them carry the carrier's one timestamp. A message with a finish reason ends a response, so
+/// the output messages after it start the next one, and a tool result can sit between the two.
+/// Inputs are left whole: what a span was sent is one request, whatever finish reasons it repeats; so
+/// is an agent span's output, which re-lists a turn rather than reporting model rounds.
+fn response_keys<'a>(blocks: impl Iterator<Item = &'a BlockEntry> + Clone) -> Vec<ResponseKey> {
+    let mut finished: HashMap<
+        (String, String, DateTime<Utc>, bool),
+        std::collections::BTreeSet<i32>,
+    > = HashMap::new();
+    for block in blocks.clone() {
+        if block.is_output_source() && block.is_generation_span() && block.finish_reason.is_some() {
+            finished
+                .entry(batch_key(block))
+                .or_default()
+                .insert(block.message_index);
+        }
+    }
+    blocks
+        .map(|block| {
+            let batch = batch_key(block);
+            let ordinal = finished
+                .get(&batch)
+                .map_or(0, |ends| ends.range(..block.message_index).count());
+            (batch, ordinal)
+        })
+        .collect()
+}
+
 /// The earliest birth time in each response, which is the time all of its blocks sort at.
 fn batch_times(
     paired: &[(DateTime<Utc>, BlockEntry)],
-) -> HashMap<(String, String, DateTime<Utc>, bool), DateTime<Utc>> {
-    let mut times: HashMap<(String, String, DateTime<Utc>, bool), DateTime<Utc>> = HashMap::new();
-    for (birth, block) in paired {
+    responses: &[ResponseKey],
+) -> HashMap<ResponseKey, DateTime<Utc>> {
+    let mut times: HashMap<ResponseKey, DateTime<Utc>> = HashMap::new();
+    for ((birth, _), response) in paired.iter().zip(responses) {
         times
-            .entry(batch_key(block))
+            .entry(response.clone())
             .and_modify(|earliest| {
                 if birth < earliest {
                     *earliest = *birth;
@@ -700,14 +736,16 @@ pub(super) fn process_dedup_with_lineage_and_ordinals(
     // comparison follows from the key.
     // Keyed once per block, not per comparison: `batch_key` allocates, and a comparator that
     // builds it on both sides does so O(n log n) times on a feed that can hold thousands of blocks.
-    let times = batch_times(&paired);
+    let responses = response_keys(paired.iter().map(|(_, block)| block));
+    let times = batch_times(&paired, &responses);
     let mut keyed: Vec<(BlockSortKey, DateTime<Utc>, BlockEntry, usize)> = paired
         .into_iter()
         .zip(dedup_order)
-        .map(|((birth, block), dedup_index)| {
+        .zip(responses)
+        .map(|(((birth, block), dedup_index), response)| {
             let span = (block.trace_id.clone(), block.span_id.clone());
             let key = BlockSortKey {
-                batch_time: times.get(&batch_key(&block)).copied().unwrap_or(birth),
+                batch_time: times.get(&response).copied().unwrap_or(birth),
                 span,
                 message_index: block.message_index,
                 entry_index: block.entry_index,
