@@ -1,247 +1,98 @@
 {
   "label": "agent-framework/sdk/reasoning",
   "request_count": 1,
-  "span_count": 7,
+  "span_count": 3,
   "trace_count": 1,
   "session_count": 1,
   "span_views": {
-    "trace-1/agent_framework.session/span-1": {
+    "trace-1/chat global.anthropic.claude-sonnet-5-5/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the schedule?",
+          "content_digest": "fee6de4ff136c52a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "This is the classic bridge and torch puzzle with crossing times 1, 2, 5, 10 minutes, and the optimal answer is 17 minutes. I'm working out the sequence: send 1 and 2 across together, send 1 back, send 5 and 10 across together, send 2 back, …[9553 chars]",
+          "content_digest": "2b7ab7158171e7c2",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**The fastest total time is 17 minutes.** **Schedule** | Step | Move | Time | Elapsed | |---|---|---|---| | 1 | 1 and 2 cross together | 2 | 2 | | 2 | 1 walks back with the torch | 1 | 3 | | 3 | 5 and 10 cross together | 10 | 13 | | 4 | 2 w…[1425 chars]",
+          "content_digest": "58491d7e184b425b",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/invoke_agent assistant/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the schedule?",
+          "content_digest": "fee6de4ff136c52a",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "This is the classic bridge and torch puzzle with crossing times 1, 2, 5, 10 minutes, and the optimal answer is 17 minutes. I'm working out the sequence: send 1 and 2 across together, send 1 back, send 5 and 10 across together, send 2 back, …[9553 chars]",
+          "content_digest": "2b7ab7158171e7c2",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**The fastest total time is 17 minutes.** **Schedule** | Step | Move | Time | Elapsed | |---|---|---|---| | 1 | 1 and 2 cross together | 2 | 2 | | 2 | 1 walks back with the torch | 1 | 3 | | 3 | 5 and 10 cross together | 10 | 13 | | 4 | 2 w…[1425 chars]",
+          "content_digest": "58491d7e184b425b",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/reasoning/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
-    },
-    "trace-1/chat gpt-5-nano-2025-08-07/span-3": {
-      "message_count": 3,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a precise analytical assistant that solves problems using careful step-by-step reasoning. Always show your work and explain your thought process clearly. When solving puzzles or problems: 1. First understand what is being asked 2. I…[419 chars]",
-          "content_digest": "5d7906f7726f06b7",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Solve this logic puzzle step by step: Three friends (Alice, Bob, Carol) each have a different pet (cat, dog, fish) and live in different colored houses (red, blue, green). Clues: 1. Alice doesn't live in the red house 2. The person with the…[414 chars]",
-          "content_digest": "037aab7424da917a",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "This is a deterministic local response.",
-          "content_digest": "cabe67b517eb819b",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "trace-1/chat gpt-5-nano-2025-08-07/span-5": {
-      "message_count": 3,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a precise analytical assistant that solves problems using careful step-by-step reasoning. Always show your work and explain your thought process clearly. When solving puzzles or problems: 1. First understand what is being asked 2. I…[419 chars]",
-          "content_digest": "5d7906f7726f06b7",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "A water tank has two pipes. Pipe A can fill the tank in 6 hours. Pipe B can empty the tank in 8 hours. If both pipes are opened when the tank is half full, how long will it take to fill the tank completely? Show your reasoning step by step.",
-          "content_digest": "cdaca6f5888cd52c",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "This is a deterministic local response.",
-          "content_digest": "cabe67b517eb819b",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "trace-1/chat gpt-5-nano-2025-08-07/span-7": {
-      "message_count": 3,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a precise analytical assistant that solves problems using careful step-by-step reasoning. Always show your work and explain your thought process clearly. When solving puzzles or problems: 1. First understand what is being asked 2. I…[419 chars]",
-          "content_digest": "5d7906f7726f06b7",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Analyze this Python function and explain what it computes: ```python def mystery(n): if n <= 1: return n a, b = 0, 1 for _ in range(2, n + 1): a, b = b, a + b return b ``` What mathematical sequence does this implement? Prove your answer by…[265 chars]",
-          "content_digest": "ff3a1fd7c1a725cc",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "This is a deterministic local response.",
-          "content_digest": "cabe67b517eb819b",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "trace-1/invoke_agent 3a0151ee-7e20-45d1-8994-15059ba16f19/span-2": {
-      "message_count": 3,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a precise analytical assistant that solves problems using careful step-by-step reasoning. Always show your work and explain your thought process clearly. When solving puzzles or problems: 1. First understand what is being asked 2. I…[419 chars]",
-          "content_digest": "5d7906f7726f06b7",
-          "observation_type": "agent"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Solve this logic puzzle step by step: Three friends (Alice, Bob, Carol) each have a different pet (cat, dog, fish) and live in different colored houses (red, blue, green). Clues: 1. Alice doesn't live in the red house 2. The person with the…[414 chars]",
-          "content_digest": "037aab7424da917a",
-          "observation_type": "agent"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "This is a deterministic local response.",
-          "content_digest": "cabe67b517eb819b",
-          "observation_type": "agent"
-        }
-      ]
-    },
-    "trace-1/invoke_agent 3a0151ee-7e20-45d1-8994-15059ba16f19/span-4": {
-      "message_count": 3,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a precise analytical assistant that solves problems using careful step-by-step reasoning. Always show your work and explain your thought process clearly. When solving puzzles or problems: 1. First understand what is being asked 2. I…[419 chars]",
-          "content_digest": "5d7906f7726f06b7",
-          "observation_type": "agent"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "A water tank has two pipes. Pipe A can fill the tank in 6 hours. Pipe B can empty the tank in 8 hours. If both pipes are opened when the tank is half full, how long will it take to fill the tank completely? Show your reasoning step by step.",
-          "content_digest": "cdaca6f5888cd52c",
-          "observation_type": "agent"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "This is a deterministic local response.",
-          "content_digest": "cabe67b517eb819b",
-          "observation_type": "agent"
-        }
-      ]
-    },
-    "trace-1/invoke_agent 3a0151ee-7e20-45d1-8994-15059ba16f19/span-6": {
-      "message_count": 3,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a precise analytical assistant that solves problems using careful step-by-step reasoning. Always show your work and explain your thought process clearly. When solving puzzles or problems: 1. First understand what is being asked 2. I…[419 chars]",
-          "content_digest": "5d7906f7726f06b7",
-          "observation_type": "agent"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Analyze this Python function and explain what it computes: ```python def mystery(n): if n <= 1: return n a, b = 0, 1 for _ in range(2, n + 1): a, b = b, a + b return b ``` What mathematical sequence does this implement? Prove your answer by…[265 chars]",
-          "content_digest": "ff3a1fd7c1a725cc",
-          "observation_type": "agent"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "This is a deterministic local response.",
-          "content_digest": "cabe67b517eb819b",
-          "observation_type": "agent"
-        }
-      ]
     }
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 7,
+      "message_count": 3,
       "role_sequence": [
-        "system",
         "user",
         "assistant",
-        "user",
-        "assistant",
-        "user",
         "assistant"
       ],
       "tool_names": [],
@@ -249,60 +100,27 @@
       "messages": [
         {
           "index": 0,
-          "role": "system",
+          "role": "user",
           "entry_type": "text",
-          "content": "You are a precise analytical assistant that solves problems using careful step-by-step reasoning. Always show your work and explain your thought process clearly. When solving puzzles or problems: 1. First understand what is being asked 2. I…[419 chars]",
-          "content_digest": "5d7906f7726f06b7",
+          "content": "Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the schedule?",
+          "content_digest": "fee6de4ff136c52a",
           "observation_type": "agent"
         },
         {
           "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Solve this logic puzzle step by step: Three friends (Alice, Bob, Carol) each have a different pet (cat, dog, fish) and live in different colored houses (red, blue, green). Clues: 1. Alice doesn't live in the red house 2. The person with the…[414 chars]",
-          "content_digest": "037aab7424da917a",
-          "observation_type": "agent"
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "This is the classic bridge and torch puzzle with crossing times 1, 2, 5, 10 minutes, and the optimal answer is 17 minutes. I'm working out the sequence: send 1 and 2 across together, send 1 back, send 5 and 10 across together, send 2 back, …[9553 chars]",
+          "content_digest": "2b7ab7158171e7c2",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
           "entry_type": "text",
-          "content": "This is a deterministic local response.",
-          "content_digest": "cabe67b517eb819b",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "user",
-          "entry_type": "text",
-          "content": "A water tank has two pipes. Pipe A can fill the tank in 6 hours. Pipe B can empty the tank in 8 hours. If both pipes are opened when the tank is half full, how long will it take to fill the tank completely? Show your reasoning step by step.",
-          "content_digest": "cdaca6f5888cd52c",
-          "observation_type": "agent"
-        },
-        {
-          "index": 4,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "This is a deterministic local response.",
-          "content_digest": "cabe67b517eb819b",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 5,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Analyze this Python function and explain what it computes: ```python def mystery(n): if n <= 1: return n a, b = 0, 1 for _ in range(2, n + 1): a, b = b, a + b return b ``` What mathematical sequence does this implement? Prove your answer by…[265 chars]",
-          "content_digest": "ff3a1fd7c1a725cc",
-          "observation_type": "agent"
-        },
-        {
-          "index": 6,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "This is a deterministic local response.",
-          "content_digest": "cabe67b517eb819b",
+          "content": "**The fastest total time is 17 minutes.** **Schedule** | Step | Move | Time | Elapsed | |---|---|---|---| | 1 | 1 and 2 cross together | 2 | 2 | | 2 | 1 walks back with the torch | 1 | 3 | | 3 | 5 and 10 cross together | 10 | 13 | | 4 | 2 w…[1425 chars]",
+          "content_digest": "58491d7e184b425b",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -310,15 +128,11 @@
     }
   },
   "session_views": {
-    "agent-framework-reasoning-3d3c7452": {
-      "message_count": 7,
+    "agent-framework-reasoning": {
+      "message_count": 3,
       "role_sequence": [
-        "system",
         "user",
         "assistant",
-        "user",
-        "assistant",
-        "user",
         "assistant"
       ],
       "tool_names": [],
@@ -326,60 +140,27 @@
       "messages": [
         {
           "index": 0,
-          "role": "system",
+          "role": "user",
           "entry_type": "text",
-          "content": "You are a precise analytical assistant that solves problems using careful step-by-step reasoning. Always show your work and explain your thought process clearly. When solving puzzles or problems: 1. First understand what is being asked 2. I…[419 chars]",
-          "content_digest": "5d7906f7726f06b7",
+          "content": "Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the schedule?",
+          "content_digest": "fee6de4ff136c52a",
           "observation_type": "agent"
         },
         {
           "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Solve this logic puzzle step by step: Three friends (Alice, Bob, Carol) each have a different pet (cat, dog, fish) and live in different colored houses (red, blue, green). Clues: 1. Alice doesn't live in the red house 2. The person with the…[414 chars]",
-          "content_digest": "037aab7424da917a",
-          "observation_type": "agent"
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "This is the classic bridge and torch puzzle with crossing times 1, 2, 5, 10 minutes, and the optimal answer is 17 minutes. I'm working out the sequence: send 1 and 2 across together, send 1 back, send 5 and 10 across together, send 2 back, …[9553 chars]",
+          "content_digest": "2b7ab7158171e7c2",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
           "entry_type": "text",
-          "content": "This is a deterministic local response.",
-          "content_digest": "cabe67b517eb819b",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "user",
-          "entry_type": "text",
-          "content": "A water tank has two pipes. Pipe A can fill the tank in 6 hours. Pipe B can empty the tank in 8 hours. If both pipes are opened when the tank is half full, how long will it take to fill the tank completely? Show your reasoning step by step.",
-          "content_digest": "cdaca6f5888cd52c",
-          "observation_type": "agent"
-        },
-        {
-          "index": 4,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "This is a deterministic local response.",
-          "content_digest": "cabe67b517eb819b",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 5,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Analyze this Python function and explain what it computes: ```python def mystery(n): if n <= 1: return n a, b = 0, 1 for _ in range(2, n + 1): a, b = b, a + b return b ``` What mathematical sequence does this implement? Prove your answer by…[265 chars]",
-          "content_digest": "ff3a1fd7c1a725cc",
-          "observation_type": "agent"
-        },
-        {
-          "index": 6,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "This is a deterministic local response.",
-          "content_digest": "cabe67b517eb819b",
+          "content": "**The fastest total time is 17 minutes.** **Schedule** | Step | Move | Time | Elapsed | |---|---|---|---| | 1 | 1 and 2 cross together | 2 | 2 | | 2 | 1 walks back with the torch | 1 | 3 | | 3 | 5 and 10 cross together | 10 | 13 | | 4 | 2 w…[1425 chars]",
+          "content_digest": "58491d7e184b425b",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -387,14 +168,10 @@
     }
   },
   "feed_view": {
-    "message_count": 7,
+    "message_count": 3,
     "role_sequence": [
       "assistant",
-      "user",
       "assistant",
-      "user",
-      "assistant",
-      "system",
       "user"
     ],
     "tool_names": [],
@@ -403,60 +180,27 @@
       {
         "index": 0,
         "role": "assistant",
-        "entry_type": "text",
-        "content": "This is a deterministic local response.",
-        "content_digest": "cabe67b517eb819b",
+        "entry_type": "thinking",
+        "content": "This is the classic bridge and torch puzzle with crossing times 1, 2, 5, 10 minutes, and the optimal answer is 17 minutes. I'm working out the sequence: send 1 and 2 across together, send 1 back, send 5 and 10 across together, send 2 back, …[9553 chars]",
+        "content_digest": "2b7ab7158171e7c2",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {
         "index": 1,
-        "role": "user",
+        "role": "assistant",
         "entry_type": "text",
-        "content": "Analyze this Python function and explain what it computes: ```python def mystery(n): if n <= 1: return n a, b = 0, 1 for _ in range(2, n + 1): a, b = b, a + b return b ``` What mathematical sequence does this implement? Prove your answer by…[265 chars]",
-        "content_digest": "ff3a1fd7c1a725cc",
-        "observation_type": "agent"
+        "content": "**The fastest total time is 17 minutes.** **Schedule** | Step | Move | Time | Elapsed | |---|---|---|---| | 1 | 1 and 2 cross together | 2 | 2 | | 2 | 1 walks back with the torch | 1 | 3 | | 3 | 5 and 10 cross together | 10 | 13 | | 4 | 2 w…[1425 chars]",
+        "content_digest": "58491d7e184b425b",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
       },
       {
         "index": 2,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "This is a deterministic local response.",
-        "content_digest": "cabe67b517eb819b",
-        "finish_reason": "Stop",
-        "observation_type": "generation"
-      },
-      {
-        "index": 3,
         "role": "user",
         "entry_type": "text",
-        "content": "A water tank has two pipes. Pipe A can fill the tank in 6 hours. Pipe B can empty the tank in 8 hours. If both pipes are opened when the tank is half full, how long will it take to fill the tank completely? Show your reasoning step by step.",
-        "content_digest": "cdaca6f5888cd52c",
-        "observation_type": "agent"
-      },
-      {
-        "index": 4,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "This is a deterministic local response.",
-        "content_digest": "cabe67b517eb819b",
-        "finish_reason": "Stop",
-        "observation_type": "generation"
-      },
-      {
-        "index": 5,
-        "role": "system",
-        "entry_type": "text",
-        "content": "You are a precise analytical assistant that solves problems using careful step-by-step reasoning. Always show your work and explain your thought process clearly. When solving puzzles or problems: 1. First understand what is being asked 2. I…[419 chars]",
-        "content_digest": "5d7906f7726f06b7",
-        "observation_type": "agent"
-      },
-      {
-        "index": 6,
-        "role": "user",
-        "entry_type": "text",
-        "content": "Solve this logic puzzle step by step: Three friends (Alice, Bob, Carol) each have a different pet (cat, dog, fish) and live in different colored houses (red, blue, green). Clues: 1. Alice doesn't live in the red house 2. The person with the…[414 chars]",
-        "content_digest": "037aab7424da917a",
+        "content": "Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the schedule?",
+        "content_digest": "fee6de4ff136c52a",
         "observation_type": "agent"
       }
     ]

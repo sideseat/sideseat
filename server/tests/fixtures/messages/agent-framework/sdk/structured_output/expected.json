@@ -5,14 +5,7 @@
   "trace_count": 1,
   "session_count": 1,
   "span_views": {
-    "trace-1/agent_framework.session/span-1": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "trace-1/chat gpt-5-nano-2025-08-07/span-3": {
+    "trace-1/chat global.anthropic.claude-sonnet-5-5/span-3": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -26,30 +19,30 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
-          "content": "You are a helpful assistant that extracts structured information from text.",
-          "content_digest": "965dc7374dfb1d1c",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Answer with only a JSON object that matches this schema: {\"description\": \"A short itinerary.\", \"propertie…[632 chars]",
+          "content_digest": "9b6c724459eb3735",
           "observation_type": "generation"
         },
         {
           "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
-          "content_digest": "6a08cceee02e13c8",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
           "entry_type": "text",
-          "content": "{\"name\":\"deterministic-name\",\"age\":1,\"address\":{\"street\":\"deterministic-street\",\"city\":\"Paris\",\"country\":\"deterministic-country\",\"postal_code\":\"deterministic-postal-code\"},\"contacts\":[{\"email\":\"deterministic-email\",\"phone\":\"deterministic-ph…[281 chars]",
-          "content_digest": "eacd2aec1a5c11a0",
+          "content": "{\"city\": \"Vienna\", \"days\": [\"Day 1: Tour Schönbrunn Palace and its gardens, then explore the Innere Stadt, including St. Stephen's Cathedral and the Hofburg, and have dinner at a traditional Beisl.\", \"Day 2: Visit the Belvedere to see Klimt…[385 chars]",
+          "content_digest": "a7985d58ca87c64f",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
     },
-    "trace-1/invoke_agent bd432e27-d8b7-4ad2-a9ea-4a99d236398f/span-2": {
+    "trace-1/invoke_agent assistant/span-2": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -63,27 +56,34 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
-          "content": "You are a helpful assistant that extracts structured information from text.",
-          "content_digest": "965dc7374dfb1d1c",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Answer with only a JSON object that matches this schema: {\"description\": \"A short itinerary.\", \"propertie…[632 chars]",
+          "content_digest": "9b6c724459eb3735",
           "observation_type": "agent"
         },
         {
           "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
-          "content_digest": "6a08cceee02e13c8",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
           "observation_type": "agent"
         },
         {
           "index": 2,
           "role": "assistant",
           "entry_type": "text",
-          "content": "{\"name\":\"deterministic-name\",\"age\":1,\"address\":{\"street\":\"deterministic-street\",\"city\":\"Paris\",\"country\":\"deterministic-country\",\"postal_code\":\"deterministic-postal-code\"},\"contacts\":[{\"email\":\"deterministic-email\",\"phone\":\"deterministic-ph…[281 chars]",
-          "content_digest": "eacd2aec1a5c11a0",
+          "content": "{\"city\": \"Vienna\", \"days\": [\"Day 1: Tour Schönbrunn Palace and its gardens, then explore the Innere Stadt, including St. Stephen's Cathedral and the Hofburg, and have dinner at a traditional Beisl.\", \"Day 2: Visit the Belvedere to see Klimt…[385 chars]",
+          "content_digest": "a7985d58ca87c64f",
           "observation_type": "agent"
         }
       ]
+    },
+    "trace-1/structured-output/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
     }
   },
   "trace_views": {
@@ -101,24 +101,24 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
-          "content": "You are a helpful assistant that extracts structured information from text.",
-          "content_digest": "965dc7374dfb1d1c",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Answer with only a JSON object that matches this schema: {\"description\": \"A short itinerary.\", \"propertie…[632 chars]",
+          "content_digest": "9b6c724459eb3735",
           "observation_type": "agent"
         },
         {
           "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
-          "content_digest": "6a08cceee02e13c8",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
           "observation_type": "agent"
         },
         {
           "index": 2,
           "role": "assistant",
           "entry_type": "text",
-          "content": "{\"name\":\"deterministic-name\",\"age\":1,\"address\":{\"street\":\"deterministic-street\",\"city\":\"Paris\",\"country\":\"deterministic-country\",\"postal_code\":\"deterministic-postal-code\"},\"contacts\":[{\"email\":\"deterministic-email\",\"phone\":\"deterministic-ph…[281 chars]",
-          "content_digest": "eacd2aec1a5c11a0",
+          "content": "{\"city\": \"Vienna\", \"days\": [\"Day 1: Tour Schönbrunn Palace and its gardens, then explore the Innere Stadt, including St. Stephen's Cathedral and the Hofburg, and have dinner at a traditional Beisl.\", \"Day 2: Visit the Belvedere to see Klimt…[385 chars]",
+          "content_digest": "a7985d58ca87c64f",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -126,7 +126,7 @@
     }
   },
   "session_views": {
-    "agent-framework-structured_output-3bd82b48": {
+    "agent-framework-structured_output": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -140,24 +140,24 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
-          "content": "You are a helpful assistant that extracts structured information from text.",
-          "content_digest": "965dc7374dfb1d1c",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Answer with only a JSON object that matches this schema: {\"description\": \"A short itinerary.\", \"propertie…[632 chars]",
+          "content_digest": "9b6c724459eb3735",
           "observation_type": "agent"
         },
         {
           "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
-          "content_digest": "6a08cceee02e13c8",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
           "observation_type": "agent"
         },
         {
           "index": 2,
           "role": "assistant",
           "entry_type": "text",
-          "content": "{\"name\":\"deterministic-name\",\"age\":1,\"address\":{\"street\":\"deterministic-street\",\"city\":\"Paris\",\"country\":\"deterministic-country\",\"postal_code\":\"deterministic-postal-code\"},\"contacts\":[{\"email\":\"deterministic-email\",\"phone\":\"deterministic-ph…[281 chars]",
-          "content_digest": "eacd2aec1a5c11a0",
+          "content": "{\"city\": \"Vienna\", \"days\": [\"Day 1: Tour Schönbrunn Palace and its gardens, then explore the Innere Stadt, including St. Stephen's Cathedral and the Hofburg, and have dinner at a traditional Beisl.\", \"Day 2: Visit the Belvedere to see Klimt…[385 chars]",
+          "content_digest": "a7985d58ca87c64f",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -178,8 +178,8 @@
         "index": 0,
         "role": "assistant",
         "entry_type": "text",
-        "content": "{\"name\":\"deterministic-name\",\"age\":1,\"address\":{\"street\":\"deterministic-street\",\"city\":\"Paris\",\"country\":\"deterministic-country\",\"postal_code\":\"deterministic-postal-code\"},\"contacts\":[{\"email\":\"deterministic-email\",\"phone\":\"deterministic-ph…[281 chars]",
-        "content_digest": "eacd2aec1a5c11a0",
+        "content": "{\"city\": \"Vienna\", \"days\": [\"Day 1: Tour Schönbrunn Palace and its gardens, then explore the Innere Stadt, including St. Stephen's Cathedral and the Hofburg, and have dinner at a traditional Beisl.\", \"Day 2: Visit the Belvedere to see Klimt…[385 chars]",
+        "content_digest": "a7985d58ca87c64f",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },
@@ -187,16 +187,16 @@
         "index": 1,
         "role": "system",
         "entry_type": "text",
-        "content": "You are a helpful assistant that extracts structured information from text.",
-        "content_digest": "965dc7374dfb1d1c",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Answer with only a JSON object that matches this schema: {\"description\": \"A short itinerary.\", \"propertie…[632 chars]",
+        "content_digest": "9b6c724459eb3735",
         "observation_type": "agent"
       },
       {
         "index": 2,
         "role": "user",
         "entry_type": "text",
-        "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
-        "content_digest": "6a08cceee02e13c8",
+        "content": "Plan a two-day trip to Vienna.",
+        "content_digest": "5f56235d64bfe00d",
         "observation_type": "agent"
       }
     ]

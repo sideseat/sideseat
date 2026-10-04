@@ -5,6 +5,9 @@ from harness import Run, content
 
 
 async def run(run: Run) -> None:
+    # Agent Framework tells the model only that the function failed unless asked for the details, and the
+    # scenario is the model reading the error.
+    run.llm.function_invocation_configuration["include_detailed_errors"] = True
     agent = Agent(
         client=run.llm,
         name="assistant",

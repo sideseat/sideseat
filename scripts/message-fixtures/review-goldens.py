@@ -100,22 +100,16 @@ INTENTIONAL_WARNINGS: dict[str, dict[str, tuple[int, str]]] = {
             "ADK represents transfer completion as quoted handoff context in the next agent",
         ),
     },
-    "agent-framework/structured_output": {
+    "agent-framework/native/structured_output": {
         "raw_json_text": (
             2,
-            "provider returns schema-constrained JSON as assistant text",
+            "the schema is prompted, so the model answers with JSON as text",
         ),
     },
-    "agent-framework-native/structured_output": {
+    "agent-framework/sdk/structured_output": {
         "raw_json_text": (
             2,
-            "provider returns schema-constrained JSON as assistant text",
-        ),
-    },
-    "agent-framework-sdk/structured_output": {
-        "raw_json_text": (
-            2,
-            "provider returns schema-constrained JSON as assistant text",
+            "the schema is prompted, so the model answers with JSON as text",
         ),
     },
     "agno/native/structured_output": {
