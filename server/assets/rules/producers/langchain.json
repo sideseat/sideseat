@@ -364,5 +364,36 @@
         ]
       }
     }
+  ],
+  "messages": [
+    {
+      "id": "langchain.prompt_value",
+      "doc": "What a chat prompt template rendered: the messages it will send, as LangChain message dicts under `messages`. Read as messages, so the rendered system and user turns are themselves rather than one opaque structured answer of the template's.",
+      "instrumentation_scope": {
+        "name": "openinference.instrumentation.langchain"
+      },
+      "when": {
+        "attr_equals_ignore_case": [
+          {
+            "key": "openinference.span.kind",
+            "value": "prompt"
+          }
+        ]
+      },
+      "read": {
+        "attribute": "output.value"
+      },
+      "parse": "json",
+      "emit": "message",
+      "legacy_rank": 590,
+      "alternatives": [
+        {
+          "id": "messages",
+          "doc": "The rendered conversation.",
+          "select": "$.messages[*]",
+          "then_fragment": "langchain.message"
+        }
+      ]
+    }
   ]
 }

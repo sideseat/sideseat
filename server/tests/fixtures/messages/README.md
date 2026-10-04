@@ -99,8 +99,8 @@ the corpus matches it.
 | `haystack/sdk` | SideSeat Python 1.0.8 / Haystack 3.3.0 / opentelemetry-haystack 1.0.0 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 | 1 | 1 |
 | `javascript/native` | OpenTelemetry JS 2.11.0 / OTLP exporter 0.222.0 on Node.js 26.9.0 | 1 | 1 |
 | `javascript/sdk` | SideSeat JavaScript 2.0.0 / OpenTelemetry JS 2.11.0 on Node.js 26.9.0 | 1 | 1 |
-| `langchain/native` | LangChain 1.4.3 / LangChain Core 1.6.6 / LangChain OpenAI 1.6.7 / OpenInference LangChain instrumentor 0.1.76 / OpenTelemetry Python 1.45.0 on CPython 3.13.7, native OTLP setup | 1 | 1 |
-| `langchain/sdk` | SideSeat Python 1.0.8 / LangChain 1.4.3 / LangChain Core 1.6.6 / LangChain OpenAI 1.6.7 / OpenInference LangChain instrumentor 0.1.76 / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 1 | 1 |
+| `langchain/native` | LangChain Core 1.6.6 / LangChain AWS 1.8.0 / OpenInference LangChain instrumentor 0.1.78 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup; no `multi_agent`, because LangChain's multi-agent patterns run on LangGraph | 10 | 12 |
+| `langchain/sdk` | SideSeat Python 2.0.0 / LangChain Core 1.6.6 / LangChain AWS 1.8.0 / OpenInference LangChain instrumentor 0.1.78 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 10 | 11 |
 | `langgraph/native` | LangGraph 1.2.12 / LangChain Core 1.6.6 / LangChain AWS 1.8.0 / OpenInference LangChain instrumentor 0.1.78 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup | 11 | 16 |
 | `langgraph/sdk` | SideSeat Python 2.0.0 / LangGraph 1.2.12 / LangChain Core 1.6.6 / LangChain AWS 1.8.0 / OpenInference LangChain instrumentor 0.1.78 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 11 | 11 |
 | `llama-index/native` | LlamaIndex Core 0.14.25 / LlamaIndex OpenAI 0.8.2 / OpenAI 2.54.0 (latest allowed by the adapter's `<3` constraint) / OpenInference LlamaIndex instrumentor 4.5.3 / OpenTelemetry Python 1.45.0 on CPython 3.13.7, native OTLP setup | 1 | 1 |

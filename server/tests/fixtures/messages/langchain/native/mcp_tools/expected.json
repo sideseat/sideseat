@@ -1,0 +1,294 @@
+{
+  "label": "langchain/native/mcp_tools",
+  "request_count": 1,
+  "span_count": 4,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/ChatBedrockConverse/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "calculate"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
+          "content_digest": "94524de89ab3c69f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_Zv3qABbWDx8vUsTNJBRx5K\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+          "content_digest": "1239045e158b6cf0",
+          "tool_name": "calculate",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/ChatBedrockConverse/span-4": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "calculate"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
+          "content_digest": "94524de89ab3c69f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_Zv3qABbWDx8vUsTNJBRx5K\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+          "content_digest": "1239045e158b6cf0",
+          "tool_name": "calculate",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "395.0",
+          "content_digest": "a263457d2638093c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "(17 × 23) + 4 = **395**.",
+          "content_digest": "52aaa6c961cd0f52",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/calculate/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-1/mcp-tools/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "calculate"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
+          "content_digest": "94524de89ab3c69f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_Zv3qABbWDx8vUsTNJBRx5K\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+          "content_digest": "1239045e158b6cf0",
+          "tool_name": "calculate",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "395.0",
+          "content_digest": "a263457d2638093c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "(17 × 23) + 4 = **395**.",
+          "content_digest": "52aaa6c961cd0f52",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "langchain-mcp_tools": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "calculate"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
+          "content_digest": "94524de89ab3c69f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_Zv3qABbWDx8vUsTNJBRx5K\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+          "content_digest": "1239045e158b6cf0",
+          "tool_name": "calculate",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "395.0",
+          "content_digest": "a263457d2638093c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "(17 × 23) + 4 = **395**.",
+          "content_digest": "52aaa6c961cd0f52",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 5,
+    "role_sequence": [
+      "tool",
+      "assistant",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [
+      "calculate"
+    ],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "395.0",
+        "content_digest": "a263457d2638093c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "(17 × 23) + 4 = **395**.",
+        "content_digest": "52aaa6c961cd0f52",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
+        "content_digest": "94524de89ab3c69f",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_Zv3qABbWDx8vUsTNJBRx5K\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+        "content_digest": "1239045e158b6cf0",
+        "tool_name": "calculate",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

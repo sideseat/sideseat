@@ -660,7 +660,6 @@ fn google_genai_flattened_tool_arguments_are_the_arguments_the_model_sent() {
         Some("Rome")
     );
 }
-
 /// A carrier whose whole content is a tool list is not also a conversation.
 ///
 /// The repr grammar runs on the metadata axis, outside claiming, which is right - a tool definition is not

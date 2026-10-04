@@ -34,6 +34,12 @@ class Warning:
 # Counts are exact across trace and session views: changing either the telemetry or the parser
 # makes the classification stale and returns the fixture to the unresolved review queue.
 INTENTIONAL_WARNINGS: dict[str, dict[str, tuple[int, str]]] = {
+    "langchain/native/structured_output": {
+        "unbalanced_tools": (2, "TripPlan is a terminal schema pseudo-tool"),
+    },
+    "langchain/sdk/structured_output": {
+        "unbalanced_tools": (2, "TripPlan is a terminal schema pseudo-tool"),
+    },
     "_synthetic/text_split_by_parallel_calls": {
         "unbalanced_tools": (
             1,
