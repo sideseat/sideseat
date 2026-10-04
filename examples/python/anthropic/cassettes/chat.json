@@ -1,0 +1,14 @@
+{
+ "interactions": [
+  {
+   "method": "POST",
+   "path": "/model/global.anthropic.claude-sonnet-5-5/invoke",
+   "status": 200,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "eyJtb2RlbCI6ImNsYXVkZS1zb25uZXQtNS01IiwiaWQiOiJtc2dfYmRya194ank1cGk1c2hqNmpnd2ZzZmJoajJ2aWJ0enZhcnNia2luNjZqaHF1Y251a3h0Z2JucWRxIiwidHlwZSI6Im1lc3NhZ2UiLCJyb2xlIjoiYXNzaXN0YW50IiwiY29udGVudCI6W3sidHlwZSI6InRleHQiLCJ0ZXh0IjoiS3lvdG8gaXMgYmVzdCBrbm93biBmb3IgaXRzIHdlbGwtcHJlc2VydmVkIHRlbXBsZXMsIHNocmluZXMsIGdlaXNoYSBkaXN0cmljdHMsIGFuZCB0cmFkaXRpb25hbCBjdWx0dXJlIGFzIEphcGFuJ3MgZm9ybWVyIGltcGVyaWFsIGNhcGl0YWwuIn1dLCJjb250YWluZXIiOm51bGwsInN0b3BfcmVhc29uIjoiZW5kX3R1cm4iLCJzdG9wX3NlcXVlbmNlIjpudWxsLCJzdG9wX2RldGFpbHMiOm51bGwsInVzYWdlIjp7ImlucHV0X3Rva2VucyI6NjcsImNhY2hlX2NyZWF0aW9uX2lucHV0X3Rva2VucyI6MCwiY2FjaGVfcmVhZF9pbnB1dF90b2tlbnMiOjAsImNhY2hlX2NyZWF0aW9uIjp7ImVwaGVtZXJhbF81bV9pbnB1dF90b2tlbnMiOjAsImVwaGVtZXJhbF8xaF9pbnB1dF90b2tlbnMiOjB9LCJvdXRwdXRfdG9rZW5zIjo0OCwib3V0cHV0X3Rva2Vuc19kZXRhaWxzIjp7InRoaW5raW5nX3Rva2VucyI6MH0sInNlcnZpY2VfdGllciI6InN0YW5kYXJkIn19",
+   "request_sha256": "0e46384e7b3d4bbfd0e140e294589816b31dd1ba911b404182ce3cbc1e5ababe"
+  }
+ ]
+}

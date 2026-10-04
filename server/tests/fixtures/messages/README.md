@@ -81,9 +81,7 @@ the corpus matches it.
 | `agentscope/sdk` | SideSeat Python 1.0.8 / AgentScope 2.0.9 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8 | 1 | 1 |
 | `agno/native` | Agno 3.0.11 / OpenAI 3.22.1 / OpenInference Agno instrumentor 1.0.12 / OpenTelemetry Python 1.45.0 on CPython 3.13.7, native OTLP setup | 1 | 1 |
 | `agno/sdk` | SideSeat Python 1.0.8 / Agno 3.0.11 / OpenAI 3.22.1 / OpenInference Agno instrumentor 1.0.12 / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 1 | 1 |
-| `anthropic/legacy` | anthropic >=0.84.0 | 7 | 18 |
-| `anthropic/native` | Anthropic 1.8.0 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.13.7 | 1 | 1 |
-| `anthropic/sdk` | SideSeat Python 1.0.8 / Anthropic 1.8.0 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.13.7 | 1 | 1 |
+| `anthropic/sdk` | SideSeat Python 2.0.0 / Anthropic 1.11.0 (AnthropicBedrock) / Logfire 5.1.1 / OpenTelemetry Python 1.44.0 on CPython 3.13.7; SDK only, because native Logfire 5.1.1 abandons the span of every Anthropic 1.11 call made without tools (it JSON-encodes the SDK's `Omit` sentinel), which the SideSeat integration repairs | 9 | 9 |
 | `autogen/native` | AutoGen AgentChat 0.7.5 / AutoGen Ext 0.7.5 / OpenInference AutoGen instrumentor 0.1.18 / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 1 | 1 |
 | `autogen/sdk` | SideSeat Python 1.0.8 / AutoGen AgentChat 0.7.5 / AutoGen Ext 0.7.5 / OpenInference AutoGen instrumentor 0.1.18 / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 1 | 1 |
 | `azure-openai/native` | OpenAI 3.22.1 / OpenInference OpenAI instrumentor 0.1.62 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup | 1 | 1 |
@@ -132,7 +130,7 @@ the corpus matches it.
 | `vercel-ai-js/legacy` | ai ^7.0.79 | 6 | 13 |
 | `vertex-ai/native` | Google GenAI 2.28.0 / Logfire 5.1.1 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.13.7, native Logfire setup with the current `enterprise=True` Vertex mode, against the harness's fake Gemini server; reasoning thoughts arrive as text parts (the instrumentation drops Gemini's `thought` flag) and a failed tool call as an error message rather than a tool result | 9 | 9 |
 | `vertex-ai/sdk` | SideSeat Python 2.0.0 / Google GenAI 2.28.0 / Logfire 5.1.1 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.13.7, current `enterprise=True` Vertex mode, against the harness's fake Gemini server | 9 | 9 |
-| **64 suites** | | **282** | **417** |
+| **62 suites** | | **282** | **406** |
 
 Two further samples exist but are **not in the repository**: `strands-js/image-gen` and
 `vercel-ai-js/image-gen`, whose payloads are 15 MB and 7 MB of inlined base64 image data (the Python
@@ -381,7 +379,7 @@ not hide the rest.
 
 ## What is and is not covered
 
-**284 tracked expectation files: 267 captured in 63 suites, plus 17 synthetic.** A suite is not a framework:
+**284 tracked expectation files: 267 captured in 61 suites, plus 17 synthetic.** A suite is not a framework:
 `strands`/`strands-js` and `claude-agent-sdk`/`claude-agent-sdk-js` are one framework each in two
 languages; the eight .NET/JavaScript/Python/Rust suites are SDK conformance rather than framework
 captures. The fixture families below cover **27 of the 32** frameworks SideSeat recognises. (32 is

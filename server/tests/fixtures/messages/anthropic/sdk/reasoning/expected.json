@@ -1,0 +1,208 @@
+{
+  "label": "anthropic/sdk/reasoning",
+  "request_count": 1,
+  "span_count": 2,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/Message with 'global.anthropic.claude-sonnet-5-5'/span-2": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the schedule?",
+          "content_digest": "fee6de4ff136c52a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "This is the classic bridge crossing puzzle, with the optimal answer being 17 minutes: send the two fastest across first, return the fastest, send the two slowest across together, return the second-fastest, then send the two fastest across a…[298 chars]",
+          "content_digest": "5da22e759a1b5ad4",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The fastest total time is 17 minutes. The schedule: the 1 and 2 cross (2 min), the 1 returns with the torch (1 min), the 5 and 10 cross together (10 min), the 2 returns with the torch (2 min), then the 1 and 2 cross again (2 min). That give…[331 chars]",
+          "content_digest": "e2f94723899bc3ed",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/reasoning/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the schedule?",
+          "content_digest": "fee6de4ff136c52a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "This is the classic bridge crossing puzzle, with the optimal answer being 17 minutes: send the two fastest across first, return the fastest, send the two slowest across together, return the second-fastest, then send the two fastest across a…[298 chars]",
+          "content_digest": "5da22e759a1b5ad4",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The fastest total time is 17 minutes. The schedule: the 1 and 2 cross (2 min), the 1 returns with the torch (1 min), the 5 and 10 cross together (10 min), the 2 returns with the torch (2 min), then the 1 and 2 cross again (2 min). That give…[331 chars]",
+          "content_digest": "e2f94723899bc3ed",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "anthropic-reasoning": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the schedule?",
+          "content_digest": "fee6de4ff136c52a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "This is the classic bridge crossing puzzle, with the optimal answer being 17 minutes: send the two fastest across first, return the fastest, send the two slowest across together, return the second-fastest, then send the two fastest across a…[298 chars]",
+          "content_digest": "5da22e759a1b5ad4",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The fastest total time is 17 minutes. The schedule: the 1 and 2 cross (2 min), the 1 returns with the torch (1 min), the 5 and 10 cross together (10 min), the 2 returns with the torch (2 min), then the 1 and 2 cross again (2 min). That give…[331 chars]",
+          "content_digest": "e2f94723899bc3ed",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 4,
+    "role_sequence": [
+      "assistant",
+      "assistant",
+      "system",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "thinking",
+        "content": "This is the classic bridge crossing puzzle, with the optimal answer being 17 minutes: send the two fastest across first, return the fastest, send the two slowest across together, return the second-fastest, then send the two fastest across a…[298 chars]",
+        "content_digest": "5da22e759a1b5ad4",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The fastest total time is 17 minutes. The schedule: the 1 and 2 cross (2 min), the 1 returns with the torch (1 min), the 5 and 10 cross together (10 min), the 2 returns with the torch (2 min), then the 1 and 2 cross again (2 min). That give…[331 chars]",
+        "content_digest": "e2f94723899bc3ed",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the schedule?",
+        "content_digest": "fee6de4ff136c52a",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

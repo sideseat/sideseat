@@ -120,6 +120,9 @@ INTENTIONAL_WARNINGS: dict[str, dict[str, tuple[int, str]]] = {
             },
         }.items()
     },
+    "anthropic/sdk/structured_output": {
+        "unbalanced_tools": (2, "trip_plan is a terminal schema pseudo-tool"),
+    },
     "langgraph/native/structured_output": {
         "unbalanced_tools": (2, "TripPlan is a terminal schema pseudo-tool"),
     },
