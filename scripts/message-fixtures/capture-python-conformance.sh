@@ -4,7 +4,6 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 uv_command="${UV_COMMAND:-uv}"
 project_dir="$repo_root/examples/python/sdk-conformance"
-base_port="${RECORD_PORT:-5410}"
 run_dir="$(mktemp -d "${TMPDIR:-/tmp}/sideseat-python-conformance.XXXXXX")"
 recorder_pid=""
 python_version=""
@@ -30,13 +29,12 @@ trap 'exit 143' TERM
 capture_mode() {
   local label="$1"
   local mode="$2"
-  local port="$3"
   local recorder_log="$run_dir/recorder-$mode.log"
 
   python3 "$repo_root/scripts/message-fixtures/record-otlp.py" \
     --no-forward \
     --label "$label" \
-    --port "$port" >"$recorder_log" 2>&1 &
+    --port 0 >"$recorder_log" 2>&1 &
   recorder_pid=$!
 
   local ready=0
@@ -53,6 +51,8 @@ capture_mode() {
     echo "[python-conformance] recorder failed to start for $label" >&2
     return 1
   fi
+  local port
+  port="$(sed -n 's#.*listening on http://127.0.0.1:\([0-9]*\).*#\1#p' "$recorder_log")"
 
   SIDESEAT_ENDPOINT="http://127.0.0.1:$port" \
   SIDESEAT_PROJECT_ID=default \
@@ -85,8 +85,8 @@ command -v "$uv_command" >/dev/null 2>&1 || {
   --project "$project_dir" \
   --python "$python_version"
 
-capture_mode python/native/canonical otel "$base_port"
-capture_mode python/sdk/canonical sdk "$((base_port + 1))"
+capture_mode python/native/canonical otel
+capture_mode python/sdk/canonical sdk
 
 echo "[python-conformance] review and record expectations:"
 echo "  scripts/message-fixtures/review-goldens.py python/native/canonical"

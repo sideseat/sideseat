@@ -171,7 +171,12 @@ def main() -> int:
     ap.add_argument(
         "--label", required=True, help="fixture path, e.g. strands/tool_use"
     )
-    ap.add_argument("--port", type=int, default=5399)
+    ap.add_argument(
+        "--port",
+        type=int,
+        default=5399,
+        help="0 binds a free port, reported on the first line",
+    )
     ap.add_argument("--upstream", default="http://127.0.0.1:5388")
     ap.add_argument(
         "--no-forward", action="store_true", help="record only, do not forward"
@@ -197,7 +202,9 @@ def main() -> int:
                 f"[record] cleared {len(stale)} stale payload(s) in {dest.relative_to(REPO_ROOT)}",
                 flush=True,
             )
-    print(f"[record] listening on http://127.0.0.1:{args.port}", flush=True)
+    print(
+        f"[record] listening on http://127.0.0.1:{server.server_address[1]}", flush=True
+    )
     print(f"[record] writing to {dest.relative_to(REPO_ROOT)}", flush=True)
     print(
         f"[record] forwarding to {args.upstream if Recorder.forward else '(disabled)'}",
