@@ -550,6 +550,10 @@ pub struct InstrumentationScopeMatch {
 pub struct UnwrapSpec {
     /// Ordered; the first member that is present is unwrapped, whether or not it normalises.
     pub from: Vec<JsonPath>,
+    /// The member is a block serialised as JSON text, decoded before it is normalised. A member that does
+    /// not decode leaves the original block to the rest of the chain, as one that does not normalise does.
+    #[serde(default)]
+    pub parse_json: bool,
 }
 
 /// Bytes, or a reference to them. The block's kind and whether it is a reference are both *derived*.

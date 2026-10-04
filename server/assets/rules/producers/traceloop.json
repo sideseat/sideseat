@@ -153,5 +153,33 @@
       "slug": "traceloop",
       "label": "TraceLoop"
     }
+  ],
+  "content_blocks": [
+    {
+      "id": "traceloop.serialised_converse_block",
+      "doc": "TraceLoop's Bedrock instrumentation writes a Converse content block it has no part type for - the model's reasoning - into a semconv text part as JSON text, so the reasoning rendered as raw JSON beside the answer. The block is decoded and read as the Converse block it is.",
+      "at": "before_provider_formats",
+      "legacy_rank": 87,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "text"
+            ]
+          },
+          {
+            "path": "$.content",
+            "starts_with": "{\"reasoningContent\""
+          }
+        ]
+      },
+      "unwrap": {
+        "from": [
+          "$.content"
+        ],
+        "parse_json": true
+      }
+    }
   ]
 }

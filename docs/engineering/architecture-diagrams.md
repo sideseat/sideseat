@@ -17,7 +17,7 @@ every read, so correcting them corrects history.
 
 ```mermaid
 flowchart TB
-    assets["server/assets/rules/*.json<br/>45 assets · 455 clauses"]
+    assets["server/assets/rules/*.json<br/>45 assets · 456 clauses"]
     compile["domain::rules::compile<br/>one OnceLock ruleset · digest"]
     assets --> compile
 

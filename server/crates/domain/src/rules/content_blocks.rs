@@ -264,6 +264,10 @@ fn built(block: &JsonValue, rule: &ContentBlockRule) -> Option<JsonValue> {
             .from
             .iter()
             .find_map(|path| super::message_rules::query(block, path).into_iter().next())?;
+        if spec.parse_json {
+            let decoded: JsonValue = serde_json::from_str(inner.as_str()?).ok()?;
+            return crate::sideml::content::normalize_content_block(&decoded);
+        }
         return crate::sideml::content::normalize_content_block(inner);
     }
     if let Some(spec) = &rule.media {
@@ -601,6 +605,29 @@ mod tests {
         assert_eq!(block["type"].as_str(), Some("image"));
         assert_eq!(block["media_type"].as_str(), Some("image/jpeg"));
         assert_eq!(block["data"].as_str(), Some("/9j/4AAQSkZJRg"));
+    }
+
+    /// A block serialised into another block's text is decoded and read as itself; text that is not JSON
+    /// is left to the rest of the chain.
+    #[test]
+    fn an_unwrap_can_decode_a_serialised_block() {
+        let plan = plan_from(serde_json::json!({
+            "id": "probe.serialised",
+            "at": "before_provider_formats",
+            "legacy_rank": 1,
+            "require": {"all": [{"path": "$.content", "starts_with": "{"}]},
+            "unwrap": {"from": ["$.content"], "parse_json": true},
+        }));
+        let normalize = |content: &str| {
+            plan.normalize(
+                &serde_json::json!({"type": "text", "content": content}),
+                ChainPosition::BeforeProviderFormats,
+            )
+        };
+
+        let decoded = normalize(r#"{"type": "text", "text": "inside"}"#).expect("decodes");
+        assert_eq!(decoded["text"].as_str(), Some("inside"));
+        assert!(normalize("{not json").is_none());
     }
 
     /// A stored reference is the authority on its own media type.
