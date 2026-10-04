@@ -377,7 +377,7 @@ fn an_error_type_makes_the_status_message_the_spans_own_error() {
             value: Some(any_value::Value::StringValue(value.to_string())),
         }),
     };
-    let failed = |attributes: Vec<KeyValue>| {
+    let failed_with = |attributes: Vec<KeyValue>, message: &str| {
         let request = ExportTraceServiceRequest {
             resource_spans: vec![ResourceSpans {
                 resource: None,
@@ -392,7 +392,7 @@ fn an_error_type_makes_the_status_message_the_spans_own_error() {
                         end_time_unix_nano: 1_700_000_000_100_000_000,
                         attributes,
                         status: Some(Status {
-                            message: "No seats: the booking system is offline.".to_string(),
+                            message: message.to_string(),
                             code: 2,
                         }),
                         ..Default::default()
@@ -408,6 +408,8 @@ fn an_error_type_makes_the_status_message_the_spans_own_error() {
             .expect("one span");
         (span.exception_type, span.exception_message)
     };
+    let failed =
+        |attributes| failed_with(attributes, "No seats: the booking system is offline.");
 
     assert_eq!(
         failed(vec![kv("error.type", "BookingUnavailable")]),
@@ -420,5 +422,10 @@ fn an_error_type_makes_the_status_message_the_spans_own_error() {
         failed(Vec::new()),
         (None, None),
         "a bare ERROR status may be inherited from a child, so it stays out of the conversation"
+    );
+    assert_eq!(
+        failed_with(vec![kv("error.type", "tool_error")], ""),
+        (None, None),
+        "a class with no message says less than the tool result beside it"
     );
 }

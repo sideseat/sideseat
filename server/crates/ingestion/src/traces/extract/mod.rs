@@ -595,20 +595,19 @@ pub fn extract_attributes_batch(request: &ExportTraceServiceRequest) -> Vec<Span
                     // error; instrumentations that record no exception event report a
                     // failed tool call this way and nothing else.
                     if span.exception_type.is_none() && span.exception_message.is_none() {
-                        if let Some(error_type) =
-                            span_attrs.get(keys::ERROR_TYPE).filter(|s| !s.is_empty())
-                        {
+                        // A class alone - `tool_error` - says less than the tool result already does, so
+                        // the failure is reported only when the status explains it.
+                        let error_type = span_attrs.get(keys::ERROR_TYPE).filter(|s| !s.is_empty());
+                        let message = span.status_message.as_deref().filter(|m| !m.is_empty());
+                        if let (Some(error_type), Some(message)) = (error_type, message) {
                             span.exception_type = Some(
                                 truncate_bytes(error_type, constants::ERROR_MESSAGE_MAX_LEN)
                                     .to_string(),
                             );
-                            span.exception_message = span
-                                .status_message
-                                .as_deref()
-                                .filter(|m| !m.is_empty())
-                                .map(|m| {
-                                    truncate_bytes(m, constants::ERROR_MESSAGE_MAX_LEN).to_string()
-                                });
+                            span.exception_message = Some(
+                                truncate_bytes(message, constants::ERROR_MESSAGE_MAX_LEN)
+                                    .to_string(),
+                            );
                         }
                     }
                 }
