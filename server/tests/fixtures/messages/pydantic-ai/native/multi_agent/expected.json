@@ -1,0 +1,695 @@
+{
+  "label": "pydantic-ai/native/multi_agent",
+  "request_count": 2,
+  "span_count": 9,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/chat global.anthropic.claude-sonnet-5-5/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You write the final packing list. Ask the researcher for the weather first.",
+          "content_digest": "e35851065030756b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_xP4UUWIrPSI2V2aJreX2JR\",\"name\":\"ask_researcher\",\"input\":{\"request\":\"What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humi…[269 chars]",
+          "content_digest": "7350a8c47516c894",
+          "tool_name": "ask_researcher",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat global.anthropic.claude-sonnet-5-5/span-6": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You research weather with the tool and report the forecast.",
+          "content_digest": "cfe16b6f68128b7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humidity, and UV if available.",
+          "content_digest": "0c254d4c4e5cb853",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_uGTu6I8EP6QkocF1QatZu6\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
+          "content_digest": "9a49f205afd1b0dc",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat global.anthropic.claude-sonnet-5-5/span-8": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You research weather with the tool and report the forecast.",
+          "content_digest": "cfe16b6f68128b7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humidity, and UV if available.",
+          "content_digest": "0c254d4c4e5cb853",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_uGTu6I8EP6QkocF1QatZu6\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
+          "content_digest": "9a49f205afd1b0dc",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_uGTu6I8EP6QkocF1QatZu6\",\"name\":\"get_weather\",\"content\":{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "cae1d41e904cbb5c",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Here is the two-day forecast for Barcelona, Spain. The tool returned only conditions and high temperatures. | Day | Conditions | High | Low | |---|---|---|---| | Day 1 (today) | Sunny | 21°C (70°F) | Not available | | Day 2 (tomorrow) | Sun…[644 chars]",
+          "content_digest": "4c66bab2cfe622cb",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat global.anthropic.claude-sonnet-5-5/span-9": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You write the final packing list. Ask the researcher for the weather first.",
+          "content_digest": "e35851065030756b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_xP4UUWIrPSI2V2aJreX2JR\",\"name\":\"ask_researcher\",\"input\":{\"request\":\"What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humi…[269 chars]",
+          "content_digest": "7350a8c47516c894",
+          "tool_name": "ask_researcher",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Here is the two-day forecast for Barcelona, Spain. The tool returned only conditions and high temperatures. | Day | Conditions | High | Low | |---|---|---|---| | Day 1 (today) | Sunny | 21°C (70°F) | Not available | | Day 2 (tomorrow) | Sun…[644 chars]",
+          "content_digest": "34664a66e8a204b3",
+          "tool_name": "ask_researcher",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Packing list for Barcelona (next two days):** The forecast shows sunny weather both days, with highs of about 21°C (70°F) today and 22°C (72°F) tomorrow. Pack light, breathable layers for the daytime. Good choices are T-shirts or short-sl…[832 chars]",
+          "content_digest": "32d7dba4e14693fc",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/execute_tool ask_researcher/span-4": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_xP4UUWIrPSI2V2aJreX2JR\",\"name\":\"ask_researcher\",\"input\":{\"request\":\"What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humi…[269 chars]",
+          "content_digest": "7350a8c47516c894",
+          "tool_name": "ask_researcher",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Here is the two-day forecast for Barcelona, Spain. The tool returned only conditions and high temperatures. | Day | Conditions | High | Low | |---|---|---|---| | Day 1 (today) | Sunny | 21°C (70°F) | Not available | | Day 2 (tomorrow) | Sun…[644 chars]",
+          "content_digest": "34664a66e8a204b3",
+          "tool_name": "ask_researcher",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/execute_tool get_weather/span-7": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_uGTu6I8EP6QkocF1QatZu6\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
+          "content_digest": "9a49f205afd1b0dc",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_uGTu6I8EP6QkocF1QatZu6\",\"name\":\"get_weather\",\"content\":{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "cae1d41e904cbb5c",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/invoke_agent researcher/span-5": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You research weather with the tool and report the forecast.",
+          "content_digest": "cfe16b6f68128b7c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humidity, and UV if available.",
+          "content_digest": "0c254d4c4e5cb853",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_uGTu6I8EP6QkocF1QatZu6\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
+          "content_digest": "9a49f205afd1b0dc",
+          "tool_name": "get_weather",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_uGTu6I8EP6QkocF1QatZu6\",\"name\":\"get_weather\",\"content\":{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "cae1d41e904cbb5c",
+          "tool_name": "get_weather",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Here is the two-day forecast for Barcelona, Spain. The tool returned only conditions and high temperatures. | Day | Conditions | High | Low | |---|---|---|---| | Day 1 (today) | Sunny | 21°C (70°F) | Not available | | Day 2 (tomorrow) | Sun…[644 chars]",
+          "content_digest": "4c66bab2cfe622cb",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/invoke_agent writer/span-2": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You write the final packing list. Ask the researcher for the weather first.",
+          "content_digest": "e35851065030756b",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_xP4UUWIrPSI2V2aJreX2JR\",\"name\":\"ask_researcher\",\"input\":{\"request\":\"What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humi…[269 chars]",
+          "content_digest": "7350a8c47516c894",
+          "tool_name": "ask_researcher",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Here is the two-day forecast for Barcelona, Spain. The tool returned only conditions and high temperatures. | Day | Conditions | High | Low | |---|---|---|---| | Day 1 (today) | Sunny | 21°C (70°F) | Not available | | Day 2 (tomorrow) | Sun…[644 chars]",
+          "content_digest": "34664a66e8a204b3",
+          "tool_name": "ask_researcher",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Packing list for Barcelona (next two days):** The forecast shows sunny weather both days, with highs of about 21°C (70°F) today and 22°C (72°F) tomorrow. Pack light, breathable layers for the daytime. Good choices are T-shirts or short-sl…[832 chars]",
+          "content_digest": "32d7dba4e14693fc",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/multi-agent/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 10,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You write the final packing list. Ask the researcher for the weather first.",
+          "content_digest": "e35851065030756b",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_xP4UUWIrPSI2V2aJreX2JR\",\"name\":\"ask_researcher\",\"input\":{\"request\":\"What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humi…[269 chars]",
+          "content_digest": "7350a8c47516c894",
+          "tool_name": "ask_researcher",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You research weather with the tool and report the forecast.",
+          "content_digest": "cfe16b6f68128b7c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humidity, and UV if available.",
+          "content_digest": "0c254d4c4e5cb853",
+          "observation_type": "agent"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_uGTu6I8EP6QkocF1QatZu6\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
+          "content_digest": "9a49f205afd1b0dc",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_uGTu6I8EP6QkocF1QatZu6\",\"name\":\"get_weather\",\"content\":{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "cae1d41e904cbb5c",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Here is the two-day forecast for Barcelona, Spain. The tool returned only conditions and high temperatures. | Day | Conditions | High | Low | |---|---|---|---| | Day 1 (today) | Sunny | 21°C (70°F) | Not available | | Day 2 (tomorrow) | Sun…[644 chars]",
+          "content_digest": "4c66bab2cfe622cb",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Here is the two-day forecast for Barcelona, Spain. The tool returned only conditions and high temperatures. | Day | Conditions | High | Low | |---|---|---|---| | Day 1 (today) | Sunny | 21°C (70°F) | Not available | | Day 2 (tomorrow) | Sun…[644 chars]",
+          "content_digest": "34664a66e8a204b3",
+          "tool_name": "ask_researcher",
+          "observation_type": "tool"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Packing list for Barcelona (next two days):** The forecast shows sunny weather both days, with highs of about 21°C (70°F) today and 22°C (72°F) tomorrow. Pack light, breathable layers for the daytime. Good choices are T-shirts or short-sl…[832 chars]",
+          "content_digest": "32d7dba4e14693fc",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "pydantic-ai-multi_agent": {
+      "message_count": 10,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You write the final packing list. Ask the researcher for the weather first.",
+          "content_digest": "e35851065030756b",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_xP4UUWIrPSI2V2aJreX2JR\",\"name\":\"ask_researcher\",\"input\":{\"request\":\"What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humi…[269 chars]",
+          "content_digest": "7350a8c47516c894",
+          "tool_name": "ask_researcher",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You research weather with the tool and report the forecast.",
+          "content_digest": "cfe16b6f68128b7c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humidity, and UV if available.",
+          "content_digest": "0c254d4c4e5cb853",
+          "observation_type": "agent"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_uGTu6I8EP6QkocF1QatZu6\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
+          "content_digest": "9a49f205afd1b0dc",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_uGTu6I8EP6QkocF1QatZu6\",\"name\":\"get_weather\",\"content\":{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "cae1d41e904cbb5c",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Here is the two-day forecast for Barcelona, Spain. The tool returned only conditions and high temperatures. | Day | Conditions | High | Low | |---|---|---|---| | Day 1 (today) | Sunny | 21°C (70°F) | Not available | | Day 2 (tomorrow) | Sun…[644 chars]",
+          "content_digest": "4c66bab2cfe622cb",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Here is the two-day forecast for Barcelona, Spain. The tool returned only conditions and high temperatures. | Day | Conditions | High | Low | |---|---|---|---| | Day 1 (today) | Sunny | 21°C (70°F) | Not available | | Day 2 (tomorrow) | Sun…[644 chars]",
+          "content_digest": "34664a66e8a204b3",
+          "tool_name": "ask_researcher",
+          "observation_type": "tool"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Packing list for Barcelona (next two days):** The forecast shows sunny weather both days, with highs of about 21°C (70°F) today and 22°C (72°F) tomorrow. Pack light, breathable layers for the daytime. Good choices are T-shirts or short-sl…[832 chars]",
+          "content_digest": "32d7dba4e14693fc",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 10,
+    "role_sequence": [
+      "assistant",
+      "tool",
+      "assistant",
+      "tool",
+      "assistant",
+      "system",
+      "user",
+      "assistant",
+      "system",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 2,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "**Packing list for Barcelona (next two days):** The forecast shows sunny weather both days, with highs of about 21°C (70°F) today and 22°C (72°F) tomorrow. Pack light, breathable layers for the daytime. Good choices are T-shirts or short-sl…[832 chars]",
+        "content_digest": "32d7dba4e14693fc",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Here is the two-day forecast for Barcelona, Spain. The tool returned only conditions and high temperatures. | Day | Conditions | High | Low | |---|---|---|---| | Day 1 (today) | Sunny | 21°C (70°F) | Not available | | Day 2 (tomorrow) | Sun…[644 chars]",
+        "content_digest": "34664a66e8a204b3",
+        "tool_name": "ask_researcher",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Here is the two-day forecast for Barcelona, Spain. The tool returned only conditions and high temperatures. | Day | Conditions | High | Low | |---|---|---|---| | Day 1 (today) | Sunny | 21°C (70°F) | Not available | | Day 2 (tomorrow) | Sun…[644 chars]",
+        "content_digest": "4c66bab2cfe622cb",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_uGTu6I8EP6QkocF1QatZu6\",\"name\":\"get_weather\",\"content\":{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+        "content_digest": "cae1d41e904cbb5c",
+        "tool_name": "get_weather",
+        "observation_type": "tool"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_uGTu6I8EP6QkocF1QatZu6\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
+        "content_digest": "9a49f205afd1b0dc",
+        "tool_name": "get_weather",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You research weather with the tool and report the forecast.",
+        "content_digest": "cfe16b6f68128b7c",
+        "observation_type": "agent"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humidity, and UV if available.",
+        "content_digest": "0c254d4c4e5cb853",
+        "observation_type": "agent"
+      },
+      {
+        "index": 7,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_xP4UUWIrPSI2V2aJreX2JR\",\"name\":\"ask_researcher\",\"input\":{\"request\":\"What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humi…[269 chars]",
+        "content_digest": "7350a8c47516c894",
+        "tool_name": "ask_researcher",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You write the final packing list. Ask the researcher for the weather first.",
+        "content_digest": "e35851065030756b",
+        "observation_type": "agent"
+      },
+      {
+        "index": 9,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+        "content_digest": "603f05d965d18b4d",
+        "observation_type": "agent"
+      }
+    ]
+  }
+}

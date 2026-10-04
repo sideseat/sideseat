@@ -88,8 +88,9 @@ trace.set_tracer_provider(provider)
 Agent.instrument_all()
 ```
 
-The compatibility corpus exercises Pydantic AI 2.50.0 with and without the SideSeat SDK,
-including multi-turn history and tool use. `pydantic_ai.all_messages` is expanded into its
+The compatibility corpus exercises Pydantic AI 2.53.0 on Bedrock with and without the SideSeat SDK,
+in all eleven example scenarios: chat, multi-turn history, tool use, sessions, a failing tool,
+streaming, structured output, reasoning, an image and a PDF, agent delegation, and MCP tools. `pydantic_ai.all_messages` is expanded into its
 individual turns at read time, so the history snapshot does not appear as an extra context
 message beside the model-call spans.
 

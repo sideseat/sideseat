@@ -115,8 +115,8 @@ the corpus matches it.
 | `openai/sdk` | SideSeat Python 1.0.8 / OpenAI 3.19.2 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.13.7 | 1 | 1 |
 | `openinference/native` | OpenInference instrumentation 0.1.67 / semantic conventions 0.1.40 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup | 1 | 1 |
 | `openinference/sdk` | SideSeat Python 1.0.8 / OpenInference instrumentation 0.1.67 / semantic conventions 0.1.40 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
-| `pydantic-ai/native` | Pydantic AI 2.50.0 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.12.8 | 1 | 1 |
-| `pydantic-ai/sdk` | SideSeat Python 1.0.8 / Pydantic AI 2.50.0 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.12.8 | 1 | 1 |
+| `pydantic-ai/native` | Pydantic AI 2.53.0 / OpenTelemetry Python 1.44.0 on CPython 3.14.7, `Agent.instrument_all()` on a plain provider | 11 | 17 |
+| `pydantic-ai/sdk` | SideSeat Python 2.0.0 / Pydantic AI 2.53.0 / Logfire 5.1.1 / OpenTelemetry Python 1.44.0 on CPython 3.14.7 | 11 | 11 |
 | `python/native` | OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
 | `python/sdk` | SideSeat Python 2.0.0 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
 | `rust/native` | OpenTelemetry Rust 0.33.0 on Rust 1.94.1 | 1 | 1 |
@@ -133,7 +133,7 @@ the corpus matches it.
 | `vercel-ai-js/legacy` | ai ^7.0.79 | 6 | 13 |
 | `vertex-ai/native` | Google GenAI 2.26.0 / Logfire 6.0.0b7 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.12.8, native Logfire setup with the current `enterprise=True` Vertex mode | 1 | 1 |
 | `vertex-ai/sdk` | SideSeat Python 1.0.8 / Google GenAI 2.26.0 / Logfire 6.0.0b7 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.12.8, current `enterprise=True` Vertex mode | 1 | 1 |
-| **66 suites** | | **241** | **406** |
+| **65 suites** | | **255** | **399** |
 
 Two further samples exist but are **not in the repository**: `strands-js/image-gen` and
 `vercel-ai-js/image-gen`, whose payloads are 15 MB and 7 MB of inlined base64 image data (the Python
@@ -217,7 +217,7 @@ ANTHROPIC_BASE_URL=http://127.0.0.1:5402 \
 CAPTURE_MODEL=claude-sonnet-4-6 \
   scripts/message-fixtures/capture.sh anthropic messages both
 
-scripts/message-fixtures/capture.sh pydantic-ai agent both
+make capture P=pydantic-ai
 
 scripts/message-fixtures/capture.sh logfire canonical both
 
@@ -389,7 +389,7 @@ not hide the rest.
 
 ## What is and is not covered
 
-**241 tracked expectation files: 224 captured in 65 suites, plus 17 synthetic.** A suite is not a framework:
+**255 tracked expectation files: 238 captured in 64 suites, plus 17 synthetic.** A suite is not a framework:
 `strands`/`strands-js` and `claude-agent-sdk`/`claude-agent-sdk-js` are one framework each in two
 languages; the eight .NET/JavaScript/Python/Rust suites are SDK conformance rather than framework
 captures. The fixture families below cover **27 of the 32** frameworks SideSeat recognises. (32 is
