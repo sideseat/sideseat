@@ -115,6 +115,12 @@
       },
       "parse": "json",
       "unless": {
+        "attr_equals": [
+          {
+            "key": "rpc.system",
+            "value": "jsonrpc"
+          }
+        ],
         "attr_exists": [
           "output.value"
         ]

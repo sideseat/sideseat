@@ -628,6 +628,34 @@
           "$.content"
         ]
       }
+    },
+    {
+      "id": "semconv.uri_part",
+      "doc": "The conventions' reference part: a `uri` with an optional `mime_type`. Logfire writes an inline image this way, as a `data:` URI, so it was kept as an unknown block; the media type comes from the declaration, the URI, or the bytes.",
+      "at": "before_provider_formats",
+      "legacy_rank": 61,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "uri"
+            ]
+          },
+          {
+            "path": "$.uri",
+            "kind": "string"
+          }
+        ]
+      },
+      "media": {
+        "media_type": [
+          "$.mime_type"
+        ],
+        "data": [
+          "$.uri"
+        ]
+      }
     }
   ]
 }

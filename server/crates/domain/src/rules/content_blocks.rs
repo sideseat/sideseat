@@ -295,6 +295,11 @@ fn built(block: &JsonValue, rule: &ContentBlockRule) -> Option<JsonValue> {
                 sideseat_core::utils::mime::detect_mime_type_from_base64(data.as_bytes())
             })?,
         };
+        // A data URL's header has been read for the media type; the block holds the payload alone.
+        let data = match data.split_once(',') {
+            Some((header, payload)) if source == "base64" && header.starts_with("data:") => payload,
+            _ => data,
+        };
         let mut result = json!({
             "type": crate::sideml::content::mime_to_content_type(media_type),
             "media_type": media_type,
@@ -572,6 +577,30 @@ mod tests {
         assert_eq!(jpeg["media_type"].as_str(), Some("image/jpeg"));
         assert_eq!(jpeg["type"].as_str(), Some("image"));
         assert!(normalize(serde_json::json!({"content": "aGVsbG8gd29ybGQgaGVsbG8"})).is_none());
+    }
+
+    /// A `data:` URI names its media type in its header and carries the payload after the comma; the
+    /// block holds the payload alone, as one read from a base64 member would.
+    #[test]
+    fn a_data_uri_reads_as_its_media_type_and_payload() {
+        let plan = plan_from(serde_json::json!({
+            "id": "probe.uri",
+            "at": "after_provider_formats",
+            "legacy_rank": 1,
+            "require": {"all": [{"path": "$.uri"}]},
+            "media": {"media_type": ["$.mime_type"], "data": ["$.uri"]},
+        }));
+
+        let block = plan
+            .normalize(
+                &serde_json::json!({"uri": "data:image/jpeg;base64,/9j/4AAQSkZJRg"}),
+                ChainPosition::AfterProviderFormats,
+            )
+            .expect("a data URI is media");
+
+        assert_eq!(block["type"].as_str(), Some("image"));
+        assert_eq!(block["media_type"].as_str(), Some("image/jpeg"));
+        assert_eq!(block["data"].as_str(), Some("/9j/4AAQSkZJRg"));
     }
 
     /// A stored reference is the authority on its own media type.
