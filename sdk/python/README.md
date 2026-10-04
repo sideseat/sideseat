@@ -1,657 +1,220 @@
 # SideSeat Python SDK
 
-**AI Development Workbench** — Debug, trace, and understand your AI agents.
-
 [![PyPI](https://img.shields.io/pypi/v/sideseat)](https://pypi.org/project/sideseat/)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-## Table of Contents
+`sideseat` is an OpenTelemetry distribution for AI applications. One call configures tracing, logs,
+and metrics for a [SideSeat](https://sideseat.ai) project, switches on your framework's telemetry, and
+attributes every span to the right session and user.
 
-- [What is SideSeat?](#what-is-sideseat)
-- [Quick Start](#quick-start)
-- [Installation](#installation)
-- [Framework Examples](#framework-examples)
-- [Provider Examples](#provider-examples)
-- [Configuration](#configuration)
-- [Advanced Usage](#advanced-usage)
-- [Data and Privacy](#data-and-privacy)
-- [Troubleshooting](#troubleshooting)
-- [API Reference](#api-reference)
-
-## What is SideSeat?
-
-AI agents are hard to debug. Requests fly by, context builds up, and when something fails you're left guessing.
-
-SideSeat captures every LLM call, tool call, and agent decision, then displays them in a web UI as they happen. Run it locally during development, or deploy to your private cloud for team visibility.
-
-Built on [OpenTelemetry](https://opentelemetry.io/) — the open standard already supported by most AI frameworks.
-
-**Features:**
-
-- **Zero config** — Auto-detects and instruments your AI framework
-- **Real-time tracing** — Watch LLM requests and tool calls as they happen
-- **Message threading** — See full conversations, tool calls, and images
-- **Cost tracking** — Automatic token counting and cost calculation
-
-**Supported integrations:** See the complete [`Frameworks`](#frameworks) reference below; it
-includes agent frameworks, model providers, and generic Logfire telemetry.
-
-**Supported providers:** OpenAI, Azure OpenAI, Amazon Bedrock, Anthropic, Google Gemini
-
-## Quick Start
-
-**Requirements:** Python 3.10+, Node.js 18+ (for the server)
-
-**1. Start the server**
+## Install
 
 ```bash
-npx sideseat
+pip install sideseat        # or: uv add sideseat
+npx sideseat                # a local SideSeat server on http://localhost:5388
 ```
 
-**2. Install and initialize**
+Python 3.11 or newer. Some integrations need an extra, for example `pip install "sideseat[langgraph]"`;
+see [Integrations](#integrations).
 
-```bash
-pip install sideseat
-# or
-uv add sideseat
-```
-
-**Strands Agents:**
+## Quick start
 
 ```python
-from sideseat import SideSeat, Frameworks
+import sideseat
 from strands import Agent
 
-SideSeat(framework=Frameworks.Strands)
+sideseat.init(integrations=["strands"])
 
-agent = Agent()
-response = agent("What is 2+2?")
-print(response)
+agent = Agent(model="global.anthropic.claude-sonnet-5-5")
+
+with sideseat.session("conversation-42", user_id="user-7"):
+    agent("Plan a weekend in Lisbon.")
+    agent("What should I eat there?")
 ```
 
-**Vercel AI SDK:**
+Open [localhost:5388](http://localhost:5388): the two turns appear as traces of one session.
 
-```bash
-npm install ai @ai-sdk/otel @ai-sdk/amazon-bedrock @sideseat/sdk
-```
+`init` sends to `http://127.0.0.1:5388` and the `default` project. Pass `endpoint=`, `project=`, and
+`api_key=`, or set `SIDESEAT_ENDPOINT`, `SIDESEAT_PROJECT_ID`, and `SIDESEAT_API_KEY`. Every option is
+listed on the [configuration page](https://sideseat.ai/docs/sdks/python/configuration/).
 
-```typescript
-import { generateText } from "ai";
-import { bedrock } from "@ai-sdk/amazon-bedrock";
-import { init, Frameworks } from "@sideseat/sdk";
+## Sessions and users
 
-// AI SDK 7 emits spans through registered integrations. Awaiting init()
-// installs the current @ai-sdk/otel integration before the first model call.
-await init({ framework: Frameworks.VercelAI });
+`sideseat.session(session_id, user_id=...)` is a scope, not a span. Every span started inside it,
+including the ones your framework creates, gets `session.id` and `user.id`. The values follow the
+OpenTelemetry context through `async` code and are never sent as W3C baggage.
 
-const { text } = await generateText({
-  model: bedrock("anthropic.claude-sonnet-4-5-20250929-v1:0"),
-  prompt: "Analyze this dataset...",
-  experimental_telemetry: { isEnabled: true },
-});
-```
-
-**3. View traces**
-
-Open [localhost:5388](http://localhost:5388) and run your agent. Traces appear in real time.
-
-## Installation
-
-```bash
-pip install sideseat                    # Core SDK
-# or
-uv add sideseat                        # Core SDK
-
-# Extras for framework instrumentation:
-pip install "sideseat[langgraph]"       # + LangGraph
-pip install "sideseat[crewai]"          # + CrewAI
-pip install "sideseat[autogen]"         # + AutoGen
-pip install "sideseat[llama-index]"     # + LlamaIndex
-pip install "sideseat[agentscope]"      # + AgentScope 2.x
-pip install "sideseat[logfire]"         # + generic Logfire spans
-pip install "sideseat[traceloop]"       # + TraceLoop / OpenLLMetry
-pip install "sideseat[openai]"          # + OpenAI / OpenAI Agents
-
-# Extras for provider instrumentation:
-pip install "sideseat[anthropic]"       # + Anthropic
-pip install "sideseat[aws]" boto3      # + Amazon Bedrock (the extra adds wrapt; boto3 is yours)
-pip install "sideseat[azure-openai]"    # + Azure OpenAI
-pip install "sideseat[google-genai]"    # + Google Gemini
-pip install "sideseat[vertex-ai]"       # + Google Gen AI SDK in Enterprise/Vertex mode
-
-pip install "sideseat[all]"             # All integration extras
-```
-
-Strands Agents, Google ADK, Microsoft Agent Framework, and Semantic Kernel require only the core SDK.
-
-## Framework Examples
-
-SideSeat auto-detects the first installed framework in this order: Strands, LangGraph, LangChain, CrewAI, AutoGen, OpenAI Agents, Google ADK, PydanticAI, Microsoft Agent Framework, Semantic Kernel, Claude Agent SDK, Agno, Smolagents, LlamaIndex, AgentScope, Langflow, AG2, Haystack, browser-use, TraceLoop. `openai`, `azure-openai`, `anthropic`, `google-genai`, `vertex-ai`, and generic `logfire` are never auto-detected — they are too common as transitive dependencies or share a package with another provider — so pass those explicitly. When several frameworks are installed, name the one you drive with the `framework` parameter.
-
-### Strands Agents
+## Traces and spans
 
 ```python
-from sideseat import SideSeat, Frameworks
-from strands import Agent
+with sideseat.trace("plan-trip", session_id="s-1", user_id="u-1"):
+    with sideseat.span("retrieve-context") as span:
+        span.set_attribute("app.documents", 4)
+        documents = load_documents()
+    agent(f"Plan a trip using: {documents}")
 
-SideSeat(framework=Frameworks.Strands)
 
-agent = Agent()
-response = agent("What is 2+2?")
-print(response)
+@sideseat.observe()
+def load_documents() -> list[str]:
+    ...
 ```
 
-### Amazon Bedrock (Converse)
+`trace()` always starts a new root span; `span()` starts a child of the active span; `observe()` wraps
+each call of a sync or async function in a span named after it. Exceptions are recorded and re-raised.
 
-```python
-import boto3
-from sideseat import SideSeat, Frameworks
+## Integrations
 
-client = SideSeat(framework=Frameworks.Bedrock)
-bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
-model_id = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+Pass the frameworks and providers you use; the first one is the primary integration and names the
+service. Without `integrations`, the installed framework is detected. Provider client libraries are
+never detected, so name them explicitly.
 
-with client.trace("geography-chat", session_id="session-abc", user_id="user-123"):
-    messages = []
+| Name | Framework or provider | Extra |
+| --- | --- | --- |
+| `strands` | Strands Agents | |
+| `langgraph`, `langchain` | LangGraph, LangChain | `langgraph`, `langchain` |
+| `crewai` | CrewAI | `crewai` |
+| `autogen` | AutoGen AgentChat | `autogen` |
+| `ag2` | AG2 | `ag2` |
+| `openai-agents` | OpenAI Agents SDK | `openai-agents` |
+| `google-adk` | Google Agent Development Kit | |
+| `pydantic-ai` | Pydantic AI | `pydantic-ai` |
+| `agent-framework` | Microsoft Agent Framework | |
+| `semantic-kernel` | Semantic Kernel | |
+| `claude-agent-sdk` | Claude Agent SDK | |
+| `agno`, `smolagents`, `llama-index` | Agno, smolagents, LlamaIndex | same name |
+| `agentscope`, `haystack` | AgentScope, Haystack | same name |
+| `browser-use` | Browser Use | `browser-use` |
+| `langflow`, `openinference` | Langflow, hand-written OpenInference spans | |
+| `logfire`, `traceloop` | Logfire, TraceLoop (OpenLLMetry) | same name |
+| `bedrock` | Amazon Bedrock through boto3 | `bedrock` |
+| `openai`, `azure-openai` | OpenAI and Azure OpenAI clients | same name |
+| `anthropic` | Anthropic client | `anthropic` |
+| `google-genai`, `vertex-ai` | Google Gen AI SDK | same name |
 
-    messages.append({"role": "user", "content": [{"text": "What is the capital of France?"}]})
-    response = bedrock.converse(modelId=model_id, messages=messages)
-    messages.append(response["output"]["message"])
-
-    messages.append({"role": "user", "content": [{"text": "What about Germany?"}]})
-    response = bedrock.converse(modelId=model_id, messages=messages)
-    print(response["output"]["message"]["content"][0]["text"])
-```
-
-### Google ADK
-
-```python
-import asyncio
-from sideseat import SideSeat, Frameworks
-from google.adk.agents import Agent
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
-from google.genai import types
-
-SideSeat(framework=Frameworks.GoogleADK)
-
-agent = Agent(
-    model="gemini-2.5-flash",
-    name="assistant",
-    instruction="You are a helpful assistant.",
-)
-
-
-async def main():
-    session_service = InMemorySessionService()
-    runner = Runner(agent=agent, app_name="my_app", session_service=session_service)
-    session = await session_service.create_session(app_name="my_app", user_id="user")
-    message = types.Content(role="user", parts=[types.Part(text="What is 2+2?")])
-    async for event in runner.run_async(session_id=session.id, user_id="user", new_message=message):
-        if event.content and event.content.parts:
-            for part in event.content.parts:
-                if hasattr(part, "text") and part.text:
-                    print(part.text)
-
-
-asyncio.run(main())
-```
-
-### LangGraph
-
-```python
-from sideseat import SideSeat, Frameworks
-from langgraph.prebuilt import create_react_agent
-from langchain_openai import ChatOpenAI
-
-SideSeat(framework=Frameworks.LangGraph)
-
-llm = ChatOpenAI(model="gpt-5-mini")
-agent = create_react_agent(llm, tools=[])
-result = agent.invoke({"messages": [("user", "What is 2+2?")]})
-print(result["messages"][-1].content)
-```
-
-### CrewAI
-
-```python
-from sideseat import SideSeat, Frameworks
-from crewai import Agent, Task, Crew
-
-SideSeat(framework=Frameworks.CrewAI)
-
-researcher = Agent(
-    role="Researcher",
-    goal="Find information",
-    backstory="Expert researcher",
-)
-
-task = Task(
-    description="Research AI trends",
-    expected_output="Summary of trends",
-    agent=researcher,
-)
-
-crew = Crew(agents=[researcher], tasks=[task])
-
-result = crew.kickoff()
-print(result)
-```
-
-### AutoGen
-
-```python
-from sideseat import SideSeat, Frameworks
-from autogen import AssistantAgent, UserProxyAgent
-
-SideSeat(framework=Frameworks.AutoGen)
-
-llm_config = {"config_list": [{"model": "gpt-5-mini"}]}
-assistant = AssistantAgent("assistant", llm_config=llm_config)
-user = UserProxyAgent("user", human_input_mode="NEVER")
-user.initiate_chat(assistant, message="Hello!")
-```
-
-### OpenAI Agents
-
-```python
-from sideseat import SideSeat, Frameworks
-from agents import Agent, Runner
-
-SideSeat(framework=Frameworks.OpenAIAgents)
-
-agent = Agent(name="Assistant", instructions="You are helpful.")
-result = Runner.run_sync(agent, "What is the capital of France?")
-print(result.final_output)
-```
-
-### LangChain
-
-```python
-from sideseat import SideSeat, Frameworks
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage
-
-SideSeat(framework=Frameworks.LangChain)
-
-llm = ChatOpenAI(model="gpt-5-mini")
-response = llm.invoke([HumanMessage(content="Hello!")])
-print(response.content)
-```
-
-### PydanticAI
-
-```python
-from sideseat import SideSeat, Frameworks
-from pydantic_ai import Agent
-
-SideSeat(framework=Frameworks.PydanticAI)
-
-agent = Agent("openai:gpt-5-mini", system_prompt="Be concise.")
-result = agent.run_sync("What is Python?")
-print(result.data)
-```
-
-## Provider Examples
-
-Use SideSeat directly with cloud provider SDKs, without an agent framework. Install the matching extra for instrumentation (e.g., `pip install "sideseat[openai]"`).
+Several integrations can run together, for example `integrations=["langgraph", "bedrock"]`. A requested
+integration whose package is missing raises `IntegrationError` with the install command.
 
 ### Amazon Bedrock
 
 ```bash
-pip install "sideseat[aws]" boto3
+pip install "sideseat[bedrock]" boto3
 ```
 
 ```python
-from sideseat import SideSeat, Frameworks
 import boto3
+import sideseat
 
-SideSeat(framework=Frameworks.Bedrock)
+sideseat.init(integrations=["bedrock"])
 
+# Create the client after init: the integration instruments clients as they are created.
 bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
-response = bedrock.converse(
-    modelId="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
-    messages=[{"role": "user", "content": [{"text": "What is 2+2?"}]}],
-)
 
-print(response["output"]["message"]["content"][0]["text"])
+with sideseat.session("geography-chat", user_id="user-123"):
+    response = bedrock.converse(
+        modelId="global.anthropic.claude-sonnet-5-5",
+        messages=[{"role": "user", "content": [{"text": "What is the capital of France?"}]}],
+    )
+    print(response["output"]["message"]["content"][0]["text"])
 ```
 
 ### Anthropic
 
 ```bash
-pip install "sideseat[anthropic]"
+pip install "sideseat[anthropic]" anthropic
 ```
 
 ```python
-from sideseat import SideSeat, Frameworks
 import anthropic
+import sideseat
 
-SideSeat(framework=Frameworks.Anthropic)
+sideseat.init(integrations=["anthropic"])
 
-client = anthropic.Anthropic()
-message = client.messages.create(
-    model="claude-sonnet-4-5-20250929",
+message = anthropic.Anthropic().messages.create(
+    model="claude-sonnet-5-5",
     max_tokens=1024,
     messages=[{"role": "user", "content": "What is 2+2?"}],
 )
-
 print(message.content[0].text)
 ```
 
 ### OpenAI
 
 ```bash
-pip install "sideseat[openai]"
+pip install "sideseat[openai]" openai
 ```
-
-**Chat Completions API:**
-
-```python
-from sideseat import SideSeat, Frameworks
-from openai import OpenAI
-
-client = SideSeat(framework=Frameworks.OpenAI)
-openai = OpenAI()
-
-with client.trace("geography-chat", session_id="sess-abc", user_id="user-123"):
-    messages = []
-
-    messages.append({"role": "user", "content": "What is the capital of France?"})
-    response = openai.chat.completions.create(model="gpt-5-mini", messages=messages)
-    messages.append({"role": "assistant", "content": response.choices[0].message.content})
-
-    messages.append({"role": "user", "content": "What about Germany?"})
-    response = openai.chat.completions.create(model="gpt-5-mini", messages=messages)
-    print(response.choices[0].message.content)
-```
-
-**Responses API:**
-
-```python
-from sideseat import SideSeat, Frameworks
-from openai import OpenAI
-
-SideSeat(framework=Frameworks.OpenAI)
-openai = OpenAI()
-
-response = openai.responses.create(
-    model="gpt-5-mini",
-    instructions="Answer in one sentence.",
-    input="What is the speed of light?",
-    max_output_tokens=1024,
-)
-
-print(response.output_text)
-```
-
-### Azure OpenAI
-
-```bash
-pip install "sideseat[azure-openai]"
-```
-
-```python
-import os
-
-from openai import OpenAI
-from sideseat import Frameworks, SideSeat
-
-SideSeat(framework=Frameworks.AzureOpenAI)
-client = OpenAI(
-    api_key=os.environ["AZURE_OPENAI_API_KEY"],
-    base_url="https://YOUR-RESOURCE.openai.azure.com/openai/v1/",
-)
-
-response = client.chat.completions.create(
-    model="YOUR-DEPLOYMENT",
-    messages=[{"role": "user", "content": "What is 2+2?"}],
-)
-print(response.choices[0].message.content)
-```
-
-## Configuration
-
-### Environment Variables
-
-| Variable              | Default                 | Description                  |
-| --------------------- | ----------------------- | ---------------------------- |
-| `SIDESEAT_ENDPOINT`   | `http://127.0.0.1:5388` | Server URL                   |
-| `SIDESEAT_PROJECT`    | `default`               | Project identifier           |
-| `SIDESEAT_API_KEY`    | —                       | Authentication key           |
-| `SIDESEAT_DISABLED`   | `false`                 | Disable all telemetry        |
-| `SIDESEAT_DEBUG`      | `false`                 | Enable verbose logging       |
-
-### Constructor Parameters
-
-```python
-SideSeat(
-    endpoint="http://localhost:5388",
-    project_id="my-project",
-    api_key="pk-...",
-    framework=Frameworks.Strands,
-    auto_instrument=True,
-    service_name="my-app",
-    service_version="1.0.0",
-    enable_traces=True,
-    enable_metrics=True,
-    enable_logs=False,
-    capture_content=True,
-    encode_binary=True,
-    disabled=False,
-    debug=False,
-)
-```
-
-| Parameter         | Type   | Default                 | Description                       |
-| ----------------- | ------ | ----------------------- | --------------------------------- |
-| `endpoint`        | `str`  | `http://127.0.0.1:5388` | Server URL                        |
-| `project_id`      | `str`  | `default`               | Project identifier                |
-| `api_key`         | `str`  | `None`                  | Authentication key                |
-| `framework`       | `str \| list` | Auto-detected     | Framework/providers to instrument |
-| `auto_instrument` | `bool` | `True`                  | Enable framework instrumentation  |
-| `service_name`    | `str`  | Framework name          | Application name in traces        |
-| `service_version` | `str`  | Framework version       | Application version               |
-| `enable_traces`   | `bool` | `True`                  | Export trace spans                |
-| `enable_metrics`  | `bool` | `True`                  | Export metrics                    |
-| `enable_logs`     | `bool` | `False`                 | Export logs                       |
-| `capture_content` | `bool` | `True`                  | Capture LLM prompts and responses |
-| `encode_binary`   | `bool` | `True`                  | Base64 encode binary data         |
-| `disabled`        | `bool` | `False`                 | Disable all telemetry             |
-| `debug`           | `bool` | `False`                 | Enable verbose logging            |
-
-**Resolution order:** Constructor → `SIDESEAT_*` env → `OTEL_*` env → defaults
-
-## Advanced Usage
-
-### Context Manager
-
-```python
-with SideSeat() as client:
-    run_my_agent()
-# Traces flushed and connection closed automatically
-```
-
-### Global Instance
 
 ```python
 import sideseat
+from openai import OpenAI
 
-sideseat.init(project_id="my-project")  # Initialize once
-client = sideseat.get_client()  # Access anywhere
-sideseat.shutdown()  # Clean up
+sideseat.init(integrations=["openai"])
+
+response = OpenAI().responses.create(
+    model="gpt-6.1-sol",
+    instructions="Answer in one sentence.",
+    input="What is the speed of light?",
+)
+print(response.output_text)
 ```
 
-### Custom Spans
+### Vertex AI
+
+```bash
+pip install "sideseat[vertex-ai]" google-genai
+```
 
 ```python
-client = SideSeat()
+import sideseat
+from google import genai
 
-with client.span("process-request") as span:
-    span.set_attribute("user_id", "12345")
-    result = do_work()
-# Exceptions recorded automatically with stack traces
+sideseat.init(integrations=["vertex-ai"])
+
+client = genai.Client(enterprise=True, project="your-project", location="us-central1")
+response = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents="What is the speed of light?",
+)
+print(response.text)
 ```
 
-### Async Support
+Each framework's page under [Integrations](https://sideseat.ai/docs/integrations/) shows its setup.
+
+## Flushing and shutdown
+
+Telemetry is exported in batches. `sideseat.shutdown()` runs at exit and flushes everything; call
+`sideseat.flush()` in a short-lived process, such as a serverless handler, before it is frozen. Both
+return whether every span was exported.
+
+## Testing
+
+`sideseat.testing.capture()` initializes SideSeat without network export and records spans in memory:
 
 ```python
-import asyncio
-from sideseat import SideSeat
+import sideseat
+from sideseat.testing import capture
 
 
-async def main():
-    with SideSeat():
-        result = await my_async_agent.run("Hello")
-        print(result)
-
-
-asyncio.run(main())
+def test_the_agent_reports_its_session():
+    with capture(integrations=["strands"]) as spans:
+        with sideseat.session("s-1"):
+            run_agent()
+    assert all(span.attributes["session.id"] == "s-1" for span in spans.finished())
 ```
 
-### Debug Exporters
+`disabled=True` or `SIDESEAT_DISABLED=true` configures nothing; every SideSeat call still works and
+records nothing.
 
-```python
-client = SideSeat()
-client.telemetry.setup_console_exporter()  # Print to stdout
-client.telemetry.setup_file_exporter("traces.jsonl")  # Write to file
-```
+## Runtime channel
 
-### Disabled Mode
-
-```python
-SideSeat(disabled=True)  # Or set SIDESEAT_DISABLED=true
-```
-
-### Existing OpenTelemetry Setup
-
-If a `TracerProvider` already exists, SideSeat adds its exporter to the existing provider.
-
-### Unsupported Frameworks
-
-```python
-SideSeat(auto_instrument=False)
-# Use your framework's native OpenTelemetry instrumentation
-```
-
-## Data and Privacy
-
-**What is collected:**
-
-- Trace spans with timing and hierarchy
-- LLM prompts and responses (when `capture_content=True`)
-- Token counts and model names
-- Errors and stack traces
-
-**Where it goes:**
-
-All data is sent to your self-hosted server. Nothing leaves your infrastructure.
-
-**Resilience:**
-
-- Up to 2,048 spans buffered in memory
-- Batched exports every 5 seconds
-- 30-second timeout per export
-- Server downtime does not affect your application
-
-## Troubleshooting
-
-| Problem                  | Solution                                            |
-| ------------------------ | --------------------------------------------------- |
-| Connection refused       | Server not running. Run `npx sideseat`              |
-| No traces appear         | Check endpoint with `SIDESEAT_DEBUG=true`           |
-| Wrong framework detected | Set `framework=Frameworks.X` explicitly             |
-| Duplicate traces         | Initialize `SideSeat()` once per process            |
-| Import error for extras  | Install extras: `pip install "sideseat[langgraph]"` |
-
-## API Reference
-
-### SideSeat
-
-```python
-client = SideSeat(**kwargs)
-```
-
-**Properties:**
-
-| Name              | Type              | Description                   |
-| ----------------- | ----------------- | ----------------------------- |
-| `config`          | `Config`          | Immutable configuration       |
-| `telemetry`       | `TelemetryClient` | Access to debug exporters     |
-| `tracer_provider` | `TracerProvider`  | OpenTelemetry tracer provider |
-| `is_disabled`     | `bool`            | Whether telemetry is disabled |
-
-**Methods:**
-
-| Name                           | Returns                | Description                       |
-| ------------------------------ | ---------------------- | --------------------------------- |
-| `span(name, **kwargs)`         | `ContextManager[Span]` | Create a custom span              |
-| `trace(name, **kwargs)`        | `ContextManager[Span]` | Create a root span (trace group)  |
-| `get_tracer(name)`             | `Tracer`               | Get an OpenTelemetry tracer       |
-| `force_flush(timeout_millis)`  | `bool`                 | Export pending spans immediately  |
-| `validate_connection(timeout)` | `bool`                 | Test server connectivity          |
-| `shutdown(timeout_millis)`     | `None`                 | Flush pending spans and shut down |
-
-### Frameworks
-
-```python
-Frameworks.Strands  # "strands"
-Frameworks.LangGraph  # "langgraph"
-Frameworks.LangChain  # "langchain"
-Frameworks.CrewAI  # "crewai"
-Frameworks.AutoGen  # "autogen"          (autogen-agentchat)
-Frameworks.AG2  # "ag2"              (AG2 1.x native telemetry)
-Frameworks.OpenAIAgents  # "openai-agents"
-Frameworks.GoogleADK  # "google-adk"
-Frameworks.PydanticAI  # "pydantic-ai"
-Frameworks.AgentFramework  # "agent-framework"  (Microsoft Agent Framework)
-Frameworks.SemanticKernel  # "semantic-kernel"
-Frameworks.ClaudeAgentSDK  # "claude-agent-sdk"
-Frameworks.Agno  # "agno"
-Frameworks.Smolagents  # "smolagents"
-Frameworks.LlamaIndex  # "llama-index"
-Frameworks.AgentScope  # "agentscope"
-Frameworks.Langflow  # "langflow"
-Frameworks.Haystack  # "haystack"
-Frameworks.BrowserUse  # "browser-use"
-Frameworks.Logfire  # "logfire"
-Frameworks.TraceLoop  # "traceloop"       (TraceLoop/OpenLLMetry)
-```
-
-### Providers (via Frameworks)
-
-```python
-Frameworks.Bedrock  # Amazon Bedrock (patches botocore)
-Frameworks.OpenAI  # OpenAI (instruments openai SDK)
-Frameworks.AzureOpenAI  # Azure OpenAI (instruments openai SDK)
-Frameworks.Anthropic  # Anthropic (instruments anthropic SDK)
-Frameworks.GoogleGenAI  # Google Gemini (instruments google-genai SDK)
-Frameworks.VertexAI  # Google Gen AI SDK with enterprise=True
-```
-
-### Module Functions
-
-| Function           | Returns    | Description               |
-| ------------------ | ---------- | ------------------------- |
-| `init(**kwargs)`   | `SideSeat` | Create global instance    |
-| `get_client()`     | `SideSeat` | Get global instance       |
-| `shutdown()`       | `None`     | Shut down global instance |
-| `is_initialized()` | `bool`     | Check if initialized      |
-
-### Utilities
-
-| Function               | Description                            |
-| ---------------------- | -------------------------------------- |
-| `encode_value(value)`  | JSON-encode a value; base64 for binary |
-| `span_to_dict(span)`   | Convert span to dictionary             |
-| `JsonFileSpanExporter` | JSONL file exporter class              |
+With `pip install "sideseat[runtime]"`, agents registered over the
+[runtime channel](https://sideseat.ai/docs/sdks/python/runtime/) appear in the SideSeat Playground,
+which can inspect and run them.
 
 ## Resources
 
-- [Documentation](https://sideseat.ai/docs)
-- [GitHub Discussions](https://github.com/sideseat/sideseat/discussions)
-- [Issue Tracker](https://github.com/sideseat/sideseat/issues)
+- [Documentation](https://sideseat.ai/docs/sdks/python/)
+- [Issue tracker](https://github.com/sideseat/sideseat/issues)
 
 ## License
 

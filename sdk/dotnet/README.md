@@ -6,12 +6,15 @@ and user.
 
 ```bash
 dotnet add package SideSeat
+dotnet add package AWSSDK.Extensions.Bedrock.MEAI
 npx sideseat            # a local SideSeat server on http://127.0.0.1:5388
 ```
 
 ## Quick start
 
 ```csharp
+using Amazon.BedrockRuntime;
+using Microsoft.Extensions.AI;
 using SideSeat;
 
 using var sideseat = SideSeatClient.Create(new SideSeatOptions
@@ -19,7 +22,8 @@ using var sideseat = SideSeatClient.Create(new SideSeatOptions
     Integrations = { "extensions-ai" },
 });
 
-IChatClient chat = bedrockChatClient
+IChatClient chat = new AmazonBedrockRuntimeClient()
+    .AsIChatClient("global.anthropic.claude-sonnet-5-5")
     .AsBuilder()
     .UseOpenTelemetry()
     .Build();
@@ -50,7 +54,7 @@ own switch); set `CaptureContent = false` to turn it off everywhere.
 ## Structure
 
 ```csharp
-using (var trace = sideseat.StartTrace("plan-trip", sessionId: "s-1", userId: "u-1"))
+using (sideseat.StartTrace("plan-trip", sessionId: "s-1", userId: "u-1"))
 using (var span = sideseat.StartSpan("retrieve-context"))
 {
     span.SetAttribute("app.documents", 4);
