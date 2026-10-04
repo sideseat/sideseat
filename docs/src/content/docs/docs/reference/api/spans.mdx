@@ -47,7 +47,7 @@ Query spans with pagination and filters.
       "timestamp_start": "2025-01-26T10:12:34Z",
       "duration_ms": 420,
       "gen_ai_system": "bedrock",
-      "model": "anthropic.claude-sonnet-4-5-20250929-v1:0",
+      "model": "global.anthropic.claude-sonnet-5-5",
       "input_tokens": 150,
       "output_tokens": 200
     }
@@ -68,7 +68,7 @@ Query spans with pagination and filters.
 curl "http://localhost:5388/api/v1/project/default/otel/spans?trace_id=abc123"
 
 # Filter by model
-curl "http://localhost:5388/api/v1/project/default/otel/spans?gen_ai_request_model=anthropic.claude-sonnet-4-5-20250929-v1:0"
+curl "http://localhost:5388/api/v1/project/default/otel/spans?gen_ai_request_model=global.anthropic.claude-sonnet-5-5"
 
 # Filter LLM spans only
 curl "http://localhost:5388/api/v1/project/default/otel/spans?span_category=llm"

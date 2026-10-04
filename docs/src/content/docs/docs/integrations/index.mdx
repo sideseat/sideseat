@@ -9,12 +9,12 @@ SideSeat collects runs from any application emitting OpenTelemetry data. Most AI
 
 ## How Integration Works
 
-1. **Install SDK**: Add the SideSeat Python or TypeScript SDK
-2. **Initialize**: Call `SideSeat()` (Python) or `init()` (TypeScript)
-3. **Run**: Your framework's telemetry flows to the local workbench automatically
+1. **Install the SDK**: `pip install sideseat` (Python), `npm install @sideseat/sdk` (TypeScript), or `dotnet add package SideSeat` (.NET).
+2. **Initialize**: `sideseat.init(integrations=["strands"])` in Python, `await sideseat.init({ integrations: ["vercel-ai"] })` in TypeScript, or `SideSeatClient.Create(...)` in .NET.
+3. **Run**: your framework's telemetry flows to the local workbench.
 
 SideSeat then:
-- Auto-detects the framework
+- Identifies the framework from its spans
 - Extracts model, token, and cost information
 - Normalizes messages into a unified run timeline
 

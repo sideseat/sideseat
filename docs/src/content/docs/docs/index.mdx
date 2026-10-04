@@ -49,23 +49,25 @@ AI agents are hard to debug. Requests fly by, context builds up, and when someth
        lang: "python",
        install: "pip install sideseat strands-agents",
        installUv: "uv add sideseat strands-agents",
-       code: `from sideseat import SideSeat, Frameworks
+       code: `import sideseat
 from strands import Agent
 
-SideSeat(framework=Frameworks.Strands)
+sideseat.init(integrations=["strands"])
 
-agent = Agent()
-print(agent("What is 2+2?"))`,
+agent = Agent(model="global.anthropic.claude-sonnet-5-5")
+
+with sideseat.session("conversation-1", user_id="user-1"):
+    print(agent("What is 2+2?"))`,
      },
      {
        label: "Strands (TypeScript)",
        group: "Frameworks",
        lang: "typescript",
        install: "npm install @sideseat/sdk @strands-agents/sdk",
-       code: `import { init, Frameworks } from '@sideseat/sdk';
+       code: `import * as sideseat from '@sideseat/sdk';
 import { Agent } from '@strands-agents/sdk';
 
-await init({ framework: Frameworks.Strands });
+await sideseat.init({ integrations: ['strands'] });
 
 const agent = new Agent({ model: 'global.anthropic.claude-haiku-4-5-20251001-v1:0' });
 const result = await agent.invoke('What is 2+2?');
@@ -77,13 +79,13 @@ console.log(result.toString());`,
        lang: "python",
        install: 'pip install "sideseat[langgraph]" langgraph langchain-openai',
        installUv: 'uv add "sideseat[langgraph]" langgraph langchain-openai',
-       code: `from sideseat import SideSeat, Frameworks
+       code: `import sideseat
 from langgraph.prebuilt import create_react_agent
 from langchain_openai import ChatOpenAI
 
-SideSeat(framework=Frameworks.LangGraph)
+sideseat.init(integrations=["langgraph"])
 
-llm = ChatOpenAI(model="gpt-5-mini")
+llm = ChatOpenAI(model="gpt-6.1-sol")
 agent = create_react_agent(llm, tools=[])
 result = agent.invoke({"messages": [("user", "What is 2+2?")]})
 print(result["messages"][-1].content)`,
@@ -94,10 +96,10 @@ print(result["messages"][-1].content)`,
        lang: "python",
        install: 'pip install "sideseat[openai-agents]" openai-agents',
        installUv: 'uv add "sideseat[openai-agents]" openai-agents',
-       code: `from sideseat import SideSeat, Frameworks
+       code: `import sideseat
 from agents import Agent, Runner
 
-SideSeat(framework=Frameworks.OpenAIAgents)
+sideseat.init(integrations=["openai-agents"])
 
 agent = Agent(name="Assistant", instructions="You are helpful.")
 result = Runner.run_sync(agent, "What is 2+2?")
@@ -109,10 +111,10 @@ print(result.final_output)`,
        lang: "python",
        install: 'pip install "sideseat[crewai]" crewai',
        installUv: 'uv add "sideseat[crewai]" crewai',
-       code: `from sideseat import SideSeat, Frameworks
+       code: `import sideseat
 from crewai import Agent, Task, Crew
 
-SideSeat(framework=Frameworks.CrewAI)
+sideseat.init(integrations=["crewai"])
 
 researcher = Agent(role="Researcher", goal="Find information", backstory="Expert researcher")
 task = Task(description="What is 2+2?", expected_output="The answer", agent=researcher)
@@ -126,13 +128,13 @@ print(result)`,
        install: "pip install sideseat google-adk",
        installUv: "uv add sideseat google-adk",
        code: `import asyncio
-from sideseat import SideSeat, Frameworks
+import sideseat
 from google.adk.agents import Agent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
-SideSeat(framework=Frameworks.GoogleADK)
+sideseat.init(integrations=["google-adk"])
 
 agent = Agent(model="gemini-2.5-flash", name="assistant", instruction="You are helpful.")
 
@@ -156,13 +158,13 @@ asyncio.run(main())`,
        install: "pip install sideseat agent-framework",
        installUv: "uv add sideseat agent-framework",
        code: `import asyncio
-from sideseat import SideSeat, Frameworks
+import sideseat
 from agent_framework import Agent
 from agent_framework.openai import OpenAIChatClient
 
-SideSeat(framework=Frameworks.AgentFramework)
+sideseat.init(integrations=["agent-framework"])
 
-agent = Agent(client=OpenAIChatClient(model="gpt-5-nano-2025-08-07"), instructions="You are helpful.")
+agent = Agent(client=OpenAIChatClient(model="gpt-6.1-sol"), instructions="You are helpful.")
 result = asyncio.run(agent.run("What is 2+2?"))
 print(result.text)`,
      },
@@ -171,14 +173,14 @@ print(result.text)`,
        group: "Frameworks",
        lang: "typescript",
        install: "npm install @sideseat/sdk ai @ai-sdk/otel @ai-sdk/amazon-bedrock",
-       code: `import { init, Frameworks } from '@sideseat/sdk';
+       code: `import * as sideseat from '@sideseat/sdk';
 import { generateText } from 'ai';
 import { bedrock } from '@ai-sdk/amazon-bedrock';
 
-await init({ framework: Frameworks.VercelAI });
+await sideseat.init({ integrations: ['vercel-ai'] });
 
 const { text } = await generateText({
-  model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
+  model: bedrock('global.anthropic.claude-sonnet-5-5'),
   prompt: 'What is 2+2?',
   experimental_telemetry: { isEnabled: true },
 });
@@ -191,29 +193,16 @@ console.log(text);`,
        install: "pip install sideseat claude-agent-sdk",
        installUv: "uv add sideseat claude-agent-sdk",
        code: `import asyncio
-from claude_agent_sdk import query, ClaudeAgentOptions
-from sideseat import SideSeat, Frameworks
+import sideseat
+from claude_agent_sdk import ClaudeAgentOptions, query
 
-client = SideSeat(framework=Frameworks.ClaudeAgentSDK)
-
-# The Agent SDK spawns the Claude Code CLI, which exports OTLP itself.
-OTEL_ENV = {
-    "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
-    "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA": "1",
-    # Second beta tier: required for the message feed.
-    "ENABLE_BETA_TRACING_DETAILED": "1",
-    "BETA_TRACING_ENDPOINT": "http://localhost:5388/otel/default",
-    "OTEL_TRACES_EXPORTER": "otlp",
-    "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/protobuf",
-    "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://localhost:5388/otel/default/v1/traces",
-    "OTEL_LOG_USER_PROMPTS": "1",
-    "OTEL_LOG_TOOL_DETAILS": "1",
-}
+# Configures the telemetry of the Claude Code CLI that the Agent SDK spawns.
+sideseat.init(integrations=["claude-agent-sdk"])
 
 
 async def main():
-    options = ClaudeAgentOptions(env=OTEL_ENV, allowed_tools=["Read", "Glob"])
-    with client.trace("agent-run"):
+    options = ClaudeAgentOptions(allowed_tools=["Read", "Glob"])
+    with sideseat.trace("agent-run", session_id="conversation-1"):
         async for message in query(prompt="What is 2+2?", options=options):
             print(message)
 
@@ -226,27 +215,14 @@ asyncio.run(main())`,
        lang: "typescript",
        install: "npm install @sideseat/sdk @anthropic-ai/claude-agent-sdk",
        code: `import { query } from '@anthropic-ai/claude-agent-sdk';
-import { init, Frameworks } from '@sideseat/sdk';
+import * as sideseat from '@sideseat/sdk';
 
-await init({ framework: Frameworks.ClaudeAgentSDK });
+// Configures the telemetry of the Claude Code CLI that the Agent SDK spawns.
+await sideseat.init({ integrations: ['claude-agent-sdk'] });
 
-const otelEnv = {
-  CLAUDE_CODE_ENABLE_TELEMETRY: '1',
-  CLAUDE_CODE_ENHANCED_TELEMETRY_BETA: '1',
-  // Second beta tier: required for the message feed.
-  ENABLE_BETA_TRACING_DETAILED: '1',
-  BETA_TRACING_ENDPOINT: 'http://localhost:5388/otel/default',
-  OTEL_TRACES_EXPORTER: 'otlp',
-  OTEL_EXPORTER_OTLP_TRACES_PROTOCOL: 'http/protobuf',
-  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: 'http://localhost:5388/otel/default/v1/traces',
-  OTEL_LOG_USER_PROMPTS: '1',
-  OTEL_LOG_TOOL_DETAILS: '1',
-};
-
-// env REPLACES the inherited environment in TypeScript, so spread process.env.
 for await (const message of query({
   prompt: 'What is 2+2?',
-  options: { env: { ...process.env, ...otelEnv }, allowedTools: ['Read', 'Glob'] },
+  options: { allowedTools: ['Read', 'Glob'] },
 })) {
   console.log(message);
 }`,
@@ -255,16 +231,16 @@ for await (const message of query({
        label: "Amazon Bedrock",
        group: "Providers",
        lang: "python",
-       install: 'pip install "sideseat[aws]" boto3',
-       installUv: 'uv add "sideseat[aws]" boto3',
-       code: `from sideseat import SideSeat, Frameworks
+       install: 'pip install "sideseat[bedrock]" boto3',
+       installUv: 'uv add "sideseat[bedrock]" boto3',
+       code: `import sideseat
 import boto3
 
-SideSeat(framework=Frameworks.Bedrock)
+sideseat.init(integrations=["bedrock"])
 
 client = boto3.client("bedrock-runtime", region_name="us-east-1")
 response = client.converse(
-    modelId="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    modelId="global.anthropic.claude-sonnet-5-5",
     messages=[{"role": "user", "content": [{"text": "What is 2+2?"}]}],
 )
 print(response["output"]["message"]["content"][0]["text"])`,
@@ -275,14 +251,14 @@ print(response["output"]["message"]["content"][0]["text"])`,
        lang: "python",
        install: 'pip install "sideseat[anthropic]" anthropic',
        installUv: 'uv add "sideseat[anthropic]" anthropic',
-       code: `from sideseat import SideSeat, Frameworks
+       code: `import sideseat
 import anthropic
 
-SideSeat(framework=Frameworks.Anthropic)
+sideseat.init(integrations=["anthropic"])
 
 client = anthropic.Anthropic()
 message = client.messages.create(
-    model="claude-sonnet-4-5-20250929",
+    model="claude-sonnet-5-5",
     max_tokens=1024,
     messages=[{"role": "user", "content": "What is 2+2?"}],
 )
@@ -294,14 +270,14 @@ print(message.content[0].text)`,
        lang: "python",
        install: 'pip install "sideseat[openai]" openai',
        installUv: 'uv add "sideseat[openai]" openai',
-       code: `from sideseat import SideSeat, Frameworks
+       code: `import sideseat
 from openai import OpenAI
 
-SideSeat(framework=Frameworks.OpenAI)
+sideseat.init(integrations=["openai"])
 
 client = OpenAI()
 response = client.chat.completions.create(
-    model="gpt-5-mini",
+    model="gpt-6.1-sol",
     messages=[{"role": "user", "content": "What is 2+2?"}],
 )
 print(response.choices[0].message.content)`,
@@ -312,10 +288,10 @@ print(response.choices[0].message.content)`,
        lang: "python",
        install: 'pip install "sideseat[google-genai]" google-genai',
        installUv: 'uv add "sideseat[google-genai]" google-genai',
-       code: `from sideseat import SideSeat, Frameworks
+       code: `import sideseat
 from google import genai
 
-SideSeat(framework=Frameworks.GoogleGenAI)
+sideseat.init(integrations=["google-genai"])
 
 client = genai.Client(api_key="YOUR_API_KEY")
 response = client.models.generate_content(model="gemini-2.5-flash", contents="What is 2+2?")
@@ -328,9 +304,9 @@ print(response.text)`,
        install: 'pip install "sideseat[vertex-ai]"',
        installUv: 'uv add "sideseat[vertex-ai]"',
        code: `from google import genai
-from sideseat import SideSeat, Frameworks
+import sideseat
 
-SideSeat(framework=Frameworks.VertexAI)
+sideseat.init(integrations=["vertex-ai"])
 
 client = genai.Client(
     enterprise=True,
@@ -431,7 +407,7 @@ LangChainInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True
 from langgraph.prebuilt import create_react_agent
 from langchain_openai import ChatOpenAI
 
-llm = ChatOpenAI(model="gpt-5-mini")
+llm = ChatOpenAI(model="gpt-6.1-sol")
 agent = create_react_agent(llm, tools=[])
 result = agent.invoke({"messages": [("user", "What is 2+2?")]})
 print(result["messages"][-1].content)`,
@@ -520,7 +496,7 @@ provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(
 )))
 trace.set_tracer_provider(provider)
 
-client = OpenAIChatClient(model="gpt-5-nano-2025-08-07")
+client = OpenAIChatClient(model="gpt-6.1-sol")
 agent = Agent(client=client, instructions="You are a helpful assistant.")
 result = asyncio.run(agent.run("What is 2+2?"))
 print(result.text)`,
@@ -529,8 +505,8 @@ print(result.text)`,
        label: "OpenAI Agents SDK",
        group: "Frameworks",
        lang: "python",
-       install: 'pip install openai-agents "logfire>=4.29.0" opentelemetry-exporter-otlp',
-       installUv: 'uv add openai-agents "logfire>=4.29.0" opentelemetry-exporter-otlp',
+       install: 'pip install openai-agents "logfire>=5.1.1" opentelemetry-exporter-otlp',
+       installUv: 'uv add openai-agents "logfire>=5.1.1" opentelemetry-exporter-otlp',
        code: `import logfire
 from opentelemetry import trace
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
@@ -571,7 +547,7 @@ sdk.start();
 registerTelemetry(new OpenTelemetry());
 
 const { text } = await generateText({
-  model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
+  model: bedrock('global.anthropic.claude-sonnet-5-5'),
   prompt: 'What is 2+2?',
   experimental_telemetry: { isEnabled: true },
 });

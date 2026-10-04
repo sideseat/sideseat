@@ -1,214 +1,113 @@
 ---
 title: AutoGen
-description: Integrate SideSeat with Microsoft AutoGen for multi-agent run visibility.
+description: Trace AutoGen AgentChat agents, teams, model calls, and tools in SideSeat.
 ---
 
-import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
 
-[AutoGen](https://microsoft.github.io/autogen/) is Microsoft's framework for building multi-agent conversational systems. SideSeat captures runs (traces) from agent interactions.
+[AutoGen AgentChat](https://microsoft.github.io/autogen/) builds single agents and multi-agent teams.
+SideSeat instruments it with the OpenInference AgentChat instrumentor, which the `autogen` extra
+installs. For AG2, the AutoGen fork, see [AG2](/docs/integrations/frameworks/other/#ag2).
 
-## Prerequisites
+## Install
 
-- SideSeat running locally (`sideseat`)
-- Python 3.10+
-- Model/provider credentials configured
+<Tabs>
+  <TabItem label="pip">
+    ```bash
+    pip install autogen-agentchat "autogen-ext[anthropic]" tiktoken "sideseat[autogen]"
+    ```
+  </TabItem>
+  <TabItem label="uv">
+    ```bash
+    uv add autogen-agentchat "autogen-ext[anthropic]" tiktoken "sideseat[autogen]"
+    ```
+  </TabItem>
+</Tabs>
 
-## Quick Start
+`tiktoken` is imported by the Anthropic client but declared only by `autogen-ext[openai]`. Start a
+local server with `npx sideseat` and set `ANTHROPIC_API_KEY`.
 
-<Steps>
-1. **Start SideSeat**
-
-   ```bash
-   npx sideseat
-   ```
-
-2. **Install dependencies**
-
-   <Tabs>
-     <TabItem label="pip">
-       ```bash
-       pip install autogen-agentchat "autogen-ext[openai]" "sideseat[autogen]"
-       ```
-     </TabItem>
-     <TabItem label="uv">
-       ```bash
-       uv add autogen-agentchat "autogen-ext[openai]" "sideseat[autogen]"
-       ```
-     </TabItem>
-   </Tabs>
-
-3. **Add telemetry**
-
-   ```python
-   from sideseat import SideSeat, Frameworks
-   from autogen_agentchat.agents import AssistantAgent
-   from autogen_ext.models.openai import OpenAIChatCompletionClient
-   
-   SideSeat(framework=Frameworks.AutoGen)
-   
-   model_client = OpenAIChatCompletionClient(model="gpt-5-mini", api_key="sk-xxx")
-   assistant = AssistantAgent("assistant", model_client=model_client)
-   
-   result = await assistant.run(task="Hello!")
-   print(result.messages[-1].content)
-   ```
-
-4. **View runs**
-
-   Open [http://localhost:5388](http://localhost:5388) to see your runs.
-</Steps>
-
-## Without SideSeat SDK
-
-<Steps>
-1. **Start SideSeat**
-
-   ```bash
-   npx sideseat
-   ```
-
-2. **Set the endpoint**
-
-   ```bash
-   export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
-   ```
-
-3. **Install dependencies**
-
-   <Tabs>
-     <TabItem label="pip">
-       ```bash
-       pip install autogen-agentchat "autogen-ext[openai]" openinference-instrumentation-autogen-agentchat opentelemetry-exporter-otlp
-       ```
-     </TabItem>
-     <TabItem label="uv">
-       ```bash
-       uv add autogen-agentchat "autogen-ext[openai]" openinference-instrumentation-autogen-agentchat opentelemetry-exporter-otlp
-       ```
-     </TabItem>
-   </Tabs>
-
-4. **Add telemetry**
-
-   ```python
-   from opentelemetry import trace
-   from opentelemetry.sdk.trace import TracerProvider
-   from opentelemetry.sdk.trace.export import BatchSpanProcessor
-   from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-   from openinference.instrumentation.autogen_agentchat import AutogenAgentChatInstrumentor
-
-   provider = TracerProvider()
-   provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
-   trace.set_tracer_provider(provider)
-   AutogenAgentChatInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)
-   ```
-
-5. **View runs**
-
-   Open [http://localhost:5388](http://localhost:5388) to see your runs.
-</Steps>
-
-## Agent Configuration
-
-Configure AutoGen agents with LLM settings:
+## Quick start
 
 ```python
+import asyncio
+
+import sideseat
 from autogen_agentchat.agents import AssistantAgent
-from autogen_ext.models.openai import OpenAIChatCompletionClient
+from autogen_core.models import ModelFamily, ModelInfo
+from autogen_ext.models.anthropic import AnthropicChatCompletionClient
 
-model_client = OpenAIChatCompletionClient(model="gpt-5-mini", api_key="sk-xxx")
+sideseat.init(integrations=["autogen"])
 
-assistant = AssistantAgent(
-    name="assistant",
-    model_client=model_client,
-    system_message="You are a helpful coding assistant.",
-)
 
-result = await assistant.run(task="Write a Python hello world")
-print(result.messages[-1].content)
+def get_weather(city: str) -> str:
+    """Get the weather for a city."""
+    return f"Sunny in {city}, 22°C"
+
+
+async def main() -> None:
+    model_client = AnthropicChatCompletionClient(
+        model="claude-sonnet-5-5",
+        # AutoGen needs model_info for models its catalog does not list.
+        model_info=ModelInfo(
+            vision=True,
+            function_calling=True,
+            json_output=False,
+            structured_output=False,
+            family=ModelFamily.UNKNOWN,
+        ),
+    )
+    assistant = AssistantAgent(
+        "assistant",
+        model_client=model_client,
+        tools=[get_weather],
+        reflect_on_tool_use=True,
+    )
+    with sideseat.session("conversation-42", user_id="user-7"):
+        result = await assistant.run(task="What's the weather in Lisbon?")
+    print(result.messages[-1].to_text())
+
+
+asyncio.run(main())
 ```
 
-## Multi-Agent Conversations
+Teams such as `RoundRobinGroupChat` are traced the same way: each agent's turn is a span under the
+team run.
 
-Multi-agent chats are traced end-to-end:
-
-```python
-from autogen_agentchat.agents import AssistantAgent
-from autogen_agentchat.conditions import MaxMessageTermination
-from autogen_agentchat.teams import RoundRobinGroupChat
-
-coder = AssistantAgent("coder", model_client=model_client)
-reviewer = AssistantAgent("reviewer", model_client=model_client)
-
-team = RoundRobinGroupChat(
-    [coder, reviewer],
-    termination_condition=MaxMessageTermination(max_messages=6),
-)
-
-result = await team.run(task="Write and review a sorting function")
-print(result.messages[-1].content)
-```
-
-## Extracted Attributes
-
-| Attribute | Description |
-|-----------|-------------|
-| `autogen.agent.name` | Agent name |
-| `autogen.chat.round` | Conversation round |
-| `autogen.message.sender` | Message sender |
-| `autogen.code.execution` | Code execution status |
-
-## Code Execution
-
-AutoGen's code execution is traced:
-
-```python
-user = UserProxyAgent(
-    name="user",
-    code_execution_config={
-        "work_dir": "coding",
-        "use_docker": False
-    }
-)
-```
-
-SideSeat shows:
-- Code generation spans
-- Execution spans with output
-- Error spans if execution fails
-
-## What You'll See
-
-SideSeat shows a trace timeline with:
-- A parent span for each agent conversation
-- Child spans for each LLM call with model, tokens, and cost
-- Code generation and execution spans with outputs
-- Error spans with exception details when failures occur
-
-## Verified compatibility
-
-The checked-in parity fixture uses AutoGen AgentChat 0.7.5, AutoGen Ext 0.7.5,
-OpenInference AutoGen instrumentation 0.1.18, OpenTelemetry Python 1.45.0, and
-SideSeat Python 1.0.8 on CPython 3.13.7. Native OpenTelemetry and SideSeat SDK
-captures produce the same span, trace, session, and feed conversations for direct
-responses, streaming responses, and automatic tool execution.
-
-The fixture can be reproduced without provider credentials:
+## Without the SDK
 
 ```bash
-scripts/message-fixtures/fake-openai.py --port 5401
+pip install autogen-agentchat "autogen-ext[anthropic]" tiktoken openinference-instrumentation-autogen-agentchat opentelemetry-sdk opentelemetry-exporter-otlp
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
 ```
 
-In another shell:
+```python
+from openinference.instrumentation.autogen_agentchat import AutogenAgentChatInstrumentor
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-```bash
-AUTOGEN_OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
-AUTOGEN_API_KEY=x \
-CAPTURE_MODEL=gpt-4o-mini \
-  scripts/message-fixtures/capture.sh autogen agent both
+provider = TracerProvider()
+provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+# Global as well: AgentChat's own GenAI spans go to the global provider.
+trace.set_tracer_provider(provider)
+AutogenAgentChatInstrumentor().instrument(tracer_provider=provider)
 ```
 
-## Next Steps
+## What you see in SideSeat
 
-- [Python SDK](/docs/sdks/python/) — SDK reference
-- [Core Concepts](/docs/concepts/) — understanding runs, steps, and messages
+- One trace per `run`, with spans for the agent or team and each agent's turn.
+- A span per model call with the model, token counts, and cost.
+- A span per tool execution with its arguments and result.
+- The conversation, including tool calls and the reflected answer, in the Messages tab.
+
+## Known limits
+
+- The OpenInference instrumentor refuses AgentChat versions newer than the one it was released against.
+  The SDK skips that check; without the SDK, pass `skip_dep_check=True` to `instrument`.
+
+## Next steps
+
+- [Python SDK](/docs/sdks/python/)
+- [Anthropic](/docs/integrations/providers/anthropic/)

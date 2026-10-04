@@ -36,11 +36,11 @@
         </div>
         <div class="terminal-body">
           <pre><code>from strands import Agent
-<span class="text-accent">from sideseat import SideSeat, Frameworks</span>
+<span class="text-accent">import sideseat</span>
 
-<span class="text-accent">SideSeat(framework=Frameworks.Strands)</span>   <span class="text-muted"># add this</span>
+<span class="text-accent">sideseat.init(integrations=["strands"])</span>   <span class="text-muted"># add this</span>
 
-agent = Agent()  <span class="text-muted"># uses Amazon Bedrock by default</span>
+agent = Agent(model="global.anthropic.claude-sonnet-5-5")
 agent("Analyze this dataset...")</code></pre>
         </div>
       </div>
@@ -56,13 +56,13 @@ agent("Analyze this dataset...")</code></pre>
         </div>
         <div class="terminal-body">
           <pre><code>import boto3
-<span class="text-accent">from sideseat import SideSeat, Frameworks</span>
+<span class="text-accent">import sideseat</span>
 
-<span class="text-accent">SideSeat(framework=Frameworks.Bedrock)</span>   <span class="text-muted"># add this</span>
+<span class="text-accent">sideseat.init(integrations=["bedrock"])</span>   <span class="text-muted"># add this</span>
 
 bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
 response = bedrock.converse(
-    modelId="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    modelId="global.anthropic.claude-sonnet-5-5",
     messages=[&#123;"role": "user", "content": [&#123;"text": "Analyze this dataset..."&#125;]&#125;],
 )
 
@@ -81,13 +81,13 @@ print(response["output"]["message"]["content"][0]["text"])</code></pre>
         </div>
         <div class="terminal-body">
           <pre><code>from openai import OpenAI
-<span class="text-accent">from sideseat import SideSeat, Frameworks</span>
+<span class="text-accent">import sideseat</span>
 
-<span class="text-accent">SideSeat(framework=Frameworks.OpenAI)</span>   <span class="text-muted"># add this</span>
+<span class="text-accent">sideseat.init(integrations=["openai"])</span>   <span class="text-muted"># add this</span>
 
 client = OpenAI()
 response = client.chat.completions.create(
-    model="gpt-5-mini",
+    model="gpt-6.1-sol",
     messages=[&#123;"role": "user", "content": "Analyze this dataset..."&#125;],
 )
 
@@ -106,13 +106,13 @@ print(response.choices[0].message.content)</code></pre>
         </div>
         <div class="terminal-body">
           <pre><code>import anthropic
-<span class="text-accent">from sideseat import SideSeat, Frameworks</span>
+<span class="text-accent">import sideseat</span>
 
-<span class="text-accent">SideSeat(framework=Frameworks.Anthropic)</span>   <span class="text-muted"># add this</span>
+<span class="text-accent">sideseat.init(integrations=["anthropic"])</span>   <span class="text-muted"># add this</span>
 
 client = anthropic.Anthropic()
 message = client.messages.create(
-    model="claude-sonnet-4-5-20250929",
+    model="claude-sonnet-5-5",
     max_tokens=1024,
     messages=[&#123;"role": "user", "content": "Analyze this dataset..."&#125;],
 )
@@ -132,9 +132,9 @@ print(message.content[0].text)</code></pre>
         </div>
         <div class="terminal-body">
           <pre><code>from google import genai
-<span class="text-accent">from sideseat import Frameworks, SideSeat</span>
+<span class="text-accent">import sideseat</span>
 
-<span class="text-accent">SideSeat(framework=Frameworks.VertexAI)</span>   <span class="text-muted"># add this</span>
+<span class="text-accent">sideseat.init(integrations=["vertex-ai"])</span>   <span class="text-muted"># add this</span>
 
 client = genai.Client(
     enterprise=True,

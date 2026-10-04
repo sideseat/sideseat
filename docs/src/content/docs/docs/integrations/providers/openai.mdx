@@ -1,326 +1,176 @@
 ---
 title: OpenAI
-description: Instrument OpenAI Chat Completions and Responses APIs with SideSeat for full observability.
+description: Trace OpenAI Responses and Chat Completions calls made with the OpenAI Python SDK in SideSeat.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-SideSeat instruments the OpenAI Python SDK to capture model information, token usage, messages, and costs from both the Chat Completions and Responses APIs.
+The `openai` integration instruments the OpenAI Python SDK through Logfire's OpenAI instrumentation.
+Responses and Chat Completions calls become spans with the model, token usage, cost, and the full
+conversation, including tool calls and their results.
 
-## Prerequisites
+## Install
 
-- SideSeat running locally (`sideseat`)
-- Python SDK installed with the OpenAI extra (`pip install "sideseat[openai]"`)
-- OpenAI API key configured (`OPENAI_API_KEY`)
+```bash
+pip install "sideseat[openai]" openai
+export OPENAI_API_KEY=sk-...
+```
 
-## Chat Completions API
-
-SideSeat instruments the OpenAI SDK automatically. Initialize SideSeat with the `OpenAI` framework, then use the SDK as usual:
+## Quick start
 
 ```python
-from sideseat import SideSeat, Frameworks
+import sideseat
 from openai import OpenAI
 
-SideSeat(framework=Frameworks.OpenAI)
+sideseat.init(integrations=["openai"])
 
 client = OpenAI()
-response = client.chat.completions.create(
-    model="gpt-5-mini",
-    messages=[
-        {"role": "system", "content": "Answer in one sentence."},
-        {"role": "user", "content": "What is the speed of light?"},
-    ],
-    max_completion_tokens=1024,
-)
-
-print(response.choices[0].message.content)
-```
-
-<Aside type="tip">
-Reasoning models (e.g., `gpt-5-nano`) use `max_completion_tokens` which includes reasoning tokens. Set this higher than you would `max_tokens` to leave room for both reasoning and output.
-</Aside>
-
-## Traces
-
-By default, each OpenAI API call produces its own independent trace. Use `client.trace()` to group related calls under a single root span:
-
-```python
-client = SideSeat(framework=Frameworks.OpenAI)
-openai = OpenAI()
-
-with client.trace("geography-chat"):
-    messages = [
-        {"role": "system", "content": "You are a geography assistant. Answer in 1-2 sentences."},
-    ]
-
-    # Turn 1
-    messages.append({"role": "user", "content": "What is the capital of France?"})
-    response = openai.chat.completions.create(model="gpt-5-mini", messages=messages)
-    messages.append({"role": "assistant", "content": response.choices[0].message.content})
-
-    # Turn 2
-    messages.append({"role": "user", "content": "What about Germany?"})
-    response = openai.chat.completions.create(model="gpt-5-mini", messages=messages)
-    messages.append({"role": "assistant", "content": response.choices[0].message.content})
-
-    # Turn 3
-    messages.append({"role": "user", "content": "Which city has a larger population?"})
-    response = openai.chat.completions.create(model="gpt-5-mini", messages=messages)
-```
-
-This produces the following span hierarchy:
-
-```
-geography-chat                (root span)
-  ├── ChatCompletion          (turn 1)
-  ├── ChatCompletion          (turn 2)
-  └── ChatCompletion          (turn 3)
-```
-
-All three calls appear as child spans in the SideSeat UI, with the full multi-turn conversation visible in the trace detail view.
-
-## Sessions
-
-Pass `session_id` and `user_id` to `client.trace()` to group independent traces into a session. The SideSeat sessions view groups all traces that share the same `session_id`.
-
-Each `client.trace()` produces its own trace with its own trace ID, but they are linked by the shared session:
-
-```python
-from sideseat import SideSeat, Frameworks
-from openai import OpenAI
-
-client = SideSeat(framework=Frameworks.OpenAI)
-openai = OpenAI()
-
-session_id = "sess-abc"
-user_id = "user-123"
-
-# Trace 1: Trip planning
-with client.trace("trip-planning", session_id=session_id, user_id=user_id):
-    messages = [
-        {"role": "system", "content": "You are a travel advisor. Be concise."},
-    ]
-    messages.append({"role": "user", "content": "Plan a 5-day trip to Japan."})
-    response = openai.chat.completions.create(model="gpt-5-mini", messages=messages)
-    messages.append({"role": "assistant", "content": response.choices[0].message.content})
-
-    messages.append({"role": "user", "content": "Tell me more about Kyoto."})
-    response = openai.chat.completions.create(model="gpt-5-mini", messages=messages)
-
-# Trace 2: Food recommendations (fresh conversation, same session)
-with client.trace("food-recommendations", session_id=session_id, user_id=user_id):
-    messages = [
-        {"role": "system", "content": "You are a food expert. Be concise."},
-    ]
-    messages.append({"role": "user", "content": "What are the must-try dishes in Tokyo?"})
-    response = openai.chat.completions.create(model="gpt-5-mini", messages=messages)
-    messages.append({"role": "assistant", "content": response.choices[0].message.content})
-
-    messages.append({"role": "user", "content": "What about street food in Osaka?"})
-    response = openai.chat.completions.create(model="gpt-5-mini", messages=messages)
-```
-
-This produces two independent traces, each with their own span hierarchy:
-
-```
-Trace 1: trip-planning              (session_id=sess-abc, user_id=user-123)
-  ├── ChatCompletion                (turn 1)
-  └── ChatCompletion                (turn 2)
-
-Trace 2: food-recommendations       (session_id=sess-abc, user_id=user-123)
-  ├── ChatCompletion                (turn 1)
-  └── ChatCompletion                (turn 2)
-```
-
-Each trace starts a fresh conversation with its own message history. The SideSeat sessions view groups them by `session_id`.
-
-## Streaming
-
-Streaming responses are fully captured, including token counts aggregated from stream chunks:
-
-```python
-from sideseat import SideSeat, Frameworks
-from openai import OpenAI
-
-client = SideSeat(framework=Frameworks.OpenAI)
-openai = OpenAI()
-
-stream = openai.chat.completions.create(
-    model="gpt-5-mini",
-    messages=[
-        {"role": "system", "content": "Answer in one sentence."},
-        {"role": "user", "content": "What is the boiling point of water?"},
-    ],
-    max_completion_tokens=1024,
-    stream=True,
-)
-
-for chunk in stream:
-    delta = chunk.choices[0].delta
-    if delta.content:
-        print(delta.content, end="", flush=True)
-```
-
-## Tool Use
-
-Tool definitions, tool call requests, and tool results are all captured:
-
-```python
-from sideseat import SideSeat, Frameworks
-from openai import OpenAI
-
-client = SideSeat(framework=Frameworks.OpenAI)
-openai = OpenAI()
-
-tools = [{
-    "type": "function",
-    "function": {
-        "name": "get_weather",
-        "description": "Get the current weather for a location.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "location": {"type": "string", "description": "City name"}
-            },
-            "required": ["location"],
-        },
-    },
-}]
-
-# Step 1: model requests a tool call
-messages = [
-    {"role": "system", "content": "Use tools when available."},
-    {"role": "user", "content": "What's the weather in Paris?"},
-]
-response = openai.chat.completions.create(
-    model="gpt-5-mini",
-    messages=messages,
-    tools=tools,
-    max_completion_tokens=1024,
-)
-assistant_msg = response.choices[0].message
-messages.append(assistant_msg)
-
-# Step 2: return the tool result
-tool_call = assistant_msg.tool_calls[0]
-messages.append({
-    "role": "tool",
-    "tool_call_id": tool_call.id,
-    "content": "Sunny, 22C",
-})
-
-# Step 3: model produces the final answer
-response = openai.chat.completions.create(
-    model="gpt-5-mini",
-    messages=messages,
-    tools=tools,
-    max_completion_tokens=1024,
-)
-```
-
-SideSeat captures all three steps as separate spans, each with full message details.
-
-## Vision
-
-Image inputs are captured (image data base64-encoded):
-
-```python
-import base64
-
-with open("image.jpg", "rb") as f:
-    image_b64 = base64.b64encode(f.read()).decode()
-
-response = openai.chat.completions.create(
-    model="gpt-5-mini",
-    messages=[{
-        "role": "user",
-        "content": [
-            {"type": "text", "text": "What's in this image?"},
-            {"type": "image_url", "image_url": {
-                "url": f"data:image/jpeg;base64,{image_b64}"
-            }},
-        ],
-    }],
-    max_completion_tokens=2048,
-)
-```
-
-## Responses API
-
-SideSeat also instruments the [Responses API](https://platform.openai.com/docs/api-reference/responses) for stateful, multi-turn interactions:
-
-```python
-from sideseat import SideSeat, Frameworks
-from openai import OpenAI
-
-SideSeat(framework=Frameworks.OpenAI)
-openai = OpenAI()
-
-response = openai.responses.create(
-    model="gpt-5-mini",
+response = client.responses.create(
+    model="gpt-6.1-sol",
     instructions="Answer in one sentence.",
     input="What is the speed of light?",
-    max_output_tokens=1024,
 )
-
 print(response.output_text)
 ```
 
-Tool use with the Responses API uses `previous_response_id` for server-side state:
+The provider client is never auto-detected, so name `openai` in `integrations`. For Azure, use the
+[Azure OpenAI](/docs/integrations/providers/azure/) integration instead.
+
+## Traces and sessions
+
+Without a trace, each call is its own trace. Wrap related calls in `sideseat.trace()` to make them one
+trace, and in `sideseat.session()` to group several traces into one conversation:
 
 ```python
-# Step 1: model requests a tool call
+with sideseat.session("conversation-42", user_id="user-7"):
+    with sideseat.trace("plan-trip"):
+        messages = [{"role": "user", "content": "Plan a weekend in Lisbon."}]
+        reply = client.chat.completions.create(model="gpt-6.1-sol", messages=messages)
+        messages += [
+            {"role": "assistant", "content": reply.choices[0].message.content},
+            {"role": "user", "content": "What should I eat there?"},
+        ]
+        client.chat.completions.create(model="gpt-6.1-sol", messages=messages)
+
+    with sideseat.trace("follow-up"):
+        client.responses.create(model="gpt-6.1-sol", input="Which Lisbon museums open on Mondays?")
+```
+
+The session view shows both traces in order. History re-sent on the second call of `plan-trip` is
+shown once, not duplicated.
+
+## Streaming
+
+```python
+stream = client.chat.completions.create(
+    model="gpt-6.1-sol",
+    messages=[{"role": "user", "content": "What is the boiling point of water?"}],
+    stream=True,
+    stream_options={"include_usage": True},
+)
+for chunk in stream:
+    if chunk.choices and chunk.choices[0].delta.content:
+        print(chunk.choices[0].delta.content, end="", flush=True)
+```
+
+The completed response and its token usage are reconstructed from the stream and recorded in the
+request's trace.
+
+## Tool use
+
+```python
+import json
+
 tools = [{
     "type": "function",
     "name": "get_weather",
-    "description": "Get the current weather for a location.",
+    "description": "Get the current weather for a city.",
     "parameters": {
         "type": "object",
-        "properties": {
-            "location": {"type": "string", "description": "City name"}
-        },
+        "properties": {"location": {"type": "string"}},
         "required": ["location"],
     },
 }]
 
-response = openai.responses.create(
-    model="gpt-5-mini",
-    instructions="Use tools when available.",
-    input="What's the weather in Paris?",
-    tools=tools,
+response = client.responses.create(
+    model="gpt-6.1-sol", input="What's the weather in Paris?", tools=tools
 )
-fn_call = next(item for item in response.output if item.type == "function_call")
-
-# Step 2: provide the tool result
-response2 = openai.responses.create(
-    model="gpt-5-mini",
-    previous_response_id=response.id,
-    input=[{
+outputs = [
+    {
         "type": "function_call_output",
-        "call_id": fn_call.call_id,
-        "output": "Sunny, 22C",
-    }],
-    tools=tools,
+        "call_id": item.call_id,
+        "output": json.dumps({"location": json.loads(item.arguments)["location"], "sky": "sunny"}),
+    }
+    for item in response.output
+    if item.type == "function_call"
+]
+final = client.responses.create(
+    model="gpt-6.1-sol", previous_response_id=response.id, input=outputs, tools=tools
 )
-print(response2.output_text)
+print(final.output_text)
 ```
 
-<Aside type="note">
-The Responses API uses `max_output_tokens` (not `max_completion_tokens`). Tool use with `previous_response_id` requires server-side response storage, which is enabled by default (`store=True`).
-</Aside>
+Each request is a span. SideSeat links every function result to its call and shows the tool
+definitions on the request.
 
-## Authentication
+## Images
 
-OpenAI uses an API key:
+```python
+import base64
+
+with open("photo.jpg", "rb") as file:
+    image = base64.b64encode(file.read()).decode()
+
+client.responses.create(
+    model="gpt-6.1-sol",
+    input=[{
+        "role": "user",
+        "content": [
+            {"type": "input_text", "text": "What's in this image?"},
+            {"type": "input_image", "image_url": f"data:image/jpeg;base64,{image}"},
+        ],
+    }],
+)
+```
+
+The server moves the image to file storage and shows it inline in the conversation.
+
+## Without the SideSeat SDK
 
 ```bash
-export OPENAI_API_KEY=sk-...
+pip install openai logfire opentelemetry-exporter-otlp-proto-http
 ```
 
-The OpenAI SDK reads `OPENAI_API_KEY` from the environment automatically. You can also pass it directly: `OpenAI(api_key="sk-...")`.
+```python
+import logfire
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-## Next Steps
+logfire.configure(
+    service_name="my-app",
+    send_to_logfire=False,
+    console=False,
+    additional_span_processors=[
+        BatchSpanProcessor(OTLPSpanExporter(endpoint="http://127.0.0.1:5388/otel/default/v1/traces"))
+    ],
+)
+logfire.instrument_openai()
+```
 
-- [OpenAI Agents](/docs/integrations/frameworks/openai-agents/) — use SideSeat with the OpenAI Agents SDK
-- [Python SDK](/docs/sdks/python/) — SDK configuration and API reference
-- [Overview](/docs/) — get started with SideSeat
+<Aside type="caution">
+Logfire scrubs attributes whose names contain `session`, including `session.id`. Without the SDK,
+pass a `logfire.ScrubbingOptions(callback=...)` that keeps `session.id`.
+</Aside>
+
+## Known limits
+
+- A streamed response is logged by Logfire after its request span ends. The SDK moves that log into
+  the request's trace; without the SDK, a streamed response that has no parent span can arrive as a
+  separate trace. Wrap streaming calls in a trace to keep them together.
+- `previous_response_id` keeps history on OpenAI's servers, so SideSeat shows only what each request
+  sent and received.
+
+## Next steps
+
+- [OpenAI Agents SDK](/docs/integrations/frameworks/openai-agents/)
+- [Python SDK](/docs/sdks/python/)

@@ -1,63 +1,45 @@
 ---
 title: Other Frameworks
-description: Use SideSeat with LangChain, PydanticAI, LlamaIndex, or any OpenTelemetry-compatible framework.
+description: Use SideSeat with LangChain, Pydantic AI, LlamaIndex, Semantic Kernel, Agno, smolagents, AG2, AgentScope, Haystack, Browser Use, Logfire, TraceLoop, OpenInference, or any OpenTelemetry producer.
 ---
 
-import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
 
-SideSeat works with any framework that emits OpenTelemetry traces. This page covers frameworks without dedicated integration pages.
+Every framework on this page has a Python SDK integration. Install the extra named in the `pip install`
+line, pass the integration name to `sideseat.init`, and wrap each conversation in `sideseat.session`.
+Start a local server with `npx sideseat`. Examples that run on Amazon Bedrock need AWS credentials and a
+region.
+
+Without the SDK, each section names the instrumentation to install on an OTLP-exporting tracer
+provider; the [generic setup](#generic-opentelemetry) at the end shows that provider.
 
 ## LangChain
 
-<Tabs>
-  <TabItem label="pip">
-    ```bash
-    pip install langchain langchain-openai "sideseat[langchain]"
-    ```
-  </TabItem>
-  <TabItem label="uv">
-    ```bash
-    uv add langchain langchain-openai "sideseat[langchain]"
-    ```
-  </TabItem>
-</Tabs>
-
-```python
-from sideseat import SideSeat, Frameworks
-from langchain_openai import ChatOpenAI
-
-SideSeat(framework=Frameworks.LangChain)
-
-llm = ChatOpenAI(model="gpt-5-mini")
-response = llm.invoke("Hello!")
-print(response.content)
+```bash
+pip install langchain-aws "sideseat[langchain]"
 ```
 
-<Aside type="tip">
-For stateful agent workflows, use [LangGraph](/docs/integrations/frameworks/langgraph/) instead.
-</Aside>
+```python
+import sideseat
+from langchain_aws import ChatBedrockConverse
 
-The compatibility corpus exercises LangChain 1.4.3, LangChain Core 1.6.6,
-LangChain OpenAI 1.6.7, and OpenInference's LangChain instrumentor 0.1.76 on
-OpenTelemetry Python 1.45.0. Native OpenTelemetry and SideSeat SDK captures must
-produce identical span projections, two trace conversations, their shared session,
-and the project feed. The scenario includes multi-turn history, streaming, and a
-complete tool-call roundtrip.
+sideseat.init(integrations=["langchain"])
 
-## PydanticAI
+llm = ChatBedrockConverse(model="global.anthropic.claude-sonnet-5-5")
 
-<Tabs>
-  <TabItem label="pip">
-    ```bash
-    pip install pydantic-ai "sideseat[pydantic-ai]"
-    ```
-  </TabItem>
-  <TabItem label="uv">
-    ```bash
-    uv add pydantic-ai "sideseat[pydantic-ai]"
-    ```
-  </TabItem>
-</Tabs>
+with sideseat.session("conversation-42", user_id="user-7"):
+    print(llm.invoke("Plan a weekend in Lisbon.").text)
+```
+
+Without the SDK: `openinference-instrumentation-langchain`, then
+`LangChainInstrumentor().instrument(tracer_provider=provider)`. For graphs, see
+[LangGraph](/docs/integrations/frameworks/langgraph/).
+
+## Pydantic AI
+
+```bash
+pip install "pydantic-ai-slim[bedrock]" "sideseat[pydantic-ai]"
+```
 
 ```python
 import sideseat
@@ -65,113 +47,91 @@ from pydantic_ai import Agent
 
 sideseat.init(integrations=["pydantic-ai"])
 
-agent = Agent("bedrock:global.anthropic.claude-sonnet-5-5")
-result = agent.run_sync("What is the capital of France?")
-print(result.output)
+agent = Agent("bedrock:global.anthropic.claude-sonnet-5-5", instructions="Answer briefly.")
+
+with sideseat.session("conversation-42", user_id="user-7"):
+    print(agent.run_sync("Plan a weekend in Lisbon.").output)
 ```
 
-SideSeat instruments Pydantic AI through Logfire, configured to send nothing to Logfire itself.
-Without the SDK, Pydantic AI's own OpenTelemetry instrumentation works on any OTLP pipeline:
-
-```python
-from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from pydantic_ai import Agent
-
-provider = TracerProvider()
-provider.add_span_processor(
-    BatchSpanProcessor(OTLPSpanExporter(endpoint="http://localhost:5388/otel/default/v1/traces"))
-)
-trace.set_tracer_provider(provider)
-Agent.instrument_all()
-```
-
-The compatibility corpus exercises Pydantic AI 2.53.0 on Bedrock with and without the SideSeat SDK,
-in all eleven example scenarios: chat, multi-turn history, tool use, sessions, a failing tool,
-streaming, structured output, reasoning, an image and a PDF, agent delegation, and MCP tools. `pydantic_ai.all_messages` is expanded into its
-individual turns at read time, so the history snapshot does not appear as an extra context
-message beside the model-call spans.
+SideSeat instruments Pydantic AI through Logfire, configured to send nothing to Logfire. Without the
+SDK, Pydantic AI's own instrumentation works on any global tracer provider: call
+`Agent.instrument_all()` after installing it. The message history Pydantic AI records on each run is
+expanded into individual turns, so it does not appear as an extra message.
 
 ## LlamaIndex
 
-LlamaIndex uses its own instrumentation dispatcher rather than emitting OpenTelemetry directly.
-SideSeat's `llama-index` extra installs the OpenInference bridge and binds it to the same tracer
-provider and exporter as the rest of the application:
-
-<Tabs>
-  <TabItem label="pip">
-    ```bash
-    pip install llama-index "sideseat[llama-index]"
-    ```
-  </TabItem>
-  <TabItem label="uv">
-    ```bash
-    uv add llama-index "sideseat[llama-index]"
-    ```
-  </TabItem>
-</Tabs>
-
-```python
-from sideseat import SideSeat, Frameworks
-from llama_index.core import VectorStoreIndex, SimpleDirectoryReader
-
-SideSeat(framework=Frameworks.LlamaIndex)
-
-documents = SimpleDirectoryReader("data").load_data()
-index = VectorStoreIndex.from_documents(documents)
-query_engine = index.as_query_engine()
-
-response = query_engine.query("What is this about?")
-print(response)
+```bash
+pip install llama-index-core llama-index-llms-bedrock-converse "sideseat[llama-index]"
 ```
-
-The compatibility corpus exercises LlamaIndex Core 0.14.25, LlamaIndex OpenAI 0.8.2,
-OpenInference's LlamaIndex instrumentor 4.5.3, and OpenTelemetry Python 1.45.0 on Python 3.13.
-The OpenAI adapter currently requires `openai <3`, so the capture uses OpenAI 2.54.0, the newest
-compatible release resolved by the lockfile.
-
-Native OpenTelemetry and SideSeat SDK captures must produce identical span projections, two
-trace conversations, their shared session, and the project feed. The scenario covers retained
-history, a streamed second answer, and one automatic weather-tool roundtrip. LlamaIndex workflow
-and request-preparation spans remain available as raw telemetry, but their serialized internal
-state is not presented as conversation messages.
-
-## AutoGen
-
-<Tabs>
-  <TabItem label="pip">
-    ```bash
-    pip install autogen-agentchat "autogen-ext[openai]" "sideseat[autogen]"
-    ```
-  </TabItem>
-  <TabItem label="uv">
-    ```bash
-    uv add autogen-agentchat "autogen-ext[openai]" "sideseat[autogen]"
-    ```
-  </TabItem>
-</Tabs>
 
 ```python
 import asyncio
 
-from sideseat import SideSeat, Frameworks
-from autogen_agentchat.agents import AssistantAgent
-from autogen_ext.models.openai import OpenAIChatCompletionClient
+import sideseat
+from llama_index.core.agent.workflow import FunctionAgent
+from llama_index.llms.bedrock_converse import BedrockConverse
 
-SideSeat(framework=Frameworks.AutoGen)
+sideseat.init(integrations=["llama-index"])
 
 
-async def main():
-    model_client = OpenAIChatCompletionClient(model="gpt-5-mini", api_key="sk-xxx")
-    assistant = AssistantAgent("assistant", model_client=model_client)
-    result = await assistant.run(task="Hello!")
-    print(result.messages[-1].content)
+def get_weather(city: str) -> str:
+    """Get the weather for a city."""
+    return f"Sunny in {city}, 22°C"
+
+
+agent = FunctionAgent(
+    llm=BedrockConverse(model="global.anthropic.claude-sonnet-5-5"),
+    tools=[get_weather],
+    system_prompt="Answer travel questions.",
+)
+
+
+async def main() -> None:
+    with sideseat.session("conversation-42", user_id="user-7"):
+        print(await agent.run(user_msg="What's the weather in Lisbon?"))
 
 
 asyncio.run(main())
 ```
+
+Without the SDK: `openinference-instrumentation-llama-index`, then
+`LlamaIndexInstrumentor().instrument(tracer_provider=provider)`. Workflow and request-preparation spans
+stay available as raw spans; their serialized internal state is not shown as conversation messages.
+
+## Semantic Kernel
+
+```bash
+pip install "semantic-kernel[aws]" sideseat
+```
+
+```python
+import asyncio
+
+import sideseat
+from semantic_kernel.agents import ChatCompletionAgent
+from semantic_kernel.connectors.ai.bedrock import BedrockChatCompletion
+
+sideseat.init(integrations=["semantic-kernel"])
+
+agent = ChatCompletionAgent(
+    service=BedrockChatCompletion(model_id="global.anthropic.claude-sonnet-5-5"),
+    name="assistant",
+    instructions="Answer briefly.",
+)
+
+
+async def main() -> None:
+    with sideseat.session("conversation-42", user_id="user-7"):
+        print(await agent.get_response(messages="Plan a weekend in Lisbon."))
+
+
+asyncio.run(main())
+```
+
+The integration switches on Semantic Kernel's GenAI diagnostics, content included. Without the SDK,
+set `SEMANTICKERNEL_EXPERIMENTAL_GENAI_ENABLE_OTEL_DIAGNOSTICS=true` and
+`SEMANTICKERNEL_EXPERIMENTAL_GENAI_ENABLE_OTEL_DIAGNOSTICS_SENSITIVE=true` before Semantic Kernel is
+imported. For .NET, use the `semantic-kernel` integration of the [.NET SDK](/docs/sdks/dotnet/).
 
 ## Agno
 
@@ -186,22 +146,17 @@ from agno.models.aws import Claude
 
 sideseat.init(integrations=["agno"])
 
-agent = Agent(model=Claude(id="global.anthropic.claude-sonnet-5-5"))
-agent.print_response("Hello!")
+agent = Agent(model=Claude(id="global.anthropic.claude-sonnet-5-5"), instructions="Answer briefly.")
+
+with sideseat.session("conversation-42", user_id="user-7"):
+    agent.print_response("Plan a weekend in Lisbon.")
 ```
 
-Without the SDK, install `openinference-instrumentation-agno` and call
-`AgnoInstrumentor().instrument(tracer_provider=provider)` on an OTLP-exporting tracer provider.
+Without the SDK: `openinference-instrumentation-agno`, then
+`AgnoInstrumentor().instrument(tracer_provider=provider)`. Spans carry `agno.*` attributes, so runs are
+labelled Agno rather than generic OpenInference.
 
-Agno is instrumented through OpenInference. Its spans carry `agno.*` attributes alongside
-`openinference.*`, and SideSeat's detection prefers the specific `agno.` prefix so runs are
-labelled Agno rather than the generic OpenInference.
-
-The tracked compatibility boundary is Agno 3.0.11 with OpenAI 3.22.1 and the OpenInference
-Agno instrumentor 1.0.12 on Python 3.13. It is exercised both natively and through SideSeat
-with persisted history, streaming, automatic tool execution, two traces, and one shared session.
-
-## Smolagents
+## smolagents
 
 ```bash
 pip install "smolagents[litellm]" "sideseat[smolagents]"
@@ -215,60 +170,51 @@ sideseat.init(integrations=["smolagents"])
 
 model = LiteLLMModel(model_id="bedrock/global.anthropic.claude-sonnet-5-5", tool_choice="auto")
 agent = ToolCallingAgent(tools=[], model=model)
-agent.run("What is 2+2?")
+
+with sideseat.session("conversation-42", user_id="user-7"):
+    print(agent.run("Plan a weekend in Lisbon."))
 ```
 
-Without the SDK, install `openinference-instrumentation-smolagents` and call
-`SmolagentsInstrumentor().instrument(tracer_provider=provider)` on an OTLP-exporting tracer provider.
-
-Smolagents uses OpenInference telemetry. Only the agent run span carries `smolagents.*`;
-the step, model, and tool spans are identified by the exact
-`openinference.instrumentation.smolagents` scope.
-
-The tracked compatibility boundary is Smolagents 1.26.0 with OpenAI 3.22.1, the OpenInference
-Smolagents instrumentor 0.1.41, and OpenTelemetry Python 1.45.0 on Python 3.13. Native
-OpenTelemetry and SideSeat captures must produce identical span projections, two trace
-conversations, their shared session, and the project feed. The scenario retains history across
-runs, streams the second answer, executes a custom weather tool, and verifies every
-`final_answer` call/result pair without exposing Smolagents' internal `Calling tools` and
-`Observation` renderings as user messages.
+`tool_choice="auto"` lets the model answer without a tool call; smolagents otherwise forces one.
+Without the SDK: `openinference-instrumentation-smolagents`, then
+`SmolagentsInstrumentor().instrument(tracer_provider=provider)`. smolagents' internal `Calling tools`
+and `Observation` renderings are not shown as user messages.
 
 ## AG2
 
 ```bash
-pip install "ag2[openai]>=1.1.1,<2" "sideseat[ag2]"
+pip install "ag2[bedrock]" "sideseat[ag2]"
 ```
 
 ```python
 import asyncio
 
+import sideseat
 from ag2 import Agent
-from ag2.config import OpenAIConfig
-from sideseat import SideSeat, Frameworks
+from ag2.config import BedrockConfig
 
-SideSeat(framework=Frameworks.AG2)
+sideseat.init(integrations=["ag2"])
 
 assistant = Agent(
     "assistant",
     "Answer briefly.",
-    config=OpenAIConfig(model="gpt-5-mini"),
+    config=BedrockConfig(model="global.anthropic.claude-sonnet-5-5", region_name="us-east-1"),
 )
 
-async def main():
-    reply = await assistant.ask("Hello!")
-    print(await reply.content())
+
+async def main() -> None:
+    with sideseat.session("conversation-42", user_id="user-7"):
+        reply = await assistant.ask("Plan a weekend in Lisbon.")
+        print(await reply.content())
+
 
 asyncio.run(main())
 ```
 
-Initialize SideSeat before constructing the agent. SideSeat injects AG2 1.x's native
-`TelemetryMiddleware` with content capture and the SideSeat tracer provider; an explicit
-`TelemetryMiddleware` is preserved rather than duplicated.
-
-The tracked compatibility boundary is AG2 1.1.1 with OpenAI 3.22.1 and OpenTelemetry Python
-1.45.0. Native OpenTelemetry and SideSeat captures have identical span projections, two trace
-conversations, their shared session, and the project feed. The scenario covers retained history,
-streaming, automatic tool execution, and the complete tool call/result/final-answer sequence.
+Call `init` before constructing agents: the integration adds AG2's `TelemetryMiddleware` to every agent
+created afterwards, and keeps one you passed yourself instead of adding a second. Without the SDK, pass
+`middleware=[TelemetryMiddleware(tracer_provider=provider, agent_name="assistant")]` from
+`ag2.middleware.builtin` to each agent.
 
 ## AgentScope
 
@@ -280,90 +226,110 @@ pip install "sideseat[agentscope]"
 import asyncio
 import os
 
-from agentscope.agent import Agent
-from agentscope.credential import OpenAICredential
-from agentscope.message import UserMsg
-from agentscope.model import OpenAIChatModel
 import sideseat
+from agentscope.agent import Agent
+from agentscope.credential import AnthropicCredential
+from agentscope.message import UserMsg
+from agentscope.model import AnthropicChatModel
 
 sideseat.init(integrations=["agentscope"])
 
-async def main():
-    model = OpenAIChatModel(
-        credential=OpenAICredential(api_key=os.environ["OPENAI_API_KEY"]),
-        model="gpt-5-mini",
-    )
+
+async def main() -> None:
     agent = Agent(
         name="assistant",
         system_prompt="Answer briefly.",
-        model=model,
+        model=AnthropicChatModel(
+            credential=AnthropicCredential(api_key=os.environ["ANTHROPIC_API_KEY"]),
+            model="claude-sonnet-5-5",
+        ),
     )
-    reply = await agent.reply(UserMsg("user", "Hello!"))
+    with sideseat.session("conversation-42", user_id="user-7"):
+        reply = await agent.reply(UserMsg("user", "Plan a weekend in Lisbon."))
     print(reply.get_text_content())
+
 
 asyncio.run(main())
 ```
 
-Initialize SideSeat before constructing an `Agent`. SideSeat injects AgentScope 2.x's built-in
-`TracingMiddleware` into subsequently created agents and preserves an explicit middleware instead
-of adding a duplicate.
+Call `init` before constructing agents: the integration adds AgentScope's `TracingMiddleware` to every
+agent created afterwards. Without the SDK, pass `middlewares=[TracingMiddleware()]` from
+`agentscope.middleware` to each agent.
 
-Without the SDK, install AgentScope and an OTLP exporter, configure the global tracer provider, and
-pass the middleware yourself:
+## Haystack
 
-```python
-from agentscope.middleware import TracingMiddleware
-
-agent = Agent(
-    name="assistant",
-    system_prompt="Answer briefly.",
-    model=model,
-    middlewares=[TracingMiddleware()],
-)
+```bash
+pip install haystack-ai amazon-bedrock-haystack "sideseat[haystack]"
 ```
 
-The tracked compatibility boundary is AgentScope 2.0.9 with OpenAI 3.22.1 and OpenTelemetry
-Python 1.45.0. Native and SideSeat captures have identical span projections, two ordered trace
-conversations, one shared session, and the project feed. The scenario covers retained history,
-streaming, automatic tool execution, and a complete call/result/final-answer sequence.
+```python
+import sideseat
+from haystack.components.agents import Agent
+from haystack.dataclasses import ChatMessage
+from haystack_integrations.components.generators.amazon_bedrock import AmazonBedrockChatGenerator
+
+sideseat.init(integrations=["haystack"])
+
+agent = Agent(
+    chat_generator=AmazonBedrockChatGenerator(model="global.anthropic.claude-sonnet-5-5"),
+    system_prompt="Answer briefly.",
+)
+
+with sideseat.session("conversation-42", user_id="user-7"):
+    result = agent.run(messages=[ChatMessage.from_user("Plan a weekend in Lisbon.")])
+    print(result["last_message"].text)
+```
+
+The integration connects Haystack's tracing API to SideSeat's provider and turns on content tracing.
+Without the SDK, install `opentelemetry-haystack`, set
+`haystack.tracing.tracer.is_content_tracing_enabled = True`, and call
+`haystack.tracing.enable_tracing(OpenTelemetryTracer(provider.get_tracer("haystack")))` with
+`OpenTelemetryTracer` from `haystack_integrations.tracing.opentelemetry`.
+
+## Browser Use
+
+```bash
+pip install browser-use "sideseat[browser-use]"
+```
+
+```python
+import asyncio
+
+import sideseat
+from browser_use import Agent, ChatOpenAI
+
+sideseat.init(integrations=["browser-use"])
+
+
+async def main() -> None:
+    agent = Agent(task="Find the SideSeat documentation", llm=ChatOpenAI(model="gpt-6.1-sol"))
+    with sideseat.trace("find-docs", session_id="conversation-42", user_id="user-7"):
+        history = await agent.run()
+    print(history.final_result())
+
+
+asyncio.run(main())
+```
+
+Browser Use's spans come from Laminar, which the `browser-use` extra installs. Laminar owns the tracer
+provider, and SideSeat configures it to export to your project and nowhere else:
+
+- Call `sideseat.init` before anything calls `Laminar.initialize`.
+- Unset `LMNR_PROJECT_API_KEY` and `LMNR_BASE_URL`; `init` refuses to run with either set, because they
+  would send the telemetry to Laminar.
+- Model calls are recorded through Laminar's OpenAI instrumentation, so use an OpenAI-client chat model
+  such as `ChatOpenAI`.
 
 ## Langflow
 
-```bash
-pip install langflow sideseat
-```
-
-Langflow emits OpenTelemetry itself. Either run it in a process where SideSeat has
-installed the provider, or point Langflow's own OTLP exporter at SideSeat:
+Langflow emits OpenTelemetry itself. Run its flows in a process where `sideseat.init(integrations=["langflow"])`
+has installed the provider, or point Langflow's own exporter at SideSeat:
 
 ```bash
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
 ```
 
-Flow spans carry `langflow.flow_id`, `langflow.flow_name` and `langflow.session_id`.
-
-## Haystack
-
-```bash
-pip install haystack-ai "sideseat[haystack]"
-```
-
-```python
-from sideseat import SideSeat, Frameworks
-from haystack import Pipeline
-from haystack.components.generators.chat import OpenAIChatGenerator
-from haystack.dataclasses import ChatMessage
-
-SideSeat(framework=Frameworks.Haystack)
-
-pipeline = Pipeline()
-pipeline.add_component("llm", OpenAIChatGenerator(model="gpt-5-mini"))
-result = pipeline.run({"llm": {"messages": [ChatMessage.from_user("Hello")]}})
-print(result["llm"]["replies"][0].text)
-```
-
-Component spans carry `haystack.component.name` and `haystack.component.type`, which
-SideSeat uses to label the run Haystack rather than generic OpenInference.
+Flow spans carry `langflow.flow_id`, `langflow.flow_name`, and `langflow.session_id`.
 
 ## Logfire
 
@@ -373,229 +339,125 @@ pip install "sideseat[logfire]"
 
 ```python
 import logfire
-from sideseat import Frameworks, SideSeat
+import sideseat
 
-sideseat = SideSeat(framework=Frameworks.Logfire)
+sideseat.init(integrations=["logfire"])
 
-with sideseat.trace("answer", session_id="conversation-42"):
-    with logfire.span(
-        "model call",
-        events=[
-            {
-                "event.name": "gen_ai.user.message",
-                "content": "What is the speed of light?",
-            }
-        ],
-        response_data={
-            "message": {
-                "role": "assistant",
-                "content": "299,792,458 metres per second in vacuum.",
-            }
-        },
-        **{"gen_ai.operation.name": "chat"},
-    ):
-        pass
-
-sideseat.shutdown()
+with sideseat.session("conversation-42", user_id="user-7"):
+    with logfire.span("plan trip to {city}", city="Lisbon"):
+        ...
 ```
 
-Select `Frameworks.Logfire` explicitly. Logfire is a transitive dependency of several provider
-extras, so package presence alone is intentionally not treated as evidence that the application
-uses generic Logfire spans. SideSeat configures Logfire and owns the OTLP export pipeline; do not
-call `logfire.configure()` a second time afterward.
-
-The tracked Logfire 6.0.0b7 native/SideSeat pair covers `events`, `prompt`,
-`all_messages_events`, `request_data`, `response_data`, repeated history, a streaming-shaped
-response, request-side tool definitions, and a complete call/result/final-answer sequence. Both
-paths produce the same six spans, two traces, one shared session, span projections, and project
-feed.
-
-## browser-use
-
-```bash
-pip install browser-use sideseat
-```
-
-```python
-import asyncio
-
-from sideseat import SideSeat, Frameworks
-from browser_use import Agent, ChatOpenAI
-
-SideSeat(framework=Frameworks.BrowserUse)
-
-
-async def main():
-    agent = Agent(task="Find the docs", llm=ChatOpenAI(model="gpt-5-mini"))
-    print(await agent.run())
-
-
-asyncio.run(main())
-```
-
-No extra is needed: browser-use exports OpenTelemetry through the global provider. Every
-span it emits sets `gen_ai.provider.name = "browser_use"`, which is how SideSeat detects it.
-
-## OpenInference
-
-OpenInference is a semantic convention and instrumentation toolkit rather than a framework that
-SideSeat auto-patches. Install its base instrumentation package and wrap SideSeat's tracer with the
-official `OITracer`:
-
-```bash
-pip install sideseat openinference-instrumentation
-```
-
-```python
-from openinference.instrumentation import OITracer, TraceConfig
-from sideseat import SideSeat
-
-sideseat = SideSeat(
-    auto_instrument=False,
-    service_name="my-openinference-app",
-)
-tracer = OITracer(
-    sideseat.tracer_provider.get_tracer("openinference.instrumentation.generic"),
-    TraceConfig(),
-)
-```
-
-Use OpenInference's `get_llm_attributes`, `get_tool_attributes`, `get_retriever_attributes`,
-and `get_reranker_attributes` helpers when creating spans. Keep the
-`openinference.instrumentation.generic` scope name so generic TOOL spans are not confused with
-framework instrumentors that own their own result carriers. There is no `Frameworks.OpenInference`:
-the emitted `openinference.*` attributes identify the dialect directly.
-
-The tracked native/SideSeat pair uses OpenInference instrumentation 0.1.67 and semantic
-conventions 0.1.40 on OpenTelemetry Python 1.45.0. It verifies retained multi-turn context,
-tool definitions, a complete tool roundtrip with call-id correlation, retrieval and reranking,
-three ordered traces, one shared session, and the project feed.
+Name `logfire` explicitly: several provider extras install Logfire, so its presence is not taken as a
+sign that the application uses it. SideSeat calls `logfire.configure` itself, with nothing sent to
+Logfire; do not call it again. Logfire GenAI spans (`events`, `prompt`, `all_messages_events`,
+`request_data`, `response_data`) are read as conversations.
 
 ## TraceLoop / OpenLLMetry
 
-Use SideSeat's TraceLoop extra rather than installing `traceloop-sdk` alone. It supplies the
-runtime HTTP dependencies missing from TraceLoop 0.62.4's package metadata and keeps `httpx`
-below 1.0, whose prereleases no longer expose the API that this TraceLoop release imports:
-
-<Tabs>
-  <TabItem label="pip">
-    ```bash
-    pip install openai "sideseat[traceloop]"
-    ```
-  </TabItem>
-  <TabItem label="uv">
-    ```bash
-    uv add openai "sideseat[traceloop]"
-    ```
-  </TabItem>
-</Tabs>
-
-Initialize SideSeat before the first decorated function is called:
+```bash
+pip install openai "sideseat[traceloop]"
+```
 
 ```python
 from openai import OpenAI
-from sideseat import Frameworks, SideSeat
+
+import sideseat
 from traceloop.sdk.decorators import workflow
 
-sideseat = SideSeat(framework=Frameworks.TraceLoop)
+sideseat.init(integrations=["traceloop"])
 client = OpenAI()
 
 
 @workflow(name="answer")
 def answer(question: str) -> str:
     response = client.chat.completions.create(
-        model="gpt-5-mini",
+        model="gpt-6.1-sol",
         messages=[{"role": "user", "content": question}],
     )
     return response.choices[0].message.content or ""
 
 
-try:
+with sideseat.session("conversation-42", user_id="user-7"):
     print(answer("What is the speed of light?"))
-finally:
-    sideseat.shutdown()
 ```
 
-SideSeat lets TraceLoop enrich the global OpenTelemetry provider but does not install a second
-exporter. It also excludes `requests` and `urllib3` instrumentation so exporting an OTLP batch
-cannot recursively trace itself, applies SideSeat's `capture_content` policy, and keeps inline
-image data in telemetry instead of invoking TraceLoop's hosted image uploader.
+Call `init` before the first decorated function runs. TraceLoop enriches spans on SideSeat's provider but
+exports nothing itself, `requests` and `urllib3` are not instrumented so OTLP exports cannot trace
+themselves, and images stay inline instead of going to TraceLoop's uploader. Decorator inputs and
+outputs (`traceloop.entity.input`, `traceloop.entity.output`) are kept as raw span attributes; the
+conversation comes from the provider instrumentation's `gen_ai.input.messages` and
+`gen_ai.output.messages`.
 
-TraceLoop decorators serialize arbitrary function arguments and return values under
-`traceloop.entity.input` and `traceloop.entity.output`. SideSeat preserves those raw attributes
-for span inspection but does not reinterpret them as conversation turns. The provider
-instrumentor's `gen_ai.input.messages` and `gen_ai.output.messages` attributes are the
-authoritative chat carriers.
+## OpenInference
 
-The tracked native/SideSeat pair uses TraceLoop SDK 0.62.4, OpenAI 3.22.1, OpenTelemetry Python
-1.45.0, and CPython 3.12.8. It verifies retained history, a streamed second response,
-workflow/task/agent/tool decorators, one complete tool-call roundtrip, two traces, ten spans,
-one shared session, and identical span, trace, session, and project-feed projections.
+For spans you write by hand with OpenInference's conventions, wrap SideSeat's tracer in `OITracer`:
+
+```bash
+pip install sideseat openinference-instrumentation
+```
+
+```python
+import sideseat
+from openinference.instrumentation import OITracer, TraceConfig
+
+client = sideseat.init(integrations=["openinference"])
+tracer = OITracer(client.get_tracer("openinference.instrumentation.generic"), TraceConfig())
+```
+
+Create spans with OpenInference's `get_llm_attributes`, `get_tool_attributes`,
+`get_retriever_attributes`, and `get_reranker_attributes` helpers. Keep the
+`openinference.instrumentation.generic` scope name so generic tool spans are not confused with a
+framework instrumentor's.
 
 ## Recognised without a setup guide
 
-The server classifies these, but nothing here tells you how to wire them up — each already emits
-OpenTelemetry on its own, so the generic setup below is the whole instruction and the spans are
-attributed once they arrive:
+The server classifies these when their spans arrive through the generic setup below:
 
 | Framework | Recognised by |
 | --- | --- |
-| Semantic Kernel | current Python instrumentation scopes and `semantic_kernel.*` attributes |
 | Azure AI Foundry | Azure AI attributes, after the more specific Azure OpenAI rule |
 | MLflow | MLflow tracing attributes |
 | LiveKit | LiveKit Agents attributes |
 
-Semantic Kernel is exercised by paired native/SideSeat captures. The other rows are
-classifier-only. The support matrix in
-`server/tests/fixtures/messages/README.md` is the exact boundary of what is verified.
+These are classifier-only. The support matrix in `server/tests/fixtures/messages/README.md` is the exact
+boundary of what is verified.
 
 ## Generic OpenTelemetry
 
-For frameworks not listed above, send traces directly via the OpenTelemetry SDK:
+Any producer that exports OTLP over HTTP works:
 
-<Steps>
-1. **Start SideSeat**
+<Tabs>
+  <TabItem label="pip">
+    ```bash
+    pip install opentelemetry-sdk opentelemetry-exporter-otlp
+    ```
+  </TabItem>
+  <TabItem label="uv">
+    ```bash
+    uv add opentelemetry-sdk opentelemetry-exporter-otlp
+    ```
+  </TabItem>
+</Tabs>
 
-   ```bash
-   npx sideseat
-   ```
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
+```
 
-2. **Set the endpoint**
+```python
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-   ```bash
-   export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
-   ```
+provider = TracerProvider()
+provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+trace.set_tracer_provider(provider)
+```
 
-3. **Install and configure**
+To group traces into a session, give a span in each trace `session.id` and `user.id` attributes.
 
-   <Tabs>
-     <TabItem label="pip">
-       ```bash
-       pip install opentelemetry-sdk opentelemetry-exporter-otlp
-       ```
-     </TabItem>
-     <TabItem label="uv">
-       ```bash
-       uv add opentelemetry-sdk opentelemetry-exporter-otlp
-       ```
-     </TabItem>
-   </Tabs>
+## Next steps
 
-   ```python
-   from opentelemetry import trace
-   from opentelemetry.sdk.trace import TracerProvider
-   from opentelemetry.sdk.trace.export import BatchSpanProcessor
-   from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-
-   provider = TracerProvider()
-   provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
-   trace.set_tracer_provider(provider)
-   ```
-</Steps>
-
-SideSeat auto-detects framework spans and normalizes them into the workbench timeline.
-
-## Next Steps
-
-- [Python SDK](/docs/sdks/python/) — SDK reference
-- [OpenTelemetry Reference](/docs/reference/otel/) — attribute extraction details
+- [Python SDK](/docs/sdks/python/)
+- [OpenTelemetry reference](/docs/reference/otel/)

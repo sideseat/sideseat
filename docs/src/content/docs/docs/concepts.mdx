@@ -24,9 +24,9 @@ Each run has:
 
 ```mermaid
 graph TD
-    R["Run (Trace)<br/>user asks: What's the weather in Paris?"] --> S1["Step (Span): LLM Call<br/>model: gpt-5-mini | tokens: 45→12"]
+    R["Run (Trace)<br/>user asks: What's the weather in Paris?"] --> S1["Step (Span): LLM Call<br/>model: gpt-6.1-sol | tokens: 45→12"]
     R --> S2["Step (Span): Tool Call<br/>get_weather(Paris)"]
-    R --> S3["Step (Span): LLM Call<br/>model: gpt-5-mini | tokens: 80→35"]
+    R --> S3["Step (Span): LLM Call<br/>model: gpt-6.1-sol | tokens: 80→35"]
     S1 -.->|"tool_use: get_weather"| S2
     S2 -.->|"tool_result: Sunny, 72F"| S3
 ```
@@ -113,11 +113,17 @@ A **session** groups related runs together (for example, multi-turn conversation
 Sessions are created implicitly when traces share a `session.id` attribute:
 
 ```python
-# All traces with this session.id are grouped
-agent = Agent(
-    trace_attributes={"session.id": "conversation-abc123"}
-)
+import sideseat
+
+sideseat.init(integrations=["strands"])
+
+# Every span started inside the scope gets session.id and user.id.
+with sideseat.session("conversation-abc123", user_id="user-7"):
+    agent("Plan a weekend in Lisbon.")
+    agent("What should I eat there?")
 ```
+
+Without the SDK, set the `session.id` attribute on your spans yourself.
 
 ### Session Properties
 

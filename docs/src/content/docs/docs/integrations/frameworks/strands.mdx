@@ -1,152 +1,90 @@
 ---
 title: Strands (Python)
-description: Integrate SideSeat with Strands Agents (Python) for live run visibility and debugging.
+description: Trace Strands Agents (Python) runs, tool calls, and sessions in SideSeat.
 ---
 
-import { Tabs, TabItem, Aside, Steps } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
 
-[Strands Agents](https://strandsagents.com) is an AI agent framework developed by AWS. It has native OpenTelemetry support, making SideSeat integration seamless.
+[Strands Agents](https://strandsagents.com) is AWS's agent framework. It emits OpenTelemetry GenAI spans
+itself; SideSeat points them at your project and keeps images and documents in the telemetry.
 
-## Quick Start
+## Install
 
-<Steps>
-1. **Start SideSeat**
+<Tabs>
+  <TabItem label="pip">
+    ```bash
+    pip install strands-agents sideseat
+    ```
+  </TabItem>
+  <TabItem label="uv">
+    ```bash
+    uv add strands-agents sideseat
+    ```
+  </TabItem>
+</Tabs>
 
-   ```bash
-   npx sideseat
-   ```
+Start a local server with `npx sideseat`. The default model runs on Amazon Bedrock, so configure AWS
+credentials and a region.
 
-2. **Install dependencies**
-
-   <Tabs>
-     <TabItem label="pip">
-       ```bash
-       pip install strands-agents sideseat
-       ```
-     </TabItem>
-     <TabItem label="uv">
-       ```bash
-       uv add strands-agents sideseat
-       ```
-     </TabItem>
-   </Tabs>
-
-3. **Add telemetry**
-
-   ```python
-   from sideseat import SideSeat, Frameworks
-   from strands import Agent
-
-   SideSeat(framework=Frameworks.Strands)
-
-   agent = Agent()
-   response = agent("What is the capital of France?")
-   print(response)
-   ```
-
-4. **View runs**
-
-   Open [http://localhost:5388](http://localhost:5388) to see your runs.
-</Steps>
-
-## Without SideSeat SDK
-
-<Steps>
-1. **Start SideSeat**
-
-   ```bash
-   npx sideseat
-   ```
-
-2. **Set the endpoint**
-
-   ```bash
-   export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
-   ```
-
-3. **Install dependencies**
-
-   <Tabs>
-     <TabItem label="pip">
-       ```bash
-       pip install 'strands-agents[otel]'
-       ```
-     </TabItem>
-     <TabItem label="uv">
-       ```bash
-       uv add 'strands-agents[otel]'
-       ```
-     </TabItem>
-   </Tabs>
-
-4. **Add telemetry**
-
-   ```python
-   from strands.telemetry import StrandsTelemetry
-   from strands import Agent
-
-   telemetry = StrandsTelemetry()
-   telemetry.setup_otlp_exporter()
-   telemetry.setup_meter(enable_otlp_exporter=True)
-
-   agent = Agent()
-   response = agent("What is the capital of France?")
-   print(response)
-   ```
-
-5. **View runs**
-
-   Open [http://localhost:5388](http://localhost:5388) to see your runs.
-</Steps>
-
-<Aside type="note">
-The SideSeat SDK includes additional features like binary data handling and framework auto-detection. Use it unless you need Strands-specific telemetry configuration.
-</Aside>
-
-## TypeScript
-
-See the [Strands (TypeScript)](/docs/integrations/frameworks/strands-typescript/) page for setup instructions using the SideSeat TypeScript SDK.
-
-## What You'll See
-
-SideSeat shows a trace timeline with:
-- A parent span for the agent run
-- Child spans for each LLM call with model, tokens, and cost
-- Child spans for each tool execution with inputs and outputs
-
-## Tools
-
-Strands automatically traces tool calls. Define tools normally:
+## Quick start
 
 ```python
+import sideseat
 from strands import Agent, tool
 
-@tool
-def get_weather(location: str) -> str:
-    """Get weather for a location."""
-    return f"Weather in {location}: Sunny, 72F"
+sideseat.init(integrations=["strands"])
 
-agent = Agent(tools=[get_weather])
-response = agent("What's the weather in Paris?")
+
+@tool
+def get_weather(city: str) -> str:
+    """Get the weather for a city."""
+    return f"Sunny in {city}, 22°C"
+
+
+agent = Agent(model="global.anthropic.claude-sonnet-5-5", tools=[get_weather])
+
+with sideseat.session("conversation-42", user_id="user-7"):
+    agent("What's the weather in Lisbon?")
+    agent("And what should I pack?")
 ```
 
-## Sessions
+## Without the SDK
 
-Group related traces using trace attributes:
+Strands configures OpenTelemetry itself when its `otel` extra is installed:
+
+```bash
+pip install "strands-agents[otel]"
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
+```
 
 ```python
+from strands import Agent
+from strands.telemetry import StrandsTelemetry
+
+StrandsTelemetry().setup_otlp_exporter()
+
 agent = Agent(
-    trace_attributes={
-        "session.id": "conversation-123",
-        "user.id": "user-456",
-    }
+    model="global.anthropic.claude-sonnet-5-5",
+    trace_attributes={"session.id": "conversation-42", "user.id": "user-7"},
 )
+agent("What's the weather in Lisbon?")
 ```
 
-These attributes appear in SideSeat and enable filtering. All turns with the same `session.id` are grouped under one session.
+## What you see in SideSeat
 
-## Next Steps
+- One trace per agent invocation, with a span for each event-loop cycle.
+- A span per model call with the model, token counts, and cost.
+- A span per tool call with its arguments and result.
+- The conversation, including images and documents, in the Messages tab.
+- Turns that share a `session.id` grouped into one session.
 
-- [Python SDK](/docs/sdks/python/) — SDK reference
-- [Core Concepts](/docs/concepts/) — understanding runs, steps, and messages
-- [Amazon Bedrock](/docs/integrations/providers/bedrock/) — provider-specific details
+## Known limits
+
+- Without the SDK, Strands replaces image and document bytes with a placeholder before exporting
+  them, so attachments do not appear. The `strands` integration exports them as base64.
+
+## Next steps
+
+- [Python SDK](/docs/sdks/python/)
+- [Strands (TypeScript)](/docs/integrations/frameworks/strands-typescript/)
+- [Amazon Bedrock](/docs/integrations/providers/bedrock/)

@@ -1,246 +1,148 @@
 ---
 title: Google Gemini
-description: Instrument Google Gemini API with SideSeat for full observability via the Google Gen AI SDK.
+description: Trace Gemini Developer API calls made with the Google Gen AI SDK in SideSeat.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-SideSeat instruments the Google Gen AI SDK to capture model information, token usage, messages, and costs from the Gemini API.
+The `google-genai` integration instruments the [Google Gen AI SDK](https://github.com/googleapis/python-genai)
+through Logfire's Google Gen AI instrumentation. Every model call becomes a span with the model,
+token usage, cost, and the full conversation, including automatic function calls.
 
-<Aside type="note">
-The [Google Gen AI SDK](https://github.com/googleapis/python-genai) is the unified SDK for both the
-Gemini Developer API and Google Cloud. Use an API key for the Developer API, or initialize the
-client with `enterprise=True`, a project, and a location for the API previously called Vertex AI.
-</Aside>
+The same SDK serves the Gemini Developer API and Google Cloud. For Google Cloud, see
+[Google Vertex AI](/docs/integrations/providers/vertex-ai/).
 
-## Prerequisites
+## Install
 
-- SideSeat running locally (`sideseat`)
-- Python SDK installed with the Google GenAI extra (`pip install "sideseat[google-genai]"`)
-- Google API key or Google Cloud credentials configured
+```bash
+pip install "sideseat[google-genai]" google-genai
+export GEMINI_API_KEY=...
+```
 
-The `google-genai` extra includes Logfire's Google GenAI OpenTelemetry instrumentor; installing
-plain `sideseat` does not install that optional integration.
-
-<Aside type="note">
-The checked-in compatibility fixtures use Google GenAI 2.28.0, Logfire 5.1.1, the Google GenAI
-OpenTelemetry instrumentor 1.2b0, and OpenTelemetry Python 1.44.0. Native Logfire setup and
-SideSeat Python 2.0.0 produce identical spans, traces, sessions, and project-feed output. The
-instrumentor exports Gemini's thoughts as ordinary text parts, so reasoning appears as assistant text.
-</Aside>
-
-## Gemini Developer API
-
-SideSeat instruments the Google Gen AI SDK automatically. Initialize SideSeat with the `GoogleGenAI` framework, then use the SDK as usual:
+## Quick start
 
 ```python
-from sideseat import SideSeat, Frameworks
+import sideseat
 from google import genai
 
-SideSeat(framework=Frameworks.GoogleGenAI)
+sideseat.init(integrations=["google-genai"])
 
-client = genai.Client(api_key="your-api-key")
-
-response = client.models.generate_content(
+gemini = genai.Client()
+response = gemini.models.generate_content(
     model="gemini-2.5-flash",
     contents="What is the speed of light?",
 )
-
 print(response.text)
 ```
 
-## Traces
+The provider client is never auto-detected, so name `google-genai` in `integrations`.
 
-By default, each Gemini API call produces its own independent trace. Use `client.trace()` to group related calls under a single root span:
+## Traces and sessions
 
-```python
-client = SideSeat(framework=Frameworks.GoogleGenAI)
-gemini = genai.Client(api_key="your-api-key")
-
-with client.trace("geography-chat"):
-    # Turn 1
-    response1 = gemini.models.generate_content(
-        model="gemini-2.5-flash",
-        contents="What is the capital of France?",
-    )
-
-    # Turn 2 — follows up on the previous answer
-    response2 = gemini.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=f"The capital is {response1.text}. What about Germany?",
-    )
-
-    # Turn 3
-    response3 = gemini.models.generate_content(
-        model="gemini-2.5-flash",
-        contents="Which of Paris and Berlin has a larger population?",
-    )
-```
-
-This produces the following span hierarchy:
-
-```
-geography-chat                        (root span)
-  ├── generate_content gemini-2.5...  (turn 1)
-  ├── generate_content gemini-2.5...  (turn 2)
-  └── generate_content gemini-2.5...  (turn 3)
-```
-
-All three calls appear as child spans in the SideSeat UI, with the full conversation visible in the trace detail view.
-
-For multi-turn conversations, use the chat API within a trace:
+Without a trace, each call is its own trace. Wrap related calls in `sideseat.trace()` to make them one
+trace, and in `sideseat.session()` to group several traces into one conversation:
 
 ```python
-with client.trace("multi-turn-chat"):
-    chat = gemini.chats.create(model="gemini-2.5-flash")
+with sideseat.session("conversation-42", user_id="user-7"):
+    with sideseat.trace("plan-trip"):
+        chat = gemini.chats.create(model="gemini-2.5-flash")
+        chat.send_message("Plan a weekend in Lisbon.")
+        chat.send_message("What should I eat there?")
 
-    response1 = chat.send_message("What is the capital of France?")
-    response2 = chat.send_message("Tell me more about it.")
+    with sideseat.trace("follow-up"):
+        gemini.models.generate_content(
+            model="gemini-2.5-flash",
+            contents="Which Lisbon museums open on Mondays?",
+        )
 ```
 
-## Sessions
-
-Pass `session_id` and `user_id` to `client.trace()` to group independent traces into a session. The SideSeat sessions view groups all traces that share the same `session_id`.
-
-Each `client.trace()` produces its own trace with its own trace ID, but they are linked by the shared session:
-
-```python
-from sideseat import SideSeat, Frameworks
-from google import genai
-
-client = SideSeat(framework=Frameworks.GoogleGenAI)
-gemini = genai.Client(api_key="your-api-key")
-
-session_id = "sess-abc"
-user_id = "user-123"
-
-# Trace 1: Trip planning
-with client.trace("trip-planning", session_id=session_id, user_id=user_id):
-    chat = gemini.chats.create(model="gemini-2.5-flash")
-    response = chat.send_message("Plan a 5-day trip to Japan.")
-    response = chat.send_message("Tell me more about Kyoto.")
-
-# Trace 2: Food recommendations (fresh conversation, same session)
-with client.trace("food-recommendations", session_id=session_id, user_id=user_id):
-    chat = gemini.chats.create(model="gemini-2.5-flash")
-    response = chat.send_message("What are the must-try dishes in Tokyo?")
-    response = chat.send_message("What about street food in Osaka?")
-```
-
-This produces two independent traces, each with their own span hierarchy:
-
-```
-Trace 1: trip-planning              (session_id=sess-abc, user_id=user-123)
-  ├── send_message gemini-2.5...    (turn 1)
-  └── send_message gemini-2.5...    (turn 2)
-
-Trace 2: food-recommendations       (session_id=sess-abc, user_id=user-123)
-  ├── send_message gemini-2.5...    (turn 1)
-  └── send_message gemini-2.5...    (turn 2)
-```
-
-Each trace starts a fresh conversation with its own message history. The SideSeat sessions view groups them by `session_id`.
-
-## Vertex AI
-
-To use Gemini through Google Cloud, select the explicit Vertex provider and initialize the client
-with `enterprise=True`:
-
-```python
-from sideseat import SideSeat, Frameworks
-from google import genai
-
-SideSeat(framework=Frameworks.VertexAI)
-
-client = genai.Client(
-    enterprise=True,
-    project="your-project",
-    location="us-central1",
-)
-
-response = client.models.generate_content(
-    model="gemini-2.5-flash",
-    contents="What is the speed of light?",
-)
-
-print(response.text)
-```
-
-<Aside type="tip">
-The Developer API and Google Cloud modes share the same package and instrumentor, so package
-auto-detection cannot distinguish them. Pass `Frameworks.VertexAI` explicitly for Google Cloud.
-The generate-content, streaming, chat, and tool APIs remain the same.
-</Aside>
+The chat API re-sends earlier turns with each message; SideSeat shows them once, in order.
 
 ## Streaming
 
-Streaming responses are fully captured, including token counts aggregated from stream chunks:
-
 ```python
-from sideseat import SideSeat, Frameworks
-from google import genai
-
-client = SideSeat(framework=Frameworks.GoogleGenAI)
-gemini = genai.Client(api_key="your-api-key")
-
 for chunk in gemini.models.generate_content_stream(
     model="gemini-2.5-flash",
     contents="What is the boiling point of water?",
 ):
-    print(chunk.text, end="", flush=True)
+    print(chunk.text or "", end="", flush=True)
 ```
 
-## Tool Use
+## Tool use
 
-Tool definitions, automatic function calls, Python execution results, and the final model answer are
-captured as one causal conversation:
+Pass Python functions as tools. The client calls them and returns their results to the model:
 
 ```python
-from sideseat import SideSeat, Frameworks
-from google import genai
 from google.genai import types
 
-client = SideSeat(framework=Frameworks.GoogleGenAI)
-gemini = genai.Client(api_key="your-api-key")
 
 def get_weather(location: str) -> str:
-    """Get the current weather for a location."""
+    """Get the current weather for a city."""
     return f"Sunny, 22°C in {location}"
 
-chat = gemini.chats.create(
+
+response = gemini.models.generate_content(
     model="gemini-2.5-flash",
+    contents="What's the weather in Paris?",
     config=types.GenerateContentConfig(tools=[get_weather]),
 )
-response = chat.send_message("What's the weather in Paris?")
 print(response.text)
 ```
 
-With automatic function calling enabled by the Google SDK, the displayed order is:
+SideSeat shows the tool definition, the call, its result, and the final answer in that order.
 
-```text
-user → assistant tool_use → tool tool_result → assistant
+## Thinking
+
+```python
+response = gemini.models.generate_content(
+    model="gemini-2.5-flash",
+    contents="Is 1,000,003 prime?",
+    config=types.GenerateContentConfig(
+        thinking_config=types.ThinkingConfig(include_thoughts=True)
+    ),
+)
 ```
 
-The current Google OpenTelemetry utility can generate a response-side fallback id independently
-from the real function-call id. SideSeat correlates that known wire shape at read time, so the
-tool result links to the call without rewriting stored telemetry.
+Gemini returns thought summaries only when `include_thoughts` is set.
 
-## Authentication
+## Without the SideSeat SDK
 
 ```bash
-# Gemini Developer API — use an API key
-export GOOGLE_API_KEY=your-api-key
-
-# Vertex AI — use Google Cloud credentials
-gcloud auth application-default login
-# Or service account
-export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+pip install google-genai "logfire[google-genai]" opentelemetry-exporter-otlp-proto-http
+export OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true
 ```
 
-The Google Gen AI SDK reads `GOOGLE_API_KEY` from the environment automatically for the Developer API. For Vertex AI, it uses Application Default Credentials.
+```python
+import logfire
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-## Next Steps
+logfire.configure(
+    service_name="my-app",
+    send_to_logfire=False,
+    console=False,
+    additional_span_processors=[
+        BatchSpanProcessor(OTLPSpanExporter(endpoint="http://127.0.0.1:5388/otel/default/v1/traces"))
+    ],
+)
+logfire.instrument_google_genai()
+```
 
-- [Google ADK](/docs/integrations/frameworks/google-adk/) — use SideSeat with the Google Agent Development Kit
-- [Python SDK](/docs/sdks/python/) — SDK configuration and API reference
-- [Overview](/docs/) — get started with SideSeat
+<Aside type="caution">
+Logfire scrubs attributes whose names contain `session`, including `session.id`. Without the SDK,
+pass a `logfire.ScrubbingOptions(callback=...)` that keeps `session.id`.
+</Aside>
+
+## Known limits
+
+- The instrumentation exports Gemini's thoughts as ordinary text parts, so a thought summary appears
+  as assistant text rather than as a thinking block.
+- The Developer API and Google Cloud share one package and instrumentation; select the matching
+  integration by name. A Google Cloud client is created with `genai.Client(enterprise=True, ...)`.
+- The captured fixtures use Google GenAI 2.28.0 with Logfire 5.1.1.
+
+## Next steps
+
+- [Google ADK](/docs/integrations/frameworks/google-adk/)
+- [Google Vertex AI](/docs/integrations/providers/vertex-ai/)
+- [Python SDK](/docs/sdks/python/)

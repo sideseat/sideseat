@@ -1,187 +1,103 @@
 ---
 title: Google ADK
-description: Integrate SideSeat with Google Agent Development Kit for Gemini-powered agent visibility.
+description: Trace Google Agent Development Kit agents, Gemini calls, and tools in SideSeat.
 ---
 
-import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
 
-[Google ADK](https://google.github.io/adk-docs/) (Agent Development Kit) is Google's framework for building AI agents powered by Gemini models. It provides native OpenTelemetry support for tracing agent runs.
+[Google ADK](https://google.github.io/adk-docs/) (Agent Development Kit) emits OpenTelemetry GenAI spans
+through the global tracer provider. SideSeat installs that provider and keeps inline images and
+documents in the telemetry.
 
-## Prerequisites
+## Install
 
-- SideSeat running locally (`sideseat`)
-- Python 3.10+
-- Google Cloud credentials configured
+<Tabs>
+  <TabItem label="pip">
+    ```bash
+    pip install google-adk sideseat
+    ```
+  </TabItem>
+  <TabItem label="uv">
+    ```bash
+    uv add google-adk sideseat
+    ```
+  </TabItem>
+</Tabs>
 
-## Quick Start
+Start a local server with `npx sideseat` and set `GOOGLE_API_KEY` for the Gemini API.
 
-<Steps>
-1. **Start SideSeat**
-
-   ```bash
-   npx sideseat
-   ```
-
-2. **Install dependencies**
-
-   <Tabs>
-     <TabItem label="pip">
-       ```bash
-       pip install google-adk sideseat
-       ```
-     </TabItem>
-     <TabItem label="uv">
-       ```bash
-       uv add google-adk sideseat
-       ```
-     </TabItem>
-   </Tabs>
-
-3. **Add telemetry**
-
-   ```python
-   from sideseat import SideSeat, Frameworks
-   from google.adk.agents import Agent
-   from google.adk.runners import Runner
-
-   SideSeat(framework=Frameworks.GoogleADK)
-
-   agent = Agent(
-       model="gemini-2.5-flash",
-       name="assistant",
-       instruction="You are a helpful assistant."
-   )
-   ```
-
-4. **View runs**
-
-   Open [http://localhost:5388](http://localhost:5388) to see your runs.
-</Steps>
-
-## Without SideSeat SDK
-
-<Steps>
-1. **Start SideSeat**
-
-   ```bash
-   npx sideseat
-   ```
-
-2. **Set the endpoint**
-
-   ```bash
-   export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
-   ```
-
-3. **Install dependencies**
-
-   <Tabs>
-     <TabItem label="pip">
-       ```bash
-       pip install google-adk opentelemetry-sdk opentelemetry-exporter-otlp
-       ```
-     </TabItem>
-     <TabItem label="uv">
-       ```bash
-       uv add google-adk opentelemetry-sdk opentelemetry-exporter-otlp
-       ```
-     </TabItem>
-   </Tabs>
-
-4. **Add telemetry**
-
-   ```python
-   from opentelemetry import trace
-   from opentelemetry.sdk.trace import TracerProvider
-   from opentelemetry.sdk.trace.export import BatchSpanProcessor
-   from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-
-   provider = TracerProvider()
-   provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
-   trace.set_tracer_provider(provider)
-   ```
-
-5. **View runs**
-
-   Open [http://localhost:5388](http://localhost:5388) to see your runs.
-</Steps>
-
-## Tools
-
-Define tools for your agent:
-
-```python
-from google.adk.agents import Agent
-
-def get_weather(city: str) -> dict:
-    """Get weather for a city."""
-    return {"city": city, "forecast": "sunny"}
-
-agent = Agent(
-    model="gemini-2.5-flash",
-    name="weather_assistant",
-    instruction="Use the get_weather tool to provide forecasts.",
-    tools=[get_weather]
-)
-```
-
-SideSeat shows:
-- Parent span for the agent run
-- Child spans for each Gemini call
-- Child spans for each tool execution
-
-## Sessions
-
-ADK supports session management:
+## Quick start
 
 ```python
 import asyncio
-from google.adk.apps import App
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
+
+import sideseat
+from google.adk.agents import Agent
+from google.adk.runners import InMemoryRunner
 from google.genai import types
 
-app = App(name="my_app", root_agent=agent)
-session_service = InMemorySessionService()
+sideseat.init(integrations=["google-adk"])
 
-async def run():
-    session = await session_service.create_session(
-        app_name="my_app",
-        user_id="user-123",
-        session_id="session-456"
-    )
 
-    runner = Runner(app=app, session_service=session_service)
+def get_weather(city: str) -> dict:
+    """Get the weather for a city."""
+    return {"city": city, "forecast": "sunny", "temperature_c": 22}
 
-    message = types.Content(
-        role="user",
-        parts=[types.Part(text="Hello!")]
-    )
 
-    async for event in runner.run_async(
-        session_id=session.id,
-        user_id="user-123",
-        new_message=message
-    ):
-        if event.content and event.content.parts:
-            for part in event.content.parts:
-                if hasattr(part, "text") and part.text:
-                    print(part.text)
+agent = Agent(
+    name="travel_assistant",
+    model="gemini-2.5-flash",
+    instruction="Answer travel questions. Use get_weather for forecasts.",
+    tools=[get_weather],
+)
 
-asyncio.run(run())
+
+async def main() -> None:
+    runner = InMemoryRunner(agent=agent, app_name="travel")
+    session = await runner.session_service.create_session(app_name="travel", user_id="user-7")
+    message = types.Content(role="user", parts=[types.Part(text="What's the weather in Lisbon?")])
+
+    with sideseat.session(session.id, user_id="user-7"):
+        async for event in runner.run_async(
+            user_id="user-7", session_id=session.id, new_message=message
+        ):
+            if event.is_final_response() and event.content and event.content.parts:
+                print(event.content.parts[0].text)
+
+
+asyncio.run(main())
 ```
 
-## Extracted Attributes
+## Without the SDK
 
-| Attribute | Description |
-|-----------|-------------|
-| `gen_ai.system` | `google_adk` |
-| `gen_ai.request.model` | Gemini model ID |
-| `gen_ai.usage.input_tokens` | Input token count |
-| `gen_ai.usage.output_tokens` | Output token count |
+```bash
+pip install google-adk opentelemetry-sdk opentelemetry-exporter-otlp
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
+```
 
-## Next Steps
+```python
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-- [Google Gemini](/docs/integrations/providers/google-gemini/) — provider details
-- [Python SDK](/docs/sdks/python/) — SDK reference
-- [Core Concepts](/docs/concepts/) — understanding runs, steps, and messages
+provider = TracerProvider()
+provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+trace.set_tracer_provider(provider)
+```
+
+## What you see in SideSeat
+
+- One trace per invocation, with spans for the agent, each Gemini call, and each tool call.
+- Model, token counts, and cost on every model call.
+- The conversation, including tool calls and results, in the Messages tab.
+
+## Known limits
+
+- ADK strips inline image and document bytes from the request it records on spans. The
+  `google-adk` integration puts them back; without the SDK, attachments do not appear.
+
+## Next steps
+
+- [Python SDK](/docs/sdks/python/)
+- [Google Gemini](/docs/integrations/providers/google-gemini/)

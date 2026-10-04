@@ -1,220 +1,103 @@
 ---
 title: CrewAI
-description: Integrate SideSeat with CrewAI for multi-agent run visibility.
+description: Trace CrewAI crews, agents, tasks, model calls, and tools in SideSeat.
 ---
 
-import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
 
-[CrewAI](https://www.crewai.com/) is a framework for orchestrating role-playing AI agents. SideSeat captures runs (traces) from crews, agents, and tasks.
+[CrewAI](https://www.crewai.com/) orchestrates role-playing agents in crews. SideSeat instruments it
+with the OpenInference CrewAI instrumentor, which the `crewai` extra installs.
 
-## Prerequisites
+## Install
 
-- SideSeat running locally (`sideseat`)
-- Python 3.10+
-- Model/provider credentials configured
+<Tabs>
+  <TabItem label="pip">
+    ```bash
+    pip install "crewai[bedrock]" "sideseat[crewai]"
+    ```
+  </TabItem>
+  <TabItem label="uv">
+    ```bash
+    uv add "crewai[bedrock]" "sideseat[crewai]"
+    ```
+  </TabItem>
+</Tabs>
 
-## Quick Start
+Start a local server with `npx sideseat`. The model runs on Amazon Bedrock, so configure AWS
+credentials.
 
-<Steps>
-1. **Start SideSeat**
-
-   ```bash
-   npx sideseat
-   ```
-
-2. **Install dependencies**
-
-   <Tabs>
-     <TabItem label="pip">
-       ```bash
-       pip install crewai "sideseat[crewai]"
-       ```
-     </TabItem>
-     <TabItem label="uv">
-       ```bash
-       uv add crewai "sideseat[crewai]"
-       ```
-     </TabItem>
-   </Tabs>
-
-3. **Add telemetry**
-
-   ```python
-   from sideseat import SideSeat, Frameworks
-   from crewai import Agent, Task, Crew
-
-   SideSeat(framework=Frameworks.CrewAI)
-
-   researcher = Agent(
-       role='Researcher',
-       goal='Find information',
-       backstory='Expert researcher'
-   )
-
-   task = Task(
-       description='Research AI trends',
-       expected_output='Summary of trends',
-       agent=researcher
-   )
-
-   crew = Crew(agents=[researcher], tasks=[task])
-   result = crew.kickoff()
-   ```
-
-4. **View runs**
-
-   Open [http://localhost:5388](http://localhost:5388) to see your runs.
-</Steps>
-
-## Without SideSeat SDK
-
-<Steps>
-1. **Start SideSeat**
-
-   ```bash
-   npx sideseat
-   ```
-
-2. **Set the endpoint**
-
-   ```bash
-   export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
-   ```
-
-3. **Install dependencies**
-
-   <Tabs>
-     <TabItem label="pip">
-       ```bash
-       pip install crewai openinference-instrumentation-crewai opentelemetry-exporter-otlp
-       ```
-     </TabItem>
-     <TabItem label="uv">
-       ```bash
-       uv add crewai openinference-instrumentation-crewai opentelemetry-exporter-otlp
-       ```
-     </TabItem>
-   </Tabs>
-
-4. **Add telemetry**
-
-   ```python
-   from opentelemetry import trace
-   from opentelemetry.sdk.trace import TracerProvider
-   from opentelemetry.sdk.trace.export import BatchSpanProcessor
-   from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-   from openinference.instrumentation.crewai import CrewAIInstrumentor
-
-   provider = TracerProvider()
-   provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
-   trace.set_tracer_provider(provider)
-   CrewAIInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)
-   ```
-
-5. **View runs**
-
-   Open [http://localhost:5388](http://localhost:5388) to see your runs.
-</Steps>
-
-## Multi-Agent Crews
-
-CrewAI's multi-agent workflows are fully traced:
+## Quick start
 
 ```python
-from crewai import Agent, Task, Crew, Process
-
-# Define agents
-researcher = Agent(
-    role='Senior Researcher',
-    goal='Uncover groundbreaking technologies',
-    backstory='Expert at finding new tech trends'
-)
-
-writer = Agent(
-    role='Tech Writer',
-    goal='Create engaging content',
-    backstory='Skilled at explaining complex topics'
-)
-
-# Define tasks
-research_task = Task(
-    description='Research the latest AI developments',
-    expected_output='Detailed research report',
-    agent=researcher
-)
-
-write_task = Task(
-    description='Write a blog post about the research',
-    expected_output='Engaging blog post',
-    agent=writer
-)
-
-# Create crew
-crew = Crew(
-    agents=[researcher, writer],
-    tasks=[research_task, write_task],
-    process=Process.sequential
-)
-
-result = crew.kickoff()
-```
-
-SideSeat shows:
-- Parent span for the crew execution
-- Child spans for each agent's work
-- Child spans for each task execution
-
-## Extracted Attributes
-
-| Attribute | Description |
-|-----------|-------------|
-| `crewai.crew.name` | Crew identifier |
-| `crewai.agent.role` | Agent role |
-| `crewai.task.description` | Task being executed |
-| `crewai.process.type` | sequential or hierarchical |
-
-## Tools
-
-Agent tools are automatically traced:
-
-```python
+import sideseat
+from crewai import LLM, Agent, Crew, Task
 from crewai.tools import tool
 
-@tool
-def search_web(query: str) -> str:
-    """Search the web for information."""
-    return f"Results for {query}"
+sideseat.init(integrations=["crewai"])
 
-agent = Agent(
-    role='Researcher',
-    goal='Find information',
-    backstory='Expert researcher',
-    tools=[search_web]
+
+@tool("get_weather")
+def get_weather(city: str) -> str:
+    """Get the weather for a city."""
+    return f"Sunny in {city}, 22°C"
+
+
+llm = LLM(model="bedrock/global.anthropic.claude-sonnet-5-5", region_name="us-east-1")
+
+planner = Agent(
+    role="Travel planner",
+    goal="Plan short, practical trips",
+    backstory="You know the weather everywhere.",
+    llm=llm,
+    tools=[get_weather],
 )
+task = Task(
+    description="Plan a weekend in Lisbon, taking the weather into account.",
+    expected_output="A two-day itinerary.",
+    agent=planner,
+)
+
+with sideseat.session("conversation-42", user_id="user-7"):
+    print(Crew(agents=[planner], tasks=[task]).kickoff())
 ```
 
-## Process Types
+CrewAI does not read `AWS_REGION`, so pass `region_name` to `LLM`.
 
-Both sequential and hierarchical processes are captured:
+## Without the SDK
+
+```bash
+pip install "crewai[bedrock]" openinference-instrumentation-crewai opentelemetry-sdk opentelemetry-exporter-otlp
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
+```
 
 ```python
-# Sequential (default)
-crew = Crew(
-    agents=[agent1, agent2],
-    tasks=[task1, task2],
-    process=Process.sequential
-)
+from openinference.instrumentation.crewai import CrewAIInstrumentor
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-# Hierarchical
-crew = Crew(
-    agents=[manager, worker1, worker2],
-    tasks=[task1, task2],
-    process=Process.hierarchical,
-    manager_llm=ChatOpenAI(model="gpt-5-mini")
-)
+provider = TracerProvider()
+provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+trace.set_tracer_provider(provider)
+CrewAIInstrumentor().instrument(tracer_provider=provider)
 ```
 
-## Next Steps
+## What you see in SideSeat
 
-- [Python SDK](/docs/sdks/python/) — SDK reference
-- [Core Concepts](/docs/concepts/) — understanding runs, steps, and messages
+- One trace per `kickoff`, with spans for the crew, each task, and each agent's work.
+- A span per model call with the model, token counts, and cost.
+- A span per tool call with its arguments and result.
+- Multi-agent crews, sequential or hierarchical, in one trace.
+
+## Known limits
+
+- CrewAI builds each agent's system prompt from its role, goal, and backstory; that generated prompt is
+  what appears as the system message.
+- The OpenInference instrumentor refuses CrewAI versions newer than the one it was released against.
+  The SDK skips that check; without the SDK, pass `skip_dep_check=True` to `instrument`.
+
+## Next steps
+
+- [Python SDK](/docs/sdks/python/)
+- [Amazon Bedrock](/docs/integrations/providers/bedrock/)

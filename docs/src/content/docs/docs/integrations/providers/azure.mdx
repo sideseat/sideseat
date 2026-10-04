@@ -1,101 +1,70 @@
 ---
 title: Azure OpenAI
-description: Instrument Azure OpenAI v1 Chat Completions with SideSeat and OpenInference.
+description: Trace Azure OpenAI v1 calls made with the OpenAI Python client in SideSeat.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Azure OpenAI's v1 API uses the standard OpenAI client with an Azure resource URL. SideSeat
-instruments that client with OpenInference so Azure calls keep their provider identity while
-exposing messages, tools, token usage, traces, and sessions.
+Azure OpenAI's v1 API uses the standard OpenAI client with an Azure resource URL. The `azure-openai`
+integration instruments that client with OpenInference, so Azure calls keep their provider identity
+and record messages, tools, token usage, and cost.
 
-## Prerequisites
+## Install
 
-- SideSeat running locally (`sideseat`)
-- Python SDK installed with `pip install "sideseat[azure-openai]"`
-- An Azure OpenAI resource, API key, and deployed model
+```bash
+pip install "sideseat[azure-openai]" openai
+export AZURE_OPENAI_API_KEY=...
+```
 
-Azure and public OpenAI share the `openai` Python package. Pass
-`Frameworks.AzureOpenAI` explicitly; this provider is not auto-detected.
+Azure and public OpenAI share the `openai` package, so name `azure-openai` explicitly; it is never
+auto-detected.
 
 ## Quick start
 
 ```python
 import os
 
+import sideseat
 from openai import OpenAI
-from sideseat import Frameworks, SideSeat
 
-SideSeat(framework=Frameworks.AzureOpenAI)
+sideseat.init(integrations=["azure-openai"])
 
 azure = OpenAI(
     api_key=os.environ["AZURE_OPENAI_API_KEY"],
     base_url="https://YOUR-RESOURCE.openai.azure.com/openai/v1/",
 )
-
 response = azure.chat.completions.create(
     model="YOUR-DEPLOYMENT",
-    messages=[
-        {"role": "system", "content": "Answer in one sentence."},
-        {"role": "user", "content": "What is the speed of light?"},
-    ],
+    messages=[{"role": "user", "content": "What is the speed of light?"}],
 )
 print(response.choices[0].message.content)
 ```
 
 <Aside type="tip">
-`model` is the Azure deployment name. It does not have to equal the underlying model's
-catalog name.
+`model` is the Azure deployment name. It does not have to match the underlying model's catalog name.
 </Aside>
 
 ## Traces and sessions
 
-Use `client.trace()` to parent related model calls. Give independent traces the same
-`session_id` to make them one session without merging their trace identities:
-
 ```python
-import os
+with sideseat.session("conversation-42", user_id="user-7"):
+    with sideseat.trace("plan-trip"):
+        messages = [{"role": "user", "content": "Plan a weekend in Lisbon."}]
+        reply = azure.chat.completions.create(model="YOUR-DEPLOYMENT", messages=messages)
+        messages += [
+            {"role": "assistant", "content": reply.choices[0].message.content},
+            {"role": "user", "content": "What should I eat there?"},
+        ]
+        azure.chat.completions.create(model="YOUR-DEPLOYMENT", messages=messages)
 
-from openai import OpenAI
-from sideseat import Frameworks, SideSeat
-
-client = SideSeat(framework=Frameworks.AzureOpenAI)
-azure = OpenAI(
-    api_key=os.environ["AZURE_OPENAI_API_KEY"],
-    base_url="https://YOUR-RESOURCE.openai.azure.com/openai/v1/",
-)
-
-session_id = "sess-abc"
-
-with client.trace("research", session_id=session_id, user_id="user-123"):
-    messages = [
-        {"role": "system", "content": "Be concise."},
-        {"role": "user", "content": "What is the speed of light?"},
-    ]
-    first = azure.chat.completions.create(
-        model="YOUR-DEPLOYMENT",
-        messages=messages,
-    )
-    messages.append(
-        {"role": "assistant", "content": first.choices[0].message.content}
-    )
-    messages.append(
-        {"role": "user", "content": "What is the boiling point of water?"}
-    )
-    azure.chat.completions.create(
-        model="YOUR-DEPLOYMENT",
-        messages=messages,
-    )
-
-with client.trace("weather", session_id=session_id, user_id="user-123"):
-    azure.chat.completions.create(
-        model="YOUR-DEPLOYMENT",
-        messages=[{"role": "user", "content": "What is the weather in Paris?"}],
-    )
+    with sideseat.trace("follow-up"):
+        azure.chat.completions.create(
+            model="YOUR-DEPLOYMENT",
+            messages=[{"role": "user", "content": "Which Lisbon museums open on Mondays?"}],
+        )
 ```
 
-The first trace reconstructs the retained multi-turn history. The session view returns both
-traces in order and does not duplicate the history re-sent to the second model call.
+The session view shows both traces in order, and history re-sent on a later call is shown once.
 
 ## Streaming
 
@@ -106,107 +75,56 @@ stream = azure.chat.completions.create(
     stream=True,
     stream_options={"include_usage": True},
 )
-
 for chunk in stream:
     if chunk.choices and chunk.choices[0].delta.content:
         print(chunk.choices[0].delta.content, end="", flush=True)
 ```
 
-The completed response and usage are reconstructed from the stream rather than presenting
-each chunk as a separate message.
+The completed response and usage are reconstructed from the stream rather than shown chunk by chunk.
 
 ## Tool use
 
 ```python
 import json
 
-tools = [
-    {
-        "type": "function",
-        "function": {
-            "name": "get_weather",
-            "description": "Get deterministic weather for a city.",
-            "parameters": {
-                "type": "object",
-                "properties": {"location": {"type": "string"}},
-                "required": ["location"],
-            },
+tools = [{
+    "type": "function",
+    "function": {
+        "name": "get_weather",
+        "description": "Get the current weather for a city.",
+        "parameters": {
+            "type": "object",
+            "properties": {"location": {"type": "string"}},
+            "required": ["location"],
         },
-    }
-]
-messages = [
-    {"role": "system", "content": "Use tools when available."},
-    {"role": "user", "content": "What is the weather in Paris?"},
-]
+    },
+}]
+messages = [{"role": "user", "content": "What is the weather in Paris?"}]
 
-request = azure.chat.completions.create(
-    model="YOUR-DEPLOYMENT",
-    messages=messages,
-    tools=tools,
-)
-assistant = request.choices[0].message
-call = assistant.tool_calls[0]
-arguments = json.loads(call.function.arguments)
+reply = azure.chat.completions.create(model="YOUR-DEPLOYMENT", messages=messages, tools=tools)
+assistant = reply.choices[0].message
+messages.append(assistant.model_dump(exclude_none=True))
+for call in assistant.tool_calls or []:
+    location = json.loads(call.function.arguments)["location"]
+    messages.append({"role": "tool", "tool_call_id": call.id, "content": f"Sunny, 22°C in {location}."})
 
-messages.extend(
-    [
-        assistant.model_dump(exclude_none=True),
-        {
-            "role": "tool",
-            "tool_call_id": call.id,
-            "name": call.function.name,
-            "content": f"Sunny and 22°C in {arguments['location']}.",
-        },
-    ]
-)
-final = azure.chat.completions.create(
-    model="YOUR-DEPLOYMENT",
-    messages=messages,
-    tools=tools,
-)
+final = azure.chat.completions.create(model="YOUR-DEPLOYMENT", messages=messages, tools=tools)
 print(final.choices[0].message.content)
 ```
 
-SideSeat keeps the tool definition, call ID, arguments, result, and final answer. The tool
-result is ordered after its matching call and appears once even though the final request
-re-sends the full history.
+SideSeat orders each tool result after its call and shows it once, even though the final request
+re-sends the whole history.
 
-## Without the SideSeat SDK
+## Microsoft Entra ID
 
-Install the same instrumentor directly and bind it to your OpenTelemetry provider:
-
-```bash
-pip install openai openinference-instrumentation-openai
-```
-
-```python
-from openinference.instrumentation.openai import OpenAIInstrumentor
-
-OpenAIInstrumentor().instrument(tracer_provider=provider)
-```
-
-Configure an OTLP exporter on `provider` and set the normal SideSeat resource attributes,
-including `sideseat.framework=azure-openai`, when you need explicit framework tagging.
-Azure provider detection also uses the OpenInference `llm.provider=azure` and
-`llm.system=openai` attributes emitted by the instrumentor.
-
-## Authentication
-
-For an API key:
-
-```bash
-export AZURE_OPENAI_API_KEY=your-api-key
-```
-
-For Microsoft Entra ID, pass a token provider as the OpenAI client's `api_key`:
+Pass a token provider as the client's `api_key`:
 
 ```python
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from openai import OpenAI
 
 token_provider = get_bearer_token_provider(
-    DefaultAzureCredential(),
-    "https://cognitiveservices.azure.com/.default",
+    DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
 )
 azure = OpenAI(
     api_key=token_provider,
@@ -214,28 +132,30 @@ azure = OpenAI(
 )
 ```
 
-## Verified contract
-
-The checked-in native and SideSeat fixtures use OpenAI 3.22.1,
-OpenInference OpenAI 0.1.62, OpenTelemetry Python 1.45.0, and CPython 3.14.7. They verify:
-
-- non-streaming and streaming Chat Completions;
-- retained multi-turn history without duplicates;
-- a complete tool-call, result, and final-answer roundtrip;
-- two traces sharing one session;
-- identical span, trace, session, and project-feed answers with and without the SDK.
-
-Reproduce them without Azure credentials:
+## Without the SideSeat SDK
 
 ```bash
-scripts/message-fixtures/fake-openai.py --port 5401
-# In another shell:
-CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
-  scripts/message-fixtures/capture.sh azure-openai canonical both
+pip install openai openinference-instrumentation-openai opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
 ```
+
+```python
+from openinference.instrumentation.openai import OpenAIInstrumentor
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+provider = TracerProvider()
+provider.add_span_processor(
+    BatchSpanProcessor(OTLPSpanExporter(endpoint="http://127.0.0.1:5388/otel/default/v1/traces"))
+)
+trace.set_tracer_provider(provider)
+OpenAIInstrumentor().instrument(tracer_provider=provider)
+```
+
+SideSeat recognizes Azure from the instrumentor's `llm.provider=azure` attribute.
 
 ## Next steps
 
-- [OpenAI](/docs/integrations/providers/openai/) — public OpenAI API
-- [Python SDK](/docs/sdks/python/) — SDK configuration and API reference
-- [Compatibility and verification](/docs/reference/production-readiness/) — executable rubric
+- [OpenAI](/docs/integrations/providers/openai/) for the public OpenAI API
+- [Python SDK](/docs/sdks/python/)

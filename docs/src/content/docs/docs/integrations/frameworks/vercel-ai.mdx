@@ -1,182 +1,99 @@
 ---
 title: Vercel AI SDK
-description: Integrate SideSeat with the Vercel AI SDK for TypeScript AI app visibility.
+description: Trace Vercel AI SDK generateText and streamText calls, tool steps, and sessions in SideSeat.
 ---
 
-import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
 
-[Vercel AI SDK](https://sdk.vercel.ai/) is a TypeScript toolkit for building AI applications. SideSeat captures traces from `generateText`, `streamText`, and other AI SDK calls via OpenTelemetry.
+The [Vercel AI SDK](https://ai-sdk.dev/) emits no OpenTelemetry on its own. From AI SDK 7 it hands
+telemetry to registered integrations, and `@ai-sdk/otel` is the one that turns it into OpenTelemetry
+spans. The `vercel-ai` integration registers it on SideSeat's tracer provider.
 
-<Aside type="note">
-The Vercel AI SDK is TypeScript-only. For Python frameworks, see [Strands](/docs/integrations/frameworks/strands/) or [LangGraph](/docs/integrations/frameworks/langgraph/).
-</Aside>
+## Install
 
-## Prerequisites
-
-- SideSeat running locally (`sideseat`)
-- Node.js 18+
-- AWS credentials configured for Amazon Bedrock, or another [supported provider](https://sdk.vercel.ai/providers/ai-sdk-providers)
-
-## Quick Start
-
-<Steps>
-1. **Start SideSeat**
-
-   ```bash
-   npx sideseat
-   ```
-
-2. **Install dependencies**
-
-   ```bash
-   npm install @sideseat/sdk ai @ai-sdk/otel @ai-sdk/amazon-bedrock
-   ```
-
-3. **Add telemetry**
-
-   ```typescript
-   import { init, Frameworks } from '@sideseat/sdk';
-   import { generateText } from 'ai';
-   import { bedrock } from '@ai-sdk/amazon-bedrock';
-
-   // SideSeat registers AI SDK 7's current OpenTelemetry integration.
-   await init({ framework: Frameworks.VercelAI });
-
-   const { text } = await generateText({
-     model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
-     prompt: 'What is the capital of France?',
-     experimental_telemetry: { isEnabled: true },
-   });
-
-   console.log(text);
-   ```
-
-4. **View runs**
-
-   Open [http://localhost:5388](http://localhost:5388) to see your runs.
-</Steps>
-
-<Aside type="caution">
-Two things are required:
-
-1. `experimental_telemetry: { isEnabled: true }` on each `generateText` or `streamText` call.
-2. `await init(...)` before the first model call.
-
-As of AI SDK 7 the `ai` package contains no OpenTelemetry code and emits nothing on its
-own; telemetry is handed to registered integrations. SideSeat loads and registers the
-current `OpenTelemetry` integration from `@ai-sdk/otel` during async initialization.
-</Aside>
-
-## Without SideSeat SDK
-
-<Steps>
-1. **Start SideSeat**
-
-   ```bash
-   npx sideseat
-   ```
-
-2. **Set the endpoint**
-
-   ```bash
-   export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
-   ```
-
-3. **Install dependencies**
-
-   ```bash
-   npm install @opentelemetry/sdk-node @opentelemetry/exporter-trace-otlp-http @opentelemetry/resources ai @ai-sdk/otel @ai-sdk/amazon-bedrock
-   ```
-
-4. **Add telemetry**
-
-   ```typescript
-   import { NodeSDK } from '@opentelemetry/sdk-node';
-   import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-   import { resourceFromAttributes } from '@opentelemetry/resources';
-   import { generateText, registerTelemetry } from 'ai';
-   import { OpenTelemetry } from '@ai-sdk/otel';
-   import { bedrock } from '@ai-sdk/amazon-bedrock';
-
-   const sdk = new NodeSDK({
-     traceExporter: new OTLPTraceExporter(),
-     resource: resourceFromAttributes({
-       'service.name': 'my-ai-app',
-       'sideseat.framework': 'vercel-ai',
-     }),
-   });
-   sdk.start();
-
-   // Construct after sdk.start(): the integration captures an OpenTelemetry tracer.
-   registerTelemetry(new OpenTelemetry());
-
-   const { text } = await generateText({
-     model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
-     prompt: 'What is the capital of France?',
-     experimental_telemetry: { isEnabled: true },
-   });
-
-   console.log(text);
-   ```
-
-5. **View runs**
-
-   Open [http://localhost:5388](http://localhost:5388) to see your runs.
-</Steps>
-
-## What You'll See
-
-SideSeat shows each `generateText`/`streamText` call with the model name, token counts, prompt messages, and the full response. Tool calls appear as child spans.
-
-## Streaming
-
-The SideSeat SDK registers the AI SDK integration during `await init(...)`.
-
-```typescript
-import { init, Frameworks } from '@sideseat/sdk';
-import { streamText } from 'ai';
-import { bedrock } from '@ai-sdk/amazon-bedrock';
-
-await init({ framework: Frameworks.VercelAI });
-
-const result = streamText({
-  model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
-  prompt: 'Tell me a story',
-  experimental_telemetry: { isEnabled: true },
-});
-
-for await (const chunk of result.textStream) {
-  process.stdout.write(chunk);
-}
+```bash
+npm install @sideseat/sdk ai @ai-sdk/otel @ai-sdk/amazon-bedrock zod
 ```
 
-## Tool Calls
+Node.js 20.19 or newer and `ai` 7 or newer. Start a local server with `npx sideseat`. The examples use
+Amazon Bedrock; any [AI SDK provider](https://ai-sdk.dev/providers/ai-sdk-providers) works the same way.
 
-The SideSeat SDK registers the AI SDK integration during `await init(...)`.
+## Quick start
 
-```typescript
-import { init, Frameworks } from '@sideseat/sdk';
-import { generateText, tool } from 'ai';
-import { bedrock } from '@ai-sdk/amazon-bedrock';
-import { z } from 'zod';
+```ts
+import * as sideseat from "@sideseat/sdk";
+import { bedrock } from "@ai-sdk/amazon-bedrock";
+import { generateText, isStepCount, tool } from "ai";
+import { z } from "zod";
 
-await init({ framework: Frameworks.VercelAI });
+await sideseat.init({ integrations: ["vercel-ai"] });
+
+const getWeather = tool({
+  description: "Get the weather for a city.",
+  inputSchema: z.object({ city: z.string() }),
+  execute: async ({ city }) => `Sunny in ${city}, 22°C`,
+});
+
+await sideseat.session({ sessionId: "conversation-42", userId: "user-7" }, async () => {
+  const { text } = await generateText({
+    model: bedrock("global.anthropic.claude-sonnet-5-5"),
+    prompt: "What's the weather in Lisbon?",
+    tools: { getWeather },
+    stopWhen: isStepCount(5),
+  });
+  console.log(text);
+});
+```
+
+`streamText` is traced the same way. Telemetry is on for every call once the integration is registered;
+pass `telemetry: { isEnabled: false }` to opt a call out, or `telemetry: { functionId: "trip-planner" }`
+to name it.
+
+<Aside>
+Await `init` before the first model call: the integration is registered during initialization, and a
+call made earlier is not traced.
+</Aside>
+
+## Without the SDK
+
+```bash
+npm install ai @ai-sdk/otel @ai-sdk/amazon-bedrock @opentelemetry/sdk-trace-node @opentelemetry/sdk-trace-base @opentelemetry/exporter-trace-otlp-http
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
+```
+
+```ts
+import { bedrock } from "@ai-sdk/amazon-bedrock";
+import { OpenTelemetry } from "@ai-sdk/otel";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { generateText, registerTelemetry } from "ai";
+
+const provider = new NodeTracerProvider({
+  spanProcessors: [new BatchSpanProcessor(new OTLPTraceExporter())],
+});
+provider.register();
+
+// Construct after the provider is registered: the integration captures a tracer.
+registerTelemetry(new OpenTelemetry());
 
 const { text } = await generateText({
-  model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
-  prompt: 'What is the weather in Paris?',
-  tools: {
-    getWeather: tool({
-      description: 'Get weather for a location',
-      inputSchema: z.object({ location: z.string() }),
-      execute: async ({ location }) => `Sunny in ${location}`,
-    }),
-  },
-  experimental_telemetry: { isEnabled: true },
+  model: bedrock("global.anthropic.claude-sonnet-5-5"),
+  prompt: "What's the weather in Lisbon?",
 });
+console.log(text);
+
+await provider.shutdown();
 ```
 
-## Next Steps
+## What you see in SideSeat
 
-- [TypeScript SDK](/docs/sdks/typescript/) — SDK reference
-- [Core Concepts](/docs/concepts/) — understanding runs, steps, and messages
+- One trace per `generateText` or `streamText` call.
+- A span per step and per model call, with the model, token counts, and cost.
+- A span per tool execution with its input and output.
+- The prompt, tool calls, and the final answer in the Messages tab.
+
+## Next steps
+
+- [TypeScript SDK](/docs/sdks/typescript/)
+- [Amazon Bedrock](/docs/integrations/providers/bedrock/)

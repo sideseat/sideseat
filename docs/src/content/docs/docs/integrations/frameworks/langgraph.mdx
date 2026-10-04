@@ -1,166 +1,108 @@
 ---
 title: LangGraph
-description: Integrate SideSeat with LangGraph for stateful agent run visibility.
+description: Trace LangGraph graph runs, node steps, model calls, and tools in SideSeat.
 ---
 
-import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
 
-[LangGraph](https://langchain-ai.github.io/langgraph/) is a library for building stateful, multi-actor applications with LLMs. SideSeat captures runs from graph steps so you can debug state transitions.
+[LangGraph](https://docs.langchain.com/oss/python/langgraph/overview) builds stateful agents as graphs.
+SideSeat instruments it with the OpenInference LangChain instrumentor, which the `langgraph` extra
+installs.
 
-## Prerequisites
+## Install
 
-- SideSeat running locally (`sideseat`)
-- Python 3.10+
-- OpenAI API key (or another LangChain-supported model)
+<Tabs>
+  <TabItem label="pip">
+    ```bash
+    pip install langgraph langchain-aws "sideseat[langgraph]"
+    ```
+  </TabItem>
+  <TabItem label="uv">
+    ```bash
+    uv add langgraph langchain-aws "sideseat[langgraph]"
+    ```
+  </TabItem>
+</Tabs>
 
-## Quick Start
+Start a local server with `npx sideseat`. The model runs on Amazon Bedrock, so configure AWS
+credentials and a region; any LangChain chat model works the same way.
 
-<Steps>
-1. **Start SideSeat**
-
-   ```bash
-   npx sideseat
-   ```
-
-2. **Install dependencies**
-
-   <Tabs>
-     <TabItem label="pip">
-       ```bash
-       pip install langgraph langchain-openai "sideseat[langgraph]"
-       ```
-     </TabItem>
-     <TabItem label="uv">
-       ```bash
-       uv add langgraph langchain-openai "sideseat[langgraph]"
-       ```
-     </TabItem>
-   </Tabs>
-
-3. **Add telemetry**
-
-   ```python
-   from sideseat import SideSeat, Frameworks
-   from langgraph.prebuilt import create_react_agent
-   from langchain_openai import ChatOpenAI
-
-   SideSeat(framework=Frameworks.LangGraph)
-
-   llm = ChatOpenAI(model="gpt-5-mini")
-   agent = create_react_agent(llm, tools=[])
-   result = agent.invoke({"messages": [("user", "Hello!")]})
-   print(result["messages"][-1].content)
-   ```
-
-4. **View runs**
-
-   Open [http://localhost:5388](http://localhost:5388) to see your runs.
-</Steps>
-
-## Without SideSeat SDK
-
-<Steps>
-1. **Start SideSeat**
-
-   ```bash
-   npx sideseat
-   ```
-
-2. **Set the endpoint**
-
-   ```bash
-   export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
-   ```
-
-3. **Install dependencies**
-
-   <Tabs>
-     <TabItem label="pip">
-       ```bash
-       pip install langgraph langchain-openai openinference-instrumentation-langchain opentelemetry-exporter-otlp
-       ```
-     </TabItem>
-     <TabItem label="uv">
-       ```bash
-       uv add langgraph langchain-openai openinference-instrumentation-langchain opentelemetry-exporter-otlp
-       ```
-     </TabItem>
-   </Tabs>
-
-4. **Add telemetry**
-
-   ```python
-   from opentelemetry import trace
-   from opentelemetry.sdk.trace import TracerProvider
-   from opentelemetry.sdk.trace.export import BatchSpanProcessor
-   from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-   from openinference.instrumentation.langchain import LangChainInstrumentor
-
-   provider = TracerProvider()
-   provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
-   trace.set_tracer_provider(provider)
-   LangChainInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)
-   ```
-
-5. **View runs**
-
-   Open [http://localhost:5388](http://localhost:5388) to see your runs.
-</Steps>
-
-## What You'll See
-
-SideSeat shows:
-- Parent span for the graph execution
-- Child spans for each node invocation
-- LLM call spans with token counts and costs
-
-## Tools
-
-Add tools to your agent:
+## Quick start
 
 ```python
+import sideseat
+from langchain_aws import ChatBedrockConverse
+from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
+from langgraph.graph import START, MessagesState, StateGraph
+from langgraph.prebuilt import ToolNode, tools_condition
+
+sideseat.init(integrations=["langgraph"])
+
 
 @tool
-def get_weather(location: str) -> str:
-    """Get weather for a location."""
-    return f"Sunny in {location}"
+def get_weather(city: str) -> str:
+    """Get the weather for a city."""
+    return f"Sunny in {city}, 22°C"
 
-llm = ChatOpenAI(model="gpt-5-mini")
-agent = create_react_agent(llm, tools=[get_weather])
-result = agent.invoke({"messages": [("user", "What's the weather in Paris?")]})
+
+model = ChatBedrockConverse(model="global.anthropic.claude-sonnet-5-5").bind_tools([get_weather])
+
+
+def call_model(state: MessagesState) -> dict:
+    return {"messages": [model.invoke(state["messages"])]}
+
+
+graph = StateGraph(MessagesState)
+graph.add_node("model", call_model)
+graph.add_node("tools", ToolNode([get_weather]))
+graph.add_edge(START, "model")
+graph.add_conditional_edges("model", tools_condition)
+graph.add_edge("tools", "model")
+agent = graph.compile()
+
+with sideseat.session("conversation-42", user_id="user-7"):
+    result = agent.invoke({"messages": [HumanMessage("What's the weather in Lisbon?")]})
+    print(result["messages"][-1].text)
 ```
 
-## Complete Example
+## Without the SDK
+
+```bash
+pip install langgraph langchain-aws openinference-instrumentation-langchain opentelemetry-sdk opentelemetry-exporter-otlp
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
+```
 
 ```python
-from sideseat import SideSeat, Frameworks
-from typing import TypedDict, Annotated
-from langgraph.graph import StateGraph, END
-from langgraph.graph.message import add_messages
-from langchain_openai import ChatOpenAI
+from openinference.instrumentation.langchain import LangChainInstrumentor
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-SideSeat(framework=Frameworks.LangGraph)
-
-class State(TypedDict):
-    messages: Annotated[list, add_messages]
-
-llm = ChatOpenAI(model="gpt-5-mini")
-
-def chatbot(state: State):
-    return {"messages": [llm.invoke(state["messages"])]}
-
-graph = StateGraph(State)
-graph.add_node("chatbot", chatbot)
-graph.set_entry_point("chatbot")
-graph.add_edge("chatbot", END)
-
-app = graph.compile()
-result = app.invoke({"messages": [("user", "What is 2+2?")]})
-print(result["messages"][-1].content)
+provider = TracerProvider()
+provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+trace.set_tracer_provider(provider)
+LangChainInstrumentor().instrument(tracer_provider=provider)
 ```
 
-## Next Steps
+To group turns into a session without the SDK, start each turn inside a span that carries `session.id`
+and `user.id` attributes.
 
-- [Python SDK](/docs/sdks/python/) — SDK reference
-- [Core Concepts](/docs/concepts/) — understanding runs, steps, and messages
+## What you see in SideSeat
+
+- One trace per graph invocation, with a span for each node.
+- A span per model call with the model, token counts, and cost.
+- A span per tool call with its arguments and result.
+- The conversation, including the tool round trips, in the Messages tab.
+
+## Known limits
+
+- The OpenInference instrumentor refuses LangChain versions newer than the one it was released
+  against. The SDK skips that check; without the SDK, pass `skip_dep_check=True` to `instrument` if it
+  reports an unsupported version.
+
+## Next steps
+
+- [Python SDK](/docs/sdks/python/)
+- [Other frameworks](/docs/integrations/frameworks/other/#langchain) for LangChain without LangGraph

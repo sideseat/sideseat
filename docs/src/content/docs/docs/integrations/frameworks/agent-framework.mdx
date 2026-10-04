@@ -1,312 +1,116 @@
 ---
 title: Microsoft Agent Framework
-description: Integrate SideSeat with Microsoft Agent Framework for multi-agent run visibility.
+description: Trace Microsoft Agent Framework agents, model calls, and tools in SideSeat.
 ---
 
-import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
 
-[Microsoft Agent Framework](https://pypi.org/project/agent-framework/) (`agent-framework`) is a Python SDK for building AI agents with built-in OpenTelemetry support. SideSeat captures runs from agents using OpenAI, Anthropic, and Azure OpenAI providers.
+[Microsoft Agent Framework](https://github.com/microsoft/agent-framework) has built-in OpenTelemetry
+instrumentation. The `agent-framework` integration switches it on and, unless content capture is off,
+records prompts, responses, and tool payloads.
 
-## Quick Start
-
-<Steps>
-1. **Start SideSeat**
-
-   ```bash
-   npx sideseat
-   ```
-
-2. **Install dependencies**
-
-   <Tabs>
-     <TabItem label="pip">
-       ```bash
-       pip install agent-framework sideseat
-       ```
-     </TabItem>
-     <TabItem label="uv">
-       ```bash
-       uv add agent-framework sideseat
-       ```
-     </TabItem>
-   </Tabs>
-
-3. **Add telemetry**
-
-   ```python
-   import asyncio
-   import sideseat
-   from agent_framework import Agent
-   from agent_framework.openai import OpenAIChatClient
-
-   sideseat.init(integrations=["agent-framework"])
-
-   client = OpenAIChatClient(model="gpt-5-nano-2025-08-07")
-   agent = Agent(client=client, instructions="You are a helpful assistant.")
-
-   result = asyncio.run(agent.run("What is the capital of France?"))
-   print(result.text)
-   ```
-
-4. **View runs**
-
-   Open [http://localhost:5388](http://localhost:5388) to see your runs.
-</Steps>
-
-## Without SideSeat SDK
-
-<Steps>
-1. **Start SideSeat**
-
-   ```bash
-   npx sideseat
-   ```
-
-2. **Set the endpoint**
-
-   ```bash
-   export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
-   ```
-
-3. **Install dependencies**
-
-   <Tabs>
-     <TabItem label="pip">
-       ```bash
-       pip install agent-framework opentelemetry-sdk opentelemetry-exporter-otlp
-       ```
-     </TabItem>
-     <TabItem label="uv">
-       ```bash
-       uv add agent-framework opentelemetry-sdk opentelemetry-exporter-otlp
-       ```
-     </TabItem>
-   </Tabs>
-
-4. **Add telemetry**
-
-   ```python
-   from agent_framework.observability import enable_sensitive_telemetry
-   from opentelemetry.sdk.trace import TracerProvider
-   from opentelemetry.sdk.trace.export import BatchSpanProcessor
-   from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-   from opentelemetry import trace
-
-   provider = TracerProvider()
-   provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
-   trace.set_tracer_provider(provider)
-   enable_sensitive_telemetry()
-   ```
-
-5. **View runs**
-
-   Open [http://localhost:5388](http://localhost:5388) to see your runs.
-</Steps>
-
-## Providers
-
-Agent Framework supports OpenAI, Anthropic and Anthropic on Bedrock:
+## Install
 
 <Tabs>
-  <TabItem label="OpenAI">
-    ```python
-    from agent_framework.openai import OpenAIChatClient
-
-    # Uses OPENAI_API_KEY env var
-    client = OpenAIChatClient(model="gpt-5-nano-2025-08-07")
+  <TabItem label="pip">
+    ```bash
+    pip install agent-framework-core agent-framework-anthropic sideseat
     ```
   </TabItem>
-  <TabItem label="Anthropic">
-    ```python
-    from agent_framework.anthropic import AnthropicClient
-
-    # Uses ANTHROPIC_API_KEY env var
-    client = AnthropicClient(model="claude-haiku-4-5-20251001")
-    ```
-  </TabItem>
-  <TabItem label="Anthropic on Bedrock">
-    ```python
-    from agent_framework.anthropic import AnthropicBedrockClient
-
-    # Signs with the ambient AWS credentials
-    client = AnthropicBedrockClient(model="global.anthropic.claude-haiku-4-5-20251001-v1:0")
+  <TabItem label="uv">
+    ```bash
+    uv add agent-framework-core agent-framework-anthropic sideseat
     ```
   </TabItem>
 </Tabs>
 
-Note the argument is `model`, not `model_id`, and there is no `OpenAIResponsesClient` -
-reasoning is requested per call instead of by picking a client class.
+Start a local server with `npx sideseat` and set `ANTHROPIC_API_KEY`. The `agent-framework` meta
+package installs every provider connector; `agent-framework-core` plus the one you use is enough.
 
-## Tools
-
-Define tools with the `@tool` decorator using `Annotated` type hints:
-
-```python
-from typing import Annotated
-from agent_framework import Agent, tool
-from pydantic import Field
-
-@tool(approval_mode="never_require")
-def get_weather(
-    city: Annotated[str, Field(description="The city name")],
-) -> str:
-    """Get weather for a city."""
-    return f"Sunny in {city}, 72°F"
-
-agent = Agent(
-    client=client,
-    instructions="You are a weather assistant.",
-    tools=[get_weather],
-)
-
-result = await agent.run("What's the weather in Paris?")
-```
-
-SideSeat shows each tool call with inputs and outputs in the message thread.
-
-## Multi-Agent Concurrency
-
-Run multiple specialized agents in parallel using `asyncio.gather()`:
+## Quick start
 
 ```python
 import asyncio
+
+import sideseat
 from agent_framework import Agent
+from agent_framework.anthropic import AnthropicClient
 
-researcher = Agent(client=client, instructions="You are a researcher.")
-technical = Agent(client=client, instructions="You are a technical expert.")
+sideseat.init(integrations=["agent-framework"])
 
-prompt = "Evaluate building a weather app"
 
-researcher_result, technical_result = await asyncio.gather(
-    researcher.run(prompt),
-    technical.run(prompt),
-)
-```
+def get_weather(city: str) -> str:
+    """Get the weather for a city."""
+    return f"Sunny in {city}, 22°C"
 
-## Structured Output
-
-Extract structured data using Pydantic models via the `response_format` parameter:
-
-```python
-from pydantic import BaseModel
-from agent_framework import Agent, ChatOptions
-
-class Person(BaseModel):
-    name: str
-    age: int
-    city: str
-
-agent = Agent(client=client, instructions="Extract structured information.")
-
-# response_format travels in ChatOptions: Agent.run takes
-# (messages, stream, session, middleware, tools, options, ...), so passing it directly
-# raises TypeError.
-result = await agent.run(
-    "Jane Doe, 28, lives in New York.",
-    options=ChatOptions(response_format=Person),
-)
-
-# `.value` holds the parsed model; try_parse_value() has been removed.
-person = result.value
-if person is not None:
-    print(person.name)  # "Jane Doe"
-```
-
-## Extended Thinking
-
-Reasoning options travel in `options=`. Each provider extends `ChatOptions` with its own
-keys, so the option to send depends on the client - an unsupported key raises rather than
-being ignored.
-
-<Tabs>
-  <TabItem label="OpenAI">
-    ```python
-    from agent_framework.openai import OpenAIChatClient
-    from agent_framework import Agent
-
-    client = OpenAIChatClient(model="gpt-5-nano-2025-08-07")
-    agent = Agent(client=client, instructions="Solve problems step by step.")
-
-    result = await agent.run(
-        "Solve this logic puzzle...",
-        options={"reasoning": {"effort": "medium"}},
-    )
-    ```
-  </TabItem>
-  <TabItem label="Anthropic">
-    ```python
-    from agent_framework.anthropic import AnthropicClient
-    from agent_framework import Agent
-
-    client = AnthropicClient(model="claude-sonnet-4-20250514")
-    agent = Agent(client=client, instructions="Solve problems step by step.")
-
-    result = await agent.run(
-        "Solve this logic puzzle...",
-        options={"thinking": {"type": "enabled", "budget_tokens": 4096}},
-    )
-    ```
-  </TabItem>
-</Tabs>
-
-Bedrock's OpenAI-compatible endpoint does not accept `reasoning`; use
-`AnthropicBedrockClient` with `thinking` for extended thinking on Bedrock.
-
-## Multimodal Input
-
-Pass images and documents alongside text using `ChatMessage`, `DataContent`, and `TextContent`:
-
-```python
-from agent_framework import Agent, Content, Message
-
-agent = Agent(client=client, instructions="You analyze images and documents.")
-
-image_bytes = open("photo.jpg", "rb").read()
-pdf_bytes = open("report.pdf", "rb").read()
-
-message = Message(role="user", contents=[
-    Content.from_text("Describe the image and summarize the PDF."),
-    Content.from_data(data=image_bytes, media_type="image/jpeg"),
-    Content.from_data(data=pdf_bytes, media_type="application/pdf"),
-])
-
-result = await agent.run(message)
-```
-
-## MCP Servers
-
-Connect to MCP servers using `MCPStdioTool`:
-
-```python
-import shutil
-from agent_framework import Agent, MCPStdioTool
-
-mcp_tool = MCPStdioTool(
-    name="calculator",
-    command=shutil.which("uv") or "uv",
-    args=["run", "--directory", "/path/to/mcp-server", "mcp-calculator"],
-    approval_mode="never_require",
-)
 
 agent = Agent(
-    client=client,
-    instructions="You help users calculate.",
-    tools=[mcp_tool],
+    client=AnthropicClient(model="claude-sonnet-5-5"),
+    instructions="Answer travel questions. Use get_weather for forecasts.",
+    tools=[get_weather],
 )
+
+
+async def main() -> None:
+    with sideseat.session("conversation-42", user_id="user-7"):
+        result = await agent.run("What's the weather in Lisbon?")
+    print(result.text)
+
+
+asyncio.run(main())
 ```
 
-## What You'll See
+For Claude on Amazon Bedrock, use `agent_framework.amazon.AnthropicBedrockClient` with
+`model="global.anthropic.claude-sonnet-5-5"`. For OpenAI, install `agent-framework-openai` and use
+`agent_framework.openai.OpenAIChatClient(model="gpt-6.1-sol")`.
 
-SideSeat shows a trace timeline with:
-- A parent span for the agent session
-- Child spans for each LLM call with model, tokens, and cost
-- Tool calls and results inline in the message thread
-- Images and documents rendered in multimodal conversations
-- Error spans with exception details when failures occur
+## .NET
 
-## Next Steps
+The .NET SDK has an `agent-framework` integration that listens to Agent Framework's activity sources:
 
-- [Python SDK](/docs/sdks/python/) — SDK reference
-- [Core Concepts](/docs/concepts/) — understanding runs, steps, and messages
-- [OpenAI](/docs/integrations/providers/openai/) — OpenAI provider details
-- [Anthropic](/docs/integrations/providers/anthropic/) — Anthropic provider details
+```csharp
+using SideSeat;
+
+using var sideseat = SideSeatClient.Create(new SideSeatOptions
+{
+    Integrations = { "agent-framework" },
+});
+```
+
+See the [.NET SDK](/docs/sdks/dotnet/) for sessions and spans.
+
+## Without the SDK
+
+```bash
+pip install agent-framework-core agent-framework-anthropic opentelemetry-sdk opentelemetry-exporter-otlp
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
+```
+
+```python
+from agent_framework.observability import enable_sensitive_telemetry
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+provider = TracerProvider()
+provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+trace.set_tracer_provider(provider)
+enable_sensitive_telemetry()
+```
+
+## What you see in SideSeat
+
+- One trace per `run`, with spans for the agent, each model call, and each tool call.
+- Model, token counts, and cost on every model call.
+- The conversation, including tool calls, images, and documents, in the Messages tab.
+
+## Known limits
+
+- Without `enable_sensitive_telemetry()` (or the SDK), Agent Framework records spans without message
+  content.
+
+## Next steps
+
+- [Python SDK](/docs/sdks/python/)
+- [Anthropic](/docs/integrations/providers/anthropic/)
