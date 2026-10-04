@@ -2,7 +2,8 @@
 
 .PHONY: sample capture capture-offline
 
-HARNESS := uv run --locked --directory examples/python/harness
+# The recording proxy signs Bedrock requests, so capture needs the bedrock extra.
+HARNESS := uv run --locked --extra bedrock --directory examples/python/harness
 
 # make sample P=strands S=tool_use [SIDESEAT=1] [MODEL=haiku]
 sample: ## Run one example scenario (P=producer S=scenario [SIDESEAT=1] [MODEL=alias])
