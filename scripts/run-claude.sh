@@ -4,7 +4,7 @@
 #
 # Claude Code emits spans only when both telemetry beta tiers are enabled; detailed message
 # content requires the second tier. The variables below match the Claude Agent SDK sample suite
-# in examples/python/claude-agent-sdk/telemetry_setup.py.
+# in examples/python/claude-agent-sdk/native.py.
 #
 # Usage:
 #   ./run-claude.sh                    # Use defaults

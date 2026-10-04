@@ -908,3 +908,42 @@ fn test_quality_scoring() {
     from_attribute.source_type = "attribute".to_string();
     assert!(compute_quality(&from_event) > compute_quality(&from_attribute));
 }
+
+/// Two copies of one attachment, one with its filename: they are one block, and the name survives
+/// whichever copy wins on quality.
+#[test]
+fn a_deduplicated_attachment_keeps_the_filename_a_copy_had() {
+    let t0 = utc(0);
+    let document = |span: &str, name: Option<&str>| BlockEntry {
+        content: ContentBlock::Document {
+            media_type: Some("application/pdf".to_string()),
+            name: name.map(str::to_string),
+            source: "base64".to_string(),
+            data: "JVBERi0xLjMKJcTl8uXrp/Og0MTGCg==".to_string(),
+        },
+        entry_type: "document".to_string(),
+        role: ChatRole::User,
+        ..make_tool_result_block("trace1", span, "", "unused", t0)
+    };
+    let spans = HashMap::from([
+        ("named".to_string(), SpanTimestamps { span_start: t0, span_end: Some(t0) }),
+        ("bare".to_string(), SpanTimestamps { span_start: t0, span_end: Some(t0) }),
+    ]);
+
+    for order in [[Some("task"), None], [None, Some("task")]] {
+        let blocks = order
+            .iter()
+            .map(|name| document(if name.is_some() { "named" } else { "bare" }, *name))
+            .collect();
+        let survivors = process_dedup(blocks, spans.clone());
+
+        let [survivor] = &survivors[..] else {
+            panic!("one attachment, got {}", survivors.len());
+        };
+        assert!(
+            matches!(&survivor.content, ContentBlock::Document { name: Some(name), .. } if name == "task"),
+            "{:?}",
+            survivor.content
+        );
+    }
+}

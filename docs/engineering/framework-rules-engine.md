@@ -67,7 +67,7 @@ index construction therefore stay off the per-observation path.
 
 ## Asset organisation
 
-The embedded corpus currently contains **45 assets holding 456 clauses** in three groups:
+The embedded corpus currently contains **45 assets holding 458 clauses** in three groups:
 
 ```text
 server/assets/rules/

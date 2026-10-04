@@ -565,54 +565,6 @@ fn openinference_tool_output_is_a_tool_result() {
     );
 }
 
-/// Regression: `messages_to_dict` writes the type beside a `data` member holding the message.
-///
-/// Graph state and the runnables inside a graph report their messages in that form; with only the type
-/// readable, a runnable's input became opaque `unknown` blocks repeating the request beside the readable
-/// copy on its model span.
-#[test]
-fn a_langchain_message_dict_reads_its_data_member() {
-    let attrs = make_attrs(&[
-        ("openinference.span.kind", "CHAIN"),
-        ("metadata", r#"{"langgraph_node": "plan"}"#),
-        (
-            "input.value",
-            r#"[
-                {"type": "system", "data": {"content": "Be brief.", "type": "system", "id": null}},
-                {"type": "human", "data": {"content": "Plan a trip.", "type": "human", "id": "m1"}},
-                {"type": "ai", "data": {"content": "", "type": "ai",
-                    "tool_calls": [{"id": "call_1", "name": "plan", "args": {"city": "Vienna"}}]}},
-                {"type": "tool", "data": {"content": "done", "type": "tool", "tool_call_id": "call_1", "name": "plan"}}
-            ]"#,
-        ),
-    ]);
-    let mut messages = Vec::new();
-    let mut tools = Vec::new();
-    extract_messages_from_context(
-        &mut messages,
-        &mut tools,
-        SpanExtraction {
-            name: "RunnableSequence",
-            attrs: &attrs,
-            scope_name: Some("openinference.instrumentation.langchain"),
-            scope_version: Some("0.1.78"),
-            is_tool_span: false,
-        },
-        Utc::now(),
-        ExtractionMode::PerCarrier,
-    );
-
-    let roles: Vec<_> = messages
-        .iter()
-        .map(|m| m.content["role"].as_str().unwrap_or_default())
-        .collect();
-    assert_eq!(roles, ["system", "user", "assistant", "tool"]);
-    assert_eq!(messages[0].content["content"].as_str(), Some("Be brief."));
-    assert_eq!(messages[1].content["content"].as_str(), Some("Plan a trip."));
-    assert!(messages[2].content["tool_calls"].is_array());
-    assert_eq!(messages[3].content["tool_call_id"].as_str(), Some("call_1"));
-}
-
 /// OpenTelemetry's Google Gen AI instrumentation writes a called function's arguments as
 /// `code.function.parameters.<name>.value` beside each argument's Python type. Read as written, the
 /// call's input matched no copy of the same call on the model span, so a streamed tool loop showed

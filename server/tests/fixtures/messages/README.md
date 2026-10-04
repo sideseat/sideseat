@@ -96,16 +96,16 @@ the corpus matches it.
 | `dotnet/sdk` | SideSeat .NET 1.0.0 / OpenTelemetry 1.19.1 on .NET SDK 10.0.401 | 1 | 1 |
 | `google-genai/native` | Google GenAI 2.28.0 / Logfire 5.1.1 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.13.7, against the harness's fake Gemini server; reasoning thoughts arrive as text parts (the instrumentation drops Gemini's `thought` flag) and a failed tool call as an error message rather than a tool result | 9 | 9 |
 | `google-genai/sdk` | SideSeat Python 2.0.0 / Google GenAI 2.28.0 / Logfire 5.1.1 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.13.7, against the harness's fake Gemini server | 9 | 9 |
-| `haystack/native` | Haystack 3.3.0 / opentelemetry-haystack 1.0.0 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0, native OTLP setup | 1 | 1 |
-| `haystack/sdk` | SideSeat Python 1.0.8 / Haystack 3.3.0 / opentelemetry-haystack 1.0.0 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 | 1 | 1 |
+| `haystack/native` | Haystack 3.3.0 / Amazon Bedrock Haystack 8.3.0 / MCP Haystack 1.5.1 / opentelemetry-haystack 1.0.0 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup; Haystack's tracer writes a placeholder in place of image and file bytes, so `files` carries the request text only | 11 | 16 |
+| `haystack/sdk` | SideSeat Python 2.0.0 / Haystack 3.3.0 / Amazon Bedrock Haystack 8.3.0 / MCP Haystack 1.5.1 / opentelemetry-haystack 1.0.0 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 11 | 11 |
 | `javascript/native` | OpenTelemetry JS 2.11.0 / OTLP exporter 0.222.0 on Node.js 26.9.0 | 1 | 1 |
 | `javascript/sdk` | SideSeat JavaScript 2.0.0 / OpenTelemetry JS 2.11.0 on Node.js 26.9.0 | 1 | 1 |
 | `langchain/native` | LangChain Core 1.6.6 / LangChain AWS 1.8.0 / OpenInference LangChain instrumentor 0.1.78 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup; no `multi_agent`, because LangChain's multi-agent patterns run on LangGraph | 10 | 12 |
 | `langchain/sdk` | SideSeat Python 2.0.0 / LangChain Core 1.6.6 / LangChain AWS 1.8.0 / OpenInference LangChain instrumentor 0.1.78 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 10 | 11 |
 | `langgraph/native` | LangGraph 1.2.12 / LangChain Core 1.6.6 / LangChain AWS 1.8.0 / OpenInference LangChain instrumentor 0.1.78 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup | 11 | 16 |
 | `langgraph/sdk` | SideSeat Python 2.0.0 / LangGraph 1.2.12 / LangChain Core 1.6.6 / LangChain AWS 1.8.0 / OpenInference LangChain instrumentor 0.1.78 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 11 | 11 |
-| `llama-index/native` | LlamaIndex Core 0.14.25 / LlamaIndex OpenAI 0.8.2 / OpenAI 2.54.0 (latest allowed by the adapter's `<3` constraint) / OpenInference LlamaIndex instrumentor 4.5.3 / OpenTelemetry Python 1.45.0 on CPython 3.13.7, native OTLP setup | 1 | 1 |
-| `llama-index/sdk` | SideSeat Python 1.0.8 / LlamaIndex Core 0.14.25 / LlamaIndex OpenAI 0.8.2 / OpenAI 2.54.0 (latest allowed by the adapter's `<3` constraint) / OpenInference LlamaIndex instrumentor 4.5.3 / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 1 | 1 |
+| `llama-index/native` | LlamaIndex Core 0.14.25 / LlamaIndex Bedrock Converse 0.15.3 / LlamaIndex MCP tools 0.6.0 / OpenInference LlamaIndex instrumentor 4.5.4 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup; the instrumentor records no document blocks or reasoning and redacts large inline images, and `structured_output` is not captured yet: its reformatting request does not reconstruct | 10 | 21 |
+| `llama-index/sdk` | SideSeat Python 2.0.0 / LlamaIndex Core 0.14.25 / LlamaIndex Bedrock Converse 0.15.3 / LlamaIndex MCP tools 0.6.0 / OpenInference LlamaIndex instrumentor 4.5.4 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 10 | 11 |
 | `logfire/native` | Logfire 5.1.1 / OpenAI 3.24.0 (Responses API on GPT-6.1-sol) / OpenTelemetry Python 1.44.0, Logfire's own setup with a scrubbing callback that keeps `session.id` | 11 | 11 |
 | `logfire/sdk` | SideSeat Python 2.0.0 / Logfire 5.1.1 / OpenAI 3.24.0 (Responses API on GPT-6.1-sol) / OpenTelemetry Python 1.44.0 | 11 | 11 |
 | `openai/legacy` | openai >=1.80.0 | 6 | 8 |
@@ -132,7 +132,7 @@ the corpus matches it.
 | `vercel-ai-js/legacy` | ai ^7.0.79 | 6 | 13 |
 | `vertex-ai/native` | Google GenAI 2.28.0 / Logfire 5.1.1 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.13.7, native Logfire setup with the current `enterprise=True` Vertex mode, against the harness's fake Gemini server; reasoning thoughts arrive as text parts (the instrumentation drops Gemini's `thought` flag) and a failed tool call as an error message rather than a tool result | 9 | 9 |
 | `vertex-ai/sdk` | SideSeat Python 2.0.0 / Google GenAI 2.28.0 / Logfire 5.1.1 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.13.7, current `enterprise=True` Vertex mode, against the harness's fake Gemini server | 9 | 9 |
-| **63 suites** | | **360** | **514** |
+| **64 suites** | | **443** | **604** |
 
 Two further samples exist but are **not in the repository**: `strands-js/image-gen` and
 `vercel-ai-js/image-gen`, whose payloads are 15 MB and 7 MB of inlined base64 image data (the Python
@@ -381,7 +381,7 @@ not hide the rest.
 
 ## What is and is not covered
 
-**362 tracked expectation files: 345 captured in 62 suites, plus 17 synthetic.** A suite is not a framework:
+**445 tracked expectation files: 428 captured in 63 suites, plus 17 synthetic.** A suite is not a framework:
 `strands`/`strands-js` and `claude-agent-sdk`/`claude-agent-sdk-js` are one framework each in two
 languages; the eight .NET/JavaScript/Python/Rust suites are SDK conformance rather than framework
 captures. The fixture families below cover **27 of the 32** frameworks SideSeat recognises. (32 is

@@ -353,6 +353,31 @@ impl BlockSortKey {
     }
 }
 
+/// Give a surviving attachment the filename a duplicate kept.
+///
+/// An attachment is identified by its bytes, so one instrumentation's copy with the filename and
+/// another's without it are one block; whichever survives on quality, the name is not lost.
+fn adopt_attachment_name(survivor: &mut BlockEntry, other: &BlockEntry) {
+    let named = match &other.content {
+        ContentBlock::Document {
+            name: Some(name), ..
+        }
+        | ContentBlock::File {
+            name: Some(name), ..
+        } => name,
+        _ => return,
+    };
+    if let ContentBlock::Document {
+        name: name @ None, ..
+    }
+    | ContentBlock::File {
+        name: name @ None, ..
+    } = &mut survivor.content
+    {
+        *name = Some(named.clone());
+    }
+}
+
 /// Deduplicate blocks by identity, keeping highest quality version.
 ///
 /// Note: Birth time is computed during sorting, not here. Deduplication only
@@ -560,10 +585,14 @@ fn deduplicate_with_lineage(
                 } else {
                     quality > *existing_quality
                 };
-                if wins {
-                    *existing = block.clone();
+                let other = if wins {
+                    let replaced = std::mem::replace(existing, block.clone());
                     *existing_quality = quality;
-                }
+                    replaced
+                } else {
+                    block.clone()
+                };
+                adopt_attachment_name(existing, &other);
             })
             .or_insert((block, quality));
     }

@@ -2,14 +2,14 @@
 ///
 /// Two identical tool calls in one response share a `MessageIdentity` and both survive, keyed by their
 /// rank. Recomputing identities after dedup could not tell them apart, so their evidence was left
-/// unprojected - safe, but a gap, and `claude-agent-sdk/legacy/mcp_tools` is a corpus trace that has
+/// unprojected - safe, but a gap, and `agent-framework/native/tool_use` is a corpus trace that has
 /// the pair. With a lineage the pair projects, so the resolver sees both calls' emissions.
 ///
 /// Asserted as "the resolver's answer still holds every survivor, and the two calls are both there":
 /// projection is internal, so what is checked is the observable consequence.
 #[test]
 fn repeated_identical_calls_keep_both_and_stay_resolvable() {
-    let label = "claude-agent-sdk/legacy/mcp_tools";
+    let label = "agent-framework/native/tool_use";
     let (_, paths) = discover_fixtures()
         .into_iter()
         .find(|(l, _)| l == label)
