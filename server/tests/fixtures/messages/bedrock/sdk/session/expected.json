@@ -1,0 +1,345 @@
+{
+  "label": "bedrock/sdk/session",
+  "request_count": 1,
+  "span_count": 4,
+  "trace_count": 2,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/chat global.anthropic.claude-sonnet-5-5/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one museum to visit in Madrid.",
+          "content_digest": "9d08c76a1df2d525",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Visit the Museo del Prado, Madrid's premier art museum, home to masterpieces by Velázquez (Las Meninas), Goya, and El Greco. Plan for 2–3 hours, and consider going in the evening when free-entry hours are typically offered (check current ti…[284 chars]",
+          "content_digest": "23777dd19c076b00",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/session-turn-1/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/chat global.anthropic.claude-sonnet-5-5/span-2": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one park to visit in Madrid.",
+          "content_digest": "95fac62b5ab37eb3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "redacted_thinking",
+          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSuQUKEggSEAEYAjgBQgh0aGlua2luZxIMJWhBxYcIpEmB6KjeGgwI8Ah/hkPH8Ep+Os8iMDjdwKoGvhIO0QDcDLz80osqUSpZZ1aKFp7cl+jjd37ru8NvpbkisaDJ1tBYyBkFiyrUBMtKHno/bvAg0vxK7MXRZxPzTBKE8ii5LhAOtsxujLD1zoH4gUavVL2z7MCMeqBT…[978 chars]",
+          "content_digest": "fafcfd600b6ebc89",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I suggest **Retiro Park (Parque del Buen Retiro)**. It's Madrid's most famous green space, with a boating lake, the glass Crystal Palace, and shaded gardens that are ideal for a relaxed stroll. It's also close to the Prado Museum, so it pai…[270 chars]",
+          "content_digest": "6bfabe180cae18e7",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/session-turn-2/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one museum to visit in Madrid.",
+          "content_digest": "9d08c76a1df2d525",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Visit the Museo del Prado, Madrid's premier art museum, home to masterpieces by Velázquez (Las Meninas), Goya, and El Greco. Plan for 2–3 hours, and consider going in the evening when free-entry hours are typically offered (check current ti…[284 chars]",
+          "content_digest": "23777dd19c076b00",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one park to visit in Madrid.",
+          "content_digest": "95fac62b5ab37eb3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "redacted_thinking",
+          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSuQUKEggSEAEYAjgBQgh0aGlua2luZxIMJWhBxYcIpEmB6KjeGgwI8Ah/hkPH8Ep+Os8iMDjdwKoGvhIO0QDcDLz80osqUSpZZ1aKFp7cl+jjd37ru8NvpbkisaDJ1tBYyBkFiyrUBMtKHno/bvAg0vxK7MXRZxPzTBKE8ii5LhAOtsxujLD1zoH4gUavVL2z7MCMeqBT…[978 chars]",
+          "content_digest": "fafcfd600b6ebc89",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I suggest **Retiro Park (Parque del Buen Retiro)**. It's Madrid's most famous green space, with a boating lake, the glass Crystal Palace, and shaded gardens that are ideal for a relaxed stroll. It's also close to the Prado Museum, so it pai…[270 chars]",
+          "content_digest": "6bfabe180cae18e7",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "bedrock-session": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one museum to visit in Madrid.",
+          "content_digest": "9d08c76a1df2d525",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Visit the Museo del Prado, Madrid's premier art museum, home to masterpieces by Velázquez (Las Meninas), Goya, and El Greco. Plan for 2–3 hours, and consider going in the evening when free-entry hours are typically offered (check current ti…[284 chars]",
+          "content_digest": "23777dd19c076b00",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one park to visit in Madrid.",
+          "content_digest": "95fac62b5ab37eb3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "redacted_thinking",
+          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSuQUKEggSEAEYAjgBQgh0aGlua2luZxIMJWhBxYcIpEmB6KjeGgwI8Ah/hkPH8Ep+Os8iMDjdwKoGvhIO0QDcDLz80osqUSpZZ1aKFp7cl+jjd37ru8NvpbkisaDJ1tBYyBkFiyrUBMtKHno/bvAg0vxK7MXRZxPzTBKE8ii5LhAOtsxujLD1zoH4gUavVL2z7MCMeqBT…[978 chars]",
+          "content_digest": "fafcfd600b6ebc89",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I suggest **Retiro Park (Parque del Buen Retiro)**. It's Madrid's most famous green space, with a boating lake, the glass Crystal Palace, and shaded gardens that are ideal for a relaxed stroll. It's also close to the Prado Museum, so it pai…[270 chars]",
+          "content_digest": "6bfabe180cae18e7",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 7,
+    "role_sequence": [
+      "assistant",
+      "assistant",
+      "system",
+      "user",
+      "assistant",
+      "system",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "redacted_thinking",
+        "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSuQUKEggSEAEYAjgBQgh0aGlua2luZxIMJWhBxYcIpEmB6KjeGgwI8Ah/hkPH8Ep+Os8iMDjdwKoGvhIO0QDcDLz80osqUSpZZ1aKFp7cl+jjd37ru8NvpbkisaDJ1tBYyBkFiyrUBMtKHno/bvAg0vxK7MXRZxPzTBKE8ii5LhAOtsxujLD1zoH4gUavVL2z7MCMeqBT…[978 chars]",
+        "content_digest": "fafcfd600b6ebc89",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "I suggest **Retiro Park (Parque del Buen Retiro)**. It's Madrid's most famous green space, with a boating lake, the glass Crystal Palace, and shaded gardens that are ideal for a relaxed stroll. It's also close to the Prado Museum, so it pai…[270 chars]",
+        "content_digest": "6bfabe180cae18e7",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Suggest one park to visit in Madrid.",
+        "content_digest": "95fac62b5ab37eb3",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Visit the Museo del Prado, Madrid's premier art museum, home to masterpieces by Velázquez (Las Meninas), Goya, and El Greco. Plan for 2–3 hours, and consider going in the evening when free-entry hours are typically offered (check current ti…[284 chars]",
+        "content_digest": "23777dd19c076b00",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Suggest one museum to visit in Madrid.",
+        "content_digest": "9d08c76a1df2d525",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

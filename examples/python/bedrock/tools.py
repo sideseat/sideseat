@@ -84,5 +84,10 @@ def converse(
         messages.append(message)
         uses = [block["toolUse"] for block in message["content"] if "toolUse" in block]
         if not uses:
-            return "".join(block.get("text", "") for block in message["content"])
+            return answer(message)
         messages.append({"role": "user", "content": [call(tools, use) for use in uses]})
+
+
+def answer(message: dict[str, Any]) -> str:
+    """The text of an assistant message. Current Claude models may lead with a reasoning block."""
+    return "".join(block.get("text", "") for block in message["content"])

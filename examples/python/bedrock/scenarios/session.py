@@ -1,3 +1,5 @@
+from tools import answer
+
 from harness import Run, content
 
 
@@ -10,4 +12,4 @@ def run(run: Run) -> None:
                 system=[{"text": content.SYSTEM}],
                 messages=[{"role": "user", "content": [{"text": question}]}],
             )
-            print(response["output"]["message"]["content"][0]["text"])
+            print(answer(response["output"]["message"]))

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import boto3
+from botocore.config import Config
 
 from harness import Model
 from harness.models import region
@@ -21,4 +22,9 @@ def build(model: Model) -> Bedrock:
             f"the Bedrock suite calls the Converse API; {model.alias} is {model.surface}"
         )
     # Built on first use, after telemetry is configured: SideSeat instruments clients as they are created.
-    return Bedrock(boto3.client("bedrock-runtime", region_name=region()), model.id)
+    # Reasoning at maximum effort can take minutes; botocore's 60-second read timeout would retry a request
+    # the model is still answering.
+    client = boto3.client(
+        "bedrock-runtime", region_name=region(), config=Config(read_timeout=600)
+    )
+    return Bedrock(client, model.id)

@@ -1,5 +1,7 @@
 from typing import Any
 
+from tools import answer as text_of
+
 from harness import Run, content
 
 
@@ -16,4 +18,4 @@ def run(run: Run) -> None:
             )
             answer = response["output"]["message"]
             messages.append(answer)
-            print(answer["content"][0]["text"])
+            print(text_of(answer))
