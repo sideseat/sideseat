@@ -354,6 +354,9 @@ struct InvariantRow {
     role: String,
     entry_type: String,
     content: String,
+    /// The whole block, serialised, for checks that ask what a block says rather than how it looks
+    /// in a preview.
+    full_content: String,
     /// Digest of the FULL content. Duplicate identity must not use the truncated, whitespace
     /// collapsed preview: two genuinely different long messages share a preview and would be
     /// reported as duplicates, while a whitespace-only difference would hide a real one.
@@ -460,6 +463,8 @@ fn build_view(rows: Vec<MessageSpanRow>, view: View<'_>) -> (GoldenView, Vec<Inv
                 role: m.role.clone(),
                 entry_type: m.entry_type.clone(),
                 content: m.content.clone(),
+                full_content: serde_json::to_string(&block.content)
+                    .expect("content block is serializable"),
                 content_digest: m.content_digest.clone(),
                 occurrence_ordinal: block.occurrence_ordinal,
                 tool_use_id: block.tool_use_id.clone(),

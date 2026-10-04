@@ -1,0 +1,142 @@
+{
+  "label": "ag2/native/structured_output",
+  "request_count": 1,
+  "span_count": 4,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/chat global.anthropic.claude-sonnet-5-5/span-3": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt, including St. Stephen's Cathedral, the Hofburg Palace and a traditional Viennese café stop, then an evening walk along the Ringstrasse\",\"Day 2: Tour Schönbrunn…[390 chars]",
+          "content_digest": "bec0db7c0e688344",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/invoke_agent assistant/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/record_usage model_call/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/structured-output/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt, including St. Stephen's Cathedral, the Hofburg Palace and a traditional Viennese café stop, then an evening walk along the Ringstrasse\",\"Day 2: Tour Schönbrunn…[390 chars]",
+          "content_digest": "bec0db7c0e688344",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "ag2-structured_output": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt, including St. Stephen's Cathedral, the Hofburg Palace and a traditional Viennese café stop, then an evening walk along the Ringstrasse\",\"Day 2: Tour Schönbrunn…[390 chars]",
+          "content_digest": "bec0db7c0e688344",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 2,
+    "role_sequence": [
+      "assistant",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt, including St. Stephen's Cathedral, the Hofburg Palace and a traditional Viennese café stop, then an evening walk along the Ringstrasse\",\"Day 2: Tour Schönbrunn…[390 chars]",
+        "content_digest": "bec0db7c0e688344",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Plan a two-day trip to Vienna.",
+        "content_digest": "5f56235d64bfe00d",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

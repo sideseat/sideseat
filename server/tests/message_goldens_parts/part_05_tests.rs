@@ -310,7 +310,7 @@ fn exception_conservation_violations(built: &Built) -> Vec<String> {
                 let message = r.content.split_once(": ").map_or(r.content.as_str(), |(_, m)| m);
                 trace_rows
                     .iter()
-                    .any(|t| t.entry_type == "tool_result" && t.content.contains(message))
+                    .any(|t| t.entry_type == "tool_result" && t.full_content.contains(message))
             };
             for r in rows
                 .iter()

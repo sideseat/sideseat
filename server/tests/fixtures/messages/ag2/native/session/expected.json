@@ -1,0 +1,253 @@
+{
+  "label": "ag2/native/session",
+  "request_count": 2,
+  "span_count": 8,
+  "trace_count": 2,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/chat global.anthropic.claude-sonnet-5-5/span-3": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one museum to visit in Madrid.",
+          "content_digest": "9d08c76a1df2d525",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Visit the Museo Nacional del Prado, Madrid's premier art museum, home to masterpieces by Velázquez (including *Las Meninas*), Goya, and El Greco. Plan for 2–3 hours, and consider going in the evening when there are free-entry hours (check c…[274 chars]",
+          "content_digest": "5398a88f7531bd91",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/invoke_agent assistant/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/record_usage model_call/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/session-turn-1/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/chat global.anthropic.claude-sonnet-5-5/span-3": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one park to visit in Madrid.",
+          "content_digest": "95fac62b5ab37eb3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I suggest Retiro Park (Parque del Buen Retiro), Madrid's most beloved green space. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll through the Rose Garden. It's also close to the Prado Museum, so it pairs well w…[265 chars]",
+          "content_digest": "38f2e80a0a7b52e6",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/invoke_agent assistant/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/record_usage model_call/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/session-turn-2/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one museum to visit in Madrid.",
+          "content_digest": "9d08c76a1df2d525",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Visit the Museo Nacional del Prado, Madrid's premier art museum, home to masterpieces by Velázquez (including *Las Meninas*), Goya, and El Greco. Plan for 2–3 hours, and consider going in the evening when there are free-entry hours (check c…[274 chars]",
+          "content_digest": "5398a88f7531bd91",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one park to visit in Madrid.",
+          "content_digest": "95fac62b5ab37eb3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I suggest Retiro Park (Parque del Buen Retiro), Madrid's most beloved green space. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll through the Rose Garden. It's also close to the Prado Museum, so it pairs well w…[265 chars]",
+          "content_digest": "38f2e80a0a7b52e6",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "ag2-session": {
+      "message_count": 4,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one museum to visit in Madrid.",
+          "content_digest": "9d08c76a1df2d525",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Visit the Museo Nacional del Prado, Madrid's premier art museum, home to masterpieces by Velázquez (including *Las Meninas*), Goya, and El Greco. Plan for 2–3 hours, and consider going in the evening when there are free-entry hours (check c…[274 chars]",
+          "content_digest": "5398a88f7531bd91",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one park to visit in Madrid.",
+          "content_digest": "95fac62b5ab37eb3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I suggest Retiro Park (Parque del Buen Retiro), Madrid's most beloved green space. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll through the Rose Garden. It's also close to the Prado Museum, so it pairs well w…[265 chars]",
+          "content_digest": "38f2e80a0a7b52e6",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 4,
+    "role_sequence": [
+      "user",
+      "assistant",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Suggest one park to visit in Madrid.",
+        "content_digest": "95fac62b5ab37eb3",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "I suggest Retiro Park (Parque del Buen Retiro), Madrid's most beloved green space. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll through the Rose Garden. It's also close to the Prado Museum, so it pairs well w…[265 chars]",
+        "content_digest": "38f2e80a0a7b52e6",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Suggest one museum to visit in Madrid.",
+        "content_digest": "9d08c76a1df2d525",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Visit the Museo Nacional del Prado, Madrid's premier art museum, home to masterpieces by Velázquez (including *Las Meninas*), Goya, and El Greco. Plan for 2–3 hours, and consider going in the evening when there are free-entry hours (check c…[274 chars]",
+        "content_digest": "5398a88f7531bd91",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

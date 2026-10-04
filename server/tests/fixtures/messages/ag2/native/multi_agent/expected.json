@@ -1,0 +1,549 @@
+{
+  "label": "ag2/native/multi_agent",
+  "request_count": 3,
+  "span_count": 14,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/chat global.anthropic.claude-sonnet-5-5/span-10": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Write a one-paragraph packing list for a two-day trip to Barcelona based on the weather forecast. ## Context Barcelona forecast: Day 1: rain, high 21°C. Day 2: sunny, high 22°C.",
+          "content_digest": "023d916030904ab7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "For your two-day Barcelona trip, pack light, layerable clothing suited to mild temperatures of 21-22°C, including two or three t-shirts or breathable tops, a light sweater or cardigan for cooler evenings, and a pair of comfortable pants or …[891 chars]",
+          "content_digest": "009d53a3581fa7af",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat global.anthropic.claude-sonnet-5-5/span-13": {
+      "message_count": 6,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_qoq4dLiYj5NIbZjuS6K2PU\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "04f8326d967b459e",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_qoq4dLiYj5NIbZjuS6K2PU\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "5706b42a5f3fd527",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_3UyTQHJ4lEzhf0etPEcoF6\",\"name\":\"task_writer\",\"input\":{\"objective\":\"Write a one-paragraph packing list for a two-day trip to Barcelona based on the weather forecast.\",\"context\":\"Barcelona forecast: Day 1: rai…[281 chars]",
+          "content_digest": "1c5b675eb5601c7a",
+          "tool_name": "task_writer",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "For your two-day Barcelona trip, pack light, layerable clothing suited to mild temperatures of 21-22°C, including two or three t-shirts or breathable tops, a light sweater or cardigan for cooler evenings, and a pair of comfortable pants or …[891 chars]",
+          "content_digest": "2a709a0f0868c4d7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Forecast for Barcelona:** Day 1 will be rainy with a high of 21°C. Day 2 will be sunny with a high of 22°C. **Packing list:** Pack light, layerable clothing for mild temperatures of 21–22°C. Bring two or three t-shirts or breathable tops,…[949 chars]",
+          "content_digest": "e743b816b36e4440",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat global.anthropic.claude-sonnet-5-5/span-3": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_qoq4dLiYj5NIbZjuS6K2PU\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "04f8326d967b459e",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat global.anthropic.claude-sonnet-5-5/span-6": {
+      "message_count": 4,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_qoq4dLiYj5NIbZjuS6K2PU\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "04f8326d967b459e",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_qoq4dLiYj5NIbZjuS6K2PU\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "5706b42a5f3fd527",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_3UyTQHJ4lEzhf0etPEcoF6\",\"name\":\"task_writer\",\"input\":{\"objective\":\"Write a one-paragraph packing list for a two-day trip to Barcelona based on the weather forecast.\",\"context\":\"Barcelona forecast: Day 1: rai…[281 chars]",
+          "content_digest": "1c5b675eb5601c7a",
+          "tool_name": "task_writer",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/execute_tool get_weather/span-5": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_qoq4dLiYj5NIbZjuS6K2PU\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "04f8326d967b459e",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_qoq4dLiYj5NIbZjuS6K2PU\",\"name\":\"get_weather\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "b93a118feb436ce4",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/execute_tool task_writer/span-8": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_3UyTQHJ4lEzhf0etPEcoF6\",\"name\":\"task_writer\",\"input\":{\"objective\":\"Write a one-paragraph packing list for a two-day trip to Barcelona based on the weather forecast.\",\"context\":\"Barcelona forecast: Day 1: rai…[281 chars]",
+          "content_digest": "1c5b675eb5601c7a",
+          "tool_name": "task_writer",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "For your two-day Barcelona trip, pack light, layerable clothing suited to mild temperatures of 21-22°C, including two or three t-shirts or breathable tops, a light sweater or cardigan for cooler evenings, and a pair of comfortable pants or …[891 chars]",
+          "content_digest": "799bc7910d6a4529",
+          "tool_name": "task_writer",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/invoke_agent researcher/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/invoke_agent writer/span-9": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/multi-agent/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/record_usage model_call/span-11": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/record_usage model_call/span-14": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/record_usage model_call/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/record_usage model_call/span-7": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/record_usage subtask/span-12": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 8,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_qoq4dLiYj5NIbZjuS6K2PU\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "04f8326d967b459e",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_qoq4dLiYj5NIbZjuS6K2PU\",\"name\":\"get_weather\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "b93a118feb436ce4",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_3UyTQHJ4lEzhf0etPEcoF6\",\"name\":\"task_writer\",\"input\":{\"objective\":\"Write a one-paragraph packing list for a two-day trip to Barcelona based on the weather forecast.\",\"context\":\"Barcelona forecast: Day 1: rai…[281 chars]",
+          "content_digest": "1c5b675eb5601c7a",
+          "tool_name": "task_writer",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Write a one-paragraph packing list for a two-day trip to Barcelona based on the weather forecast. ## Context Barcelona forecast: Day 1: rain, high 21°C. Day 2: sunny, high 22°C.",
+          "content_digest": "023d916030904ab7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "For your two-day Barcelona trip, pack light, layerable clothing suited to mild temperatures of 21-22°C, including two or three t-shirts or breathable tops, a light sweater or cardigan for cooler evenings, and a pair of comfortable pants or …[891 chars]",
+          "content_digest": "009d53a3581fa7af",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "For your two-day Barcelona trip, pack light, layerable clothing suited to mild temperatures of 21-22°C, including two or three t-shirts or breathable tops, a light sweater or cardigan for cooler evenings, and a pair of comfortable pants or …[891 chars]",
+          "content_digest": "799bc7910d6a4529",
+          "tool_name": "task_writer",
+          "observation_type": "tool"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Forecast for Barcelona:** Day 1 will be rainy with a high of 21°C. Day 2 will be sunny with a high of 22°C. **Packing list:** Pack light, layerable clothing for mild temperatures of 21–22°C. Bring two or three t-shirts or breathable tops,…[949 chars]",
+          "content_digest": "e743b816b36e4440",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "ag2-multi_agent": {
+      "message_count": 8,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_qoq4dLiYj5NIbZjuS6K2PU\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "04f8326d967b459e",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_qoq4dLiYj5NIbZjuS6K2PU\",\"name\":\"get_weather\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "b93a118feb436ce4",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_3UyTQHJ4lEzhf0etPEcoF6\",\"name\":\"task_writer\",\"input\":{\"objective\":\"Write a one-paragraph packing list for a two-day trip to Barcelona based on the weather forecast.\",\"context\":\"Barcelona forecast: Day 1: rai…[281 chars]",
+          "content_digest": "1c5b675eb5601c7a",
+          "tool_name": "task_writer",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Write a one-paragraph packing list for a two-day trip to Barcelona based on the weather forecast. ## Context Barcelona forecast: Day 1: rain, high 21°C. Day 2: sunny, high 22°C.",
+          "content_digest": "023d916030904ab7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "For your two-day Barcelona trip, pack light, layerable clothing suited to mild temperatures of 21-22°C, including two or three t-shirts or breathable tops, a light sweater or cardigan for cooler evenings, and a pair of comfortable pants or …[891 chars]",
+          "content_digest": "009d53a3581fa7af",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "For your two-day Barcelona trip, pack light, layerable clothing suited to mild temperatures of 21-22°C, including two or three t-shirts or breathable tops, a light sweater or cardigan for cooler evenings, and a pair of comfortable pants or …[891 chars]",
+          "content_digest": "799bc7910d6a4529",
+          "tool_name": "task_writer",
+          "observation_type": "tool"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Forecast for Barcelona:** Day 1 will be rainy with a high of 21°C. Day 2 will be sunny with a high of 22°C. **Packing list:** Pack light, layerable clothing for mild temperatures of 21–22°C. Bring two or three t-shirts or breathable tops,…[949 chars]",
+          "content_digest": "e743b816b36e4440",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 8,
+    "role_sequence": [
+      "assistant",
+      "tool",
+      "user",
+      "assistant",
+      "assistant",
+      "tool",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 2,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "**Forecast for Barcelona:** Day 1 will be rainy with a high of 21°C. Day 2 will be sunny with a high of 22°C. **Packing list:** Pack light, layerable clothing for mild temperatures of 21–22°C. Bring two or three t-shirts or breathable tops,…[949 chars]",
+        "content_digest": "e743b816b36e4440",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "For your two-day Barcelona trip, pack light, layerable clothing suited to mild temperatures of 21-22°C, including two or three t-shirts or breathable tops, a light sweater or cardigan for cooler evenings, and a pair of comfortable pants or …[891 chars]",
+        "content_digest": "799bc7910d6a4529",
+        "tool_name": "task_writer",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Write a one-paragraph packing list for a two-day trip to Barcelona based on the weather forecast. ## Context Barcelona forecast: Day 1: rain, high 21°C. Day 2: sunny, high 22°C.",
+        "content_digest": "023d916030904ab7",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "For your two-day Barcelona trip, pack light, layerable clothing suited to mild temperatures of 21-22°C, including two or three t-shirts or breathable tops, a light sweater or cardigan for cooler evenings, and a pair of comfortable pants or …[891 chars]",
+        "content_digest": "009d53a3581fa7af",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_3UyTQHJ4lEzhf0etPEcoF6\",\"name\":\"task_writer\",\"input\":{\"objective\":\"Write a one-paragraph packing list for a two-day trip to Barcelona based on the weather forecast.\",\"context\":\"Barcelona forecast: Day 1: rai…[281 chars]",
+        "content_digest": "1c5b675eb5601c7a",
+        "tool_name": "task_writer",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_qoq4dLiYj5NIbZjuS6K2PU\",\"name\":\"get_weather\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+        "content_digest": "b93a118feb436ce4",
+        "tool_name": "get_weather",
+        "observation_type": "tool"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+        "content_digest": "603f05d965d18b4d",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_qoq4dLiYj5NIbZjuS6K2PU\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+        "content_digest": "04f8326d967b459e",
+        "tool_name": "get_weather",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

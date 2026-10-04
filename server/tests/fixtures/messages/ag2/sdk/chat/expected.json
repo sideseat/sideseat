@@ -1,0 +1,142 @@
+{
+  "label": "ag2/sdk/chat",
+  "request_count": 1,
+  "span_count": 4,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/chat global.anthropic.claude-sonnet-5-5/span-3": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "In one sentence, what is Kyoto best known for?",
+          "content_digest": "0f69e296627452c3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Kyoto is best known for its well-preserved temples, shrines, geisha districts, and traditional culture, as the former imperial capital of Japan for over a thousand years.",
+          "content_digest": "32436e7a3dd18fd8",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/invoke_agent assistant/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/record_usage model_call/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "In one sentence, what is Kyoto best known for?",
+          "content_digest": "0f69e296627452c3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Kyoto is best known for its well-preserved temples, shrines, geisha districts, and traditional culture, as the former imperial capital of Japan for over a thousand years.",
+          "content_digest": "32436e7a3dd18fd8",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "ag2-chat": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "In one sentence, what is Kyoto best known for?",
+          "content_digest": "0f69e296627452c3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Kyoto is best known for its well-preserved temples, shrines, geisha districts, and traditional culture, as the former imperial capital of Japan for over a thousand years.",
+          "content_digest": "32436e7a3dd18fd8",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 2,
+    "role_sequence": [
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "user",
+        "entry_type": "text",
+        "content": "In one sentence, what is Kyoto best known for?",
+        "content_digest": "0f69e296627452c3",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Kyoto is best known for its well-preserved temples, shrines, geisha districts, and traditional culture, as the former imperial capital of Japan for over a thousand years.",
+        "content_digest": "32436e7a3dd18fd8",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

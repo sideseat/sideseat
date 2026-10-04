@@ -1,0 +1,142 @@
+{
+  "label": "ag2/sdk/files",
+  "request_count": 1,
+  "span_count": 4,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/chat global.anthropic.claude-sonnet-5-5/span-3": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+          "content_digest": "66bed9fc16754ebe",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Image:** A curved black path winds through a sunlit park with green lawns, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings under a clear blue sky. **Document:** The five-page PDF is almost entirely blan…[319 chars]",
+          "content_digest": "37e96854c9bdcf4a",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/files/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/invoke_agent assistant/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/record_usage model_call/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+          "content_digest": "66bed9fc16754ebe",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Image:** A curved black path winds through a sunlit park with green lawns, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings under a clear blue sky. **Document:** The five-page PDF is almost entirely blan…[319 chars]",
+          "content_digest": "37e96854c9bdcf4a",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "ag2-files": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+          "content_digest": "66bed9fc16754ebe",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Image:** A curved black path winds through a sunlit park with green lawns, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings under a clear blue sky. **Document:** The five-page PDF is almost entirely blan…[319 chars]",
+          "content_digest": "37e96854c9bdcf4a",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 2,
+    "role_sequence": [
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+        "content_digest": "66bed9fc16754ebe",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "**Image:** A curved black path winds through a sunlit park with green lawns, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings under a clear blue sky. **Document:** The five-page PDF is almost entirely blan…[319 chars]",
+        "content_digest": "37e96854c9bdcf4a",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

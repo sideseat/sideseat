@@ -1,0 +1,24 @@
+{
+ "interactions": [
+  {
+   "method": "POST",
+   "path": "/model/global.anthropic.claude-sonnet-5-5/converse",
+   "status": 200,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "eyJtZXRyaWNzIjp7ImxhdGVuY3lNcyI6OTE3fSwib3V0cHV0Ijp7Im1lc3NhZ2UiOnsiY29udGVudCI6W3sidG9vbFVzZSI6eyJpbnB1dCI6eyJvcmlnaW4iOiJMb25kb24iLCJkZXN0aW5hdGlvbiI6Ik9zbG8iLCJkYXRlIjoiMjAyNi0xMS0xNCJ9LCJuYW1lIjoiYm9va19mbGlnaHQiLCJ0b29sVXNlSWQiOiJ0b29sdXNlX0tVWjdybTBkVklMZjg4dVpIZXBPbHoiLCJ0eXBlIjoidG9vbF91c2UifX1dLCJyb2xlIjoiYXNzaXN0YW50In19LCJzdG9wUmVhc29uIjoidG9vbF91c2UiLCJ1c2FnZSI6eyJjYWNoZVJlYWRJbnB1dFRva2VuQ291bnQiOjAsImNhY2hlUmVhZElucHV0VG9rZW5zIjowLCJjYWNoZVdyaXRlSW5wdXRUb2tlbkNvdW50IjowLCJjYWNoZVdyaXRlSW5wdXRUb2tlbnMiOjAsImlucHV0VG9rZW5zIjo1MjYsIm91dHB1dFRva2VucyI6MTAwLCJzZXJ2ZXJUb29sVXNhZ2UiOnt9LCJ0b3RhbFRva2VucyI6NjI2fX0=",
+   "request_sha256": "62d3be6068a6a16f373a4e737e9c32a0a62522db200c76170ed41872cd69ad6c"
+  },
+  {
+   "method": "POST",
+   "path": "/model/global.anthropic.claude-sonnet-5-5/converse",
+   "status": 200,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "eyJtZXRyaWNzIjp7ImxhdGVuY3lNcyI6MTA5M30sIm91dHB1dCI6eyJtZXNzYWdlIjp7ImNvbnRlbnQiOlt7InRleHQiOiJUaGUgYm9va2luZyBmYWlsZWQuIFRoZSBzeXN0ZW0gaXMgb2ZmbGluZSwgc28gbm8gc2VhdHMgYXJlIGF2YWlsYWJsZSBmcm9tIExvbmRvbiB0byBPc2xvIG9uIDIwMjYtMTEtMTQuIEkgY2FuIHRyeSBhZ2Fpbiwgb3IgdHJ5IGEgZGlmZmVyZW50IGRhdGUgaWYgeW91J2QgbGlrZS4ifV0sInJvbGUiOiJhc3Npc3RhbnQifX0sInN0b3BSZWFzb24iOiJlbmRfdHVybiIsInVzYWdlIjp7ImNhY2hlUmVhZElucHV0VG9rZW5Db3VudCI6MCwiY2FjaGVSZWFkSW5wdXRUb2tlbnMiOjAsImNhY2hlV3JpdGVJbnB1dFRva2VuQ291bnQiOjAsImNhY2hlV3JpdGVJbnB1dFRva2VucyI6MCwiaW5wdXRUb2tlbnMiOjIxOTQsIm91dHB1dFRva2VucyI6NTIsInNlcnZlclRvb2xVc2FnZSI6e30sInRvdGFsVG9rZW5zIjoyMjQ2fX0=",
+   "request_sha256": "fb5a30804452030b920407522e990591bd7950e3cf2b005719f1afb20628277e"
+  }
+ ]
+}

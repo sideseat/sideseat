@@ -72,8 +72,8 @@ the corpus matches it.
 | `adk/legacy` | google-adk >=1.27.0 | 8 | 18 |
 | `adk/native` | google-adk >=1.27.0, native OTLP setup | 10 | 11 |
 | `adk/sdk` | SideSeat Python 1.0.8 / google-adk >=1.27.0 | 10 | 11 |
-| `ag2/native` | AG2 1.1.1 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8, native OTLP setup | 1 | 1 |
-| `ag2/sdk` | SideSeat Python 1.0.8 / AG2 1.1.1 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8 | 1 | 1 |
+| `ag2/native` | AG2 1.1.1 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native TelemetryMiddleware; AG2's telemetry records no system prompt, binary input, or reasoning, so `files` and `reasoning` carry their text only | 11 | 17 |
+| `ag2/sdk` | SideSeat Python 2.0.0 / AG2 1.1.1 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 11 | 11 |
 | `agent-framework/legacy` | agent-framework-core >=1.0.0b0 | 10 | 17 |
 | `agent-framework/native` | agent-framework-core >=1.0.0b0, native OTLP setup | 10 | 10 |
 | `agent-framework/sdk` | SideSeat Python 1.0.8 / agent-framework-core >=1.0.0b0 | 10 | 10 |

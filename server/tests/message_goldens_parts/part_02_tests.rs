@@ -626,7 +626,8 @@ fn sdk_and_plain_otel_conformance_are_identical() {
 ///
 /// - both paths export the same spans (batch boundaries are exporter timing and may differ);
 /// - every source span has the same message projection;
-/// - the same conversations exist as traces, including empty transport-only traces;
+/// - the same conversations exist as traces, including empty transport-only traces, with the
+///   results of concurrently executed tools compared as a set where they sit next to each other;
 /// - the same session conversations exist, independent of producer-side ID scrubbing;
 /// - the project feed holds the same messages; its order follows completion time, which concurrent
 ///   tool execution makes vary between runs, so the per-fixture golden pins the order instead.
@@ -638,10 +639,32 @@ fn sdk_and_plain_otel_conformance_are_identical() {
 fn framework_sdk_and_native_conversations_are_identical() {
     let fixtures: BTreeMap<String, Vec<PathBuf>> = discover_fixtures().into_iter().collect();
 
+    // Tools a framework runs concurrently finish in whichever order they finish, so a run of
+    // adjacent tool results is compared as a set: the same results, each once, in the same place.
+    let with_concurrent_results_unordered = |view: &GoldenView| {
+        let mut view = view.clone();
+        let mut start = 0;
+        while start < view.messages.len() {
+            let end = start
+                + view.messages[start..]
+                    .iter()
+                    .take_while(|m| m.entry_type == "tool_result")
+                    .count();
+            view.messages[start..end].sort_by(|a, b| a.content_digest.cmp(&b.content_digest));
+            start = end.max(start + 1);
+        }
+        for (index, message) in view.messages.iter_mut().enumerate() {
+            message.index = index;
+        }
+        view
+    };
     let view_multiset = |views: &BTreeMap<String, GoldenView>| {
         let mut comparable: Vec<String> = views
             .values()
-            .map(|view| serde_json::to_string(view).expect("golden view is serializable"))
+            .map(|view| {
+                serde_json::to_string(&with_concurrent_results_unordered(view))
+                    .expect("golden view is serializable")
+            })
             .collect();
         comparable.sort();
         comparable

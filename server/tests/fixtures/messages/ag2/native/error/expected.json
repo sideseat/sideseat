@@ -1,0 +1,282 @@
+{
+  "label": "ag2/native/error",
+  "request_count": 1,
+  "span_count": 7,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/chat global.anthropic.claude-sonnet-5-5/span-3": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Book me a flight from London to Oslo on 2026-11-14.",
+          "content_digest": "1b969baf99595bc8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_KUZ7rm0dVILf88uZHepOlz\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
+          "content_digest": "45614b6503495d3e",
+          "tool_name": "book_flight",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat global.anthropic.claude-sonnet-5-5/span-6": {
+      "message_count": 4,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Book me a flight from London to Oslo on 2026-11-14.",
+          "content_digest": "1b969baf99595bc8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_KUZ7rm0dVILf88uZHepOlz\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
+          "content_digest": "45614b6503495d3e",
+          "tool_name": "book_flight",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a303a146a047db1b0/examples/python/ag2/.venv/lib/python3.14/site-packages/ag2/tools/final/function_tool.py\", line 144, in __call__ result =…[2781 chars]",
+          "content_digest": "b332f1529dd47f62",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The booking failed. The system is offline, so no seats are available from London to Oslo on 2026-11-14. I can try again, or try a different date if you'd like.",
+          "content_digest": "47fffcf667fbbcdc",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/error/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/execute_tool book_flight/span-5": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_KUZ7rm0dVILf88uZHepOlz\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
+          "content_digest": "45614b6503495d3e",
+          "tool_name": "book_flight",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "harness.content.BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+          "content_digest": "d955a74e64f462f7",
+          "finish_reason": "Error",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/invoke_agent assistant/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/record_usage model_call/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/record_usage model_call/span-7": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 4,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Book me a flight from London to Oslo on 2026-11-14.",
+          "content_digest": "1b969baf99595bc8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_KUZ7rm0dVILf88uZHepOlz\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
+          "content_digest": "45614b6503495d3e",
+          "tool_name": "book_flight",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a303a146a047db1b0/examples/python/ag2/.venv/lib/python3.14/site-packages/ag2/tools/final/function_tool.py\", line 144, in __call__ result =…[2781 chars]",
+          "content_digest": "b332f1529dd47f62",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The booking failed. The system is offline, so no seats are available from London to Oslo on 2026-11-14. I can try again, or try a different date if you'd like.",
+          "content_digest": "47fffcf667fbbcdc",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "ag2-error": {
+      "message_count": 4,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Book me a flight from London to Oslo on 2026-11-14.",
+          "content_digest": "1b969baf99595bc8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_KUZ7rm0dVILf88uZHepOlz\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
+          "content_digest": "45614b6503495d3e",
+          "tool_name": "book_flight",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a303a146a047db1b0/examples/python/ag2/.venv/lib/python3.14/site-packages/ag2/tools/final/function_tool.py\", line 144, in __call__ result =…[2781 chars]",
+          "content_digest": "b332f1529dd47f62",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The booking failed. The system is offline, so no seats are available from London to Oslo on 2026-11-14. I can try again, or try a different date if you'd like.",
+          "content_digest": "47fffcf667fbbcdc",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 4,
+    "role_sequence": [
+      "tool",
+      "assistant",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Traceback (most recent call last): File \"/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a303a146a047db1b0/examples/python/ag2/.venv/lib/python3.14/site-packages/ag2/tools/final/function_tool.py\", line 144, in __call__ result =…[2781 chars]",
+        "content_digest": "b332f1529dd47f62",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The booking failed. The system is offline, so no seats are available from London to Oslo on 2026-11-14. I can try again, or try a different date if you'd like.",
+        "content_digest": "47fffcf667fbbcdc",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Book me a flight from London to Oslo on 2026-11-14.",
+        "content_digest": "1b969baf99595bc8",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_KUZ7rm0dVILf88uZHepOlz\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
+        "content_digest": "45614b6503495d3e",
+        "tool_name": "book_flight",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

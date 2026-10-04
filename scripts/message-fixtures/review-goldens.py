@@ -34,6 +34,18 @@ class Warning:
 # Counts are exact across trace and session views: changing either the telemetry or the parser
 # makes the classification stale and returns the fixture to the unresolved review queue.
 INTENTIONAL_WARNINGS: dict[str, dict[str, tuple[int, str]]] = {
+    "ag2/native/structured_output": {
+        "json_block": (
+            2,
+            "structured assistant output is canonically represented as JSON",
+        ),
+    },
+    "ag2/sdk/structured_output": {
+        "json_block": (
+            2,
+            "structured assistant output is canonically represented as JSON",
+        ),
+    },
     "langchain/native/structured_output": {
         "unbalanced_tools": (2, "TripPlan is a terminal schema pseudo-tool"),
     },
