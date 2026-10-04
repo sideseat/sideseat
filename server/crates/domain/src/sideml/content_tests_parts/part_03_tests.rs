@@ -270,3 +270,13 @@ fn a_tool_call_response_under_result_keeps_its_value() {
     assert_eq!(normalized["name"], "final_result");
     assert_eq!(normalized["content"], "Final result processed.");
 }
+
+/// AgentScope writes the conventions' binary part with `media_type` where the conventions say `mime_type`.
+/// Unread, its image and PDF rendered as unknown blocks.
+#[test]
+fn a_semconv_blob_part_under_media_type_is_a_media_block() {
+    let block = json!({"type": "blob", "media_type": "application/pdf", "modality": "unknown", "content": "AAAA"});
+    let normalized = normalize_content_block(&block).expect("the blob normalises");
+    assert_eq!(normalized["type"], "document");
+    assert_eq!(normalized["media_type"], "application/pdf");
+}

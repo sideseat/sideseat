@@ -55,6 +55,40 @@
       },
       "legacy_rank": 165,
       "reads_tool_spans": true
+    },
+    {
+      "id": "agentscope.tool_call_result_blocks",
+      "doc": "A tool that returns AgentScope's content blocks rather than a ToolResponse - an agent assigned work through a team pipeline - is serialised as a JSON list of block reprs. Read as JSON strings, the result kept every block's generated id and timestamp, so two runs of one conversation reported different results.",
+      "read": {
+        "attribute": "gen_ai.tool.call.result"
+      },
+      "parse": "python_constructor_repr_array",
+      "wrap": {
+        "role": "tool",
+        "content_from_any_of": [
+          "$"
+        ],
+        "block": {
+          "type": "tool_result",
+          "attach": [
+            {
+              "from": "gen_ai.tool.name",
+              "as": "name",
+              "or_span_name_after": "execute_tool "
+            },
+            {
+              "from": "gen_ai.tool.call.id",
+              "as": "tool_use_id"
+            }
+          ]
+        }
+      },
+      "emit": "message",
+      "instrumentation_scope": {
+        "name": "agentscope"
+      },
+      "legacy_rank": 166,
+      "reads_tool_spans": true
     }
   ],
   "content_blocks": [

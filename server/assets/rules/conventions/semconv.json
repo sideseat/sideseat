@@ -603,7 +603,7 @@
   "content_blocks": [
     {
       "id": "semconv.blob_part",
-      "doc": "The conventions' binary part: base64 `content`, with an optional `mime_type`. An earlier draft put the payload under `data`, which the provider formats read; this spelling fell through to an unknown block, so an image or a document a user sent rendered as raw JSON. Logfire's Anthropic instrumentation omits the MIME type, so the bytes name it.",
+      "doc": "The conventions' binary part: base64 `content`, with an optional `mime_type`. An earlier draft put the payload under `data`, which the provider formats read; this spelling fell through to an unknown block, so an image or a document a user sent rendered as raw JSON. Logfire's Anthropic instrumentation omits the MIME type, so the bytes name it. AgentScope spells the type `media_type`, which is read too.",
       "at": "before_provider_formats",
       "legacy_rank": 60,
       "require": {
@@ -622,7 +622,8 @@
       },
       "media": {
         "media_type": [
-          "$.mime_type"
+          "$.mime_type",
+          "$.media_type"
         ],
         "data": [
           "$.content"
@@ -650,7 +651,8 @@
       },
       "media": {
         "media_type": [
-          "$.mime_type"
+          "$.mime_type",
+          "$.media_type"
         ],
         "data": [
           "$.uri"

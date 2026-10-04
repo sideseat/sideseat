@@ -251,3 +251,48 @@ fn a_scoped_constructor_repr_decoder_yields_to_the_general_carrier_reader() {
         "outside the declared scope the conventional reader still owns the carrier"
     );
 }
+
+/// A JSON list of constructor reprs is read element by element, and only when every element is one.
+///
+/// An agent assigned work through AgentScope's team pipeline returns its content blocks rather than a
+/// ToolResponse, serialised as such a list. Read as plain JSON strings, the result kept each block's generated
+/// id and timestamp, so two runs of one conversation reported different results.
+#[test]
+fn a_list_of_constructor_reprs_is_read_as_blocks_and_only_whole() {
+    use crate::rules::message_rules::{MessageContext, compile};
+
+    let plan = compile(&std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        br#"{"id":"t","messages":[
+          {"id":"t.blocks","read":{"attribute":"result"},"parse":"python_constructor_repr_array",
+           "instrumentation_scope":{"name":"specific"},
+           "wrap":{"role":"tool","content_from_any_of":["$"],"block":{"type":"tool_result"}},
+           "emit":"message","reads_tool_spans":true,"legacy_rank":1},
+          {"id":"t.general","read":{"attribute":"result"},"parse":"json_or_string",
+           "wrap":{"role":"tool","block":{"type":"tool_result"}},
+           "emit":"message","reads_tool_spans":true,"legacy_rank":2}]}"#
+            .to_vec(),
+    )]))
+    .expect("the array decoder compiles");
+
+    let run = |value: serde_json::Value| {
+        let attrs = std::collections::HashMap::from([("result".to_string(), value.to_string())]);
+        let context =
+            MessageContext::for_scoped_span("tool", Some("specific"), Some("1.0"), &attrs, true);
+        plan.run(&context)
+    };
+
+    let read = run(serde_json::json!([
+        "TextBlock(type='text', text='Sunny', id='volatile', created_at='2026-10-04T23:39:42')"
+    ]));
+    assert_eq!(read.len(), 1);
+    assert_eq!(read[0].rule_id, "t.blocks");
+    assert_eq!(read[0].value["content"][0]["content"][0]["text"], "Sunny");
+
+    let read = run(serde_json::json!(["TextBlock(type='text', text='Sunny')", "plain"]));
+    assert_eq!(read.len(), 1);
+    assert_eq!(
+        read[0].rule_id, "t.general",
+        "a list with an element that is not a repr is some other shape"
+    );
+}

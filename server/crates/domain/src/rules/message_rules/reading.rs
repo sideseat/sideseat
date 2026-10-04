@@ -32,6 +32,19 @@ pub(super) fn parse_value(raw: &str, mode: ParseMode) -> Option<JsonValue> {
         ParseMode::PythonConstructorRepr => {
             crate::sideml::content::try_parse_python_constructor_repr(raw)
         }
+        ParseMode::PythonConstructorReprArray => {
+            let items: Vec<JsonValue> = serde_json::from_str(raw).ok()?;
+            if items.is_empty() {
+                return None;
+            }
+            items
+                .iter()
+                .map(|item| {
+                    crate::sideml::content::try_parse_python_constructor_repr(item.as_str()?)
+                })
+                .collect::<Option<Vec<_>>>()
+                .map(JsonValue::Array)
+        }
         // Prose. Parsing it would turn a bare word into a non-string and an accidental digit string
         // into a number.
         ParseMode::Text => Some(json!(raw)),
