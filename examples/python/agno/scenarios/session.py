@@ -1,4 +1,5 @@
 from agno.agent import Agent
+from results import answer
 
 from harness import Run, content
 
@@ -9,4 +10,4 @@ def run(run: Run) -> None:
         agent = Agent(model=run.llm, instructions=content.SYSTEM)
         with run.trace(f"session-turn-{index}"):
             result = agent.run(question, session_id=run.session_id, user_id=run.user_id)
-            print(result.content)
+            print(answer(result))

@@ -1,5 +1,5 @@
 from agno.agent import Agent
-from agno.run.agent import RunContentEvent
+from agno.run.agent import RunContentEvent, RunErrorEvent
 from tools import get_weather
 
 from harness import Run, content
@@ -14,6 +14,8 @@ def run(run: Run) -> None:
             session_id=run.session_id,
             user_id=run.user_id,
         ):
+            if isinstance(event, RunErrorEvent):
+                raise RuntimeError(f"the Agno run failed: {event.content}")
             if isinstance(event, RunContentEvent) and isinstance(event.content, str):
                 print(event.content, end="", flush=True)
         print()

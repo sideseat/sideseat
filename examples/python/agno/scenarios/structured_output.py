@@ -1,4 +1,5 @@
 from agno.agent import Agent
+from results import answer
 
 from harness import Run, content
 
@@ -11,4 +12,4 @@ def run(run: Run) -> None:
         result = agent.run(
             content.STRUCTURED, session_id=run.session_id, user_id=run.user_id
         )
-        print(result.content)
+        print(answer(result))

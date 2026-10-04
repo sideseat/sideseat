@@ -5,6 +5,7 @@ description = "Agno scenarios for SideSeat"
 requires-python = ">=3.11"
 dependencies = [
     "agno[anthropic,aws-bedrock,mcp]>=3.1.0",
+    "filetype>=1.2",
     "openinference-instrumentation-agno>=1.0.13",
     "sideseat[agno]",
     "sideseat-example-harness[bedrock]",

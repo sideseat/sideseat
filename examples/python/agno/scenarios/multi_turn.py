@@ -1,5 +1,6 @@
 from agno.agent import Agent
 from agno.db.in_memory import InMemoryDb
+from results import answer
 
 from harness import Run, content
 
@@ -15,4 +16,4 @@ def run(run: Run) -> None:
     with run.trace():
         for question in content.MULTI_TURN:
             result = agent.run(question, session_id=run.session_id, user_id=run.user_id)
-            print(result.content)
+            print(answer(result))

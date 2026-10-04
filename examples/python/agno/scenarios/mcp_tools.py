@@ -1,6 +1,7 @@
 from agno.agent import Agent
 from agno.tools.mcp import MCPTools
 from mcp import StdioServerParameters
+from results import answer
 
 from harness import Run, content
 from harness.run import mcp_calculator_command
@@ -17,4 +18,4 @@ async def run(run: Run) -> None:
             result = await agent.arun(
                 content.MCP, session_id=run.session_id, user_id=run.user_id
             )
-            print(result.content)
+            print(answer(result))
