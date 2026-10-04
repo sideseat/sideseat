@@ -1,5 +1,31 @@
 //! MIME type detection from magic bytes (file signatures).
 
+/// Detect a MIME type from base64-encoded content by decoding only its first 12 bytes.
+///
+/// Standard and URL-safe alphabets are both accepted; whitespace inside the prefix is skipped.
+pub fn detect_mime_type_from_base64(b64: &[u8]) -> Option<&'static str> {
+    use base64::prelude::*;
+    let mut prefix = [0u8; 16];
+    let mut count = 0;
+    for &b in b64 {
+        if count == prefix.len() {
+            break;
+        }
+        if !b.is_ascii_whitespace() {
+            prefix[count] = b;
+            count += 1;
+        }
+    }
+    if count < prefix.len() {
+        return None;
+    }
+    let decoded = BASE64_STANDARD
+        .decode(prefix)
+        .or_else(|_| BASE64_URL_SAFE.decode(prefix))
+        .ok()?;
+    detect_mime_type(&decoded)
+}
+
 /// Detect MIME type from the leading bytes of a file.
 ///
 /// Returns `Some(mime_type)` for recognized signatures, `None` otherwise.

@@ -24,7 +24,6 @@
 //!    b. Detect raw base64 by charset validation + decode attempt
 //!    c. Detect media type from magic bytes when not explicit
 
-use base64::prelude::*;
 use parking_lot::Mutex;
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
@@ -37,7 +36,7 @@ use sideseat_core::constants::{
 #[cfg(test)]
 use sideseat_core::utils::file_uri::FILE_URI_PREFIX;
 use sideseat_core::utils::file_uri::{build_file_uri, is_file_uri};
-use sideseat_core::utils::mime::{detect_mime_type, is_valid_mime_type};
+use sideseat_core::utils::mime::{detect_mime_type_from_base64, is_valid_mime_type};
 use sideseat_core::utils::string::is_placeholder_value;
 #[cfg(test)]
 use sideseat_domain::files::collect_file_references_in_str;
@@ -557,7 +556,7 @@ fn try_extract_base64(s: &str) -> Option<ExtractedData> {
     let estimated_size = check_size_bounds(&normalized, "file extraction")?;
 
     // Detect media type from first 16 base64 chars (partial decode of 12 bytes)
-    let media_type = detect_media_type_from_b64_prefix(&normalized);
+    let media_type = detect_mime_type_from_base64(&normalized).map(String::from);
 
     Some(ExtractedData {
         size: estimated_size,
@@ -587,7 +586,7 @@ fn parse_data_url(url: &str) -> Option<ExtractedData> {
 
     // Determine media type: explicit from URL, or detect from magic bytes via partial decode
     let detected_type = if media_type.is_empty() {
-        detect_media_type_from_b64_prefix(&normalized)
+        detect_mime_type_from_base64(&normalized).map(String::from)
     } else {
         Some(media_type.to_string())
     };
@@ -637,29 +636,6 @@ fn estimate_decoded_size(b64: &[u8]) -> usize {
     }
     let padding = b64.iter().rev().take(2).filter(|&&b| b == b'=').count();
     (len * 3) / 4 - padding
-}
-
-/// Detect media type by partially decoding the first 16 base64 chars (12 raw bytes).
-fn detect_media_type_from_b64_prefix(b64: &[u8]) -> Option<String> {
-    let mut prefix = [0u8; 16];
-    let mut count = 0;
-    for &b in b64 {
-        if count >= 16 {
-            break;
-        }
-        if !b.is_ascii_whitespace() {
-            prefix[count] = b;
-            count += 1;
-        }
-    }
-    if count < 16 {
-        return None;
-    }
-    let decoded = BASE64_STANDARD
-        .decode(&prefix[..16])
-        .or_else(|_| BASE64_URL_SAFE.decode(&prefix[..16]))
-        .ok()?;
-    detect_mime_type(&decoded).map(String::from)
 }
 
 /// Find the end of base64 data starting at `start` in `s`.

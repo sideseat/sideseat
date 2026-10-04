@@ -1,4 +1,5 @@
 use super::*;
+use base64::prelude::*;
 use serde_json::json;
 
 fn make_base64_image(size: usize) -> String {

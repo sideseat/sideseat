@@ -884,3 +884,21 @@ fn test_regression_model_info_preserved_in_dedup() {
         result.messages[0].model
     );
 }
+
+/// One attachment reported twice - with its filename by one instrumentation, without it by another -
+/// is one document. Hashing the name made the trace show the same PDF twice.
+#[test]
+fn a_document_is_identified_by_its_bytes_not_its_name() {
+    use crate::sideml::types::ContentBlock;
+    let document = |name: Option<&str>| ContentBlock::Document {
+        media_type: Some("application/pdf".to_string()),
+        name: name.map(str::to_string),
+        source: "base64".to_string(),
+        data: "JVBERi0xLjMKJcTl8uXrp/Og0MTGCg==".to_string(),
+    };
+
+    assert_eq!(
+        super::extraction::compute_block_hash(&document(Some("task"))),
+        super::extraction::compute_block_hash(&document(None))
+    );
+}

@@ -45,9 +45,8 @@
           "index": 3,
           "role": "user",
           "entry_type": "document",
-          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXy…[17704 chars]",
-          "content_digest": "d3b2efa81a0d83fc",
-          "tool_name": "task",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXyvUKoKSIZfkct/d…[17690 chars]",
+          "content_digest": "e69c476dd545eb4b",
           "observation_type": "generation"
         },
         {

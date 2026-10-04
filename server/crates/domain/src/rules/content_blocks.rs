@@ -267,7 +267,7 @@ fn built(block: &JsonValue, rule: &ContentBlockRule) -> Option<JsonValue> {
         return crate::sideml::content::normalize_content_block(inner);
     }
     if let Some(spec) = &rule.media {
-        let declared = member(block, &spec.media_type, false)?.as_str()?;
+        let declared = member(block, &spec.media_type, false).and_then(JsonValue::as_str);
         let data = member(block, &spec.data, false)?.as_str()?;
         let name = member(block, &spec.name, false).and_then(JsonValue::as_str);
         // Both derived, because both are facts about the bytes rather than about the producer: the kind
@@ -279,7 +279,7 @@ fn built(block: &JsonValue, rule: &ContentBlockRule) -> Option<JsonValue> {
         // reference wins, because it is the *stored* fact and what a fetch will return; the disagreement is
         // reported rather than refused, since refusing drops content over metadata.
         let media_type = match referenced {
-            Some(stored) if stored != declared => {
+            Some(stored) if declared.is_some_and(|declared| declared != stored) => {
                 tracing::debug!(
                     target: "sideseat::rules",
                     declared,
@@ -290,7 +290,10 @@ fn built(block: &JsonValue, rule: &ContentBlockRule) -> Option<JsonValue> {
                 stored
             }
             Some(stored) => stored,
-            None => declared,
+            // The conventions make a blob's MIME type optional; without one, the bytes say what they are.
+            None => declared.or_else(|| {
+                sideseat_core::utils::mime::detect_mime_type_from_base64(data.as_bytes())
+            })?,
         };
         let mut result = json!({
             "type": crate::sideml::content::mime_to_content_type(media_type),
@@ -545,6 +548,30 @@ mod tests {
             "require": {"all": [{"path": "$.type", "kind": "number", "identifier_like": true}]},
             "text": {"text": ["$.value"]},
         }));
+    }
+
+    /// A blob that names no media type is identified by its bytes.
+    ///
+    /// The conventions make a binary part's MIME type optional and Logfire's Anthropic instrumentation
+    /// leaves it out, so an image a user sent was kept as an unknown block. A blob with neither a declared
+    /// type nor recognisable bytes is still not media.
+    #[test]
+    fn an_undeclared_media_type_comes_from_the_bytes() {
+        let plan = plan_from(serde_json::json!({
+            "id": "probe.blob",
+            "at": "after_provider_formats",
+            "legacy_rank": 1,
+            "require": {"all": [{"path": "$.content"}]},
+            "media": {"media_type": ["$.mime_type"], "data": ["$.content"]},
+        }));
+        let normalize =
+            |block: serde_json::Value| plan.normalize(&block, ChainPosition::AfterProviderFormats);
+
+        let jpeg = normalize(serde_json::json!({"content": "/9j/4AAQSkZJRgABAQAAAQABAAD"}))
+            .expect("JPEG bytes name their type");
+        assert_eq!(jpeg["media_type"].as_str(), Some("image/jpeg"));
+        assert_eq!(jpeg["type"].as_str(), Some("image"));
+        assert!(normalize(serde_json::json!({"content": "aGVsbG8gd29ybGQgaGVsbG8"})).is_none());
     }
 
     /// A stored reference is the authority on its own media type.

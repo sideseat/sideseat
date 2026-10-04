@@ -917,20 +917,18 @@ pub(in crate::sideml::feed) fn compute_block_hash(block: &ContentBlock) -> u64 {
             source.hash(&mut hasher);
             hash_binary_content(data.as_bytes(), &mut hasher);
         }
-        ContentBlock::Document {
-            source, data, name, ..
-        } => {
+        // A display name is the copy's label, not the content: one instrumentation keeps the filename
+        // beside the bytes and another drops it, and the two are one attachment.
+        ContentBlock::Document { source, data, .. } => {
             "document".hash(&mut hasher);
             source.hash(&mut hasher);
-            name.hash(&mut hasher);
             hash_binary_content(data.as_bytes(), &mut hasher);
         }
-        ContentBlock::File {
-            source, data, name, ..
-        } => {
+        // A display name is the copy's label, not the content: one instrumentation keeps the filename
+        // beside the bytes and another drops it, and the two are one attachment.
+        ContentBlock::File { source, data, .. } => {
             "file".hash(&mut hasher);
             source.hash(&mut hasher);
-            name.hash(&mut hasher);
             hash_binary_content(data.as_bytes(), &mut hasher);
         }
         ContentBlock::ToolDefinitions { tools, .. } => {
