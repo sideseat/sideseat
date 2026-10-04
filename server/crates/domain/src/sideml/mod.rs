@@ -231,6 +231,20 @@ pub fn normalize(raw: &JsonValue) -> ChatMessage {
         }
     });
 
+    // `tool_call_id` names the call a message answers, and in this shape only an answer carries it. An
+    // instrumentation that flattens Converse's tool results into the user turn they travel in keeps the
+    // id but reports the turn's role, which read the result as something the user said.
+    let role_str = if role_str == "user"
+        && raw
+            .get("tool_call_id")
+            .and_then(JsonValue::as_str)
+            .is_some_and(|id| !id.is_empty())
+    {
+        "tool"
+    } else {
+        role_str
+    };
+
     // Handle special "tools" role for tool definitions
     if ChatRole::is_tools_definition_role(role_str) {
         return normalize_tools_message(&raw);

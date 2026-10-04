@@ -764,3 +764,36 @@ fn the_authority_decision_never_consults_the_folding_table() {
         "role derivation should ask the declared authority for both of its questions"
     );
 }
+
+/// OpenInference's Bedrock instrumentation reports a Converse tool result in the user turn it travels
+/// in: role `user`, the result's text, and its `tool_call_id`. The id is what makes it an answer.
+#[test]
+fn a_user_turn_carrying_a_tool_call_id_is_a_tool_result() {
+    let message = normalize(&json!({
+        "role": "user",
+        "content": "80% chance of rain in Tokyo tomorrow.",
+        "tool_call_id": "tooluse_1"
+    }));
+
+    assert_eq!(message.role, ChatRole::Tool);
+    assert!(
+        matches!(&message.content[..], [ContentBlock::ToolResult { tool_use_id: Some(id), .. }] if id == "tooluse_1"),
+        "{:?}",
+        message.content
+    );
+    // Without an id a user turn is what the user said.
+    assert_eq!(normalize(&json!({"role": "user", "content": "hi"})).role, ChatRole::User);
+}
+
+/// A tool that returns a number reports it as a string. Decoded as JSON it became a number with no
+/// content block to hold it, and the result vanished.
+#[test]
+fn scalar_content_is_kept_as_text() {
+    for content in [json!("395.0"), json!(395.0), json!("true")] {
+        let message = normalize(&json!({"role": "tool", "content": content, "tool_call_id": "t"}));
+        let [ContentBlock::ToolResult { content, .. }] = &message.content[..] else {
+            panic!("{content:?} lost its result: {:?}", message.content);
+        };
+        assert!(content.to_string().contains("395") || content.to_string().contains("true"));
+    }
+}

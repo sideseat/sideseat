@@ -68,8 +68,12 @@ pub fn normalize_content(content: Option<&JsonValue>) -> JsonValue {
         Some(JsonValue::String(s)) => {
             // Try to parse as JSON first (handles double-encoded content from some SDKs)
             // This is common when content is stored as a JSON string in attributes
-            if let Ok(parsed) = serde_json::from_str::<JsonValue>(s) {
-                // Recursively normalize the parsed JSON
+            // A string that parses as a number, a boolean or null - a tool returning `395.0` - is the text
+            // it was: decoding it left a value with no block to hold it, and the content vanished.
+            if let Ok(
+                parsed @ (JsonValue::Object(_) | JsonValue::Array(_) | JsonValue::String(_)),
+            ) = serde_json::from_str::<JsonValue>(s)
+            {
                 return normalize_content(Some(&parsed));
             }
             // Try Python repr format (common from Python SDKs like OpenAI Agents)
@@ -106,6 +110,9 @@ pub fn normalize_content(content: Option<&JsonValue>) -> JsonValue {
                 Some(block) if is_renderable_block(&block) => json!([block]),
                 _ => json!([]),
             }
+        }
+        Some(scalar @ (JsonValue::Number(_) | JsonValue::Bool(_))) => {
+            json!([{"type": "text", "text": scalar.to_string()}])
         }
         _ => json!([]),
     }

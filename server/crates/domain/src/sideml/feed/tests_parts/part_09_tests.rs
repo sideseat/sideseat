@@ -401,27 +401,25 @@ fn test_cross_trace_replay_fully_deduped() {
     let options = FeedOptions::default();
     let result = process_spans(rows, &options);
 
-    // Pure replay should contribute 0 new blocks from trace2.
-    // Attribute-based replay is treated as history re-send and stripped.
+    // The re-sent request is history and is stripped; what the model produced again is a new answer.
+    // This once asserted that trace2 contributed nothing, which held only because an answer of "4"
+    // parsed as a number and was dropped - the same defect that lost a tool returning `395.0`.
     let trace1_count = result
         .messages
         .iter()
         .filter(|b| b.trace_id == "trace1")
         .count();
-    let trace2_count = result
+    let trace2: Vec<_> = result
         .messages
         .iter()
         .filter(|b| b.trace_id == "trace2")
-        .count();
-    assert!(
-        trace1_count > 0,
-        "Trace1 should contribute blocks. Got {}",
-        trace1_count
-    );
-    assert!(
-        trace2_count == 0,
-        "Trace2 (pure replay) should contribute 0 blocks. Got {}",
-        trace2_count
+        .map(|b| (b.role, b.entry_type.as_str()))
+        .collect();
+    assert_eq!(trace1_count, 2, "trace1 holds the question and the answer");
+    assert_eq!(
+        trace2,
+        [(ChatRole::Assistant, "text")],
+        "trace2 re-sent the question and answered again"
     );
 }
 
