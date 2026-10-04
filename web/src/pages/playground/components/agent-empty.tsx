@@ -12,12 +12,13 @@ interface Snippet {
   run: string;
 }
 
+// The runtime channel is Python-only: the TypeScript SDK exports telemetry but cannot register agents.
 const SNIPPETS: Snippet[] = [
   {
     id: "python",
     label: "Python",
-    install: "pip install 'sideseat[ws]'",
-    code: `from sideseat import SideSeat
+    install: "pip install 'sideseat[runtime]' strands-agents",
+    code: `import sideseat
 from strands import Agent, tool
 
 @tool
@@ -26,36 +27,15 @@ def get_weather(city: str) -> str:
 
 agent = Agent(
     name="weather",
+    model="global.anthropic.claude-sonnet-5-5",
     tools=[get_weather],
     system_prompt="You are a friendly weather agent.",
 )
 
 # Register the agent and stream events to the playground.
-SideSeat().register([agent]).connect()`,
+runtime = sideseat.init(integrations=["strands"]).runtime()
+runtime.register(agent).connect()`,
     run: "python agent.py",
-  },
-  {
-    id: "typescript",
-    label: "TypeScript",
-    install: "npm install @sideseat/sdk @strands-agents/sdk",
-    code: `import { SideSeat } from "@sideseat/sdk";
-import { Agent, tool } from "@strands-agents/sdk";
-
-const getWeather = tool({
-  name: "get_weather",
-  description: "Get the weather for a city",
-  parameters: { city: { type: "string" } },
-  execute: ({ city }) => \`\${city}: sunny, 22°C\`,
-});
-
-const agent = new Agent({
-  name: "weather",
-  tools: [getWeather],
-  systemPrompt: "You are a friendly weather agent.",
-});
-
-await new SideSeat().register([agent]).connect();`,
-    run: "npx tsx agent.ts",
   },
 ];
 
@@ -86,7 +66,11 @@ export function AgentEmpty() {
               ))}
             </TabsList>
             <Button variant="ghost" size="xs" asChild>
-              <a href="https://sideseat.ai/docs" target="_blank" rel="noreferrer">
+              <a
+                href="https://sideseat.ai/docs/sdks/python/runtime/"
+                target="_blank"
+                rel="noreferrer"
+              >
                 Docs
                 <ExternalLink className="size-3" />
               </a>

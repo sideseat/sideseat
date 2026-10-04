@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { execFileSync } from "node:child_process";
-import { FRAMEWORKS } from "../telemetry-frameworks";
+import { readFileSync, readdirSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { FRAMEWORKS, withConnection } from "../telemetry-frameworks";
 
 /**
  * The published snippets are the primary onboarding path: a user copies one and runs it.
@@ -60,12 +62,12 @@ function undefinedNames(source: string): string[] {
 /**
  * The interpreter the **SDK's own floor** names, fetched by uv rather than whatever `python3` the machine has.
  *
- * A snippet that parses on 3.13 and not on 3.10 is broken for a user the SDK says it supports, and a bare
+ * A snippet that parses on 3.13 and not on 3.11 is broken for a user the SDK says it supports, and a bare
  * `python3` cannot see that: it was the runner's version in CI and the developer's locally, so the verdict
- * moved with the machine. `requires-python = ">=3.10"` in `sdk/python/pyproject.toml` is the number this
+ * moved with the machine. `requires-python = ">=3.11"` in `sdk/python/pyproject.toml` is the number this
  * follows; uv downloads that interpreter if it is not present.
  */
-const PYTHON_FLOOR = "3.10";
+const PYTHON_FLOOR = "3.11";
 
 function parsesAsPython(source: string): { ok: boolean; error?: string } {
   try {
@@ -183,4 +185,101 @@ describe("telemetry page JavaScript snippets", () => {
       }
     },
   );
+});
+
+/**
+ * The integration names each SDK registers, read from the SDK sources so a snippet cannot name an
+ * integration the SDK does not have.
+ */
+// The test environment is jsdom, whose import.meta.url is not a file URL.
+const SDK_ROOT = resolve(__dirname, "../../../../../sdk");
+
+function pythonIntegrationNames(): Set<string> {
+  const source = readFileSync(
+    join(SDK_ROOT, "python/src/sideseat/integrations/__init__.py"),
+    "utf8",
+  );
+  const registry = source.slice(source.indexOf("_REGISTRY"), source.indexOf("\n}\n"));
+  return new Set([...registry.matchAll(/^\s+"([a-z0-9-]+)": \(/gm)].map((m) => m[1]));
+}
+
+function typescriptIntegrationNames(): Set<string> {
+  const dir = join(SDK_ROOT, "js/src/integrations");
+  const names = readdirSync(dir)
+    .filter((file) => file.endsWith(".ts"))
+    .flatMap((file) => [
+      ...readFileSync(join(dir, file), "utf8").matchAll(/^\s+name: "([a-z0-9-]+)",$/gm),
+    ])
+    .map((m) => m[1]);
+  return new Set(names);
+}
+
+function requestedIntegrations(code: string): string[] {
+  const call = /sideseat\.init\((?:\{\s*)?integrations(?:=|: )\[([^\]]*)\]/.exec(code);
+  return call ? [...call[1].matchAll(/["']([^"']+)["']/g)].map((m) => m[1]) : [];
+}
+
+describe("telemetry page SDK snippets", () => {
+  const python = pythonIntegrationNames();
+  const typescript = typescriptIntegrationNames();
+
+  it("reads both integration registries", () => {
+    expect(python.has("strands")).toBe(true);
+    expect(typescript.has("vercel-ai")).toBe(true);
+  });
+
+  it.each(FRAMEWORKS.map((f) => [f.id, f] as const))(
+    "%s: names an integration the SDK registers",
+    (_id, f) => {
+      const requested = requestedIntegrations(f.code());
+      expect(requested, `${f.id} has no sideseat.init integrations call`).not.toEqual([]);
+      const known = f.lang === "python" ? python : typescript;
+      for (const name of requested) {
+        expect(known.has(name), `${f.id} requests unknown integration ${name}`).toBe(true);
+      }
+    },
+  );
+
+  it.each(FRAMEWORKS.map((f) => [f.id, f] as const))("%s: uses no removed SDK API", (_id, f) => {
+    for (const source of [f.code(), f.altCode?.() ?? ""]) {
+      expect(source).not.toMatch(
+        /SideSeat\(|Frameworks\.|from sideseat import|\binit\(\{ framework/,
+      );
+    }
+  });
+});
+
+describe("withConnection", () => {
+  const python = 'import sideseat\n\nsideseat.init(integrations=["strands"])\n';
+  const typescript =
+    "import * as sideseat from '@sideseat/sdk';\n\nawait sideseat.init({ integrations: ['strands'] });\n";
+
+  it("leaves the default project without a key unchanged", () => {
+    expect(withConnection(python, "python", { useApiKey: false, projectId: "default" })).toBe(
+      python,
+    );
+    expect(
+      withConnection(typescript, "javascript", { useApiKey: false, projectId: "default" }),
+    ).toBe(typescript);
+  });
+
+  it("adds the project and key to a Python init call", () => {
+    expect(withConnection(python, "python", { useApiKey: true, projectId: "team-a" })).toBe(
+      'import os\nimport sideseat\n\nsideseat.init(integrations=["strands"], project="team-a", api_key=os.environ["SIDESEAT_API_KEY"])\n',
+    );
+  });
+
+  it("adds the project and key to a TypeScript init call", () => {
+    expect(withConnection(typescript, "javascript", { useApiKey: true, projectId: "team-a" })).toBe(
+      "import * as sideseat from '@sideseat/sdk';\n\nawait sideseat.init({ integrations: ['strands'], project: \"team-a\", apiKey: process.env.SIDESEAT_API_KEY });\n",
+    );
+  });
+
+  it("produces valid Python for every snippet", () => {
+    for (const f of pythonFrameworks) {
+      const source = withConnection(f.code(), "python", { useApiKey: true, projectId: "team-a" });
+      expect(source, f.id).toContain('project="team-a"');
+      expect(parsesAsPython(source).error ?? "", `${f.id}:\n${source}`).toBe("");
+    }
+  });
 });

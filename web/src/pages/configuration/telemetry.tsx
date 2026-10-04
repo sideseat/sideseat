@@ -20,7 +20,7 @@ import {
 import { useProjects } from "@/api/projects/hooks/queries";
 import { cn } from "@/lib/utils";
 
-import { FRAMEWORKS } from "./telemetry-frameworks";
+import { FRAMEWORKS, withConnection } from "./telemetry-frameworks";
 
 function usePorts() {
   return useMemo(() => {
@@ -196,41 +196,6 @@ provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
 trace.set_tracer_provider(provider)`;
 }
 
-function transformCode(
-  code: string,
-  lang: "python" | "javascript",
-  opts: { useApiKey: boolean; projectId: string },
-): string {
-  const { useApiKey, projectId } = opts;
-  const nonDefaultProject = projectId !== "default";
-
-  if (lang === "javascript") {
-    if (!useApiKey && !nonDefaultProject) return code;
-    const extraArgs: string[] = [];
-    if (nonDefaultProject) extraArgs.push(`projectId: "${projectId}"`);
-    if (useApiKey) extraArgs.push("apiKey: process.env.SIDESEAT_API_KEY");
-    return code.replace(/init\((\{[^}]*\}|)\)/, (_, existing) => {
-      const inner = existing ? existing.slice(1, -1).trim() : "";
-      const parts = [inner, ...extraArgs].filter(Boolean);
-      return `init({ ${parts.join(", ")} })`;
-    });
-  }
-
-  if (!code.includes("SideSeat(")) return code;
-
-  const extraArgs: string[] = [];
-  if (nonDefaultProject) extraArgs.push(`project_id="${projectId}"`);
-  if (useApiKey) extraArgs.push('api_key=os.environ["SIDESEAT_API_KEY"]');
-
-  if (extraArgs.length === 0) return code;
-
-  const withImport = useApiKey && !code.includes("import os\n") ? "import os\n" + code : code;
-  return withImport.replace(
-    /SideSeat\(framework=([^)]+)\)/,
-    `SideSeat(framework=$1, ${extraArgs.join(", ")})`,
-  );
-}
-
 export default function TelemetryPage() {
   const [selectedFramework, setSelectedFramework] = useState<string>("bedrock");
   const [useApiKey, setUseApiKey] = useState(false);
@@ -341,7 +306,7 @@ export default function TelemetryPage() {
               <div className="space-y-1.5">
                 <p className="text-xs text-muted-foreground">Code</p>
                 <CodeBlock
-                  code={transformCode(framework.code(), framework.lang, { useApiKey, projectId })}
+                  code={withConnection(framework.code(), framework.lang, { useApiKey, projectId })}
                   label="Setup code"
                   lang={framework.lang}
                 />
@@ -386,7 +351,7 @@ export default function TelemetryPage() {
                 <div className="space-y-1.5">
                   <p className="text-xs text-muted-foreground">Instrument the framework</p>
                   <CodeBlock
-                    code={transformCode(framework.altCode(), framework.lang, {
+                    code={withConnection(framework.altCode(), framework.lang, {
                       useApiKey,
                       projectId,
                     })}
@@ -406,7 +371,7 @@ export default function TelemetryPage() {
             <div className="space-y-1.5">
               <p className="text-xs font-medium text-muted-foreground">Code</p>
               <CodeBlock
-                code={transformCode(framework.code(), framework.lang, { useApiKey, projectId })}
+                code={withConnection(framework.code(), framework.lang, { useApiKey, projectId })}
                 label="Setup code"
                 lang={framework.lang}
               />

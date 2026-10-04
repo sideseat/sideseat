@@ -39,16 +39,17 @@ export const FRAMEWORKS: Framework[] = [
     group: "Providers",
     lang: "python",
     docUrl: "https://sideseat.ai/docs/integrations/providers/bedrock/",
-    install: 'pip install "sideseat[aws]" boto3',
+    install: 'pip install "sideseat[bedrock]" boto3',
     code: () => `import boto3
-from sideseat import SideSeat, Frameworks
+import sideseat
 
-SideSeat(framework=Frameworks.Bedrock)
+sideseat.init(integrations=["bedrock"])
 
+# Create the client after init: the integration instruments clients as they are created.
 bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
 
 response = bedrock.converse(
-    modelId="us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    modelId="global.anthropic.claude-sonnet-5-5",
     system=[{"text": "Answer in one sentence."}],
     messages=[{"role": "user", "content": [{"text": "What is the speed of light?"}]}],
     inferenceConfig={"maxTokens": 128},
@@ -70,13 +71,13 @@ BotocoreInstrumentor().instrument(tracer_provider=provider)`,
     docUrl: "https://sideseat.ai/docs/integrations/providers/anthropic/",
     install: 'pip install "sideseat[anthropic]"',
     code: () => `import anthropic
-from sideseat import SideSeat, Frameworks
+import sideseat
 
-SideSeat(framework=Frameworks.Anthropic)
+sideseat.init(integrations=["anthropic"])
 
 client = anthropic.Anthropic()
 message = client.messages.create(
-    model="claude-sonnet-4-5-20250929",
+    model="claude-sonnet-5-5",
     system="Answer in one sentence.",
     max_tokens=1024,
     messages=[{"role": "user", "content": "What is the speed of light?"}],
@@ -98,13 +99,13 @@ logfire.instrument_anthropic()`,
     docUrl: "https://sideseat.ai/docs/integrations/providers/openai/",
     install: 'pip install "sideseat[openai]"',
     code: () => `from openai import OpenAI
-from sideseat import SideSeat, Frameworks
+import sideseat
 
-SideSeat(framework=Frameworks.OpenAI)
+sideseat.init(integrations=["openai"])
 
 client = OpenAI()
 response = client.chat.completions.create(
-    model="gpt-5-mini",
+    model="gpt-6.1-sol",
     messages=[
         {"role": "system", "content": "Answer in one sentence."},
         {"role": "user", "content": "What is the speed of light?"},
@@ -126,11 +127,11 @@ logfire.instrument_openai()`,
     group: "Providers",
     lang: "python",
     docUrl: "https://sideseat.ai/docs/integrations/providers/azure/",
-    install: 'pip install "sideseat[openai]"',
+    install: 'pip install openai "sideseat[azure-openai]"',
     code: () => `from openai import AzureOpenAI
-from sideseat import SideSeat, Frameworks
+import sideseat
 
-SideSeat(framework=Frameworks.OpenAI)
+sideseat.init(integrations=["azure-openai"])
 
 azure = AzureOpenAI(
     api_key="your-api-key",
@@ -139,7 +140,7 @@ azure = AzureOpenAI(
 )
 
 response = azure.chat.completions.create(
-    model="gpt-5-mini",  # Your deployment name
+    model="gpt-6.1-sol",  # Your deployment name
     messages=[
         {"role": "system", "content": "Answer in one sentence."},
         {"role": "user", "content": "What is the speed of light?"},
@@ -163,9 +164,9 @@ logfire.instrument_openai()`,
     docUrl: "https://sideseat.ai/docs/integrations/providers/google-gemini/",
     install: 'pip install "sideseat[google-genai]"',
     code: () => `from google import genai
-from sideseat import SideSeat, Frameworks
+import sideseat
 
-SideSeat(framework=Frameworks.GoogleGenAI)
+sideseat.init(integrations=["google-genai"])
 
 client = genai.Client(api_key="your-api-key")
 
@@ -191,9 +192,9 @@ logfire.instrument_google_genai()`,
     docUrl: "https://sideseat.ai/docs/integrations/providers/vertex-ai/",
     install: 'pip install "sideseat[vertex-ai]"',
     code: () => `from google import genai
-from sideseat import SideSeat, Frameworks
+import sideseat
 
-SideSeat(framework=Frameworks.VertexAI)
+sideseat.init(integrations=["vertex-ai"])
 
 client = genai.Client(
     enterprise=True,
@@ -223,11 +224,11 @@ logfire.instrument_google_genai()`,
       "https://strandsagents.com/latest/documentation/docs/user-guide/observability-evaluation/traces/",
     install: "pip install strands-agents sideseat",
     code: () => `from strands import Agent
-from sideseat import SideSeat, Frameworks
+import sideseat
 
-SideSeat(framework=Frameworks.Strands)
+sideseat.init(integrations=["strands"])
 
-agent = Agent()
+agent = Agent(model="global.anthropic.claude-sonnet-5-5")
 response = agent("What is 2+2?")
 print(response)`,
     altInstall: "pip install 'strands-agents[otel]'",
@@ -238,7 +239,7 @@ telemetry = StrandsTelemetry()
 telemetry.setup_otlp_exporter()
 telemetry.setup_meter(enable_otlp_exporter=True)
 
-agent = Agent()
+agent = Agent(model="global.anthropic.claude-sonnet-5-5")
 response = agent("What is 2+2?")
 print(response)`,
     run: "python agent.py",
@@ -251,12 +252,12 @@ print(response)`,
     docUrl:
       "https://strandsagents.com/latest/documentation/docs/user-guide/observability-evaluation/traces/",
     install: "npm install @strands-agents/sdk @sideseat/sdk",
-    code: () => `import { init, Frameworks } from '@sideseat/sdk';
+    code: () => `import * as sideseat from '@sideseat/sdk';
 import { Agent } from '@strands-agents/sdk';
 
-init({ framework: Frameworks.Strands });
+await sideseat.init({ integrations: ['strands'] });
 
-const agent = new Agent({ model: 'global.anthropic.claude-haiku-4-5-20251001-v1:0' });
+const agent = new Agent({ model: 'global.anthropic.claude-sonnet-5-5' });
 const result = await agent.invoke('What is 2+2?');
 console.log(result.toString());`,
     altInstall:
@@ -271,7 +272,7 @@ const provider = new NodeTracerProvider({
 });
 provider.register();
 
-const agent = new Agent({ model: 'global.anthropic.claude-haiku-4-5-20251001-v1:0' });
+const agent = new Agent({ model: 'global.anthropic.claude-sonnet-5-5' });
 const result = await agent.invoke('What is 2+2?');
 console.log(result.toString());
 
@@ -285,12 +286,12 @@ await provider.shutdown();`,
     lang: "python",
     docUrl: "https://python.langchain.com",
     install: 'pip install langchain langchain-openai "sideseat[langchain]"',
-    code: () => `from sideseat import SideSeat, Frameworks
+    code: () => `import sideseat
 from langchain_openai import ChatOpenAI
 
-SideSeat(framework=Frameworks.LangChain)
+sideseat.init(integrations=["langchain"])
 
-llm = ChatOpenAI(model="gpt-5-mini")
+llm = ChatOpenAI(model="gpt-6.1-sol")
 print(llm.invoke("What is 2+2?").content)`,
     altInstall:
       "pip install langchain langchain-openai openinference-instrumentation-langchain opentelemetry-exporter-otlp",
@@ -308,15 +309,15 @@ LangChainInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True
     install: 'pip install autogen-agentchat "autogen-ext[openai]" "sideseat[autogen]"',
     code: () => `import asyncio
 
-from sideseat import SideSeat, Frameworks
+import sideseat
 from autogen_agentchat.agents import AssistantAgent
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 
-SideSeat(framework=Frameworks.AutoGen)
+sideseat.init(integrations=["autogen"])
 
 
 async def main():
-    model_client = OpenAIChatCompletionClient(model="gpt-5-mini")
+    model_client = OpenAIChatCompletionClient(model="gpt-6.1-sol")
     assistant = AssistantAgent("assistant", model_client=model_client)
     result = await assistant.run(task="Hello!")
     print(result.messages[-1].content)
@@ -339,12 +340,12 @@ AutogenAgentChatInstrumentor().instrument(tracer_provider=provider, skip_dep_che
     lang: "python",
     docUrl: "https://ai.pydantic.dev",
     install: 'pip install pydantic-ai "sideseat[pydantic-ai]"',
-    code: () => `from sideseat import SideSeat, Frameworks
+    code: () => `import sideseat
 from pydantic_ai import Agent
 
-SideSeat(framework=Frameworks.PydanticAI)
+sideseat.init(integrations=["pydantic-ai"])
 
-agent = Agent("openai:gpt-5-mini")
+agent = Agent("openai:gpt-6.1-sol")
 print(agent.run_sync("What is 2+2?").output)`,
     altInstall: 'pip install pydantic-ai "logfire>=4.29.0" opentelemetry-exporter-otlp',
     altCode: () => `import logfire
@@ -352,7 +353,6 @@ print(agent.run_sync("What is 2+2?").output)`,
 logfire.configure(send_to_logfire=False, console=False)
 logfire.instrument_pydantic_ai()`,
     run: "python agent.py",
-    note: "PydanticAI traces arrive through Logfire, so SideSeat reports the framework as Logfire.",
   },
   {
     id: "agno",
@@ -361,13 +361,13 @@ logfire.instrument_pydantic_ai()`,
     lang: "python",
     docUrl: "https://docs.agno.com",
     install: 'pip install agno openai "sideseat[agno]"',
-    code: () => `from sideseat import SideSeat, Frameworks
+    code: () => `import sideseat
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 
-SideSeat(framework=Frameworks.Agno)
+sideseat.init(integrations=["agno"])
 
-agent = Agent(model=OpenAIChat(id="gpt-5-mini"), tools=[])
+agent = Agent(model=OpenAIChat(id="gpt-6.1-sol"), tools=[])
 agent.print_response("Hello!")`,
     altInstall:
       "pip install agno openai openinference-instrumentation-agno opentelemetry-exporter-otlp",
@@ -383,10 +383,10 @@ AgnoInstrumentor().instrument(tracer_provider=provider)`,
     lang: "python",
     docUrl: "https://huggingface.co/docs/smolagents",
     install: 'pip install smolagents "sideseat[smolagents]"',
-    code: () => `from sideseat import SideSeat, Frameworks
+    code: () => `import sideseat
 from smolagents import CodeAgent, InferenceClientModel
 
-SideSeat(framework=Frameworks.Smolagents)
+sideseat.init(integrations=["smolagents"])
 
 agent = CodeAgent(tools=[], model=InferenceClientModel())
 agent.run("What is 2+2?")`,
@@ -403,24 +403,42 @@ SmolagentsInstrumentor().instrument(tracer_provider=provider)`,
     group: "Frameworks",
     lang: "python",
     docUrl: "https://docs.ag2.ai",
-    install: 'pip install "ag2[openai]<1.0" "sideseat[ag2]"',
-    code: () => `from sideseat import SideSeat, Frameworks
-from autogen import ConversableAgent
+    install: 'pip install "ag2[bedrock]" "sideseat[ag2]"',
+    code: () => `import asyncio
 
-SideSeat(framework=Frameworks.AG2)
+import sideseat
+from ag2 import Agent
+from ag2.config.bedrock import BedrockConfig
 
-assistant = ConversableAgent(
-    name="assistant",
-    llm_config={"model": "gpt-5-mini"},
-)
-print(assistant.generate_reply(messages=[{"role": "user", "content": "Hello!"}]))`,
-    altInstall:
-      'pip install "ag2[openai]<1.0" openinference-instrumentation-autogen opentelemetry-exporter-otlp',
-    altCode: () => `from openinference.instrumentation.autogen import AutogenInstrumentor
+sideseat.init(integrations=["ag2"])
 
-AutogenInstrumentor().instrument(tracer_provider=provider)`,
+
+async def main():
+    agent = Agent(
+        "assistant",
+        "Answer in one sentence.",
+        config=BedrockConfig(model="global.anthropic.claude-sonnet-5-5", region_name="us-east-1"),
+    )
+    reply = await agent.ask("What is 2+2?")
+    print(await reply.content())
+
+
+asyncio.run(main())`,
+    altInstall: 'pip install "ag2[bedrock,tracing]" opentelemetry-exporter-otlp',
+    altCode: () => `from ag2 import Agent
+from ag2.config.bedrock import BedrockConfig
+from ag2.middleware.builtin import TelemetryMiddleware
+
+# Pass this middleware to every Agent.
+agent = Agent(
+    "assistant",
+    "Answer in one sentence.",
+    config=BedrockConfig(model="global.anthropic.claude-sonnet-5-5", region_name="us-east-1"),
+    middleware=[
+        TelemetryMiddleware(tracer_provider=provider, capture_content=True, agent_name="assistant")
+    ],
+)`,
     run: "python agent.py",
-    note: "AG2 is the community AutoGen fork and keeps the autogen import path; SideSeat tells them apart by the ag2.* attribute prefix. Pinned below 1.0: ag2 1.0 renamed its top-level module to ag2 and removed ConversableAgent, and the instrumentor patches autogen.",
   },
   {
     id: "agentscope",
@@ -435,14 +453,14 @@ from agentscope.agent import Agent
 from agentscope.credential import OpenAICredential
 from agentscope.message import UserMsg
 from agentscope.model import OpenAIChatModel
-from sideseat import SideSeat, Frameworks
+import sideseat
 
-SideSeat(framework=Frameworks.AgentScope)
+sideseat.init(integrations=["agentscope"])
 
 async def main():
     model = OpenAIChatModel(
         credential=OpenAICredential(api_key=os.environ["OPENAI_API_KEY"]),
-        model="gpt-5-mini",
+        model="gpt-6.1-sol",
     )
     agent = Agent(name="assistant", system_prompt="Answer briefly.", model=model)
     reply = await agent.reply(UserMsg("user", "Hello!"))
@@ -468,9 +486,9 @@ agent = Agent(
     lang: "python",
     docUrl: "https://docs.langflow.org",
     install: "pip install langflow sideseat",
-    code: () => `from sideseat import SideSeat, Frameworks
+    code: () => `import sideseat
 
-SideSeat(framework=Frameworks.Langflow)
+sideseat.init(integrations=["langflow"])
 
 # Flow spans carry langflow.flow_id / langflow.flow_name / langflow.session_id.`,
     altInstall: "pip install langflow",
@@ -485,15 +503,15 @@ SideSeat(framework=Frameworks.Langflow)
     lang: "python",
     docUrl: "https://docs.haystack.deepset.ai",
     install: 'pip install haystack-ai "sideseat[haystack]"',
-    code: () => `from sideseat import SideSeat, Frameworks
+    code: () => `import sideseat
 from haystack import Pipeline
 from haystack.components.generators.chat import OpenAIChatGenerator
 from haystack.dataclasses import ChatMessage
 
-SideSeat(framework=Frameworks.Haystack)
+sideseat.init(integrations=["haystack"])
 
 pipeline = Pipeline()
-pipeline.add_component("llm", OpenAIChatGenerator(model="gpt-5-mini"))
+pipeline.add_component("llm", OpenAIChatGenerator(model="gpt-6.1-sol"))
 result = pipeline.run({"llm": {"messages": [ChatMessage.from_user("Hello")]}})
 print(result["llm"]["replies"][0].text)`,
     altInstall:
@@ -509,17 +527,17 @@ HaystackInstrumentor().instrument(tracer_provider=provider)`,
     group: "Frameworks",
     lang: "python",
     docUrl: "https://docs.browser-use.com",
-    install: "pip install browser-use sideseat",
+    install: 'pip install browser-use "sideseat[browser-use]"',
     code: () => `import asyncio
 
-from sideseat import SideSeat, Frameworks
+import sideseat
 from browser_use import Agent, ChatOpenAI
 
-SideSeat(framework=Frameworks.BrowserUse)
+sideseat.init(integrations=["browser-use"])
 
 
 async def main():
-    agent = Agent(task="Find the docs", llm=ChatOpenAI(model="gpt-5-mini"))
+    agent = Agent(task="Find the docs", llm=ChatOpenAI(model="gpt-6.1-sol"))
     print(await agent.run())
 
 
@@ -536,18 +554,15 @@ asyncio.run(main())`,
     lang: "javascript",
     docUrl: "https://sdk.vercel.ai",
     install: "npm install ai @ai-sdk/otel @ai-sdk/amazon-bedrock @sideseat/sdk",
-    code: () => `import { generateText, registerTelemetry } from 'ai';
-import { LegacyOpenTelemetry } from '@ai-sdk/otel';
+    code: () => `import * as sideseat from '@sideseat/sdk';
+import { generateText } from 'ai';
 import { bedrock } from '@ai-sdk/amazon-bedrock';
-import { init, Frameworks } from '@sideseat/sdk';
 
-init({ framework: Frameworks.VercelAI });
-
-// AI SDK 7: spans are emitted only through a registered integration.
-registerTelemetry(new LegacyOpenTelemetry());
+// Registers the @ai-sdk/otel integration that AI SDK 7 delivers telemetry to.
+await sideseat.init({ integrations: ['vercel-ai'] });
 
 const { text } = await generateText({
-  model: bedrock('anthropic.claude-sonnet-4-5-20250929-v1:0'),
+  model: bedrock('global.anthropic.claude-sonnet-5-5'),
   prompt: 'What is 2+2?',
   experimental_telemetry: { isEnabled: true },
 });
@@ -558,21 +573,22 @@ console.log(text);`,
     // No NodeSDK block here: the panel renders providerSetup() as its own step directly
     // above this one, so repeating it produced two copies of the same imports.
     altCode: () => `import { generateText, registerTelemetry } from 'ai';
-import { LegacyOpenTelemetry } from '@ai-sdk/otel';
+import { OpenTelemetry } from '@ai-sdk/otel';
 import { bedrock } from '@ai-sdk/amazon-bedrock';
 
-// AI SDK 7: spans are emitted only through a registered integration.
-registerTelemetry(new LegacyOpenTelemetry());
+// AI SDK 7 emits spans only through a registered integration. Construct it after
+// sdk.start(): it captures a tracer when it is created.
+registerTelemetry(new OpenTelemetry());
 
 const { text } = await generateText({
-  model: bedrock('anthropic.claude-sonnet-4-5-20250929-v1:0'),
+  model: bedrock('global.anthropic.claude-sonnet-5-5'),
   prompt: 'What is 2+2?',
   experimental_telemetry: { isEnabled: true },
 });
 
 console.log(text);`,
     run: "npx tsx agent.ts",
-    note: "AI SDK 7 needs both: registerTelemetry(new LegacyOpenTelemetry()) once at startup, and experimental_telemetry: { isEnabled: true } on each generateText/streamText call.",
+    note: "Each generateText/streamText call still needs experimental_telemetry: { isEnabled: true }. Without the SideSeat SDK, also call registerTelemetry(new OpenTelemetry()) once at startup.",
   },
   {
     id: "google-adk",
@@ -586,9 +602,9 @@ from google.adk.agents import Agent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
-from sideseat import SideSeat, Frameworks
+import sideseat
 
-SideSeat(framework=Frameworks.GoogleADK)
+sideseat.init(integrations=["google-adk"])
 
 agent = Agent(
     model="gemini-2.5-flash",
@@ -657,11 +673,11 @@ asyncio.run(main())`,
     install: 'pip install langgraph langchain-openai "sideseat[langgraph]"',
     code: () => `from langgraph.prebuilt import create_react_agent
 from langchain_openai import ChatOpenAI
-from sideseat import SideSeat, Frameworks
+import sideseat
 
-SideSeat(framework=Frameworks.LangGraph)
+sideseat.init(integrations=["langgraph"])
 
-llm = ChatOpenAI(model="gpt-5-mini")
+llm = ChatOpenAI(model="gpt-6.1-sol")
 agent = create_react_agent(llm, tools=[])
 result = agent.invoke({"messages": [("user", "What is 2+2?")]})
 print(result["messages"][-1].content)`,
@@ -681,7 +697,7 @@ LangChainInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True
 from langgraph.prebuilt import create_react_agent
 from langchain_openai import ChatOpenAI
 
-llm = ChatOpenAI(model="gpt-5-mini")
+llm = ChatOpenAI(model="gpt-6.1-sol")
 agent = create_react_agent(llm, tools=[])
 result = agent.invoke({"messages": [("user", "What is 2+2?")]})
 print(result["messages"][-1].content)`,
@@ -695,9 +711,9 @@ print(result["messages"][-1].content)`,
     docUrl: "https://openai.github.io/openai-agents-python/",
     install: 'pip install openai-agents "sideseat[openai-agents]"',
     code: () => `from agents import Agent, Runner
-from sideseat import SideSeat, Frameworks
+import sideseat
 
-SideSeat(framework=Frameworks.OpenAIAgents)
+sideseat.init(integrations=["openai-agents"])
 
 agent = Agent(name="Assistant", instructions="You are helpful.")
 result = Runner.run_sync(agent, "What is the capital of France?")
@@ -731,11 +747,11 @@ print(result.final_output)`,
     code: () => `import asyncio
 from agent_framework import Agent
 from agent_framework.openai import OpenAIChatClient
-from sideseat import SideSeat, Frameworks
+import sideseat
 
-SideSeat(framework=Frameworks.AgentFramework)
+sideseat.init(integrations=["agent-framework"])
 
-client = OpenAIChatClient(model="gpt-5-nano-2025-08-07")
+client = OpenAIChatClient(model="gpt-6.1-sol")
 agent = Agent(client=client, instructions="You are a helpful assistant.")
 result = asyncio.run(agent.run("What is 2+2?"))
 print(result.text)`,
@@ -758,7 +774,7 @@ provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(
 )))
 trace.set_tracer_provider(provider)
 
-client = OpenAIChatClient(model="gpt-5-nano-2025-08-07")
+client = OpenAIChatClient(model="gpt-6.1-sol")
 agent = Agent(client=client, instructions="You are a helpful assistant.")
 result = asyncio.run(agent.run("What is 2+2?"))
 print(result.text)`,
@@ -772,9 +788,9 @@ print(result.text)`,
     docUrl: "https://docs.crewai.com",
     install: 'pip install crewai "sideseat[crewai]"',
     code: () => `from crewai import Agent, Task, Crew
-from sideseat import SideSeat, Frameworks
+import sideseat
 
-SideSeat(framework=Frameworks.CrewAI)
+sideseat.init(integrations=["crewai"])
 
 researcher = Agent(
     role="Researcher",
@@ -828,33 +844,20 @@ print(result)`,
     group: "Frameworks",
     lang: "python",
     docUrl: "https://sideseat.ai/docs/integrations/frameworks/claude-agent-sdk/",
-    note: "The Agent SDK spawns the Claude Code CLI, which owns the instrumentation. Traces are beta (CLAUDE_CODE_ENHANCED_TELEMETRY_BETA), and message content needs a second tier on top (ENABLE_BETA_TRACING_DETAILED + BETA_TRACING_ENDPOINT) — without it the Messages tab stays empty. Never use the console exporter: the CLI writes telemetry to stdout, which is the SDK's message channel.",
+    note: "The Agent SDK spawns the Claude Code CLI, which owns the instrumentation. The SideSeat integration adds the CLI's telemetry variables to every ClaudeAgentOptions, including both beta tracing tiers the Messages tab needs. Without the SDK, set them yourself, and never use the console exporter: the CLI writes telemetry to stdout, which is the SDK's message channel.",
     install: "pip install claude-agent-sdk sideseat",
     code: () => `import asyncio
-from claude_agent_sdk import query, ClaudeAgentOptions
-from sideseat import SideSeat, Frameworks
 
-client = SideSeat(framework=Frameworks.ClaudeAgentSDK)
+import sideseat
+from claude_agent_sdk import ClaudeAgentOptions, query
 
-# Passed to the CLI subprocess, which exports OTLP directly.
-OTEL_ENV = {
-    "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
-    "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA": "1",
-    # Second beta tier: required for the message feed.
-    "ENABLE_BETA_TRACING_DETAILED": "1",
-    "BETA_TRACING_ENDPOINT": "http://localhost:5388/otel/default",
-    "OTEL_TRACES_EXPORTER": "otlp",
-    "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/protobuf",
-    "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://localhost:5388/otel/default/v1/traces",
-    "OTEL_LOG_USER_PROMPTS": "1",
-    "OTEL_LOG_TOOL_DETAILS": "1",
-}
+sideseat.init(integrations=["claude-agent-sdk"])
 
 
 async def main():
-    options = ClaudeAgentOptions(env=OTEL_ENV, allowed_tools=["Read", "Glob"])
-    # client.trace() parents the agent run: the SDK injects TRACEPARENT.
-    with client.trace("agent-run"):
+    options = ClaudeAgentOptions(allowed_tools=["Read", "Glob"])
+    # The Agent SDK passes the active span to the CLI, so its spans join this trace.
+    with sideseat.trace("agent-run"):
         async for message in query(prompt="What is 2+2?", options=options):
             print(message)
 
@@ -898,34 +901,23 @@ options = ClaudeAgentOptions(env=env)  # env merges in Python, replaces in TypeS
     group: "Frameworks",
     lang: "javascript",
     docUrl: "https://sideseat.ai/docs/integrations/frameworks/claude-agent-sdk/",
-    note: "options.env REPLACES the inherited environment in TypeScript, so spread process.env or the subprocess loses PATH and credentials.",
+    note: "The SideSeat integration sets the CLI's telemetry variables on this process, so every CLI the Agent SDK spawns inherits them. options.env REPLACES the inherited environment in TypeScript: if you pass it, spread process.env into it.",
     install: "npm install @anthropic-ai/claude-agent-sdk @sideseat/sdk",
-    code: () => `import { query } from '@anthropic-ai/claude-agent-sdk';
-import { init, Frameworks } from '@sideseat/sdk';
+    code: () => `import * as sideseat from '@sideseat/sdk';
+import { query } from '@anthropic-ai/claude-agent-sdk';
 
-init({ framework: Frameworks.ClaudeAgentSDK });
+await sideseat.init({ integrations: ['claude-agent-sdk'] });
 
-// Passed to the CLI subprocess, which exports OTLP directly.
-const otelEnv = {
-  CLAUDE_CODE_ENABLE_TELEMETRY: '1',
-  CLAUDE_CODE_ENHANCED_TELEMETRY_BETA: '1',
-  // Second beta tier: required for the message feed.
-  ENABLE_BETA_TRACING_DETAILED: '1',
-  BETA_TRACING_ENDPOINT: 'http://localhost:5388/otel/default',
-  OTEL_TRACES_EXPORTER: 'otlp',
-  OTEL_EXPORTER_OTLP_TRACES_PROTOCOL: 'http/protobuf',
-  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: 'http://localhost:5388/otel/default/v1/traces',
-  OTEL_LOG_USER_PROMPTS: '1',
-  OTEL_LOG_TOOL_DETAILS: '1',
-};
-
-for await (const message of query({
-  prompt: 'What is 2+2?',
-  options: { env: { ...process.env, ...otelEnv }, allowedTools: ['Read', 'Glob'] },
-})) {
-  console.log(message);
-}`,
-    // The CLI owns the instrumentation, so the direct path is the same code minus init().
+// The Agent SDK passes the active span to the CLI, so its spans join this trace.
+await sideseat.trace('agent-run', async () => {
+  for await (const message of query({
+    prompt: 'What is 2+2?',
+    options: { allowedTools: ['Read', 'Glob'] },
+  })) {
+    console.log(message);
+  }
+});`,
+    // The CLI owns the instrumentation and exports from its own process.
     altSkipProviderSetup: true,
     altInstall: "npm install @anthropic-ai/claude-agent-sdk",
     altCode: () => `import { query } from '@anthropic-ai/claude-agent-sdk';
@@ -955,3 +947,40 @@ for await (const message of query({
     run: "npx tsx agent.ts",
   },
 ];
+
+/**
+ * Adds the selected project and the API key to a snippet's `sideseat.init` call. Snippets are
+ * written for the default project without authentication; a snippet without an `init` call, such
+ * as a direct-OTLP one, is returned unchanged.
+ */
+export function withConnection(
+  code: string,
+  lang: "python" | "javascript",
+  opts: { useApiKey: boolean; projectId: string },
+): string {
+  const { useApiKey, projectId } = opts;
+  const project = projectId !== "default" ? JSON.stringify(projectId) : undefined;
+  if (!useApiKey && !project) return code;
+
+  if (lang === "javascript") {
+    const extra = [
+      project && `project: ${project}`,
+      useApiKey && "apiKey: process.env.SIDESEAT_API_KEY",
+    ];
+    return code.replace(/sideseat\.init\(\{\s*([^}]*?)\s*\}\)/, (_, inner: string) => {
+      const args = [inner, ...extra].filter(Boolean).join(", ");
+      return `sideseat.init({ ${args} })`;
+    });
+  }
+
+  if (!code.includes("sideseat.init(")) return code;
+  const extra = [
+    project && `project=${project}`,
+    useApiKey && 'api_key=os.environ["SIDESEAT_API_KEY"]',
+  ];
+  const configured = code.replace(/sideseat\.init\(([^)]*)\)/, (_, inner: string) => {
+    const args = [inner.trim(), ...extra].filter(Boolean).join(", ");
+    return `sideseat.init(${args})`;
+  });
+  return useApiKey && !/^import os$/m.test(configured) ? `import os\n${configured}` : configured;
+}
