@@ -132,7 +132,7 @@ the corpus matches it.
 | `vercel-ai-js/legacy` | ai ^7.0.79 | 6 | 13 |
 | `vertex-ai/native` | Google GenAI 2.26.0 / Logfire 6.0.0b7 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.12.8, native Logfire setup with the current `enterprise=True` Vertex mode | 1 | 1 |
 | `vertex-ai/sdk` | SideSeat Python 1.0.8 / Google GenAI 2.26.0 / Logfire 6.0.0b7 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.12.8, current `enterprise=True` Vertex mode | 1 | 1 |
-| **65 suites** | | **255** | **399** |
+| **64 suites** | | **250** | **385** |
 
 Two further samples exist but are **not in the repository**: `strands-js/image-gen` and
 `vercel-ai-js/image-gen`, whose payloads are 15 MB and 7 MB of inlined base64 image data (the Python
@@ -388,7 +388,7 @@ not hide the rest.
 
 ## What is and is not covered
 
-**255 tracked expectation files: 238 captured in 64 suites, plus 17 synthetic.** A suite is not a framework:
+**252 tracked expectation files: 235 captured in 63 suites, plus 17 synthetic.** A suite is not a framework:
 `strands`/`strands-js` and `claude-agent-sdk`/`claude-agent-sdk-js` are one framework each in two
 languages; the eight .NET/JavaScript/Python/Rust suites are SDK conformance rather than framework
 captures. The fixture families below cover **27 of the 32** frameworks SideSeat recognises. (32 is
