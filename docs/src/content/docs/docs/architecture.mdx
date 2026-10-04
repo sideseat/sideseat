@@ -247,6 +247,7 @@ server/crates/
 ├── adapter-topics/               # In-process, Redis, and Redpanda messaging
 ├── adapter-secrets/              # Credential secret providers
 ├── adapter-pricing/              # External pricing catalogue
+├── adapter-provider-probe/       # Model-provider credential checks
 └── adapter-registrations-memory/ # Process-local agent registration
 ```
 
@@ -258,9 +259,7 @@ server/src/
 ├── app/                          # Adapter selection, lifecycle, and system workflows
 │   ├── background_tasks.rs
 │   ├── files.rs
-│   ├── providers.rs
-│   ├── providers/
-│   │   └── azure.rs
+│   ├── providers.rs              # Credential tests through the provider-probe adapter
 │   ├── storage/
 │   │   ├── mod.rs
 │   │   ├── analytics.rs
