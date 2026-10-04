@@ -64,18 +64,9 @@ The current tracked corpus contains **63 suites, 360 samples, and 514 captured O
   roundtrip, two traces, one shared session, and exact native/SideSeat parity;
 - a credential-free AutoGen AgentChat 0.7.5 / OpenInference instrumentor 0.1.18 pair covering
   direct responses, streaming, and automatic tool execution with exact native/SideSeat parity;
-- a credential-free AG2 1.1.1 / OpenAI 3.22.1 pair using AG2's native
-  `TelemetryMiddleware`, covering retained history, streaming, automatic tool execution,
-  two traces, one shared session, and exact native/SideSeat parity;
 - a credential-free AgentScope 2.0.9 / OpenAI 3.22.1 pair using AgentScope's built-in
   `TracingMiddleware`, covering retained history, streaming, automatic tool execution,
   two traces, one shared session, and exact native/SideSeat parity;
-- a credential-free LangChain 1.4.3 / LangChain Core 1.6.6 / LangChain OpenAI 1.6.7 /
-  OpenInference instrumentor 0.1.76 pair covering multi-turn history, streaming, a complete
-  tool roundtrip, two traces, and one shared session with exact native/SideSeat parity;
-- a credential-free Haystack 3.3.0 / opentelemetry-haystack 1.0.0 / OpenAI 3.22.1 pair
-  covering multi-turn history, a complete tool roundtrip, two traces, one shared session,
-  official `haystack` instrumentation scope, and exact native/SideSeat parity;
 - a credential-free Semantic Kernel 1.44.1 / OpenAI 3.22.1 pair covering multi-turn history,
   automatic tool execution, two traces, one shared session, current Python instrumentation
   scopes, and exact native/SideSeat parity;
@@ -85,13 +76,13 @@ The current tracked corpus contains **63 suites, 360 samples, and 514 captured O
 - a credential-free Smolagents 1.26.0 / OpenAI 3.22.1 / OpenInference instrumentor 0.1.41
   pair covering retained history, streamed agent output, direct and custom tool execution,
   two traces, and one shared session with exact native/SideSeat parity;
-- a credential-free LlamaIndex Core 0.14.25 / LlamaIndex OpenAI 0.8.2 / OpenAI 2.54.0 /
-  OpenInference instrumentor 4.5.3 pair covering retained history, streaming, automatic tool
-  execution, two traces, and one shared session with exact native/SideSeat parity. OpenAI 2.54.0
-  is the latest release admitted by the adapter's current `openai <3` constraint;
-- current captures for Strands Python and TypeScript, Vercel AI SDK, Google ADK, LangGraph,
-  OpenAI Agents SDK, Claude Agent SDK in Python and TypeScript, Microsoft Agent Framework,
-  CrewAI, direct OpenAI, direct Anthropic, and Amazon Bedrock;
+- live captures of the shared scenario catalogue on Claude Sonnet 5.5 through Amazon Bedrock, in
+  native and SideSeat mode, for Strands, LangGraph, LangChain, CrewAI, AG2, LlamaIndex, and
+  Haystack, with each suite's absent scenarios and upstream telemetry limits stated in the
+  support matrix;
+- current captures for Strands TypeScript, Vercel AI SDK, Google ADK, OpenAI Agents SDK, Claude
+  Agent SDK in Python and TypeScript, Microsoft Agent Framework, direct OpenAI, direct Anthropic,
+  and Amazon Bedrock;
 - synthetic edge cases for shapes that are difficult or unsafe to obtain from a live model.
 
 These fixtures currently cover 27 of the 32 framework identifiers SideSeat recognises. The exact
@@ -161,9 +152,9 @@ Framework captures that call real models require the corresponding provider cred
 uses committed OTLP payloads, so verification remains deterministic and does not make paid or
 network-dependent model calls.
 
-The direct OpenAI, Azure OpenAI, Anthropic, Google GenAI, Vertex AI, Pydantic AI, LangChain, Haystack,
-Agno, Smolagents, LlamaIndex, TraceLoop, and generic Logfire parity fixtures can also be
-recaptured offline:
+The direct OpenAI, Azure OpenAI, Anthropic, Google GenAI, Vertex AI, Pydantic AI, Agno,
+Smolagents, TraceLoop, and generic Logfire parity fixtures can also be recaptured offline; the
+harness suites replay their committed model cassettes with `make capture-offline P=<producer>`:
 
 ```bash
 scripts/message-fixtures/fake-openai.py --port 5401
@@ -174,21 +165,6 @@ OPENAI_API_KEY=x OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
 scripts/message-fixtures/fake-openai.py --port 5401
 CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
   scripts/message-fixtures/capture.sh azure-openai canonical both
-
-scripts/message-fixtures/fake-openai.py --port 5401
-OPENAI_API_KEY=x OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
-  CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
-  scripts/message-fixtures/capture.sh ag2 canonical both
-
-scripts/message-fixtures/fake-openai.py --port 5401
-OPENAI_API_KEY=x OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
-  CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
-  scripts/message-fixtures/capture.sh langchain canonical both
-
-scripts/message-fixtures/fake-openai.py --port 5401
-OPENAI_API_KEY=x OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
-  CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
-  scripts/message-fixtures/capture.sh haystack canonical both
 
 scripts/message-fixtures/fake-openai.py --port 5401
 OPENAI_API_KEY=x OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
@@ -204,11 +180,6 @@ scripts/message-fixtures/fake-openai.py --port 5401
 OPENAI_API_KEY=x OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
   CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
   scripts/message-fixtures/capture.sh smolagents canonical both
-
-scripts/message-fixtures/fake-openai.py --port 5401
-OPENAI_API_KEY=x OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
-  CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
-  scripts/message-fixtures/capture.sh llama-index canonical both
 
 scripts/message-fixtures/fake-openai.py --port 5401
 OPENAI_API_KEY=x OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
