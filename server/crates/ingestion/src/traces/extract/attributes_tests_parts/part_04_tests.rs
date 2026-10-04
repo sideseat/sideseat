@@ -358,3 +358,67 @@ fn every_span_field_refusal_fires() {
         .is_ok()
     );
 }
+
+/// A failed span that names its `error.type` reports its own status message as the error.
+///
+/// OpenTelemetry's Google Gen AI instrumentation records a tool that raised as `error.type` plus an
+/// ERROR status carrying the exception message, with no `exception` event. The status alone is not
+/// evidence - frameworks copy it onto every ancestor - so the tool's error used to vanish from the
+/// conversation. `error.type` is set on the failed operation only, which makes the message this span's.
+#[test]
+fn an_error_type_makes_the_status_message_the_spans_own_error() {
+    use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
+    use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue, any_value};
+    use opentelemetry_proto::tonic::trace::v1::{ResourceSpans, ScopeSpans, Span, Status};
+
+    let kv = |key: &str, value: &str| KeyValue {
+        key: key.to_string(),
+        value: Some(AnyValue {
+            value: Some(any_value::Value::StringValue(value.to_string())),
+        }),
+    };
+    let failed = |attributes: Vec<KeyValue>| {
+        let request = ExportTraceServiceRequest {
+            resource_spans: vec![ResourceSpans {
+                resource: None,
+                scope_spans: vec![ScopeSpans {
+                    scope: None,
+                    spans: vec![Span {
+                        trace_id: vec![1; 16],
+                        span_id: vec![2; 8],
+                        name: "execute_tool book_flight".to_string(),
+                        kind: 1,
+                        start_time_unix_nano: 1_700_000_000_000_000_000,
+                        end_time_unix_nano: 1_700_000_000_100_000_000,
+                        attributes,
+                        status: Some(Status {
+                            message: "No seats: the booking system is offline.".to_string(),
+                            code: 2,
+                        }),
+                        ..Default::default()
+                    }],
+                    schema_url: String::new(),
+                }],
+                schema_url: String::new(),
+            }],
+        };
+        let span = crate::traces::extract::extract_attributes_batch(&request)
+            .into_iter()
+            .next()
+            .expect("one span");
+        (span.exception_type, span.exception_message)
+    };
+
+    assert_eq!(
+        failed(vec![kv("error.type", "BookingUnavailable")]),
+        (
+            Some("BookingUnavailable".to_string()),
+            Some("No seats: the booking system is offline.".to_string())
+        )
+    );
+    assert_eq!(
+        failed(Vec::new()),
+        (None, None),
+        "a bare ERROR status may be inherited from a child, so it stays out of the conversation"
+    );
+}

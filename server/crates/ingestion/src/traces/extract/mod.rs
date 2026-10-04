@@ -152,6 +152,7 @@ pub(super) mod keys {
     pub const GEN_AI_TOOL_NAME: &str = "gen_ai.tool.name";
     pub const GEN_AI_TOOL_CALL_ID: &str = "gen_ai.tool.call.id";
     pub const GEN_AI_TOOL_STATUS: &str = "gen_ai.tool.status";
+    pub const ERROR_TYPE: &str = "error.type";
 
     // GenAI Performance
     #[cfg(any(test, feature = "test-support"))]
@@ -585,10 +586,31 @@ pub fn extract_attributes_batch(request: &ExportTraceServiceRequest) -> Vec<Span
                         }
                     }
 
-                    // No fallback from status_message → exception_message:
-                    // OTEL SDKs propagate error status up the span tree, so every
-                    // ancestor gets status_message. Only exception events and
-                    // gen_ai.tool.status carry real error details for feed display.
+                    // No general fallback from status_message → exception_message:
+                    // frameworks propagate error status up the span tree, so every
+                    // ancestor gets status_message. Exception events, gen_ai.tool.status,
+                    // and error.type carry real error details for feed display. The
+                    // conventions set error.type on the operation that failed, never on
+                    // its ancestors, so beside it the status message is this span's own
+                    // error; instrumentations that record no exception event report a
+                    // failed tool call this way and nothing else.
+                    if span.exception_type.is_none() && span.exception_message.is_none() {
+                        if let Some(error_type) =
+                            span_attrs.get(keys::ERROR_TYPE).filter(|s| !s.is_empty())
+                        {
+                            span.exception_type = Some(
+                                truncate_bytes(error_type, constants::ERROR_MESSAGE_MAX_LEN)
+                                    .to_string(),
+                            );
+                            span.exception_message = span
+                                .status_message
+                                .as_deref()
+                                .filter(|m| !m.is_empty())
+                                .map(|m| {
+                                    truncate_bytes(m, constants::ERROR_MESSAGE_MAX_LEN).to_string()
+                                });
+                        }
+                    }
                 }
 
                 // Metadata
