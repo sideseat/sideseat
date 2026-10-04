@@ -79,7 +79,7 @@
   "span_categories": [
     {
       "id": "category.traceloop_tool",
-      "doc": "A TraceLoop tool decorator.",
+      "doc": "A TraceLoop tool decorator. This outranks the owning agent name that TraceLoop also copies onto the tool span.",
       "rank": 88,
       "all_of": [
         {
@@ -91,7 +91,8 @@
           ]
         }
       ],
-      "result": "tool"
+      "result": "tool",
+      "replaces_legacy_result": "agent"
     },
     {
       "id": "category.traceloop_agent",
