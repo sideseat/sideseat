@@ -35,5 +35,8 @@ def build(
         model=model.id,
         aws_region_name=region(),
         generation_kwargs=generation,
+        # Reasoning at maximum effort can take minutes; botocore's 60-second read timeout would
+        # retry a request the model is still answering.
+        boto3_config={"read_timeout": 600},
         streaming_callback=print_streaming_chunk if streaming else None,
     )

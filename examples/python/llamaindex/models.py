@@ -28,5 +28,8 @@ def build(model: Model, *, reasoning: bool = False) -> BedrockConverse:
         model=model.id,
         region_name=region(),
         max_tokens=16_000,
+        # Reasoning at maximum effort can take minutes; a shorter read timeout retries a request the
+        # model is still answering.
+        timeout=600,
         additional_kwargs=fields,
     )

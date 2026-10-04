@@ -29,6 +29,9 @@ def build(
         model=model.id,
         region_name=region(),
         max_tokens=16_000,
+        # Reasoning at maximum effort can take minutes; a shorter read timeout retries a request the
+        # model is still answering.
+        timeout=600,
         streaming=streaming,
         additional_model_request_fields=fields,
     )
