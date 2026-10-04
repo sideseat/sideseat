@@ -1,0 +1,750 @@
+{
+  "label": "claude-agent-sdk/native/multi_agent",
+  "request_count": 2,
+  "span_count": 27,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/claude_code.interaction/span-5": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/claude_code.llm_request/span-10": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Get the weather forecast for Barcelona for the next 2 days using the weather tool, and report the details (temperatures, precipitation, wind, conditions) for each day.",
+          "content_digest": "604c45ae628a3003",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/claude_code.llm_request/span-15": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[{\"type\":\"text\",\"text\":\"{\\\"city\\\": \\\"Barcelona\\\", \\\"forecast\\\": [{\\\"day\\\": 1, \\\"condition\\\": \\\"rain\\\", \\\"high_c\\\": 21}, {\\\"day\\\": 2, \\\"condition\\\": \\\"sunny\\\", \\\"high_c\\\": 22}]}\"}]",
+          "content_digest": "944776721dfc2b2a",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/claude_code.llm_request/span-19": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[{\"type\":\"text\",\"text\":\" This agent's report was delivered to you as a message from \\\"a0000000000000001\\\" (its SubagentHandback call). Read it there; it is not repeated here.\\n \\nagentId: a0000000000000001 (use SendMessage with to: 'a000000…[377 chars]",
+          "content_digest": "516c25368426e618",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/claude_code.llm_request/span-23": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Write a one-paragraph packing list for a trip to Barcelona based on this forecast: Day 1: rain, high 21 C. Day 2: sunny, high 22 C. No data on lows, precipitation amounts, or wind is available, so don't invent any. Return only the paragraph…[241 chars]",
+          "content_digest": "4761ecc438c975b9",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/claude_code.llm_request/span-27": {
+      "message_count": 2,
+      "role_sequence": [
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[{\"type\":\"text\",\"text\":\" This agent's report was delivered to you as a message from \\\"a0000000000000002\\\" (its SubagentHandback call). Read it there; it is not repeated here.\\n \\nagentId: a0000000000000002 (use SendMessage with to: 'a000000…[377 chars]",
+          "content_digest": "4fec0d463290dd0e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "For your two days in Barcelona, pack for mild weather with a rainy first day and a sunny second day, with highs of 21 C and 22 C. Bring a compact, packable rain jacket or a small umbrella for Day 1, plus water-resistant shoes or sneakers th…[932 chars]",
+          "content_digest": "ae4eb380fae6b181",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/claude_code.llm_request/span-6": {
+      "message_count": 2,
+      "role_sequence": [
+        "system",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You coordinate two agents: ask the researcher for the weather, then the writer for the packing list, and return the writer's list.",
+          "content_digest": "810dc1d344b74ff0",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/claude_code.tool.blocked_on_user/span-12": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.blocked_on_user/span-17": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.blocked_on_user/span-21": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.blocked_on_user/span-25": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.blocked_on_user/span-8": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.execution/span-13": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.execution/span-18": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.execution/span-22": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.execution/span-26": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.execution/span-9": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool/span-11": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01HqEVYD1p7XoiqchudgFAhc\",\"name\":\"mcp__travel__get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "06778a86deabeef2",
+          "tool_name": "mcp__travel__get_weather",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/claude_code.tool/span-16": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_017MQhzs2ukezoDUtcbdtHkC\",\"name\":\"SubagentHandback\",\"input\":{\"message\":\"Barcelona 2-day forecast (today is 2026-10-04). The tool returned only condition and high temperature. It gave no low temperatures, …[484 chars]",
+          "content_digest": "6ed83b75e7b2803c",
+          "tool_name": "SubagentHandback",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/claude_code.tool/span-20": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01676SEUc985VPPNrKjg7cNc\",\"name\":\"Agent\",\"input\":{\"description\":\"Write packing list\",\"prompt\":\"Write a one-paragraph packing list for a trip to Barcelona based on this forecast: Day 1: rain, high 21 C. Da…[426 chars]",
+          "content_digest": "5dd90085147136c8",
+          "tool_name": "Agent",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/claude_code.tool/span-24": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01AVhgWPhDXqkxvisUPMMbuZ\",\"name\":\"SubagentHandback\",\"input\":{\"message\":\"For your two days in Barcelona, pack for mild weather with a rainy first day and a sunny second day, with highs of 21 C and 22 C. Br…[907 chars]",
+          "content_digest": "80c59050f4d4fbb4",
+          "tool_name": "SubagentHandback",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/claude_code.tool/span-7": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01Qjzv8cnVnjBTjMGz4YEVSf\",\"name\":\"Agent\",\"input\":{\"description\":\"Get Barcelona weather\",\"prompt\":\"Get the weather forecast for Barcelona for the next 2 days using the weather tool, and report the details …[359 chars]",
+          "content_digest": "c39b21d13ed8f483",
+          "tool_name": "Agent",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/initialize/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/multi-agent/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/notifications/initialized/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/tools/call get_weather/span-14": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-1/tools/list/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 13,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You coordinate two agents: ask the researcher for the weather, then the writer for the packing list, and return the writer's list.",
+          "content_digest": "810dc1d344b74ff0",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01Qjzv8cnVnjBTjMGz4YEVSf\",\"name\":\"Agent\",\"input\":{\"description\":\"Get Barcelona weather\",\"prompt\":\"Get the weather forecast for Barcelona for the next 2 days using the weather tool, and report the details …[359 chars]",
+          "content_digest": "c39b21d13ed8f483",
+          "tool_name": "Agent",
+          "observation_type": "tool"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Get the weather forecast for Barcelona for the next 2 days using the weather tool, and report the details (temperatures, precipitation, wind, conditions) for each day.",
+          "content_digest": "604c45ae628a3003",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01HqEVYD1p7XoiqchudgFAhc\",\"name\":\"mcp__travel__get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "06778a86deabeef2",
+          "tool_name": "mcp__travel__get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[{\"type\":\"text\",\"text\":\"{\\\"city\\\": \\\"Barcelona\\\", \\\"forecast\\\": [{\\\"day\\\": 1, \\\"condition\\\": \\\"rain\\\", \\\"high_c\\\": 21}, {\\\"day\\\": 2, \\\"condition\\\": \\\"sunny\\\", \\\"high_c\\\": 22}]}\"}]",
+          "content_digest": "944776721dfc2b2a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_017MQhzs2ukezoDUtcbdtHkC\",\"name\":\"SubagentHandback\",\"input\":{\"message\":\"Barcelona 2-day forecast (today is 2026-10-04). The tool returned only condition and high temperature. It gave no low temperatures, …[484 chars]",
+          "content_digest": "6ed83b75e7b2803c",
+          "tool_name": "SubagentHandback",
+          "observation_type": "tool"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[{\"type\":\"text\",\"text\":\" This agent's report was delivered to you as a message from \\\"a0000000000000001\\\" (its SubagentHandback call). Read it there; it is not repeated here.\\n \\nagentId: a0000000000000001 (use SendMessage with to: 'a000000…[377 chars]",
+          "content_digest": "516c25368426e618",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01676SEUc985VPPNrKjg7cNc\",\"name\":\"Agent\",\"input\":{\"description\":\"Write packing list\",\"prompt\":\"Write a one-paragraph packing list for a trip to Barcelona based on this forecast: Day 1: rain, high 21 C. Da…[426 chars]",
+          "content_digest": "5dd90085147136c8",
+          "tool_name": "Agent",
+          "observation_type": "tool"
+        },
+        {
+          "index": 9,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Write a one-paragraph packing list for a trip to Barcelona based on this forecast: Day 1: rain, high 21 C. Day 2: sunny, high 22 C. No data on lows, precipitation amounts, or wind is available, so don't invent any. Return only the paragraph…[241 chars]",
+          "content_digest": "4761ecc438c975b9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01AVhgWPhDXqkxvisUPMMbuZ\",\"name\":\"SubagentHandback\",\"input\":{\"message\":\"For your two days in Barcelona, pack for mild weather with a rainy first day and a sunny second day, with highs of 21 C and 22 C. Br…[907 chars]",
+          "content_digest": "80c59050f4d4fbb4",
+          "tool_name": "SubagentHandback",
+          "observation_type": "tool"
+        },
+        {
+          "index": 11,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[{\"type\":\"text\",\"text\":\" This agent's report was delivered to you as a message from \\\"a0000000000000002\\\" (its SubagentHandback call). Read it there; it is not repeated here.\\n \\nagentId: a0000000000000002 (use SendMessage with to: 'a000000…[377 chars]",
+          "content_digest": "4fec0d463290dd0e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "For your two days in Barcelona, pack for mild weather with a rainy first day and a sunny second day, with highs of 21 C and 22 C. Bring a compact, packable rain jacket or a small umbrella for Day 1, plus water-resistant shoes or sneakers th…[932 chars]",
+          "content_digest": "ae4eb380fae6b181",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "claude-agent-sdk-multi_agent": {
+      "message_count": 13,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You coordinate two agents: ask the researcher for the weather, then the writer for the packing list, and return the writer's list.",
+          "content_digest": "810dc1d344b74ff0",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01Qjzv8cnVnjBTjMGz4YEVSf\",\"name\":\"Agent\",\"input\":{\"description\":\"Get Barcelona weather\",\"prompt\":\"Get the weather forecast for Barcelona for the next 2 days using the weather tool, and report the details …[359 chars]",
+          "content_digest": "c39b21d13ed8f483",
+          "tool_name": "Agent",
+          "observation_type": "tool"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Get the weather forecast for Barcelona for the next 2 days using the weather tool, and report the details (temperatures, precipitation, wind, conditions) for each day.",
+          "content_digest": "604c45ae628a3003",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01HqEVYD1p7XoiqchudgFAhc\",\"name\":\"mcp__travel__get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "06778a86deabeef2",
+          "tool_name": "mcp__travel__get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[{\"type\":\"text\",\"text\":\"{\\\"city\\\": \\\"Barcelona\\\", \\\"forecast\\\": [{\\\"day\\\": 1, \\\"condition\\\": \\\"rain\\\", \\\"high_c\\\": 21}, {\\\"day\\\": 2, \\\"condition\\\": \\\"sunny\\\", \\\"high_c\\\": 22}]}\"}]",
+          "content_digest": "944776721dfc2b2a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_017MQhzs2ukezoDUtcbdtHkC\",\"name\":\"SubagentHandback\",\"input\":{\"message\":\"Barcelona 2-day forecast (today is 2026-10-04). The tool returned only condition and high temperature. It gave no low temperatures, …[484 chars]",
+          "content_digest": "6ed83b75e7b2803c",
+          "tool_name": "SubagentHandback",
+          "observation_type": "tool"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[{\"type\":\"text\",\"text\":\" This agent's report was delivered to you as a message from \\\"a0000000000000001\\\" (its SubagentHandback call). Read it there; it is not repeated here.\\n \\nagentId: a0000000000000001 (use SendMessage with to: 'a000000…[377 chars]",
+          "content_digest": "516c25368426e618",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01676SEUc985VPPNrKjg7cNc\",\"name\":\"Agent\",\"input\":{\"description\":\"Write packing list\",\"prompt\":\"Write a one-paragraph packing list for a trip to Barcelona based on this forecast: Day 1: rain, high 21 C. Da…[426 chars]",
+          "content_digest": "5dd90085147136c8",
+          "tool_name": "Agent",
+          "observation_type": "tool"
+        },
+        {
+          "index": 9,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Write a one-paragraph packing list for a trip to Barcelona based on this forecast: Day 1: rain, high 21 C. Day 2: sunny, high 22 C. No data on lows, precipitation amounts, or wind is available, so don't invent any. Return only the paragraph…[241 chars]",
+          "content_digest": "4761ecc438c975b9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01AVhgWPhDXqkxvisUPMMbuZ\",\"name\":\"SubagentHandback\",\"input\":{\"message\":\"For your two days in Barcelona, pack for mild weather with a rainy first day and a sunny second day, with highs of 21 C and 22 C. Br…[907 chars]",
+          "content_digest": "80c59050f4d4fbb4",
+          "tool_name": "SubagentHandback",
+          "observation_type": "tool"
+        },
+        {
+          "index": 11,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[{\"type\":\"text\",\"text\":\" This agent's report was delivered to you as a message from \\\"a0000000000000002\\\" (its SubagentHandback call). Read it there; it is not repeated here.\\n \\nagentId: a0000000000000002 (use SendMessage with to: 'a000000…[377 chars]",
+          "content_digest": "4fec0d463290dd0e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "For your two days in Barcelona, pack for mild weather with a rainy first day and a sunny second day, with highs of 21 C and 22 C. Bring a compact, packable rain jacket or a small umbrella for Day 1, plus water-resistant shoes or sneakers th…[932 chars]",
+          "content_digest": "ae4eb380fae6b181",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 13,
+    "role_sequence": [
+      "tool",
+      "assistant",
+      "assistant",
+      "user",
+      "assistant",
+      "tool",
+      "assistant",
+      "tool",
+      "assistant",
+      "user",
+      "assistant",
+      "system",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[{\"type\":\"text\",\"text\":\" This agent's report was delivered to you as a message from \\\"a0000000000000002\\\" (its SubagentHandback call). Read it there; it is not repeated here.\\n \\nagentId: a0000000000000002 (use SendMessage with to: 'a000000…[377 chars]",
+        "content_digest": "4fec0d463290dd0e",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "For your two days in Barcelona, pack for mild weather with a rainy first day and a sunny second day, with highs of 21 C and 22 C. Bring a compact, packable rain jacket or a small umbrella for Day 1, plus water-resistant shoes or sneakers th…[932 chars]",
+        "content_digest": "ae4eb380fae6b181",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01AVhgWPhDXqkxvisUPMMbuZ\",\"name\":\"SubagentHandback\",\"input\":{\"message\":\"For your two days in Barcelona, pack for mild weather with a rainy first day and a sunny second day, with highs of 21 C and 22 C. Br…[907 chars]",
+        "content_digest": "80c59050f4d4fbb4",
+        "tool_name": "SubagentHandback",
+        "observation_type": "tool"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Write a one-paragraph packing list for a trip to Barcelona based on this forecast: Day 1: rain, high 21 C. Day 2: sunny, high 22 C. No data on lows, precipitation amounts, or wind is available, so don't invent any. Return only the paragraph…[241 chars]",
+        "content_digest": "4761ecc438c975b9",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01676SEUc985VPPNrKjg7cNc\",\"name\":\"Agent\",\"input\":{\"description\":\"Write packing list\",\"prompt\":\"Write a one-paragraph packing list for a trip to Barcelona based on this forecast: Day 1: rain, high 21 C. Da…[426 chars]",
+        "content_digest": "5dd90085147136c8",
+        "tool_name": "Agent",
+        "observation_type": "tool"
+      },
+      {
+        "index": 5,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[{\"type\":\"text\",\"text\":\" This agent's report was delivered to you as a message from \\\"a0000000000000001\\\" (its SubagentHandback call). Read it there; it is not repeated here.\\n \\nagentId: a0000000000000001 (use SendMessage with to: 'a000000…[377 chars]",
+        "content_digest": "516c25368426e618",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_017MQhzs2ukezoDUtcbdtHkC\",\"name\":\"SubagentHandback\",\"input\":{\"message\":\"Barcelona 2-day forecast (today is 2026-10-04). The tool returned only condition and high temperature. It gave no low temperatures, …[484 chars]",
+        "content_digest": "6ed83b75e7b2803c",
+        "tool_name": "SubagentHandback",
+        "observation_type": "tool"
+      },
+      {
+        "index": 7,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[{\"type\":\"text\",\"text\":\"{\\\"city\\\": \\\"Barcelona\\\", \\\"forecast\\\": [{\\\"day\\\": 1, \\\"condition\\\": \\\"rain\\\", \\\"high_c\\\": 21}, {\\\"day\\\": 2, \\\"condition\\\": \\\"sunny\\\", \\\"high_c\\\": 22}]}\"}]",
+        "content_digest": "944776721dfc2b2a",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01HqEVYD1p7XoiqchudgFAhc\",\"name\":\"mcp__travel__get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+        "content_digest": "06778a86deabeef2",
+        "tool_name": "mcp__travel__get_weather",
+        "observation_type": "tool"
+      },
+      {
+        "index": 9,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Get the weather forecast for Barcelona for the next 2 days using the weather tool, and report the details (temperatures, precipitation, wind, conditions) for each day.",
+        "content_digest": "604c45ae628a3003",
+        "observation_type": "generation"
+      },
+      {
+        "index": 10,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01Qjzv8cnVnjBTjMGz4YEVSf\",\"name\":\"Agent\",\"input\":{\"description\":\"Get Barcelona weather\",\"prompt\":\"Get the weather forecast for Barcelona for the next 2 days using the weather tool, and report the details …[359 chars]",
+        "content_digest": "c39b21d13ed8f483",
+        "tool_name": "Agent",
+        "observation_type": "tool"
+      },
+      {
+        "index": 11,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You coordinate two agents: ask the researcher for the weather, then the writer for the packing list, and return the writer's list.",
+        "content_digest": "810dc1d344b74ff0",
+        "observation_type": "generation"
+      },
+      {
+        "index": 12,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+        "content_digest": "603f05d965d18b4d",
+        "observation_type": "span"
+      }
+    ]
+  }
+}

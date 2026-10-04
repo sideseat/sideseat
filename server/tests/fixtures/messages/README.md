@@ -87,7 +87,8 @@ the corpus matches it.
 | `azure-openai/native` | OpenAI 3.22.1 / OpenInference OpenAI instrumentor 0.1.62 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup | 1 | 1 |
 | `azure-openai/sdk` | SideSeat Python 1.0.8 / OpenAI 3.22.1 / OpenInference OpenAI instrumentor 0.1.62 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
 | `bedrock/legacy` | boto3 (bedrock runtime) | 6 | 14 |
-| `claude-agent-sdk/legacy` | claude-agent-sdk >=0.2.0 | 8 | 17 |
+| `claude-agent-sdk/native` | Claude Agent SDK 0.2.163 (Claude Code CLI telemetry) on Bedrock / OpenTelemetry Python 1.45.0 on CPython 3.13.7; the CLI exports attachments as text placeholders and no thinking | 11 | 26 |
+| `claude-agent-sdk/sdk` | SideSeat Python 2.0.0 / Claude Agent SDK 0.2.163 on Bedrock / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 11 | 23 |
 | `claude-agent-sdk-js/legacy` | @anthropic-ai/claude-agent-sdk ^0.3.246 | 8 | 17 |
 | `crewai/legacy` | crewai >=1.10.1 | 9 | 33 |
 | `dotnet/native` | OpenTelemetry .NET 1.19.1 on .NET SDK 10.0.401 | 1 | 1 |
@@ -104,14 +105,14 @@ the corpus matches it.
 | `langgraph/sdk` | SideSeat Python 2.0.0 / LangGraph 1.2.12 / LangChain Core 1.6.6 / LangChain AWS 1.8.0 / OpenInference LangChain instrumentor 0.1.78 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 11 | 11 |
 | `llama-index/native` | LlamaIndex Core 0.14.25 / LlamaIndex OpenAI 0.8.2 / OpenAI 2.54.0 (latest allowed by the adapter's `<3` constraint) / OpenInference LlamaIndex instrumentor 4.5.3 / OpenTelemetry Python 1.45.0 on CPython 3.13.7, native OTLP setup | 1 | 1 |
 | `llama-index/sdk` | SideSeat Python 1.0.8 / LlamaIndex Core 0.14.25 / LlamaIndex OpenAI 0.8.2 / OpenAI 2.54.0 (latest allowed by the adapter's `<3` constraint) / OpenInference LlamaIndex instrumentor 4.5.3 / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 1 | 1 |
-| `logfire/native` | Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.12.8, native Logfire setup | 1 | 1 |
-| `logfire/sdk` | SideSeat Python 1.0.8 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.12.8 | 1 | 1 |
+| `logfire/native` | Logfire 5.1.1 / OpenAI 3.24.0 (Responses API on GPT-6.1-sol) / OpenTelemetry Python 1.44.0, Logfire's own setup with a scrubbing callback that keeps `session.id` | 11 | 11 |
+| `logfire/sdk` | SideSeat Python 2.0.0 / Logfire 5.1.1 / OpenAI 3.24.0 (Responses API on GPT-6.1-sol) / OpenTelemetry Python 1.44.0 | 11 | 11 |
 | `openai/legacy` | openai >=1.80.0 | 6 | 8 |
 | `openai-agents/legacy` | openai-agents >=0.12.1 | 10 | 37 |
 | `openai/native` | OpenAI 3.19.2 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.13.7 | 1 | 1 |
 | `openai/sdk` | SideSeat Python 1.0.8 / OpenAI 3.19.2 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.13.7 | 1 | 1 |
-| `openinference/native` | OpenInference instrumentation 0.1.67 / semantic conventions 0.1.40 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup | 1 | 1 |
-| `openinference/sdk` | SideSeat Python 1.0.8 / OpenInference instrumentation 0.1.67 / semantic conventions 0.1.40 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
+| `openinference/native` | OpenInference Bedrock instrumentor 0.1.56 / boto3 1.43.108 Converse / OpenTelemetry Python 1.45.0, native OTLP setup; the instrumentor keeps only the last of a turn's parallel tool results, redacts images by default and drops documents | 12 | 17 |
+| `openinference/sdk` | SideSeat Python 2.0.0 / OpenInference Bedrock instrumentor 0.1.56 / boto3 1.43.108 Converse / OpenTelemetry Python 1.45.0 | 12 | 12 |
 | `pydantic-ai/native` | Pydantic AI 2.53.0 / OpenTelemetry Python 1.44.0 on CPython 3.14.7, `Agent.instrument_all()` on a plain provider | 11 | 17 |
 | `pydantic-ai/sdk` | SideSeat Python 2.0.0 / Pydantic AI 2.53.0 / Logfire 5.1.1 / OpenTelemetry Python 1.44.0 on CPython 3.14.7 | 11 | 11 |
 | `python/native` | OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
@@ -125,12 +126,12 @@ the corpus matches it.
 | `strands-js/legacy` | @strands-agents/sdk ^1.14.0 | 7 | 12 |
 | `strands/native` | Strands Agents 1.57.2 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, `StrandsTelemetry` | 11 | 14 |
 | `strands/sdk` | SideSeat Python 2.0.0 / Strands Agents 1.57.2 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 11 | 11 |
-| `traceloop/native` | TraceLoop SDK 0.62.4 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8, native OTLP setup | 1 | 1 |
-| `traceloop/sdk` | SideSeat Python 1.0.8 / TraceLoop SDK 0.62.4 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8 | 1 | 1 |
+| `traceloop/native` | TraceLoop SDK 0.62.4 / Bedrock instrumentation 0.62.4 / boto3 1.43.108 Converse / OpenTelemetry Python 1.45.0, native OTLP setup; image and document bytes are exported empty | 12 | 18 |
+| `traceloop/sdk` | SideSeat Python 2.0.0 / TraceLoop SDK 0.62.4 / Bedrock instrumentation 0.62.4 / boto3 1.43.108 Converse / OpenTelemetry Python 1.45.0 | 12 | 13 |
 | `vercel-ai-js/legacy` | ai ^7.0.79 | 6 | 13 |
 | `vertex-ai/native` | Google GenAI 2.28.0 / Logfire 5.1.1 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.13.7, native Logfire setup with the current `enterprise=True` Vertex mode, against the harness's fake Gemini server; reasoning thoughts arrive as text parts (the instrumentation drops Gemini's `thought` flag) and a failed tool call as an error message rather than a tool result | 9 | 9 |
 | `vertex-ai/sdk` | SideSeat Python 2.0.0 / Google GenAI 2.28.0 / Logfire 5.1.1 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.13.7, current `enterprise=True` Vertex mode, against the harness's fake Gemini server | 9 | 9 |
-| **62 suites** | | **282** | **406** |
+| **63 suites** | | **360** | **514** |
 
 Two further samples exist but are **not in the repository**: `strands-js/image-gen` and
 `vercel-ai-js/image-gen`, whose payloads are 15 MB and 7 MB of inlined base64 image data (the Python
@@ -379,7 +380,7 @@ not hide the rest.
 
 ## What is and is not covered
 
-**284 tracked expectation files: 267 captured in 61 suites, plus 17 synthetic.** A suite is not a framework:
+**362 tracked expectation files: 345 captured in 62 suites, plus 17 synthetic.** A suite is not a framework:
 `strands`/`strands-js` and `claude-agent-sdk`/`claude-agent-sdk-js` are one framework each in two
 languages; the eight .NET/JavaScript/Python/Rust suites are SDK conformance rather than framework
 captures. The fixture families below cover **27 of the 32** frameworks SideSeat recognises. (32 is

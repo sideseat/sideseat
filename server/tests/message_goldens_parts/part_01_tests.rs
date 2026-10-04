@@ -942,10 +942,6 @@ fn extract_tool_use_id(row: &InvariantRow) -> Option<&str> {
 /// conversation. The result is therefore genuinely callless upstream.
 const PAIRING_EXEMPT: &[(&str, &str)] = &[
     (
-        "claude-agent-sdk/legacy/subagents",
-        "Claude Code CLI emits subagent tool executions without the matching tool_use block",
-    ),
-    (
         "claude-agent-sdk-js/legacy/subagents",
         "Claude Code CLI emits subagent tool executions without the matching tool_use block",
     ),

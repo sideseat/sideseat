@@ -1,0 +1,171 @@
+{
+  "label": "logfire/native/structured_output",
+  "request_count": 1,
+  "span_count": 3,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/Responses API with 'global.openai.gpt-6.1-sol'/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore Schönbrunn Palace and its gardens.\",\"Day 2: Take a self-guided walk through Vienna’s historic centre, including St Stephen’s Cathedral and the Hofburg exterior.\"],\"budget_eur\":250}",
+          "content_digest": "0dbabbd252af347b",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/agent travel-assistant/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/structured-output/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore Schönbrunn Palace and its gardens.\",\"Day 2: Take a self-guided walk through Vienna’s historic centre, including St Stephen’s Cathedral and the Hofburg exterior.\"],\"budget_eur\":250}",
+          "content_digest": "0dbabbd252af347b",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "logfire-structured_output": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore Schönbrunn Palace and its gardens.\",\"Day 2: Take a self-guided walk through Vienna’s historic centre, including St Stephen’s Cathedral and the Hofburg exterior.\"],\"budget_eur\":250}",
+          "content_digest": "0dbabbd252af347b",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 3,
+    "role_sequence": [
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Plan a two-day trip to Vienna.",
+        "content_digest": "5f56235d64bfe00d",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore Schönbrunn Palace and its gardens.\",\"Day 2: Take a self-guided walk through Vienna’s historic centre, including St Stephen’s Cathedral and the Hofburg exterior.\"],\"budget_eur\":250}",
+        "content_digest": "0dbabbd252af347b",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

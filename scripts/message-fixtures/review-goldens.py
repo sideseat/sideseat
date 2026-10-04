@@ -120,6 +120,42 @@ INTENTIONAL_WARNINGS: dict[str, dict[str, tuple[int, str]]] = {
             },
         }.items()
     },
+    **{
+        f"claude-agent-sdk/{mode}/{scenario}": warnings
+        for mode in ("native", "sdk")
+        for scenario, warnings in {
+            "multi_agent": {
+                "unbalanced_tools": (
+                    2,
+                    "the Claude Code CLI answers an Agent call through SubagentHandback, not a result",
+                ),
+            },
+            "structured_output": {
+                "unbalanced_tools": (
+                    2,
+                    "StructuredOutput is a terminal schema pseudo-tool",
+                ),
+            },
+        }.items()
+    },
+    **{
+        f"openinference/{mode}/tool_use": {
+            "unbalanced_tools": (
+                2,
+                "the Bedrock instrumentor keeps only the last of a turn's parallel tool results",
+            ),
+        }
+        for mode in ("native", "sdk")
+    },
+    **{
+        f"logfire/{mode}/structured_output": {
+            "raw_json_text": (
+                2,
+                "the Responses API returns schema-constrained JSON as assistant text",
+            ),
+        }
+        for mode in ("native", "sdk")
+    },
     "anthropic/sdk/structured_output": {
         "unbalanced_tools": (2, "trip_plan is a terminal schema pseudo-tool"),
     },

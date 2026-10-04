@@ -1,1 +1,0 @@
-"""Generic OpenInference telemetry samples."""

@@ -1,29 +1,23 @@
 [project]
-name = "openinference-sample"
-version = "0.1.0"
-description = "SideSeat telemetry sample for generic OpenInference spans"
-requires-python = ">=3.12,<3.15"
+name = "example-openinference"
+version = "0.0.0"
+description = "OpenInference scenarios on Amazon Bedrock for SideSeat"
+requires-python = ">=3.11"
 dependencies = [
-    "telemetry-common",
-    "sideseat",
-    "openinference-instrumentation==0.1.67",
-    "python-dotenv>=1.2.0",
+    "openinference-instrumentation>=0.1.70",
+    "openinference-instrumentation-bedrock>=0.1.56",
+    "mcp>=1.24",
+    "sideseat-example-harness[bedrock]",
 ]
 
-[project.scripts]
-telemetry-openinference = "cli:main"
+[tool.sideseat-example]
+producer = "openinference"
+integrations = ["openinference"]
 
 [tool.uv]
 required-version = "==0.12.13"
-prerelease = "allow"
+package = false
 
 [tool.uv.sources]
-telemetry-common = { path = "../common", editable = true }
+sideseat-example-harness = { path = "../harness", editable = true }
 sideseat = { path = "../../../sdk/python", editable = true }
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-include = ["*.py", "samples/"]

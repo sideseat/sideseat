@@ -1,29 +1,24 @@
 [project]
-name = "logfire-sample"
-version = "0.1.0"
-description = "SideSeat telemetry sample for generic Logfire spans"
-requires-python = ">=3.12,<3.14"
+name = "example-logfire"
+version = "0.0.0"
+description = "Logfire scenarios with the OpenAI SDK on Amazon Bedrock for SideSeat"
+requires-python = ">=3.11"
 dependencies = [
-    "telemetry-common",
-    "sideseat[logfire]",
-    "logfire==6.0.0b7",
-    "python-dotenv>=1.2.0",
+    "logfire>=5.1.1",
+    # Logfire's MCP integration imports module paths that mcp 2 renamed.
+    "mcp>=1.24,<2",
+    "sideseat-example-harness[openai]",
 ]
 
-[project.scripts]
-telemetry-logfire = "cli:main"
+[tool.sideseat-example]
+producer = "logfire"
+integrations = ["logfire"]
+default-model = "gpt"
 
 [tool.uv]
 required-version = "==0.12.13"
-prerelease = "allow"
+package = false
 
 [tool.uv.sources]
-telemetry-common = { path = "../common", editable = true }
+sideseat-example-harness = { path = "../harness", editable = true }
 sideseat = { path = "../../../sdk/python", editable = true }
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-include = ["*.py", "samples/"]
