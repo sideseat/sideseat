@@ -305,6 +305,14 @@ pub(super) fn try_bedrock_format(block: &JsonValue) -> Option<JsonValue> {
     {
         return Some(json!({"type": "text", "text": text}));
     }
+    // A tool result's structured value: exactly `{"json": ...}`, which Converse writes for a result that is
+    // not text. Read as plain data, the value came back wrapped in the member that only labels it.
+    if let Some(obj) = block.as_object()
+        && obj.len() == 1
+        && let Some(data) = obj.get("json")
+    {
+        return Some(json!({"type": "json", "data": data}));
+    }
 
     // Bedrock extended thinking (reasoningContent)
     // Format: {"reasoningContent": {"reasoningText": {"text": "...", "signature": "..."}}}

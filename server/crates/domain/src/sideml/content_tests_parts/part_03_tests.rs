@@ -280,3 +280,20 @@ fn a_semconv_blob_part_under_media_type_is_a_media_block() {
     assert_eq!(normalized["type"], "document");
     assert_eq!(normalized["media_type"], "application/pdf");
 }
+
+/// Converse writes a tool's structured result as exactly `{"json": value}`. Read as plain data, the value came
+/// back wrapped in the member that only labels it.
+#[test]
+fn a_converse_json_result_block_is_its_value() {
+    let block = json!({"json": {"city": "Rome", "high_c": 21}});
+    assert_eq!(
+        normalize_content_block(&block),
+        Some(json!({"type": "json", "data": {"city": "Rome", "high_c": 21}}))
+    );
+    let data = json!({"json": {"city": "Rome"}, "source": "cache"});
+    assert_ne!(
+        normalize_content_block(&data).map(|b| b["data"].clone()),
+        Some(json!({"city": "Rome"})),
+        "a value with members beside `json` is the producer's own data"
+    );
+}

@@ -61,8 +61,8 @@
           "index": 0,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gD9XJtCbhYb1WWBrSMUnYF\",\"content\":{\"json\":{\"name\":\"Jane Doe\",\"age\":28,\"address\":{\"street\":\"123 Main St\",\"city\":\"New York\",\"country\":\"USA\"},\"contacts\":[{\"email\":\"jane@example.com\"}],\"skills\":[\"sys…[264 chars]",
-          "content_digest": "9371c541a89fcf8c",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gD9XJtCbhYb1WWBrSMUnYF\",\"content\":{\"name\":\"Jane Doe\",\"age\":28,\"address\":{\"street\":\"123 Main St\",\"city\":\"New York\",\"country\":\"USA\"},\"contacts\":[{\"email\":\"jane@example.com\"}],\"skills\":[\"systems adm…[255 chars]",
+          "content_digest": "e63e1711e851efb3",
           "observation_type": "tool"
         }
       ]
@@ -143,8 +143,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gD9XJtCbhYb1WWBrSMUnYF\",\"content\":{\"json\":{\"name\":\"Jane Doe\",\"age\":28,\"address\":{\"street\":\"123 Main St\",\"city\":\"New York\",\"country\":\"USA\"},\"contacts\":[{\"email\":\"jane@example.com\"}],\"skills\":[\"sys…[264 chars]",
-          "content_digest": "9371c541a89fcf8c",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gD9XJtCbhYb1WWBrSMUnYF\",\"content\":{\"name\":\"Jane Doe\",\"age\":28,\"address\":{\"street\":\"123 Main St\",\"city\":\"New York\",\"country\":\"USA\"},\"contacts\":[{\"email\":\"jane@example.com\"}],\"skills\":[\"systems adm…[255 chars]",
+          "content_digest": "e63e1711e851efb3",
           "observation_type": "tool"
         }
       ]
@@ -173,8 +173,8 @@
         "index": 0,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gD9XJtCbhYb1WWBrSMUnYF\",\"content\":{\"json\":{\"name\":\"Jane Doe\",\"age\":28,\"address\":{\"street\":\"123 Main St\",\"city\":\"New York\",\"country\":\"USA\"},\"contacts\":[{\"email\":\"jane@example.com\"}],\"skills\":[\"sys…[264 chars]",
-        "content_digest": "9371c541a89fcf8c",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gD9XJtCbhYb1WWBrSMUnYF\",\"content\":{\"name\":\"Jane Doe\",\"age\":28,\"address\":{\"street\":\"123 Main St\",\"city\":\"New York\",\"country\":\"USA\"},\"contacts\":[{\"email\":\"jane@example.com\"}],\"skills\":[\"systems adm…[255 chars]",
+        "content_digest": "e63e1711e851efb3",
         "observation_type": "tool"
       },
       {

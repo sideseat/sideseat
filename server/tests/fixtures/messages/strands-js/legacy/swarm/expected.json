@@ -77,8 +77,8 @@
           "index": 0,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_dcScuDsYJezJEXrH0rvpxn\",\"content\":{\"json\":{\"message\":\"## Weather App Project Plan\\n\\n### Project Overview\\nBuild a weather app that displays forecasts for multiple cities with real-time data, use…[3577 chars]",
-          "content_digest": "1cd68985c7b29e5a",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_dcScuDsYJezJEXrH0rvpxn\",\"content\":{\"message\":\"## Weather App Project Plan\\n\\n### Project Overview\\nBuild a weather app that displays forecasts for multiple cities with real-time data, user-friend…[3568 chars]",
+          "content_digest": "f98a886153a9b366",
           "observation_type": "tool"
         }
       ]
@@ -188,8 +188,8 @@
           "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_dcScuDsYJezJEXrH0rvpxn\",\"content\":{\"json\":{\"message\":\"## Weather App Project Plan\\n\\n### Project Overview\\nBuild a weather app that displays forecasts for multiple cities with real-time data, use…[3577 chars]",
-          "content_digest": "1cd68985c7b29e5a",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_dcScuDsYJezJEXrH0rvpxn\",\"content\":{\"message\":\"## Weather App Project Plan\\n\\n### Project Overview\\nBuild a weather app that displays forecasts for multiple cities with real-time data, user-friend…[3568 chars]",
+          "content_digest": "f98a886153a9b366",
           "observation_type": "tool"
         }
       ]
@@ -222,8 +222,8 @@
         "index": 1,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_dcScuDsYJezJEXrH0rvpxn\",\"content\":{\"json\":{\"message\":\"## Weather App Project Plan\\n\\n### Project Overview\\nBuild a weather app that displays forecasts for multiple cities with real-time data, use…[3577 chars]",
-        "content_digest": "1cd68985c7b29e5a",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_dcScuDsYJezJEXrH0rvpxn\",\"content\":{\"message\":\"## Weather App Project Plan\\n\\n### Project Overview\\nBuild a weather app that displays forecasts for multiple cities with real-time data, user-friend…[3568 chars]",
+        "content_digest": "f98a886153a9b366",
         "observation_type": "tool"
       },
       {
