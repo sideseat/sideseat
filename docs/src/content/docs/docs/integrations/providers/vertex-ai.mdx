@@ -10,7 +10,7 @@ model information, token usage, complete message history, streaming responses, t
 costs from Gemini models served through Vertex AI.
 
 <Aside type="caution">
-Google Gen AI SDK 2.26 uses `enterprise=True` for the API previously selected with the legacy
+Google Gen AI SDK 2.28 uses `enterprise=True` for the API previously selected with the legacy
 Vertex flag. The older Vertex AI Python client is not the current integration path. SideSeat still
 reads its historical telemetry when it was already stored, but new applications should use the
 setup below.
@@ -202,8 +202,8 @@ it.
 
 ## Verified contract
 
-The checked-in native and SideSeat fixtures use Google Gen AI 2.26.0, Logfire 6.0.0b7, Google Gen
-AI OpenTelemetry instrumentor 1.2b0, OpenTelemetry Python 1.44.0, and CPython 3.12.8. They verify:
+The checked-in native and SideSeat fixtures use Google Gen AI 2.28.0, Logfire 5.1.1, Google Gen
+AI OpenTelemetry instrumentor 1.2b0, OpenTelemetry Python 1.44.0, and CPython 3.13.7. They verify:
 
 - non-streaming and streaming responses;
 - retained multi-turn history without duplicates;

@@ -100,6 +100,26 @@ INTENTIONAL_WARNINGS: dict[str, dict[str, tuple[int, str]]] = {
             "structured assistant output is canonically represented as JSON",
         ),
     },
+    **{
+        f"{producer}/{mode}/{scenario}": warnings
+        for producer in ("google-genai", "vertex-ai")
+        for mode in ("native", "sdk")
+        for scenario, warnings in {
+            "structured_output": {
+                "raw_json_text": (
+                    2,
+                    "provider returns schema-constrained JSON as assistant text",
+                ),
+            },
+            "error": {
+                "unbalanced_tools": (
+                    2,
+                    "the instrumentation records a failed tool only as error.type and the span "
+                    "status, so the failure is an error message rather than a tool result",
+                ),
+            },
+        }.items()
+    },
     "langgraph/native/structured_output": {
         "unbalanced_tools": (2, "TripPlan is a terminal schema pseudo-tool"),
     },

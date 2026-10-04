@@ -21,9 +21,16 @@ PORT = 5404
 MODEL_VERSION = "gemini-flash-latest"
 
 
+def member(value: dict[str, Any], camel: str) -> Any:
+    """A request member in either spelling: the API reads camelCase and snake_case alike, and the
+    client sends some members in each."""
+    snake = "".join(f"_{c.lower()}" if c.isupper() else c for c in camel)
+    return value.get(camel, value.get(snake))
+
+
 def request_of(body: dict[str, Any]) -> script.Request:
     turns = []
-    for message in body.get("contents") or []:
+    for message in member(body, "contents") or []:
         role = "user" if message.get("role", "user") == "user" else "assistant"
         turn = script.Turn(role=role)
         for part in message.get("parts") or []:
@@ -31,13 +38,13 @@ def request_of(body: dict[str, Any]) -> script.Request:
                 continue
             if isinstance(part.get("text"), str):
                 turn.text += part["text"]
-            elif call := part.get("functionCall"):
+            elif call := member(part, "functionCall"):
                 turn.calls.append(
                     script.Call(
                         call.get("id", ""), call["name"], call.get("args") or {}
                     )
                 )
-            elif response := part.get("functionResponse"):
+            elif response := member(part, "functionResponse"):
                 turn.results.append(
                     script.Result(
                         response.get("id", ""),
@@ -47,15 +54,15 @@ def request_of(body: dict[str, Any]) -> script.Request:
                 )
         turns.append(turn)
     tools = {
-        declaration["name"]: declaration.get("parametersJsonSchema")
+        declaration["name"]: member(declaration, "parametersJsonSchema")
         or declaration.get("parameters")
         or {}
-        for tool in body.get("tools") or []
-        for declaration in tool.get("functionDeclarations") or []
+        for tool in member(body, "tools") or []
+        for declaration in member(tool, "functionDeclarations") or []
     }
-    config = body.get("generationConfig") or {}
-    schema = config.get("responseJsonSchema") or config.get("responseSchema")
-    thinking = bool((config.get("thinkingConfig") or {}).get("includeThoughts"))
+    config = member(body, "generationConfig") or {}
+    schema = member(config, "responseJsonSchema") or member(config, "responseSchema")
+    thinking = bool(member(member(config, "thinkingConfig") or {}, "includeThoughts"))
     return script.Request(turns=turns, tools=tools, schema=schema, thinking=thinking)
 
 

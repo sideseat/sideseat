@@ -1,1 +1,0 @@
-"""Google GenAI telemetry samples."""

@@ -94,8 +94,8 @@ the corpus matches it.
 | `crewai/legacy` | crewai >=1.10.1 | 9 | 33 |
 | `dotnet/native` | OpenTelemetry .NET 1.19.1 on .NET SDK 10.0.401 | 1 | 1 |
 | `dotnet/sdk` | SideSeat .NET 1.0.0 / OpenTelemetry 1.19.1 on .NET SDK 10.0.401 | 1 | 1 |
-| `google-genai/native` | Google GenAI 2.26.0 / Logfire 6.0.0b7 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.12.8 | 1 | 1 |
-| `google-genai/sdk` | SideSeat Python 1.0.8 / Google GenAI 2.26.0 / Logfire 6.0.0b7 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.12.8 | 1 | 1 |
+| `google-genai/native` | Google GenAI 2.28.0 / Logfire 5.1.1 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.13.7, against the harness's fake Gemini server; reasoning thoughts arrive as text parts (the instrumentation drops Gemini's `thought` flag) and a failed tool call as an error message rather than a tool result | 9 | 9 |
+| `google-genai/sdk` | SideSeat Python 2.0.0 / Google GenAI 2.28.0 / Logfire 5.1.1 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.13.7, against the harness's fake Gemini server | 9 | 9 |
 | `haystack/native` | Haystack 3.3.0 / opentelemetry-haystack 1.0.0 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0, native OTLP setup | 1 | 1 |
 | `haystack/sdk` | SideSeat Python 1.0.8 / Haystack 3.3.0 / opentelemetry-haystack 1.0.0 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 | 1 | 1 |
 | `javascript/native` | OpenTelemetry JS 2.11.0 / OTLP exporter 0.222.0 on Node.js 26.9.0 | 1 | 1 |
@@ -130,9 +130,9 @@ the corpus matches it.
 | `traceloop/native` | TraceLoop SDK 0.62.4 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8, native OTLP setup | 1 | 1 |
 | `traceloop/sdk` | SideSeat Python 1.0.8 / TraceLoop SDK 0.62.4 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8 | 1 | 1 |
 | `vercel-ai-js/legacy` | ai ^7.0.79 | 6 | 13 |
-| `vertex-ai/native` | Google GenAI 2.26.0 / Logfire 6.0.0b7 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.12.8, native Logfire setup with the current `enterprise=True` Vertex mode | 1 | 1 |
-| `vertex-ai/sdk` | SideSeat Python 1.0.8 / Google GenAI 2.26.0 / Logfire 6.0.0b7 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.12.8, current `enterprise=True` Vertex mode | 1 | 1 |
-| **64 suites** | | **250** | **385** |
+| `vertex-ai/native` | Google GenAI 2.28.0 / Logfire 5.1.1 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.13.7, native Logfire setup with the current `enterprise=True` Vertex mode, against the harness's fake Gemini server; reasoning thoughts arrive as text parts (the instrumentation drops Gemini's `thought` flag) and a failed tool call as an error message rather than a tool result | 9 | 9 |
+| `vertex-ai/sdk` | SideSeat Python 2.0.0 / Google GenAI 2.28.0 / Logfire 5.1.1 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.13.7, current `enterprise=True` Vertex mode, against the harness's fake Gemini server | 9 | 9 |
+| **64 suites** | | **282** | **417** |
 
 Two further samples exist but are **not in the repository**: `strands-js/image-gen` and
 `vercel-ai-js/image-gen`, whose payloads are 15 MB and 7 MB of inlined base64 image data (the Python
@@ -220,15 +220,8 @@ make capture P=pydantic-ai
 
 scripts/message-fixtures/capture.sh logfire canonical both
 
-scripts/message-fixtures/fake-google-genai.py --port 5404
-# In another shell:
-GOOGLE_GENAI_BASE_URL=http://127.0.0.1:5404 \
-  scripts/message-fixtures/capture.sh google-genai generate_content both
-
-scripts/message-fixtures/fake-google-genai.py --port 5404
-# In another shell:
-VERTEX_AI_BASE_URL=http://127.0.0.1:5404 \
-  scripts/message-fixtures/capture.sh vertex-ai canonical both
+make capture P=google-genai   # the fake Gemini server starts in-process; no credentials
+make capture P=vertex-ai
 
 scripts/message-fixtures/fake-openai.py --port 5401
 # In another shell:
@@ -388,7 +381,7 @@ not hide the rest.
 
 ## What is and is not covered
 
-**252 tracked expectation files: 235 captured in 63 suites, plus 17 synthetic.** A suite is not a framework:
+**284 tracked expectation files: 267 captured in 63 suites, plus 17 synthetic.** A suite is not a framework:
 `strands`/`strands-js` and `claude-agent-sdk`/`claude-agent-sdk-js` are one framework each in two
 languages; the eight .NET/JavaScript/Python/Rust suites are SDK conformance rather than framework
 captures. The fixture families below cover **27 of the 32** frameworks SideSeat recognises. (32 is

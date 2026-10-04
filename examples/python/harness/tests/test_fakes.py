@@ -131,6 +131,20 @@ def test_fake_gemini_calls_the_declared_tools_with_their_own_parameter_names() -
     assert [p["functionCall"]["args"] for p in parts] == [{"city": "Rome", "days": 1}]
 
 
+def test_fake_gemini_reads_members_in_the_spelling_the_client_sends() -> None:
+    # google-genai sends `thinkingConfig: {include_thoughts: true}`; the fake read only camelCase and
+    # answered the reasoning scenario without a thought.
+    body = {
+        "contents": [{"role": "user", "parts": [{"text": content.REASONING}]}],
+        "generationConfig": {"thinkingConfig": {"include_thoughts": True}},
+    }
+    from harness.fakes import google_genai
+
+    parts = google_genai.parts_of(script.reply(google_genai.request_of(body)))
+    assert parts[0] == {"text": script.THOUGHTS[content.REASONING], "thought": True}
+    assert parts[1] == {"text": script.ANSWERS[content.REASONING]}
+
+
 def test_fake_gemini_streams_text_as_server_sent_events() -> None:
     url = clients.fake_url("fake-gemini")
     body = {"contents": [{"role": "user", "parts": [{"text": content.CHAT}]}]}
@@ -173,3 +187,29 @@ def test_capture_needs_no_cassette_for_a_fake_model(tmp_path: Path) -> None:
     )
     assert capture.uses_fake_model(tmp_path, None)
     assert not capture.uses_fake_model(tmp_path, "sonnet")
+
+
+def test_results_wrapped_the_way_google_genai_sends_them_are_read() -> None:
+    # The Gemini client sends `{"result": value}` and `{"error": message}`; the answer echoed the JSON.
+    weather = json.dumps({"result": content.get_weather("Rome")})
+    error = json.dumps(
+        {"error": "Failed to invoke function book_flight because of error offline."}
+    )
+    turns = [
+        script.Turn("user", text=content.STREAMING),
+        script.Turn(
+            "assistant", calls=[script.Call("1", "get_weather", {"city": "Rome"})]
+        ),
+        script.Turn("tool", results=[script.Result("1", "get_weather", weather)]),
+    ]
+    tools = {"get_weather": WEATHER_TOOLS["get_weather"]}
+    answer = script.reply(script.Request(turns=turns, tools=tools)).text
+    assert answer.startswith("Rome: day 1 sunny at 21°C.")
+    turns = [
+        script.Turn("user", text=content.ERROR),
+        script.Turn("assistant", calls=[script.Call("1", "book_flight", {})]),
+        script.Turn("tool", results=[script.Result("1", "book_flight", error)]),
+    ]
+    tools = {"book_flight": spec(content.book_flight).parameters}
+    answer = script.reply(script.Request(turns=turns, tools=tools)).text
+    assert answer == "I could not book that flight: offline. Please try again later."

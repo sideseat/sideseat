@@ -23,9 +23,10 @@ The `google-genai` extra includes Logfire's Google GenAI OpenTelemetry instrumen
 plain `sideseat` does not install that optional integration.
 
 <Aside type="note">
-The checked-in compatibility fixture uses Google GenAI 2.26.0, Logfire 6.0.0b7, the Google GenAI
+The checked-in compatibility fixtures use Google GenAI 2.28.0, Logfire 5.1.1, the Google GenAI
 OpenTelemetry instrumentor 1.2b0, and OpenTelemetry Python 1.44.0. Native Logfire setup and
-SideSeat Python 1.0.8 produce identical requests, spans, traces, sessions, and project-feed output.
+SideSeat Python 2.0.0 produce identical spans, traces, sessions, and project-feed output. The
+instrumentor exports Gemini's thoughts as ordinary text parts, so reasoning appears as assistant text.
 </Aside>
 
 ## Gemini Developer API

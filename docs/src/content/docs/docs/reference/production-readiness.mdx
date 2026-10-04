@@ -35,7 +35,7 @@ of the surviving messages rather than silently inventing or dropping content.
 
 ## Current checked-in boundary
 
-The current tracked corpus contains **64 suites, 250 samples, and 385 captured OTLP requests**:
+The current tracked corpus contains **64 suites, 282 samples, and 417 captured OTLP requests**:
 
 - SideSeat SDK versus plain OpenTelemetry pairs for Python, TypeScript/Node.js, .NET, and Rust;
 - a credential-free OpenAI 3.19.2 / Logfire 6.0.0b7 pair captured both natively and through
@@ -44,11 +44,10 @@ The current tracked corpus contains **64 suites, 250 samples, and 385 captured O
   sync/stream/tool-use coverage;
 - a credential-free Pydantic AI 2.50.0 / Logfire 6.0.0b7 pair covering a direct response,
   multi-turn history, and a complete tool-call roundtrip;
-- a credential-free Google GenAI 2.26.0 / Logfire 6.0.0b7 pair covering ordinary generation,
-  SSE streaming, and automatic Python function calling with exact native/SideSeat parity;
-- a credential-free Google GenAI 2.26.0 / Logfire 6.0.0b7 pair in Vertex AI mode, covering
-  retained multi-turn history, streaming, automatic Python function calling, two traces, one
-  shared session, cloud-specific framework identity, and exact native/SideSeat parity;
+- a credential-free Google GenAI 2.28.0 / Logfire 5.1.1 pair, against the harness's fake Gemini
+  server, covering every shared scenario except multi-agent and MCP tools - including automatic
+  function calling, where one model span reports every round - with exact native/SideSeat parity;
+- the same nine scenarios in Vertex AI mode, with cloud-specific framework identity;
 - a credential-free generic Logfire 6.0.0b7 pair covering all three primary conversation
   carriers, request fallback precedence, streaming response data, repeated history, tool
   definitions, a complete tool roundtrip, two traces, and one shared session;

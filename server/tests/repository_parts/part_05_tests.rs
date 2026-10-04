@@ -202,7 +202,7 @@ fn public_vertex_ai_examples_use_the_current_google_genai_client() {
         "docs/src/content/docs/docs/index.mdx",
         "docs/src/content/docs/docs/integrations/providers/google-gemini.mdx",
         "docs/src/content/docs/docs/integrations/providers/vertex-ai.mdx",
-        "examples/python/vertex-ai/runner.py",
+        "examples/python/vertex-ai/models.py",
         "sdk/python/README.md",
         "server/crates/api/src/mcp/tools.rs",
         "web/src/pages/configuration/telemetry-frameworks.ts",

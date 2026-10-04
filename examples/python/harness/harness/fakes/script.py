@@ -176,6 +176,9 @@ def _plan(
         and ("umbrella" in lowered or "rain" in lowered)
     ):
         rounds.append([("get_precipitation", {"city": city}) for city in cities])
+    arithmetic = re.search(r"compute (.+?), then", question)
+    if "calculate" in tools and arithmetic:
+        rounds.append([("calculate", {"expression": arithmetic.group(1)})])
     if not rounds:
         unknown = [
             name for name in tools if name not in _SHARED and name != "final_answer"
@@ -208,14 +211,25 @@ def _arguments(schema: dict[str, Any], question: str) -> dict[str, Any]:
 def _answer_from(question: str, results: list[Result]) -> str:
     sentences = []
     for result in results:
-        if result.name == "get_weather":
-            sentences.append(_weather_sentence(result.text))
-        elif result.name == "book_flight":
-            sentences.append(
-                f"I could not book that flight: {_error_text(result.text)}"
+        value = _value(result.text)
+        if (
+            result.name == "get_weather"
+            and isinstance(value, dict)
+            and "forecast" in value
+        ):
+            days = ", ".join(
+                f"day {day['day']} {day['condition']} at {day['high_c']}°C"
+                for day in value["forecast"]
             )
+            sentences.append(f"{value['city']}: {days}")
+        elif result.name == "book_flight":
+            # Some clients wrap the exception in a sentence of their own; keep its message.
+            message = str(value).rpartition("because of error ")[2]
+            sentences.append(f"I could not book that flight: {message.rstrip('.')}")
+        elif result.name == "calculate":
+            sentences.append(f"The result is {str(value).rstrip('.')}")
         else:
-            sentences.append(result.text.rstrip("."))
+            sentences.append(str(value).rstrip("."))
     answer = "; ".join(sentence for sentence in sentences if sentence) + "."
     if "umbrella" in question.lower():
         wet = [
@@ -234,28 +248,19 @@ def _answer_from(question: str, results: list[Result]) -> str:
     return answer
 
 
-def _weather_sentence(text: str) -> str:
+def _value(text: str) -> Any:
+    """A tool result's value, unwrapped from the ``{"result"|"error": ...}`` some clients send."""
     try:
         value = json.loads(text)
     except json.JSONDecodeError:
         return text
-    if not isinstance(value, dict) or "forecast" not in value:
-        return text
-    days = ", ".join(
-        f"day {day['day']} {day['condition']} at {day['high_c']}°C"
-        for day in value["forecast"]
-    )
-    return f"{value['city']}: {days}"
-
-
-def _error_text(text: str) -> str:
-    try:
-        value = json.loads(text)
-    except json.JSONDecodeError:
-        return text.rstrip(".")
-    return str(value.get("error", value) if isinstance(value, dict) else value).rstrip(
-        "."
-    )
+    while (
+        isinstance(value, dict)
+        and len(value) == 1
+        and ("error" in value or "result" in value)
+    ):
+        value = next(iter(value.values()))
+    return value
 
 
 def _rainy(result: Result, city: str) -> bool:

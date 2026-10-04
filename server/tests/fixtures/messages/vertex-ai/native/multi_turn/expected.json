@@ -1,0 +1,410 @@
+{
+  "label": "vertex-ai/native/multi_turn",
+  "request_count": 1,
+  "span_count": 4,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/generate_content gemini-flash-latest/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in Alfama, Lisbon's oldest neighbourhood.",
+          "content_digest": "75b3580aef53d8dc",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/generate_content gemini-flash-latest/span-3": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in Alfama, Lisbon's oldest neighbourhood.",
+          "content_digest": "75b3580aef53d8dc",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try pastel de nata, the custard tart Lisbon is famous for.",
+          "content_digest": "b6d37c6f115d42b9",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/generate_content gemini-flash-latest/span-4": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in Alfama, Lisbon's oldest neighbourhood.",
+          "content_digest": "75b3580aef53d8dc",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try pastel de nata, the custard tart Lisbon is famous for.",
+          "content_digest": "b6d37c6f115d42b9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarise your two suggestions in one sentence.",
+          "content_digest": "3a58af4870fae288",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in Alfama and try a pastel de nata.",
+          "content_digest": "578bdfe19eaf2f41",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/multi-turn/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in Alfama, Lisbon's oldest neighbourhood.",
+          "content_digest": "75b3580aef53d8dc",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try pastel de nata, the custard tart Lisbon is famous for.",
+          "content_digest": "b6d37c6f115d42b9",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarise your two suggestions in one sentence.",
+          "content_digest": "3a58af4870fae288",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in Alfama and try a pastel de nata.",
+          "content_digest": "578bdfe19eaf2f41",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "vertex-ai-multi_turn": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in Alfama, Lisbon's oldest neighbourhood.",
+          "content_digest": "75b3580aef53d8dc",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try pastel de nata, the custard tart Lisbon is famous for.",
+          "content_digest": "b6d37c6f115d42b9",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarise your two suggestions in one sentence.",
+          "content_digest": "3a58af4870fae288",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in Alfama and try a pastel de nata.",
+          "content_digest": "578bdfe19eaf2f41",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 7,
+    "role_sequence": [
+      "assistant",
+      "user",
+      "assistant",
+      "user",
+      "assistant",
+      "system",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Stay in Alfama and try a pastel de nata.",
+        "content_digest": "578bdfe19eaf2f41",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Summarise your two suggestions in one sentence.",
+        "content_digest": "3a58af4870fae288",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Try pastel de nata, the custard tart Lisbon is famous for.",
+        "content_digest": "b6d37c6f115d42b9",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is one dish I should try there?",
+        "content_digest": "fa205a3ea90d1fdf",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Stay in Alfama, Lisbon's oldest neighbourhood.",
+        "content_digest": "75b3580aef53d8dc",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "entry_type": "text",
+        "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+        "content_digest": "c366c7539466c187",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}
