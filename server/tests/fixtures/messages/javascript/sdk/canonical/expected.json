@@ -40,7 +40,7 @@
         }
       ]
     },
-    "trace-1/chat canonical-model/span-3": {
+    "trace-1/chat canonical-model/span-4": {
       "message_count": 1,
       "role_sequence": [
         "assistant"
@@ -59,7 +59,7 @@
         }
       ]
     },
-    "trace-1/execute_tool get_weather/span-4": {
+    "trace-1/execute_tool get_weather/span-3": {
       "message_count": 2,
       "role_sequence": [
         "assistant",
@@ -212,8 +212,8 @@
   "feed_view": {
     "message_count": 5,
     "role_sequence": [
-      "tool",
       "assistant",
+      "tool",
       "assistant",
       "assistant",
       "user"
@@ -223,21 +223,21 @@
     "messages": [
       {
         "index": 0,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-weather-1\",\"name\":\"get_weather\",\"content\":{\"temperature_c\":18,\"condition\":\"sunny\"}}",
-        "content_digest": "63933df402748341",
-        "tool_name": "get_weather",
-        "observation_type": "tool"
-      },
-      {
-        "index": 1,
         "role": "assistant",
         "entry_type": "text",
         "content": "It is 18°C and sunny in London.",
         "content_digest": "dc43128304213aae",
         "finish_reason": "Stop",
         "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call-weather-1\",\"name\":\"get_weather\",\"content\":{\"temperature_c\":18,\"condition\":\"sunny\"}}",
+        "content_digest": "63933df402748341",
+        "tool_name": "get_weather",
+        "observation_type": "tool"
       },
       {
         "index": 2,

@@ -9,7 +9,8 @@ import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
-import { SideSeat, type SideSeatSpanOptions } from '@sideseat/sdk';
+import * as sideseat from '@sideseat/sdk';
+import type { SpanOptions } from '@sideseat/sdk';
 
 const SESSION_ID = 'sdk-conformance-session';
 const USER_ID = 'sdk-conformance-user';
@@ -58,36 +59,61 @@ function addFinalModelCall(span: Span): void {
 type SpanFactory = (
   name: string,
   write: (span: Span) => void,
-  options?: SideSeatSpanOptions
+  options?: SpanOptions
 ) => Promise<void>;
 
 async function emitChildren(span: SpanFactory): Promise<void> {
   await span('chat canonical-model', addFirstModelCall, {
     kind: SpanKind.CLIENT,
   });
+  await pause();
   await span('execute_tool get_weather', addToolCall);
+  await pause();
   await span('chat canonical-model', addFinalModelCall, {
     kind: SpanKind.CLIENT,
   });
 }
 
+/**
+ * OpenTelemetry JS records a span's start with millisecond precision and its end with microseconds,
+ * so a span started within a millisecond of its predecessor's end can appear to start before it. Real
+ * operations are separated by far more; without the gap the two modes would differ by clock rounding.
+ */
+function pause(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 2));
+}
+
 async function runWithSideSeat(): Promise<void> {
-  const client = new SideSeat({
-    framework: 'javascript-conformance',
+  await sideseat.init({
+    integrations: [],
     serviceName: 'javascript-conformance',
+    resourceAttributes: { 'sideseat.framework': 'javascript-conformance' },
+    logs: false,
   });
-  await client.trace(
+  await sideseat.trace(
     'canonical-agent-run',
+    { sessionId: SESSION_ID, userId: USER_ID },
     async () => {
       await emitChildren(async (name, write, options = {}) => {
-        await client.span(name, async (span) => write(span), options);
+        await sideseat.span(name, options, async (span) => {
+          write(span);
+          await operate();
+        });
       });
-    },
-    { sessionId: SESSION_ID, userId: USER_ID }
+    }
   );
-  if (!(await client.shutdown())) {
+  if (!(await sideseat.shutdown())) {
     throw new Error('SideSeat JavaScript SDK did not flush its spans');
   }
+}
+
+/**
+ * Every operation takes measurable time, as real model and tool calls do. A tool span that starts and
+ * ends on one clock tick gives its call and result one anchor, which the feed reads as a single
+ * response - so without this the two modes' feeds would differ by timing rather than by telemetry.
+ */
+function operate(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 1));
 }
 
 async function runWithOpenTelemetry(): Promise<void> {
@@ -141,6 +167,7 @@ function rawSpanFactory(tracer: Tracer, correlation: Attributes): SpanFactory {
       async (span) => {
         try {
           write(span);
+          await operate();
         } finally {
           span.end();
         }
