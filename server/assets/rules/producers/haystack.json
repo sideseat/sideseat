@@ -902,6 +902,28 @@
           "$.tool_call_result.error"
         ]
       }
+    },
+    {
+      "id": "haystack.reasoning_content",
+      "at": "message_envelope",
+      "legacy_rank": 15,
+      "doc": "Haystack's reasoning part: the text under `reasoning_text` beside an `extra` member holding the provider's own fields. Ranked before the shared reasoning envelope, which reads `text` and would make this an empty block.",
+      "require": {
+        "all": [
+          {
+            "path": "$.reasoning.reasoning_text",
+            "kind": "string"
+          }
+        ]
+      },
+      "thinking": {
+        "text": [
+          "$.reasoning.reasoning_text"
+        ],
+        "signature": [
+          "$.reasoning.extra.signature"
+        ]
+      }
     }
   ]
 }

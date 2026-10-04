@@ -443,6 +443,26 @@ fn test_tool_use_input_streamed_as_json_text_is_decoded() {
     assert_eq!(block_to_json(&output.content[0])["input"], "{\"city\": ");
 }
 
+/// Regression: Haystack's reasoning part keeps its text under `reasoning_text`.
+///
+/// Read through the shared reasoning envelope, which looks for `text`, the reasoning came out empty
+/// and was dropped, so a reasoning model's trace showed only the answer.
+#[test]
+fn test_haystack_reasoning_part_is_thinking() {
+    let input = json!({
+        "role": "assistant",
+        "content": [
+            {"reasoning": {"reasoning_text": "Send the two slowest together.", "extra": {"signature": "sig"}}},
+            {"text": "17 minutes."}
+        ]
+    });
+    let output = normalize(&input);
+    let first = block_to_json(&output.content[0]);
+    assert_eq!(first["type"], "thinking");
+    assert_eq!(first["text"], "Send the two slowest together.");
+    assert_eq!(first["signature"], "sig");
+}
+
 #[test]
 fn test_gemini_function_call() {
     let input = json!({

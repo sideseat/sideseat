@@ -34,6 +34,18 @@ class Warning:
 # Counts are exact across trace and session views: changing either the telemetry or the parser
 # makes the classification stale and returns the fixture to the unresolved review queue.
 INTENTIONAL_WARNINGS: dict[str, dict[str, tuple[int, str]]] = {
+    "haystack/native/files": {
+        "json_block": (
+            2,
+            "Haystack's tracer writes a placeholder in place of file bytes, so the part is unreadable",
+        ),
+    },
+    "haystack/sdk/files": {
+        "json_block": (
+            2,
+            "Haystack's tracer writes a placeholder in place of file bytes, so the part is unreadable",
+        ),
+    },
     "ag2/native/structured_output": {
         "json_block": (
             2,

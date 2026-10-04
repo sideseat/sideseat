@@ -707,6 +707,10 @@ fn no_declared_rule_is_dead_across_the_corpus() {
     /// captured - and the rest are shapes the captured runs never produced.
     const UNREACHED: &[(&str, &str)] = &[
         (
+            "haystack.agent_tools",
+            "Haystack 3.3 serialises an Agent's tool list as JSON objects rather than Python repr, so no capture holds the repr shape",
+        ),
+        (
             "autogen.autogen_event",
             "the suite is captured through OpenInference; no fixture emits the legacy AutoGen event shape",
         ),
