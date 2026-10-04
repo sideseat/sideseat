@@ -6,11 +6,14 @@ from harness import Run, content
 
 async def run(run: Run) -> None:
     agent = build_agent(run.llm)
+    # The image is given as bytes, not a path: the instrumentor records a path as the image's URL.
     prompt = ChatMessage(
         role="user",
         blocks=[
             TextBlock(text=content.FILES),
-            ImageBlock(path=run.asset("img.jpg"), image_mimetype="image/jpeg"),
+            ImageBlock(
+                image=run.asset("img.jpg").read_bytes(), image_mimetype="image/jpeg"
+            ),
             DocumentBlock(path=run.asset("task.pdf"), title="task"),
         ],
     )

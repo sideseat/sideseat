@@ -13,3 +13,4 @@ include!("messages_tests_parts/part_10_tests.rs");
 include!("messages_tests_parts/part_11_tests.rs");
 include!("messages_tests_parts/part_12_tests.rs");
 include!("messages_tests_parts/part_13_tests.rs");
+include!("messages_tests_parts/part_14_tests.rs");

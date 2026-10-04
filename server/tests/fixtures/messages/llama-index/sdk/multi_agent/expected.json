@@ -1,0 +1,576 @@
+{
+  "label": "llama-index/sdk/multi_agent",
+  "request_count": 1,
+  "span_count": 24,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/AgentWorkflow.aggregate_tool_results/span-11": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/AgentWorkflow.aggregate_tool_results/span-19": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/AgentWorkflow.call_tool/span-17": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/AgentWorkflow.call_tool/span-9": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/AgentWorkflow.init_run/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/AgentWorkflow.parse_agent_output/span-16": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/AgentWorkflow.parse_agent_output/span-24": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/AgentWorkflow.parse_agent_output/span-8": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/AgentWorkflow.run/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/AgentWorkflow.run_agent_step/span-13": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/AgentWorkflow.run_agent_step/span-21": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/AgentWorkflow.run_agent_step/span-5": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/AgentWorkflow.setup_agent/span-12": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/AgentWorkflow.setup_agent/span-20": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/AgentWorkflow.setup_agent/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/BedrockConverse._prepare_chat_with_tools/span-14": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/BedrockConverse._prepare_chat_with_tools/span-22": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/BedrockConverse._prepare_chat_with_tools/span-6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/BedrockConverse.astream_chat/span-15": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You research weather with the tool, then hand off to the writer.",
+          "content_digest": "e23249b8caa6a5ce",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_GitBUWNqI17S60rd0YsmTP\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "ebac35662aa077d5",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_GitBUWNqI17S60rd0YsmTP\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "55c9e18a043e1680",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_bJPWsniWeo3dYjF7578oYA\",\"name\":\"handoff\",\"input\":{\"to_agent\":\"writer\",\"reason\":\"Write a one-paragraph packing list for Barcelona based on the forecast: Day 1 rain with a high of 21°C; Day 2 sunny with a high…[252 chars]",
+          "content_digest": "5d3050493dd3cd32",
+          "tool_name": "handoff",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/BedrockConverse.astream_chat/span-23": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You write the final packing list from the researcher's findings.",
+          "content_digest": "b186ab36ca9cadcb",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_GitBUWNqI17S60rd0YsmTP\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "ebac35662aa077d5",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_GitBUWNqI17S60rd0YsmTP\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "55c9e18a043e1680",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_bJPWsniWeo3dYjF7578oYA\",\"name\":\"handoff\",\"input\":{\"to_agent\":\"writer\",\"reason\":\"Write a one-paragraph packing list for Barcelona based on the forecast: Day 1 rain with a high of 21°C; Day 2 sunny with a high…[252 chars]",
+          "content_digest": "5d3050493dd3cd32",
+          "tool_name": "handoff",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Agent writer is now handling the request due to the following reason: Write a one-paragraph packing list for Barcelona based on the forecast: Day 1 rain with a high of 21°C; Day 2 sunny with a high of 22°C.. Please continue with the current…[249 chars]",
+          "content_digest": "7180211d083da833",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Here's a packing list based on the forecast: rain on Day 1 (high 21°C) and sun on Day 2 (high 22°C). **Packing list:** Pack for mild weather with one wet day and one sunny day. Bring light layers like t-shirts and a long-sleeve top or light…[975 chars]",
+          "content_digest": "ae91f074794e4a9b",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/BedrockConverse.astream_chat/span-7": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You research weather with the tool, then hand off to the writer.",
+          "content_digest": "e23249b8caa6a5ce",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_GitBUWNqI17S60rd0YsmTP\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "ebac35662aa077d5",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/FunctionTool.acall/span-10": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-1/FunctionTool.acall/span-18": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-1/multi-agent/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 8,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "system",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You research weather with the tool, then hand off to the writer.",
+          "content_digest": "e23249b8caa6a5ce",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_GitBUWNqI17S60rd0YsmTP\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "ebac35662aa077d5",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_GitBUWNqI17S60rd0YsmTP\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "55c9e18a043e1680",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_bJPWsniWeo3dYjF7578oYA\",\"name\":\"handoff\",\"input\":{\"to_agent\":\"writer\",\"reason\":\"Write a one-paragraph packing list for Barcelona based on the forecast: Day 1 rain with a high of 21°C; Day 2 sunny with a high…[252 chars]",
+          "content_digest": "5d3050493dd3cd32",
+          "tool_name": "handoff",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You write the final packing list from the researcher's findings.",
+          "content_digest": "b186ab36ca9cadcb",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Agent writer is now handling the request due to the following reason: Write a one-paragraph packing list for Barcelona based on the forecast: Day 1 rain with a high of 21°C; Day 2 sunny with a high of 22°C.. Please continue with the current…[249 chars]",
+          "content_digest": "7180211d083da833",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Here's a packing list based on the forecast: rain on Day 1 (high 21°C) and sun on Day 2 (high 22°C). **Packing list:** Pack for mild weather with one wet day and one sunny day. Bring light layers like t-shirts and a long-sleeve top or light…[975 chars]",
+          "content_digest": "ae91f074794e4a9b",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "llama-index-multi_agent": {
+      "message_count": 8,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "system",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You research weather with the tool, then hand off to the writer.",
+          "content_digest": "e23249b8caa6a5ce",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_GitBUWNqI17S60rd0YsmTP\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "ebac35662aa077d5",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_GitBUWNqI17S60rd0YsmTP\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "55c9e18a043e1680",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_bJPWsniWeo3dYjF7578oYA\",\"name\":\"handoff\",\"input\":{\"to_agent\":\"writer\",\"reason\":\"Write a one-paragraph packing list for Barcelona based on the forecast: Day 1 rain with a high of 21°C; Day 2 sunny with a high…[252 chars]",
+          "content_digest": "5d3050493dd3cd32",
+          "tool_name": "handoff",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You write the final packing list from the researcher's findings.",
+          "content_digest": "b186ab36ca9cadcb",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Agent writer is now handling the request due to the following reason: Write a one-paragraph packing list for Barcelona based on the forecast: Day 1 rain with a high of 21°C; Day 2 sunny with a high of 22°C.. Please continue with the current…[249 chars]",
+          "content_digest": "7180211d083da833",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Here's a packing list based on the forecast: rain on Day 1 (high 21°C) and sun on Day 2 (high 22°C). **Packing list:** Pack for mild weather with one wet day and one sunny day. Bring light layers like t-shirts and a long-sleeve top or light…[975 chars]",
+          "content_digest": "ae91f074794e4a9b",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 8,
+    "role_sequence": [
+      "system",
+      "tool",
+      "assistant",
+      "tool",
+      "assistant",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 2,
+    "messages": [
+      {
+        "index": 0,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You write the final packing list from the researcher's findings.",
+        "content_digest": "b186ab36ca9cadcb",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Agent writer is now handling the request due to the following reason: Write a one-paragraph packing list for Barcelona based on the forecast: Day 1 rain with a high of 21°C; Day 2 sunny with a high of 22°C.. Please continue with the current…[249 chars]",
+        "content_digest": "7180211d083da833",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Here's a packing list based on the forecast: rain on Day 1 (high 21°C) and sun on Day 2 (high 22°C). **Packing list:** Pack for mild weather with one wet day and one sunny day. Bring light layers like t-shirts and a long-sleeve top or light…[975 chars]",
+        "content_digest": "ae91f074794e4a9b",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_GitBUWNqI17S60rd0YsmTP\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+        "content_digest": "55c9e18a043e1680",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_bJPWsniWeo3dYjF7578oYA\",\"name\":\"handoff\",\"input\":{\"to_agent\":\"writer\",\"reason\":\"Write a one-paragraph packing list for Barcelona based on the forecast: Day 1 rain with a high of 21°C; Day 2 sunny with a high…[252 chars]",
+        "content_digest": "5d3050493dd3cd32",
+        "tool_name": "handoff",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You research weather with the tool, then hand off to the writer.",
+        "content_digest": "e23249b8caa6a5ce",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+        "content_digest": "603f05d965d18b4d",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_GitBUWNqI17S60rd0YsmTP\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+        "content_digest": "ebac35662aa077d5",
+        "tool_name": "get_weather",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

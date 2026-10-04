@@ -66,13 +66,14 @@
     },
     {
       "id": "llamaindex.prepare_chat_input",
-      "doc": "The private `_prepare_chat_with_tools` helper serializes the same request that its `OpenAI.achat` or `OpenAI.astream_chat` sibling sends. Claim the helper input so only the actual model invocation contributes conversation messages.",
+      "doc": "The private `_prepare_chat_with_tools` helper of an LLM class (OpenAI, BedrockConverse) serializes the same request that its `achat` or `astream_chat` sibling on the same LLM class sends. Claim the helper input so only the actual model invocation contributes conversation messages.",
       "instrumentation_scope": {
         "name": "openinference.instrumentation.llama_index"
       },
       "when": {
         "span_name_exact": [
-          "OpenAI._prepare_chat_with_tools"
+          "OpenAI._prepare_chat_with_tools",
+          "BedrockConverse._prepare_chat_with_tools"
         ]
       },
       "read": {
@@ -90,7 +91,8 @@
       },
       "when": {
         "span_name_exact": [
-          "OpenAI._prepare_chat_with_tools"
+          "OpenAI._prepare_chat_with_tools",
+          "BedrockConverse._prepare_chat_with_tools"
         ]
       },
       "read": {

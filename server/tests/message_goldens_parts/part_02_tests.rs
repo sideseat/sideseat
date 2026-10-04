@@ -635,6 +635,14 @@ fn sdk_and_plain_otel_conformance_are_identical() {
 /// The native Logfire control path installs the same streaming reparenter before its raw OTLP
 /// exporter. Without it, Logfire 6 closes the request span before consuming the stream and exports
 /// the completed response as an unrelated root trace — telemetry the server cannot safely reconnect.
+/// Pairs whose total span count differs between runs for a reason outside the SDK, with the reason.
+/// Every other comparison still holds for them, including the per-span message projections.
+const VARIABLE_STEP_SPANS: &[(&str, &str)] = &[(
+    "llama-index/sdk/tool_use",
+    "LlamaIndex runs its aggregate_tool_results step once per tool result as the concurrent tools \
+     finish, so the number of those message-less step spans follows completion timing",
+)];
+
 #[test]
 fn framework_sdk_and_native_conversations_are_identical() {
     let fixtures: BTreeMap<String, Vec<PathBuf>> = discover_fixtures().into_iter().collect();
@@ -713,10 +721,12 @@ fn framework_sdk_and_native_conversations_are_identical() {
         let sdk = build_golden(&sdk_label, sdk_paths, &rows_for(sdk_paths)).golden;
         let (native, sdk) = with_restored_media_aligned(&sdk_label, native, sdk);
 
-        assert_eq!(
-            sdk.span_count, native.span_count,
-            "{sdk_label}: SDK changed the number of framework spans"
-        );
+        if !VARIABLE_STEP_SPANS.iter().any(|(label, _)| *label == sdk_label) {
+            assert_eq!(
+                sdk.span_count, native.span_count,
+                "{sdk_label}: SDK changed the number of framework spans"
+            );
+        }
         assert_eq!(
             sdk.trace_count, native.trace_count,
             "{sdk_label}: SDK changed framework trace topology"
@@ -725,9 +735,17 @@ fn framework_sdk_and_native_conversations_are_identical() {
             sdk.session_count, native.session_count,
             "{sdk_label}: SDK changed framework session grouping"
         );
+        // Where step spans repeat a variable number of times, each message-less step counts once.
+        let projections = |views: &BTreeMap<String, GoldenView>| {
+            let mut comparable = span_multiset(views);
+            if VARIABLE_STEP_SPANS.iter().any(|(label, _)| *label == sdk_label) {
+                comparable.dedup_by(|a, b| a == b && a.1.contains("\"message_count\":0"));
+            }
+            comparable
+        };
         assert_eq!(
-            span_multiset(&sdk.span_views),
-            span_multiset(&native.span_views),
+            projections(&sdk.span_views),
+            projections(&native.span_views),
             "{sdk_label}: per-span message projections differ from native instrumentation"
         );
         assert_eq!(
