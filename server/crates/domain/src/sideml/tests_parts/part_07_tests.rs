@@ -797,3 +797,46 @@ fn scalar_content_is_kept_as_text() {
         assert!(content.to_string().contains("395") || content.to_string().contains("true"));
     }
 }
+
+/// A tool result whose text is a number keeps its value. OpenInference writes an MCP calculator's result as
+/// the string `395.0`; parsed as JSON it became a number, which content normalisation renders as nothing, so
+/// the result vanished and the call looked unanswered.
+#[test]
+fn a_tool_result_that_reads_as_a_number_keeps_its_value() {
+    for text in ["395.0", "true", "null"] {
+        let message = normalize(&json!({"role": "tool", "content": text, "tool_call_id": "call-1"}));
+        assert!(
+            matches!(
+                &message.content[..],
+                [ContentBlock::ToolResult { tool_use_id: Some(id), content, .. }]
+                    if id == "call-1" && *content != json!([])
+            ),
+            "{text}: {:?}",
+            message.content
+        );
+    }
+}
+
+/// A message that carries both a content list and a flattened `content` is read from the list. OpenInference's
+/// Agno instrumentor writes the reasoning and the answer as `contents` and only the answer as `content`; read
+/// singular-first, the reasoning was lost.
+#[test]
+fn a_content_list_beside_flattened_content_keeps_the_reasoning() {
+    let message = normalize(&json!({
+        "role": "assistant",
+        "content": "17 minutes.",
+        "contents": [
+            {"message_content": {"type": "reasoning", "text": "Pair the two slowest."}},
+            {"message_content": {"type": "text", "text": "17 minutes."}}
+        ]
+    }));
+    assert!(
+        matches!(
+            &message.content[..],
+            [ContentBlock::Thinking { text, .. }, ContentBlock::Text { text: answer }]
+                if text == "Pair the two slowest." && answer == "17 minutes."
+        ),
+        "{:?}",
+        message.content
+    );
+}

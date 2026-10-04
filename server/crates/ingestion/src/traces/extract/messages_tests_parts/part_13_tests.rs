@@ -11,18 +11,20 @@ fn the_declared_members_reproduce_the_lists_they_replaced() {
 
     // The ordered content chain: the first member the value *has*, not the first holding something.
     let chain: Vec<&str> = plan.content_in_order().collect();
+    // One deliberate departure from the retired chain: the list is read before the flattened `content`,
+    // because a producer that writes both keeps reasoning only in the list.
     assert_eq!(
         chain,
         vec![
-            "content",
             "contents",
+            "content",
             "message",
             "parts",
             "text",
             "object",
             "arguments"
         ],
-        "the declared order is the retired chain's"
+        "the declared order is the retired chain's, with the list first"
     );
     let first_present = |value: &serde_json::Value| -> Option<serde_json::Value> {
         plan.content_in_order()

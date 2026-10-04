@@ -7,7 +7,7 @@
       "members": [
         "content"
       ],
-      "rank": 10,
+      "rank": 20,
       "holds_content": true,
       "means_message_shaped": true,
       "doc": "The conventional member, and the one nearly every producer writes."
@@ -17,10 +17,10 @@
       "members": [
         "contents"
       ],
-      "rank": 20,
+      "rank": 10,
       "holds_content": true,
       "means_message_shaped": true,
-      "doc": "The plural, which one dialect writes for a nested content list."
+      "doc": "The plural, which one dialect writes for a nested content list. Read before `content`: a producer that writes both puts the whole message in the list - reasoning beside the answer - and only the answer's text in `content`, so the singular first dropped the reasoning."
     },
     {
       "id": "members.message",
