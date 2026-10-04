@@ -1,0 +1,877 @@
+{
+  "label": "agno/sdk/multi_agent",
+  "request_count": 1,
+  "span_count": 13,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/AwsBedrockAnthropicClaude.invoke/span-12": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<your_role> Writes the packing list </your_role> You write the final packing list from the researcher's findings.",
+          "content_digest": "e0ce2917d6cbbd57",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Write a one-paragraph packing list for a two-day trip to Barcelona based on this forecast: Day 1 sunny, high 21°C (70°F); Day 2 sunny, high 22°C (72°F). Lows, precipitation chance and wind were not available, so suggest a light extra layer …[284 chars]",
+          "content_digest": "a3c7c8e6e9373cf0",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "For your two days in Barcelona, pack for mild, sunny weather with highs of 21-22°C (70-72°F). Bring lightweight, breathable clothing such as two or three T-shirts or short-sleeve tops, a pair of comfortable pants or jeans, and perhaps a pai…[935 chars]",
+          "content_digest": "4ae17328a327c70d",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/AwsBedrockAnthropicClaude.invoke/span-13": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "delegate_task_to_member"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Ask the researcher for the forecast, then ask the writer for the packing list. <team> You coordinate this team to fulfill the user's request. You have a team of specialists, listed below. Delegate to members when their expertise or tools ar…[1750 chars]",
+          "content_digest": "e5c839532597f31f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01C6NqZKXcESnVNL8RY5wGND\",\"name\":\"delegate_task_to_member\",\"input\":{\"member_id\":\"researcher\",\"task\":\"Research the weather forecast for Barcelona, Spain for the next two days. Report temperatures (highs/lo…[313 chars]",
+          "content_digest": "8b9ec3c34faf047c",
+          "tool_name": "delegate_task_to_member",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "**Barcelona, Spain: 2-day forecast** | | Day 1 | Day 2 | |---|---|---| | **Conditions** | Sunny | Sunny | | **High** | 21°C (70°F) | 22°C (72°F) | | **Low** | Not provided | Not provided | | **Precipitation chance** | Not provided | Not pro…[682 chars]",
+          "content_digest": "25dd9b0b702e0cdb",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01SAUhXAHQya4MQAz53YVoYD\",\"name\":\"delegate_task_to_member\",\"input\":{\"member_id\":\"writer\",\"task\":\"Write a one-paragraph packing list for a two-day trip to Barcelona based on this forecast: Day 1 sunny, hig…[420 chars]",
+          "content_digest": "dbe6a9ad67ce66d8",
+          "tool_name": "delegate_task_to_member",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "For your two days in Barcelona, pack for mild, sunny weather with highs of 21-22°C (70-72°F). Bring lightweight, breathable clothing such as two or three T-shirts or short-sleeve tops, a pair of comfortable pants or jeans, and perhaps a pai…[935 chars]",
+          "content_digest": "7cb15c62d062862c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Barcelona forecast (next two days):** Both days should be sunny. Highs are 21°C (70°F) on Day 1 and 22°C (72°F) on Day 2. The forecast didn't include lows, chance of rain, or wind. AEMET, Spain's national weather service, is a good place …[1035 chars]",
+          "content_digest": "72a352952ade18e4",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/AwsBedrockAnthropicClaude.invoke/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "delegate_task_to_member"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Ask the researcher for the forecast, then ask the writer for the packing list. <team> You coordinate this team to fulfill the user's request. You have a team of specialists, listed below. Delegate to members when their expertise or tools ar…[1750 chars]",
+          "content_digest": "e5c839532597f31f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01C6NqZKXcESnVNL8RY5wGND\",\"name\":\"delegate_task_to_member\",\"input\":{\"member_id\":\"researcher\",\"task\":\"Research the weather forecast for Barcelona, Spain for the next two days. Report temperatures (highs/lo…[313 chars]",
+          "content_digest": "8b9ec3c34faf047c",
+          "tool_name": "delegate_task_to_member",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/AwsBedrockAnthropicClaude.invoke/span-6": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "get_weather"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<your_role> Researches weather with the tool </your_role> You research weather with the tool and report the forecast. Do not reflect on the quality of the returned search results in your response",
+          "content_digest": "ac9516f74218211a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather forecast for Barcelona, Spain for the next two days. Report temperatures (highs/lows), precipitation chances, wind, and general conditions for each day.",
+          "content_digest": "4f6ce50b2157f63e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01ARE2hvjy7pjaNbt5HAiHRQ\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
+          "content_digest": "4aeceb183f585713",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/AwsBedrockAnthropicClaude.invoke/span-8": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "get_weather"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<your_role> Researches weather with the tool </your_role> You research weather with the tool and report the forecast. Do not reflect on the quality of the returned search results in your response",
+          "content_digest": "ac9516f74218211a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather forecast for Barcelona, Spain for the next two days. Report temperatures (highs/lows), precipitation chances, wind, and general conditions for each day.",
+          "content_digest": "4f6ce50b2157f63e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01ARE2hvjy7pjaNbt5HAiHRQ\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
+          "content_digest": "4aeceb183f585713",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01ARE2hvjy7pjaNbt5HAiHRQ\",\"content\":{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "448b9dbfc00d901e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Barcelona, Spain: 2-day forecast** | | Day 1 | Day 2 | |---|---|---| | **Conditions** | Sunny | Sunny | | **High** | 21°C (70°F) | 22°C (72°F) | | **Low** | Not provided | Not provided | | **Precipitation chance** | Not provided | Not pro…[682 chars]",
+          "content_digest": "1a83ab5b5928a75d",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/AwsBedrockAnthropicClaude.invoke/span-9": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "delegate_task_to_member"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Ask the researcher for the forecast, then ask the writer for the packing list. <team> You coordinate this team to fulfill the user's request. You have a team of specialists, listed below. Delegate to members when their expertise or tools ar…[1750 chars]",
+          "content_digest": "e5c839532597f31f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01C6NqZKXcESnVNL8RY5wGND\",\"name\":\"delegate_task_to_member\",\"input\":{\"member_id\":\"researcher\",\"task\":\"Research the weather forecast for Barcelona, Spain for the next two days. Report temperatures (highs/lo…[313 chars]",
+          "content_digest": "8b9ec3c34faf047c",
+          "tool_name": "delegate_task_to_member",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "**Barcelona, Spain: 2-day forecast** | | Day 1 | Day 2 | |---|---|---| | **Conditions** | Sunny | Sunny | | **High** | 21°C (70°F) | 22°C (72°F) | | **Low** | Not provided | Not provided | | **Precipitation chance** | Not provided | Not pro…[682 chars]",
+          "content_digest": "25dd9b0b702e0cdb",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01SAUhXAHQya4MQAz53YVoYD\",\"name\":\"delegate_task_to_member\",\"input\":{\"member_id\":\"writer\",\"task\":\"Write a one-paragraph packing list for a two-day trip to Barcelona based on this forecast: Day 1 sunny, hig…[420 chars]",
+          "content_digest": "dbe6a9ad67ce66d8",
+          "tool_name": "delegate_task_to_member",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/delegate_task_to_member/span-10": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-1/delegate_task_to_member/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-1/get_weather/span-7": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-1/multi-agent/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/researcher.run/span-5": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather forecast for Barcelona, Spain for the next two days. Report temperatures (highs/lows), precipitation chances, wind, and general conditions for each day.",
+          "content_digest": "4f6ce50b2157f63e",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Barcelona, Spain: 2-day forecast** | | Day 1 | Day 2 | |---|---|---| | **Conditions** | Sunny | Sunny | | **High** | 21°C (70°F) | 22°C (72°F) | | **Low** | Not provided | Not provided | | **Precipitation chance** | Not provided | Not pro…[682 chars]",
+          "content_digest": "1a83ab5b5928a75d",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/travel_team.run/span-2": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Barcelona forecast (next two days):** Both days should be sunny. Highs are 21°C (70°F) on Day 1 and 22°C (72°F) on Day 2. The forecast didn't include lows, chance of rain, or wind. AEMET, Spain's national weather service, is a good place …[1035 chars]",
+          "content_digest": "72a352952ade18e4",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/writer.run/span-11": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Write a one-paragraph packing list for a two-day trip to Barcelona based on this forecast: Day 1 sunny, high 21°C (70°F); Day 2 sunny, high 22°C (72°F). Lows, precipitation chance and wind were not available, so suggest a light extra layer …[284 chars]",
+          "content_digest": "a3c7c8e6e9373cf0",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "For your two days in Barcelona, pack for mild, sunny weather with highs of 21-22°C (70-72°F). Bring lightweight, breathable clothing such as two or three T-shirts or short-sleeve tops, a pair of comfortable pants or jeans, and perhaps a pai…[935 chars]",
+          "content_digest": "4ae17328a327c70d",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 15,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "delegate_task_to_member",
+        "get_weather"
+      ],
+      "tool_definition_count": 3,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Ask the researcher for the forecast, then ask the writer for the packing list. <team> You coordinate this team to fulfill the user's request. You have a team of specialists, listed below. Delegate to members when their expertise or tools ar…[1750 chars]",
+          "content_digest": "e5c839532597f31f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01C6NqZKXcESnVNL8RY5wGND\",\"name\":\"delegate_task_to_member\",\"input\":{\"member_id\":\"researcher\",\"task\":\"Research the weather forecast for Barcelona, Spain for the next two days. Report temperatures (highs/lo…[313 chars]",
+          "content_digest": "8b9ec3c34faf047c",
+          "tool_name": "delegate_task_to_member",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<your_role> Researches weather with the tool </your_role> You research weather with the tool and report the forecast. Do not reflect on the quality of the returned search results in your response",
+          "content_digest": "ac9516f74218211a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather forecast for Barcelona, Spain for the next two days. Report temperatures (highs/lows), precipitation chances, wind, and general conditions for each day.",
+          "content_digest": "4f6ce50b2157f63e",
+          "observation_type": "agent"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01ARE2hvjy7pjaNbt5HAiHRQ\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
+          "content_digest": "4aeceb183f585713",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01ARE2hvjy7pjaNbt5HAiHRQ\",\"content\":{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "448b9dbfc00d901e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Barcelona, Spain: 2-day forecast** | | Day 1 | Day 2 | |---|---|---| | **Conditions** | Sunny | Sunny | | **High** | 21°C (70°F) | 22°C (72°F) | | **Low** | Not provided | Not provided | | **Precipitation chance** | Not provided | Not pro…[682 chars]",
+          "content_digest": "1a83ab5b5928a75d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 8,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "**Barcelona, Spain: 2-day forecast** | | Day 1 | Day 2 | |---|---|---| | **Conditions** | Sunny | Sunny | | **High** | 21°C (70°F) | 22°C (72°F) | | **Low** | Not provided | Not provided | | **Precipitation chance** | Not provided | Not pro…[682 chars]",
+          "content_digest": "25dd9b0b702e0cdb",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01SAUhXAHQya4MQAz53YVoYD\",\"name\":\"delegate_task_to_member\",\"input\":{\"member_id\":\"writer\",\"task\":\"Write a one-paragraph packing list for a two-day trip to Barcelona based on this forecast: Day 1 sunny, hig…[420 chars]",
+          "content_digest": "dbe6a9ad67ce66d8",
+          "tool_name": "delegate_task_to_member",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<your_role> Writes the packing list </your_role> You write the final packing list from the researcher's findings.",
+          "content_digest": "e0ce2917d6cbbd57",
+          "observation_type": "generation"
+        },
+        {
+          "index": 11,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Write a one-paragraph packing list for a two-day trip to Barcelona based on this forecast: Day 1 sunny, high 21°C (70°F); Day 2 sunny, high 22°C (72°F). Lows, precipitation chance and wind were not available, so suggest a light extra layer …[284 chars]",
+          "content_digest": "a3c7c8e6e9373cf0",
+          "observation_type": "agent"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "For your two days in Barcelona, pack for mild, sunny weather with highs of 21-22°C (70-72°F). Bring lightweight, breathable clothing such as two or three T-shirts or short-sleeve tops, a pair of comfortable pants or jeans, and perhaps a pai…[935 chars]",
+          "content_digest": "4ae17328a327c70d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 13,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "For your two days in Barcelona, pack for mild, sunny weather with highs of 21-22°C (70-72°F). Bring lightweight, breathable clothing such as two or three T-shirts or short-sleeve tops, a pair of comfortable pants or jeans, and perhaps a pai…[935 chars]",
+          "content_digest": "7cb15c62d062862c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 14,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Barcelona forecast (next two days):** Both days should be sunny. Highs are 21°C (70°F) on Day 1 and 22°C (72°F) on Day 2. The forecast didn't include lows, chance of rain, or wind. AEMET, Spain's national weather service, is a good place …[1035 chars]",
+          "content_digest": "72a352952ade18e4",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "agno-multi_agent": {
+      "message_count": 15,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [
+        "delegate_task_to_member",
+        "get_weather"
+      ],
+      "tool_definition_count": 3,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "Ask the researcher for the forecast, then ask the writer for the packing list. <team> You coordinate this team to fulfill the user's request. You have a team of specialists, listed below. Delegate to members when their expertise or tools ar…[1750 chars]",
+          "content_digest": "e5c839532597f31f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01C6NqZKXcESnVNL8RY5wGND\",\"name\":\"delegate_task_to_member\",\"input\":{\"member_id\":\"researcher\",\"task\":\"Research the weather forecast for Barcelona, Spain for the next two days. Report temperatures (highs/lo…[313 chars]",
+          "content_digest": "8b9ec3c34faf047c",
+          "tool_name": "delegate_task_to_member",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<your_role> Researches weather with the tool </your_role> You research weather with the tool and report the forecast. Do not reflect on the quality of the returned search results in your response",
+          "content_digest": "ac9516f74218211a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather forecast for Barcelona, Spain for the next two days. Report temperatures (highs/lows), precipitation chances, wind, and general conditions for each day.",
+          "content_digest": "4f6ce50b2157f63e",
+          "observation_type": "agent"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01ARE2hvjy7pjaNbt5HAiHRQ\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
+          "content_digest": "4aeceb183f585713",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01ARE2hvjy7pjaNbt5HAiHRQ\",\"content\":{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "448b9dbfc00d901e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Barcelona, Spain: 2-day forecast** | | Day 1 | Day 2 | |---|---|---| | **Conditions** | Sunny | Sunny | | **High** | 21°C (70°F) | 22°C (72°F) | | **Low** | Not provided | Not provided | | **Precipitation chance** | Not provided | Not pro…[682 chars]",
+          "content_digest": "1a83ab5b5928a75d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 8,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "**Barcelona, Spain: 2-day forecast** | | Day 1 | Day 2 | |---|---|---| | **Conditions** | Sunny | Sunny | | **High** | 21°C (70°F) | 22°C (72°F) | | **Low** | Not provided | Not provided | | **Precipitation chance** | Not provided | Not pro…[682 chars]",
+          "content_digest": "25dd9b0b702e0cdb",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01SAUhXAHQya4MQAz53YVoYD\",\"name\":\"delegate_task_to_member\",\"input\":{\"member_id\":\"writer\",\"task\":\"Write a one-paragraph packing list for a two-day trip to Barcelona based on this forecast: Day 1 sunny, hig…[420 chars]",
+          "content_digest": "dbe6a9ad67ce66d8",
+          "tool_name": "delegate_task_to_member",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<your_role> Writes the packing list </your_role> You write the final packing list from the researcher's findings.",
+          "content_digest": "e0ce2917d6cbbd57",
+          "observation_type": "generation"
+        },
+        {
+          "index": 11,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Write a one-paragraph packing list for a two-day trip to Barcelona based on this forecast: Day 1 sunny, high 21°C (70°F); Day 2 sunny, high 22°C (72°F). Lows, precipitation chance and wind were not available, so suggest a light extra layer …[284 chars]",
+          "content_digest": "a3c7c8e6e9373cf0",
+          "observation_type": "agent"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "For your two days in Barcelona, pack for mild, sunny weather with highs of 21-22°C (70-72°F). Bring lightweight, breathable clothing such as two or three T-shirts or short-sleeve tops, a pair of comfortable pants or jeans, and perhaps a pai…[935 chars]",
+          "content_digest": "4ae17328a327c70d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 13,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "For your two days in Barcelona, pack for mild, sunny weather with highs of 21-22°C (70-72°F). Bring lightweight, breathable clothing such as two or three T-shirts or short-sleeve tops, a pair of comfortable pants or jeans, and perhaps a pai…[935 chars]",
+          "content_digest": "7cb15c62d062862c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 14,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Barcelona forecast (next two days):** Both days should be sunny. Highs are 21°C (70°F) on Day 1 and 22°C (72°F) on Day 2. The forecast didn't include lows, chance of rain, or wind. AEMET, Spain's national weather service, is a good place …[1035 chars]",
+          "content_digest": "72a352952ade18e4",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 15,
+    "role_sequence": [
+      "tool",
+      "system",
+      "user",
+      "assistant",
+      "tool",
+      "assistant",
+      "tool",
+      "system",
+      "assistant",
+      "user",
+      "assistant",
+      "system",
+      "assistant",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [
+      "delegate_task_to_member",
+      "get_weather"
+    ],
+    "tool_definition_count": 3,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "For your two days in Barcelona, pack for mild, sunny weather with highs of 21-22°C (70-72°F). Bring lightweight, breathable clothing such as two or three T-shirts or short-sleeve tops, a pair of comfortable pants or jeans, and perhaps a pai…[935 chars]",
+        "content_digest": "7cb15c62d062862c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "system",
+        "entry_type": "text",
+        "content": "<your_role> Writes the packing list </your_role> You write the final packing list from the researcher's findings.",
+        "content_digest": "e0ce2917d6cbbd57",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Write a one-paragraph packing list for a two-day trip to Barcelona based on this forecast: Day 1 sunny, high 21°C (70°F); Day 2 sunny, high 22°C (72°F). Lows, precipitation chance and wind were not available, so suggest a light extra layer …[284 chars]",
+        "content_digest": "a3c7c8e6e9373cf0",
+        "observation_type": "agent"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "For your two days in Barcelona, pack for mild, sunny weather with highs of 21-22°C (70-72°F). Bring lightweight, breathable clothing such as two or three T-shirts or short-sleeve tops, a pair of comfortable pants or jeans, and perhaps a pai…[935 chars]",
+        "content_digest": "4ae17328a327c70d",
+        "observation_type": "agent"
+      },
+      {
+        "index": 4,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "**Barcelona, Spain: 2-day forecast** | | Day 1 | Day 2 | |---|---|---| | **Conditions** | Sunny | Sunny | | **High** | 21°C (70°F) | 22°C (72°F) | | **Low** | Not provided | Not provided | | **Precipitation chance** | Not provided | Not pro…[682 chars]",
+        "content_digest": "25dd9b0b702e0cdb",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01SAUhXAHQya4MQAz53YVoYD\",\"name\":\"delegate_task_to_member\",\"input\":{\"member_id\":\"writer\",\"task\":\"Write a one-paragraph packing list for a two-day trip to Barcelona based on this forecast: Day 1 sunny, hig…[420 chars]",
+        "content_digest": "dbe6a9ad67ce66d8",
+        "tool_name": "delegate_task_to_member",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01ARE2hvjy7pjaNbt5HAiHRQ\",\"content\":{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+        "content_digest": "448b9dbfc00d901e",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "system",
+        "entry_type": "text",
+        "content": "<your_role> Researches weather with the tool </your_role> You research weather with the tool and report the forecast. Do not reflect on the quality of the returned search results in your response",
+        "content_digest": "ac9516f74218211a",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01ARE2hvjy7pjaNbt5HAiHRQ\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
+        "content_digest": "4aeceb183f585713",
+        "tool_name": "get_weather",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Research the weather forecast for Barcelona, Spain for the next two days. Report temperatures (highs/lows), precipitation chances, wind, and general conditions for each day.",
+        "content_digest": "4f6ce50b2157f63e",
+        "observation_type": "agent"
+      },
+      {
+        "index": 10,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "**Barcelona, Spain: 2-day forecast** | | Day 1 | Day 2 | |---|---|---| | **Conditions** | Sunny | Sunny | | **High** | 21°C (70°F) | 22°C (72°F) | | **Low** | Not provided | Not provided | | **Precipitation chance** | Not provided | Not pro…[682 chars]",
+        "content_digest": "1a83ab5b5928a75d",
+        "observation_type": "agent"
+      },
+      {
+        "index": 11,
+        "role": "system",
+        "entry_type": "text",
+        "content": "Ask the researcher for the forecast, then ask the writer for the packing list. <team> You coordinate this team to fulfill the user's request. You have a team of specialists, listed below. Delegate to members when their expertise or tools ar…[1750 chars]",
+        "content_digest": "e5c839532597f31f",
+        "observation_type": "generation"
+      },
+      {
+        "index": 12,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01C6NqZKXcESnVNL8RY5wGND\",\"name\":\"delegate_task_to_member\",\"input\":{\"member_id\":\"researcher\",\"task\":\"Research the weather forecast for Barcelona, Spain for the next two days. Report temperatures (highs/lo…[313 chars]",
+        "content_digest": "8b9ec3c34faf047c",
+        "tool_name": "delegate_task_to_member",
+        "observation_type": "generation"
+      },
+      {
+        "index": 13,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+        "content_digest": "603f05d965d18b4d",
+        "observation_type": "agent"
+      },
+      {
+        "index": 14,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "**Barcelona forecast (next two days):** Both days should be sunny. Highs are 21°C (70°F) on Day 1 and 22°C (72°F) on Day 2. The forecast didn't include lows, chance of rain, or wind. AEMET, Spain's national weather service, is a good place …[1035 chars]",
+        "content_digest": "72a352952ade18e4",
+        "observation_type": "agent"
+      }
+    ]
+  }
+}

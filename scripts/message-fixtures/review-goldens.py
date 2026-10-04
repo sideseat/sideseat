@@ -118,6 +118,18 @@ INTENTIONAL_WARNINGS: dict[str, dict[str, tuple[int, str]]] = {
             "provider returns schema-constrained JSON as assistant text",
         ),
     },
+    "agno/native/structured_output": {
+        "json_block": (
+            2,
+            "structured assistant output is canonically represented as JSON",
+        ),
+    },
+    "agno/sdk/structured_output": {
+        "json_block": (
+            2,
+            "structured assistant output is canonically represented as JSON",
+        ),
+    },
     "claude-agent-sdk/structured_output": {
         "unbalanced_tools": (2, "StructuredOutput is a terminal schema pseudo-tool"),
     },

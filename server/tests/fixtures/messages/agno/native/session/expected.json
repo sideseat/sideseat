@@ -1,0 +1,351 @@
+{
+  "label": "agno/native/session",
+  "request_count": 2,
+  "span_count": 6,
+  "trace_count": 2,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/Agent.run/span-2": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one museum to visit in Madrid.",
+          "content_digest": "9d08c76a1df2d525",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Visit the Museo del Prado, one of the world's finest art museums. It houses masterpieces by Velázquez (including *Las Meninas*), Goya, and El Greco. Go late in the day when entry is often free or discounted, and check current hours before y…[246 chars]",
+          "content_digest": "110172925070a8b3",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/AwsBedrockAnthropicClaude.invoke/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one museum to visit in Madrid.",
+          "content_digest": "9d08c76a1df2d525",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Visit the Museo del Prado, one of the world's finest art museums. It houses masterpieces by Velázquez (including *Las Meninas*), Goya, and El Greco. Go late in the day when entry is often free or discounted, and check current hours before y…[246 chars]",
+          "content_digest": "110172925070a8b3",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/session-turn-1/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/Agent.run/span-2": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one park to visit in Madrid.",
+          "content_digest": "95fac62b5ab37eb3",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Visit **Retiro Park (Parque del Buen Retiro)**, Madrid's most beloved green space. You can rent a rowboat on the lake, see the Crystal Palace, and stroll through the rose garden. It's free to enter and close to the Prado Museum.",
+          "content_digest": "634e73a022d91830",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-2/AwsBedrockAnthropicClaude.invoke/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one park to visit in Madrid.",
+          "content_digest": "95fac62b5ab37eb3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Visit **Retiro Park (Parque del Buen Retiro)**, Madrid's most beloved green space. You can rent a rowboat on the lake, see the Crystal Palace, and stroll through the rose garden. It's free to enter and close to the Prado Museum.",
+          "content_digest": "634e73a022d91830",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/session-turn-2/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one museum to visit in Madrid.",
+          "content_digest": "9d08c76a1df2d525",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Visit the Museo del Prado, one of the world's finest art museums. It houses masterpieces by Velázquez (including *Las Meninas*), Goya, and El Greco. Go late in the day when entry is often free or discounted, and check current hours before y…[246 chars]",
+          "content_digest": "110172925070a8b3",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one park to visit in Madrid.",
+          "content_digest": "95fac62b5ab37eb3",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Visit **Retiro Park (Parque del Buen Retiro)**, Madrid's most beloved green space. You can rent a rowboat on the lake, see the Crystal Palace, and stroll through the rose garden. It's free to enter and close to the Prado Museum.",
+          "content_digest": "634e73a022d91830",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "agno-session": {
+      "message_count": 6,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one museum to visit in Madrid.",
+          "content_digest": "9d08c76a1df2d525",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Visit the Museo del Prado, one of the world's finest art museums. It houses masterpieces by Velázquez (including *Las Meninas*), Goya, and El Greco. Go late in the day when entry is often free or discounted, and check current hours before y…[246 chars]",
+          "content_digest": "110172925070a8b3",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one park to visit in Madrid.",
+          "content_digest": "95fac62b5ab37eb3",
+          "observation_type": "agent"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Visit **Retiro Park (Parque del Buen Retiro)**, Madrid's most beloved green space. You can rent a rowboat on the lake, see the Crystal Palace, and stroll through the rose garden. It's free to enter and close to the Prado Museum.",
+          "content_digest": "634e73a022d91830",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 6,
+    "role_sequence": [
+      "system",
+      "user",
+      "assistant",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Suggest one park to visit in Madrid.",
+        "content_digest": "95fac62b5ab37eb3",
+        "observation_type": "agent"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Visit **Retiro Park (Parque del Buen Retiro)**, Madrid's most beloved green space. You can rent a rowboat on the lake, see the Crystal Palace, and stroll through the rose garden. It's free to enter and close to the Prado Museum.",
+        "content_digest": "634e73a022d91830",
+        "observation_type": "agent"
+      },
+      {
+        "index": 3,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Suggest one museum to visit in Madrid.",
+        "content_digest": "9d08c76a1df2d525",
+        "observation_type": "agent"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Visit the Museo del Prado, one of the world's finest art museums. It houses masterpieces by Velázquez (including *Las Meninas*), Goya, and El Greco. Go late in the day when entry is often free or discounted, and check current hours before y…[246 chars]",
+        "content_digest": "110172925070a8b3",
+        "observation_type": "agent"
+      }
+    ]
+  }
+}

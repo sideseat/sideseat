@@ -251,12 +251,7 @@ OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
 CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
   scripts/message-fixtures/capture.sh haystack canonical both
 
-scripts/message-fixtures/fake-openai.py --port 5401
-# In another shell:
-OPENAI_API_KEY=x \
-OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
-CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
-  scripts/message-fixtures/capture.sh agno canonical both
+make capture P=agno
 
 scripts/message-fixtures/fake-openai.py --port 5401
 # In another shell:

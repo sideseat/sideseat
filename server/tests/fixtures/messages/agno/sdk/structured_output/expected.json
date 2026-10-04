@@ -1,0 +1,191 @@
+{
+  "label": "agno/sdk/structured_output",
+  "request_count": 1,
+  "span_count": 3,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/Agent.run/span-2": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Tour Schönbrunn Palace and its gardens, then explore the historic Innere Stadt, including St. Stephen's Cathedral and a coffee house stop\",\"Day 2: Visit the Belvedere Palace to see Klim…[381 chars]",
+          "content_digest": "612e94d3bb31255b",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/AwsBedrockAnthropicClaude.invoke/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Provide your output as a JSON containing the following fields: <json_fields> [\"city\", \"days\", \"budget_eur…[770 chars]",
+          "content_digest": "6a98a3f6c90961d9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Tour Schönbrunn Palace and its gardens, then explore the historic Innere Stadt, including St. Stephen's Cathedral and a coffee house stop\",\"Day 2: Visit the Belvedere Palace to see Klim…[381 chars]",
+          "content_digest": "612e94d3bb31255b",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/structured-output/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Provide your output as a JSON containing the following fields: <json_fields> [\"city\", \"days\", \"budget_eur…[770 chars]",
+          "content_digest": "6a98a3f6c90961d9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Tour Schönbrunn Palace and its gardens, then explore the historic Innere Stadt, including St. Stephen's Cathedral and a coffee house stop\",\"Day 2: Visit the Belvedere Palace to see Klim…[381 chars]",
+          "content_digest": "612e94d3bb31255b",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "agno-structured_output": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Provide your output as a JSON containing the following fields: <json_fields> [\"city\", \"days\", \"budget_eur…[770 chars]",
+          "content_digest": "6a98a3f6c90961d9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Tour Schönbrunn Palace and its gardens, then explore the historic Innere Stadt, including St. Stephen's Cathedral and a coffee house stop\",\"Day 2: Visit the Belvedere Palace to see Klim…[381 chars]",
+          "content_digest": "612e94d3bb31255b",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 3,
+    "role_sequence": [
+      "assistant",
+      "system",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Tour Schönbrunn Palace and its gardens, then explore the historic Innere Stadt, including St. Stephen's Cathedral and a coffee house stop\",\"Day 2: Visit the Belvedere Palace to see Klim…[381 chars]",
+        "content_digest": "612e94d3bb31255b",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Provide your output as a JSON containing the following fields: <json_fields> [\"city\", \"days\", \"budget_eur…[770 chars]",
+        "content_digest": "6a98a3f6c90961d9",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Plan a two-day trip to Vienna.",
+        "content_digest": "5f56235d64bfe00d",
+        "observation_type": "agent"
+      }
+    ]
+  }
+}

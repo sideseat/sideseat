@@ -1,0 +1,24 @@
+{
+ "interactions": [
+  {
+   "method": "POST",
+   "path": "/model/global.anthropic.claude-sonnet-5-5/invoke",
+   "status": 200,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "eyJtb2RlbCI6ImNsYXVkZS1zb25uZXQtNS01IiwiaWQiOiJtc2dfYmRya19rdjRuMnJsbmZvYnAzem40Mjd4N212am1zbHZrNHlqczd2dG1nazVwZXQydmNvdDRkdjdxIiwidHlwZSI6Im1lc3NhZ2UiLCJyb2xlIjoiYXNzaXN0YW50IiwiY29udGVudCI6W3sidHlwZSI6InRvb2xfdXNlIiwiaWQiOiJ0b29sdV9iZHJrXzAxN2ZMQWF3NUFGZVZoa0RHVUtYblJjSiIsIm5hbWUiOiJjYWxjdWxhdGUiLCJpbnB1dCI6eyJleHByZXNzaW9uIjoiKDE3ICogMjMpICsgNCJ9fV0sImNvbnRhaW5lciI6bnVsbCwic3RvcF9yZWFzb24iOiJ0b29sX3VzZSIsInN0b3Bfc2VxdWVuY2UiOm51bGwsInN0b3BfZGV0YWlscyI6bnVsbCwidXNhZ2UiOnsiaW5wdXRfdG9rZW5zIjo1NTIsImNhY2hlX2NyZWF0aW9uX2lucHV0X3Rva2VucyI6MCwiY2FjaGVfcmVhZF9pbnB1dF90b2tlbnMiOjAsImNhY2hlX2NyZWF0aW9uIjp7ImVwaGVtZXJhbF81bV9pbnB1dF90b2tlbnMiOjAsImVwaGVtZXJhbF8xaF9pbnB1dF90b2tlbnMiOjB9LCJvdXRwdXRfdG9rZW5zIjo1Nywib3V0cHV0X3Rva2Vuc19kZXRhaWxzIjp7InRoaW5raW5nX3Rva2VucyI6MH0sInNlcnZpY2VfdGllciI6InN0YW5kYXJkIn19",
+   "request_sha256": "dd226d08572af4cb2ba0118835e56901f2fd9ec79aa5d41eb0cca14a0ed98304"
+  },
+  {
+   "method": "POST",
+   "path": "/model/global.anthropic.claude-sonnet-5-5/invoke",
+   "status": 200,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "eyJtb2RlbCI6ImNsYXVkZS1zb25uZXQtNS01IiwiaWQiOiJtc2dfYmRya183cnYzNHN6anl3cjJ6Y29ydjI1dmIybmhlNHcyNHFrYmR1aG91eXhsa2h1bG9kdjRic2thIiwidHlwZSI6Im1lc3NhZ2UiLCJyb2xlIjoiYXNzaXN0YW50IiwiY29udGVudCI6W3sidHlwZSI6InRleHQiLCJ0ZXh0IjoiKDE3IMOXIDIzKSArIDQgPSAqKjM5NSoqLiJ9XSwiY29udGFpbmVyIjpudWxsLCJzdG9wX3JlYXNvbiI6ImVuZF90dXJuIiwic3RvcF9zZXF1ZW5jZSI6bnVsbCwic3RvcF9kZXRhaWxzIjpudWxsLCJ1c2FnZSI6eyJpbnB1dF90b2tlbnMiOjYxNywiY2FjaGVfY3JlYXRpb25faW5wdXRfdG9rZW5zIjowLCJjYWNoZV9yZWFkX2lucHV0X3Rva2VucyI6MCwiY2FjaGVfY3JlYXRpb24iOnsiZXBoZW1lcmFsXzVtX2lucHV0X3Rva2VucyI6MCwiZXBoZW1lcmFsXzFoX2lucHV0X3Rva2VucyI6MH0sIm91dHB1dF90b2tlbnMiOjE4LCJvdXRwdXRfdG9rZW5zX2RldGFpbHMiOnsidGhpbmtpbmdfdG9rZW5zIjowfSwic2VydmljZV90aWVyIjoic3RhbmRhcmQifX0=",
+   "request_sha256": "1c59fb3dbc8f72eeb777fd6503a1dde3ba2ffb2eb2f27246f0d41e369d4f9e2b"
+  }
+ ]
+}
