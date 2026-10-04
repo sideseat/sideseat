@@ -246,13 +246,22 @@ pub(in crate::sideml::feed) fn append_error_messages(
             continue;
         }
         // A failed tool that reported its failure as a tool result has already said what went wrong;
-        // the exception would repeat it, attributed to the assistant.
+        // the exception would repeat it, attributed to the assistant. The result may sit on the tool's
+        // own span or, where the framework records the tool span bare and the result on the step or
+        // request around it, anywhere in the trace that quotes the exception.
+        let exception_message = row
+            .exception_message
+            .as_deref()
+            .filter(|m| !m.trim().is_empty());
         let reported_as_result = messages.iter().any(|m| {
-            m.span_id == row.span_id
-                && m.message
-                    .content
-                    .iter()
-                    .any(|block| matches!(block, ContentBlock::ToolResult { .. }))
+            m.message.content.iter().any(|block| match block {
+                ContentBlock::ToolResult { content, .. } => {
+                    m.span_id == row.span_id
+                        || (m.trace_id == row.trace_id
+                            && exception_message.is_some_and(|text| quotes(content, text)))
+                }
+                _ => false,
+            })
         });
         if reported_as_result {
             continue;
@@ -297,6 +306,16 @@ pub(in crate::sideml::feed) fn append_error_messages(
             scope_name: row.scope_name.clone(),
             scope_version: row.scope_version.clone(),
         });
+    }
+}
+
+/// Whether any string inside a tool result's content contains `text`.
+fn quotes(content: &JsonValue, text: &str) -> bool {
+    match content {
+        JsonValue::String(s) => s.contains(text),
+        JsonValue::Array(items) => items.iter().any(|item| quotes(item, text)),
+        JsonValue::Object(map) => map.values().any(|value| quotes(value, text)),
+        _ => false,
     }
 }
 

@@ -784,6 +784,53 @@ fn test_error_block_only_on_leaf_with_exception_fields() {
     }
 }
 
+/// Regression: a bare failed tool span whose failure the trace already reports as a tool result.
+///
+/// LangGraph's OpenInference tool span carries only the exception; the error result the model read
+/// sits on the request span that follows. Rendering the exception as well made the failure appear
+/// twice, the second time as an assistant message.
+#[test]
+fn test_failure_reported_as_a_result_elsewhere_in_the_trace_is_not_repeated() {
+    let t0 = fixed_time();
+    let t1 = t0 + chrono::Duration::seconds(1);
+
+    let mut tool = make_span_row_full("t1", "tool", Some("root"), "[]", t0, Some(t1), Some("tool"));
+    tool.status_code = Some("ERROR".to_string());
+    tool.exception_type = Some("BookingUnavailable".to_string());
+    tool.exception_message = Some("the booking system is offline".to_string());
+
+    let request = serde_json::json!([{
+        "source": {"event": {"name": "gen_ai.tool.message", "time": t1.to_rfc3339()}},
+        "content": {
+            "role": "tool",
+            "content": [{
+                "type": "tool_result",
+                "tool_use_id": "call_1",
+                "content": "Error: BookingUnavailable('the booking system is offline')"
+            }]
+        }
+    }]);
+    let generation = make_span_row_full(
+        "t1",
+        "generation",
+        Some("root"),
+        &request.to_string(),
+        t1,
+        Some(t1 + chrono::Duration::seconds(1)),
+        Some("generation"),
+    );
+
+    let result = process_spans(vec![tool.clone(), generation], &FeedOptions::new());
+    assert!(
+        result.messages.iter().all(|b| !b.is_error),
+        "the failure was already reported as the tool's result"
+    );
+
+    // Alone, the tool span still says what went wrong.
+    let result = process_spans(vec![tool], &FeedOptions::new());
+    assert_eq!(result.messages.iter().filter(|b| b.is_error).count(), 1);
+}
+
 /// Regression: two independent error leaf spans (broken hierarchy) should
 /// both produce error blocks when both have exception fields.
 #[test]

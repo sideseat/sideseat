@@ -415,6 +415,34 @@ fn test_anthropic_tool_use() {
     assert_eq!(block_to_json(&output.content[0])["name"], "search");
 }
 
+/// Regression: a streamed call's input arrives as the JSON text its deltas accumulated.
+///
+/// LangChain's streamed Bedrock message kept `"input": "{\"city\": \"Rome\"}"`, and the same call from
+/// the completed response on that span carried the object, so the trace showed the call twice.
+#[test]
+fn test_tool_use_input_streamed_as_json_text_is_decoded() {
+    let input = json!({
+        "role": "assistant",
+        "content": [{
+            "type": "tool_use", "id": "toolu_1", "name": "get_weather", "index": 0,
+            "input": "{\"city\": \"Rome\", \"days\": 1}"
+        }]
+    });
+    let output = normalize(&input);
+    assert_eq!(
+        block_to_json(&output.content[0]),
+        json!({"type": "tool_use", "id": "toolu_1", "name": "get_weather", "input": {"city": "Rome", "days": 1}})
+    );
+
+    // Text that is not a JSON value is the input as sent and stays a string.
+    let input = json!({
+        "role": "assistant",
+        "content": [{"type": "tool_use", "id": "toolu_2", "name": "echo", "input": "{\"city\": "}]
+    });
+    let output = normalize(&input);
+    assert_eq!(block_to_json(&output.content[0])["input"], "{\"city\": ");
+}
+
 #[test]
 fn test_gemini_function_call() {
     let input = json!({

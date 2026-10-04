@@ -1,43 +1,99 @@
 {
   "label": "langgraph/sdk/structured_output",
   "request_count": 1,
-  "span_count": 2,
+  "span_count": 6,
   "trace_count": 1,
-  "session_count": 0,
+  "session_count": 1,
   "span_views": {
-    "trace-1/ChatOpenAI/span-2": {
-      "message_count": 2,
+    "trace-1/ChatBedrockConverse/span-5": {
+      "message_count": 3,
       "role_sequence": [
+        "system",
         "user",
         "assistant"
       ],
-      "tool_names": [],
-      "tool_definition_count": 0,
+      "tool_names": [
+        "TripPlan"
+      ],
+      "tool_definition_count": 1,
       "messages": [
         {
           "index": 0,
-          "role": "user",
+          "role": "system",
           "entry_type": "text",
-          "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
-          "content_digest": "6a08cceee02e13c8",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
           "observation_type": "generation"
         },
         {
           "index": 1,
-          "role": "assistant",
+          "role": "user",
           "entry_type": "text",
-          "content": "pydantic_core._pydantic_core.ValidationError: 1 validation error for Person Invalid JSON: expected value at line 1 column 1 [type=json_invalid, input_value='This is a deterministic local response.', input_type=str] For further information v…[292 chars]",
-          "content_digest": "575a88fa3a3cc2a8",
-          "finish_reason": "Error",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_d46gtGkgA91NSD2lXxmCoB\",\"name\":\"TripPlan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a coffee-house stop at Café Central, then an evening…[425 chars]",
+          "content_digest": "5eed520c52750b8e",
+          "tool_name": "TripPlan",
           "observation_type": "generation"
         }
       ]
     },
-    "trace-1/RunnableSequence/span-1": {
+    "trace-1/RunnableSequence/span-4": {
       "message_count": 2,
       "role_sequence": [
-        "user",
+        "system",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/_RepairingPydanticToolsParser/span-6": {
+      "message_count": 1,
+      "role_sequence": [
         "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_d46gtGkgA91NSD2lXxmCoB\",\"name\":\"TripPlan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a coffee-house stop at Café Central, then an evening…[425 chars]",
+          "content_digest": "5eed520c52750b8e",
+          "tool_name": "TripPlan",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/plan/span-3": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -46,77 +102,155 @@
           "index": 0,
           "role": "user",
           "entry_type": "text",
-          "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
-          "content_digest": "6a08cceee02e13c8",
-          "observation_type": "chain"
-        },
-        {
-          "index": 1,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "pydantic_core._pydantic_core.ValidationError: 1 validation error for Person Invalid JSON: expected value at line 1 column 1 [type=json_invalid, input_value='This is a deterministic local response.', input_type=str] For further information v…[292 chars]",
-          "content_digest": "575a88fa3a3cc2a8",
-          "finish_reason": "Error",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
           "observation_type": "chain"
         }
       ]
+    },
+    "trace-1/planner/span-2": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/structured-output/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
     }
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 2,
+      "message_count": 3,
       "role_sequence": [
+        "system",
         "user",
         "assistant"
       ],
-      "tool_names": [],
-      "tool_definition_count": 0,
+      "tool_names": [
+        "TripPlan"
+      ],
+      "tool_definition_count": 1,
       "messages": [
         {
           "index": 0,
-          "role": "user",
+          "role": "system",
           "entry_type": "text",
-          "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
-          "content_digest": "6a08cceee02e13c8",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
           "observation_type": "chain"
         },
         {
           "index": 1,
-          "role": "assistant",
+          "role": "user",
           "entry_type": "text",
-          "content": "pydantic_core._pydantic_core.ValidationError: 1 validation error for Person Invalid JSON: expected value at line 1 column 1 [type=json_invalid, input_value='This is a deterministic local response.', input_type=str] For further information v…[292 chars]",
-          "content_digest": "575a88fa3a3cc2a8",
-          "finish_reason": "Error",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_d46gtGkgA91NSD2lXxmCoB\",\"name\":\"TripPlan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a coffee-house stop at Café Central, then an evening…[425 chars]",
+          "content_digest": "5eed520c52750b8e",
+          "tool_name": "TripPlan",
           "observation_type": "generation"
         }
       ]
     }
   },
-  "session_views": {},
+  "session_views": {
+    "langgraph-structured_output": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "TripPlan"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_d46gtGkgA91NSD2lXxmCoB\",\"name\":\"TripPlan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a coffee-house stop at Café Central, then an evening…[425 chars]",
+          "content_digest": "5eed520c52750b8e",
+          "tool_name": "TripPlan",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
   "feed_view": {
-    "message_count": 2,
+    "message_count": 3,
     "role_sequence": [
       "assistant",
+      "system",
       "user"
     ],
-    "tool_names": [],
-    "tool_definition_count": 0,
+    "tool_names": [
+      "TripPlan"
+    ],
+    "tool_definition_count": 1,
     "messages": [
       {
         "index": 0,
         "role": "assistant",
-        "entry_type": "text",
-        "content": "pydantic_core._pydantic_core.ValidationError: 1 validation error for Person Invalid JSON: expected value at line 1 column 1 [type=json_invalid, input_value='This is a deterministic local response.', input_type=str] For further information v…[292 chars]",
-        "content_digest": "575a88fa3a3cc2a8",
-        "finish_reason": "Error",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_d46gtGkgA91NSD2lXxmCoB\",\"name\":\"TripPlan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a coffee-house stop at Café Central, then an evening…[425 chars]",
+        "content_digest": "5eed520c52750b8e",
+        "tool_name": "TripPlan",
         "observation_type": "generation"
       },
       {
         "index": 1,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "chain"
+      },
+      {
+        "index": 2,
         "role": "user",
         "entry_type": "text",
-        "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
-        "content_digest": "6a08cceee02e13c8",
+        "content": "Plan a two-day trip to Vienna.",
+        "content_digest": "5f56235d64bfe00d",
         "observation_type": "chain"
       }
     ]

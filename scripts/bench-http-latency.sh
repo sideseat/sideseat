@@ -13,7 +13,7 @@
 # Three things this script is careful about, each because getting it wrong produces a number that looks
 # like evidence and is not:
 #
-#   * **The read workload is the whole fixture.** Every request of `langgraph/swarm` is posted once, and the
+#   * **The read workload is the whole fixture.** Every request of `langgraph/native/multi_agent` is posted once, and the
 #     script prints how many spans the resulting session actually covers rather than asserting a number.
 #     Re-posting one request many times does not build a session: ingestion is idempotent by span id, so it
 #     stays as small as one request's worth however many times it is sent.
@@ -187,7 +187,7 @@ bench_curl -sf "http://127.0.0.1:$PORT/api/v1/health" >/dev/null || {
   echo "[bench] server did not come up"; cat "$WORK/server.log"; exit 1;
 }
 
-FIXTURE="$ROOT/server/tests/fixtures/messages/langgraph/legacy/swarm"
+FIXTURE="$ROOT/server/tests/fixtures/messages/langgraph/native/multi_agent"
 SMALL="$FIXTURE/req-001.pb"
 LARGE="$(python3 - "$FIXTURE" <<'PY'
 import sys

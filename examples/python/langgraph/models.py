@@ -1,5 +1,6 @@
 """Maps a harness model alias to a LangChain chat model on Bedrock Converse."""
 
+from botocore.config import Config
 from langchain_aws import ChatBedrockConverse
 
 from harness import Model
@@ -26,4 +27,7 @@ def build(model: Model, *, reasoning: bool = False) -> ChatBedrockConverse:
         region_name=region(),
         max_tokens=16_000,
         additional_model_request_fields=fields,
+        # Reasoning at maximum effort can take minutes; botocore's 60-second read timeout would
+        # retry a request the model is still answering.
+        config=Config(read_timeout=600),
     )

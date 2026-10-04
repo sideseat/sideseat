@@ -1,11 +1,11 @@
 {
   "label": "langgraph/native/files",
   "request_count": 1,
-  "span_count": 1,
+  "span_count": 4,
   "trace_count": 1,
-  "session_count": 0,
+  "session_count": 1,
   "span_views": {
-    "trace-1/ChatOpenAI/span-1": {
+    "trace-1/ChatBedrockConverse/span-4": {
       "message_count": 5,
       "role_sequence": [
         "system",
@@ -21,16 +21,16 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
-          "content": "You are a file analysis AI that can read images and documents.",
-          "content_digest": "a7b564c8a3a5cf2b",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
           "observation_type": "generation"
         },
         {
           "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "Describe the contents of this image in detail using instructions from the PDF document.",
-          "content_digest": "8c75c636689055d9",
+          "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+          "content_digest": "66bed9fc16754ebe",
           "observation_type": "generation"
         },
         {
@@ -45,18 +45,89 @@
           "index": 3,
           "role": "user",
           "entry_type": "document",
-          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task-document\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoI…[17713 chars]",
-          "content_digest": "0e5f984c3e07df1a",
-          "tool_name": "task-document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXy…[17704 chars]",
+          "content_digest": "d3b2efa81a0d83fc",
+          "tool_name": "task",
           "observation_type": "generation"
         },
         {
           "index": 4,
           "role": "assistant",
           "entry_type": "text",
-          "content": "This is a deterministic local response.",
-          "content_digest": "cabe67b517eb819b",
+          "content": "**Image:** A curving paved path winds through a sunny park with green lawns, a low stone retaining wall, evergreen and bare trees, and brick apartment buildings in the background under a clear blue sky. **Document:** This five-page document…[354 chars]",
+          "content_digest": "b9fd2ccddf9976dd",
           "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/agent/span-2": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+          "content_digest": "66bed9fc16754ebe",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/files/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/model/span-3": {
+      "message_count": 4,
+      "role_sequence": [
+        "user",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+          "content_digest": "66bed9fc16754ebe",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "image",
+          "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
+          "content_digest": "f66271bc4504cd52",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXy…[17704 chars]",
+          "content_digest": "d3b2efa81a0d83fc",
+          "tool_name": "task",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Image:** A curving paved path winds through a sunny park with green lawns, a low stone retaining wall, evergreen and bare trees, and brick apartment buildings in the background under a clear blue sky. **Document:** This five-page document…[354 chars]",
+          "content_digest": "b9fd2ccddf9976dd",
+          "observation_type": "chain"
         }
       ]
     }
@@ -78,17 +149,17 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
-          "content": "You are a file analysis AI that can read images and documents.",
-          "content_digest": "a7b564c8a3a5cf2b",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
           "observation_type": "generation"
         },
         {
           "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "Describe the contents of this image in detail using instructions from the PDF document.",
-          "content_digest": "8c75c636689055d9",
-          "observation_type": "generation"
+          "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+          "content_digest": "66bed9fc16754ebe",
+          "observation_type": "agent"
         },
         {
           "index": 2,
@@ -96,37 +167,93 @@
           "entry_type": "image",
           "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
           "content_digest": "f66271bc4504cd52",
-          "observation_type": "generation"
+          "observation_type": "chain"
         },
         {
           "index": 3,
           "role": "user",
           "entry_type": "document",
-          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task-document\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoI…[17713 chars]",
-          "content_digest": "0e5f984c3e07df1a",
-          "tool_name": "task-document",
-          "observation_type": "generation"
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXy…[17704 chars]",
+          "content_digest": "d3b2efa81a0d83fc",
+          "tool_name": "task",
+          "observation_type": "chain"
         },
         {
           "index": 4,
           "role": "assistant",
           "entry_type": "text",
-          "content": "This is a deterministic local response.",
-          "content_digest": "cabe67b517eb819b",
-          "observation_type": "generation"
+          "content": "**Image:** A curving paved path winds through a sunny park with green lawns, a low stone retaining wall, evergreen and bare trees, and brick apartment buildings in the background under a clear blue sky. **Document:** This five-page document…[354 chars]",
+          "content_digest": "b9fd2ccddf9976dd",
+          "observation_type": "chain"
         }
       ]
     }
   },
-  "session_views": {},
+  "session_views": {
+    "langgraph-files": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+          "content_digest": "66bed9fc16754ebe",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "image",
+          "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
+          "content_digest": "f66271bc4504cd52",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXy…[17704 chars]",
+          "content_digest": "d3b2efa81a0d83fc",
+          "tool_name": "task",
+          "observation_type": "chain"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Image:** A curving paved path winds through a sunny park with green lawns, a low stone retaining wall, evergreen and bare trees, and brick apartment buildings in the background under a clear blue sky. **Document:** This five-page document…[354 chars]",
+          "content_digest": "b9fd2ccddf9976dd",
+          "observation_type": "chain"
+        }
+      ]
+    }
+  },
   "feed_view": {
     "message_count": 5,
     "role_sequence": [
       "system",
       "user",
       "user",
-      "user",
-      "assistant"
+      "assistant",
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 0,
@@ -135,42 +262,42 @@
         "index": 0,
         "role": "system",
         "entry_type": "text",
-        "content": "You are a file analysis AI that can read images and documents.",
-        "content_digest": "a7b564c8a3a5cf2b",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
         "observation_type": "generation"
       },
       {
         "index": 1,
         "role": "user",
-        "entry_type": "text",
-        "content": "Describe the contents of this image in detail using instructions from the PDF document.",
-        "content_digest": "8c75c636689055d9",
-        "observation_type": "generation"
+        "entry_type": "image",
+        "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
+        "content_digest": "f66271bc4504cd52",
+        "observation_type": "chain"
       },
       {
         "index": 2,
         "role": "user",
-        "entry_type": "image",
-        "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
-        "content_digest": "f66271bc4504cd52",
-        "observation_type": "generation"
+        "entry_type": "document",
+        "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXy…[17704 chars]",
+        "content_digest": "d3b2efa81a0d83fc",
+        "tool_name": "task",
+        "observation_type": "chain"
       },
       {
         "index": 3,
-        "role": "user",
-        "entry_type": "document",
-        "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task-document\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoI…[17713 chars]",
-        "content_digest": "0e5f984c3e07df1a",
-        "tool_name": "task-document",
-        "observation_type": "generation"
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "**Image:** A curving paved path winds through a sunny park with green lawns, a low stone retaining wall, evergreen and bare trees, and brick apartment buildings in the background under a clear blue sky. **Document:** This five-page document…[354 chars]",
+        "content_digest": "b9fd2ccddf9976dd",
+        "observation_type": "chain"
       },
       {
         "index": 4,
-        "role": "assistant",
+        "role": "user",
         "entry_type": "text",
-        "content": "This is a deterministic local response.",
-        "content_digest": "cabe67b517eb819b",
-        "observation_type": "generation"
+        "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+        "content_digest": "66bed9fc16754ebe",
+        "observation_type": "agent"
       }
     ]
   }

@@ -100,8 +100,11 @@ INTENTIONAL_WARNINGS: dict[str, dict[str, tuple[int, str]]] = {
             "structured assistant output is canonically represented as JSON",
         ),
     },
-    "langgraph/structured_output": {
-        "unbalanced_tools": (1, "Person is a terminal schema pseudo-tool"),
+    "langgraph/native/structured_output": {
+        "unbalanced_tools": (2, "TripPlan is a terminal schema pseudo-tool"),
+    },
+    "langgraph/sdk/structured_output": {
+        "unbalanced_tools": (2, "TripPlan is a terminal schema pseudo-tool"),
     },
     "openai-agents/structured_output": {
         "json_block": (

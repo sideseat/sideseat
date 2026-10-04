@@ -319,6 +319,24 @@ fn try_sideml_passthrough(block: &JsonValue) -> Option<JsonValue> {
         return Some(JsonValue::Object(result));
     }
 
+    // A streamed tool call accumulates its input as the JSON text the deltas carried. The block's input is
+    // the structured value, so the text is decoded; left as a string, the same call read from a completed
+    // response elsewhere on the span digests differently and survives as a second call.
+    if block_type == "tool_use"
+        && let (Some(name), Some(JsonValue::String(text))) = (block.get("name"), block.get("input"))
+        && let Ok(input @ (JsonValue::Object(_) | JsonValue::Array(_))) =
+            serde_json::from_str::<JsonValue>(text)
+    {
+        let mut call = serde_json::Map::new();
+        call.insert("type".to_string(), json!("tool_use"));
+        if let Some(id) = block.get("id") {
+            call.insert("id".to_string(), id.clone());
+        }
+        call.insert("name".to_string(), name.clone());
+        call.insert("input".to_string(), input);
+        return Some(JsonValue::Object(call));
+    }
+
     // Check structure based on type
     let is_valid_sideml = match block_type {
         // Image/audio/document/video/file: must have "source" and "data" fields

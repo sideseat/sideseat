@@ -1,11 +1,50 @@
 {
   "label": "langgraph/sdk/mcp_tools",
   "request_count": 1,
-  "span_count": 15,
+  "span_count": 10,
   "trace_count": 1,
   "session_count": 1,
   "span_views": {
-    "trace-1/ChatOpenAI/span-14": {
+    "trace-1/ChatBedrockConverse/span-4": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "calculate"
+      ],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
+          "content_digest": "94524de89ab3c69f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_P1T5cApjE3b2KQ6VZCXeXk\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+          "content_digest": "b459e8200643c14d",
+          "tool_name": "calculate",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/ChatBedrockConverse/span-9": {
       "message_count": 5,
       "role_sequence": [
         "system",
@@ -23,24 +62,24 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
-          "content": "You help users to calculate expressions.",
-          "content_digest": "b7a2b52d27e0093a",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
           "observation_type": "generation"
         },
         {
           "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "Calculate an expression for me: What is 12345 plus 6789?",
-          "content_digest": "2f005e8714b6ca59",
+          "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
+          "content_digest": "94524de89ab3c69f",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"call-calculate-1\",\"name\":\"calculate\",\"input\":{\"expression\":\"12345 + 6789\"}}",
-          "content_digest": "740c1b5c6c765c0a",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_P1T5cApjE3b2KQ6VZCXeXk\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+          "content_digest": "b459e8200643c14d",
           "tool_name": "calculate",
           "observation_type": "generation"
         },
@@ -48,183 +87,17 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "19134.0",
-          "content_digest": "c508fd66e1c76ebf",
+          "content": "395.0",
+          "content_digest": "0ee7e4a3e03dcba7",
           "observation_type": "generation"
         },
         {
           "index": 4,
           "role": "assistant",
           "entry_type": "text",
-          "content": "The result is 19134.",
-          "content_digest": "4cf47e24ff4bf6b2",
+          "content": "(17 × 23) + 4 = **395**.",
+          "content_digest": "52aaa6c961cd0f52",
           "observation_type": "generation"
-        }
-      ]
-    },
-    "trace-1/ChatOpenAI/span-6": {
-      "message_count": 3,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [
-        "calculate"
-      ],
-      "tool_definition_count": 1,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You help users to calculate expressions.",
-          "content_digest": "b7a2b52d27e0093a",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Calculate an expression for me: What is 12345 plus 6789?",
-          "content_digest": "2f005e8714b6ca59",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"call-calculate-1\",\"name\":\"calculate\",\"input\":{\"expression\":\"12345 + 6789\"}}",
-          "content_digest": "740c1b5c6c765c0a",
-          "tool_name": "calculate",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "trace-1/LangGraph/span-1": {
-      "message_count": 1,
-      "role_sequence": [
-        "user"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Calculate an expression for me: What is 12345 plus 6789?",
-          "content_digest": "2f005e8714b6ca59",
-          "observation_type": "chain"
-        }
-      ]
-    },
-    "trace-1/Prompt/span-13": {
-      "message_count": 1,
-      "role_sequence": [
-        "user"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Calculate an expression for me: What is 12345 plus 6789?",
-          "content_digest": "2f005e8714b6ca59",
-          "observation_type": "chain"
-        }
-      ]
-    },
-    "trace-1/Prompt/span-5": {
-      "message_count": 1,
-      "role_sequence": [
-        "user"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Calculate an expression for me: What is 12345 plus 6789?",
-          "content_digest": "2f005e8714b6ca59",
-          "observation_type": "chain"
-        }
-      ]
-    },
-    "trace-1/RunnableSequence/span-12": {
-      "message_count": 2,
-      "role_sequence": [
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Calculate an expression for me: What is 12345 plus 6789?",
-          "content_digest": "2f005e8714b6ca59",
-          "observation_type": "chain"
-        },
-        {
-          "index": 1,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The result is 19134.",
-          "content_digest": "4cf47e24ff4bf6b2",
-          "observation_type": "chain"
-        }
-      ]
-    },
-    "trace-1/RunnableSequence/span-4": {
-      "message_count": 2,
-      "role_sequence": [
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Calculate an expression for me: What is 12345 plus 6789?",
-          "content_digest": "2f005e8714b6ca59",
-          "observation_type": "chain"
-        },
-        {
-          "index": 1,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"call-calculate-1\",\"name\":\"calculate\",\"input\":{\"expression\":\"12345 + 6789\"}}",
-          "content_digest": "740c1b5c6c765c0a",
-          "tool_name": "calculate",
-          "observation_type": "chain"
-        }
-      ]
-    },
-    "trace-1/agent/span-10": {
-      "message_count": 1,
-      "role_sequence": [
-        "user"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Calculate an expression for me: What is 12345 plus 6789?",
-          "content_digest": "2f005e8714b6ca59",
-          "observation_type": "agent"
         }
       ]
     },
@@ -240,97 +113,210 @@
           "index": 0,
           "role": "user",
           "entry_type": "text",
-          "content": "Calculate an expression for me: What is 12345 plus 6789?",
-          "content_digest": "2f005e8714b6ca59",
+          "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
+          "content_digest": "94524de89ab3c69f",
           "observation_type": "agent"
         }
       ]
     },
-    "trace-1/calculate/span-9": {
+    "trace-1/calculate/span-7": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 1,
       "messages": []
     },
-    "trace-1/call_model/span-11": {
-      "message_count": 1,
-      "role_sequence": [
-        "user"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Calculate an expression for me: What is 12345 plus 6789?",
-          "content_digest": "2f005e8714b6ca59",
-          "observation_type": "chain"
-        }
-      ]
-    },
-    "trace-1/call_model/span-3": {
-      "message_count": 1,
-      "role_sequence": [
-        "user"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Calculate an expression for me: What is 12345 plus 6789?",
-          "content_digest": "2f005e8714b6ca59",
-          "observation_type": "chain"
-        }
-      ]
-    },
-    "trace-1/should_continue/span-15": {
-      "message_count": 1,
-      "role_sequence": [
-        "user"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Calculate an expression for me: What is 12345 plus 6789?",
-          "content_digest": "2f005e8714b6ca59",
-          "observation_type": "chain"
-        }
-      ]
-    },
-    "trace-1/should_continue/span-7": {
-      "message_count": 1,
-      "role_sequence": [
-        "user"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Calculate an expression for me: What is 12345 plus 6789?",
-          "content_digest": "2f005e8714b6ca59",
-          "observation_type": "chain"
-        }
-      ]
-    },
-    "trace-1/tools/span-8": {
+    "trace-1/mcp-tools/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
+    },
+    "trace-1/model/span-3": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
+          "content_digest": "94524de89ab3c69f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_P1T5cApjE3b2KQ6VZCXeXk\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+          "content_digest": "b459e8200643c14d",
+          "tool_name": "calculate",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/model/span-8": {
+      "message_count": 4,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
+          "content_digest": "94524de89ab3c69f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_P1T5cApjE3b2KQ6VZCXeXk\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+          "content_digest": "b459e8200643c14d",
+          "tool_name": "calculate",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "395.0",
+          "content_digest": "0ee7e4a3e03dcba7",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "(17 × 23) + 4 = **395**.",
+          "content_digest": "52aaa6c961cd0f52",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/tools/span-6": {
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
+          "content_digest": "94524de89ab3c69f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_P1T5cApjE3b2KQ6VZCXeXk\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+          "content_digest": "b459e8200643c14d",
+          "tool_name": "calculate",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "395.0",
+          "content_digest": "0ee7e4a3e03dcba7",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/tools_condition/span-10": {
+      "message_count": 4,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
+          "content_digest": "94524de89ab3c69f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_P1T5cApjE3b2KQ6VZCXeXk\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+          "content_digest": "b459e8200643c14d",
+          "tool_name": "calculate",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "395.0",
+          "content_digest": "0ee7e4a3e03dcba7",
+          "observation_type": "chain"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "(17 × 23) + 4 = **395**.",
+          "content_digest": "52aaa6c961cd0f52",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/tools_condition/span-5": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
+          "content_digest": "94524de89ab3c69f",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_P1T5cApjE3b2KQ6VZCXeXk\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+          "content_digest": "b459e8200643c14d",
+          "tool_name": "calculate",
+          "observation_type": "chain"
+        }
+      ]
     }
   },
   "trace_views": {
@@ -352,24 +338,24 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
-          "content": "You help users to calculate expressions.",
-          "content_digest": "b7a2b52d27e0093a",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
           "observation_type": "generation"
         },
         {
           "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "Calculate an expression for me: What is 12345 plus 6789?",
-          "content_digest": "2f005e8714b6ca59",
-          "observation_type": "chain"
+          "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
+          "content_digest": "94524de89ab3c69f",
+          "observation_type": "agent"
         },
         {
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"call-calculate-1\",\"name\":\"calculate\",\"input\":{\"expression\":\"12345 + 6789\"}}",
-          "content_digest": "740c1b5c6c765c0a",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_P1T5cApjE3b2KQ6VZCXeXk\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+          "content_digest": "b459e8200643c14d",
           "tool_name": "calculate",
           "observation_type": "chain"
         },
@@ -377,23 +363,23 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "19134.0",
-          "content_digest": "c508fd66e1c76ebf",
-          "observation_type": "generation"
+          "content": "395.0",
+          "content_digest": "0ee7e4a3e03dcba7",
+          "observation_type": "chain"
         },
         {
           "index": 4,
           "role": "assistant",
           "entry_type": "text",
-          "content": "The result is 19134.",
-          "content_digest": "4cf47e24ff4bf6b2",
+          "content": "(17 × 23) + 4 = **395**.",
+          "content_digest": "52aaa6c961cd0f52",
           "observation_type": "chain"
         }
       ]
     }
   },
   "session_views": {
-    "langgraph-mcp_tools-b4385cca": {
+    "langgraph-mcp_tools": {
       "message_count": 5,
       "role_sequence": [
         "system",
@@ -411,24 +397,24 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
-          "content": "You help users to calculate expressions.",
-          "content_digest": "b7a2b52d27e0093a",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
           "observation_type": "generation"
         },
         {
           "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "Calculate an expression for me: What is 12345 plus 6789?",
-          "content_digest": "2f005e8714b6ca59",
-          "observation_type": "chain"
+          "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
+          "content_digest": "94524de89ab3c69f",
+          "observation_type": "agent"
         },
         {
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"call-calculate-1\",\"name\":\"calculate\",\"input\":{\"expression\":\"12345 + 6789\"}}",
-          "content_digest": "740c1b5c6c765c0a",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_P1T5cApjE3b2KQ6VZCXeXk\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+          "content_digest": "b459e8200643c14d",
           "tool_name": "calculate",
           "observation_type": "chain"
         },
@@ -436,16 +422,16 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "19134.0",
-          "content_digest": "c508fd66e1c76ebf",
-          "observation_type": "generation"
+          "content": "395.0",
+          "content_digest": "0ee7e4a3e03dcba7",
+          "observation_type": "chain"
         },
         {
           "index": 4,
           "role": "assistant",
           "entry_type": "text",
-          "content": "The result is 19134.",
-          "content_digest": "4cf47e24ff4bf6b2",
+          "content": "(17 × 23) + 4 = **395**.",
+          "content_digest": "52aaa6c961cd0f52",
           "observation_type": "chain"
         }
       ]
@@ -454,8 +440,8 @@
   "feed_view": {
     "message_count": 5,
     "role_sequence": [
-      "tool",
       "assistant",
+      "tool",
       "system",
       "assistant",
       "user"
@@ -467,34 +453,34 @@
     "messages": [
       {
         "index": 0,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "19134.0",
-        "content_digest": "c508fd66e1c76ebf",
-        "observation_type": "generation"
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "(17 × 23) + 4 = **395**.",
+        "content_digest": "52aaa6c961cd0f52",
+        "observation_type": "chain"
       },
       {
         "index": 1,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "The result is 19134.",
-        "content_digest": "4cf47e24ff4bf6b2",
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "395.0",
+        "content_digest": "0ee7e4a3e03dcba7",
         "observation_type": "chain"
       },
       {
         "index": 2,
         "role": "system",
         "entry_type": "text",
-        "content": "You help users to calculate expressions.",
-        "content_digest": "b7a2b52d27e0093a",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
         "observation_type": "generation"
       },
       {
         "index": 3,
         "role": "assistant",
         "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"call-calculate-1\",\"name\":\"calculate\",\"input\":{\"expression\":\"12345 + 6789\"}}",
-        "content_digest": "740c1b5c6c765c0a",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_P1T5cApjE3b2KQ6VZCXeXk\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+        "content_digest": "b459e8200643c14d",
         "tool_name": "calculate",
         "observation_type": "chain"
       },
@@ -502,9 +488,9 @@
         "index": 4,
         "role": "user",
         "entry_type": "text",
-        "content": "Calculate an expression for me: What is 12345 plus 6789?",
-        "content_digest": "2f005e8714b6ca59",
-        "observation_type": "chain"
+        "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
+        "content_digest": "94524de89ab3c69f",
+        "observation_type": "agent"
       }
     ]
   }

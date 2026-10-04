@@ -275,6 +275,9 @@ fn local_only_samples_are_actually_gitignored() {
 ///   `generate_image` failures as one. Where several *distinct spans* each report the same text, the
 ///   surviving set must be the reporting set.
 ///
+/// A failed tool whose failure the trace view shows as the tool result the model read is represented by
+/// that result, so its exception is not counted as lost.
+///
 /// Deliberately not "every span exception has a trace representative": that flags the 18 legitimately
 /// suppressed parent copies across ten fixtures, since an ancestor re-reports its descendant's failure.
 /// Telling that suppression from a false equivalence needs `parent_span_id`, which `InvariantRow` does
@@ -300,7 +303,19 @@ fn exception_conservation_violations(built: &Built) -> Vec<String> {
             if span_trace != trace_id {
                 continue;
             }
-            for r in rows.iter().filter(|r| r.carrier == "attr:exception") {
+            // A failure the trace already shows as the result the model read is not lost: the
+            // production rule leaves the exception out there because the result says the same thing.
+            // The block reads `Type: message`, and the result quotes the message.
+            let reported_as_result = |r: &InvariantRow| {
+                let message = r.content.split_once(": ").map_or(r.content.as_str(), |(_, m)| m);
+                trace_rows
+                    .iter()
+                    .any(|t| t.entry_type == "tool_result" && t.content.contains(message))
+            };
+            for r in rows
+                .iter()
+                .filter(|r| r.carrier == "attr:exception" && !reported_as_result(r))
+            {
                 reported
                     .entry(r.content_digest.as_str())
                     .or_default()

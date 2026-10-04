@@ -11,9 +11,9 @@ class PlanState(MessagesState):
 
 
 async def run(run: Run) -> None:
-    # Bedrock's native structured output: forced tool choice, the function-calling method, is not
-    # available on current Claude models.
-    planner = run.llm.with_structured_output(content.TripPlan, method="json_schema")
+    # The schema is offered as a tool. Current Claude models reject both forced tool choice and
+    # Bedrock's native output format, so the tool is offered with automatic choice.
+    planner = run.llm.with_structured_output(content.TripPlan)
 
     async def plan(state: PlanState) -> dict[str, Any]:
         return {

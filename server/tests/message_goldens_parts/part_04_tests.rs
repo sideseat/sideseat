@@ -105,7 +105,7 @@ fn the_feed_keeps_each_response_forward() {
 #[test]
 #[ignore]
 fn bench_pipeline() {
-    let want = std::env::var("BENCH").unwrap_or_else(|_| "langgraph/legacy/swarm".to_string());
+    let want = std::env::var("BENCH").unwrap_or_else(|_| "langgraph/native/multi_agent".to_string());
     let (_, paths) = discover_fixtures()
         .into_iter()
         .find(|(l, _)| *l == want)
@@ -788,7 +788,7 @@ async fn bench_ingestion_end_to_end() {
     use sideseat_server::app::storage::{AnalyticsService, TransactionalService};
     use std::sync::Arc;
 
-    let want = std::env::var("BENCH").unwrap_or_else(|_| "langgraph/legacy/swarm".to_string());
+    let want = std::env::var("BENCH").unwrap_or_else(|_| "langgraph/native/multi_agent".to_string());
     let (label, paths) = discover_fixtures()
         .into_iter()
         .find(|(l, _)| *l == want)

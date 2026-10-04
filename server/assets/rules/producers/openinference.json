@@ -181,14 +181,45 @@
           }
         ]
       },
-      "legacy_rank": 200
+      "legacy_rank": 184
     },
     {
       "id": "openinference.output_messages",
       "doc": "What the span produced.",
       "read": {
         "indexed_family": "llm.output_messages",
-        "entry_member": "message"
+        "entry_member": "message",
+        "overlay": {
+          "doc": "The same loss on the way out: the flattened family drops blocks it has no name for, such as reasoning, and indexes what remains from where it sat - so an answer that followed its reasoning arrives as `contents.1` with nothing at `contents.0`. The dialect's serialised generation on the same span keeps every block in order. Matched by position, one generation per output message, and only for an entry whose content arrived flattened.",
+          "from": "output.value",
+          "parse": "json",
+          "select_any_of": [
+            "$.generations"
+          ],
+          "unwrap_single_element_list": true,
+          "witness": {
+            "any": [
+              {
+                "path": "$[*].message.id",
+                "kind": "array",
+                "doc": "A generation's message carries its class path as an array."
+              }
+            ]
+          },
+          "when_member_prefix": "contents.",
+          "content_any_of": [
+            "$.message.kwargs.content",
+            "$.message.content"
+          ],
+          "require": {
+            "all": [
+              {
+                "kind": "array"
+              }
+            ]
+          },
+          "as_member": "content"
+        }
       },
       "require_members": {
         "all_of": [
@@ -217,7 +248,7 @@
           }
         ]
       },
-      "legacy_rank": 210
+      "legacy_rank": 185
     },
     {
       "id": "openinference.tool_output_with_id",

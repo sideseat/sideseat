@@ -31,7 +31,8 @@ def build_agent(
     graph.add_node("model", call_model)
     graph.add_edge(START, "model")
     if tools:
-        graph.add_node("tools", ToolNode(tools))
+        # A tool's exception becomes an error result the model reads, rather than ending the run.
+        graph.add_node("tools", ToolNode(tools, handle_tool_errors=True))
         graph.add_conditional_edges("model", tools_condition)
         graph.add_edge("tools", "model")
     else:

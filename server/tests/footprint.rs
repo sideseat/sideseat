@@ -519,7 +519,8 @@ fn fixture_requests()
 -> Vec<opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest> {
     use prost::Message;
 
-    let want = std::env::var("FOOTPRINT_FIXTURE").unwrap_or_else(|_| "langgraph/swarm".to_string());
+    let want = std::env::var("FOOTPRINT_FIXTURE")
+        .unwrap_or_else(|_| "langgraph/native/multi_agent".to_string());
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/messages")
         .join(&want);
