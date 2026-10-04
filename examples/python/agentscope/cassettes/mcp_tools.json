@@ -1,0 +1,24 @@
+{
+ "interactions": [
+  {
+   "method": "POST",
+   "path": "/model/global.anthropic.claude-sonnet-5-5/invoke",
+   "status": 200,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "eyJtb2RlbCI6ImNsYXVkZS1zb25uZXQtNS01IiwiaWQiOiJtc2dfYmRya19mYmxiM2M3NWJvc2hlYWVscnNrd3MyNnU0bWZuZ2Z6czRtZm1kN2YybmNzbmR5Z3Nzc2phIiwidHlwZSI6Im1lc3NhZ2UiLCJyb2xlIjoiYXNzaXN0YW50IiwiY29udGVudCI6W3sidHlwZSI6InRvb2xfdXNlIiwiaWQiOiJ0b29sdV9iZHJrXzAxRzZzYjZFMVBoMWdGb3Qyd1lISk5KdiIsIm5hbWUiOiJtY3BfX2NhbGN1bGF0b3JfX2NhbGN1bGF0ZSIsImlucHV0Ijp7ImV4cHJlc3Npb24iOiIoMTcgKiAyMykgKyA0In19XSwiY29udGFpbmVyIjpudWxsLCJzdG9wX3JlYXNvbiI6InRvb2xfdXNlIiwic3RvcF9zZXF1ZW5jZSI6bnVsbCwic3RvcF9kZXRhaWxzIjpudWxsLCJ1c2FnZSI6eyJpbnB1dF90b2tlbnMiOjUyOSwiY2FjaGVfY3JlYXRpb25faW5wdXRfdG9rZW5zIjowLCJjYWNoZV9yZWFkX2lucHV0X3Rva2VucyI6MCwiY2FjaGVfY3JlYXRpb24iOnsiZXBoZW1lcmFsXzVtX2lucHV0X3Rva2VucyI6MCwiZXBoZW1lcmFsXzFoX2lucHV0X3Rva2VucyI6MH0sIm91dHB1dF90b2tlbnMiOjY1LCJvdXRwdXRfdG9rZW5zX2RldGFpbHMiOnsidGhpbmtpbmdfdG9rZW5zIjowfSwic2VydmljZV90aWVyIjoic3RhbmRhcmQifX0=",
+   "request_sha256": "e67697e31a9326aa7267b072329e01162f42b098fbb9f3e84ac8222673d04fdb"
+  },
+  {
+   "method": "POST",
+   "path": "/model/global.anthropic.claude-sonnet-5-5/invoke",
+   "status": 200,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "eyJtb2RlbCI6ImNsYXVkZS1zb25uZXQtNS01IiwiaWQiOiJtc2dfYmRya194bmZhZHRybTM2bnc2dXFrZHFmYzZndXR2aDdlNWxtbmZxeGszZTZ0bHNoeTZmbmF3ZGVxIiwidHlwZSI6Im1lc3NhZ2UiLCJyb2xlIjoiYXNzaXN0YW50IiwiY29udGVudCI6W3sidHlwZSI6InRleHQiLCJ0ZXh0IjoiKDE3IMOXIDIzKSArIDQgPSAqKjM5NSoqLiJ9XSwiY29udGFpbmVyIjpudWxsLCJzdG9wX3JlYXNvbiI6ImVuZF90dXJuIiwic3RvcF9zZXF1ZW5jZSI6bnVsbCwic3RvcF9kZXRhaWxzIjpudWxsLCJ1c2FnZSI6eyJpbnB1dF90b2tlbnMiOjYwMiwiY2FjaGVfY3JlYXRpb25faW5wdXRfdG9rZW5zIjowLCJjYWNoZV9yZWFkX2lucHV0X3Rva2VucyI6MCwiY2FjaGVfY3JlYXRpb24iOnsiZXBoZW1lcmFsXzVtX2lucHV0X3Rva2VucyI6MCwiZXBoZW1lcmFsXzFoX2lucHV0X3Rva2VucyI6MH0sIm91dHB1dF90b2tlbnMiOjE4LCJvdXRwdXRfdG9rZW5zX2RldGFpbHMiOnsidGhpbmtpbmdfdG9rZW5zIjowfSwic2VydmljZV90aWVyIjoic3RhbmRhcmQifX0=",
+   "request_sha256": "56ece38da40bded2bd7d65e7b867e61aac41e17693736c3bac9e0c02ca3050cf"
+  }
+ ]
+}
