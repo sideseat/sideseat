@@ -1,0 +1,117 @@
+# The historical Google ADK releases this suite is replayed against; see `python -m harness matrix --help`.
+# Each variant is the newest release of one telemetry class in `versions.census.json`.
+# ADK ships two major lines side by side (1.x and 2.x), and its telemetry differs between them at one date.
+[matrix]
+package = "google-adk"
+pin = "google-adk[mcp]=={version}"
+since = "2025-10-05"
+resolved-before = "2026-10-05T00:00:00Z"
+probes = ["tool_use", "streaming"]
+scenarios = ["tool_use", "streaming"]
+
+[matrix.profiles]
+# ADK 1.27 and later write `gen_ai.input.messages` / `gen_ai.output.messages` and tool definitions when asked.
+semconv-latest = { OTEL_SEMCONV_STABILITY_OPT_IN = "gen_ai_latest_experimental" }
+
+[[variant]]
+version = "1.17.0"
+doc = "1.16-1.17: the earliest window format; model spans carry no gen_ai.response.finish_reasons."
+
+[[variant]]
+version = "1.22.1"
+doc = "1.18-1.22: gen_ai.response.finish_reasons, and changed request/response JSON on model spans."
+
+[[variant]]
+version = "1.23.0"
+doc = "1.23: request JSON changes again."
+
+[[variant]]
+version = "1.24.1"
+doc = "1.24: model calls become `generate_content <model>` spans with gen_ai.operation.name and gen_ai.system values."
+
+[[variant]]
+version = "1.39.1"
+doc = "1.25-1.39 (the 1.x line after 1.24, except 1.27.2; also 1.25-1.26 opted in, which ignore the opt-in): the stable 1.x format."
+
+[[variant]]
+version = "1.27.2"
+doc = "1.27.2 alone: gen_ai.agent.version, removed again in 1.27.3."
+
+[[variant]]
+version = "2.0.0"
+doc = "2.0.0: the 2.x line; request and response JSON change."
+
+[[variant]]
+version = "2.2.0"
+doc = "2.1-2.2: JSON changes inside the conversation carriers."
+
+[[variant]]
+version = "2.6.3"
+doc = "2.3-2.6: gen_ai.usage.cache_read.input_tokens."
+
+[[variant]]
+version = "2.7.0"
+doc = "2.7.0: the resource gains service.instance.id and gen_ai.system reports the provider instead of `gemini`."
+
+[[variant]]
+version = "2.7.1"
+doc = "2.7.1: service.instance.id is gone again."
+
+[[variant]]
+version = "2.9.2"
+doc = "2.8-2.9: gen_ai.usage.cache_creation.input_tokens."
+
+[[variant]]
+version = "1.31.1"
+profile = "semconv-latest"
+doc = "1.27.1-1.31 opted in: gen_ai.input.messages / gen_ai.output.messages and gen_ai.tool_definitions (underscore)."
+
+[[variant]]
+version = "1.27.2"
+profile = "semconv-latest"
+doc = "1.27.2 opted in: plus gen_ai.agent.version."
+
+[[variant]]
+version = "1.39.1"
+profile = "semconv-latest"
+doc = "1.32-1.39 opted in: gen_ai.tool_definitions renamed gen_ai.tool.definitions."
+
+[[variant]]
+version = "2.0.0"
+profile = "semconv-latest"
+doc = "2.0.0 opted in."
+
+[[variant]]
+version = "2.2.0"
+profile = "semconv-latest"
+doc = "2.1-2.2 opted in."
+
+[[variant]]
+version = "2.6.3"
+profile = "semconv-latest"
+doc = "2.3-2.6 opted in: cache read tokens."
+
+[[variant]]
+version = "2.7.0"
+profile = "semconv-latest"
+doc = "2.7.0 opted in: service.instance.id."
+
+[[variant]]
+version = "2.7.1"
+profile = "semconv-latest"
+doc = "2.7.1 opted in."
+
+[[variant]]
+version = "2.9.2"
+profile = "semconv-latest"
+doc = "2.8-2.9 opted in: cache creation tokens."
+
+[[variant]]
+version = "2.11.0"
+profile = "semconv-latest"
+doc = "2.10 onwards opted in."
+
+[[variant]]
+version = "2.11.0"
+current = true
+doc = "2.10 onwards: JSON changes inside the conversation carriers. The suite's locked release; its fixtures are the ordinary capture."

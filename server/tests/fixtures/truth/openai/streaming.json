@@ -4,6 +4,14 @@
  "scenario": "streaming",
  "fixtures": [
   "openai/native/streaming",
+  "openai/native@4.18.0/streaming",
+  "openai/native@4.20.0/streaming",
+  "openai/native@4.28.0/streaming",
+  "openai/native@4.31.0/streaming",
+  "openai/native@4.31.1/streaming",
+  "openai/native@4.32.1/streaming",
+  "openai/native@4.36.0/streaming",
+  "openai/native@4.41.0/streaming",
   "openai/sdk/streaming"
  ],
  "source": {
