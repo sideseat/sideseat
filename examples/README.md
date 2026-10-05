@@ -16,6 +16,7 @@ examples/
 │   ├── harness/       one npm project: the same CLI, prompts, tools and models as Python
 │   ├── <framework>/   one directory per framework, declared by its suite manifest
 │   └── sdk-conformance/  the TypeScript SDK conformance program
+├── cli/               coding-agent CLIs (Claude Code, Codex): one capture driver for both
 └── dotnet/            .NET conformance program
 ```
 
@@ -97,6 +98,27 @@ that speaks the provider's wire format and answers the shared prompts with the s
 A regenerated `expected.json` is a claim, not a result. Read every trace and session view against
 the rubric in `server/tests/fixtures/messages/README.md` before committing it: every user question,
 system prompt, tool call, tool result, and answer present, once, in the order they happened.
+
+## Coding-agent CLIs
+
+A CLI is a separate process configured by its own settings, so `examples/cli/capture.py` drives the
+installed binary instead of a suite: one process per user turn, later turns resuming the session, with
+the harness's recorder, anonymisation and recording proxy. Each run gets a fresh `HOME` (and
+`CODEX_HOME`), a fixed workspace under `/tmp/sideseat-cli`, no inherited environment and no
+credentials - the proxy signs for `bedrock-runtime` itself.
+
+```bash
+set -a; . ~/.aws/sideseat-capture.env; set +a   # credentials for the proxy only
+uv run --locked --project examples/python/harness python examples/cli/capture.py claude-code
+uv run --locked --project examples/python/harness python examples/cli/capture.py codex tool_use
+uv run --locked --project examples/python/harness python examples/cli/capture.py codex --offline
+```
+
+`CLAUDE_BIN` and `CODEX_BIN` name binaries other than the ones on `PATH`. Scenarios: `tool_use` (read
+`forecast.json`, run `wc -l`, answer), `multi_turn` (the shared three questions, each a resumed
+process), `error` (a shell command that fails) and `multi_agent` (a sub-agent reads the file). Claude
+Code is captured in two telemetry modes - `native`, the detailed tracing tier plus log events, and
+`logs`, without the detailed tier - and Codex in one. Cassettes live in `cli/<tool>/cassettes/`.
 
 ## Adding a framework suite
 
