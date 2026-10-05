@@ -33,11 +33,23 @@ export function JsonContent({
     [searchTerm],
   );
 
+  // The tree viewer only understands objects and arrays: given a bare string it lists the characters as
+  // indexed keys, given a number it prints `{}`, and given null it throws and takes the whole thread down.
+  // Tool inputs, tool results and JSON blocks are arbitrary JSON, so scalars are printed as JSON text.
+  if (data === null || typeof data !== "object") {
+    const text = typeof data === "string" ? data : (JSON.stringify(data) ?? String(data));
+    return (
+      <pre className="json-viewer overflow-x-auto font-mono text-sm break-all whitespace-pre-wrap">
+        {searchTerm ? highlightText(text, searchTerm) : text}
+      </pre>
+    );
+  }
+
   return (
     <div className={cn("overflow-x-auto", disableCollapse && "json-no-collapse")}>
       <JsonView
         key={searchTerm}
-        value={data as object}
+        value={data}
         displayDataTypes={false}
         displayObjectSize={false}
         collapsed={collapsed}

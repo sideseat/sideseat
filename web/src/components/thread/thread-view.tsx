@@ -1,4 +1,12 @@
-import { useState, useMemo, useCallback, useEffect, useRef, useLayoutEffect } from "react";
+import {
+  Fragment,
+  useState,
+  useMemo,
+  useCallback,
+  useRef,
+  useLayoutEffect,
+  type KeyboardEvent,
+} from "react";
 import {
   AlertCircle,
   MessageSquare,
@@ -9,6 +17,7 @@ import {
   Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { settings, MARKDOWN_ENABLED_KEY } from "@/lib/settings";
@@ -19,7 +28,27 @@ import { getBlockKey, getBlockPreview, getBlockCopyText, renderBlockContent } fr
 import { MediaGalleryProvider } from "./image-gallery-context";
 import { useForcedOpenState } from "./use-forced-open-state";
 import { ModelLink } from "@/components/model-link";
+import { SpanErrorRow } from "./span-error-row";
+import { placeSpanErrors } from "./span-errors";
 import type { ThreadViewProps, ThreadTab } from "./types";
+
+/**
+ * Above this many blocks, rows start collapsed. A collapsed row does not mount its Markdown, JSON
+ * tree or media, which is what makes a long session cheap to open; the rows stay in the DOM so the
+ * browser's find-in-page still reaches every header.
+ */
+export const LARGE_THREAD_BLOCKS = 200;
+
+/** Keys the thread handles itself; anything typed into a control keeps its own meaning. */
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    target.isContentEditable
+  );
+}
 
 interface ToolCardProps {
   tool: Record<string, unknown>;
@@ -57,40 +86,45 @@ function ToolCard({ tool, index, forceExpanded, onManualToggle }: ToolCardProps)
   return (
     <Collapsible open={isOpen} onOpenChange={handleOpenChange}>
       <div className="@container group relative rounded-lg border bg-card transition-colors">
-        <CollapsibleTrigger asChild>
-          <div className="flex cursor-pointer items-center gap-2 px-3 py-2 hover:bg-muted/50 @[400px]:gap-3 @[400px]:px-4">
-            <ChevronRight
-              className={cn(
-                "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform @[400px]:h-4 @[400px]:w-4",
-                isOpen && "rotate-90",
-              )}
-            />
-            <span className="shrink-0 text-role-tool-call">
-              <Wrench className="h-3.5 w-3.5 @[400px]:h-4 @[400px]:w-4" />
-            </span>
-            <span className="truncate text-xs font-medium text-role-tool-call @[400px]:text-sm">
-              {toolName}
-            </span>
-
-            <div className="flex-1" />
-
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 shrink-0 @[400px]:h-7 @[400px]:w-7"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleCopy();
-              }}
+        <div className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50 @[400px]:gap-3 @[400px]:px-4">
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-sm text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring @[400px]:gap-3"
             >
-              {copied ? (
-                <Check className="h-3 w-3 text-success @[400px]:h-3.5 @[400px]:w-3.5" />
-              ) : (
-                <Copy className="h-3 w-3 @[400px]:h-3.5 @[400px]:w-3.5" />
-              )}
-            </Button>
-          </div>
-        </CollapsibleTrigger>
+              <ChevronRight
+                aria-hidden="true"
+                className={cn(
+                  "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform @[400px]:h-4 @[400px]:w-4",
+                  isOpen && "rotate-90",
+                )}
+              />
+              <span className="shrink-0 text-role-tool-call">
+                <Wrench aria-hidden="true" className="h-3.5 w-3.5 @[400px]:h-4 @[400px]:w-4" />
+              </span>
+              <span className="truncate text-xs font-medium text-role-tool-call @[400px]:text-sm">
+                {toolName}
+              </span>
+            </button>
+          </CollapsibleTrigger>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 shrink-0 @[400px]:h-7 @[400px]:w-7"
+            aria-label={copied ? "Copied" : `Copy ${toolName} definition`}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCopy();
+            }}
+          >
+            {copied ? (
+              <Check className="h-3 w-3 text-success @[400px]:h-3.5 @[400px]:w-3.5" />
+            ) : (
+              <Copy className="h-3 w-3 @[400px]:h-3.5 @[400px]:w-3.5" />
+            )}
+          </Button>
+        </div>
 
         <CollapsibleContent>
           <div className="border-t px-3 py-2 @[400px]:px-4 @[400px]:py-3">
@@ -106,6 +140,8 @@ export function ThreadView({
   blocks,
   metadata,
   toolDefinitions,
+  toolNames,
+  envelopes,
   tokenBreakdown,
   costBreakdown,
   isLoading,
@@ -147,7 +183,8 @@ export function ThreadView({
     settings.set(MARKDOWN_ENABLED_KEY, newValue);
   }, [markdownEnabled]);
 
-  const allExpanded = forceExpandedState !== false;
+  const openByDefault = blocks.length <= LARGE_THREAD_BLOCKS;
+  const allExpanded = forceExpandedState ?? openByDefault;
   const startTime = metadata?.start_time ?? blocks[0]?.timestamp;
 
   // Extract context info from blocks
@@ -177,58 +214,85 @@ export function ThreadView({
     return map;
   }, [blocks]);
 
+  const spanErrors = useMemo(() => placeSpanErrors(blocks, envelopes ?? []), [blocks, envelopes]);
+
+  // Tool names without schemas: some frameworks report which tools were offered but not their
+  // definitions, and an empty Tools tab would claim no tools were available at all.
+  const undefinedToolNames = useMemo(() => {
+    const defined = new Set(
+      (toolDefinitions ?? []).map((tool) => unwrapToolDef(tool).name).filter(Boolean),
+    );
+    return [...new Set(toolNames ?? [])].filter((name) => !defined.has(name));
+  }, [toolDefinitions, toolNames]);
+
   const handleToggleExpandAll = useCallback(() => {
-    if (allExpanded) {
-      setForceExpandedState(false);
-    } else {
-      setForceExpandedState(true);
-    }
+    setForceExpandedState(!allExpanded);
   }, [allExpanded]);
 
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
+  const selectRow = useCallback((index: number) => {
+    setSelectedIndex(index);
+    const triggers = scrollContainerRef.current?.querySelectorAll<HTMLElement>(
+      "[data-thread-row-trigger]",
+    );
+    // Moving focus also scrolls the row into view and tells assistive technology where the user is.
+    triggers?.[index]?.focus();
+  }, []);
+
+  // Keyboard navigation, scoped to the thread: a window-level handler took the arrow keys from every
+  // other panel on the page and turned a plain Cmd/Ctrl+C into "copy the whole selected block".
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLDivElement>) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || isEditableTarget(e.target)) return;
+      if (blocks.length === 0) return;
+      const current =
+        selectedIndex !== null && selectedIndex < blocks.length ? selectedIndex : null;
 
       switch (e.key) {
         case "j":
         case "ArrowDown":
           e.preventDefault();
-          setSelectedIndex((prev) => (prev === null ? 0 : Math.min(prev + 1, blocks.length - 1)));
+          selectRow(current === null ? 0 : Math.min(current + 1, blocks.length - 1));
           break;
         case "k":
         case "ArrowUp":
           e.preventDefault();
-          setSelectedIndex((prev) => (prev === null ? blocks.length - 1 : Math.max(prev - 1, 0)));
+          selectRow(current === null ? blocks.length - 1 : Math.max(current - 1, 0));
           break;
         case "Escape":
           setSelectedIndex(null);
           break;
         case "c":
-          if (selectedIndex !== null && blocks[selectedIndex]) {
-            const block = blocks[selectedIndex];
-            navigator.clipboard.writeText(getBlockCopyText(block));
+          if (current !== null) {
+            navigator.clipboard.writeText(getBlockCopyText(blocks[current]));
           }
           break;
       }
-    };
+    },
+    [blocks, selectedIndex, selectRow],
+  );
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [blocks, selectedIndex]);
-
-  // Loading state - render nothing, parent handles loading indicator
   if (isLoading) {
-    return null;
+    return (
+      <div
+        role="status"
+        aria-label="Loading messages"
+        className={cn("flex h-full flex-col gap-3 p-4", className)}
+      >
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+    );
   }
 
   // Error state
   if (error) {
     return (
-      <div className={cn("flex h-full flex-col items-center justify-center gap-4 p-8", className)}>
-        <AlertCircle className="h-12 w-12 text-destructive" />
+      <div
+        role="alert"
+        className={cn("flex h-full flex-col items-center justify-center gap-4 p-8", className)}
+      >
+        <AlertCircle aria-hidden="true" className="h-12 w-12 text-destructive" />
         <div className="text-center">
           <h3 className="font-medium">Failed to load messages</h3>
           <p className="text-sm text-muted-foreground">{error.message}</p>
@@ -243,14 +307,16 @@ export function ThreadView({
     );
   }
 
-  // Empty state
-  if (blocks.length === 0) {
+  // Empty state. A span that failed without recording a message still has something to show.
+  if (blocks.length === 0 && spanErrors.leading.length === 0) {
     return (
       <div className={cn("flex h-full flex-col items-center justify-center gap-4 p-8", className)}>
-        <MessageSquare className="h-12 w-12 text-muted-foreground/50" />
+        <MessageSquare aria-hidden="true" className="h-12 w-12 text-muted-foreground/50" />
         <div className="text-center">
           <h3 className="font-medium text-muted-foreground">No messages</h3>
-          <p className="text-sm text-muted-foreground">This trace has no conversation messages.</p>
+          <p className="text-sm text-muted-foreground">
+            No conversation messages were recorded here.
+          </p>
         </div>
       </div>
     );
@@ -289,7 +355,14 @@ export function ThreadView({
 
       {activeTab === "messages" ? (
         <MediaGalleryProvider blocks={blocks} projectId={projectId}>
-          <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-auto">
+          <div
+            ref={scrollContainerRef}
+            role="region"
+            aria-label="Conversation messages"
+            tabIndex={0}
+            onKeyDown={handleKeyDown}
+            className="flex-1 min-h-0 overflow-auto focus-visible:outline-none"
+          >
             <div className="space-y-3 p-4">
               {/* Framework/Model info */}
               {(contextInfo.frameworks.length > 0 || contextInfo.models.length > 0) && (
@@ -311,35 +384,49 @@ export function ThreadView({
                   )}
                 </p>
               )}
+              {spanErrors.leading.map((envelope) => (
+                <SpanErrorRow
+                  key={`${envelope.trace_id}-${envelope.span_id}`}
+                  envelope={envelope}
+                />
+              ))}
               {blocks.map((block, index) => (
-                <TimelineRow
-                  key={getBlockKey(block)}
-                  block={block}
-                  startTime={startTime}
-                  isSelected={selectedIndex === index}
-                  onSelect={() => setSelectedIndex(index)}
-                  forceExpanded={forceExpandedState ?? undefined}
-                  onManualToggle={() => setForceExpandedState(null)}
-                  preview={getBlockPreview(block)}
-                  copyText={getBlockCopyText(block)}
-                  traceNumber={
-                    showTraceLinks && block.trace_id
-                      ? traceNumberMap.get(block.trace_id)
-                      : undefined
-                  }
-                  projectId={showTraceLinks ? projectId : undefined}
-                >
-                  {renderBlockContent(block, markdownEnabled, projectId)}
-                </TimelineRow>
+                <Fragment key={getBlockKey(block)}>
+                  <TimelineRow
+                    block={block}
+                    startTime={startTime}
+                    isSelected={selectedIndex === index}
+                    onSelect={() => setSelectedIndex(index)}
+                    forceExpanded={forceExpandedState ?? undefined}
+                    defaultOpen={openByDefault}
+                    onManualToggle={() => setForceExpandedState(null)}
+                    preview={getBlockPreview(block)}
+                    copyText={getBlockCopyText(block)}
+                    traceNumber={
+                      showTraceLinks && block.trace_id
+                        ? traceNumberMap.get(block.trace_id)
+                        : undefined
+                    }
+                    projectId={showTraceLinks ? projectId : undefined}
+                  >
+                    {renderBlockContent(block, markdownEnabled, projectId)}
+                  </TimelineRow>
+                  {spanErrors.after.get(index)?.map((envelope) => (
+                    <SpanErrorRow
+                      key={`${envelope.trace_id}-${envelope.span_id}`}
+                      envelope={envelope}
+                    />
+                  ))}
+                </Fragment>
               ))}
             </div>
           </div>
         </MediaGalleryProvider>
       ) : (
         <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-auto">
-          {toolDefinitions && toolDefinitions.length > 0 ? (
+          {(toolDefinitions && toolDefinitions.length > 0) || undefinedToolNames.length > 0 ? (
             <div className="space-y-3 p-4">
-              {toolDefinitions.map((tool, index) => (
+              {toolDefinitions?.map((tool, index) => (
                 <ToolCard
                   key={index}
                   tool={tool}
@@ -348,10 +435,24 @@ export function ThreadView({
                   onManualToggle={() => setForceExpandedState(null)}
                 />
               ))}
+              {undefinedToolNames.length > 0 && (
+                <div className="rounded-lg border bg-card px-3 py-2 @[400px]:px-4">
+                  <p className="text-xs text-muted-foreground">
+                    Named in telemetry without a recorded definition
+                  </p>
+                  <ul className="mt-1 flex flex-wrap gap-2">
+                    {undefinedToolNames.map((name) => (
+                      <li key={name} className="font-mono text-xs text-role-tool-call">
+                        {name}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           ) : (
             <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
-              <Wrench className="h-12 w-12 text-muted-foreground/50" />
+              <Wrench aria-hidden="true" className="h-12 w-12 text-muted-foreground/50" />
               <span className="text-sm">No tool definitions available</span>
             </div>
           )}

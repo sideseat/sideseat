@@ -20,6 +20,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { cn } from "@/lib/utils";
 import type { Block } from "@/api/otel/types";
 import { useForcedOpenState } from "./use-forced-open-state";
+import { getIncompleteReason } from "./thread-utils";
 
 // Role-based configuration (primary)
 const ROLE_CONFIG: Record<
@@ -109,6 +110,8 @@ export interface TimelineRowProps {
   isSelected?: boolean;
   onSelect?: () => void;
   forceExpanded?: boolean;
+  /** Whether the row starts open when nothing forces it either way. */
+  defaultOpen?: boolean;
   onManualToggle?: () => void;
   preview: string;
   copyText: string;
@@ -125,6 +128,7 @@ export function TimelineRow({
   isSelected,
   onSelect,
   forceExpanded,
+  defaultOpen = true,
   onManualToggle,
   preview,
   copyText,
@@ -133,13 +137,14 @@ export function TimelineRow({
   projectId,
 }: TimelineRowProps) {
   const [copied, setCopied] = useState(false);
-  const [isOpen, setIsOpen] = useForcedOpenState(forceExpanded);
+  const [isOpen, setIsOpen] = useForcedOpenState(forceExpanded, defaultOpen);
   const handleOpenChange = (open: boolean) => {
     onManualToggle?.();
     setIsOpen(open);
   };
 
   const isError = block.is_error;
+  const incompleteReason = getIncompleteReason(block.finish_reason);
 
   // Get config based on entry_type and role
   // Priority: special entry types (tool_use, thinking, etc.) > role-based > default
@@ -201,87 +206,112 @@ export function TimelineRow({
         )}
         onClick={onSelect}
       >
-        {/* Header */}
-        <CollapsibleTrigger asChild>
-          <div className="flex cursor-pointer items-center gap-2 px-3 py-2 hover:bg-muted/50 @[400px]:gap-3 @[400px]:px-4">
-            <ChevronRight
-              className={cn(
-                "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform @[400px]:h-4 @[400px]:w-4",
-                isOpen && "rotate-90",
+        {/*
+          Only the label area is the disclosure button. The copy and trace controls are its siblings rather
+          than its children, because interactive content nested inside a button is unreachable by keyboard
+          and announced as one control by screen readers.
+        */}
+        <div className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50 @[400px]:gap-3 @[400px]:px-4">
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              data-thread-row-trigger=""
+              className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-sm text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring @[400px]:gap-3"
+            >
+              <ChevronRight
+                aria-hidden="true"
+                className={cn(
+                  "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform @[400px]:h-4 @[400px]:w-4",
+                  isOpen && "rotate-90",
+                )}
+              />
+              <span className={cn("shrink-0", accentClass)}>
+                <Icon aria-hidden="true" className="h-3.5 w-3.5 @[400px]:h-4 @[400px]:w-4" />
+              </span>
+              <span
+                className={cn("message-role text-xs font-medium @[400px]:text-sm", accentClass)}
+              >
+                {isError ? `${config.label} (error)` : config.label}
+              </span>
+
+              {!isOpen && (
+                <span className="min-w-0 flex-1 truncate text-2xs text-muted-foreground @[400px]:text-xs">
+                  {preview}
+                </span>
               )}
-            />
-            <span className={cn("shrink-0", accentClass)}>
-              <Icon className="h-3.5 w-3.5 @[400px]:h-4 @[400px]:w-4" />
+
+              {isOpen && <span className="flex-1" />}
+
+              {/* Model pill - hidden on small, truncate only when needed */}
+              {config.showMetadata && block.model && (
+                <span className="message-model-pill hidden min-w-0 shrink truncate rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground @[450px]:inline">
+                  {block.model}
+                </span>
+              )}
+            </button>
+          </CollapsibleTrigger>
+
+          {incompleteReason && (
+            <span
+              className="shrink-0 rounded-sm bg-warning/10 px-1.5 py-0.5 text-3xs font-medium text-warning-foreground @[400px]:text-2xs"
+              title={incompleteReason.description}
+            >
+              {incompleteReason.label}
             </span>
-            <span className={cn("message-role text-xs font-medium @[400px]:text-sm", accentClass)}>
-              {config.label}
-            </span>
+          )}
 
-            {!isOpen && (
-              <span className="min-w-0 flex-1 truncate text-2xs text-muted-foreground @[400px]:text-xs">
-                {preview}
-              </span>
-            )}
+          <div className="flex shrink-0 items-center gap-1.5 text-3xs text-muted-foreground @[400px]:gap-2 @[400px]:text-xs">
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="tabular-nums">{relativeTime}</span>
+                </TooltipTrigger>
+                <TooltipContent side="top">{absoluteTime}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
 
-            {isOpen && <div className="flex-1" />}
-
-            {/* Model pill - hidden on small, truncate only when needed */}
-            {config.showMetadata && block.model && (
-              <span className="message-model-pill hidden min-w-0 shrink truncate rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground @[450px]:inline">
-                {block.model}
-              </span>
-            )}
-
-            <div className="flex shrink-0 items-center gap-1.5 text-3xs text-muted-foreground @[400px]:gap-2 @[400px]:text-xs">
+          {/* Button group: trace number + copy */}
+          <ButtonGroup className="shrink-0">
+            {traceNumber !== undefined && projectId && (
               <TooltipProvider delayDuration={300}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span className="tabular-nums">{relativeTime}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 @[400px]:h-7 @[400px]:w-7"
+                      aria-label={`Open trace ${traceNumber} in a new tab`}
+                      onClick={handleOpenTrace}
+                    >
+                      <span className="text-3xs font-medium @[400px]:text-xs">#{traceNumber}</span>
+                    </Button>
                   </TooltipTrigger>
-                  <TooltipContent side="top">{absoluteTime}</TooltipContent>
+                  <TooltipContent side="top">Open trace in new tab</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-            </div>
-
-            {/* Button group: trace number + copy */}
-            <ButtonGroup className="shrink-0">
-              {traceNumber !== undefined && projectId && (
-                <TooltipProvider delayDuration={300}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 @[400px]:h-7 @[400px]:w-7"
-                        onClick={handleOpenTrace}
-                      >
-                        <span className="text-3xs font-medium @[400px]:text-xs">
-                          #{traceNumber}
-                        </span>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">Open trace in new tab</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 @[400px]:h-7 @[400px]:w-7"
+              aria-label={copied ? "Copied" : `Copy ${config.label.toLowerCase()}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCopy();
+              }}
+            >
+              {copied ? (
+                <Check
+                  aria-hidden="true"
+                  className="h-3 w-3 text-success @[400px]:h-3.5 @[400px]:w-3.5"
+                />
+              ) : (
+                <Copy aria-hidden="true" className="h-3 w-3 @[400px]:h-3.5 @[400px]:w-3.5" />
               )}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 @[400px]:h-7 @[400px]:w-7"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleCopy();
-                }}
-              >
-                {copied ? (
-                  <Check className="h-3 w-3 text-success @[400px]:h-3.5 @[400px]:w-3.5" />
-                ) : (
-                  <Copy className="h-3 w-3 @[400px]:h-3.5 @[400px]:w-3.5" />
-                )}
-              </Button>
-            </ButtonGroup>
-          </div>
-        </CollapsibleTrigger>
+            </Button>
+          </ButtonGroup>
+        </div>
 
         {/* Content */}
         <CollapsibleContent>

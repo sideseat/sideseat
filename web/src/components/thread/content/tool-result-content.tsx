@@ -11,7 +11,6 @@ import { type EmbeddedMedia, findEmbeddedMedia, inferSource } from "@/lib/media"
 interface ToolResultContentProps {
   content: unknown;
   isError?: boolean;
-  errorMessage?: string;
   toolName?: string;
   toolCallId?: string;
   /**
@@ -93,7 +92,6 @@ function extractContent(content: unknown): unknown {
 export function ToolResultContent({
   content,
   isError,
-  errorMessage,
   toolName,
   toolCallId,
   toolCallIdInferred,
@@ -121,11 +119,6 @@ export function ToolResultContent({
           {toolName && <span className="font-mono text-sm text-role-tool">{toolName}</span>}
         </div>
       )}
-      {isError && errorMessage && (
-        <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">
-          {errorMessage}
-        </div>
-      )}
       {toolCallId && (
         <div className="text-xs text-muted-foreground font-mono">
           tool_call_id: {toolCallId}
@@ -138,6 +131,10 @@ export function ToolResultContent({
             </span>
           )}
         </div>
+      )}
+      {/* The call a result answers is named on it, so a result is identifiable without its call. */}
+      {!showInlineHeader && toolName && (
+        <div className="text-xs text-muted-foreground font-mono">name: {toolName}</div>
       )}
       {renderExtractedContent(extracted, projectId)}
     </div>

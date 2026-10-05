@@ -140,6 +140,8 @@ export function TraceDetail({
         blocks={messagesData?.messages ?? []}
         metadata={messagesData?.metadata}
         toolDefinitions={messagesData?.tool_definitions}
+        toolNames={messagesData?.tool_names}
+        envelopes={messagesData?.envelopes}
         tokenBreakdown={tokenBreakdown}
         costBreakdown={costBreakdown}
         isLoading={messagesLoading}

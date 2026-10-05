@@ -1,4 +1,4 @@
-import type { Block, MessagesMetadata } from "@/api/otel/types";
+import type { Block, MessagesMetadata, SpanEnvelope } from "@/api/otel/types";
 import type { TokenBreakdown, CostBreakdown } from "@/components/breakdown-popover";
 
 export type ThreadTab = "messages" | "tools";
@@ -7,6 +7,10 @@ export interface ThreadViewProps {
   blocks: Block[];
   metadata?: Partial<MessagesMetadata>;
   toolDefinitions?: Record<string, unknown>[];
+  /** Tool names the telemetry reported, including tools whose definitions were not recorded. */
+  toolNames?: string[];
+  /** Per-span envelopes; failed spans are shown in the thread with their exception. */
+  envelopes?: SpanEnvelope[];
   tokenBreakdown?: TokenBreakdown;
   costBreakdown?: CostBreakdown;
   isLoading?: boolean;

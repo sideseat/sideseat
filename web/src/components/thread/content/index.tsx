@@ -96,6 +96,7 @@ export function ContentRenderer({ block, markdownEnabled, projectId }: ContentRe
           content={block.content}
           isError={block.is_error}
           toolCallId={block.tool_use_id}
+          toolName={block.name}
           showInlineHeader
           projectId={projectId}
         />

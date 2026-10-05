@@ -55,6 +55,8 @@ export function ThreadHeader({
             <button
               key={tab.value}
               type="button"
+              aria-label={tab.label}
+              aria-pressed={isActive}
               className={cn(
                 "flex h-6 items-center justify-center rounded px-1.5 text-xs font-medium transition-all @[500px]:gap-1.5 @[500px]:px-2",
                 "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
@@ -64,7 +66,7 @@ export function ThreadHeader({
               )}
               onClick={() => onTabChange(tab.value)}
             >
-              <Icon className="h-3.5 w-3.5" />
+              <Icon aria-hidden="true" className="h-3.5 w-3.5" />
               <span className="hidden @[500px]:inline">{tab.label}</span>
             </button>
           );
@@ -110,6 +112,7 @@ export function ThreadHeader({
             <Button
               variant="outline"
               size="icon-xs"
+              aria-label="Render Markdown"
               aria-pressed={markdownEnabled && activeTab === "messages"}
               onClick={onMarkdownToggle}
               disabled={activeTab === "tools"}
@@ -127,7 +130,12 @@ export function ThreadHeader({
         {/* Expand/Collapse */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="outline" size="icon-xs" onClick={onToggleExpandAll}>
+            <Button
+              variant="outline"
+              size="icon-xs"
+              aria-label={allExpanded ? "Collapse all" : "Expand all"}
+              onClick={onToggleExpandAll}
+            >
               {allExpanded ? (
                 <ChevronsDownUp className="h-3.5 w-3.5" />
               ) : (

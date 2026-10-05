@@ -10,32 +10,88 @@ import {
 
 /**
  * Generate a unique key for a block.
+ *
+ * Span ids are client-provided and only unique within their trace, and a session thread spans many
+ * traces, so the trace id is part of the key.
  */
 export function getBlockKey(block: Block): string {
-  return `${block.span_id}-${block.message_index}-${block.entry_index}`;
+  return `${block.trace_id}-${block.span_id}-${block.message_index}-${block.entry_index}`;
+}
+
+export interface IncompleteReason {
+  label: string;
+  description: string;
+}
+
+/**
+ * Why a message stopped before the model finished it, when it did.
+ *
+ * A response cut off at the token limit or by a content filter reads exactly like a complete one, so
+ * these finish reasons are surfaced on the message instead of only in the span's attributes.
+ */
+export function getIncompleteReason(finishReason: string | undefined): IncompleteReason | null {
+  switch (finishReason) {
+    case "length":
+      return {
+        label: "Truncated",
+        description: "The model stopped at its output token limit, so this message is incomplete.",
+      };
+    case "content_filter":
+      return {
+        label: "Filtered",
+        description: "A content filter stopped this response before the model finished it.",
+      };
+    case "error":
+      return {
+        label: "Failed",
+        description: "Generation failed before the model finished this message.",
+      };
+    default:
+      return null;
+  }
+}
+
+function truncate(text: string, max: number): string {
+  return text.length > max ? text.slice(0, max) + "..." : text;
+}
+
+/**
+ * The tool a result answers, by the most direct identification available.
+ *
+ * The result's own name comes first: for Gemini and ADK it is the only identification the source
+ * gave, and the block-level fields are derived rather than reported.
+ */
+export function getToolResultName(block: Block): string | undefined {
+  const own = block.content.type === "tool_result" ? block.content.name : undefined;
+  return own || block.tool_name || block.name;
 }
 
 /**
  * Get a preview string for a block.
+ *
+ * Tool calls and results lead with the tool's name: with several tools in one turn, arguments or
+ * output alone do not say which call a collapsed row is.
  */
 export function getBlockPreview(block: Block): string {
   const { entry_type, content } = block;
 
   if (entry_type === "tool_use" && content.type === "tool_use") {
-    const inputStr = JSON.stringify(content.input);
-    return inputStr.length > 60 ? inputStr.slice(0, 60) + "..." : inputStr;
+    const inputStr = JSON.stringify(content.input) ?? "";
+    return `${content.name}(${truncate(inputStr, 60)})`;
   }
 
   if (entry_type === "tool_result" && content.type === "tool_result") {
     const resultStr =
-      typeof content.content === "string" ? content.content : JSON.stringify(content.content);
-    const firstLine = resultStr.split("\n")[0];
-    return firstLine.length > 60 ? firstLine.slice(0, 60) + "..." : firstLine;
+      typeof content.content === "string"
+        ? content.content
+        : (JSON.stringify(content.content) ?? "");
+    const firstLine = truncate(resultStr.split("\n")[0], 60);
+    const toolName = getToolResultName(block);
+    return toolName ? `${toolName} → ${firstLine}` : firstLine;
   }
 
   if (entry_type === "thinking" && content.type === "thinking") {
-    const truncated = content.text.length > 60 ? content.text.slice(0, 60) + "..." : content.text;
-    return `"${truncated}" (${content.text.length} chars)`;
+    return `"${truncate(content.text, 60)}" (${content.text.length} chars)`;
   }
 
   if (entry_type === "tool_definitions" && content.type === "tool_definitions") {
@@ -43,8 +99,7 @@ export function getBlockPreview(block: Block): string {
   }
 
   if (entry_type === "text" && content.type === "text") {
-    const firstLine = content.text.split("\n")[0];
-    return firstLine.length > 80 ? firstLine.slice(0, 80) + "..." : firstLine;
+    return truncate(content.text.split("\n")[0], 80);
   }
 
   return `[${entry_type}]`;
@@ -106,9 +161,7 @@ export function renderBlockContent(
         isError={content.is_error || block.is_error}
         toolCallId={content.tool_use_id || block.tool_use_id}
         toolCallIdInferred={block.tool_use_id_correlated}
-        // The result's own name first: for Gemini and ADK it is the only identification the source
-        // gave, and the block-level fields are derived rather than reported.
-        toolName={content.name || block.tool_name || block.name}
+        toolName={getToolResultName(block)}
         projectId={projectId}
       />
     );
