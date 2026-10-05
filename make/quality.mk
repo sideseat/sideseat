@@ -6,7 +6,7 @@ fmt: ## Format all source code
 	@echo "[fmt] Formatting code..."
 	@cargo fmt
 	@[ -x "$(PRETTIER)" ] || { echo "Error: prettier not installed. Run 'make setup'."; exit 1; }
-	@$(PRETTIER) --write "web/src/**/*.{ts,tsx,css,json}" "sdk/js/src/**/*.ts" "examples/javascript/src/**/*.ts"
+	@$(PRETTIER) --write "web/src/**/*.{ts,tsx,css,json}" "sdk/js/src/**/*.ts" "examples/javascript/{harness,strands,vercel-ai,claude-agent-sdk}/**/*.ts"
 	@uv run --locked ruff format $(PYTHON_CHECKED)
 	@echo "[fmt] Done"
 
@@ -14,7 +14,7 @@ fmt-check: ## Check source formatting
 	@echo "[fmt-check] Checking formatting..."
 	@cargo fmt --check
 	@[ -x "$(PRETTIER)" ] || { echo "Error: prettier not installed. Run 'make setup'."; exit 1; }
-	@$(PRETTIER) --check "web/src/**/*.{ts,tsx,css,json}" "sdk/js/src/**/*.ts" "examples/javascript/src/**/*.ts"
+	@$(PRETTIER) --check "web/src/**/*.{ts,tsx,css,json}" "sdk/js/src/**/*.ts" "examples/javascript/{harness,strands,vercel-ai,claude-agent-sdk}/**/*.ts"
 	@$(MAKE) --no-print-directory fmt-check-python
 
 file-length-check: ## Enforce the hard 1000-line source-file limit

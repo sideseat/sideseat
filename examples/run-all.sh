@@ -56,7 +56,7 @@ run_js() {
   local expect_err=no; [[ "$sample" == error* ]] && expect_err=yes
   echo "### js/$suite/$sample"
   local mark; mark="$(watermark)"
-  if (cd "$ROOT/examples/javascript" && timeout 900 npm run "$suite" -- "$sample" --sideseat) \
+  if (cd "$ROOT/examples/javascript/$suite" && timeout 900 npm run --silent sample -- "$sample" --sideseat) \
     >"/tmp/s-js-$suite-$sample.log" 2>&1 || [[ "$expect_err" == yes ]]; then
     verify "js/$suite/$sample" "$expect_err" "$mark"
   else
@@ -85,15 +85,11 @@ for s in chat multi_turn tool_use session error streaming structured_output reas
   run_py langgraph sample "$s"
 done
 
-# --- Bedrock-backed JS suites ---
-for s in tool-use mcp-tools structured-output reasoning custom-tools subagents multi-turn permissions error; do
-  run_js claude-agent-sdk "$s"
-done
-for s in tool-use mcp-tools structured-output reasoning rag-local files image-gen swarm error; do
-  run_js strands "$s"
-done
-for s in tool-use multi-step structured-output reasoning rag-local files image-gen error; do
-  run_js vercel-ai "$s"
+# --- Bedrock-backed JS suites: every one implements the whole scenario catalog ---
+for suite in claude-agent-sdk strands vercel-ai; do
+  for s in chat multi_turn tool_use session error streaming structured_output reasoning files multi_agent mcp_tools; do
+    run_js "$suite" "$s"
+  done
 done
 
 echo "DONE -> $OUT"

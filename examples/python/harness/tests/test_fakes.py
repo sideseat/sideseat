@@ -192,11 +192,11 @@ def test_fake_openai_serves_responses_on_the_azure_client_route() -> None:
 
 def test_capture_needs_no_cassette_for_a_fake_model(tmp_path: Path) -> None:
     # A fake-model suite failed its SDK run with "no cassette to replay": the fake records nothing.
-    (tmp_path / "pyproject.toml").write_text(
-        '[tool.sideseat-example]\nproducer = "x"\ndefault-model = "fake-gemini"\n'
+    suite = capture.Suite(
+        tmp_path, "python", {"producer": "x", "default-model": "fake-gemini"}
     )
-    assert capture.uses_fake_model(tmp_path, None)
-    assert not capture.uses_fake_model(tmp_path, "sonnet")
+    assert capture.uses_fake_model(suite, None)
+    assert not capture.uses_fake_model(suite, "sonnet")
 
 
 def test_results_wrapped_the_way_google_genai_sends_them_are_read() -> None:

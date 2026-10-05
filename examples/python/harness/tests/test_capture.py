@@ -4,6 +4,8 @@ import urllib.request
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
+import pytest
+
 from harness.capture import _Recorder, anonymise, recorded_prefix
 
 
@@ -83,3 +85,51 @@ def test_a_log_export_is_written_beside_the_requests_and_anonymised(
         "req-001.json",
     ]
     assert (tmp_path / "logs-001.json").read_bytes() == anonymise(named)
+
+
+def test_the_javascript_harness_reads_what_this_harness_says() -> None:
+    from harness.capture import JAVASCRIPT_CONTENT, javascript_content
+
+    assert JAVASCRIPT_CONTENT.read_text() == javascript_content(), (
+        "examples/javascript/harness/content.json is stale; run capture --export-content"
+    )
+
+
+def test_javascript_suites_are_discovered_beside_python_ones(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from harness import capture
+
+    python = tmp_path / "python" / "strands"
+    python.mkdir(parents=True)
+    (python / "pyproject.toml").write_text(
+        '[tool.sideseat-example]\nproducer = "strands"\n'
+    )
+    javascript = tmp_path / "javascript" / "strands"
+    javascript.mkdir(parents=True)
+    (javascript / "suite.json").write_text(
+        '{"producer": "strands-js", "integrations": ["strands"]}'
+    )
+    monkeypatch.setattr(capture, "PYTHON_SUITES", tmp_path / "python")
+    monkeypatch.setattr(capture, "JAVASCRIPT_EXAMPLES", tmp_path / "javascript")
+
+    found = capture.suites()
+
+    assert found["strands"].language == "python"
+    assert found["strands"].sample("tool_use") == [
+        "uv",
+        "run",
+        "--locked",
+        "sample",
+        "tool_use",
+    ]
+    assert found["strands-js"].root == javascript
+    assert found["strands-js"].sample("tool_use", "--sideseat") == [
+        "npm",
+        "run",
+        "--silent",
+        "sample",
+        "--",
+        "tool_use",
+        "--sideseat",
+    ]

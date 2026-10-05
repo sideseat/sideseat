@@ -29,8 +29,10 @@ for project in web sdk/js examples/javascript; do
     files="$(staged "$project/*.ts" "$project/*.tsx" "$project/*.css" "$project/*.json")"
     [ -n "$files" ] || continue
     [ -x "$project/node_modules/.bin/prettier" ] || { echo "Error: $project/node_modules missing. Run 'make setup'."; exit 1; }
-    # shellcheck disable=SC2086
-    "$project/node_modules/.bin/prettier" --check $files
+    # From the project, as `make quick` runs it, so the project's .prettierignore applies: generated
+    # JSON such as capture cassettes is not the project's to format.
+    # shellcheck disable=SC2046,SC2086
+    (cd "$project" && node_modules/.bin/prettier --check $(sed "s#^$project/##" <<<"$files"))
 done
 
 echo "[pre-commit] Passed"

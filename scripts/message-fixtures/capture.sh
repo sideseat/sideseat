@@ -46,9 +46,6 @@ SUITES=(
   "traceloop|uv run --locked --directory examples/python/traceloop telemetry-traceloop {S}"
   "claude-agent-sdk|uv run --locked --directory examples/python/claude-agent-sdk claude-agent-sdk {S}"
   "browser-use|uv run --locked --directory examples/python/browser-use telemetry-browser-use {S}"
-  "vercel-ai-js|cd examples/javascript && npm run vercel-ai -- {S}"
-  "strands-js|cd examples/javascript && npm run strands -- {S}"
-  "claude-agent-sdk-js|cd examples/javascript && npm run claude-agent-sdk -- {S}"
 )
 
 # Samples that must not be captured, with the reason.

@@ -12,7 +12,10 @@ examples/
 ├── python/
 │   ├── harness/       shared CLI, model catalog, prompts and tools, telemetry modes, capture tool
 │   └── <framework>/   one uv project per framework or provider
-├── javascript/        TypeScript suites
+├── javascript/
+│   ├── harness/       one npm project: the same CLI, prompts, tools and models as Python
+│   ├── <framework>/   one directory per framework, declared by its suite manifest
+│   └── sdk-conformance/  the TypeScript SDK conformance program
 └── dotnet/            .NET conformance program
 ```
 
@@ -27,7 +30,15 @@ make sample P=strands S=tool_use SIDESEAT=1    # the same program with sideseat.
 make sample P=strands S=tool_use MODEL=haiku   # another model from the catalog
 
 uv run --locked --directory examples/python/strands sample --list
+
+make sample P=strands-js S=tool_use            # a TypeScript suite: its directory name plus -js
+cd examples/javascript/strands && npm run sample -- tool_use --sideseat --model haiku
 ```
+
+The TypeScript suites share one npm project: run `npm ci` in `examples/javascript` once (`make setup`
+does), and `npm run sample` from a suite's directory. They need Node.js ^22.13.0 or 24 and later,
+which is what their lockfile accepts (`make node-floor` measures it); the repository as a whole needs
+^22.22.0 || ^24.0.0 || >=26.0.0.
 
 Credentials and endpoints can also live in `examples/.env` (copy `.env.example`); the process
 environment wins over it.
@@ -35,7 +46,11 @@ environment wins over it.
 ## Scenarios
 
 Every suite implements the same scenarios with the same prompts and tools
-(`harness/content.py`), so fixtures from different frameworks describe the same conversations.
+(`harness/content.py`), so fixtures from different frameworks describe the same conversations. The
+TypeScript harness reads them, with the scenario catalog and the model aliases, from
+`javascript/harness/content.json`, which the capture tool renders from the Python harness
+(`capture --export-content`) and a harness test keeps current. The tool bodies are re-implemented
+in TypeScript and checked against the results the Python tools return before any scenario runs.
 
 | Scenario | Proves | Required |
 | --- | --- | --- |
@@ -55,8 +70,9 @@ Every suite implements the same scenarios with the same prompts and tools
 
 - **native** is what a user of the framework writes by following the framework's documentation:
   plain OpenTelemetry plus whatever the framework needs switched on. It imports nothing from
-  SideSeat. The suite's `native.py` configures it.
-- **sdk** (`--sideseat`) replaces that with `sideseat.init(integrations=[...])`.
+  SideSeat. The suite's `native.py` (or `native.ts`) configures it.
+- **sdk** (`--sideseat`) replaces that with `sideseat.init(integrations=[...])`, or
+  `await sideseat.init({ integrations: [...] })` in TypeScript.
 
 Capturing both and comparing them is how the SDK is shown to lose nothing and add nothing wrong:
 `framework_sdk_and_native_conversations_are_identical` requires the same spans, traces, sessions,
@@ -67,6 +83,7 @@ and messages from both.
 ```bash
 make capture P=strands                 # every scenario, both modes, then regenerate expectations
 make capture P=strands S=tool_use
+make capture P=vercel-ai-js            # a TypeScript suite, captured the same way
 make capture-offline P=strands         # replay committed model traffic; no credentials needed
 ```
 
@@ -82,6 +99,11 @@ the rubric in `server/tests/fixtures/messages/README.md` before committing it: e
 system prompt, tool call, tool result, and answer present, once, in the order they happened.
 
 ## Adding a framework suite
+
+The steps are the same in both languages. A TypeScript suite is a directory of
+`examples/javascript` with a `suite.json` (`producer`, `integrations`, optionally `default-model`
+and `service-name`), `native.ts`, `models.ts`, and `scenarios/<name>.ts`; its dependencies go in the
+shared `package.json`. The Python steps:
 
 1. Copy `python/strands` and rename it. Set `[tool.sideseat-example]` in `pyproject.toml`:
    `producer` (the fixture directory name), `integrations` (what `--sideseat` passes to

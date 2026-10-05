@@ -1,0 +1,6 @@
+node_modules/
+sdk-conformance/
+package-lock.json
+# Written by the capture tool and by the Python harness.
+*/cassettes/
+harness/content.json

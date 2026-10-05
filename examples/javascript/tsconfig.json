@@ -1,18 +1,18 @@
 {
   "compilerOptions": {
     "target": "ES2022",
+    "lib": ["ES2023"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "esModuleInterop": true,
     "strict": true,
+    "noEmit": true,
     "skipLibCheck": true,
-    "outDir": "dist",
     "erasableSyntaxOnly": true,
-    "baseUrl": ".",
+    "types": ["node"],
     "paths": {
       "@sideseat/sdk": ["../../sdk/js/src/index.ts"]
     }
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["harness/**/*.ts", "strands/**/*.ts", "vercel-ai/**/*.ts", "claude-agent-sdk/**/*.ts"]
 }
