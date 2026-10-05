@@ -1,0 +1,446 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "logfire",
+ "scenario": "tool_use",
+ "fixtures": [
+  "logfire/native/tool_use",
+  "logfire/sdk/tool_use"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/python/logfire/cassettes/tool_use.json",
+  "sha256": "a0bdac73b9b97b1b7cd86c00a962b62e8d57e3b331ed3c5a4c47b6d7317f80a1",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "linear",
+ "request_bodies": "unrecorded",
+ "model_calls": 2,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "openai.responses",
+   "streamed": false,
+   "status": 200,
+   "model": "global.openai.gpt-6.1-sol",
+   "response_model": "global.openai.gpt-6.1-sol",
+   "response_id": "resp_onpaleeyvbsjxvzdsxxzhsbapg4aafyc6mruxjsolck7gaemx5ba",
+   "stop_reason": "completed",
+   "finish": "tool_use",
+   "usage": {
+    "input": 160,
+    "output": 88,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": 0,
+    "input_includes_cache": true
+   },
+   "outputs": [
+    "fact-003",
+    "fact-004",
+    "fact-005",
+    "fact-006"
+   ]
+  },
+  {
+   "id": "call-002",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "openai.responses",
+   "streamed": false,
+   "status": 200,
+   "model": "global.openai.gpt-6.1-sol",
+   "response_model": "global.openai.gpt-6.1-sol",
+   "response_id": "resp_pixyjyjyr2cl5bdwyj2hpgxqbdnlvkynkrn46ae46loxmai2b2wa",
+   "stop_reason": "completed",
+   "finish": "stop",
+   "usage": {
+    "input": 407,
+    "output": 119,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": 32,
+    "input_includes_cache": true
+   },
+   "outputs": [
+    "fact-011",
+    "fact-012"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-002",
+    "fact-001",
+    "fact-003",
+    "fact-004",
+    "fact-005",
+    "fact-006",
+    "fact-007",
+    "fact-008",
+    "fact-009",
+    "fact-010",
+    "fact-011",
+    "fact-012"
+   ],
+   "final_answers": [
+    "fact-012"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire-echo",
+   "value": {
+    "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   }
+  },
+  {
+   "id": "fact-003",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "call_299429a5e97f52eb9cc25f430aa63a3e",
+    "name": "get_weather",
+    "arguments": {
+     "city": "Paris",
+     "days": 2
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-004",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "call_bb6e76b35c7053cc9759572bd0407c56",
+    "name": "get_weather",
+    "arguments": {
+     "city": "Tokyo",
+     "days": 2
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-005",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "call_52cedc660ef65a63a519de1e87012020",
+    "name": "get_precipitation",
+    "arguments": {
+     "city": "Paris"
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-006",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "call_9445ab1347845cbe95486faef18814b2",
+    "name": "get_precipitation",
+    "arguments": {
+     "city": "Tokyo"
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-007",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": "call_299429a5e97f52eb9cc25f430aa63a3e",
+    "name": "get_weather",
+    "value": {
+     "city": "Paris",
+     "forecast": [
+      {
+       "day": 1,
+       "condition": "sunny",
+       "high_c": 21
+      },
+      {
+       "day": 2,
+       "condition": "sunny",
+       "high_c": 22
+      }
+     ]
+    },
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-008",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": "call_bb6e76b35c7053cc9759572bd0407c56",
+    "name": "get_weather",
+    "value": {
+     "city": "Tokyo",
+     "forecast": [
+      {
+       "day": 1,
+       "condition": "rain",
+       "high_c": 21
+      },
+      {
+       "day": 2,
+       "condition": "sunny",
+       "high_c": 22
+      }
+     ]
+    },
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-009",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": "call_52cedc660ef65a63a519de1e87012020",
+    "name": "get_precipitation",
+    "value": "10% chance of rain in Paris tomorrow.",
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-010",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": "call_9445ab1347845cbe95486faef18814b2",
+    "name": "get_precipitation",
+    "value": "80% chance of rain in Tokyo tomorrow.",
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-011",
+   "kind": "reasoning",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": null,
+    "signed": true,
+    "redacted": false
+   },
+   "require": null,
+   "call": "call-002"
+  },
+  {
+   "id": "fact-012",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "- **Paris:** Sunny over the next two days, with highs of **21°C and 22°C**; tomorrow’s rain chance is **10%**, so an umbrella is probably unnecessary.\n- **Tokyo:** Rain on the first day, then sunny on the second, with highs of **21°C and 22°C**; tomorrow’s rain chance is **80%**, so pack an umbrella."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-002"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-007",
+   "to": "fact-003"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-008",
+   "to": "fact-004"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-009",
+   "to": "fact-005"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-010",
+   "to": "fact-006"
+  },
+  {
+   "kind": "call_order",
+   "before": "call-001",
+   "after": "call-002"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "reasoning",
+   "reason": "reasoning_text_omitted",
+   "detail": "the provider returned a signed reasoning block with no visible text; whether a reconstruction shows a placeholder for it is a product decision, not a fidelity fact",
+   "subject": "fact-011"
+  }
+ ]
+}

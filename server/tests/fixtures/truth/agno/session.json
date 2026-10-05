@@ -1,0 +1,220 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "agno",
+ "scenario": "session",
+ "fixtures": [
+  "agno/native/session",
+  "agno/sdk/session"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/python/agno/cassettes/session.json",
+  "sha256": "d778a26558ddfab4287ab0767b65e1f9925b3598cd22f3c4eab994716708ba68",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "sessions",
+ "request_bodies": "unrecorded",
+ "model_calls": 2,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_6pofgsawdiwuzyyxcz6mac7fuvvzuz475tvbxqgiaynzihkdmlcq",
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 66,
+    "output": 86,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-002"
+   ]
+  },
+  {
+   "id": "call-002",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-2",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_ukylvfncjuphqanutqj7vn4ec7ywizwnjhjlgxnumh2eebstxjdq",
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 65,
+    "output": 144,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": 53,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-004",
+    "fact-005"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002"
+   ],
+   "final_answers": [
+    "fact-002"
+   ]
+  },
+  {
+   "id": "conv-2",
+   "sequence": [
+    "fact-003",
+    "fact-004",
+    "fact-005"
+   ],
+   "final_answers": [
+    "fact-005"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Suggest one museum to visit in Madrid."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "Visit the Museo del Prado, one of the world's finest art museums. It houses masterpieces by Velázquez (including *Las Meninas*), Goya, and El Greco. Go late in the day when entry is often free or discounted, and check current hours before you go."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-2",
+   "evidence": "script",
+   "value": {
+    "text": "Suggest one park to visit in Madrid."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-004",
+   "kind": "reasoning",
+   "role": "assistant",
+   "conversation": "conv-2",
+   "evidence": "wire",
+   "value": {
+    "text": "",
+    "signed": true,
+    "redacted": false
+   },
+   "require": null,
+   "call": "call-002"
+  },
+  {
+   "id": "fact-005",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-2",
+   "evidence": "wire",
+   "value": {
+    "text": "Visit **Retiro Park (Parque del Buen Retiro)**, Madrid's most beloved green space. You can rent a rowboat on the lake, see the Crystal Palace, and stroll through the rose garden. It's free to enter and close to the Prado Museum."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-002"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  },
+  {
+   "kind": "prompt_of",
+   "from": "fact-003",
+   "to": "call-002"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "reasoning",
+   "reason": "reasoning_text_omitted",
+   "detail": "the provider returned a signed reasoning block with no visible text; whether a reconstruction shows a placeholder for it is a product decision, not a fidelity fact",
+   "subject": "fact-004"
+  }
+ ]
+}

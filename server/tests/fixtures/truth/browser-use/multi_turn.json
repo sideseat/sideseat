@@ -1,0 +1,298 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "browser-use",
+ "scenario": "multi_turn",
+ "fixtures": [
+  "browser-use/native/multi_turn",
+  "browser-use/sdk/multi_turn"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/python/browser-use/cassettes/multi_turn.json",
+  "sha256": "49b97cfaac8755ef534c66a0306da6a012cf3e628ddeee52cdeaccfc1d83b8bc",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "linear",
+ "request_bodies": "unrecorded",
+ "model_calls": 3,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_hffhcc737277r7ym74z6wirnsyl3yaalgdrhivxr2imqfo5vip4a",
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 4,
+    "output": 345,
+    "cache_read": 14293,
+    "cache_write": 378,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-002"
+   ]
+  },
+  {
+   "id": "call-002",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_34oqalz3dryei3lhu255jusjaxopqekv7lq2dd6cnxzlwxa3yuja",
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 4,
+    "output": 429,
+    "cache_read": 14293,
+    "cache_write": 566,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-003"
+   ]
+  },
+  {
+   "id": "call-003",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_glvdcgmpnh4ijxmyyzmxm2dao6rn4bba6hotgkrtzldxvpzo42xq",
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 4,
+    "output": 322,
+    "cache_read": 14293,
+    "cache_write": 782,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-004"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002",
+    "fact-003",
+    "fact-004"
+   ],
+   "final_answers": []
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "toolu_bdrk_019rhyhDxVa4jYuQHsZRRmFj",
+    "name": "AgentOutput",
+    "arguments": {
+     "thinking": "The request is a simple recommendation. No tools needed for weather/bookings. Answer directly in at most three sentences.",
+     "evaluation_previous_goal": "Agent initialized; no browsing needed.",
+     "memory": "Task is a simple recommendation; answering directly.",
+     "next_goal": "Call done with a neighbourhood recommendation.",
+     "action": [
+      {
+       "done": {
+        "text": "I'd suggest staying in Alfama, Lisbon's historic old quarter. It has charming narrow streets, fado music, and great viewpoints, and it's walkable to many major sights. This is a general recommendation from my own knowledge, not from a live search of the web or booking tools.",
+        "success": true,
+        "files_to_display": []
+       }
+      }
+     ]
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "toolu_bdrk_017QPL7LRGJYRi9wS5Fcbn8T",
+    "name": "AgentOutput",
+    "arguments": {
+     "thinking": "Simple recommendation question; no browsing needed. Answer directly.",
+     "evaluation_previous_goal": "Previous step answered the neighbourhood question (Alfama). Verdict: Success",
+     "memory": "Initial question answered with Alfama. Follow-up: one dish to try in Lisbon.",
+     "next_goal": "Answer the follow-up with a dish recommendation.",
+     "current_plan_item": null,
+     "plan_update": null,
+     "action": [
+      {
+       "done": {
+        "text": "Try pastéis de nata, Lisbon's famous custard tarts. They're best eaten warm with a sprinkle of cinnamon, and the bakery in Belém is the classic place to get them. If you'd rather have a savoury dish, bacalhau à Brás (shredded salt cod with eggs and potatoes) is a local favourite.",
+        "success": true,
+        "files_to_display": []
+       }
+      }
+     ]
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-002"
+  },
+  {
+   "id": "fact-004",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "toolu_bdrk_01TLkX3Caur6h1ZgDhCPgWxR",
+    "name": "AgentOutput",
+    "arguments": {
+     "thinking": "Final follow-up: summarise the two suggestions (Alfama, pastéis de nata) in one sentence. No browsing needed.",
+     "evaluation_previous_goal": "Dish question answered with pastéis de nata. Verdict: Success",
+     "memory": "Suggestions: stay in Alfama; try pastéis de nata.",
+     "next_goal": "Give the one-sentence summary.",
+     "action": [
+      {
+       "done": {
+        "text": "For your Lisbon weekend, stay in the historic Alfama neighbourhood and be sure to try pastéis de nata, the city's famous custard tarts.",
+        "success": true,
+        "files_to_display": []
+       }
+      }
+     ]
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-003"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  },
+  {
+   "kind": "call_order",
+   "before": "call-001",
+   "after": "call-002"
+  },
+  {
+   "kind": "call_order",
+   "before": "call-002",
+   "after": "call-003"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "tool_result",
+   "reason": "tool_not_deterministic",
+   "detail": "AgentOutput is not one of the shared deterministic tools",
+   "subject": "fact-002"
+  },
+  {
+   "fact": "tool_result",
+   "reason": "tool_not_deterministic",
+   "detail": "AgentOutput is not one of the shared deterministic tools",
+   "subject": "fact-003"
+  },
+  {
+   "fact": "tool_result",
+   "reason": "tool_not_deterministic",
+   "detail": "AgentOutput is not one of the shared deterministic tools",
+   "subject": "fact-004"
+  },
+  {
+   "fact": "user_text",
+   "reason": "prompt_without_model_call",
+   "detail": "the script sends 'What is one dish I should try there?', but no recorded call answers it"
+  },
+  {
+   "fact": "user_text",
+   "reason": "prompt_without_model_call",
+   "detail": "the script sends 'Summarise your two suggestions in one sentence.', but no recorded call answers it"
+  }
+ ]
+}

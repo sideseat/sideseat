@@ -1,0 +1,184 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "vercel-ai-js",
+ "scenario": "structured_output",
+ "fixtures": [
+  "vercel-ai-js/native/structured_output",
+  "vercel-ai-js/sdk/structured_output"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/javascript/vercel-ai/cassettes/structured_output.json",
+  "sha256": "5ea9e53826debb8da1c569e5d589afe7d683c57a16710849bb2df17f2394b995",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "linear",
+ "request_bodies": "unrecorded",
+ "model_calls": 2,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 570,
+    "output": 221,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-002"
+   ]
+  },
+  {
+   "id": "call-002",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 819,
+    "output": 192,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-003"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002",
+    "fact-003"
+   ],
+   "final_answers": [
+    "fact-003"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Plan a two-day trip to Vienna."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "tooluse_4yA0LToOJ1kFY33SGUgosm",
+    "name": "trip_plan",
+    "arguments": {
+     "city": "Vienna",
+     "days": [
+      "Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a stroll along the Ringstrasse, with Sachertorte at a classic café",
+      "Day 2: Tour Schönbrunn Palace and gardens, then visit the Naschmarkt and enjoy an evening in the MuseumsQuartier"
+     ],
+     "budget_eur": 450
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "I've recorded a two-day Vienna plan with an estimated budget of about €450. I didn't check weather or bookings because I only have the trip-plan tool here, so the plan and budget are general estimates.\n\n- **Day 1:** Explore the Innere Stadt. See St. Stephen's Cathedral, Hofburg Palace and the Ringstrasse, and have Sachertorte at a classic café.\n- **Day 2:** Tour Schönbrunn Palace and its gardens. Then visit the Naschmarkt and spend the evening at the MuseumsQuartier."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-002"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  },
+  {
+   "kind": "call_order",
+   "before": "call-001",
+   "after": "call-002"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "tool_result",
+   "reason": "tool_not_deterministic",
+   "detail": "trip_plan is not one of the shared deterministic tools",
+   "subject": "fact-002"
+  }
+ ]
+}

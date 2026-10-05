@@ -1,0 +1,220 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "adk",
+ "scenario": "session",
+ "fixtures": [
+  "adk/native/session",
+  "adk/sdk/session"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/python/adk/cassettes/session.json",
+  "sha256": "7f206f6f7117b5eb413cfce4f951e0ef19bcadba5690dada2cac92a20eda4ad3",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "sessions",
+ "request_bodies": "unrecorded",
+ "model_calls": 2,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 84,
+    "output": 119,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-002"
+   ]
+  },
+  {
+   "id": "call-002",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-2",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 220,
+    "output": 146,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-004",
+    "fact-005"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002"
+   ],
+   "final_answers": [
+    "fact-002"
+   ]
+  },
+  {
+   "id": "conv-2",
+   "sequence": [
+    "fact-003",
+    "fact-004",
+    "fact-005"
+   ],
+   "final_answers": [
+    "fact-005"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Suggest one museum to visit in Madrid."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "I'd suggest the **Museo del Prado**, Madrid's premier art museum, with masterpieces by Velázquez (*Las Meninas*), Goya, and El Greco. Plan for 2-3 hours, and check for free evening admission hours to save on tickets. It's also an easy walk from Retiro Park, so you can pair the two in one outing."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-2",
+   "evidence": "script",
+   "value": {
+    "text": "Suggest one park to visit in Madrid."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-004",
+   "kind": "reasoning",
+   "role": "assistant",
+   "conversation": "conv-2",
+   "evidence": "wire",
+   "value": {
+    "text": "",
+    "signed": true,
+    "redacted": false
+   },
+   "require": null,
+   "call": "call-002"
+  },
+  {
+   "id": "fact-005",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-2",
+   "evidence": "wire",
+   "value": {
+    "text": "I'd suggest **Retiro Park (Parque del Buen Retiro)**, Madrid's most beloved green space. Highlights include the Crystal Palace, the boating lake, and the rose garden. It's near the Prado, so it pairs well with your museum visit."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-002"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  },
+  {
+   "kind": "prompt_of",
+   "from": "fact-003",
+   "to": "call-002"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "reasoning",
+   "reason": "reasoning_text_omitted",
+   "detail": "the provider returned a signed reasoning block with no visible text; whether a reconstruction shows a placeholder for it is a product decision, not a fidelity fact",
+   "subject": "fact-004"
+  }
+ ]
+}

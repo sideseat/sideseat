@@ -1,0 +1,433 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "agno",
+ "scenario": "multi_agent",
+ "fixtures": [
+  "agno/native/multi_agent",
+  "agno/sdk/multi_agent"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/python/agno/cassettes/multi_agent.json",
+  "sha256": "17628b0a4a3f241dc12ed00bc9ed7b4f21c095b4fe25eb9efd911c68bccaae6e",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "multi_agent",
+ "request_bodies": "unrecorded",
+ "model_calls": 6,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_p4kqqglh2xyx3nda4xmetx3ft3xp2gwjhti4qqzd62ymsnmxmezq",
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 1059,
+    "output": 133,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-002"
+   ]
+  },
+  {
+   "id": "call-002",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_5vyw3tx357twqjkzminusstsqqzsqakg37ioymvyz4zuiyfosmua",
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 535,
+    "output": 77,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-003"
+   ]
+  },
+  {
+   "id": "call-003",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_ybcpfhrth4y43lnwcipr6emdvesnwrqvgmy5c6y55l5k3knc27pq",
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 697,
+    "output": 290,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-005"
+   ]
+  },
+  {
+   "id": "call-004",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_fe55tgvi7b477zsfoeolnunf5v3ucvohsbezrxeppra5lp3pmw3q",
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 1485,
+    "output": 190,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-006"
+   ]
+  },
+  {
+   "id": "call-005",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_fcxvbu7v2n3a4mdbcfo6iuqhvyyezlmjro7tblcsqtflji3btuia",
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 159,
+    "output": 333,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-007"
+   ]
+  },
+  {
+   "id": "call-006",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_wfn54aju5fdrcf2ardmuvn3zj6vfdkomgasl5ibp4cjuzu5vqeca",
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 2011,
+    "output": 385,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-008"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002",
+    "fact-003",
+    "fact-004",
+    "fact-005",
+    "fact-006",
+    "fact-007",
+    "fact-008"
+   ],
+   "final_answers": [
+    "fact-005",
+    "fact-007",
+    "fact-008"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "toolu_bdrk_01C6NqZKXcESnVNL8RY5wGND",
+    "name": "delegate_task_to_member",
+    "arguments": {
+     "member_id": "researcher",
+     "task": "Research the weather forecast for Barcelona, Spain for the next two days. Report temperatures (highs/lows), precipitation chances, wind, and general conditions for each day."
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "toolu_bdrk_01ARE2hvjy7pjaNbt5HAiHRQ",
+    "name": "get_weather",
+    "arguments": {
+     "city": "Barcelona, Spain",
+     "days": 2
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-002"
+  },
+  {
+   "id": "fact-004",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": "toolu_bdrk_01ARE2hvjy7pjaNbt5HAiHRQ",
+    "name": "get_weather",
+    "value": {
+     "city": "Barcelona, Spain",
+     "forecast": [
+      {
+       "day": 1,
+       "condition": "sunny",
+       "high_c": 21
+      },
+      {
+       "day": 2,
+       "condition": "sunny",
+       "high_c": 22
+      }
+     ]
+    },
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-005",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "**Barcelona, Spain: 2-day forecast**\n\n| | Day 1 | Day 2 |\n|---|---|---|\n| **Conditions** | Sunny | Sunny |\n| **High** | 21°C (70°F) | 22°C (72°F) |\n| **Low** | Not provided | Not provided |\n| **Precipitation chance** | Not provided | Not provided |\n| **Wind** | Not provided | Not provided |\n\n**Summary:** Both days should be sunny and mild. Highs are 21°C on Day 1 and 22°C on Day 2. The forecast source gave only conditions and daily highs. It had no data for lows, precipitation chances, or wind. Sunny skies suggest rain is unlikely, but I don't have a figure to confirm that. For lows, precipitation, or wind, check a local source such as AEMET, Spain's national weather service."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-003"
+  },
+  {
+   "id": "fact-006",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "toolu_bdrk_01SAUhXAHQya4MQAz53YVoYD",
+    "name": "delegate_task_to_member",
+    "arguments": {
+     "member_id": "writer",
+     "task": "Write a one-paragraph packing list for a two-day trip to Barcelona based on this forecast: Day 1 sunny, high 21°C (70°F); Day 2 sunny, high 22°C (72°F). Lows, precipitation chance and wind were not available, so suggest a light extra layer for evenings. Keep it to a single paragraph."
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-004"
+  },
+  {
+   "id": "fact-007",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "For your two days in Barcelona, pack for mild, sunny weather with highs of 21-22°C (70-72°F). Bring lightweight, breathable clothing such as two or three T-shirts or short-sleeve tops, a pair of comfortable pants or jeans, and perhaps a pair of shorts or a skirt for the warmest part of the afternoon. Since lows and wind weren't available in the forecast, add a light extra layer for the evenings, like a thin sweater, cardigan, or light jacket that folds up easily in a day bag. Comfortable walking shoes are essential for exploring the city's streets and hills, and sunglasses, a hat, and sunscreen will help with the strong sun. Round out your bag with a small daypack, a refillable water bottle, a phone charger and a power adapter (Europe uses Type C/F plugs), basic toiletries, and your passport or ID, and since precipitation chances weren't available, you might tuck in a compact umbrella or packable rain jacket just in case."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-005"
+  },
+  {
+   "id": "fact-008",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "**Barcelona forecast (next two days):** Both days should be sunny. Highs are 21°C (70°F) on Day 1 and 22°C (72°F) on Day 2. The forecast didn't include lows, chance of rain, or wind. AEMET, Spain's national weather service, is a good place to check those.\n\n**Packing list:** Pack for mild, sunny weather. Bring lightweight, breathable clothing: two or three T-shirts or short-sleeve tops, comfortable pants or jeans, and shorts or a skirt for the warmest part of the afternoon. Add a light extra layer for the evenings, such as a thin sweater, cardigan, or packable jacket. The forecast had no lows or wind, so this covers cooler evening temperatures. Comfortable walking shoes are essential for the city's streets and hills. Sunglasses, a hat, and sunscreen will help with the strong sun. Also bring a small daypack, a refillable water bottle, a phone charger, a Type C/F power adapter, basic toiletries, and your passport or ID. Rain chances weren't available, so you could add a compact umbrella or packable rain jacket just in case."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-006"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-004",
+   "to": "fact-003"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "routing",
+   "reason": "multi_agent_routing",
+   "detail": "which agent made each call, and what one agent passed another, is the framework's; only each call's own output and the shared tools' results are asserted"
+  },
+  {
+   "fact": "tool_result",
+   "reason": "tool_not_deterministic",
+   "detail": "delegate_task_to_member is not one of the shared deterministic tools",
+   "subject": "fact-002"
+  },
+  {
+   "fact": "tool_result",
+   "reason": "tool_not_deterministic",
+   "detail": "delegate_task_to_member is not one of the shared deterministic tools",
+   "subject": "fact-006"
+  }
+ ]
+}

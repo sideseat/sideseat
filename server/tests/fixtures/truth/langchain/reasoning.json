@@ -1,0 +1,142 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "langchain",
+ "scenario": "reasoning",
+ "fixtures": [
+  "langchain/native/reasoning",
+  "langchain/sdk/reasoning"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/python/langchain/cassettes/reasoning.json",
+  "sha256": "b854cd7fa9758f112099f3ad4378959ae3b3cafc7027e682e4ae932397e33906",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "linear",
+ "request_bodies": "unrecorded",
+ "model_calls": 1,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 89,
+    "output": 8662,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-002",
+    "fact-003"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002",
+    "fact-003"
+   ],
+   "final_answers": [
+    "fact-003"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the schedule?"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "reasoning",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "This is the classic bridge-crossing puzzle with crossing times 1, 2, 5, 10 minutes, where the optimal solution totals 17 minutes. I'm working through the schedule: send 1&2 over, 1 returns, then 5&10 cross together, 2 returns, then 1&2 cross again to finish — the key trick being pairing the two slowest together rather than ferrying them separately.\n\nComparing against the naive strategy of always sending the fastest person back (which totals 19 minutes), I confirm the \"pair the two slowest\" approach is better, giving the general formula a + 3b + d versus 2a + b + c + d for sorted times. Now I'm trying to prove 17 is truly optimal by reasoning about the minimum number of crossings required and how the 10-minute person's trip must be amortized.\n\nChecking whether 10 and 5 travel together: if so, that trip costs 10, and the remaining structure needs two forward trips plus two single returns to shuttle everyone else, so I'm comparing those costs against the alternative where 10 and 5 cross separately.\n\nIf 5 and 10 cross separately, forward trips cost at least 10+5+2=17, plus two returns of at least 1 each gives at least 19. If they cross together, the forward trip costs 10, but the other two forward pairs still need at least 2 each, giving forward ≥14, and I still need to account for the return trips after that crossing.\n\nWorking out the total either way: whether 1 or 2 returns first, the sum comes out to 2+1+10+2+2=17, confirming this alternate schedule matches the earlier total.\n\nI'm now checking whether using more crossings, like 7 instead of 5, could possibly beat 17 — intuitively more trips add more cost, but I want to verify with a lower-bound argument, since the 10-minute person must be included in a forward trip that already costs at least 10.\n\nI need to think about who returns the torch after 5 and 10 cross together — whoever's on the far side has to come back, which adds cost. This matches the known result that 17 minutes is optimal, with only two essentially distinct strategies achieving it, so I'll settle on that conclusion.\n\nThen D's trip costs 10, and C's separate trip costs at least 5, with the remaining trips needed to shuttle A and B across adding at least a couple more crossings — I'm trying to pin down the minimum total by counting how many forward trips are structurally necessary given everyone must end up on the far side.\n\nWith at least 5 total trips, and D's trip (10) and C's trip (at least 5) being two of them, the remaining at least 3 trips each cost at least 1, giving a total of at least 18, which exceeds 17—so this case is ruled out.\n\nNow I'm checking whether 5 is really the minimum number of trips: with only 1 or 3 trips, the net number of people transported can't reach 4, so 5 trips is indeed necessary.\n\nFor the second case, I'm considering when C and D cross together on the same forward trip, costing 10, and then looking at what the remaining trips require.\n\nWith n ≥ 5 trips total, the other trips must account for at least 4 more crossings, so I'm trying to figure out whether those remaining trips can really be bounded below at 7, examining where the C&D trip falls in the sequence—starting with the case where it's the very first trip.\n\nIf CD crosses first, the far side only has C and D, so someone must bring the torch back at cost ≥5, pushing the total past 17 once I add the remaining required trips. If instead the CD trip happens later in the sequence, I need to think about what happened to C and D before that point—since moving them earlier and bringing them back would only add more cost, I'm checking whether any trips before the CD crossing could have involved C or D at all.\n\nI need to work through when the CD trip happens relative to the A/B trips, checking whether CD is first or occurs after some A/B shuttling, since the torch needs to be on the near side with C and D at that moment.\n\nSince torch is at the near side at that point, someone must have returned, so S can only have size 0 or 1 — if both A and B were across, the torch couldn't be on the near side. So after the CD trip, the far side holds C, D, and possibly one of A/B, with the other person waiting near side. The torch then has to return from the far side (cheapest if it's A returning, costlier if B or C/D do), followed by A and B crossing together to finish, so I'm tallying up the total cost for this case.\n\nIf |S|=0, that means C or D must be the one returning after their trip, which costs at least 5 extra, pushing the total to 18 or more — worse than the |S|=1 case. Checking whether extra trips beyond the minimal 5-trip structure could ever beat 17, but the underlying cost floor stays the same regardless of how many extra back-and-forths A and B take.\n\nSo pre-CD cost is at least 3, giving CD = 10, and post-CD requires another return plus the final A&B crossing, adding at least 3 more — totaling roughly 16.\n\nChecking the two scheduling options: whichever of A or B returns first before CD, the other one must return after, and tallying both cases consistently gives 17 as the true lower bound, since any extra crossings only add cost.\n\nI want to present the answer clearly: minimum 17 minutes with the specific schedule, plus a brief comparison showing why the naive approach yields 19 instead. Let me lay out the crossing sequence as a table showing each step, who crosses, the time taken, elapsed total, and who's on each side afterward.\n\nThe key insight is that sending the two slowest people together lets their crossing times overlap, while the two fastest shuttle the torch back and forth, saving 2 minutes over the naive strategy of always sending the fastest escort.\n\nWorking through the \"together\" case: 2 (both cross) + 1 (one returns) + 10 (5&10 cross) + 2 (other returns) + 2 (final cross) = 17, confirming this matches the other case. For rigor, I need to note that since neither 5 nor 10 can be used to carry the torch back cheaply, the returns must fall to 1 and 2, who need to already be positioned to do so.\n\n",
+    "signed": true,
+    "redacted": false
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "**The fastest total time is 17 minutes.**\n\n## Schedule\n\n| Step | Move | Time | Elapsed |\n|---|---|---|---|\n| 1 | 1 and 2 cross together | 2 | 2 |\n| 2 | 1 walks back with the torch | 1 | 3 |\n| 3 | 5 and 10 cross together | 10 | 13 |\n| 4 | 2 walks back with the torch | 2 | 15 |\n| 5 | 1 and 2 cross together | 2 | 17 |\n\nEveryone is across after 17 minutes.\n\n## Why this is best\n\nThe 10-minute walker costs 10 minutes on whichever crossing he makes, so the aim is to let the 5-minute walker cross during that same trip. Then the 5 adds no extra time, and the two fast walkers handle the torch returns.\n\nThe obvious alternative is to have the 1-minute walker escort everyone:\n2 + 1 + 5 + 1 + 10 = **19 minutes**.\n\nAny valid plan needs at least 5 crossings, which means 3 forward trips and 2 returns.\n\n- **If 5 and 10 cross separately,** those two trips alone cost 15 minutes, and the other three crossings cost at least 1 minute each. That is at least 18 minutes, and in practice 19.\n- **If 5 and 10 cross together,** that trip costs 10. Neither of them should carry the torch back, since that would cost at least 5 more. So the two returns fall to the fast walkers 1 and 2, and the cheapest arrangement costs 2 + 1 + 10 + 2 + 2 = 17.\n\nAn equally fast variant swaps who returns: 1 and 2 cross (2), 2 returns (2), 5 and 10 cross (10), 1 returns (1), 1 and 2 cross (2), which also totals 17."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-001"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  }
+ ]
+}

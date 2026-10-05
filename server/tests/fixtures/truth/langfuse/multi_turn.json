@@ -1,0 +1,276 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "langfuse",
+ "scenario": "multi_turn",
+ "fixtures": [
+  "langfuse/native/multi_turn",
+  "langfuse/sdk/multi_turn"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/python/langfuse/cassettes/multi_turn.json",
+  "sha256": "5637601c01143b19b92556d88778f89f77f4c1eae9d6198316b8eb513415f3d7",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "linear",
+ "request_bodies": "unrecorded",
+ "model_calls": 3,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "openai.chat",
+   "streamed": false,
+   "status": 200,
+   "model": "global.openai.gpt-6.1-sol",
+   "response_model": "global.openai.gpt-6.1-sol",
+   "response_id": "chatcmpl-waxqqwmrixlszsjuleib3gfwwac5ydr5hn7dkr3t6ecnq45vwaca",
+   "stop_reason": "stop",
+   "finish": "stop",
+   "usage": {
+    "input": 51,
+    "output": 64,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": 30,
+    "input_includes_cache": true
+   },
+   "outputs": [
+    "fact-002"
+   ]
+  },
+  {
+   "id": "call-002",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "openai.chat",
+   "streamed": false,
+   "status": 200,
+   "model": "global.openai.gpt-6.1-sol",
+   "response_model": "global.openai.gpt-6.1-sol",
+   "response_id": "chatcmpl-3vp4lw6ksujr3nkbglzev27y7xxk3pzcbal3x4cxz53l44cqc5rq",
+   "stop_reason": "stop",
+   "finish": "stop",
+   "usage": {
+    "input": 98,
+    "output": 66,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": 26,
+    "input_includes_cache": true
+   },
+   "outputs": [
+    "fact-004"
+   ]
+  },
+  {
+   "id": "call-003",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "openai.chat",
+   "streamed": false,
+   "status": 200,
+   "model": "global.openai.gpt-6.1-sol",
+   "response_model": "global.openai.gpt-6.1-sol",
+   "response_id": "chatcmpl-iltgmlbqf7tjkh2jydqof7hnwkh26pkeir3i6p64xuinzvlcqdca",
+   "stop_reason": "stop",
+   "finish": "stop",
+   "usage": {
+    "input": 152,
+    "output": 43,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": 0,
+    "input_includes_cache": true
+   },
+   "outputs": [
+    "fact-006"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002",
+    "fact-003",
+    "fact-004",
+    "fact-005",
+    "fact-006"
+   ],
+   "final_answers": [
+    "fact-002",
+    "fact-004",
+    "fact-006"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "Stay in **Chiado**—it’s central and walkable, with cafés, restaurants, and easy access to Lisbon’s main sights."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "What is one dish I should try there?"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-004",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "Try **bacalhau à Brás**—shredded salted cod mixed with thin fried potatoes, onions, and scrambled eggs, usually topped with olives and parsley."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-002"
+  },
+  {
+   "id": "fact-005",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Summarise your two suggestions in one sentence."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-006",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "Stay in **Chiado** for its central, walkable location, and try **bacalhau à Brás**, a dish of salted cod, fried potatoes, onions, and scrambled eggs."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-003"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  },
+  {
+   "kind": "call_order",
+   "before": "call-001",
+   "after": "call-002"
+  },
+  {
+   "kind": "prompt_of",
+   "from": "fact-003",
+   "to": "call-002"
+  },
+  {
+   "kind": "call_order",
+   "before": "call-002",
+   "after": "call-003"
+  },
+  {
+   "kind": "prompt_of",
+   "from": "fact-005",
+   "to": "call-003"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  }
+ ]
+}

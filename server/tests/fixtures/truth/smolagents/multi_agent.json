@@ -1,0 +1,332 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "smolagents",
+ "scenario": "multi_agent",
+ "fixtures": [
+  "smolagents/native/multi_agent",
+  "smolagents/sdk/multi_agent"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/python/smolagents/cassettes/multi_agent.json",
+  "sha256": "34bf5a6633063584c7f7b59ea9416e85f728dcba1899d5e30834ea93ef5de42b",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "multi_agent",
+ "request_bodies": "unrecorded",
+ "model_calls": 4,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 2005,
+    "output": 130,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-002"
+   ]
+  },
+  {
+   "id": "call-002",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 2088,
+    "output": 77,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-003"
+   ]
+  },
+  {
+   "id": "call-003",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 2275,
+    "output": 766,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-005"
+   ]
+  },
+  {
+   "id": "call-004",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 2913,
+    "output": 345,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-006"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002",
+    "fact-003",
+    "fact-004",
+    "fact-005",
+    "fact-006"
+   ],
+   "final_answers": [
+    "fact-005",
+    "fact-006"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "tooluse_ECooklahParLWEzRz1PtDD",
+    "name": "researcher",
+    "arguments": {
+     "task": "Please use the weather tool to look up the weather forecast for Barcelona, Spain for the next two days. Report for each day: temperature range (high/low), precipitation/rain chance, wind, humidity, and general conditions (sunny, cloudy, etc.)."
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "tooluse_DcOMhAFqs3xhC2fbvXfr8k",
+    "name": "get_weather",
+    "arguments": {
+     "city": "Barcelona, Spain",
+     "days": 2
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-002"
+  },
+  {
+   "id": "fact-004",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": "tooluse_DcOMhAFqs3xhC2fbvXfr8k",
+    "name": "get_weather",
+    "value": {
+     "city": "Barcelona, Spain",
+     "forecast": [
+      {
+       "day": 1,
+       "condition": "sunny",
+       "high_c": 21
+      },
+      {
+       "day": 2,
+       "condition": "sunny",
+       "high_c": 22
+      }
+     ]
+    },
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-005",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "tooluse_L5YuAapGtIPSClkDr7OtSb",
+    "name": "final_answer",
+    "arguments": {
+     "answer": "### 1. Task outcome (short version):\nBarcelona, Spain is forecast to be sunny on both of the next two days. The high is 21°C on Day 1 and 22°C on Day 2. The weather tool did not return low temperatures, precipitation/rain chance, wind, or humidity, so I can't report those.\n\n### 2. Task outcome (extremely detailed version):\nI called get_weather with city='Barcelona, Spain' and days=2. The raw response was:\n{'city': 'Barcelona, Spain', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}\n\nDay 1:\n- General conditions: sunny\n- Temperature high: 21°C (about 69.8°F)\n- Temperature low: not provided by the tool\n- Precipitation/rain chance: not provided. \"Sunny\" suggests little or no rain, but this is my inference and no figure was returned.\n- Wind: not provided\n- Humidity: not provided\n\nDay 2:\n- General conditions: sunny\n- Temperature high: 22°C (about 71.6°F)\n- Temperature low: not provided by the tool\n- Precipitation/rain chance: not provided. \"Sunny\" suggests little or no rain, but this is also an inference.\n- Wind: not provided\n- Humidity: not provided\n\nTrend: conditions stay sunny and the high rises by 1°C from Day 1 to Day 2.\n\n### 3. Additional context (if relevant):\n- The tool returns only a condition and a daily high in °C. Four of the requested items are missing: low temperature, rain chance, wind, and humidity.\n- I did not re-run the query, because the same call would most likely return the same limited fields. The tool has no parameter for requesting more detail.\n- To get the missing data (lows, rain probability, wind speed and direction, humidity), you would need a different weather source or tool, such as AEMET (the Spanish meteorological agency) or another weather service.\n- The tool did not say which calendar dates Day 1 and Day 2 correspond to. Day 1 is presumably today or the next forecast day."
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-003"
+  },
+  {
+   "id": "fact-006",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "tooluse_VRDNOZGKXkN1JamolsPrbX",
+    "name": "final_answer",
+    "arguments": {
+     "answer": "Packing list for Barcelona (next two days): The forecast shows sunny skies both days, with highs of about 21°C on Day 1 and 22°C on Day 2. The weather tool didn't provide lows, rain chance, wind or humidity, so pack a little flexibly. Bring light, breathable daytime clothes such as T-shirts, a pair of light trousers or knee-length shorts or a skirt, and a light sweater or jacket for cooler mornings and evenings, since lows weren't reported. Add comfortable walking shoes or sneakers for exploring the city, plus sunglasses, a sun hat, and sunscreen for the strong sun. Carry a refillable water bottle and a small daypack. Rain looks unlikely, but a compact packable rain jacket is optional insurance. Also pack the usual essentials: phone and charger, travel adapter, toiletries, and your ID or passport."
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-004"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-004",
+   "to": "fact-003"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "routing",
+   "reason": "multi_agent_routing",
+   "detail": "which agent made each call, and what one agent passed another, is the framework's; only each call's own output and the shared tools' results are asserted"
+  },
+  {
+   "fact": "tool_result",
+   "reason": "tool_not_deterministic",
+   "detail": "researcher is not one of the shared deterministic tools",
+   "subject": "fact-002"
+  }
+ ]
+}

@@ -1,0 +1,324 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "pydantic-ai",
+ "scenario": "multi_agent",
+ "fixtures": [
+  "pydantic-ai/native/multi_agent",
+  "pydantic-ai/sdk/multi_agent"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/python/pydantic-ai/cassettes/multi_agent.json",
+  "sha256": "608758d48dd737c6e494d3baba1fa8f6311c2dba7348b9d892e4a5232ddf4cdd",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "multi_agent",
+ "request_bodies": "unrecorded",
+ "model_calls": 4,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 444,
+    "output": 104,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-002"
+   ]
+  },
+  {
+   "id": "call-002",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 498,
+    "output": 77,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-003"
+   ]
+  },
+  {
+   "id": "call-003",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 644,
+    "output": 258,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-005"
+   ]
+  },
+  {
+   "id": "call-004",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 809,
+    "output": 304,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-006"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002",
+    "fact-003",
+    "fact-004",
+    "fact-005",
+    "fact-006"
+   ],
+   "final_answers": [
+    "fact-005",
+    "fact-006"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "tooluse_xP4UUWIrPSI2V2aJreX2JR",
+    "name": "ask_researcher",
+    "arguments": {
+     "request": "What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humidity, and UV if available."
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "tooluse_uGTu6I8EP6QkocF1QatZu6",
+    "name": "get_weather",
+    "arguments": {
+     "city": "Barcelona, Spain",
+     "days": 2
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-002"
+  },
+  {
+   "id": "fact-004",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": "tooluse_uGTu6I8EP6QkocF1QatZu6",
+    "name": "get_weather",
+    "value": {
+     "city": "Barcelona, Spain",
+     "forecast": [
+      {
+       "day": 1,
+       "condition": "sunny",
+       "high_c": 21
+      },
+      {
+       "day": 2,
+       "condition": "sunny",
+       "high_c": 22
+      }
+     ]
+    },
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-005",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "Here is the two-day forecast for Barcelona, Spain. The tool returned only conditions and high temperatures.\n\n| Day | Conditions | High | Low |\n|---|---|---|---|\n| Day 1 (today) | Sunny | 21°C (70°F) | Not available |\n| Day 2 (tomorrow) | Sunny | 22°C (72°F) | Not available |\n\nThe tool didn't return any of these, so I can't give you figures for them:\n- Low temperatures\n- Precipitation chances\n- Wind\n- Humidity\n- UV index\n\nBoth days are forecast to be sunny, so rain is unlikely. That's my inference from the conditions, not a precipitation figure. For wind, humidity and UV, check a local source such as AEMET, Spain's national weather service."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-003"
+  },
+  {
+   "id": "fact-006",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "**Packing list for Barcelona (next two days):** The forecast shows sunny weather both days, with highs of about 21°C (70°F) today and 22°C (72°F) tomorrow. Pack light, breathable layers for the daytime. Good choices are T-shirts or short-sleeve tops, lightweight pants or a casual skirt or dress, and comfortable walking shoes or sneakers. Bring sunglasses, a hat, and sunscreen for all the sun. The forecast had no low temperatures, so I'd also bring a light jacket or sweater for the mornings and evenings. A small daypack and a refillable water bottle will help if you're out sightseeing. Rain looks unlikely, so you can skip the umbrella and rain gear. The forecast also had no wind, humidity, or UV figures, so check a local source like AEMET before you go. The lows and the rain chance are both inferred, not forecast figures."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-004"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-004",
+   "to": "fact-003"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "routing",
+   "reason": "multi_agent_routing",
+   "detail": "which agent made each call, and what one agent passed another, is the framework's; only each call's own output and the shared tools' results are asserted"
+  },
+  {
+   "fact": "tool_result",
+   "reason": "tool_not_deterministic",
+   "detail": "ask_researcher is not one of the shared deterministic tools",
+   "subject": "fact-002"
+  }
+ ]
+}

@@ -1,0 +1,455 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "claude-agent-sdk-js",
+ "scenario": "multi_agent",
+ "fixtures": [
+  "claude-agent-sdk-js/native/multi_agent",
+  "claude-agent-sdk-js/sdk/multi_agent"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/javascript/claude-agent-sdk/cassettes/multi_agent.json",
+  "sha256": "38408b8519e733cb95b4f648150d7bb467d242b4acdcde2609a7f6902ca59eb9",
+  "non_model_requests": 1
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "multi_agent",
+ "request_bodies": "unrecorded",
+ "model_calls": 6,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": true,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_casvasvowfbsmipogzldngdqtq67zi4lszkqjomtvfhjveu675gq",
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 2,
+    "output": 171,
+    "cache_read": 0,
+    "cache_write": 2455,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-002"
+   ]
+  },
+  {
+   "id": "call-002",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": true,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_ujf232ubtrhw6cc4eijfv23fbhv52bqs4vz3hsqnfyuryns4j3yq",
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 2,
+    "output": 80,
+    "cache_read": 0,
+    "cache_write": 1545,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-003"
+   ]
+  },
+  {
+   "id": "call-003",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": true,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_wy53ifoyhedsc6ldhsy3bn4nuowqzue5ou6iid6sdqzppolgobcq",
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 2,
+    "output": 154,
+    "cache_read": 1545,
+    "cache_write": 168,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-005"
+   ]
+  },
+  {
+   "id": "call-004",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": true,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_fuwjbx454ijp6kbr2vus4t23ugmohfkw54uullg3b25p7xbaroda",
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 2,
+    "output": 211,
+    "cache_read": 2455,
+    "cache_write": 848,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-006"
+   ]
+  },
+  {
+   "id": "call-005",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": true,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_3vm4thng5vxb6iggfc6i2e6hipfpcqbqwvbwobgz54fpfpn7kunq",
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 2,
+    "output": 343,
+    "cache_read": 0,
+    "cache_write": 1416,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-007"
+   ]
+  },
+  {
+   "id": "call-006",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": true,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_2mftybp4rzfyuhwxisjssnw2eo6fpzz6s5ca3cfyntsfejfs44cq",
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 2,
+    "output": 295,
+    "cache_read": 3303,
+    "cache_write": 1073,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-008"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002",
+    "fact-003",
+    "fact-004",
+    "fact-005",
+    "fact-006",
+    "fact-007",
+    "fact-008"
+   ],
+   "final_answers": [
+    "fact-008"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "toolu_bdrk_013dwbysCkYYviAKxqK8GF5v",
+    "name": "Agent",
+    "arguments": {
+     "description": "Barcelona weather research",
+     "subagent_type": "researcher",
+     "prompt": "Get the weather forecast for Barcelona for the next 2 days and report the details (temperatures, precipitation, wind, conditions).",
+     "run_in_background": false
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "toolu_bdrk_01WBoKmNkAtFK2GLY5VqAJAa",
+    "name": "mcp__travel__get_weather",
+    "arguments": {
+     "city": "Barcelona",
+     "days": 2
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-002"
+  },
+  {
+   "id": "fact-004",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": "toolu_bdrk_01WBoKmNkAtFK2GLY5VqAJAa",
+    "name": "mcp__travel__get_weather",
+    "value": {
+     "city": "Barcelona",
+     "forecast": [
+      {
+       "day": 1,
+       "condition": "rain",
+       "high_c": 21
+      },
+      {
+       "day": 2,
+       "condition": "sunny",
+       "high_c": 22
+      }
+     ]
+    },
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-005",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "toolu_bdrk_01QgQWRaLVJ5F3Tru6GEVmA9",
+    "name": "SubagentHandback",
+    "arguments": {
+     "message": "Barcelona 2-day forecast (from the weather tool):\n- Day 1: rain, high 21 C.\n- Day 2: sunny, high 22 C.\nThe tool returned only conditions and daily highs. It gave no low temperatures, precipitation amounts or probabilities, or wind data, so I can't report those."
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-003"
+  },
+  {
+   "id": "fact-006",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "toolu_bdrk_01KZVicynwDKdp6xX2v3W8i6",
+    "name": "Agent",
+    "arguments": {
+     "description": "Write packing list",
+     "subagent_type": "writer",
+     "prompt": "Write a one-paragraph packing list for a trip to Barcelona based on this weather report: Day 1: rain, high 21 C. Day 2: sunny, high 22 C. (No lows, precipitation amounts, or wind data available.) Return only the paragraph.",
+     "run_in_background": false
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-004"
+  },
+  {
+   "id": "fact-007",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "toolu_bdrk_01X3uZq59g3RMdyn448JjVs4",
+    "name": "SubagentHandback",
+    "arguments": {
+     "message": "For your two days in Barcelona, pack light layers suited to mild temperatures, since highs will be 21 to 22 C but no overnight lows were reported, so bring a long-sleeve top or light sweater and a thin jacket for mornings and evenings. Bring a compact, packable rain jacket or small umbrella for the rainy first day, along with water-resistant comfortable walking shoes (plus a spare pair of socks in case your feet get wet). For the sunny second day, add sunglasses, sunscreen, a hat, and a few T-shirts or short-sleeve tops, and a reusable water bottle. Round things out with long pants or jeans, a day bag that can be kept dry, a phone charger and power adapter (Type C/F), your passport or ID, and any medications. Since wind data was unavailable, a jacket with a hood or a wind-resistant outer layer is a sensible precaution."
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-005"
+  },
+  {
+   "id": "fact-008",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "For your two days in Barcelona, pack light layers suited to mild temperatures, since highs will be 21 to 22 C but no overnight lows were reported, so bring a long-sleeve top or light sweater and a thin jacket for mornings and evenings. Bring a compact, packable rain jacket or small umbrella for the rainy first day, along with water-resistant comfortable walking shoes (plus a spare pair of socks in case your feet get wet). For the sunny second day, add sunglasses, sunscreen, a hat, and a few T-shirts or short-sleeve tops, and a reusable water bottle. Round things out with long pants or jeans, a day bag that can be kept dry, a phone charger and power adapter (Type C/F), your passport or ID, and any medications. Since wind data was unavailable, a jacket with a hood or a wind-resistant outer layer is a sensible precaution."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-006"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-004",
+   "to": "fact-003"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "routing",
+   "reason": "multi_agent_routing",
+   "detail": "which agent made each call, and what one agent passed another, is the framework's; only each call's own output and the shared tools' results are asserted"
+  },
+  {
+   "fact": "tool_result",
+   "reason": "tool_not_deterministic",
+   "detail": "Agent is not one of the shared deterministic tools",
+   "subject": "fact-002"
+  },
+  {
+   "fact": "tool_result",
+   "reason": "tool_not_deterministic",
+   "detail": "SubagentHandback is not one of the shared deterministic tools",
+   "subject": "fact-005"
+  },
+  {
+   "fact": "tool_result",
+   "reason": "tool_not_deterministic",
+   "detail": "Agent is not one of the shared deterministic tools",
+   "subject": "fact-006"
+  },
+  {
+   "fact": "tool_result",
+   "reason": "tool_not_deterministic",
+   "detail": "SubagentHandback is not one of the shared deterministic tools",
+   "subject": "fact-007"
+  }
+ ]
+}

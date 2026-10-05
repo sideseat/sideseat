@@ -1,0 +1,186 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "agentscope",
+ "scenario": "files",
+ "fixtures": [
+  "agentscope/native/files",
+  "agentscope/sdk/files"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/python/agentscope/cassettes/files.json",
+  "sha256": "d381fab047826e3a1b62ada650325c6a3adf3b0dbc3195ca00c6e9be64a91ed7",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "linear",
+ "request_bodies": "unrecorded",
+ "model_calls": 1,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_6dcltbm622ufshlxjvfpcdxulqqcgld6lo57kyrpjyt3c6jgyi6a",
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 8709,
+    "output": 380,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": 258,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-004",
+    "fact-005"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002",
+    "fact-003",
+    "fact-004",
+    "fact-005"
+   ],
+   "final_answers": [
+    "fact-005"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Describe the image in one sentence, then summarise the document in one sentence."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "user_media",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "modality": "image",
+    "media_type": "image/jpeg",
+    "sha256": "f78ee523f0b06377fd02117287eb8837b342efa9dd8dd4f0a20111e758521f0a",
+    "bytes": 163966
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "digest"
+   }
+  },
+  {
+   "id": "fact-003",
+   "kind": "user_media",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "modality": "document",
+    "media_type": "application/pdf",
+    "sha256": "f65fdaa928f06d024c68c2538805845378efcb51b09abd084728750169541936",
+    "bytes": 13207
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "digest"
+   }
+  },
+  {
+   "id": "fact-004",
+   "kind": "reasoning",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "",
+    "signed": true,
+    "redacted": false
+   },
+   "require": null,
+   "call": "call-001"
+  },
+  {
+   "id": "fact-005",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "The image shows a sunlit park with a curved tarmac path winding past a low stone retaining wall and grassy lawns, with evergreen and bare winter trees and brick apartment buildings under a clear blue sky.\n\nThe document is a five-page, nearly blank PDF whose first page reads \"Write a poem!\" and whose remaining pages only show their page numbers (2-5)."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-001"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "reasoning",
+   "reason": "reasoning_text_omitted",
+   "detail": "the provider returned a signed reasoning block with no visible text; whether a reconstruction shows a placeholder for it is a product decision, not a fidelity fact",
+   "subject": "fact-004"
+  }
+ ]
+}

@@ -1,0 +1,324 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "agent-framework",
+ "scenario": "multi_agent",
+ "fixtures": [
+  "agent-framework/native/multi_agent",
+  "agent-framework/sdk/multi_agent"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/python/agent-framework/cassettes/multi_agent.json",
+  "sha256": "f558fed6fa5c7dff92d040f002a7ceed8a7cdc46dc1363a59f1692716b0dccc8",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "multi_agent",
+ "request_bodies": "unrecorded",
+ "model_calls": 4,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_fpar5alzf4dhwii6ckw6ujfdczxkudkjny42m4sfcs43gzbf2a4q",
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 444,
+    "output": 101,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-002"
+   ]
+  },
+  {
+   "id": "call-002",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": true,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_vw6dhrjnzd7vuh3j477oqi6ohrwuny27svmtc7qrvwxmorhkch3q",
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 522,
+    "output": 77,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-003"
+   ]
+  },
+  {
+   "id": "call-003",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": true,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_pj3f2qf4oit5smu5rbjfxsdagqi3ilh34e2vmerqmhzf23goe5hq",
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 676,
+    "output": 342,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-005"
+   ]
+  },
+  {
+   "id": "call-004",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_fyptrdnsifsi723rspi2o5rp72pljjhhkitc4ecj4i5gah4rqrfa",
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 890,
+    "output": 265,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-006"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002",
+    "fact-003",
+    "fact-004",
+    "fact-005",
+    "fact-006"
+   ],
+   "final_answers": [
+    "fact-005",
+    "fact-006"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "toolu_bdrk_01NP1rM9DaCA6ZAM4jz3CGpA",
+    "name": "researcher",
+    "arguments": {
+     "task": "Find the weather forecast for Barcelona, Spain for the next two days (temperatures high/low, precipitation chance, wind, humidity, UV, and general conditions)."
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "toolu_bdrk_01S1iThQUVmH3EgGVJnPnM71",
+    "name": "get_weather",
+    "arguments": {
+     "city": "Barcelona, Spain",
+     "days": 2
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-002"
+  },
+  {
+   "id": "fact-004",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": "toolu_bdrk_01S1iThQUVmH3EgGVJnPnM71",
+    "name": "get_weather",
+    "value": {
+     "city": "Barcelona, Spain",
+     "forecast": [
+      {
+       "day": 1,
+       "condition": "sunny",
+       "high_c": 21
+      },
+      {
+       "day": 2,
+       "condition": "sunny",
+       "high_c": 22
+      }
+     ]
+    },
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-005",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "Here's the two-day forecast for Barcelona, Spain. The tool returned only some of the details you asked for.\n\n| | Day 1 | Day 2 |\n|---|---|---|\n| **Conditions** | Sunny | Sunny |\n| **High** | 21 °C (70 °F) | 22 °C (72 °F) |\n| **Low** | Not provided | Not provided |\n| **Precipitation chance** | Not provided | Not provided |\n| **Wind** | Not provided | Not provided |\n| **Humidity** | Not provided | Not provided |\n| **UV index** | Not provided | Not provided |\n\nBoth days should be sunny and mild, with highs in the low 20s °C. The source didn't include lows, precipitation chance, wind, humidity, or UV. I'd rather not guess at those. Sunny skies suggest little rain, but that's an inference and not part of the forecast data. For UV, sunscreen is sensible on clear days. A dedicated source like AEMET (Spain's national weather service) should have the missing details."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-003"
+  },
+  {
+   "id": "fact-006",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "**Packing list for Barcelona (next two days):** The forecast shows sunny skies with highs of 21–22 °C (70–72 °F). Pack light, breathable layers such as T-shirts and a pair of lightweight pants or a skirt. Add a light jacket or sweater, since the forecast didn't give overnight lows and evenings may be cooler. Bring comfortable walking shoes or sneakers, sunglasses, a hat, and sunscreen for the clear skies. A small daypack and a refillable water bottle will help for sightseeing. The forecast didn't include rain chances, wind, or UV, so I'm not packing a heavy raincoat. A compact foldable umbrella or packable rain shell is cheap insurance. Check a source like AEMET before you go to confirm the missing details."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-004"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-004",
+   "to": "fact-003"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "routing",
+   "reason": "multi_agent_routing",
+   "detail": "which agent made each call, and what one agent passed another, is the framework's; only each call's own output and the shared tools' results are asserted"
+  },
+  {
+   "fact": "tool_result",
+   "reason": "tool_not_deterministic",
+   "detail": "researcher is not one of the shared deterministic tools",
+   "subject": "fact-002"
+  }
+ ]
+}

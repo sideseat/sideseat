@@ -1,0 +1,164 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "claude-agent-sdk-js",
+ "scenario": "files",
+ "fixtures": [
+  "claude-agent-sdk-js/native/files",
+  "claude-agent-sdk-js/sdk/files"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/javascript/claude-agent-sdk/cassettes/files.json",
+  "sha256": "6a86e456023dd75af4d45456464394fd10886f8b62e2464a5d34e2225d0d52b9",
+  "non_model_requests": 1
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "linear",
+ "request_bodies": "unrecorded",
+ "model_calls": 1,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": true,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_4ixptprgxsiqymbkqqpcb7ia2blb6egpetc6wrwfndsmy2dsl55a",
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 2,
+    "output": 124,
+    "cache_read": 0,
+    "cache_write": 9072,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-004"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002",
+    "fact-003",
+    "fact-004"
+   ],
+   "final_answers": [
+    "fact-004"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Describe the image in one sentence, then summarise the document in one sentence."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "user_media",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "modality": "image",
+    "media_type": "image/jpeg",
+    "sha256": "f78ee523f0b06377fd02117287eb8837b342efa9dd8dd4f0a20111e758521f0a",
+    "bytes": 163966
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "digest"
+   }
+  },
+  {
+   "id": "fact-003",
+   "kind": "user_media",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "modality": "document",
+    "media_type": "application/pdf",
+    "sha256": "f65fdaa928f06d024c68c2538805845378efcb51b09abd084728750169541936",
+    "bytes": 13207
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "digest"
+   }
+  },
+  {
+   "id": "fact-004",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "**Image:** A curved black path winds through a sunny park with neatly mown grass, a low stone retaining wall, bare and evergreen trees, and brick buildings in the background under a clear blue sky.\n\n**Document:** The five-page PDF is almost entirely blank, with page 1 containing only the line \"Write a poem!\" and pages 2–5 containing only their page numbers."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-001"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  }
+ ]
+}

@@ -1,0 +1,129 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "pydantic-ai",
+ "scenario": "structured_output",
+ "fixtures": [
+  "pydantic-ai/native/structured_output",
+  "pydantic-ai/sdk/structured_output"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/python/pydantic-ai/cassettes/structured_output.json",
+  "sha256": "aa391cdc224f2ff5f559f9669e25065bf4da335fd84f374da2c163d6bb0f9efb",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "linear",
+ "request_bodies": "unrecorded",
+ "model_calls": 1,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 504,
+    "output": 236,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-002"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002"
+   ],
+   "final_answers": []
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Plan a two-day trip to Vienna."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "tooluse_vf4nmmLicvxN4OGmqrh3fk",
+    "name": "final_result",
+    "arguments": {
+     "city": "Vienna",
+     "days": [
+      "Day 1: Explore the Innere Stadt — St. Stephen's Cathedral, Hofburg Palace, and a Sachertorte at Café Sacher, then an evening stroll along the Ringstraße.",
+      "Day 2: Tour Schönbrunn Palace and gardens in the morning, then visit the Naschmarkt for lunch and finish with a classical concert or a Prater Ferris wheel ride."
+     ],
+     "budget_eur": 450
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-001"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "tool_result",
+   "reason": "tool_not_deterministic",
+   "detail": "final_result is not one of the shared deterministic tools",
+   "subject": "fact-002"
+  }
+ ]
+}

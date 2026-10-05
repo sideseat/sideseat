@@ -1,0 +1,138 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "claude-agent-sdk-js",
+ "scenario": "reasoning",
+ "fixtures": [
+  "claude-agent-sdk-js/native/reasoning",
+  "claude-agent-sdk-js/sdk/reasoning"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/javascript/claude-agent-sdk/cassettes/reasoning.json",
+  "sha256": "da0cfc821a3f73f3551498772d9d1b72931d558e6a7012fa4a023541065af3e4",
+  "non_model_requests": 1
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "linear",
+ "request_bodies": "unrecorded",
+ "model_calls": 1,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": true,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_h36thau427xcc6u5swyj4vflug3awpzkvwgyufadjsn5vttg53kq",
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 348,
+    "output": 2281,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": 1870,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-002",
+    "fact-003"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002",
+    "fact-003"
+   ],
+   "final_answers": [
+    "fact-003"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the schedule?"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "reasoning",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "",
+    "signed": true,
+    "redacted": false
+   },
+   "require": null,
+   "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "**The fastest total is 17 minutes.**\n\n| Step | Move | Time | Elapsed |\n|---|---|---|---|\n| 1 | 1 and 2 cross together | 2 | 2 |\n| 2 | 1 returns with the torch | 1 | 3 |\n| 3 | 5 and 10 cross together | 10 | 13 |\n| 4 | 2 returns with the torch | 2 | 15 |\n| 5 | 1 and 2 cross together | 2 | 17 |\n\n**Why this is best:** The two slowest travellers (5 and 10) should cross together, so the 5-minute person's time is absorbed into the 10-minute crossing. The 1 and 2 travellers are already on the far side after step 1. One of them can bring the torch back, so neither the 5 nor the 10 has to walk back.\n\nThe obvious alternative, where the 1-minute person escorts everyone, costs 2 + 1 + 5 + 1 + 10 = 19 minutes. If 5 and 10 cross separately, the two slow trips alone cost 15, plus at least 2 for the return trips and 2 for the last forward trip, giving at least 19. Crossing together is the only way to get below 19, and 17 is the best such schedule."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-001"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "reasoning",
+   "reason": "reasoning_text_omitted",
+   "detail": "the provider returned a signed reasoning block with no visible text; whether a reconstruction shows a placeholder for it is a product decision, not a fidelity fact",
+   "subject": "fact-002"
+  }
+ ]
+}

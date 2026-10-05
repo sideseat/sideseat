@@ -1,0 +1,287 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "browser-use",
+ "scenario": "tool_use",
+ "fixtures": [
+  "browser-use/native/tool_use",
+  "browser-use/sdk/tool_use"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/python/browser-use/cassettes/tool_use.json",
+  "sha256": "87b3a0576ac635ca09014fbb3124d2ae67afe0c61db70b90cc42e7b280d6473c",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "linear",
+ "request_bodies": "unrecorded",
+ "model_calls": 3,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_rej4lh7puvyfjuvvxzgal75yyfahdmtyw6lytrsc6dsou27qvg4a",
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 4,
+    "output": 213,
+    "cache_read": 0,
+    "cache_write": 14911,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-002"
+   ]
+  },
+  {
+   "id": "call-002",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_svlmz5xmh5yftf5r4miykdo43onq2svqxxpptkps4ukpcunlrsda",
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 4,
+    "output": 317,
+    "cache_read": 14407,
+    "cache_write": 1127,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-003"
+   ]
+  },
+  {
+   "id": "call-003",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_67hlnea5jfoa6cwiagaeovbsx4p5ejb5t24b3x5bqniad3av62qq",
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 4,
+    "output": 346,
+    "cache_read": 14407,
+    "cache_write": 1238,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-004"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002",
+    "fact-003",
+    "fact-004"
+   ],
+   "final_answers": []
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "toolu_bdrk_01JvR9KG6Rxw9q8815KN6u76",
+    "name": "AgentOutput",
+    "arguments": {
+     "thinking": "Click the Weather forecasts link.",
+     "evaluation_previous_goal": "Loaded home page.",
+     "memory": "On home page; need forecast for Paris and Tokyo, then precipitation.",
+     "next_goal": "Open the Weather forecasts page.",
+     "action": [
+      {
+       "click": {
+        "index": 17
+       }
+      }
+     ]
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "toolu_bdrk_015rRXgc9dVZuymf6jFcu6Bn",
+    "name": "AgentOutput",
+    "arguments": {
+     "thinking": "Forecast read. Now call get_precipitation for both cities in the same block.",
+     "evaluation_previous_goal": "Opened the weather page and read the forecast. Verdict: Success",
+     "memory": "Forecast: Paris Day1 sunny 21C, Day2 sunny 22C; Tokyo Day1 rain 21C, Day2 sunny 22C. Need precipitation for both.",
+     "next_goal": "Call get_precipitation for Paris and Tokyo.",
+     "action": [
+      {
+       "get_precipitation": {
+        "city": "Paris"
+       }
+      },
+      {
+       "get_precipitation": {
+        "city": "Tokyo"
+       }
+      }
+     ]
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-002"
+  },
+  {
+   "id": "fact-004",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "toolu_bdrk_01Po1HcJHWzyEwZEkQMfwwDt",
+    "name": "AgentOutput",
+    "arguments": {
+     "thinking": "I have all the data. Finalize in at most three sentences.",
+     "evaluation_previous_goal": "Got precipitation for both cities. Verdict: Success",
+     "memory": "Forecast and precipitation gathered; ready to answer.",
+     "next_goal": "Deliver final answer.",
+     "action": [
+      {
+       "done": {
+        "text": "Paris: sunny both days (21°C Day 1, 22°C Day 2) with only a 10% chance of rain tomorrow, so no umbrella needed. Tokyo: rain on Day 1 (21°C) and sunny on Day 2 (22°C), with an 80% chance of rain tomorrow, so pack an umbrella.",
+        "success": true,
+        "files_to_display": []
+       }
+      }
+     ]
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-003"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  },
+  {
+   "kind": "call_order",
+   "before": "call-001",
+   "after": "call-002"
+  },
+  {
+   "kind": "call_order",
+   "before": "call-002",
+   "after": "call-003"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "tool_result",
+   "reason": "tool_not_deterministic",
+   "detail": "AgentOutput is not one of the shared deterministic tools",
+   "subject": "fact-002"
+  },
+  {
+   "fact": "tool_result",
+   "reason": "tool_not_deterministic",
+   "detail": "AgentOutput is not one of the shared deterministic tools",
+   "subject": "fact-003"
+  },
+  {
+   "fact": "tool_result",
+   "reason": "tool_not_deterministic",
+   "detail": "AgentOutput is not one of the shared deterministic tools",
+   "subject": "fact-004"
+  }
+ ]
+}

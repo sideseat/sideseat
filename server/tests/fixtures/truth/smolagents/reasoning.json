@@ -1,0 +1,146 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "smolagents",
+ "scenario": "reasoning",
+ "fixtures": [
+  "smolagents/native/reasoning",
+  "smolagents/sdk/reasoning"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/python/smolagents/cassettes/reasoning.json",
+  "sha256": "f1c93b7248ab6f98891cc3bb5fee86528303172ad95a161858b444825dcef5ae",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "linear",
+ "request_bodies": "unrecorded",
+ "model_calls": 1,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 1602,
+    "output": 676,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-002",
+    "fact-003"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002",
+    "fact-003"
+   ],
+   "final_answers": [
+    "fact-003"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the schedule?"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "reasoning",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "This is the classic bridge crossing puzzle with the optimal 17-minute solution: send 1&2 across, send 1 back, send 5&10 across, send 2 back, then send 1&2 across again. I'll give 17 minutes as the final answer.\n\n",
+    "signed": true,
+    "redacted": false
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "tooluse_WFVXb2wRXrKGe1lUSjDt85",
+    "name": "final_answer",
+    "arguments": {
+     "answer": "The fastest total crossing time is 17 minutes.\n\nSchedule (travellers are named by their crossing times, 1, 2, 5 and 10):\n1. The 1 and the 2 cross together. This takes 2 minutes, for a running total of 2.\n2. The 1 returns with the torch. This takes 1 minute, for a total of 3.\n3. The 5 and the 10 cross together. This takes 10 minutes, for a total of 13.\n4. The 2, who is already on the far side, returns with the torch. This takes 2 minutes, for a total of 15.\n5. The 1 and the 2 cross again. This takes 2 minutes, for a total of 17.\n\nCheck: 2 + 1 + 10 + 2 + 2 = 17.\n\nThe obvious alternative is to have the 1 escort everyone: 2 + 1 + 5 + 1 + 10 = 19 minutes. That is slower. The 17-minute plan is faster because the two slowest travellers (5 and 10) cross together, so the 5 does not add its own trip. The 2 can then make the return trip with the torch at a cost of only 2 minutes."
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-001"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  }
+ ]
+}

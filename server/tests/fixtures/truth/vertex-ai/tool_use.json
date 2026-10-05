@@ -1,0 +1,438 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "vertex-ai",
+ "scenario": "tool_use",
+ "fixtures": [
+  "vertex-ai/native/tool_use",
+  "vertex-ai/sdk/tool_use"
+ ],
+ "source": {
+  "kind": "fake-script",
+  "surface": "fake-gemini",
+  "path": "examples/python/harness/harness/fakes/script.py",
+  "sha256": "9265b22622c4203054a38668d76ac6c83900764d073b698df75b0799c7fdf5dd"
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "linear",
+ "request_bodies": "modelled",
+ "model_calls": 3,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "gemini.generate_content",
+   "streamed": false,
+   "status": 200,
+   "model": null,
+   "response_model": "gemini-flash-latest",
+   "response_id": null,
+   "stop_reason": "STOP",
+   "finish": "tool_use",
+   "usage": {
+    "input": 40,
+    "output": 58,
+    "cache_read": null,
+    "cache_write": null,
+    "reasoning": null,
+    "input_includes_cache": true
+   },
+   "outputs": [
+    "fact-002",
+    "fact-003"
+   ]
+  },
+  {
+   "id": "call-002",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "gemini.generate_content",
+   "streamed": false,
+   "status": 200,
+   "model": null,
+   "response_model": "gemini-flash-latest",
+   "response_id": null,
+   "stop_reason": "STOP",
+   "finish": "tool_use",
+   "usage": {
+    "input": 40,
+    "output": 58,
+    "cache_read": null,
+    "cache_write": null,
+    "reasoning": null,
+    "input_includes_cache": true
+   },
+   "outputs": [
+    "fact-006",
+    "fact-007"
+   ]
+  },
+  {
+   "id": "call-003",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "gemini.generate_content",
+   "streamed": false,
+   "status": 200,
+   "model": null,
+   "response_model": "gemini-flash-latest",
+   "response_id": null,
+   "stop_reason": "STOP",
+   "finish": "stop",
+   "usage": {
+    "input": 40,
+    "output": 104,
+    "cache_read": null,
+    "cache_write": null,
+    "reasoning": null,
+    "input_includes_cache": true
+   },
+   "outputs": [
+    "fact-010"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002",
+    "fact-003",
+    "fact-004",
+    "fact-005",
+    "fact-006",
+    "fact-007",
+    "fact-008",
+    "fact-009",
+    "fact-010"
+   ],
+   "final_answers": [
+    "fact-010"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "id": "call_get_weather_dd57980a1fd3",
+    "name": "get_weather",
+    "arguments": {
+     "city": "Paris",
+     "days": 2
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "id": "call_get_weather_dfbbe93c6080",
+    "name": "get_weather",
+    "arguments": {
+     "city": "Tokyo",
+     "days": 2
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-004",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": "call_get_weather_dd57980a1fd3",
+    "name": "get_weather",
+    "value": {
+     "city": "Paris",
+     "forecast": [
+      {
+       "day": 1,
+       "condition": "sunny",
+       "high_c": 21
+      },
+      {
+       "day": 2,
+       "condition": "sunny",
+       "high_c": 22
+      }
+     ]
+    },
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-005",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": "call_get_weather_dfbbe93c6080",
+    "name": "get_weather",
+    "value": {
+     "city": "Tokyo",
+     "forecast": [
+      {
+       "day": 1,
+       "condition": "rain",
+       "high_c": 21
+      },
+      {
+       "day": 2,
+       "condition": "sunny",
+       "high_c": 22
+      }
+     ]
+    },
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-006",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "id": "call_get_precipitation_9fdb3833e046",
+    "name": "get_precipitation",
+    "arguments": {
+     "city": "Paris"
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-002"
+  },
+  {
+   "id": "fact-007",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "id": "call_get_precipitation_d402837ea33e",
+    "name": "get_precipitation",
+    "arguments": {
+     "city": "Tokyo"
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-002"
+  },
+  {
+   "id": "fact-008",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": "call_get_precipitation_9fdb3833e046",
+    "name": "get_precipitation",
+    "value": "10% chance of rain in Paris tomorrow.",
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-009",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": "call_get_precipitation_d402837ea33e",
+    "name": "get_precipitation",
+    "value": "80% chance of rain in Tokyo tomorrow.",
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-010",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "{\"city\": \"Paris\", \"forecast\": [{\"day\": 1, \"condition\": \"sunny\", \"high_c\": 21}, {\"day\": 2, \"condition\": \"sunny\", \"high_c\": 22}]}; {\"city\": \"Tokyo\", \"forecast\": [{\"day\": 1, \"condition\": \"rain\", \"high_c\": 21}, {\"day\": 2, \"condition\": \"sunny\", \"high_c\": 22}]}; 10% chance of rain in Paris tomorrow; 80% chance of rain in Tokyo tomorrow. Pack an umbrella for Tokyo."
+   },
+   "require": null,
+   "call": "call-003"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-004",
+   "to": "fact-002"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-005",
+   "to": "fact-003"
+  },
+  {
+   "kind": "call_order",
+   "before": "call-001",
+   "after": "call-002"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-008",
+   "to": "fact-006"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-009",
+   "to": "fact-007"
+  },
+  {
+   "kind": "call_order",
+   "before": "call-002",
+   "after": "call-003"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "assistant_text",
+   "reason": "answer_quotes_framework_rendering",
+   "detail": "a fake model's answer quotes the tool results as the framework rendered them, which the script does not know",
+   "subject": "fact-010"
+  },
+  {
+   "fact": "request",
+   "reason": "request_modelled",
+   "detail": "a fake model answers the request it receives, and that request was not recorded: the one modelled here declares the scenario's shared tools and schema as the scripts do, so a fact is only as certain as that model of the framework's request"
+  },
+  {
+   "fact": "model_metadata",
+   "reason": "fake_model_echoes_request",
+   "detail": "a fake model echoes the request's model and derives response ids from the request body; neither is recorded, so neither is asserted"
+  }
+ ]
+}

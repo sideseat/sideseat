@@ -1,0 +1,219 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "anthropic",
+ "scenario": "session",
+ "fixtures": [
+  "anthropic/sdk/session"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/python/anthropic/cassettes/session.json",
+  "sha256": "d8d278da3dc922ef4adc2f7efb58ce54876df64b0fda6acfd71c600645ef1b49",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "sessions",
+ "request_bodies": "unrecorded",
+ "model_calls": 2,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_y4zvva62ihe4pupvzv5u3aityvql2oz6vuk2yb2vyahfj3mzgfda",
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 66,
+    "output": 120,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-002"
+   ]
+  },
+  {
+   "id": "call-002",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-2",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_hu5vxqvy6zd22y2bftecbjckmq53kqhthpy32gbrfnrseatewfiq",
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 65,
+    "output": 176,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": 79,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-004",
+    "fact-005"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002"
+   ],
+   "final_answers": [
+    "fact-002"
+   ]
+  },
+  {
+   "id": "conv-2",
+   "sequence": [
+    "fact-003",
+    "fact-004",
+    "fact-005"
+   ],
+   "final_answers": [
+    "fact-005"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Suggest one museum to visit in Madrid."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "Visit the **Museo del Prado**, Madrid's premier art museum, home to masterpieces by Velázquez (*Las Meninas*), Goya, and El Greco. Plan for 2–3 hours, and consider going in the evening when free-entry hours typically apply (check current times). It's located in the Paseo del Arte district, close to Retiro Park."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-2",
+   "evidence": "script",
+   "value": {
+    "text": "Suggest one park to visit in Madrid."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-004",
+   "kind": "reasoning",
+   "role": "assistant",
+   "conversation": "conv-2",
+   "evidence": "wire",
+   "value": {
+    "text": "",
+    "signed": true,
+    "redacted": false
+   },
+   "require": null,
+   "call": "call-002"
+  },
+  {
+   "id": "fact-005",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-2",
+   "evidence": "wire",
+   "value": {
+    "text": "I'd suggest **El Retiro Park**, Madrid's most beloved green space. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll through the landscaped gardens. It's central and free to enter, and it's especially pleasant in spring and early autumn."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-002"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  },
+  {
+   "kind": "prompt_of",
+   "from": "fact-003",
+   "to": "call-002"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "reasoning",
+   "reason": "reasoning_text_omitted",
+   "detail": "the provider returned a signed reasoning block with no visible text; whether a reconstruction shows a placeholder for it is a product decision, not a fidelity fact",
+   "subject": "fact-004"
+  }
+ ]
+}

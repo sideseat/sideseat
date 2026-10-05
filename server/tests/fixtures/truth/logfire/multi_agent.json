@@ -1,0 +1,287 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "logfire",
+ "scenario": "multi_agent",
+ "fixtures": [
+  "logfire/native/multi_agent",
+  "logfire/sdk/multi_agent"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/python/logfire/cassettes/multi_agent.json",
+  "sha256": "458872dc7b41095ba49b53b5320eb822a98c25eaccc098415956fa4956e2d93a",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "multi_agent",
+ "request_bodies": "unrecorded",
+ "model_calls": 3,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "openai.responses",
+   "streamed": false,
+   "status": 200,
+   "model": "global.openai.gpt-6.1-sol",
+   "response_model": "global.openai.gpt-6.1-sol",
+   "response_id": "resp_yvnzwvkypoulhtsfpd5f2h5rqsabg3fxcwhkqjyep54xi3ofqcjq",
+   "stop_reason": "completed",
+   "finish": "tool_use",
+   "usage": {
+    "input": 110,
+    "output": 22,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": 0,
+    "input_includes_cache": true
+   },
+   "outputs": [
+    "fact-003"
+   ]
+  },
+  {
+   "id": "call-002",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "openai.responses",
+   "streamed": false,
+   "status": 200,
+   "model": "global.openai.gpt-6.1-sol",
+   "response_model": "global.openai.gpt-6.1-sol",
+   "response_id": "resp_lw66lvvpiabr3ik47a5lf3jv4dl5s7xykanhnfdsrcpn7pi67kda",
+   "stop_reason": "completed",
+   "finish": "stop",
+   "usage": {
+    "input": 192,
+    "output": 84,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": 0,
+    "input_includes_cache": true
+   },
+   "outputs": [
+    "fact-005"
+   ]
+  },
+  {
+   "id": "call-003",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "openai.responses",
+   "streamed": false,
+   "status": 200,
+   "model": "global.openai.gpt-6.1-sol",
+   "response_model": "global.openai.gpt-6.1-sol",
+   "response_id": "resp_jbloy5ubdqs4dz5ea42nh7acfqq5aswhieh2qtodxw7vo33c2ydq",
+   "stop_reason": "completed",
+   "finish": "stop",
+   "usage": {
+    "input": 129,
+    "output": 75,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": 0,
+    "input_includes_cache": true
+   },
+   "outputs": [
+    "fact-006"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-002",
+    "fact-001",
+    "fact-003",
+    "fact-004",
+    "fact-005",
+    "fact-006"
+   ],
+   "final_answers": [
+    "fact-005",
+    "fact-006"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire-echo",
+   "value": {
+    "text": "You research weather with the tool and report the forecast."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   }
+  },
+  {
+   "id": "fact-003",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "call_bb097eb249e357aeba95b89a0a628f65",
+    "name": "get_weather",
+    "arguments": {
+     "city": "Barcelona",
+     "days": 2
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-004",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": "call_bb097eb249e357aeba95b89a0a628f65",
+    "name": "get_weather",
+    "value": {
+     "city": "Barcelona",
+     "forecast": [
+      {
+       "day": 1,
+       "condition": "rain",
+       "high_c": 21
+      },
+      {
+       "day": 2,
+       "condition": "sunny",
+       "high_c": 22
+      }
+     ]
+    },
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-005",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "Barcelona’s forecast for the next two days is rain with a high of 21°C on day one, followed by sunshine with a high of 22°C on day two. Pack a lightweight waterproof jacket, a compact umbrella, comfortable water-resistant walking shoes, breathable tops, and light trousers, plus a thin sweater for cooler periods. Add sunglasses, sunscreen, and a hat for the sunny second day."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-002"
+  },
+  {
+   "id": "fact-006",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "For Barcelona’s next two days—rain with a high of 21°C, then sunshine with a high of 22°C—pack a lightweight waterproof jacket, a compact umbrella, comfortable water-resistant walking shoes, breathable tops, and light trousers. Bring a thin sweater for cooler periods, plus sunglasses, sunscreen, and a hat for the sunny second day."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-003"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-004",
+   "to": "fact-003"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "routing",
+   "reason": "multi_agent_routing",
+   "detail": "which agent made each call, and what one agent passed another, is the framework's; only each call's own output and the shared tools' results are asserted"
+  }
+ ]
+}

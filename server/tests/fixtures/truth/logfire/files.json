@@ -1,0 +1,185 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "logfire",
+ "scenario": "files",
+ "fixtures": [
+  "logfire/native/files",
+  "logfire/sdk/files"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/python/logfire/cassettes/files.json",
+  "sha256": "f6f269d69ff92ac2d51e29ca0c9c9609b25e73657696dd27ebbd511d7430a354",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "linear",
+ "request_bodies": "unrecorded",
+ "model_calls": 1,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "openai.responses",
+   "streamed": false,
+   "status": 200,
+   "model": "global.openai.gpt-6.1-sol",
+   "response_model": "global.openai.gpt-6.1-sol",
+   "response_id": "resp_ek5ae252ccrawwa5cu5235lpn4ghvgvvusdgmpbrcfw75abri2vq",
+   "stop_reason": "completed",
+   "finish": "stop",
+   "usage": {
+    "input": 3338,
+    "output": 64,
+    "cache_read": 3194,
+    "cache_write": 0,
+    "reasoning": 0,
+    "input_includes_cache": true
+   },
+   "outputs": [
+    "fact-005"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-004",
+    "fact-001",
+    "fact-002",
+    "fact-003",
+    "fact-005"
+   ],
+   "final_answers": [
+    "fact-005"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Describe the image in one sentence, then summarise the document in one sentence."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "user_media",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "modality": "image",
+    "media_type": "image/jpeg",
+    "sha256": "f78ee523f0b06377fd02117287eb8837b342efa9dd8dd4f0a20111e758521f0a",
+    "bytes": 163966
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "digest"
+   }
+  },
+  {
+   "id": "fact-003",
+   "kind": "user_media",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "modality": "document",
+    "media_type": "application/pdf",
+    "sha256": "f65fdaa928f06d024c68c2538805845378efcb51b09abd084728750169541936",
+    "bytes": 13207
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "digest"
+   }
+  },
+  {
+   "id": "fact-004",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire-echo",
+   "value": {
+    "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   }
+  },
+  {
+   "id": "fact-005",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "The image shows a curving paved path through a sunny green park, bordered by a low stone wall, trees, and buildings beneath a clear blue sky.\nThe five-page document contains the prompt “Write a poem!” on its first page, followed by four otherwise blank pages labelled with their page numbers."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-001"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  }
+ ]
+}

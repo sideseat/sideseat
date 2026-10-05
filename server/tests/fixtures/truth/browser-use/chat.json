@@ -1,0 +1,136 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "browser-use",
+ "scenario": "chat",
+ "fixtures": [
+  "browser-use/native/chat",
+  "browser-use/sdk/chat"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/python/browser-use/cassettes/chat.json",
+  "sha256": "88944ca891f26aca9134e4a6a694759ecb94be32c9128be15d5169fa73e4ea43",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "linear",
+ "request_bodies": "unrecorded",
+ "model_calls": 1,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_oqyf2b5haki5lsmrvspeoe4ktmz3d4qcjckhpcfqzlk7ygnsfmsa",
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 4,
+    "output": 315,
+    "cache_read": 0,
+    "cache_write": 14658,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-002"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002"
+   ],
+   "final_answers": []
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "In one sentence, what is Kyoto best known for?"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "toolu_bdrk_0199v8L4bE4HmbkHgKETJnpS",
+    "name": "AgentOutput",
+    "arguments": {
+     "thinking": "This is a simple general knowledge question; no tools are needed. I can answer directly.",
+     "evaluation_previous_goal": "N/A",
+     "memory": "Simple knowledge question, answer directly.",
+     "next_goal": "Provide the answer.",
+     "action": [
+      {
+       "done": {
+        "text": "Kyoto is best known as Japan's former imperial capital, famed for its thousands of temples and shrines (such as Kinkaku-ji and Fushimi Inari), traditional geisha districts, and well-preserved historic culture. This answer comes from general knowledge, not from browsing.",
+        "success": true,
+        "files_to_display": []
+       }
+      }
+     ]
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-001"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "tool_result",
+   "reason": "tool_not_deterministic",
+   "detail": "AgentOutput is not one of the shared deterministic tools",
+   "subject": "fact-002"
+  }
+ ]
+}

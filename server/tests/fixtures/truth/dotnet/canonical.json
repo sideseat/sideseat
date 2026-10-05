@@ -1,0 +1,220 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "dotnet",
+ "scenario": "canonical",
+ "fixtures": [
+  "dotnet/native/canonical",
+  "dotnet/sdk/canonical"
+ ],
+ "source": {
+  "kind": "program",
+  "path": "examples/dotnet/conformance/Program.cs",
+  "sha256": "508e9989ca03ffcef147d193d74170abf076488d2d67123ec058eb98bcbc1e50",
+  "values_from": "examples/python/sdk-conformance/conformance.py"
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "linear",
+ "request_bodies": "program",
+ "model_calls": 2,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "conformance",
+   "streamed": false,
+   "status": 200,
+   "model": "canonical-model",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": null,
+   "finish": "tool_use",
+   "usage": {
+    "input": 12,
+    "output": 6,
+    "cache_read": null,
+    "cache_write": null,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-002"
+   ]
+  },
+  {
+   "id": "call-002",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "conformance",
+   "streamed": false,
+   "status": 200,
+   "model": "canonical-model",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": null,
+   "finish": "stop",
+   "usage": {
+    "input": 24,
+    "output": 10,
+    "cache_read": null,
+    "cache_write": null,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-005"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002",
+    "fact-003",
+    "fact-004",
+    "fact-005"
+   ],
+   "final_answers": [
+    "fact-005"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "program",
+   "value": {
+    "text": "What is the weather in London?"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "program",
+   "value": {
+    "text": "I will check the weather."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "program",
+   "value": {
+    "id": "call-weather-1",
+    "name": "get_weather",
+    "arguments": {
+     "city": "London"
+    }
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-004",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "program",
+   "value": {
+    "call_id": "call-weather-1",
+    "name": "get_weather",
+    "value": {
+     "temperature_c": 18,
+     "condition": "sunny"
+    },
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-005",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "program",
+   "value": {
+    "text": "It is 18°C and sunny in London."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-002"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-004",
+   "to": "fact-003"
+  },
+  {
+   "kind": "call_order",
+   "before": "call-001",
+   "after": "call-002"
+  }
+ ],
+ "gaps": []
+}

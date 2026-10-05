@@ -1,0 +1,159 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "logfire",
+ "scenario": "structured_output",
+ "fixtures": [
+  "logfire/native/structured_output",
+  "logfire/sdk/structured_output"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/python/logfire/cassettes/structured_output.json",
+  "sha256": "40802d3bdbb7e1b0a0cd0c0ad62364e147112355f0e46ac8fa049afae1701188",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "linear",
+ "request_bodies": "unrecorded",
+ "model_calls": 1,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "openai.responses",
+   "streamed": false,
+   "status": 200,
+   "model": "global.openai.gpt-6.1-sol",
+   "response_model": "global.openai.gpt-6.1-sol",
+   "response_id": "resp_xl6qycnpcqrbwojsqxlbujq5maogk3wam7h3r37vct3yg5afxhcq",
+   "stop_reason": "completed",
+   "finish": "stop",
+   "usage": {
+    "input": 134,
+    "output": 241,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": 176,
+    "input_includes_cache": true
+   },
+   "outputs": [
+    "fact-003",
+    "fact-004"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-002",
+    "fact-001",
+    "fact-003",
+    "fact-004"
+   ],
+   "final_answers": [
+    "fact-004"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Plan a two-day trip to Vienna."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire-echo",
+   "value": {
+    "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   }
+  },
+  {
+   "id": "fact-003",
+   "kind": "reasoning",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": null,
+    "signed": true,
+    "redacted": false
+   },
+   "require": null,
+   "call": "call-001"
+  },
+  {
+   "id": "fact-004",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore Schönbrunn Palace and its gardens.\",\"Day 2: Take a self-guided walk through Vienna’s historic centre, including St Stephen’s Cathedral and the Hofburg exterior.\"],\"budget_eur\":250}"
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "json"
+   },
+   "call": "call-001"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "reasoning",
+   "reason": "reasoning_text_omitted",
+   "detail": "the provider returned a signed reasoning block with no visible text; whether a reconstruction shows a placeholder for it is a product decision, not a fidelity fact",
+   "subject": "fact-003"
+  }
+ ]
+}

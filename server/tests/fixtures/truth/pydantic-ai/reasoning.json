@@ -1,0 +1,142 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "pydantic-ai",
+ "scenario": "reasoning",
+ "fixtures": [
+  "pydantic-ai/native/reasoning",
+  "pydantic-ai/sdk/reasoning"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/python/pydantic-ai/cassettes/reasoning.json",
+  "sha256": "bfee26d06879f1d7308cf68a9fddee291a0c5cf564a6603d6dfd19eb384ba425",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "linear",
+ "request_bodies": "unrecorded",
+ "model_calls": 1,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 89,
+    "output": 15820,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-002",
+    "fact-003"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002",
+    "fact-003"
+   ],
+   "final_answers": [
+    "fact-003"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the schedule?"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "reasoning",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "This is the classic bridge and torch puzzle with crossing times 1, 2, 5, 10 — the optimal answer is 17 minutes. The best schedule has the two fastest people shuttle the torch back and forth while the two slowest cross together: 1&2 cross (2), 1 returns (1), 5&10 cross (10), 2 returns (2), then 1&2 cross again (2), totaling 17. I want to verify optimality by comparing this against the alternative \"escort\" strategy.\n\nThe escort approach, where the fastest person ferries everyone across one at a time, costs 19 minutes — worse than the 17-minute solution since pairing the two slow people together saves time. For a lower bound, I reason that the two slowest crossings (10 and 5) are unavoidable costs, and the question is whether they can be combined into a single trip; since 2×2 (double-returning the second-fastest) is less than 1+5, pairing them together is strictly better than having them cross separately.\n\nAdding up the minimum costs this way, I get 10+5+1+1+1=18, which already exceeds 17, so splitting 10 and 5 into separate forward trips can't beat 17.\n\nNow I'm considering the alternative where 5 and 10 cross together as a pair, costing 10 for that trip. Then someone has to bring the torch back on a later trip, since the far side isn't fully occupied unless 1 and 2 already crossed beforehand -- which would require an earlier torch return of its own, so I need to carefully case-split on what state the far side is in before that 5-10 crossing.\n\nWorking through the branching cases gets messy, but the exhaustive check confirms 17 is optimal — I just need a cleaner lower-bound argument to present alongside the schedule.\n\nLooking at trip counts: with 4 people, I need forward trips f and return trips r satisfying f = r+1, and since each forward trip moves at most 2 people while returns move back at least 1, the net requirement forces f ≥ 3, r ≥ 2. I'm now splitting into cases based on whether the two slowest crossers (5 and 10) travel together or separately.\n\nIf separate, 10 must occupy its own forward trip costing 10, 5 occupies a different forward trip costing at least 5, there's a third forward trip costing at least 1, plus two returns each costing at least 1 — giving a total of at least 18 for this case.\n\nNow considering the case where 5 and 10 cross together, that single forward trip costs 10, and I need the remaining trips to add up to at least 7 more to hit the required total of 17, which means I need a sharper argument about the minimum return costs rather than just assuming each is 1.\n\nI'm checking who could possibly be on the far side right before that joint (5,10) crossing — tracking whether 1 and/or 2 are already across, since that constrains which return trips must have happened and who carried the torch back.\n\nTrying to pin down the cheapest way to get exactly one of {1,2} across while bringing the torch back: sending 1 and 2 together then returning one costs 3, while sending 1 alone then returning accomplishes nothing, so I'm checking whether pairing one of {1,2} with 5 or 10 does better.\n\nRather than tracing every path, I want a cleaner lower-bound argument based on cost accounting over forward crossings — since each of the four people must cross forward at least once, I'm trying to pin down how the 10-minute and 5-minute person's forward crossings factor into the total.\n\nIf 5 and 10 cross forward together as their last trip, then before that trip 1 and 2 would need to already be on the far side with the torch on the near side, which is impossible since only a person physically present can carry it back — so I need to check whether some earlier return trip could set this up differently.\n\nLet me reconsider: to end with far side {1,2} and torch near, the last crossing must've been a return trip by someone currently near — meaning 5 or 10 crossed back alone after being on the far side, which requires them to have been there with 1 and 2 at some point, but that doesn't actually help get torch back without also moving 1 or 2.\n\nSo the costs stack up quickly: bringing three people (1,2,X) across requires at least two forward trips with a return in between, plus X's final solo return costing at least 5. That pushes the total well above the baseline 17 strategy.\n\nI'm trying a cleaner framing instead: separate the case where the two slowest cross together versus separately, since each case forces either the 10-trip or both the 10 and 5 trips to occur, giving a lower bound of at least 18 either way.\n\nSo that gives one forward trip of cost 2 for persons 1 and 2. Now I need to think about the returns—there must be at least two, and the question is who makes them cheaply. If person 1 makes both returns, they'd need multiple forward crossings too, which starts adding up costs I need to track carefully.\n\nGiven the complexity of fully proving the lower bound rigorously, I think the best approach is to state the answer—17 minutes—with the explicit schedule, and give a brief, intuitive justification for optimality rather than an exhaustive case analysis.\n\nI'll try sketching a lower-bound argument: labeling the people 1, 2, 5, 10, I note that whichever trip carries person 10 across costs at least 10, so I need to show the remaining crossings can't total less than 7, considering whether 5 travels alongside 10 or separately.\n\nIf there are 4 or more forward trips (so at least 7 total trips), I'm checking whether the sum of minimum costs across those trips can still reach 17, since just assuming each extra trip costs at least 1 only gets me to 16, so I need a tighter bound on one of the trips.\n\nSo that other person must take a separate trip costing at least 2 (if B) or 5 (if C), adding at least 1 beyond the baseline — pushing the total to at least 17 for f ≥ 4. That's consistent with the bound of 17, so I need to check whether f ≥ 4 can actually achieve exactly 17.\n\nFor f ≥ 5, with 9 trips, the baseline comes out to at least 18, well above 17. For f = 4 with 7 trips, the baseline is 16, and adding the extra +1 forced by B or C gives exactly 17 — so f = 4 is also consistent with the bound.\n\nNow I'm turning to f = 3: five trips total (F1, R1, F2, R2, F3), where the net transfer requirement forces each forward trip to carry exactly two people and each return trip to carry exactly one.\n\nSince D crossing back would push the cost way past 17 (two forward trips at 10 each already exceeds the budget), D must cross forward exactly once and never return, paired with one of A, B, or C. I'm now casing out what happens if D is paired with C versus with A or B, starting with the case where D pairs with C — that trip costs 10, leaving the remaining two forward trips to shuttle A and B.\n\nI need to try ordering the trips: F1, R1, F2, R2, F3, where (C,D) occupies one slot. If (C,D) is F1, then the return R1 would have to be made by C or D, costing at least 5, pushing the total well past 17.\n\nIf (C,D) is F3 instead, I need to track who's on each side at each step: after F1 brings two people across and R1 brings one back, then F2 brings two more, R2 brings one back, leaving the final pair (C,D) to cross together—so I need to verify this ordering keeps everyone's constraints satisfied.\n\nIf (C,D) crosses as F1 the total exceeds 17 easily since the second forward trip of C or D plus other costs pushes it well past that. Checking (C,D) as F2 instead: F1 = A,B at cost 2, R1 costs at least 1, F2 = C,D at cost 10, R2 is made by whichever of A/B stayed behind, then F3 = A,B again at cost 2 — summing these gives a total I need to verify against 17.\n\nThen F2 = (C,D) with B staying on the near side, after which A returns (cost 1), then F3 = (A,B) crosses together—same total of 17, confirming this alternative ordering gives an equivalent schedule.\n\nNow checking the case where D pairs with B instead: that trip costs 10, then C needs its own forward trip costing at least 5, and the third forward trip in this 3-trip schedule would need at least 2 people, so its cost is bounded by whichever two distinct people are left, since only one person has crossing time 1.\n\nAdding up the minimum trip costs for both the X=B and X=A cases gives at least 19, which exceeds 17, confirming that configuration isn't optimal. So for f=3 trips, 17 is indeed the minimum.\n\nMoving to f=4 forward trips (7 total trips: 4 forward, 3 return), I'm establishing that D's own forward trip costs at least 10, and the remaining six trips each cost at least 1, giving a baseline of 16 — so I need to show at least one of those six trips must cost 2 or more to push the total to 17, and I'm checking whether all six could possibly cost exactly 1.\n\nIf every one of those six trips had cost 1, that forces B and C to never cross together except alongside D, which creates a contradiction since one of them would need a forward trip costing at least 2 on their own — confirming the lower bound of 17 for f=4. For f≥5, with at least 9 trips, D's trip alone contributes 10 and the other 8 trips contribute at least 8, giving at least 18, exceeding 17. So I've now shown 17 is the true minimum across all these cases, and I want to double-check the reasoning for f=3 by verifying how D, C, and B are distributed across the forward trips.\n\nD must take exactly one forward trip, paired with someone, since taking two forward trips would push the total well past 17. Testing whether C could also take a second forward trip shows that pushes the total to at least 23, so C must cross forward only once, alongside D — leaving A and B to fill the remaining two forward trips as a pair. This confirms the minimum of 17 is achieved only by specific schedules, and I'm now listing out what one such valid schedule looks like step by step.\n\nChecking whether a four-forward-trip schedule could also total 17, I try having A cross alone forward and return alone, with B joining either alone or with A on a cost-2 trip, and C paired with D — but working through the required returns, it seems B's crossing can't be made to fit without breaking the cost budget.\n\nSo I confirm the minimum is 17 minutes and start laying out the final schedule: first 1 and 2 cross together (2 min), then 1 walks back alone (1 min)...\n\nContinuing, 5 and 10 cross together (10 min), then 2 goes back with the torch (2 min), and finally 1 and 2 cross together again (2 min), totaling 17 minutes.\n\nThe reasoning behind the optimality: sending the two slowest together minimizes their combined cost, while using the two fastest to shuttle the torch back keeps return trips cheap -- comparing 2×(second fastest) versus (fastest + third fastest) shows which pairing is better for the return.\n\nI also want to sketch why 17 is truly minimal: any valid plan requires three forward crossings and two returns, and if the two slow walkers don't cross together, the total balloons past 17, so pairing them is necessary for optimality.\n\nThis case analysis with f is getting lengthy, so I should look for a cleaner, more compact way to present the final argument.\n\nI need at least 3 forward and 2 backward crossings, and since 10 must cross forward at some point taking 10 minutes, if 5 doesn't pair with 10 it costs an extra 5+ minutes, pushing the total to at least 18. So 5 and 10 must cross together, but then getting the torch back requires a fast walker already on the far side, otherwise another slow crossing back inflates the total further.\n\nWorking through the actual schedule: with 5 and 10 crossing together as the middle forward trip, flanked by 1-and-2 trips on either side, and returns handled by 1 and 2 separately, the total comes to 17. Checking the case of more than three forward trips also bottoms out at 17 at best, confirming it can't be beaten — I want to present this as a concise lower-bound argument alongside the schedule itself.\n\nIf 1 does both returns, 1 crosses forward three times, but the (5,10) trip already needs its own two people, so adding 1 makes three on that crossing — impossible. So the returns must instead be split between 1-and-2, or 2 doing both, which would cost 4 minutes extra on top of the 10.\n\nActually, if 2 crosses forward three times that also conflicts with the (5,10) trip the same way. So the returns must cost at least 1+2=3, split between the two people, since neither can be on the (5,10) crossing. With 5 and 10 going together and no one else riding with them, the remaining two forward trips are both carried by 1 and 2, giving a total of 2+2+10+3 = 17. I think I can lay out this argument cleanly.\n\nI want to keep the answer concise: present the schedule table plus a brief justification for optimality (contrasting it with the naive 19-minute approach and sketching the lower bound). Let me verify the lower-bound reasoning holds together.\n\nWith people 1, 2, 5, 10, I want to show no schedule beats 17 minutes. Getting all four across requires at least three forward trips and two returns. If 5 and 10 never cross together, two separate forward trips cost at least 10 and 5, plus three more trips at minimum 1 each, totaling at least 18. If 5 and 10 do cross together at some point...\n\nThat extra 1-minute trip can't carry 2, since 2 is already stuck once the (5,10) pair has crossed, confirming the total stays at least 17. That gives a solid, if condensed, proof — now I just need to verify the exact-17 case for exactly 5 trips.\n\nWith exactly 5 trips (3 forward, 2 return), 5 and 10 must cross together once and never return, leaving the remaining forward trips to carry 1 and 2 individually, and the two returns to be made by 1 and 2 separately since neither can return twice. That forces the total time to 2+2+10+1+2=17, confirming the net-transfer argument that forward trips must carry exactly 2 and returns exactly 1 person each, matching the slot-count constraint of 6 forward versus 2 return minimum.\n\nBoth failure cases—where 10 or 5 crosses alone, or where either returns—push the total to at least 18, since the big crossing (10) and the second-biggest crossing (≥5) occupy separate trips, leaving at least three more trips costing ≥1 each. So 17 stands as optimal, and now I'm drafting the final answer: stating 17 minutes, listing the five-step schedule with cumulative times, and briefly explaining why the naive 19-minute approach is suboptimal and why 17 can't be beaten.\n\n",
+    "signed": true,
+    "redacted": false
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "**The fastest total is 17 minutes.**\n\n## Schedule\n\n| Step | Move | Time | Elapsed |\n|---|---|---|---|\n| 1 | 1 and 2 cross | 2 | 2 |\n| 2 | 1 walks back with the torch | 1 | 3 |\n| 3 | 5 and 10 cross together | 10 | 13 |\n| 4 | 2 walks back with the torch | 2 | 15 |\n| 5 | 1 and 2 cross | 2 | **17** |\n\nThe key idea is to send the two slowest together, so only one of them costs time. The two fastest handle the torch returns.\n\nThe obvious plan, where the 1-minute person escorts everyone, takes 10+1+5+1+2 = 19 minutes.\n\n## Why 17 can't be beaten\n\nGetting four people across needs at least 3 forward trips and 2 returns, so at least 5 trips.\n\n- **5 and 10 never cross together.** Their two forward trips cost at least 10 and 5. The other three trips cost at least 1 each. The total is at least 18.\n- **5 or 10 ever walks back.** The trip where they cross together costs 10 and the return costs at least 5. The other three trips cost at least 1 each. The total is again at least 18.\n- **5 and 10 cross together once and never return, with exactly 5 trips.**\n  - Each forward trip must then carry two people and each return one.\n  - The other two forward trips can only be 1 and 2 together, costing 2 each.\n  - The two returns are made by 1 or 2. The same person can't make both, since that person would then be on all three forward trips, including the 5-and-10 trip, which is full.\n  - So the returns cost 1 + 2 = 3, and the total is 2 + 10 + 2 + 3 = 17.\n- **More than 5 trips.** That means at least 7 trips, so the 10-minute trip plus six others costing at least 1 each gives at least 16. Equality would need every other trip to be the 1-minute person alone. The 2-minute person could then never cross, since the 5-and-10 trip is full. So the total is at least 17.\n\nThe minimum is therefore 17 minutes. A second 17-minute schedule swaps the returners: 1 and 2 cross, 2 returns, 5 and 10 cross, 1 returns, 1 and 2 cross."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-001"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  }
+ ]
+}

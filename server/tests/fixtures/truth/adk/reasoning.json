@@ -1,0 +1,142 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "adk",
+ "scenario": "reasoning",
+ "fixtures": [
+  "adk/native/reasoning",
+  "adk/sdk/reasoning"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/python/adk/cassettes/reasoning.json",
+  "sha256": "d6d57114d3d5d9016204a5d06432b511f343d5f4a49aadd82f60ab5359c0f5f6",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "linear",
+ "request_bodies": "unrecorded",
+ "model_calls": 1,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 107,
+    "output": 8702,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-002",
+    "fact-003"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002",
+    "fact-003"
+   ],
+   "final_answers": [
+    "fact-003"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the schedule?"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "reasoning",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "This is the classic bridge and torch puzzle with crossing times 1, 2, 5, 10 minutes, and I recall the optimal solution takes 17 minutes total. I'm working through the sequence: the two fastest cross together, one returns, the two slowest cross together, the other fast one returns, then the fastest pair crosses again, bringing everyone across in 17 minutes.\n\nI'm checking against the alternative shuttle strategy where the fastest person escorts each other across individually, which comes out to 19 minutes—confirming 17 is better. Now I'm trying to justify why 17 is optimal, reasoning through the minimum number of crossings needed and comparing the two main strategies algebraically for a sorted set of four crossing times.\n\nSo this third trip plus two returns adds at least a few more minutes, meaning if 10 and 5 cross separately, the total is at least 15 plus the overhead from the extra trip and returns, pushing well past 17. That confirms separate crossings can't achieve the optimal total, so 10 and 5 must cross together.\n\nTrying to figure out where 5 and 10 crossing together fits in the sequence, since 1 and 2 still need to get across and someone must shuttle the torch back and forth without them.\n\nI think I don't need a fully rigorous proof here — I'll just give a brief lower-bound argument for why 17 is optimal, noting there must be at least 3 forward trips and 2 return trips, and reasoning about who makes those return trips to justify the minimum.\n\nWorking through this sub-case, I get at least 10+5 return+2 more forward trips plus another return — the total quickly exceeds 17 since three remaining people (1,2,5) can't finish in fewer trips without extra crossings.\n\nChecking the case where the 5+10 crossing isn't first: before it, only 1 and 2 can shuttle across, and someone must bring the torch back for the 5+10 pair to go — so I'm tracing through what sequence of early trips using just 1 and 2 would even look like.\n\nWorking through both orderings confirms the total comes out to 17 either way, whether 1 or 2 is the one who returns first after the initial crossing.\n\nFinishing the crossing, then 1 and 2 cross together for 2 minutes, giving the same total of 17. Comparing both schedules confirms they just swap the order of who returns, but the sum stays identical at 17.\n\nNow I want to build a clean lower-bound argument: the 10-minute person must cross at least once costing 10, and if 5 doesn't cross alongside 10, there's extra cost to account for.\n\nChecking the two scenarios—5 crossing separately versus 5 and 10 crossing together—shows that pairing the slow walkers forces at least a few more trips among the fast pair, keeping the total from dropping below 17.\n\nAmong the five trips, the big 5+10 crossing is one forward trip, leaving two forward and two return trips involving only persons 1 and 2. Since each must have a net gain of one crossing, I'm checking how many person-crossings those four trips need to cover with single or double occupancy, usually requiring one trip to carry both together.\n\nThen y must be the one who stayed on the far side so y≠x, giving R1+R2=1+2=3, totaling 2+3+10+2=17. Trying F1={5,10} first makes the return costly since 5 or 10 would need to come back, and putting F3={5,10} with F1={1,2} is another arrangement to check.\n\nI check that one too: F2={1,2} would require someone still stuck on the far side, which is a contradiction, so this variant isn't valid either — confirming 17 is forced. The cleanest explanation is that the 10-minute walker must cross once (costing 10), and if the 5-minute walker crosses separately that's another 15, leaving the remaining crossings to account for.\n\nSo I need to verify the claim that avoiding pairing 5 and 10 forces a total of at least 18, since any configuration with 5 and 10 crossing on different trips demands three forward trips and two returns, giving at least 10+5+1+2=18. Then I'm double-checking whether exactly two forward trips plus one return (three crossings total) could work instead of three-plus-two.\n\nTesting it: a forward trip, a return, then a forward trip nets at most 3 people across, which falls short of 4 needed, and since the torch must end on the far side, the total number of crossings has to be odd — so four crossings doesn't work either, confirming at least 3 forward and 2 return trips are required.\n\nThen I'm reasoning through the 5-and-10-together case: if either of them handles a return trip, that forces them to cross again at a cost of at least 5, pushing the total past 20, which is worse — so returns must be done solely by the two fast walkers, 1 and 2.\n\nI'm checking a specific sequencing: 1 and 2 cross first, 2 comes back, then 5 and 10 cross together, then 1 returns, and finally 1 and 2 cross again — tallying up what that total cost comes to.\n\nI also consider putting the 5+10 crossing first or last instead, but each arrangement forces an extra costly return trip by 5 or 10, pushing the total above 17.\n\nSo the two valid optimal schedules both reduce to 17 minutes total, and that's the final answer.\n\nI should lay out the step-by-step schedule clearly with running totals, maybe a table of positions, note that the naive approach of 1 escorting everyone yields 19 minutes, and explain why 17 is optimal and can't be beaten.\n\nFor optimality: at least 5 crossings are required, and if 5 and 10 crossed separately the total would be at least 18, so they must cross together to save time, and neither should be the one to bring the torch back since that would waste their speed.\n\nThat leaves 1 and 2 doing all remaining shuttling, which forces a minimum total of 2+1+2+2=7 for their trips, giving an overall total of 17 - better than the naive approach of having 1 escort everyone across (19).\n\n",
+    "signed": true,
+    "redacted": false
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "**The fastest total time is 17 minutes.**\n\n## Schedule\n\n| Step | Move | Time | Elapsed | On far side afterwards |\n|---|---|---|---|---|\n| 1 | 1 and 2 cross | 2 | 2 | 1, 2 |\n| 2 | 1 returns with the torch | 1 | 3 | 2 |\n| 3 | 5 and 10 cross | 10 | 13 | 2, 5, 10 |\n| 4 | 2 returns with the torch | 2 | 15 | 5, 10 |\n| 5 | 1 and 2 cross | 2 | 17 | 1, 2, 5, 10 |\n\nSwapping who returns also works: 1 and 2 cross, 2 returns, 5 and 10 cross, 1 returns, 1 and 2 cross. That is 2 + 2 + 10 + 1 + 2 = 17 as well.\n\n## Why 17 is the best possible\n\n- **The obvious plan is slower.** If the 1-minute person escorts everyone, the total is 2 + 1 + 5 + 1 + 10 = 19.\n- **At least 5 crossings are needed.** That means 3 forward trips and 2 returns.\n- **Splitting 5 and 10 costs too much.** If they cross on different trips, those two trips cost at least 10 + 5 = 15. The third forward trip and the two returns add at least 1 + 1 + 1, so the total is at least 18.\n- **So 5 and 10 must cross together,** paying the 10 minutes once. Neither of them should bring the torch back, since that costs at least 5 and they would have to cross again. The 1 and the 2 must therefore do all the other shuttling, which gives the schedule above.\n\nThe trick is to send the two slowest walkers together, so the 5-minute walker crosses \"for free\" alongside the 10. The two fastest walkers handle the torch returns."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-001"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  }
+ ]
+}

@@ -1,0 +1,116 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "langfuse",
+ "scenario": "structured_output",
+ "fixtures": [
+  "langfuse/native/structured_output",
+  "langfuse/sdk/structured_output"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/python/langfuse/cassettes/structured_output.json",
+  "sha256": "15d6aaf86da06c59d5389d02128056861102829b8c7a3d14f8166ac576c97d94",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "linear",
+ "request_bodies": "unrecorded",
+ "model_calls": 1,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "openai.chat",
+   "streamed": false,
+   "status": 200,
+   "model": "global.openai.gpt-6.1-sol",
+   "response_model": "global.openai.gpt-6.1-sol",
+   "response_id": "chatcmpl-ohpnbuuxafekrjqhgfljweyqgeu54ayepfgrddx2s3pm7mricqwa",
+   "stop_reason": "stop",
+   "finish": "stop",
+   "usage": {
+    "input": 134,
+    "output": 287,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": 208,
+    "input_includes_cache": true
+   },
+   "outputs": [
+    "fact-002"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002"
+   ],
+   "final_answers": [
+    "fact-002"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Plan a two-day trip to Vienna."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore Vienna’s historic center on foot, taking in St. Stephen’s Cathedral, the Hofburg exterior, and a traditional coffeehouse.\",\"Day 2: Visit Schönbrunn Palace and its gardens; check current admission prices and reserve tickets before visiting.\"],\"budget_eur\":250}"
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "json"
+   },
+   "call": "call-001"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  }
+ ]
+}

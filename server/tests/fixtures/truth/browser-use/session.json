@@ -1,0 +1,216 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "browser-use",
+ "scenario": "session",
+ "fixtures": [
+  "browser-use/native/session",
+  "browser-use/sdk/session"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/python/browser-use/cassettes/session.json",
+  "sha256": "6c40cce3ae73c10a01bd71a21738a305ae295d3c00355277cf3ec8eb7894e43f",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "sessions",
+ "request_bodies": "unrecorded",
+ "model_calls": 2,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_didfjmc5r4zdbi4mmh3v3oxyjdy7gudzsfqd5qfxdqawsgtxbbia",
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 4,
+    "output": 346,
+    "cache_read": 14293,
+    "cache_write": 365,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-002"
+   ]
+  },
+  {
+   "id": "call-002",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_wzrd23xgf6xntihxc5na6byuu3cgg6mtdlmnplhq6dcyi65hsu7a",
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 4,
+    "output": 352,
+    "cache_read": 14293,
+    "cache_write": 361,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-003"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002",
+    "fact-003"
+   ],
+   "final_answers": []
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Suggest one museum to visit in Madrid."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "toolu_bdrk_01WyhVU78ebeMhq1qko4FFoc",
+    "name": "AgentOutput",
+    "arguments": {
+     "thinking": "Simple request; no tools for weather/bookings needed. Answer directly from general knowledge, concisely.",
+     "evaluation_previous_goal": "N/A",
+     "memory": "Simple suggestion task; answering directly.",
+     "next_goal": "Give museum suggestion.",
+     "action": [
+      {
+       "done": {
+        "text": "I'd suggest the Museo del Prado, Madrid's premier art museum, with masterpieces by Velázquez, Goya, and El Greco. It's on Paseo del Prado near Retiro Park, so you can easily pair it with a stroll afterward. This is a suggestion from general knowledge; I didn't check opening hours or availability in this session.",
+        "success": true,
+        "files_to_display": []
+       }
+      }
+     ]
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "toolu_bdrk_011dBpjVvKh7Fee5rraGoGYz",
+    "name": "AgentOutput",
+    "arguments": {
+     "thinking": "The task is simple: suggest one park in Madrid. No tools for weather/bookings are needed, and the browser is empty. I can answer directly from general knowledge, in at most three sentences.",
+     "evaluation_previous_goal": "Browser is empty; no action needed.",
+     "memory": "Simple recommendation task; answer directly.",
+     "next_goal": "Deliver the recommendation.",
+     "action": [
+      {
+       "done": {
+        "text": "I suggest Retiro Park (Parque del Buen Retiro), Madrid's most famous park. You can rent a rowboat on the lake, visit the Crystal Palace, and stroll through the rose garden. This is from general knowledge, not a live lookup.",
+        "success": true,
+        "files_to_display": []
+       }
+      }
+     ]
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-002"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  },
+  {
+   "kind": "call_order",
+   "before": "call-001",
+   "after": "call-002"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "tool_result",
+   "reason": "tool_not_deterministic",
+   "detail": "AgentOutput is not one of the shared deterministic tools",
+   "subject": "fact-002"
+  },
+  {
+   "fact": "tool_result",
+   "reason": "tool_not_deterministic",
+   "detail": "AgentOutput is not one of the shared deterministic tools",
+   "subject": "fact-003"
+  },
+  {
+   "fact": "user_text",
+   "reason": "prompt_without_model_call",
+   "detail": "the script sends 'Suggest one park to visit in Madrid.', but no recorded call answers it"
+  }
+ ]
+}
