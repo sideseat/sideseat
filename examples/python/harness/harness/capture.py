@@ -71,6 +71,27 @@ _CLI_AGENT_ID = re.compile(rb"agentId: (a[0-9a-f]{16})")
 _CLI_SUBAGENT_DURATION = re.compile(rb"(duration_ms: )(\d+)")
 
 
+#: Credential values a producer can serialise into telemetry: CrewAI writes its model client's config,
+#: live keys included, into a span attribute. A name beside a structured value - Haystack's
+#: `{"type": "env_var", ...}` reference - is not a credential.
+_CREDENTIALS = re.compile(
+    rb"(?:AKIA|ASIA)[0-9A-Z]{16}"
+    rb'|(?:aws_secret_access_key|aws_session_token|secret_access_key|session_token)\\?"\s*:\s*\\?"[^"\\]{16,}'
+)
+
+
+def credential_in(payload: bytes) -> str | None:
+    """The kind of credential a payload holds, if any - a fixture goes into git history for good."""
+    found = _CREDENTIALS.search(payload)
+    if found is None:
+        return None
+    return (
+        "an AWS access key id"
+        if found[0][:2] in (b"AK", b"AS")
+        else "an AWS secret value"
+    )
+
+
 def anonymise(raw: bytes, agents: dict[bytes, bytes] | None = None) -> bytes:
     """Replace what differs between two runs of one conversation, or names the person capturing it.
 
@@ -388,6 +409,27 @@ def capture_one(
         server.shutdown()
     recorded = sorted(staging.glob("req-*"))
     log_exports = sorted(staging.glob("logs-*"))
+    leaked = next(
+        (
+            (path.name, kind)
+            for path in recorded + log_exports
+            if (kind := credential_in(path.read_bytes()))
+        ),
+        None,
+    )
+    if leaked:
+        print(
+            f"[capture] {producer}/{mode}/{scenario}: DISCARDED - {leaked[0]} holds {leaked[1]}; "
+            "nothing was written to the fixtures"
+        )
+        shutil.rmtree(staging)
+        return False
+    for path in recorded + log_exports:
+        if (size := path.stat().st_size) > 1_000_000:
+            print(
+                f"[capture] {producer}/{mode}/{scenario}: warning - {path.name} is {size // 1_000_000} MB; "
+                "inlined media this large belongs in a fixture only by decision"
+            )
     if not ok or not recorded:
         print(
             f"[capture] {producer}/{mode}/{scenario}: FAILED ({len(recorded)} request(s) recorded)"

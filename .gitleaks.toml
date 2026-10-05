@@ -15,6 +15,8 @@ paths = [
   # sources contain key-shaped constants. Not ours, and gitignored.
   '''^target/''',
   '''^\.sideseat/''',
+  # Local agent worktrees and settings: copies of this tree with their own build output.
+  '''^\.claude/''',
   '''^docs/dist/''',
   '''^node_modules/''',
   '''/node_modules/''',
@@ -47,18 +49,7 @@ regexes = [
   '''79861a87be85893981e6e32de034a9c9''',
   '''2704760cd615ff308a4a362d20321071''',
   # In captured crewai fixtures (every distinct fingerprint in the tree):
-  '''201b71bafa050dfe48c2b3d8e58be52a''',
-  '''34ab77ea805dc36d0095bdfc41cb555c''',
-  '''3cf7379507adb1fa99fa10426aaf9da1''',
-  '''6b5becc64d7e3c705a7d3784a5fab1d3''',
-  '''6f513234098ee324317939363fcd2fe6''',
-  '''8143a8dad3873fa37d45ab1840ea31f8''',
-  '''995832a12f1a6527c56cd55b30d2b02f''',
-  '''998011301e7c63e8d134e81fa548214e''',
-  '''b3a7d6ac81d17fd6710a2fa033a83976''',
-  '''bcce1dbcaf1d22cf01bfa1894adf2998''',
-  '''bec4857e8531d2022ec65881ea369eb2''',
-  '''cd18405877ba8060474696314e4f834a''',
-  '''eac1cd6f411491202cb7e0b42e032c33''',
-  '''fe12642d39fb66c639d4c3cb9543df26''',
+  '''74c1467b8185de1ba1640b2af6fd90a8''',
+  '''caba847014899a28ab81987f8c84ff05''',
+  '''e0dcf58d480ee6c46aa86c685d1c5401''',
 ]

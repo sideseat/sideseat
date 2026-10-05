@@ -133,3 +133,17 @@ def test_javascript_suites_are_discovered_beside_python_ones(
         "tool_use",
         "--sideseat",
     ]
+
+
+def test_a_payload_holding_an_aws_credential_is_recognised() -> None:
+    from harness.capture import credential_in
+
+    access_key = b"AKIA" + b"ABCDEFGHIJKLMNOP"
+    assert credential_in(b'{"key": "' + access_key + b'"}') == "an AWS access key id"
+    secret = b"x" * 40
+    assert credential_in(b'{\\"aws_secret_access_key\\": \\"' + secret + b'\\"}') == (
+        "an AWS secret value"
+    )
+    reference = b'"aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"]}'
+    assert credential_in(reference) is None
+    assert credential_in(b'{"agent_key": "74c1467e0000000000000000000000ff"}') is None
