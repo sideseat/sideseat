@@ -32,10 +32,6 @@ pub struct CarrierContext<'a> {
     pub attribute: Option<&'a str>,
     pub observation_type: Option<&'a str>,
     pub span_name: Option<&'a str>,
-    pub scope_name: Option<&'a str>,
-    /// The instrumentation scope's version, for a clause that narrows on it - a producer can change a
-    /// carrier's meaning between releases, and no other dimension can express that.
-    pub scope_version: Option<&'a str>,
 }
 
 impl<'a> CarrierContext<'a> {
@@ -99,11 +95,6 @@ pub enum CompileError {
         clause: String,
         declared: String,
     },
-    /// A dimension the *query-time* resolver is not given, so a clause using it could not hold there.
-    UnavailableDimension {
-        clause: String,
-        dimension: &'static str,
-    },
     UnknownPreset {
         clause: String,
         preset: String,
@@ -137,12 +128,6 @@ impl std::fmt::Display for CompileError {
                 f,
                 "carrier clause `{clause}` is qualified by observation type `{declared}`, which is not one \
                  this server classifies - so the clause could never match"
-            ),
-            Self::UnavailableDimension { clause, dimension } => write!(
-                f,
-                "carrier clause `{clause}` is qualified by `{dimension}`, which the query-time resolver is \
-                 given only as the *display* span name - so the clause would hold during ingestion and fail \
-                 on the same span when read"
             ),
             Self::UnknownPreset { clause, preset } => write!(
                 f,
@@ -344,8 +329,6 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<CarrierPlan, Comp
                     .iter()
                     .flatten()
                     .any(String::is_empty)
-                || match_spec.scope_name_contains.as_deref() == Some("")
-                || match_spec.scope_version_prefix.as_deref() == Some("")
             {
                 return Err(CompileError::EmptyLiteral { clause: id.clone() });
             }
@@ -380,30 +363,6 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<CarrierPlan, Comp
                             declared: format!("{declared} (named twice)"),
                         });
                     }
-                }
-            }
-            // The **scope** dimensions are refused for the same reason, and it is not hypothetical: the
-            // ingestion-side read of `carrier_holds_span_output` supplies no scope, while query-time resolution
-            // supplies the persisted one. So a clause qualified by scope selects the generic clause at ingestion
-            // and its own at read time - and those two clauses can disagree about whether the carrier holds the
-            // span's output, which decides whether a generation span's answer is augmented. Refused until scope
-            // reaches every consumer, rather than left as a dimension that answers differently depending on who
-            // asks.
-            for (dimension, declared) in [
-                (
-                    "scope_name_contains",
-                    match_spec.scope_name_contains.is_some(),
-                ),
-                (
-                    "scope_version_prefix",
-                    match_spec.scope_version_prefix.is_some(),
-                ),
-            ] {
-                if declared {
-                    return Err(CompileError::UnavailableDimension {
-                        clause: id.clone(),
-                        dimension,
-                    });
                 }
             }
             clauses.push(CompiledClause {
@@ -499,8 +458,7 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<CarrierPlan, Comp
 ///
 /// Bounded, and worth stating precisely: `can_both_match` is conservative, so a pair it cannot prove
 /// disjoint is reported. That errs toward asking for an explicit decision rather than assuming
-/// independence - which is what the previous version got wrong about two `scope_name_contains` needles,
-/// since one scope name can hold both.
+/// independence.
 fn reject_ambiguity(clauses: &[CompiledClause]) -> Result<(), CompileError> {
     for (i, a) in clauses.iter().enumerate() {
         for b in &clauses[i + 1..] {
@@ -541,18 +499,6 @@ impl CarrierPlan {
                     }
                 }
                 None => return false,
-            }
-        }
-        if let Some(needle) = &spec.scope_name_contains {
-            match ctx.scope_name {
-                Some(scope) if scope.contains(needle.as_str()) => {}
-                _ => return false,
-            }
-        }
-        if let Some(prefix) = &spec.scope_version_prefix {
-            match ctx.scope_version {
-                Some(version) if version.starts_with(prefix.as_str()) => {}
-                _ => return false,
             }
         }
         true

@@ -394,8 +394,6 @@ pub fn carrier_holds_span_output(
             attribute,
             observation_type: Some(observation_type.as_str()),
             span_name: Some(span_name),
-            scope_name: None,
-            scope_version: None,
         },
     )
     .carrier_holds_span_output

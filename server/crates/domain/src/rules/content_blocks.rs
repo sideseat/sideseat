@@ -13,6 +13,49 @@ use serde_json::{Value as JsonValue, json};
 use super::message_rules::{predicate_defect, predicates_hold, query};
 use super::schema::{ChainPosition, ContentBlockRule, RuleFile};
 
+/// Why the content-block rules would not compile.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum ContentBlockCompileError {
+    #[error("content-block rule `{rule}` declares {forms} target forms; exactly one is required")]
+    TargetForms { rule: String, forms: usize },
+    #[error("content-block rule `{rule}`: {defect}")]
+    Predicate { rule: String, defect: String },
+    #[error(
+        "content-block rule `{rule}` names no condition, and its form builds a block whether its selectors \
+         resolve or not - so it would recognise every block and swallow the chain"
+    )]
+    NoCondition { rule: String },
+    #[error(
+        "content-block rule `{rule}` selects the whole block as its tool-result content, which re-enters this \
+         plan with the same value"
+    )]
+    SelfSelectingContent { rule: String },
+    #[error(
+        "content-block rule `{rule}` unwraps nothing, so it recognises a block and answers with it unchanged - \
+         which is the chain it is already in"
+    )]
+    UnwrapsNothing { rule: String },
+    #[error(
+        "content-block rule `{rule}` unwraps the whole block, which re-enters the chain with the same value"
+    )]
+    UnwrapsWholeBlock { rule: String },
+    #[error(
+        "content-block rule `{rule}` names no path for `{member}`, which is required - the case would recognise \
+         a block and then build nothing"
+    )]
+    EmptyRequiredSelector { rule: String, member: &'static str },
+    #[error(
+        "content-block rules `{first}` and `{second}` share rank {rank} at the `{position}` position, so which \
+         one answers a shape they both recognise depends on load order"
+    )]
+    SharedRank {
+        first: String,
+        second: String,
+        rank: i32,
+        position: &'static str,
+    },
+}
+
 /// The declared cases, in the order they are tried, split by where in the normalisation chain they sit.
 ///
 /// The position is declared because the chain's order is load-bearing: two dialects can write a block that
@@ -27,7 +70,7 @@ pub struct ContentBlockPlan {
 }
 
 impl ContentBlockPlan {
-    pub fn compile(files: &[RuleFile]) -> Self {
+    pub fn compile(files: &[RuleFile]) -> Result<Self, ContentBlockCompileError> {
         let mut plan = Self::default();
         let mut all: Vec<&ContentBlockRule> =
             files.iter().flat_map(|f| &f.content_blocks).collect();
@@ -44,19 +87,23 @@ impl ContentBlockPlan {
                 + usize::from(rule.media.is_some())
                 + usize::from(rule.thinking.is_some())
                 + usize::from(rule.unwrap.is_some());
-            assert!(
-                forms == 1,
-                "content-block rule `{}` declares {forms} target forms; exactly one is required",
-                rule.id
-            );
+            if forms != 1 {
+                return Err(ContentBlockCompileError::TargetForms {
+                    rule: rule.id.clone(),
+                    forms,
+                });
+            }
             // The same predicate validation the message rules get. This plan compiles separately, and a
             // predicate that can never hold decides which shape a block is read as.
             if let Some(defect) = predicate_defect(&rule.require) {
-                panic!("content-block rule `{}`: {defect}", rule.id);
+                return Err(ContentBlockCompileError::Predicate {
+                    rule: rule.id.clone(),
+                    defect: defect.to_string(),
+                });
             }
             // A required selector with no paths can never resolve, so the case recognises a block and then
             // refuses it - permanently dead, and it reads as though it builds something.
-            let empty_required: Option<&str> = match rule {
+            let empty_required: Option<&'static str> = match rule {
                 r if r.tool_use.as_ref().is_some_and(|t| t.name.is_empty()) => {
                     Some("tool_use.name")
                 }
@@ -79,46 +126,41 @@ impl ContentBlockPlan {
             // resolved or not, and without a condition it would claim every block it is offered.
             let always_builds =
                 rule.tool_result.is_some() || rule.json.is_some() || rule.thinking.is_some();
-            assert!(
-                !(always_builds && rule.require.all.is_empty() && rule.require.any.is_empty()),
-                "content-block rule `{}` names no condition, and its form builds a block whether its \
-                 selectors resolve or not - so it would recognise every block and swallow the chain",
-                rule.id
-            );
+            if always_builds && rule.require.all.is_empty() && rule.require.any.is_empty() {
+                return Err(ContentBlockCompileError::NoCondition {
+                    rule: rule.id.clone(),
+                });
+            }
             // A content selector that names the block *itself* re-enters this plan through the tool-result
             // normaliser, with the same value - unbounded recursion, admitted into a DSL whose whole point is
             // that it cannot loop.
-            if let Some(spec) = &rule.tool_result {
-                assert!(
-                    !spec.content.iter().any(|path| path.to_string() == "$"),
-                    "content-block rule `{}` selects the whole block as its tool-result content, which \
-                     re-enters this plan with the same value",
-                    rule.id
-                );
+            if let Some(spec) = &rule.tool_result
+                && spec.content.iter().any(|path| path.to_string() == "$")
+            {
+                return Err(ContentBlockCompileError::SelfSelectingContent {
+                    rule: rule.id.clone(),
+                });
             }
             // The same bound for an unwrap, which re-enters the chain by construction: a member naming the
             // block itself would recurse forever, in a language whose whole point is that it cannot loop.
             if let Some(spec) = &rule.unwrap {
-                assert!(
-                    !spec.from.is_empty(),
-                    "content-block rule `{}` unwraps nothing, so it recognises a block and answers with it \
-                     unchanged - which is the chain it is already in",
-                    rule.id
-                );
-                assert!(
-                    !spec.from.iter().any(|path| path.to_string() == "$"),
-                    "content-block rule `{}` unwraps the whole block, which re-enters the chain with the \
-                     same value",
-                    rule.id
-                );
+                if spec.from.is_empty() {
+                    return Err(ContentBlockCompileError::UnwrapsNothing {
+                        rule: rule.id.clone(),
+                    });
+                }
+                if spec.from.iter().any(|path| path.to_string() == "$") {
+                    return Err(ContentBlockCompileError::UnwrapsWholeBlock {
+                        rule: rule.id.clone(),
+                    });
+                }
             }
-            assert!(
-                empty_required.is_none(),
-                "content-block rule `{}` names no path for `{}`, which is required - the case would \
-                 recognise a block and then build nothing",
-                rule.id,
-                empty_required.unwrap_or_default()
-            );
+            if let Some(member) = empty_required {
+                return Err(ContentBlockCompileError::EmptyRequiredSelector {
+                    rule: rule.id.clone(),
+                    member,
+                });
+            }
         }
         for rule in all {
             match rule.at {
@@ -137,17 +179,17 @@ impl ContentBlockPlan {
             ("after", &plan.after),
         ] {
             for pair in rules.windows(2) {
-                assert!(
-                    pair[0].legacy_rank != pair[1].legacy_rank,
-                    "content-block rules `{}` and `{}` share rank {} at the `{position}` position, so which \
-                     one answers a shape they both recognise depends on load order",
-                    pair[0].id,
-                    pair[1].id,
-                    pair[0].legacy_rank
-                );
+                if pair[0].legacy_rank == pair[1].legacy_rank {
+                    return Err(ContentBlockCompileError::SharedRank {
+                        first: pair[0].id.clone(),
+                        second: pair[1].id.clone(),
+                        rank: pair[0].legacy_rank,
+                        position,
+                    });
+                }
             }
         }
-        plan
+        Ok(plan)
     }
 
     /// The first declared case at this position that recognises the block.
@@ -327,35 +369,59 @@ mod tests {
     }
 
     fn plan_from_all(rules: Vec<serde_json::Value>) -> ContentBlockPlan {
-        let file: RuleFile = serde_json::from_value(serde_json::json!({
+        compiled(rules).expect("the probe rules compile")
+    }
+
+    fn probe(rules: Vec<serde_json::Value>) -> RuleFile {
+        serde_json::from_value(serde_json::json!({
             "id": "probe",
             "content_blocks": rules,
         }))
-        .expect("the probe asset parses");
-        ContentBlockPlan::compile(&[file])
+        .expect("the probe asset parses")
+    }
+
+    fn compiled(
+        rules: Vec<serde_json::Value>,
+    ) -> Result<ContentBlockPlan, ContentBlockCompileError> {
+        ContentBlockPlan::compile(&[probe(rules)])
+    }
+
+    /// The refusal a lone rule meets, which must name `expected`.
+    fn refused(rule: serde_json::Value, expected: &str) {
+        refused_all(vec![rule], expected);
+    }
+
+    fn refused_all(rules: Vec<serde_json::Value>, expected: &str) {
+        let error = compiled(rules).expect_err("the probe rules must be refused");
+        assert!(
+            error.to_string().contains(expected),
+            "wrong refusal, expected `{expected}`: {error}"
+        );
     }
 
     /// Two cases at one rank and one position: which answers a shape they both recognise would depend on
     /// load order, which is nobody's statement.
     #[test]
-    #[should_panic(expected = "share rank 1 at the `after` position")]
     fn two_cases_sharing_a_rank_at_one_position_are_refused() {
-        plan_from_all(vec![
-            serde_json::json!({
-                "id": "probe.a",
-                "at": "after_provider_formats",
-                "legacy_rank": 1,
-                "require": {"all": [{"path": "$.type", "one_of": ["text"]}]},
-                "text": {"text": ["$.value"]},
-            }),
-            serde_json::json!({
-                "id": "probe.b",
-                "at": "after_provider_formats",
-                "legacy_rank": 1,
-                "require": {"all": [{"path": "$.type", "one_of": ["prose"]}]},
-                "text": {"text": ["$.value"]},
-            }),
-        ]);
+        refused_all(
+            vec![
+                serde_json::json!({
+                    "id": "probe.a",
+                    "at": "after_provider_formats",
+                    "legacy_rank": 1,
+                    "require": {"all": [{"path": "$.type", "one_of": ["text"]}]},
+                    "text": {"text": ["$.value"]},
+                }),
+                serde_json::json!({
+                    "id": "probe.b",
+                    "at": "after_provider_formats",
+                    "legacy_rank": 1,
+                    "require": {"all": [{"path": "$.type", "one_of": ["prose"]}]},
+                    "text": {"text": ["$.value"]},
+                }),
+            ],
+            "share rank 1 at the `after` position",
+        );
     }
 
     /// The same rank at *different* positions means nothing: one runs before the provider formats and the
@@ -397,78 +463,90 @@ mod tests {
 
     /// Zero forms recognises a block and builds nothing - with an empty `require`, *every* block.
     #[test]
-    #[should_panic(expected = "declares 0 target forms")]
     fn a_rule_with_no_target_form_is_refused() {
-        plan_from(serde_json::json!({
-            "id": "probe.nothing",
-            "at": "after_provider_formats",
-            "legacy_rank": 1,
-        }));
+        refused(
+            serde_json::json!({
+                "id": "probe.nothing",
+                "at": "after_provider_formats",
+                "legacy_rank": 1,
+            }),
+            "declares 0 target forms",
+        );
     }
 
     /// Two forms means `built` takes whichever it checks first, which is an order nobody declared.
     #[test]
-    #[should_panic(expected = "declares 2 target forms")]
     fn a_rule_with_two_target_forms_is_refused() {
-        plan_from(serde_json::json!({
-            "id": "probe.both",
-            "at": "after_provider_formats",
-            "legacy_rank": 1,
-            "text": {"text": ["$.value"]},
-            "json": {"data": ["$.value"]},
-        }));
+        refused(
+            serde_json::json!({
+                "id": "probe.both",
+                "at": "after_provider_formats",
+                "legacy_rank": 1,
+                "text": {"text": ["$.value"]},
+                "json": {"data": ["$.value"]},
+            }),
+            "declares 2 target forms",
+        );
     }
 
     /// A required selector with no paths can never resolve, so the case recognises a block and then builds
     /// nothing - dead, while reading as though it builds something.
     #[test]
-    #[should_panic(expected = "names no path for `text.text`")]
     fn a_required_selector_with_no_paths_is_refused() {
-        plan_from(serde_json::json!({
-            "id": "probe.empty_text",
-            "at": "after_provider_formats",
-            "legacy_rank": 1,
-            "text": {"text": []},
-        }));
+        refused(
+            serde_json::json!({
+                "id": "probe.empty_text",
+                "at": "after_provider_formats",
+                "legacy_rank": 1,
+                "text": {"text": []},
+            }),
+            "names no path for `text.text`",
+        );
     }
 
     /// A form whose selectors are all empty always builds something, so with no condition it recognises
     /// every block and swallows the rest of the chain.
     #[test]
-    #[should_panic(expected = "swallow the chain")]
     fn a_rule_that_builds_from_nothing_is_refused() {
-        plan_from(serde_json::json!({
-            "id": "probe.catch_all",
-            "at": "before_provider_formats",
-            "legacy_rank": 1,
-            "json": {},
-        }));
+        refused(
+            serde_json::json!({
+                "id": "probe.catch_all",
+                "at": "before_provider_formats",
+                "legacy_rank": 1,
+                "json": {},
+            }),
+            "swallow the chain",
+        );
     }
 
     /// The same, with a selector that names something: it resolves nothing and still builds a block, which
     /// is why emptiness of the selector list was the wrong test.
     #[test]
-    #[should_panic(expected = "swallow the chain")]
     fn a_rule_whose_selector_may_resolve_nothing_still_needs_a_condition() {
-        plan_from(serde_json::json!({
-            "id": "probe.unresolved",
-            "at": "before_provider_formats",
-            "legacy_rank": 1,
-            "json": {"data": ["$.missing"]},
-        }));
+        refused(
+            serde_json::json!({
+                "id": "probe.unresolved",
+                "at": "before_provider_formats",
+                "legacy_rank": 1,
+                "json": {"data": ["$.missing"]},
+            }),
+            "swallow the chain",
+        );
     }
 
     /// Selecting the block itself as tool-result content re-enters this plan with the same value.
     #[test]
-    #[should_panic(expected = "re-enters this plan")]
     fn self_selecting_tool_result_content_is_refused() {
-        plan_from(serde_json::json!({
-            "id": "probe.recursive",
-            "at": "after_provider_formats",
-            "legacy_rank": 1,
-            "require": {"all": [{"path": "$.type", "one_of": ["tool-result"]}]},
-            "tool_result": {"content": ["$"]},
-        }));
+        refused(
+            serde_json::json!({
+                "id": "probe.recursive",
+                "at": "after_provider_formats",
+                "legacy_rank": 1,
+                "require": {"all": [{"path": "$.type", "one_of": ["tool-result"]}]},
+                "tool_result": {"content": ["$"]},
+            }),
+            "re-enters this plan",
+        );
     }
 
     #[test]
@@ -508,28 +586,32 @@ mod tests {
     /// the same statement about the root, which always exists - so requiring one recognises everything, and
     /// the "must name a condition" rule was bypassable by writing a syntactically non-empty one.
     #[test]
-    #[should_panic(expected = "tautology")]
     fn a_tautological_condition_is_refused() {
-        plan_from(serde_json::json!({
-            "id": "probe.tautology",
-            "at": "before_provider_formats",
-            "legacy_rank": 1,
-            "require": {"all": [{}]},
-            "json": {},
-        }));
+        refused(
+            serde_json::json!({
+                "id": "probe.tautology",
+                "at": "before_provider_formats",
+                "legacy_rank": 1,
+                "require": {"all": [{}]},
+                "json": {},
+            }),
+            "tautology",
+        );
     }
 
     /// The same statement written as an explicit root path.
     #[test]
-    #[should_panic(expected = "tautology")]
     fn a_root_path_with_no_condition_is_refused() {
-        plan_from(serde_json::json!({
-            "id": "probe.root_path",
-            "at": "before_provider_formats",
-            "legacy_rank": 1,
-            "require": {"all": [{"path": "$", "exists": true}]},
-            "json": {},
-        }));
+        refused(
+            serde_json::json!({
+                "id": "probe.root_path",
+                "at": "before_provider_formats",
+                "legacy_rank": 1,
+                "require": {"all": [{"path": "$", "exists": true}]},
+                "json": {},
+            }),
+            "tautology",
+        );
     }
 
     /// And a *member* path with no conditions stays legal: it asserts the member is there.
@@ -548,15 +630,17 @@ mod tests {
     /// A predicate that can never hold decides which shape a block is read as, so it is refused here too -
     /// this plan compiles separately from the message rules and had no validation at all.
     #[test]
-    #[should_panic(expected = "can never hold")]
     fn a_contradictory_predicate_is_refused() {
-        plan_from(serde_json::json!({
-            "id": "probe.contradiction",
-            "at": "after_provider_formats",
-            "legacy_rank": 1,
-            "require": {"all": [{"path": "$.type", "kind": "number", "identifier_like": true}]},
-            "text": {"text": ["$.value"]},
-        }));
+        refused(
+            serde_json::json!({
+                "id": "probe.contradiction",
+                "at": "after_provider_formats",
+                "legacy_rank": 1,
+                "require": {"all": [{"path": "$.type", "kind": "number", "identifier_like": true}]},
+                "text": {"text": ["$.value"]},
+            }),
+            "can never hold",
+        );
     }
 
     /// A blob that names no media type is identified by its bytes.

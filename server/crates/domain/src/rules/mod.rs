@@ -23,6 +23,7 @@ pub mod carrier_rules;
 pub mod classify;
 pub mod content_blocks;
 pub mod detect_rules;
+pub mod diagnostics;
 pub mod expr;
 pub mod log_events;
 pub mod members;
@@ -72,6 +73,33 @@ pub const UNCLAIMED_LABEL: &str = "Unknown";
 /// One question, several conventions answering it: an operation name, a span-kind attribute, a pair of
 /// attributes that only appear together. The union is the answer, so adding a dialect's evidence is a rule
 /// rather than a branch - and nothing that reads the answer has to know which dialect supplied it.
+/// Why the span-fact rules would not compile.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum SpanFactCompileError {
+    #[error(
+        "span fact `{fact:?}` signal `{rule}.{signal}` asserts nothing, so it holds for every span"
+    )]
+    AssertsNothing {
+        fact: schema::SpanFact,
+        rule: String,
+        signal: String,
+    },
+    #[error("span fact `{fact:?}` signal `{rule}.{signal}` names an empty attribute key")]
+    EmptyKey {
+        fact: schema::SpanFact,
+        rule: String,
+        signal: String,
+    },
+    #[error(
+        "span fact `{fact:?}` signal `{rule}.{signal}` asks for a case-insensitive compare with nothing to compare"
+    )]
+    CaseFoldsNothing {
+        fact: schema::SpanFact,
+        rule: String,
+        signal: String,
+    },
+}
+
 #[derive(Debug, Default)]
 pub struct SpanFactPlan {
     /// Each signal with the rule it came from, so an established fact can name every witness.
@@ -79,28 +107,28 @@ pub struct SpanFactPlan {
 }
 
 impl SpanFactPlan {
-    fn compile(assets: &assets::ParsedAssets) -> Self {
+    fn compile(assets: &assets::ParsedAssets) -> Result<Self, SpanFactCompileError> {
         let plan = Self::compile_unvalidated(assets);
-        for (fact, _, signal) in &plan.signals {
+        for (fact, rule, signal) in &plan.signals {
+            let located = || (*fact, rule.clone(), signal.id.clone());
             // A signal that asserts nothing holds for **every** span, which for `tool_execution` would
             // classify every span as a tool running and gate almost every message rule out. Refused rather
             // than warned about: the failure is total and silent.
             if signal.attr_equals.is_none() && signal.attrs_present.is_empty() {
-                panic!(
-                    "span fact `{fact:?}` has a signal that asserts nothing, so it holds for every span"
-                );
+                let (fact, rule, signal) = located();
+                return Err(SpanFactCompileError::AssertsNothing { fact, rule, signal });
             }
             if signal.attrs_present.iter().any(String::is_empty) {
-                panic!("span fact `{fact:?}` names an empty attribute key");
+                let (fact, rule, signal) = located();
+                return Err(SpanFactCompileError::EmptyKey { fact, rule, signal });
             }
             // Case-folding a comparison that is not made is a statement about nothing.
             if signal.ignore_case && signal.attr_equals.is_none() {
-                panic!(
-                    "span fact `{fact:?}` asks for a case-insensitive compare with nothing to compare"
-                );
+                let (fact, rule, signal) = located();
+                return Err(SpanFactCompileError::CaseFoldsNothing { fact, rule, signal });
             }
         }
-        plan
+        Ok(plan)
     }
 
     fn compile_unvalidated(assets: &assets::ParsedAssets) -> Self {
@@ -228,60 +256,112 @@ pub struct Ruleset {
 static RULESET: OnceLock<Ruleset> = OnceLock::new();
 
 /// The compiled ruleset. Panics only if an *embedded* asset is malformed, which is a build defect: the
-/// assets ship inside the binary, so there is no runtime input that can reach this.
+/// assets ship inside the binary, so there is no runtime input that can reach this. The panic lists every
+/// defect found, not only the first.
 pub fn ruleset() -> &'static Ruleset {
     RULESET.get_or_init(|| {
         let assets = assets::ParsedAssets::parse(&schema::embedded_sources())
             .unwrap_or_else(|e| panic!("embedded rules are malformed: {e}"));
-        Ruleset::build(&assets)
+        Ruleset::build(&assets).unwrap_or_else(|e| panic!("embedded rules are malformed: {e}"))
     })
 }
 
 impl Ruleset {
-    /// Compile every section from one parse of the assets.
+    /// Compile every section from one parse of the assets, reporting every section's defect at once.
     ///
-    /// Takes the parsed corpus and never bytes, so no section can re-parse a file. Panics on a section defect;
-    /// the embedded assets are part of the build, so a defect here is a build defect.
-    pub fn build(assets: &assets::ParsedAssets) -> Self {
+    /// Takes the parsed corpus and never bytes, so no section can re-parse a file. Every section is compiled
+    /// even after one fails, so a corpus with defects in two sections reports both.
+    pub fn build(assets: &assets::ParsedAssets) -> Result<Self, diagnostics::RulesetDiagnostics> {
+        use diagnostics::RuleSection as S;
         let files = assets.files();
-        let carriers = carrier_rules::compile(assets)
-            .unwrap_or_else(|e| panic!("embedded carrier rules are malformed: {e}"));
-        let detect = detect_rules::compile(assets)
-            .unwrap_or_else(|e| panic!("embedded detection rules are malformed: {e}"));
-        let messages = message_rules::compile(assets)
-            .unwrap_or_else(|e| panic!("embedded message rules are malformed: {e}"));
-        let message_events = compile_message_events(files)
-            .unwrap_or_else(|e| panic!("embedded message events are malformed: {e}"));
-        let log_events = log_events::LogEventPlan::compile(files, &message_events)
-            .unwrap_or_else(|e| panic!("embedded log events are malformed: {e}"));
+        let mut found = diagnostics::Collector::new(assets);
+        let carriers = found.take(S::Carriers, carrier_rules::compile(assets));
+        let detect = found.take(S::Detect, detect_rules::compile(assets));
+        let messages = found.take(S::Messages, message_rules::compile(assets));
+        let message_events = found.take(S::MessageEvents, compile_message_events(files));
+        // Log events are validated against the message events, so they are compiled only once those have; a
+        // defect there is reported by the message-event section and would only be restated here.
+        let log_events = message_events.as_ref().and_then(|events| {
+            found.take(
+                S::LogEvents,
+                log_events::LogEventPlan::compile(files, events),
+            )
+        });
+        let message_projection = found.take(
+            S::MessageProjections,
+            message_projection::MessageProjectionPlan::compile(files),
+        );
+        let content_blocks = found.take(
+            S::ContentBlocks,
+            content_blocks::ContentBlockPlan::compile(files),
+        );
+        let role_authority = found.take(S::RoleAuthority, compile_role_authority(files));
         let tagged_source_names = tag_names(files);
-        Ruleset {
+        let event_roles = found.take(
+            S::EventRoles,
+            compile_event_roles(files, &tagged_source_names),
+        );
+        let span_facts = found.take(S::SpanFacts, SpanFactPlan::compile(assets));
+        let span_fields = found.take(S::SpanFields, span_fields::compile(assets));
+        let tool_shapes = found.take(S::ToolShapes, tool_shapes::ToolShapePlan::compile(files));
+        let observation_types = found.take(S::Classification, classify::compile(assets));
+        let message_members = found.take(S::MessageMembers, members::compile(assets));
+        let provider_aliases = found.take(S::ProviderAliases, compile_provider_aliases(files));
+        // Every section is `Some` exactly when it compiled, and each `None` recorded its defect - so a full
+        // match is a ruleset and anything else is the collected report.
+        match (
             carriers,
             detect,
             messages,
-            message_projection: message_projection::MessageProjectionPlan::compile(files)
-                .unwrap_or_else(|e| panic!("embedded message projection rules are malformed: {e}")),
-            content_blocks: content_blocks::ContentBlockPlan::compile(files),
+            message_projection,
+            content_blocks,
             message_events,
             log_events,
-            role_authority: compile_role_authority(files).unwrap_or_else(|error| {
-                panic!("the embedded role-authority declarations are malformed: {error}")
+            role_authority,
+            event_roles,
+            span_facts,
+            span_fields,
+            tool_shapes,
+            observation_types,
+            message_members,
+            provider_aliases,
+        ) {
+            (
+                Some(carriers),
+                Some(detect),
+                Some(messages),
+                Some(message_projection),
+                Some(content_blocks),
+                Some(message_events),
+                Some(log_events),
+                Some(role_authority),
+                Some(event_roles),
+                Some(span_facts),
+                Some(span_fields),
+                Some(tool_shapes),
+                Some(observation_types),
+                Some(message_members),
+                Some(provider_aliases),
+            ) => Ok(Ruleset {
+                carriers,
+                detect,
+                messages,
+                message_projection,
+                content_blocks,
+                message_events,
+                log_events,
+                role_authority,
+                event_roles,
+                span_facts,
+                span_fields,
+                tool_shapes,
+                observation_types,
+                message_members,
+                provider_aliases,
+                tagged_source_names,
+                digest: assets.digest().to_owned(),
             }),
-            event_roles: compile_event_roles(files, &tagged_source_names)
-                .unwrap_or_else(|e| panic!("embedded event roles are malformed: {e}")),
-            tagged_source_names,
-            span_facts: SpanFactPlan::compile(assets),
-            span_fields: span_fields::compile(assets)
-                .unwrap_or_else(|e| panic!("embedded span field rules are malformed: {e}")),
-            tool_shapes: tool_shapes::ToolShapePlan::compile(files)
-                .unwrap_or_else(|e| panic!("embedded tool shapes are malformed: {e}")),
-            observation_types: classify::compile(assets)
-                .unwrap_or_else(|e| panic!("embedded classification rules are malformed: {e}")),
-            message_members: members::compile(assets)
-                .unwrap_or_else(|e| panic!("embedded member rules are malformed: {e}")),
-            provider_aliases: compile_provider_aliases(files)
-                .unwrap_or_else(|e| panic!("embedded provider aliases are malformed: {e}")),
-            digest: assets.digest().to_owned(),
+            _ => Err(found.into_diagnostics()),
         }
     }
 }

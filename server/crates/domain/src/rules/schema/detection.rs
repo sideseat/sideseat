@@ -393,20 +393,6 @@ pub struct MatchSpec {
     /// is why the first attempt at this refusal was dead code.
     #[serde(default)]
     pub observation_type: Option<Vec<String>>,
-    /// Instrumentation scope name substring.
-    ///
-    /// Narrowing evidence only, never an exclusive key: historical rows may carry no scope, several
-    /// frameworks share instrumentation packages, and versions are not reliably semantic.
-    #[serde(default)]
-    pub scope_name_contains: Option<String>,
-    /// Instrumentation scope *version* prefix.
-    ///
-    /// A prefix rather than a comparison, deliberately: versions here are not reliably semantic, so
-    /// `>=` would have to invent an ordering for strings that have none. A prefix states exactly what it
-    /// checks. Present because a producer can change a carrier's meaning between releases, which is the
-    /// one thing no other dimension can express.
-    #[serde(default)]
-    pub scope_version_prefix: Option<String>,
 }
 
 impl MatchSpec {
@@ -478,35 +464,18 @@ impl MatchSpec {
         if !carrier_contains {
             return false;
         }
-        // Qualifiers: an unconstrained dimension contains any constraint on it.
         // An unconstrained dimension contains any constraint on it, so `None` here contains everything.
-        let types = match (&self.observation_type, &other.observation_type) {
+        match (&self.observation_type, &other.observation_type) {
             (None, _) => true,
             (Some(_), None) => false,
             (Some(mine), Some(theirs)) => theirs.iter().all(|t| mine.contains(t)),
-        };
-        // A longer needle is the more specific claim only when it *contains* the shorter one: a scope
-        // holding `foo` is not necessarily one holding `bar`, but one holding `foobar` does hold `oob`.
-        let scopes = match (&self.scope_name_contains, &other.scope_name_contains) {
-            (None, _) => true,
-            (Some(_), None) => false,
-            (Some(a), Some(b)) => b.contains(a.as_str()),
-        };
-        let versions = match (&self.scope_version_prefix, &other.scope_version_prefix) {
-            (None, _) => true,
-            (Some(_), None) => false,
-            (Some(a), Some(b)) => b.starts_with(a.as_str()),
-        };
-        types && scopes && versions
+        }
     }
 
     /// Could one observation satisfy both clauses?
     ///
     /// Deliberately conservative: where it cannot be shown that no observation satisfies both, this says
     /// they overlap, so the compiler asks for an explicit ordering rather than assuming independence.
-    /// Two `scope_name_contains` needles are the case that matters - a scope name can hold both `foo`
-    /// and `bar`, so treating unequal needles as disjoint let two clauses both match with nothing
-    /// choosing between them.
     pub fn can_both_match(&self, other: &Self) -> bool {
         let carriers_overlap = match (self.primary_key(), other.primary_key()) {
             (Some(PrimaryKey::Event(a)), Some(PrimaryKey::Event(b))) => a == b,
@@ -525,16 +494,10 @@ impl MatchSpec {
             return false;
         }
         // Jointly satisfiable unless both constrain the dimension and share no value.
-        let types = match (&self.observation_type, &other.observation_type) {
+        match (&self.observation_type, &other.observation_type) {
             (Some(mine), Some(theirs)) => mine.iter().any(|t| theirs.contains(t)),
             _ => true,
-        };
-        // Two substrings are always jointly satisfiable: concatenate them.
-        let versions = match (&self.scope_version_prefix, &other.scope_version_prefix) {
-            (Some(a), Some(b)) => a.starts_with(b.as_str()) || b.starts_with(a.as_str()),
-            _ => true,
-        };
-        types && versions
+        }
     }
 }
 

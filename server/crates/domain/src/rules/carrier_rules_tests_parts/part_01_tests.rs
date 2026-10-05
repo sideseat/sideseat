@@ -329,7 +329,8 @@ fn a_clause_constraining_no_carrier_is_refused() {
 ///   then refused for *every* asset, so the format advertised a dimension it could not execute. A declaration
 ///   naming it is now a parse error, which says the same thing sooner. It becomes expressible when the raw
 ///   producer name is persisted beside the display name, and reappears then under a name that says so.
-/// - **The two scope dimensions are refused**, and this one is not hypothetical. The ingestion-side read of
+/// - **The two scope dimensions are not part of the format** (they parsed and were always refused, which is dead
+///   schema), and the reason is not hypothetical. The ingestion-side read of
 ///   `carrier_holds_span_output` supplies no scope while query-time resolution supplies the persisted one, so a
 ///   scope-qualified clause selects the *generic* clause at ingestion and its own when read - and those two can
 ///   disagree about whether the carrier holds the span's output, which decides whether a generation span's
@@ -366,31 +367,12 @@ fn a_carrier_qualifier_that_is_not_available_everywhere_is_refused() {
         "`span_name_prefix` is not part of the format - it was advertised and refused for every asset"
     );
 
-    // Refused at compile time, since they parse but cannot answer consistently.
+    // Removed too: they parsed and every compile refused them, which is dead schema an author could only trip on.
     for dimension in ["scope_name_contains", "scope_version_prefix"] {
-        let asset = serde_json::json!({
-            "id": "probe",
-            "carriers": [{
-                "id": "probe.clause",
-                "match": {"attribute": "answer", dimension: "acme"},
-                "facts": {"preset": "emission"},
-            }],
-        });
-        let result = crate::rules::carrier_rules::compile(
-            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
-                "probe.json".to_string(),
-                serde_json::to_vec(&asset).expect("serialises"),
-            )]))
-            .expect("the probe assets parse"),
-        );
-        // The **variant**, not merely an error: a parse failure would satisfy `is_err()` for a reason that has
-        // nothing to do with the dimension being unavailable, so the refusal this test is named for could be
-        // deleted and the assertion would still hold.
         assert!(
-            matches!(result, Err(CompileError::UnavailableDimension { .. })),
-            "`{dimension}` must be refused as unavailable: ingestion resolves carriers without a scope and \
-             query time resolves them with one, so a clause using it answers differently depending on who \
-             asks - got {result:?}"
+            compiled(serde_json::json!({"attribute": "answer", dimension: "acme"})).is_err(),
+            "`{dimension}` is not part of the format: ingestion resolves carriers without a scope and query time \
+             with one, so a clause using it would answer differently depending on who asks"
         );
     }
 
@@ -548,6 +530,7 @@ fn the_engine_names_no_framework() {
     const ENGINE_SOURCES: &[(&str, &str)] = &[
         ("mod.rs", include_str!("../mod.rs")),
         ("assets.rs", include_str!("../assets.rs")),
+        ("diagnostics.rs", include_str!("../diagnostics.rs")),
         ("schema.rs", include_str!("../schema.rs")),
         ("carrier_rules.rs", include_str!("../carrier_rules.rs")),
         ("detect_rules.rs", include_str!("../detect_rules.rs")),

@@ -257,15 +257,6 @@
               }
             ],
             "prepend_block": {
-              "type": "thinking",
-              "content_as": "text",
-              "attach": [
-                {
-                  "value": null,
-                  "after_content": true,
-                  "as": "signature"
-                }
-              ],
               "from": "$.thought",
               "require": {
                 "all": [
@@ -274,6 +265,17 @@
                   },
                   {
                     "non_empty": true
+                  }
+                ]
+              },
+              "block": {
+                "type": "thinking",
+                "content_as": "text",
+                "attach": [
+                  {
+                    "value": null,
+                    "after_content": true,
+                    "as": "signature"
                   }
                 ]
               }

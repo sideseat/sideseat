@@ -154,7 +154,7 @@ mod tests {
         assert_eq!(decodes, embedded.len());
         assert_eq!(parsed.files().len(), embedded.len());
         // The whole ruleset compiles from that one parse: `Ruleset::build` accepts no bytes.
-        let ruleset = super::super::Ruleset::build(&parsed);
+        let ruleset = super::super::Ruleset::build(&parsed).expect("the embedded ruleset compiles");
         assert_eq!(ruleset.digest, schema::digest_of(&embedded));
     }
 

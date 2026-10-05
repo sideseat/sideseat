@@ -303,8 +303,6 @@ impl BlockEntry {
             attribute: self.source_attribute.as_deref(),
             observation_type: self.observation_type.as_deref(),
             span_name: self.span_name.as_deref(),
-            scope_name: self.scope_name.as_deref(),
-            scope_version: self.scope_version.as_deref(),
         }
     }
 

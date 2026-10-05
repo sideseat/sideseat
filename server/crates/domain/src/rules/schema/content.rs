@@ -374,7 +374,8 @@ pub struct PrependSpec {
     /// reasoning, and a null is not a thought.
     #[serde(default)]
     pub require: PredicateSet,
-    #[serde(flatten)]
+    /// The block to build. Nested rather than flattened into this object: serde does not support `flatten`
+    /// beside `deny_unknown_fields`, so a flattened block made key refusal depend on serde's buffering.
     pub block: BlockSpec,
 }
 
@@ -720,4 +721,33 @@ pub struct EventRole {
     #[serde(default)]
     pub silent_in_tool_span: bool,
     pub doc: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PrependSpec;
+
+    /// Both levels refuse a misspelt key: the condition's and the block's.
+    ///
+    /// The block used to be `#[serde(flatten)]`ed into the spec beside `deny_unknown_fields`, a combination serde
+    /// does not support, so which misspellings were caught depended on serde's buffering rather than on the
+    /// schema.
+    #[test]
+    fn a_prepended_block_refuses_misspelt_keys_at_both_levels() {
+        let parse = |value: serde_json::Value| serde_json::from_value::<PrependSpec>(value);
+        parse(serde_json::json!({
+            "from": "$.thought",
+            "block": {"type": "thinking", "content_as": "text"},
+        }))
+        .expect("the declared shape parses");
+        for misspelt in [
+            serde_json::json!({"from": "$.thought", "block": {"type": "thinking"}, "requires": {}}),
+            serde_json::json!({"from": "$.thought", "block": {"type": "thinking", "content_az": "text"}}),
+        ] {
+            assert!(
+                parse(misspelt.clone()).is_err(),
+                "must be refused: {misspelt}"
+            );
+        }
+    }
 }
