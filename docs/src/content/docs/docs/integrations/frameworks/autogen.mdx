@@ -14,18 +14,18 @@ installs. For AG2, the AutoGen fork, see [AG2](/docs/integrations/frameworks/oth
 <Tabs>
   <TabItem label="pip">
     ```bash
-    pip install autogen-agentchat "autogen-ext[anthropic]" tiktoken "sideseat[autogen]"
+    pip install autogen-agentchat "autogen-ext[openai]" "sideseat[autogen]"
     ```
   </TabItem>
   <TabItem label="uv">
     ```bash
-    uv add autogen-agentchat "autogen-ext[anthropic]" tiktoken "sideseat[autogen]"
+    uv add autogen-agentchat "autogen-ext[openai]" "sideseat[autogen]"
     ```
   </TabItem>
 </Tabs>
 
-`tiktoken` is imported by the Anthropic client but declared only by `autogen-ext[openai]`. Start a
-local server with `npx sideseat` and set `ANTHROPIC_API_KEY`.
+Start a local server with `npx sideseat` and set `OPENAI_API_KEY`, or point the client's `base_url`
+at any OpenAI-compatible endpoint.
 
 ## Quick start
 
@@ -34,8 +34,7 @@ import asyncio
 
 import sideseat
 from autogen_agentchat.agents import AssistantAgent
-from autogen_core.models import ModelFamily, ModelInfo
-from autogen_ext.models.anthropic import AnthropicChatCompletionClient
+from autogen_ext.models.openai import OpenAIChatCompletionClient
 
 sideseat.init(integrations=["autogen"])
 
@@ -46,17 +45,7 @@ def get_weather(city: str) -> str:
 
 
 async def main() -> None:
-    model_client = AnthropicChatCompletionClient(
-        model="claude-sonnet-5-5",
-        # AutoGen needs model_info for models its catalog does not list.
-        model_info=ModelInfo(
-            vision=True,
-            function_calling=True,
-            json_output=False,
-            structured_output=False,
-            family=ModelFamily.UNKNOWN,
-        ),
-    )
+    model_client = OpenAIChatCompletionClient(model="gpt-5-mini")
     assistant = AssistantAgent(
         "assistant",
         model_client=model_client,
@@ -77,7 +66,7 @@ team run.
 ## Without the SDK
 
 ```bash
-pip install autogen-agentchat "autogen-ext[anthropic]" tiktoken openinference-instrumentation-autogen-agentchat opentelemetry-sdk opentelemetry-exporter-otlp
+pip install autogen-agentchat "autogen-ext[openai]" openinference-instrumentation-autogen-agentchat opentelemetry-sdk opentelemetry-exporter-otlp
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
 ```
 
@@ -104,10 +93,14 @@ AutogenAgentChatInstrumentor().instrument(tracer_provider=provider)
 
 ## Known limits
 
+- The instrumentor records model requests only from AutoGen's OpenAI clients
+  (`OpenAIChatCompletionClient` and its Azure variant). With another model client, such as
+  `AnthropicChatCompletionClient`, a trace holds the agent and tool spans but no conversation.
+
 - The OpenInference instrumentor refuses AgentChat versions newer than the one it was released against.
   The SDK skips that check; without the SDK, pass `skip_dep_check=True` to `instrument`.
 
 ## Next steps
 
 - [Python SDK](/docs/sdks/python/)
-- [Anthropic](/docs/integrations/providers/anthropic/)
+- [OpenAI](/docs/integrations/providers/openai/)

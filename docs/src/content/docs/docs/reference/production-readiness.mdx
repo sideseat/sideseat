@@ -62,8 +62,10 @@ The current tracked corpus contains **63 suites, 515 samples, and 691 captured O
 - a credential-free Azure OpenAI pair using OpenAI 3.22.1 and OpenInference OpenAI 0.1.62
   against an Azure-shaped v1 endpoint, covering retained history, streaming, a complete tool
   roundtrip, two traces, one shared session, and exact native/SideSeat parity;
-- a credential-free AutoGen AgentChat 0.7.5 / OpenInference instrumentor 0.1.18 pair covering
-  direct responses, streaming, and automatic tool execution with exact native/SideSeat parity;
+- a credential-free AutoGen AgentChat 0.7.5 / OpenInference instrumentor 0.1.21 suite on the
+  scenario harness's deterministic `fake-openai` endpoint, covering nine catalog scenarios -
+  history, tools, a failing tool, streaming, structured output, a two-agent team, and MCP tools -
+  with native/SideSeat parity;
 - a credential-free AgentScope 2.0.9 / OpenAI 3.22.1 pair using AgentScope's built-in
   `TracingMiddleware`, covering retained history, streaming, automatic tool execution,
   two traces, one shared session, and exact native/SideSeat parity;

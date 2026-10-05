@@ -1,4 +1,8 @@
-"""The assistant agent the scenarios run."""
+"""The assistant agent the scenarios run.
+
+AgentChat records a `create_agent` span when an agent is built, so the scenarios build their agents
+inside the conversation's trace; built outside it, each agent opens a trace of its own.
+"""
 
 from collections.abc import Sequence
 from typing import Any

@@ -723,10 +723,6 @@ fn no_declared_rule_is_dead_across_the_corpus() {
             "the suite is captured through OpenInference; no fixture emits the legacy AutoGen log-body shape",
         ),
         (
-            "autogen.message",
-            "the suite is captured through OpenInference; no fixture emits the legacy bare-message shape",
-        ),
-        (
             "google-adk.data",
             "the suite is captured; `gcp.vertex.agent.data` appears in no fixture",
         ),

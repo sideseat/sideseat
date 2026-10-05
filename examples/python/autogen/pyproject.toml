@@ -5,19 +5,18 @@ description = "AutoGen AgentChat scenarios for SideSeat"
 requires-python = ">=3.11"
 dependencies = [
     "autogen-agentchat>=0.7.5",
-    "autogen-ext[anthropic,mcp]>=0.7.5",
-    # autogen-ext's Anthropic client imports tiktoken, which only its openai extra declares.
-    "tiktoken>=0.14.0",
+    "autogen-ext[openai,mcp]>=0.7.5",
     "openinference-instrumentation-autogen-agentchat>=0.1.21",
     "sideseat[autogen]",
-    "sideseat-example-harness[anthropic]",
+    "sideseat-example-harness",
 ]
 
 [tool.sideseat-example]
 producer = "autogen"
 integrations = ["autogen"]
-# AutoGen reaches Claude through the Anthropic SDK's Bedrock client.
-default-model = "claude"
+# The OpenInference AgentChat instrumentor records model requests only from AutoGen's OpenAI
+# clients, so the suite runs one against the harness's deterministic local OpenAI endpoint.
+default-model = "fake-openai"
 
 [tool.uv]
 required-version = "==0.12.13"

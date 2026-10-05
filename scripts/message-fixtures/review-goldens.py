@@ -34,6 +34,18 @@ class Warning:
 # Counts are exact across trace and session views: changing either the telemetry or the parser
 # makes the classification stale and returns the fixture to the unresolved review queue.
 INTENTIONAL_WARNINGS: dict[str, dict[str, tuple[int, str]]] = {
+    "autogen/native/structured_output": {
+        "json_block": (
+            2,
+            "structured assistant output is canonically represented as JSON",
+        ),
+    },
+    "autogen/sdk/structured_output": {
+        "json_block": (
+            2,
+            "structured assistant output is canonically represented as JSON",
+        ),
+    },
     "haystack/native/files": {
         "json_block": (
             2,
