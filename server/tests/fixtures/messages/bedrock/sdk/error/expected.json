@@ -258,9 +258,9 @@
   "feed_view": {
     "message_count": 6,
     "role_sequence": [
+      "assistant",
+      "assistant",
       "tool",
-      "assistant",
-      "assistant",
       "assistant",
       "system",
       "user"
@@ -270,14 +270,6 @@
     "messages": [
       {
         "index": 0,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_QN5PCvu8LDtXb2yIK9awsn\",\"content\":[{\"type\":\"text\",\"text\":\"No seats from London to Oslo on 2026-11-14: the booking system is offline.\"}],\"is_error\":true}",
-        "content_digest": "6967caefdd6e2ae8",
-        "observation_type": "generation"
-      },
-      {
-        "index": 1,
         "role": "assistant",
         "entry_type": "redacted_thinking",
         "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQS8gQKEggSEAEYAjgBQgh0aGlua2luZxIMNdBQh1Izeqmrp2jkGgx9A7oj+fvim5JJ860iMCiXexUsBXRpDgvA/i4Ykkb+wK6ywkgPG8p7OqLEZgZMfNyQbYIVbIrC6N2AI5YxbiqNBF3XwwA3vHwsNrYAv0h5YrkITcRG3jBybzviI4VVfF47ghw6hApNkyolCKnmQ5gr…[882 chars]",
@@ -286,12 +278,20 @@
         "observation_type": "generation"
       },
       {
-        "index": 2,
+        "index": 1,
         "role": "assistant",
         "entry_type": "text",
         "content": "I couldn't book the London to Oslo flight for 2026-11-14 because the booking system is offline, so no seat is reserved. I can try again in a bit, or try a different date if you'd like.",
         "content_digest": "81d4d8fc24670b0a",
         "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_QN5PCvu8LDtXb2yIK9awsn\",\"content\":[{\"type\":\"text\",\"text\":\"No seats from London to Oslo on 2026-11-14: the booking system is offline.\"}],\"is_error\":true}",
+        "content_digest": "6967caefdd6e2ae8",
         "observation_type": "generation"
       },
       {

@@ -426,11 +426,11 @@
   "feed_view": {
     "message_count": 11,
     "role_sequence": [
-      "tool",
-      "tool",
-      "tool",
-      "tool",
       "assistant",
+      "tool",
+      "tool",
+      "tool",
+      "tool",
       "system",
       "user",
       "assistant",
@@ -443,6 +443,15 @@
     "messages": [
       {
         "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Paris looks sunny both days, with highs of 21°C and 22°C and only a 10% chance of rain tomorrow. Tokyo has rain on day 1 (high 21°C) and sun on day 2 (high 22°C), with an 80% chance of rain tomorrow. Pack an umbrella for Tokyo, but you can …[258 chars]",
+        "content_digest": "408f66992192fe1b",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_sEk8twQaJay0nSymRmFyI0\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}",
@@ -450,7 +459,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 1,
+        "index": 2,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_2x8a3HzxpSJSSTUqbwctCV\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}",
@@ -458,7 +467,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 2,
+        "index": 3,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_vCov1ypXN47qfUsUhqpTyx\",\"content\":[{\"type\":\"text\",\"text\":\"10% chance of rain in Paris tomorrow.\"}]}",
@@ -466,20 +475,11 @@
         "observation_type": "generation"
       },
       {
-        "index": 3,
+        "index": 4,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_RuwZAOoI7q5KQy6a4LKttE\",\"content\":[{\"type\":\"text\",\"text\":\"80% chance of rain in Tokyo tomorrow.\"}]}",
         "content_digest": "bd1952cb4af74334",
-        "observation_type": "generation"
-      },
-      {
-        "index": 4,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "Paris looks sunny both days, with highs of 21°C and 22°C and only a 10% chance of rain tomorrow. Tokyo has rain on day 1 (high 21°C) and sun on day 2 (high 22°C), with an 80% chance of rain tomorrow. Pack an umbrella for Tokyo, but you can …[258 chars]",
-        "content_digest": "408f66992192fe1b",
-        "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {

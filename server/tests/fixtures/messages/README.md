@@ -42,56 +42,32 @@ program (`python`, `javascript`, `dotnet`, `rust`). The mode says who configured
 
 | Mode | Telemetry configured by |
 | --- | --- |
-| `native` | the framework's own documented OpenTelemetry setup, or plain OpenTelemetry for a conformance program |
-| `sdk` | the SideSeat SDK, with the same scenario code |
-| `legacy` | an older capture with no native/SDK pair; removed as each producer is recaptured |
-
-A scenario captured in both `native` and `sdk` is a parity pair, and the goldens require the two to
-produce the same conversations.
-
-The fixture is the **raw OTLP payload the framework actually sent**, not database rows. That
-is the only input the server really receives, so a fixture cannot drift from reality. The test
-replays it through the real ingestion path (`extract_attributes_batch`,
-`extract_messages_batch`, SideML conversion, enrichment) before comparing.
-
-## Support matrix
-
-The boundary of "correct for all frameworks": exactly the suites below, at the versions they were captured
-against. `the_corpus_matches_the_support_matrix` fails if a suite is added or removed without updating this
-table - so the claim stays checked rather than described.
-
-It lives here, beside the fixtures it describes, and not in `CLAUDE.md`. That file is tracked, but project
-convention keeps it out of routine commits, so its committed content lags the working copy by however much has
-been written since - a test reading it would compare the corpus against whatever state a given checkout
-happens to carry, which passes or fails on how recently someone committed a document rather than on whether
-the corpus matches it.
-
-| Suite | Version captured against | Samples | Captured requests |
-| --- | --- | --- | --- |
 | `_synthetic` | hand-written shapes, no SDK | 17 | 17 |
 | `adk/legacy` | google-adk >=1.27.0 | 8 | 18 |
 | `adk/native` | google-adk >=1.27.0, native OTLP setup | 10 | 11 |
 | `adk/sdk` | SideSeat Python 1.0.8 / google-adk >=1.27.0 | 10 | 11 |
 | `ag2/native` | AG2 1.1.1 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native TelemetryMiddleware; AG2's telemetry records no system prompt, binary input, or reasoning, so `files` and `reasoning` carry their text only | 11 | 17 |
 | `ag2/sdk` | SideSeat Python 2.0.0 / AG2 1.1.1 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 11 | 11 |
-| `agent-framework/legacy` | agent-framework-core >=1.0.0b0 | 10 | 17 |
-| `agent-framework/native` | agent-framework-core >=1.0.0b0, native OTLP setup | 10 | 10 |
-| `agent-framework/sdk` | SideSeat Python 1.0.8 / agent-framework-core >=1.0.0b0 | 10 | 10 |
-| `agentscope/native` | AgentScope 2.0.9 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8, native `TracingMiddleware` | 1 | 1 |
-| `agentscope/sdk` | SideSeat Python 1.0.8 / AgentScope 2.0.9 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 on CPython 3.12.8 | 1 | 1 |
-| `agno/native` | Agno 3.0.11 / OpenAI 3.22.1 / OpenInference Agno instrumentor 1.0.12 / OpenTelemetry Python 1.45.0 on CPython 3.13.7, native OTLP setup | 1 | 1 |
-| `agno/sdk` | SideSeat Python 1.0.8 / Agno 3.0.11 / OpenAI 3.22.1 / OpenInference Agno instrumentor 1.0.12 / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 1 | 1 |
+| `agent-framework/native` | Agent Framework 1.19.0 (core) / agent-framework-anthropic 1.0.0b260918 / Anthropic 0.116.0 (Bedrock) / OpenTelemetry Python 1.45.0 on CPython 3.14.7, `enable_sensitive_telemetry()` on a plain provider; no `files` (neither Bedrock client sends documents) | 10 | 13 |
+| `agent-framework/sdk` | SideSeat Python 2.0.0 / Agent Framework 1.19.0 (core) / agent-framework-anthropic 1.0.0b260918 / Anthropic 0.116.0 (Bedrock) / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 10 | 10 |
+| `agent_snapshot_reorders_answer/legacy` | a root agent span re-listing a whole turn **answer-first** while its child generation spans emit the calls and the answer separately — the shape the Vercel AI SDK's current integration produces | The **redundant re-listing** rule (`redundant_relistings`, `order_graph.rs`). Its golden records the correct conversation — question, calls, results, answer — and did not until that rule landed: `gen_ai.output.messages` reads as one atomic emission wherever it appears, so the re-listing's stated order was trusted and the answer sorted ahead of the calls that produced it. Two earlier attempts are recorded in `a_relisting_is_discounted_only_on_evidence_from_below_it`: declaring the carrier `accumulated_state` **lost a message** in `agent-framework/tool_use`, and discounting any instance whose messages appear below it fired 4,044 times across the corpus and broke `agent-framework/swarm` and `strands/image_gen`. The rule that works asks two questions instead — is every message witnessed by a *descendant*, and does the instance hold **both** a message the span produced and a result answering it, which no single model response can |
+| `agentscope/native` | AgentScope 2.0.9 / Anthropic 1.11.0 (Bedrock) / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native `TracingMiddleware` | 11 | 15 |
+| `agentscope/sdk` | SideSeat Python 2.0.0 / AgentScope 2.0.9 / Anthropic 1.11.0 (Bedrock) / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 11 | 11 |
+| `agno/native` | Agno 3.1.0 / Anthropic 1.11.0 (Bedrock) / OpenInference Agno instrumentor 1.0.13 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup; `files` records no image or PDF because the instrumentor drops media from `llm.input_messages` | 11 | 19 |
+| `agno/sdk` | SideSeat Python 2.0.0 / Agno 3.1.0 / Anthropic 1.11.0 (Bedrock) / OpenInference Agno instrumentor 1.0.13 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 11 | 12 |
 | `anthropic/sdk` | SideSeat Python 2.0.0 / Anthropic 1.11.0 (AnthropicBedrock) / Logfire 5.1.1 / OpenTelemetry Python 1.44.0 on CPython 3.13.7; SDK only, because native Logfire 5.1.1 abandons the span of every Anthropic 1.11 call made without tools (it JSON-encodes the SDK's `Omit` sentinel), which the SideSeat integration repairs | 9 | 9 |
 | `autogen/native` | AutoGen AgentChat 0.7.5 / AutoGen Ext 0.7.5 / OpenInference AutoGen instrumentor 0.1.18 / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 1 | 1 |
 | `autogen/sdk` | SideSeat Python 1.0.8 / AutoGen AgentChat 0.7.5 / AutoGen Ext 0.7.5 / OpenInference AutoGen instrumentor 0.1.18 / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 1 | 1 |
 | `azure-openai/native` | OpenAI 3.22.1 / OpenInference OpenAI instrumentor 0.1.62 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup | 1 | 1 |
 | `azure-openai/sdk` | SideSeat Python 1.0.8 / OpenAI 3.22.1 / OpenInference OpenAI instrumentor 0.1.62 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
-| `bedrock/legacy` | boto3 (bedrock runtime) | 6 | 14 |
+| `bedrock/legacy` | boto3 (bedrock runtime); only `invoke_model` remains, because no catalog scenario calls InvokeModel | 1 | 3 |
+| `bedrock/sdk` | SideSeat Python 2.0.0 / boto3 1.43.107 Converse and ConverseStream / OpenTelemetry Python 1.45.0 on CPython 3.14.7; no native pair, because OpenTelemetry botocore instrumentation records messages only as log events, which capture does not record | 9 | 11 |
+| `claude-agent-sdk-js/legacy` | @anthropic-ai/claude-agent-sdk ^0.3.246 | 8 | 17 |
 | `claude-agent-sdk/native` | Claude Agent SDK 0.2.163 (Claude Code CLI telemetry) on Bedrock / OpenTelemetry Python 1.45.0 on CPython 3.13.7; the CLI exports attachments as text placeholders and no thinking | 11 | 26 |
 | `claude-agent-sdk/sdk` | SideSeat Python 2.0.0 / Claude Agent SDK 0.2.163 on Bedrock / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 11 | 23 |
-| `claude-agent-sdk-js/legacy` | @anthropic-ai/claude-agent-sdk ^0.3.246 | 8 | 17 |
 | `crewai/native` | CrewAI 1.15.23 / OpenInference CrewAI instrumentor 1.1.20 / OpenTelemetry Python 1.45.0 on CPython 3.12.8, native OTLP setup; no `structured_output`, `files`, or `streaming`: CrewAI's Bedrock provider forces tool choice, refuses media for Claude 5, and does not run a streamed tool call | 8 | 13 |
 | `crewai/sdk` | SideSeat Python 2.0.0 / CrewAI 1.15.23 / OpenInference CrewAI instrumentor 1.1.20 / OpenTelemetry Python 1.45.0 on CPython 3.12.8 | 8 | 8 |
+| `cross_span_tie/legacy` | a generation span and its tool span reporting the **identical** instant, with the tool span's id sorting *first* | `adopt_call_positions`. Disable it and this fixture reports the answer at index 1 before its question at index 3; every captured fixture stays green, because none of them ties |
 | `dotnet/native` | OpenTelemetry .NET 1.19.1 on .NET SDK 10.0.401 | 1 | 1 |
 | `dotnet/sdk` | SideSeat .NET 1.0.0 / OpenTelemetry 1.19.1 on .NET SDK 10.0.401 | 1 | 1 |
 | `google-genai/native` | Google GenAI 2.28.0 / Logfire 5.1.1 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.13.7, against the harness's fake Gemini server; reasoning thoughts arrive as text parts (the instrumentation drops Gemini's `thought` flag) and a failed tool call as an error message rather than a tool result | 9 | 9 |
@@ -104,22 +80,28 @@ the corpus matches it.
 | `langchain/sdk` | SideSeat Python 2.0.0 / LangChain Core 1.6.6 / LangChain AWS 1.8.0 / OpenInference LangChain instrumentor 0.1.78 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 10 | 11 |
 | `langgraph/native` | LangGraph 1.2.12 / LangChain Core 1.6.6 / LangChain AWS 1.8.0 / OpenInference LangChain instrumentor 0.1.78 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup | 11 | 16 |
 | `langgraph/sdk` | SideSeat Python 2.0.0 / LangGraph 1.2.12 / LangChain Core 1.6.6 / LangChain AWS 1.8.0 / OpenInference LangChain instrumentor 0.1.78 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 11 | 11 |
+| `legacy` | an older capture with no native/SDK pair; removed as each producer is recaptured |
 | `llama-index/native` | LlamaIndex Core 0.14.25 / LlamaIndex Bedrock Converse 0.15.3 / LlamaIndex MCP tools 0.6.0 / OpenInference LlamaIndex instrumentor 4.5.4 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup; the instrumentor records no document blocks or reasoning and redacts large inline images, and `structured_output` is not captured yet: its reformatting request does not reconstruct | 10 | 21 |
 | `llama-index/sdk` | SideSeat Python 2.0.0 / LlamaIndex Core 0.14.25 / LlamaIndex Bedrock Converse 0.15.3 / LlamaIndex MCP tools 0.6.0 / OpenInference LlamaIndex instrumentor 4.5.4 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 10 | 11 |
 | `logfire/native` | Logfire 5.1.1 / OpenAI 3.24.0 (Responses API on GPT-6.1-sol) / OpenTelemetry Python 1.44.0, Logfire's own setup with a scrubbing callback that keeps `session.id` | 11 | 11 |
 | `logfire/sdk` | SideSeat Python 2.0.0 / Logfire 5.1.1 / OpenAI 3.24.0 (Responses API on GPT-6.1-sol) / OpenTelemetry Python 1.44.0 | 11 | 11 |
-| `openai/legacy` | openai >=1.80.0 | 6 | 8 |
+| `multi_turn_one_carrier/legacy` | nine turns in **one** carrier, in conversation order | carrier subsequence across many siblings - the ADK shape, where one span holds a whole conversation |
+| `native` | the framework's own documented OpenTelemetry setup, or plain OpenTelemetry for a conformance program |
 | `openai-agents/legacy` | openai-agents >=0.12.1 | 10 | 37 |
+| `openai/legacy` | openai >=1.80.0 | 6 | 8 |
 | `openai/native` | OpenAI 3.19.2 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.13.7 | 1 | 1 |
 | `openai/sdk` | SideSeat Python 1.0.8 / OpenAI 3.19.2 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.13.7 | 1 | 1 |
 | `openinference/native` | OpenInference Bedrock instrumentor 0.1.56 / boto3 1.43.108 Converse / OpenTelemetry Python 1.45.0, native OTLP setup; the instrumentor keeps only the last of a turn's parallel tool results, redacts images by default and drops documents | 12 | 17 |
 | `openinference/sdk` | SideSeat Python 2.0.0 / OpenInference Bedrock instrumentor 0.1.56 / boto3 1.43.108 Converse / OpenTelemetry Python 1.45.0 | 12 | 12 |
+| `parallel_tool_calls/legacy` | two distinct calls in one response, then both results | causality *without* adjacency: `call, call, result, result` must be allowed |
 | `pydantic-ai/native` | Pydantic AI 2.53.0 / OpenTelemetry Python 1.44.0 on CPython 3.14.7, `Agent.instrument_all()` on a plain provider | 11 | 17 |
 | `pydantic-ai/sdk` | SideSeat Python 2.0.0 / Pydantic AI 2.53.0 / Logfire 5.1.1 / OpenTelemetry Python 1.44.0 on CPython 3.14.7 | 11 | 11 |
 | `python/native` | OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
 | `python/sdk` | SideSeat Python 2.0.0 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
+| `resent_history/legacy` | a later span re-sending the earlier turn | the re-send collapses onto the original rather than duplicating it |
 | `rust/native` | OpenTelemetry Rust 0.33.0 on Rust 1.94.1 | 1 | 1 |
 | `rust/sdk` | SideSeat Rust 0.2.0 / OpenTelemetry Rust 0.33.0 on Rust 1.94.1 | 1 | 1 |
+| `sdk` | the SideSeat SDK, with the same scenario code |
 | `semantic-kernel/native` | Semantic Kernel 1.44.1 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0, native OTLP setup | 1 | 1 |
 | `semantic-kernel/sdk` | SideSeat Python 1.0.8 / Semantic Kernel 1.44.1 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 | 1 | 1 |
 | `smolagents/native` | Smolagents 1.26.0 / LiteLLM 1.103.2 (Bedrock) / OpenInference Smolagents instrumentor 0.1.42 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup; no `structured_output` or `files` (unsupported) and no `mcp_tools` (its MCP adapter misreads the server schema) | 8 | 15 |
@@ -127,282 +109,12 @@ the corpus matches it.
 | `strands-js/legacy` | @strands-agents/sdk ^1.14.0 | 7 | 12 |
 | `strands/native` | Strands Agents 1.57.2 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, `StrandsTelemetry` | 11 | 14 |
 | `strands/sdk` | SideSeat Python 2.0.0 / Strands Agents 1.57.2 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 11 | 11 |
+| `tool_use/legacy` | a Strands call/result pair | the baseline hand-written case |
 | `traceloop/native` | TraceLoop SDK 0.62.4 / Bedrock instrumentation 0.62.4 / boto3 1.43.108 Converse / OpenTelemetry Python 1.45.0, native OTLP setup; image and document bytes are exported empty | 12 | 18 |
 | `traceloop/sdk` | SideSeat Python 2.0.0 / TraceLoop SDK 0.62.4 / Bedrock instrumentation 0.62.4 / boto3 1.43.108 Converse / OpenTelemetry Python 1.45.0 | 12 | 13 |
 | `vercel-ai-js/legacy` | ai ^7.0.79 | 6 | 13 |
 | `vertex-ai/native` | Google GenAI 2.28.0 / Logfire 5.1.1 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.13.7, native Logfire setup with the current `enterprise=True` Vertex mode, against the harness's fake Gemini server; reasoning thoughts arrive as text parts (the instrumentation drops Gemini's `thought` flag) and a failed tool call as an error message rather than a tool result | 9 | 9 |
 | `vertex-ai/sdk` | SideSeat Python 2.0.0 / Google GenAI 2.28.0 / Logfire 5.1.1 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.13.7, current `enterprise=True` Vertex mode, against the harness's fake Gemini server | 9 | 9 |
-| **64 suites** | | **443** | **604** |
-
-Two further samples exist but are **not in the repository**: `strands-js/image-gen` and
-`vercel-ai-js/image-gen`, whose payloads are 15 MB and 7 MB of inlined base64 image data (the Python
-`image_gen` fixtures cover the same path in under 100 KB, because media is rewritten to file URIs). They are
-gitignored and captured locally when working on image handling, so the counts above are what a checkout has.
-`local_only_samples_are_actually_gitignored` stops that exemption from excusing a sample somebody merely
-forgot to commit.
-
-## Production message rubric
-
-Each captured sample receives one binary score for every applicable criterion below. A sample is
-100% only when every criterion passes; averaging cannot hide a missing message behind unrelated
-passing checks. Any upstream capability exemption is named per fixture with a reason.
-
-| Criterion | Passing evidence |
-| --- | --- |
-| Wire fidelity | Fixture is the exact OTLP request emitted by the pinned SDK/framework version |
-| Framework identity | Every native framework suite reaches its declared framework label without SDK fallback |
-| Span view | Every span returns only its own messages, in source order |
-| Trace view | Full conversation is complete, ordered, and scoped to one trace |
-| Session view | Traces partition one session exactly; no trace belongs to two sessions |
-| Project feed | Same messages appear once in documented feed order |
-| Content | Full canonical content digests match, not only previews or counts |
-| Tool causality | Every identified result follows one matching call and is answered once |
-| No duplicates | Re-sent history, redundant carriers, and repeated delivery add no copy |
-| Determinism | Re-run, reverse arrival order, and cache hit produce identical output |
-| SDK parity | Language SDK/OTel and framework SDK/native pairs match requests, span projections, trace topology, sessions, and feed |
-
-The rubric is enforced by `message_goldens`, its invariant tests,
-`sdk_and_plain_otel_conformance_are_identical`, and
-`framework_sdk_and_native_conversations_are_identical`. A support-matrix row is not considered SDK
-parity coverage until both paired suites are committed.
-
-Logfire 6 emits a successful streaming request as an input-only span and the completed response
-as a separate log. Its default context makes that log an unrelated root trace, which the server cannot
-safely reconnect after ingestion. Both the native control pipeline and SideSeat install the streaming
-reparenter before their OTLP exporter. Framework parity therefore requires the same request count, span
-count, complete trace topology, session content, and project feed.
-
-The credential-free SDK pairs are reproduced with:
-
-```bash
-make capture-sdk-conformance-dotnet
-make capture-sdk-conformance-javascript
-make capture-sdk-conformance-python
-make capture-sdk-conformance-rust
-```
-
-## Capturing a suite
-
-Needs working model credentials, since the samples call a real model.
-
-```bash
-scripts/message-fixtures/capture.sh                         # every suite, native + SDK
-scripts/message-fixtures/capture.sh strands                 # one suite, native + SDK
-scripts/message-fixtures/capture.sh strands tool_use native # one native sample
-scripts/message-fixtures/capture.sh strands tool_use sdk    # the matching SDK sample
-```
-
-The latest direct OpenAI, Azure OpenAI, Anthropic, Google GenAI, Pydantic AI, AutoGen, AG2,
-AgentScope, LangChain, Agno, Semantic Kernel, Smolagents, LlamaIndex, TraceLoop, and generic
-Logfire pairs are credential-free and deterministic:
-
-```bash
-scripts/message-fixtures/fake-openai.py --port 5401
-# In another shell:
-OPENAI_API_KEY=x \
-OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
-CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
-  scripts/message-fixtures/capture.sh openai chat_completions both
-
-scripts/message-fixtures/fake-openai.py --port 5401
-# In another shell; the sample maps its Azure-shaped hostname to this local fixture.
-CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
-  scripts/message-fixtures/capture.sh azure-openai canonical both
-
-scripts/message-fixtures/fake-anthropic.py --port 5402
-# In another shell:
-ANTHROPIC_API_KEY=x \
-ANTHROPIC_BASE_URL=http://127.0.0.1:5402 \
-CAPTURE_MODEL=claude-sonnet-4-6 \
-  scripts/message-fixtures/capture.sh anthropic messages both
-
-make capture P=pydantic-ai
-
-scripts/message-fixtures/capture.sh logfire canonical both
-
-make capture P=google-genai   # the fake Gemini server starts in-process; no credentials
-make capture P=vertex-ai
-
-scripts/message-fixtures/fake-openai.py --port 5401
-# In another shell:
-AUTOGEN_OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
-AUTOGEN_API_KEY=x \
-CAPTURE_MODEL=gpt-4o-mini \
-  scripts/message-fixtures/capture.sh autogen agent both
-
-scripts/message-fixtures/fake-openai.py --port 5401
-# In another shell:
-OPENAI_API_KEY=x \
-OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
-CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
-  scripts/message-fixtures/capture.sh ag2 canonical both
-
-scripts/message-fixtures/fake-openai.py --port 5401
-# In another shell:
-OPENAI_API_KEY=x \
-OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
-CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
-  scripts/message-fixtures/capture.sh langchain canonical both
-
-scripts/message-fixtures/fake-openai.py --port 5401
-# In another shell:
-OPENAI_API_KEY=x \
-OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
-CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
-  scripts/message-fixtures/capture.sh haystack canonical both
-
-make capture P=agno
-
-scripts/message-fixtures/fake-openai.py --port 5401
-# In another shell:
-OPENAI_API_KEY=x \
-OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
-CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
-  scripts/message-fixtures/capture.sh semantic-kernel canonical both
-
-make capture P=smolagents
-
-scripts/message-fixtures/fake-openai.py --port 5401
-# In another shell:
-OPENAI_API_KEY=x \
-OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
-CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
-  scripts/message-fixtures/capture.sh llama-index canonical both
-
-make capture P=agentscope
-
-scripts/message-fixtures/fake-openai.py --port 5401
-# In another shell:
-OPENAI_API_KEY=x \
-OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
-CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
-  scripts/message-fixtures/capture.sh traceloop canonical both
-```
-
-`CAPTURE_MODEL` is validated before being appended to the sample command. The fake endpoints cover
-ordinary completion, SSE streaming, and a two-call tool roundtrip; they are wire-contract fixture servers,
-not model-quality substitutes. Pydantic AI uses its deterministic in-process `FunctionModel`, so it needs
-neither a fake HTTP endpoint nor provider credentials. The Google endpoint exercises ordinary generation,
-SSE streaming, and automatic Python function calling against the real Google GenAI client and instrumentor
-in both Gemini Developer API and Vertex AI modes.
-
-New captures use `<suite>-native/<sample>` and `<suite>-sdk/<sample>` so the support
-matrix can prove framework-level parity instead of mixing instrumentation modes under one
-name. The historical unsuffixed corpus remains immutable evidence for the versions listed
-above; pass `legacy` explicitly only when reproducing one of those old captures.
-
-Then record the expectations, **read them**, and only then let them gate:
-
-```bash
-UPDATE_GOLDENS=1 cargo test --locked -p sideseat-server --test message_goldens   # write expectations
-scripts/message-fixtures/review-goldens.py                                   # read them: counts, roles, content
-scripts/message-fixtures/review-goldens.py --suspicious                      # only fixtures with warnings
-scripts/message-fixtures/review-goldens.py strands/tool_use                  # one sample, full detail
-git diff server/tests/fixtures/messages
-cargo test --locked -p sideseat-server --test message_goldens           # from now on it gates
-```
-
-`review-goldens.py` exists because `git diff` on this much JSON is unreadable. It
-renders each view's message count, role sequence and content, and flags patterns that usually
-mean a parsing defect (a conversation with no assistant message, unbalanced tool calls, raw
-JSON in a text position). Those are heuristics for a human to judge — the hard guarantees are
-in the test.
-
-Recording is a separate, explicit step on purpose: a golden written straight from current
-output enshrines whatever bugs exist today. `UPDATE_GOLDENS=1` writes the files but still exits
-non-zero if an invariant was violated, so known-bad output cannot be committed as reviewed.
-
-The invariants hold regardless of what a golden says, which is what makes a blindly regenerated
-snapshot still fail on a real defect:
-
-- every returned block belongs to the scope requested, by exact id (a span view never leaks a
-  sibling span; a trace view never survives `scope_feed_to_trace` with another trace's block)
-- every native framework suite produces the framework label its SDK slug declares somewhere in
-  that suite, without relying on `sideseat.framework` to fill the gap. Nested producers keep their
-  own labels, so this is suite-level evidence rather than a demand that every child span have one name
-- a session's trace views partition its session view exactly — summing them must equal it. This is
-  now asserted for **every** session, and the reason it once could not be is worth keeping: ADK emits
-  its own session id alongside the sample's, so a trace named two sessions and appeared under both,
-  which made the partition meaningless for exactly the fixtures where it mattered. A trace belongs to
-  the session on its earliest span, so that cannot happen — and the check that a session claims no
-  foreign trace is an assertion rather than a skip
-- no duplicate (role, kind, full-content digest) within one trace. This is also a deliberate
-  product limit: a genuine repeat of the same tool call or message inside one trace is collapsed,
-  because it is indistinguishable from a history re-send — see the pipeline notes in
-  `sideml/feed/mod.rs`
-- every tool result's id matches a call in the same trace, and a call is never answered twice.
-  Results with no id are outside this check: a result whose framework identifies it only by name
-  is linked to its call by position (oldest unclaimed call of that name), and where no call is
-  available it stays unlinked rather than acquiring an invented id
-- no empty text or thinking blocks
-- a view holding a user message also holds something from the assistant or a tool. Every other
-  invariant here is about not returning the *wrong* thing; this is the only one that notices
-  content which never arrives at all, which is how CrewAI's answers went missing for as long as
-  they did — the extractor read the reply from a field it only consulted when no history was
-  present, so exactly the runs that had a conversation lost the response. A fixture that
-  legitimately has no answer is exempted by name with its reason (only `strands/error`, whose
-  sample exists to fail), so the exemption is a claim someone made rather than a silent pass
-- the projection is self-consistent (counts, role sequence and message list agree)
-- all of the above hold for the **project feed** view as well, which has its own pipeline entry
-  point (`process_feed`) and its own ordering - newest response first, each response read
-  top-to-bottom. It was the one view outside the harness, and so the only place a duplicate could
-  surface unchecked. The answer check is the weaker "something answered a question" there: no
-  position in a feed is "the last turn", since it descends across responses and ascends within one
-- processing the same fixture twice gives the same answer, checked once per suite
-- **redundant evidence changes nothing**: re-delivering every span of a fixture yields the same
-  messages in the same order, not merely the same count
-- **arrival order decides nothing**: reversing the order spans reach the pipeline yields the same
-  answer, so an extraction change that merely shifts arrival order cannot look like a content change
-- **a matched tool result follows its call** - causality, not adjacency, since Vercel emits
-  `call, call, result, result`. Not applied to the project feed, which descends across responses by
-  design: there a call and an earlier response's result are legitimately reversed
-- **survivors of one carrier keep the order that carrier stated**, compared only where the carrier
-  *has* an order - two entries of one array. Paths that diverge at an object member are not compared,
-  because members have no order: Anthropic puts its system prompt in a sibling of `messages` and the
-  pipeline rightly renders it first
-
-`UPDATE_GOLDENS=1` reports invariant violations instead of aborting, so one bad fixture does
-not hide the rest.
-
-## What is and is not covered
-
-**445 tracked expectation files: 428 captured in 63 suites, plus 17 synthetic.** A suite is not a framework:
-`strands`/`strands-js` and `claude-agent-sdk`/`claude-agent-sdk-js` are one framework each in two
-languages; the eight .NET/JavaScript/Python/Rust suites are SDK conformance rather than framework
-captures. The fixture families below cover **27 of the 32** frameworks SideSeat recognises. (32 is
-the union of the server's `Framework` classifier and the SDK's framework list, excluding `Unknown`:
-28 named server variants plus `anthropic`, `openai`, `google-genai` and `pydantic-ai`, which only the
-SDK names.) Every framework is not covered, and the gap is deliberate rather than hidden:
-
-| Covered by fixtures (27) | strands, langchain, langgraph, llama-index, crewai, google-adk, google-genai, vertex-ai, haystack, bedrock, openai, azure-openai, openai-agents, openinference, anthropic, pydantic-ai, autogen, ag2, agent-framework, agentscope, claude-agent-sdk, agno, semantic-kernel, smolagents, vercel-ai, logfire, traceloop — strands and claude-agent-sdk in both languages, vercel-ai in JS only |
-| ------------------- | --- |
-| Synthetic, not a framework | `_synthetic/*` — hand-written payloads for shapes no captured sample produces, counted in the file total and in neither the suites nor the frameworks. See below. |
-| SDK conformance, not a framework | The `dotnet-{otel,sdk}/canonical`, `javascript-{otel,sdk}/canonical`, `python-{otel,sdk}/canonical`, and `rust-{otel,sdk}/canonical` pairs — the same real four-span, five-message conversation exported without and with each SideSeat SDK |
-| Recognised, no fixtures (5) | azure-ai-foundry, browser-use, langflow, livekit, mlflow |
-
-The second group shares extractors with covered frameworks, so the *parsing logic* is exercised
-— but nothing here proves their emitted payloads match what those extractors expect. Adding a
-sample suite is what closes that, not adding an expectation file.
-
-Also uneven: 28 captured fixtures have no session view, because their sample never sets a session id.
-Session views are built only for real session ids, since the endpoint cannot be asked for a
-session that does not exist. Sessionised captures are what would cover those, not a synthetic
-fallback.
-
-## The synthetic fixtures
-
-Hand-written payloads for shapes the captured corpus does not reach. They exist because an invariant
-that holds trivially proves nothing: each of these makes a specific rule bite, and the mutation that
-breaks that rule is named.
-
-| Fixture | The shape | What it makes bite |
-| --- | --- | --- |
-| `tool_use/legacy` | a Strands call/result pair | the baseline hand-written case |
-| `multi_turn_one_carrier/legacy` | nine turns in **one** carrier, in conversation order | carrier subsequence across many siblings - the ADK shape, where one span holds a whole conversation |
-| `parallel_tool_calls/legacy` | two distinct calls in one response, then both results | causality *without* adjacency: `call, call, result, result` must be allowed |
-| `resent_history/legacy` | a later span re-sending the earlier turn | the re-send collapses onto the original rather than duplicating it |
-| `cross_span_tie/legacy` | a generation span and its tool span reporting the **identical** instant, with the tool span's id sorting *first* | `adopt_call_positions`. Disable it and this fixture reports the answer at index 1 before its question at index 3; every captured fixture stays green, because none of them ties |
-| `agent_snapshot_reorders_answer/legacy` | a root agent span re-listing a whole turn **answer-first** while its child generation spans emit the calls and the answer separately — the shape the Vercel AI SDK's current integration produces | The **redundant re-listing** rule (`redundant_relistings`, `order_graph.rs`). Its golden records the correct conversation — question, calls, results, answer — and did not until that rule landed: `gen_ai.output.messages` reads as one atomic emission wherever it appears, so the re-listing's stated order was trusted and the answer sorted ahead of the calls that produced it. Two earlier attempts are recorded in `a_relisting_is_discounted_only_on_evidence_from_below_it`: declaring the carrier `accumulated_state` **lost a message** in `agent-framework/tool_use`, and discounting any instance whose messages appear below it fired 4,044 times across the corpus and broke `agent-framework/swarm` and `strands/image_gen`. The rule that works asks two questions instead — is every message witnessed by a *descendant*, and does the instance hold **both** a message the span produced and a result answering it, which no single model response can |
 
 The carrier-overlap defect is documented by `reading_more_carriers_only_adds_messages` rather than by a
 fixture: it runs every fixture through both extraction modes and reports what each gains and what

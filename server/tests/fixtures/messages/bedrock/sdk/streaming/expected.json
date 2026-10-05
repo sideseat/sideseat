@@ -228,8 +228,8 @@
   "feed_view": {
     "message_count": 5,
     "role_sequence": [
-      "tool",
       "assistant",
+      "tool",
       "assistant",
       "system",
       "user"
@@ -239,19 +239,19 @@
     "messages": [
       {
         "index": 0,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_1AESV2rtpr1i44F8ykUuRZ\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}]}",
-        "content_digest": "174980780c905487",
-        "observation_type": "generation"
-      },
-      {
-        "index": 1,
         "role": "assistant",
         "entry_type": "text",
         "content": "Rome will be sunny tomorrow with a high of 21°C (about 70°F). Wear light, breathable layers like a t-shirt or light shirt with trousers or a skirt. Bring a light jacket for the evening, plus sunglasses and sunscreen.",
         "content_digest": "17811c6a9095b91e",
         "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_1AESV2rtpr1i44F8ykUuRZ\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}]}",
+        "content_digest": "174980780c905487",
         "observation_type": "generation"
       },
       {
