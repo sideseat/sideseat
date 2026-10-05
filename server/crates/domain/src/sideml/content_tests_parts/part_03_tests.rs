@@ -85,6 +85,33 @@ fn test_openai_image_url_with_mime_file_ref() {
     assert_eq!(result["media_type"], "image/png");
 }
 
+/// A PDF sent through Chat Completions read as an unknown block: its members sit under `file`.
+#[test]
+fn a_chat_completions_file_part_is_a_document() {
+    let block = json!({
+        "type": "file",
+        "file": {"filename": "task.pdf", "file_data": "data:application/pdf;base64,JVBERi0x"}
+    });
+    let result = normalize_content_block(&block).unwrap();
+    assert_eq!(result["type"], "document");
+    assert_eq!(result["media_type"], "application/pdf");
+    assert_eq!(result["source"], "base64");
+    assert_eq!(result["data"], "JVBERi0x");
+    assert_eq!(result["name"], "task.pdf");
+
+    let stored = json!({"type": "file", "file": {"file_data": "#!B64!#application/pdf::hash123"}});
+    let result = normalize_content_block(&stored).unwrap();
+    assert_eq!(result["type"], "document");
+    assert_eq!(result["source"], "file");
+
+    let uploaded = json!({"type": "file", "file": {"file_id": "file-abc"}});
+    assert_eq!(normalize_content_block(&uploaded).unwrap()["data"], "file-abc");
+
+    // A `file` block in another dialect's shape is not claimed here.
+    let other = json!({"type": "file", "mediaType": "image/png", "data": "#!B64!#image/png::h"});
+    assert!(try_openai_format(&other).is_none());
+}
+
 #[test]
 fn test_bedrock_media_with_mime_file_ref() {
     let block = json!({

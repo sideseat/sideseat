@@ -163,7 +163,15 @@ pub(super) fn try_openai_format(block: &JsonValue) -> Option<JsonValue> {
                 "data": data
             }))
         }
-        "input_file" => {
+        // The Responses API's `input_file` holds its members flat; Chat Completions' `file` part holds the
+        // same members under `file`. A `file` block without that object is another dialect's, so it is
+        // left to the rest of the chain.
+        "input_file" | "file" => {
+            let block = if block_type == "file" {
+                block.get("file").filter(|file| file.is_object())?
+            } else {
+                block
+            };
             if let Some(data_str) = block.get("file_data").and_then(|d| d.as_str()) {
                 let (source, data, media_type) = parse_data_url(data_str);
                 let content_type = media_type
