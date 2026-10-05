@@ -107,6 +107,7 @@ def run(
                     matrix,
                     f"{matrix.suite.name}/census/{release.version}",
                     [matrix.pin.format(version=release.version)],
+                    released=release.date,
                 ),
                 None,
             )

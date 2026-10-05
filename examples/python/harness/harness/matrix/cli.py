@@ -112,9 +112,15 @@ def record(
     chosen = [matrix.variant(n) for n in names] if names else list(matrix.variants)
     # The current release's fixtures are the ordinary capture's; `capture` records them.
     chosen = [v for v in chosen if not v.current]
+    dates = {
+        e["version"]: e["date"] for e in (census_of(matrix) or {}).get("releases", [])
+    }
     for variant in chosen:
+        if matrix.era and variant.version not in dates:
+            failed.append(f"{variant.name}: no release date; take the census first")
+            continue
         try:
-            env_path = environment.ensure(matrix, variant)
+            env_path = environment.ensure(matrix, variant, dates.get(variant.version))
         except environment.UnresolvableRelease as error:
             failed.append(f"{variant.name}: {error}")
             continue
@@ -123,7 +129,9 @@ def record(
         )
         for mode in matrix.modes:
             for scenario in [
-                s for s in variant.scenarios if not scenarios or s in scenarios
+                s
+                for s in variant.scenarios
+                if (not scenarios or s in scenarios) and s not in variant.withheld
             ]:
                 label = f"{producer}/{variant.mode(mode)}/{scenario}"
                 result = replay(
@@ -202,6 +210,8 @@ def check(producer: str, matrix: Matrix) -> list[str]:
         entry = by_release.get((variant.version, variant.profile)) or {}
         for mode in matrix.modes:
             for scenario in variant.scenarios:
+                if scenario in variant.withheld:
+                    continue
                 directory = fixture_dir(producer, mode, variant, scenario)
                 if not any(directory.glob("req-*")):
                     problems.append(
@@ -210,6 +220,7 @@ def check(producer: str, matrix: Matrix) -> list[str]:
         probes = [fixture_dir(producer, "native", variant, p) for p in matrix.probes]
         if (
             "native" in matrix.modes
+            and not set(matrix.probes) & set(variant.withheld)
             and entry.get("shape")
             and all(any(d.glob("req-*")) for d in probes)
         ):

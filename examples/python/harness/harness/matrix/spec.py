@@ -27,6 +27,10 @@ class Variant:
     #: The release the suite's own lockfile holds: its fixtures are the ordinary capture (mode ``native``),
     #: recorded by ``capture`` rather than by the matrix.
     current: bool = False
+    #: Scenarios the census classifies but whose fixtures are not committed, each with the reason:
+    #: a capture the parser cannot reconstruct at all would fail the golden invariants, and an
+    #: expectation recording that failure must not be committed.
+    withheld: dict[str, str] = field(default_factory=dict)
 
     @property
     def name(self) -> str:
@@ -61,6 +65,8 @@ class Matrix:
     profiles: dict[str, dict[str, str]]
     prereleases: bool
     modes: tuple[str, ...]
+    #: Packages resolved as of each release's own release day rather than ``resolved_before``.
+    era: tuple[str, ...]
     variants: tuple[Variant, ...] = field(default=())
     #: Releases the census could not run, each with the reviewed reason and the date it must be revisited.
     exemptions: dict[str, tuple[str, str]] = field(default_factory=dict)
@@ -105,6 +111,7 @@ def parse(text: str, suite: Path) -> Matrix:
         "profiles",
         "prereleases",
         "modes",
+        "era",
     }
     if extra := set(table) - allowed:
         raise MatrixError(f"unknown [matrix] keys {sorted(extra)}")
@@ -138,6 +145,7 @@ def parse(text: str, suite: Path) -> Matrix:
             "scenarios",
             "doc",
             "current",
+            "withheld",
         }:
             raise MatrixError(f"unknown [[variant]] keys {sorted(extra)}")
         profile = entry.get("profile", "default")
@@ -163,7 +171,16 @@ def parse(text: str, suite: Path) -> Matrix:
             scenarios=chosen,
             doc=entry["doc"].strip(),
             current=bool(entry.get("current", False)),
+            withheld=dict(entry.get("withheld", {})),
         )
+        if stray := [w for w in variant.withheld if w not in chosen]:
+            raise MatrixError(
+                f"variant {variant.name}: withholds {stray}, which it does not record"
+            )
+        if not all(str(reason).strip() for reason in variant.withheld.values()):
+            raise MatrixError(
+                f"variant {variant.name}: say why each scenario is withheld"
+            )
         if variant.current and variant.profile != "default":
             raise MatrixError(
                 f"variant {variant.name}: the current release is captured without a profile"
@@ -195,6 +212,7 @@ def parse(text: str, suite: Path) -> Matrix:
         profiles=profiles,
         prereleases=bool(table.get("prereleases", False)),
         modes=modes,
+        era=tuple(table.get("era", ())),
         variants=tuple(variants),
         exemptions=exemptions,
     )

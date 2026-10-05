@@ -33,29 +33,40 @@ def executable(environment: Path, name: str) -> Path:
     return environment / "bin" / name
 
 
-def stamp(matrix: Matrix, requirements: list[str]) -> dict[str, object]:
+def stamp(
+    matrix: Matrix, requirements: list[str], released: str | None = None
+) -> dict[str, object]:
     """Everything an environment's contents depend on; a different stamp means a rebuild."""
     project = (matrix.suite / "pyproject.toml").read_bytes()
     return {
         "requirements": requirements,
+        "era": {name: released for name in matrix.era} if released else {},
         "python": matrix.python,
         "resolved-before": matrix.resolved_before,
         "pyproject": hashlib.sha256(project).hexdigest(),
     }
 
 
-def ensure(matrix: Matrix, variant: Variant, *, quiet: bool = True) -> Path:
+def ensure(
+    matrix: Matrix, variant: Variant, released: str | None, *, quiet: bool = True
+) -> Path:
     """The variant's environment, built if missing or stale."""
     return ensure_requirements(
         matrix,
-        f"{matrix.suite.name}/{variant.version}",
+        f"{matrix.suite.name}/{variant.name}",
         matrix.requirements(variant),
+        released=released,
         quiet=quiet,
     )
 
 
 def ensure_requirements(
-    matrix: Matrix, key: str, requirements: list[str], *, quiet: bool = True
+    matrix: Matrix,
+    key: str,
+    requirements: list[str],
+    *,
+    released: str | None = None,
+    quiet: bool = True,
 ) -> Path:
     """An environment holding the suite's dependencies with ``requirements`` overriding theirs.
 
@@ -64,7 +75,7 @@ def ensure_requirements(
     rather than constraints, because a historical release may sit below the suite's lower bound.
     """
     environment = cache_root() / key
-    wanted = stamp(matrix, requirements)
+    wanted = stamp(matrix, requirements, released)
     marker = environment / "sideseat-matrix.json"
     if marker.exists() and json.loads(marker.read_text()) == wanted:
         return environment
@@ -76,6 +87,10 @@ def ensure_requirements(
         ["uv", "venv", *flags, "--python", matrix.python, str(environment)], check=True
     )
     common = ["--python", str(environment), "--exclude-newer", matrix.resolved_before]
+    # The packages of the release's era resolve as of its release day: a release that left its
+    # OpenTelemetry bound open was tested against the OpenTelemetry of its day, not today's.
+    for name in matrix.era if released else ():
+        common += ["--exclude-newer-package", f"{name}={released}T23:59:59Z"]
     with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as overrides:
         overrides.write("\n".join(requirements) + "\n")
     try:

@@ -12,6 +12,7 @@ from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
 from opentelemetry.proto.common.v1.common_pb2 import AnyValue, KeyValue
 
 from harness.matrix import census
+from harness.matrix.cli import check, matrices
 from harness.matrix.shape import digest, shape, skeleton
 from harness.matrix.spec import MatrixError, parse
 from harness.proxy import ModelProxy
@@ -77,6 +78,23 @@ def test_a_matrix_that_cannot_be_followed_is_refused(
 ) -> None:
     with pytest.raises(MatrixError, match=reason):
         parse(edit(MINIMAL), tmp_path)
+
+
+def test_a_withheld_scenario_needs_a_reason_and_must_be_recorded(
+    tmp_path: Path,
+) -> None:
+    withheld = MINIMAL.replace(
+        'doc = "before the rename"',
+        'doc = "before the rename"\nwithheld = { chat = "nothing reads it yet" }',
+    )
+
+    assert parse(withheld, tmp_path).variants[0].withheld == {
+        "chat": "nothing reads it yet"
+    }
+    with pytest.raises(MatrixError, match="why"):
+        parse(withheld.replace("nothing reads it yet", " "), tmp_path)
+    with pytest.raises(MatrixError, match="does not record"):
+        parse(withheld.replace("{ chat =", "{ multi_turn ="), tmp_path)
 
 
 def test_a_skeleton_keeps_structure_and_drops_values() -> None:
@@ -271,3 +289,12 @@ def test_coverage_names_unheld_shapes_redundant_variants_and_unexempt_failures(
     )
     assert any(p.startswith("1.7.0 (default): not classified") for p in problems)
     assert not any(p.startswith("1.6.0") for p in problems)
+
+
+def test_every_committed_matrix_covers_its_window_with_fresh_fixtures() -> None:
+    found = matrices()
+    assert found, "no suite has a versions.toml"
+    problems = [
+        p for producer, (_, matrix) in found.items() for p in check(producer, matrix)
+    ]
+    assert problems == []
