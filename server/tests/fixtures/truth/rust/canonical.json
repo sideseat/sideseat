@@ -9,7 +9,7 @@
  "source": {
   "kind": "program",
   "path": "sdk/rust/examples/sdk-conformance.rs",
-  "sha256": "4060690d07d7e2c059d33de157ef70f862a1f6c26db7a65ff763957b6a8134e7",
+  "sha256": "81ff39e5d20487d18f48899a34c3c64b490d6225e2eb1b466d62eb3bcf48c03a",
   "values_from": "examples/python/sdk-conformance/conformance.py"
  },
  "generator": "examples/python/harness: python -m harness truth",

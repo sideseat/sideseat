@@ -9,7 +9,7 @@
  "source": {
   "kind": "program",
   "path": "examples/dotnet/conformance/Program.cs",
-  "sha256": "508e9989ca03ffcef147d193d74170abf076488d2d67123ec058eb98bcbc1e50",
+  "sha256": "fd0c5126c49eaec3fd8131cb41104fafca4252c5b19bf96015edf996c076b72f",
   "values_from": "examples/python/sdk-conformance/conformance.py"
  },
  "generator": "examples/python/harness: python -m harness truth",
