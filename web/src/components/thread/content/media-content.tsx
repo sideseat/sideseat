@@ -177,7 +177,7 @@ function ImageViewer({
         {/* Image */}
         <img
           src={src}
-          alt="Image content"
+          alt={`${typeLabel} image attachment`}
           crossOrigin="use-credentials"
           className={`block max-w-full max-h-80 object-contain cursor-pointer transition-opacity duration-200 ${isLoaded ? "opacity-100" : "opacity-0"}`}
           onClick={handleOpen}
@@ -212,6 +212,7 @@ function ImageViewer({
           className="h-5 w-5"
           onClick={handleOpen}
           title="Enlarge"
+          aria-label="Enlarge image"
         >
           <Maximize2 className="h-3 w-3" />
         </Button>
@@ -221,6 +222,7 @@ function ImageViewer({
           className="h-5 w-5"
           onClick={handleDownload}
           title="Download"
+          aria-label="Download image"
         >
           <Download className="h-3 w-3" />
         </Button>
@@ -307,6 +309,7 @@ export function MediaContent(props: MediaContentProps) {
                 downloadFromUrl(resolvedUrl, getDownloadFilename(undefined, mediaType, "audio"))
               }
               title="Download"
+              aria-label="Download audio"
             >
               <Download className="h-3.5 w-3.5" />
             </Button>
@@ -340,6 +343,7 @@ export function MediaContent(props: MediaContentProps) {
                 downloadFromUrl(resolvedUrl, getDownloadFilename(undefined, mediaType, "video"))
               }
               title="Download"
+              aria-label="Download video"
             >
               <Download className="h-3.5 w-3.5" />
             </Button>
@@ -349,9 +353,16 @@ export function MediaContent(props: MediaContentProps) {
     }
   }
 
-  // Fallback placeholder with download for documents/files
+  // Fallback placeholder with download for documents/files. Media that failed to load keeps its
+  // download, and says it failed: a bare placeholder read as "this message had no image".
   const fileName = props.type === "document" || props.type === "file" ? props.name : undefined;
-  const canDownload = resolvedUrl && (type === "document" || type === "file");
+  const loadFailed = resolvedUrl !== null && failedUrl === resolvedUrl;
+  const canDownload = resolvedUrl && (type === "document" || type === "file" || loadFailed);
+  const status = loadFailed
+    ? "Could not be loaded"
+    : isPlaceholder
+      ? "Content not captured"
+      : undefined;
 
   return (
     <div
@@ -365,6 +376,13 @@ export function MediaContent(props: MediaContentProps) {
           {getMediaTypeLabel(mediaType)}
           {config.extra && ` ${config.extra}`}
         </span>
+        {status && (
+          <span
+            className={loadFailed ? "text-xs text-destructive" : "text-xs text-muted-foreground"}
+          >
+            {status}
+          </span>
+        )}
         <div className="flex-1" />
         {isPdf && resolvedUrl && (
           <Button
@@ -376,6 +394,7 @@ export function MediaContent(props: MediaContentProps) {
               handleOpenPdf();
             }}
             title="View PDF"
+            aria-label="View PDF"
           >
             <Eye className="h-3.5 w-3.5" />
           </Button>
@@ -390,6 +409,7 @@ export function MediaContent(props: MediaContentProps) {
               downloadFromUrl(resolvedUrl, getDownloadFilename(fileName, mediaType, type));
             }}
             title="Download"
+            aria-label={`Download ${config.label}`}
           >
             <Download className="h-3.5 w-3.5" />
           </Button>
