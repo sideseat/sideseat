@@ -463,12 +463,28 @@ fn truth_explain() {
         eprintln!("set TRUTH_FIXTURE=<producer>/<mode>/<scenario>");
         return;
     };
-    let paths = crate::discover_fixtures()
-        .into_iter()
-        .find(|(label, _)| *label == fixture)
-        .map(|(_, paths)| paths)
-        .unwrap_or_else(|| panic!("no fixture {fixture}"));
     let truths = Truths::load();
+    let fixtures = crate::discover_fixtures();
+    let Some(paths) = fixtures
+        .iter()
+        .find(|(label, _)| *label == fixture)
+        .map(|(_, paths)| paths.clone())
+    else {
+        // A prefix (`haystack/`, `adk/native/`) prints only the violations of every fixture under it,
+        // so one producer's ledger entries can be checked without the whole corpus.
+        let mut matched = 0;
+        for (label, paths) in fixtures.iter().filter(|(l, _)| l.starts_with(&fixture)) {
+            let Some(key) = truths.of_fixture.get(label) else {
+                continue;
+            };
+            matched += 1;
+            for violation in check(&truths.documents[key], &recon::build(label, paths)) {
+                eprintln!("{} - {}", violation.id(), violation.detail);
+            }
+        }
+        assert!(matched > 0, "no fixture {fixture} or fixture under it");
+        return;
+    };
     let key = truths
         .of_fixture
         .get(&fixture)

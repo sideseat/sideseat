@@ -336,3 +336,27 @@ fn native_gap_declarations_hold(
         }
     }
 }
+
+/// `MESSAGE_FIXTURES=tracked` keeps only the samples git tracks, so a change can be verified against the
+/// committed corpus while captures still being recorded sit untracked in the same tree.
+fn retain_requested_fixtures(root: &Path, fixtures: &mut BTreeMap<String, Vec<PathBuf>>) {
+    if std::env::var("MESSAGE_FIXTURES").as_deref() != Ok("tracked") {
+        return;
+    }
+    let output = std::process::Command::new("git")
+        .args(["ls-files", "-z", "--", "."])
+        .current_dir(root)
+        .output()
+        .expect("MESSAGE_FIXTURES=tracked needs git");
+    assert!(
+        output.status.success(),
+        "MESSAGE_FIXTURES=tracked needs a git checkout"
+    );
+    let tracked: std::collections::BTreeSet<String> = output
+        .stdout
+        .split(|&b| b == 0)
+        .filter_map(|path| std::str::from_utf8(path).ok())
+        .filter_map(|path| path.rsplit_once('/').map(|(dir, _)| dir.to_string()))
+        .collect();
+    fixtures.retain(|label, _| tracked.contains(label));
+}

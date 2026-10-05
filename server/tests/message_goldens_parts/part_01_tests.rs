@@ -112,6 +112,7 @@ fn discover_fixtures() -> Vec<(String, Vec<PathBuf>)> {
     let root = fixture_root();
     let mut out: BTreeMap<String, Vec<PathBuf>> = BTreeMap::new();
     collect(&root, &root, &mut out);
+    retain_requested_fixtures(&root, &mut out);
     out.into_iter()
         .map(|(k, mut v)| {
             v.sort();
