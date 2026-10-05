@@ -66,6 +66,9 @@ tikv-jemallocator = "0.7.0"
 sideseat-domain = { path = "crates/domain", features = ["test-support"] }
 sideseat-ingestion = { path = "crates/ingestion", features = ["test-support"] }
 tempfile = "3"
+# Rubric v2 digests attachments and truth sources the way the harness does: SHA-256 over decoded bytes.
+base64 = { workspace = true }
+sha2 = { workspace = true }
 # Keep compressed-fixture privacy checks cross-platform.
 flate2 = "1"
 memchr = "2"

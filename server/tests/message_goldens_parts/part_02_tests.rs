@@ -443,10 +443,14 @@ fn message_goldens() {
     let mut failures: Vec<String> = Vec::new();
     let mut violations: Vec<String> = Vec::new();
     let mut checked = 0usize;
+    // Rubric v2 runs on the views built here, so the truth comparison costs no second replay.
+    let truths = message_truth::Truths::load();
+    let mut truth_violations = Vec::new();
 
     for (label, paths) in &fixtures {
-        let rows = rows_for(paths);
+        let (rows, spans) = message_truth::read(paths);
         let built = build_golden(label, paths, &rows);
+        truth_violations.extend(truths.check(label, &built, spans));
         let golden = &built.golden;
 
         if update {
@@ -512,14 +516,21 @@ fn message_goldens() {
         return;
     }
 
+    let truth_problems = message_truth::ledger_problems(&truth_violations);
     assert!(
-        failures.is_empty(),
-        "message parsing changed for {} of {} fixture(s):\n\n{}",
+        failures.is_empty() && truth_problems.is_empty(),
+        "message parsing changed for {} of {} fixture(s):\n\n{}\n\n\
+         {} disagreement(s) with the truth ledger (server/tests/fixtures/truth/known-violations.json):\n  {}",
         failures.len(),
         fixtures.len(),
-        failures.join("\n\n")
+        failures.join("\n\n"),
+        truth_problems.len(),
+        truth_problems.join("\n  ")
     );
-    eprintln!("message_goldens: {checked} fixture(s) matched");
+    eprintln!(
+        "message_goldens: {checked} fixture(s) matched; {} truth violation(s), all ledgered",
+        truth_violations.len()
+    );
 }
 
 /// Producers whose fixtures are SDK conformance programs rather than frameworks.

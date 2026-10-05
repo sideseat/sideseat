@@ -5786,6 +5786,7 @@ version = "1.0.13"
 dependencies = [
  "anyhow",
  "async-trait",
+ "base64 0.22.1",
  "chrono",
  "clickhouse",
  "dotenvy",
@@ -5798,6 +5799,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "sideseat-adapter-blob-storage",
  "sideseat-adapter-cache",
  "sideseat-adapter-clickhouse",

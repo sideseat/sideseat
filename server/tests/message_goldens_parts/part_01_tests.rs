@@ -41,57 +41,62 @@ fn normalize_for_test_with_mode(
     spans
         .into_iter()
         .map(|span| {
-            let row = MessageSpanRow {
-                trace_id: span.trace_id.clone(),
-                span_id: span.span_id.clone(),
-                parent_span_id: span.parent_span_id.clone(),
-                span_timestamp: span.timestamp_start,
-                span_end_timestamp: span.timestamp_end,
-                messages_json: span.messages.clone().unwrap_or_else(|| "[]".to_string()),
-                tool_definitions_json: span
-                    .tool_definitions
-                    .clone()
-                    .unwrap_or_else(|| "[]".to_string()),
-                tool_names_json: span.tool_names.clone().unwrap_or_else(|| "[]".to_string()),
-                log_messages_json: "[]".to_string(),
-                body_cache_key: None,
-                model: span
-                    .gen_ai_response_model
-                    .clone()
-                    .or_else(|| span.gen_ai_request_model.clone()),
-                provider: span.gen_ai_system.clone(),
-                status_code: span.status_code.clone(),
-                exception_type: span.exception_type.clone(),
-                exception_message: span.exception_message.clone(),
-                exception_stacktrace: span.exception_stacktrace.clone(),
-                input_tokens: span.gen_ai_usage_input_tokens,
-                output_tokens: span.gen_ai_usage_output_tokens,
-                total_tokens: span.gen_ai_usage_total_tokens,
-                cost_total: span.gen_ai_cost_total,
-                observation_type: span
-                    .observation_type
-                    .map(|value| value.as_str().to_string()),
-                session_id: span.session_id.clone(),
-                ingested_at: span.timestamp_start,
-                scope_name: span.scope_name.clone(),
-                scope_version: span.scope_version.clone(),
-                span_name: Some(span.span_name.clone()),
-                framework: span.framework.clone(),
-                response_model: span.gen_ai_response_model.clone(),
-                response_id: None,
-                temperature: None,
-                top_p: None,
-                max_tokens: None,
-                finish_reasons: None,
-                cache_read_tokens: 0,
-                cache_write_tokens: 0,
-                reasoning_tokens: 0,
-                cost_input: 0.0,
-                cost_output: 0.0,
-            };
+            let row = message_row(&span);
             (span.span_name, row)
         })
         .collect()
+}
+
+/// The message row the query layer would return for one normalised span.
+fn message_row(span: &sideseat_ports::types::NormalizedSpan) -> MessageSpanRow {
+    MessageSpanRow {
+        trace_id: span.trace_id.clone(),
+        span_id: span.span_id.clone(),
+        parent_span_id: span.parent_span_id.clone(),
+        span_timestamp: span.timestamp_start,
+        span_end_timestamp: span.timestamp_end,
+        messages_json: span.messages.clone().unwrap_or_else(|| "[]".to_string()),
+        tool_definitions_json: span
+            .tool_definitions
+            .clone()
+            .unwrap_or_else(|| "[]".to_string()),
+        tool_names_json: span.tool_names.clone().unwrap_or_else(|| "[]".to_string()),
+        log_messages_json: "[]".to_string(),
+        body_cache_key: None,
+        model: span
+            .gen_ai_response_model
+            .clone()
+            .or_else(|| span.gen_ai_request_model.clone()),
+        provider: span.gen_ai_system.clone(),
+        status_code: span.status_code.clone(),
+        exception_type: span.exception_type.clone(),
+        exception_message: span.exception_message.clone(),
+        exception_stacktrace: span.exception_stacktrace.clone(),
+        input_tokens: span.gen_ai_usage_input_tokens,
+        output_tokens: span.gen_ai_usage_output_tokens,
+        total_tokens: span.gen_ai_usage_total_tokens,
+        cost_total: span.gen_ai_cost_total,
+        observation_type: span
+            .observation_type
+            .map(|value| value.as_str().to_string()),
+        session_id: span.session_id.clone(),
+        ingested_at: span.timestamp_start,
+        scope_name: span.scope_name.clone(),
+        scope_version: span.scope_version.clone(),
+        span_name: Some(span.span_name.clone()),
+        framework: span.framework.clone(),
+        response_model: span.gen_ai_response_model.clone(),
+        response_id: None,
+        temperature: None,
+        top_p: None,
+        max_tokens: None,
+        finish_reasons: None,
+        cache_read_tokens: 0,
+        cache_write_tokens: 0,
+        reasoning_tokens: 0,
+        cost_input: 0.0,
+        cost_output: 0.0,
+    }
 }
 
 // ============================================================================
@@ -399,6 +404,11 @@ struct InvariantRow {
     position: String,
     /// The response the block belongs to, by its anchor: the project feed descends across responses.
     order_time: chrono::DateTime<chrono::Utc>,
+    /// Whether the pipeline reads the block as its span's output rather than context sent to it. A
+    /// generation span re-lists earlier responses as history, so only this side says what it produced.
+    is_output: bool,
+    /// The normalised finish reason the block carries, if any.
+    finish: Option<&'static str>,
 }
 
 /// Which API endpoint a view reproduces. Every one of them calls `process_spans`; what
@@ -495,6 +505,8 @@ fn build_view(rows: Vec<MessageSpanRow>, view: View<'_>) -> (GoldenView, Vec<Inv
                 carrier_orders_positions: semantics.position_provides_sequence_order,
                 carrier_proves_occurrence: semantics.position_proves_distinct_occurrence,
                 order_time: block.order_time,
+                is_output: block.is_output_source() || block.is_protected(),
+                finish: block.finish_reason.as_ref().map(|f| f.as_str()),
             }
         })
         .collect();
