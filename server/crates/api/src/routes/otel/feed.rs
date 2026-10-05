@@ -762,6 +762,7 @@ mod tests {
             messages_json: messages.to_string(),
             tool_definitions_json: "[]".to_string(),
             tool_names_json: "[]".to_string(),
+            log_messages_json: "[]".to_string(),
             body_cache_key: None,
             model: None,
             provider: None,

@@ -898,7 +898,7 @@ fn a_document_is_identified_by_its_bytes_not_its_name() {
     };
 
     assert_eq!(
-        super::extraction::compute_block_hash(&document(Some("task"))),
-        super::extraction::compute_block_hash(&document(None))
+        super::block_hash::compute_block_hash(&document(Some("task"))),
+        super::block_hash::compute_block_hash(&document(None))
     );
 }

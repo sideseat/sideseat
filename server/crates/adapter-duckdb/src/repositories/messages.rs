@@ -91,6 +91,9 @@ fn parse_span_row(row: &duckdb::Row) -> Result<MessageSpanRow, duckdb::Error> {
         cost_total: row.get(15)?,
         tool_definitions_json: row.get::<_, Option<String>>(16)?.unwrap_or_default(),
         tool_names_json: row.get::<_, Option<String>>(17)?.unwrap_or_default(),
+        log_messages_json: row
+            .get::<_, Option<String>>(36)?
+            .unwrap_or_else(|| "[]".to_string()),
         body_cache_key: None,
         observation_type: row.get(18)?,
         session_id: row.get(19)?,
@@ -415,5 +418,160 @@ mod tests {
         let result = get_project_messages(&conn, &params).expect("Query should succeed");
 
         assert!(result.rows.is_empty());
+    }
+
+    fn log_message(text: &str, second: i64) -> String {
+        serde_json::json!([{
+            "source": {"event": {"name": "gen_ai.user.message",
+                                 "time": format!("2026-01-01T00:00:{second:02}Z")}},
+            "content": {"content": text}
+        }])
+        .to_string()
+    }
+
+    fn message_log(
+        project_id: &str,
+        digest: &str,
+        span: (&str, &str),
+        second: i64,
+        ingested_at: chrono::DateTime<Utc>,
+        messages: &str,
+    ) -> sideseat_ports::types::NormalizedLog {
+        let timestamp = chrono::DateTime::from_timestamp(1_767_225_600 + second, 0).unwrap();
+        sideseat_ports::types::NormalizedLog {
+            project_id: Some(project_id.to_string()),
+            log_digest: digest.to_string(),
+            timestamp,
+            time: Some(timestamp),
+            trace_id: Some(span.0.to_string()),
+            span_id: Some(span.1.to_string()),
+            ingested_at: Some(ingested_at),
+            messages: Some(messages.to_string()),
+            ..Default::default()
+        }
+    }
+
+    /// A span whose conversation arrived only as log records is returned, with those messages joined in
+    /// log-time order, by every message read - and not before its own watermark.
+    #[tokio::test]
+    async fn log_messages_join_their_span_in_order_and_respect_the_watermark() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let project_id = "log-project";
+        let base = Utc::now() - Duration::minutes(10);
+        let mut span = make_span_with_messages(project_id, "trace-l", "span-l", "[]");
+        span.ingested_at = Some(base);
+        let other = make_span_with_messages(project_id, "trace-l", "span-other", "[]");
+        let conn = analytics.conn();
+        // The logs are written first: the join does not care which arrived first.
+        crate::repositories::log::insert_batch(
+            &conn,
+            &[
+                message_log(
+                    project_id,
+                    "b",
+                    ("trace-l", "span-l"),
+                    2,
+                    base,
+                    &log_message("second", 2),
+                ),
+                message_log(
+                    project_id,
+                    "a",
+                    ("trace-l", "span-l"),
+                    1,
+                    base,
+                    &log_message("first", 1),
+                ),
+                message_log(
+                    project_id,
+                    "late",
+                    ("trace-l", "span-l"),
+                    3,
+                    base + Duration::minutes(5),
+                    &log_message("late", 3),
+                ),
+                message_log(
+                    project_id,
+                    "orphan",
+                    ("trace-l", "span-missing"),
+                    1,
+                    base,
+                    &log_message("orphan", 1),
+                ),
+                message_log(
+                    project_id,
+                    "empty",
+                    ("trace-l", "span-other"),
+                    1,
+                    base,
+                    "[]",
+                ),
+            ],
+        )
+        .expect("logs");
+        insert_batch(&conn, &[span, other]).expect("spans");
+
+        let trace = get_messages(
+            &conn,
+            &MessageQueryParams {
+                project_id: ProjectId::from(project_id),
+                trace_id: Some("trace-l".to_string()),
+                ..Default::default()
+            },
+        )
+        .expect("trace read");
+        assert_eq!(
+            trace
+                .rows
+                .iter()
+                .map(|row| row.span_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["span-l"],
+            "the span with log messages passes the content filter; the one with none does not"
+        );
+        let joined: Vec<serde_json::Value> =
+            serde_json::from_str(&trace.rows[0].log_messages_json).expect("a JSON array");
+        assert_eq!(
+            joined
+                .iter()
+                .map(|message| message["content"]["content"].as_str().unwrap())
+                .collect::<Vec<_>>(),
+            vec!["first", "second", "late"],
+            "concatenated in log-time order"
+        );
+
+        let bounded = get_messages(
+            &conn,
+            &MessageQueryParams {
+                project_id: ProjectId::from(project_id),
+                trace_ids: Some(vec!["trace-l".to_string()]),
+                ingested_before_us: Some((base + Duration::minutes(1)).timestamp_micros()),
+                ..Default::default()
+            },
+        )
+        .expect("bounded read");
+        let joined: Vec<serde_json::Value> =
+            serde_json::from_str(&bounded.rows[0].log_messages_json).unwrap();
+        assert_eq!(
+            joined.len(),
+            2,
+            "a log after the watermark is not part of the instant"
+        );
+
+        let alone = get_messages(
+            &conn,
+            &MessageQueryParams {
+                project_id: ProjectId::from(project_id),
+                span_id: Some("span-other".to_string()),
+                ..Default::default()
+            },
+        )
+        .expect("span read");
+        assert_eq!(
+            alone.rows.len(),
+            1,
+            "the span view applies no content filter"
+        );
+        assert_eq!(alone.rows[0].log_messages_json, "[]");
     }
 }

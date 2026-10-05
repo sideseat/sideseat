@@ -105,6 +105,7 @@ fn row(trace_seq: u32, span_seq: u32, offset: i64, messages_json: String) -> Mes
         messages_json,
         tool_definitions_json: "[]".to_string(),
         tool_names_json: "[]".to_string(),
+        log_messages_json: "[]".to_string(),
         body_cache_key: None,
         model: Some("claude-haiku-4-5".to_string()),
         provider: Some("bedrock".to_string()),

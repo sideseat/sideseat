@@ -176,6 +176,7 @@ async fn every_clickhouse_migration_applies_to_the_state_it_upgrades() {
                 "DROP ROW POLICY IF EXISTS sideseat_tenant_filter ON span_partition_anomalies",
             ],
         ),
+        (8, &["ALTER TABLE otel_logs DROP COLUMN IF EXISTS messages"]),
     ];
 
     for migration in sideseat_adapter_clickhouse::schema::MIGRATIONS {
@@ -281,6 +282,25 @@ async fn every_clickhouse_migration_applies_to_the_state_it_upgrades() {
         "the migrated column must hold what was written, got {:?}",
         stored[0]
     );
+
+    // The log-messages column is written and read back through the upgraded table, the same proof as the
+    // metrics column above.
+    service
+        .insert_logs(&[NormalizedLog {
+            project_id: Some(PROJECT.to_string()),
+            log_digest: "migrated-log".to_string(),
+            timestamp: ts(1),
+            messages: Some(r#"[{"migrated":true}]"#.to_string()),
+            ..Default::default()
+        }])
+        .await
+        .expect("an upgraded schema must accept a log naming the messages column");
+    let stored: Vec<String> = client
+        .query("SELECT messages FROM otel_logs WHERE log_digest = 'migrated-log' LIMIT 1")
+        .fetch_all()
+        .await
+        .expect("read the log back");
+    assert_eq!(stored, vec![r#"[{"migrated":true}]"#.to_string()]);
 
     // The skip index the consistency check needs, asserted on the upgraded table. Without this the
     // migration's `ADD INDEX` could be deleted and every other assertion here would still pass, leaving a

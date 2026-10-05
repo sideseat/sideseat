@@ -849,3 +849,49 @@ fn a_choiceless_generation_does_not_promote_a_reply_an_earlier_generation_stated
         "each reply once, in the order the conversation happened"
     );
 }
+
+/// Log-carried messages are read as the span events they are: appended to the span's own, given roles by
+/// their event names, and a turn reported both ways appears once.
+#[test]
+fn log_carried_messages_join_the_span_they_name() {
+    let question = json!([{
+        "source": {"event": {"name": "gen_ai.user.message", "time": "2025-01-01T00:00:00Z"}},
+        "content": {"content": "Name a primary colour."}
+    }]);
+    let answer = json!([{
+        "source": {"event": {"name": "gen_ai.choice", "time": "2025-01-01T00:00:01Z"}},
+        "content": {"index": "0", "finish_reason": "stop",
+                    "message": {"role": "assistant", "content": "Red."}}
+    }]);
+    let mut row = make_span_row("trace1", "span1", None, &question.to_string(), "[]", "[]");
+    row.observation_type = Some("generation".to_string());
+    let mut logs = question.as_array().unwrap().clone();
+    logs.extend(answer.as_array().unwrap().iter().cloned());
+    row.log_messages_json = serde_json::Value::Array(logs).to_string();
+
+    let result = process_spans(vec![row.clone()], &FeedOptions::new());
+    let turns: Vec<(ChatRole, String)> = result
+        .messages
+        .iter()
+        .map(|block| {
+            let ContentBlock::Text { text } = &block.content else {
+                panic!("text expected: {block:?}");
+            };
+            (block.role, text.clone())
+        })
+        .collect();
+    assert_eq!(
+        turns,
+        vec![
+            (ChatRole::User, "Name a primary colour.".to_string()),
+            (ChatRole::Assistant, "Red.".to_string()),
+        ]
+    );
+
+    // Unparseable log messages leave the span's own conversation intact rather than dropping it.
+    row.log_messages_json = "not json".to_string();
+    assert_eq!(
+        process_spans(vec![row], &FeedOptions::new()).messages.len(),
+        1
+    );
+}

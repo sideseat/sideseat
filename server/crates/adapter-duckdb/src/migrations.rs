@@ -209,6 +209,14 @@ CREATE TABLE IF NOT EXISTS log_terms (
 CREATE INDEX IF NOT EXISTS idx_log_terms_term ON log_terms(term);
 "#;
 
+/// v6 to v7: the messages a log record carries for the span it names.
+///
+/// Appended, like every added column, because the log writer is a positional `Appender`. Existing rows take
+/// the empty array: they were stored before any record was read for messages, which is what it says.
+const MIGRATION_V7: &str = r#"
+ALTER TABLE otel_logs ADD COLUMN IF NOT EXISTS messages VARCHAR DEFAULT '[]';
+"#;
+
 struct Migration {
     version: i32,
     name: &'static str,
@@ -240,6 +248,11 @@ const MIGRATIONS: &[Migration] = &[
         version: 6,
         name: "search_term_tables",
         sql: MIGRATION_V6,
+    },
+    Migration {
+        version: 7,
+        name: "log_messages",
+        sql: MIGRATION_V7,
     },
 ];
 
@@ -631,7 +644,9 @@ mod tests {
                 "",
             )
             .replace(
-                "    hold_until                TIMESTAMP,\n    logical_bytes             UBIGINT NOT NULL DEFAULT 0\n",
+                &format!(
+                    "    hold_until                TIMESTAMP,\n    logical_bytes             UBIGINT NOT NULL DEFAULT 0,\n{LOG_MESSAGES_COLUMN}"
+                ),
                 "",
             );
         upgraded.execute_batch(&v4_schema).expect("v4 schema");
@@ -661,7 +676,10 @@ mod tests {
             )
             .expect("v4 populated shape");
 
-        apply_migration(&upgraded, 5).expect("v4 upgrades to v5");
+        for version in 5..=SCHEMA_VERSION {
+            apply_migration(&upgraded, version)
+                .unwrap_or_else(|e| panic!("migration {version}: {e}"));
+        }
         for table in ["otel_spans", "otel_metrics", "otel_logs"] {
             assert_eq!(
                 columns(&upgraded, table),
@@ -677,5 +695,47 @@ mod tests {
                 .expect("legacy row survives");
             assert_eq!(row, (None, 0));
         }
+    }
+
+    /// The `messages` column of `otel_logs`, as the fresh schema declares it - the text a v6 database lacks.
+    const LOG_MESSAGES_COLUMN: &str = "    -- Raw messages a declared log event carries, derived at ingest and joined to the span it names at\n    -- read time. Not identity: `log_digest` covers the record, not this.\n    messages                  VARCHAR DEFAULT '[]'\n";
+
+    #[test]
+    fn a_populated_v6_database_gains_the_log_messages_column_as_the_empty_array() {
+        let fresh = Connection::open_in_memory().expect("fresh");
+        fresh.execute_batch(SCHEMA).expect("fresh schema");
+
+        let v6_schema = SCHEMA.replace(
+            &format!(
+                "    logical_bytes             UBIGINT NOT NULL DEFAULT 0,\n{LOG_MESSAGES_COLUMN}"
+            ),
+            "    logical_bytes             UBIGINT NOT NULL DEFAULT 0\n",
+        );
+        assert_ne!(
+            v6_schema, SCHEMA,
+            "the reduction must find the column it removes"
+        );
+        let upgraded = Connection::open_in_memory().expect("upgraded");
+        upgraded.execute_batch(&v6_schema).expect("v6 schema");
+        upgraded
+            .execute_batch(
+                "INSERT INTO otel_logs
+                     (project_id, log_digest, ordinal, timestamp, severity_number,
+                      dropped_attributes_count, flags, ingested_at)
+                     VALUES ('p', 'log', 0, TIMESTAMP '2026-01-01 00:00:00',
+                             0, 0, 0, TIMESTAMP '2026-01-01 00:00:00');",
+            )
+            .expect("v6 row");
+
+        apply_migration(&upgraded, 7).expect("v6 upgrades to v7");
+        assert_eq!(
+            columns(&upgraded, "otel_logs"),
+            columns(&fresh, "otel_logs"),
+            "the log writer is a positional Appender, so the column must land where the fresh schema puts it"
+        );
+        let messages: String = upgraded
+            .query_row("SELECT messages FROM otel_logs", [], |row| row.get(0))
+            .expect("the legacy row survives");
+        assert_eq!(messages, "[]");
     }
 }

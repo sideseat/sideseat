@@ -156,7 +156,8 @@ other Bedrock models.
 ## Without the SideSeat SDK
 
 OpenTelemetry's botocore instrumentation records Bedrock calls as spans and their messages as GenAI
-log events, so export logs as well as traces:
+log events, so export logs as well as traces. SideSeat attaches each log event to the span it names,
+whichever of the two arrives first:
 
 ```bash
 pip install boto3 opentelemetry-sdk opentelemetry-exporter-otlp-proto-http opentelemetry-instrumentation-botocore

@@ -62,6 +62,7 @@ struct ChLogInsertRow {
     search_severity_truncated: u8,
     search_attributes: Vec<String>,
     search_attributes_truncated: u8,
+    messages: String,
 }
 
 impl From<&NormalizedLog> for ChLogInsertRow {
@@ -109,6 +110,7 @@ impl From<&NormalizedLog> for ChLogInsertRow {
             search_severity_truncated: search_terms(log, SearchField::Severity).1,
             search_attributes: search_terms(log, SearchField::Attributes).0,
             search_attributes_truncated: search_terms(log, SearchField::Attributes).1,
+            messages: log.messages.clone().unwrap_or_else(|| "[]".to_string()),
         }
     }
 }

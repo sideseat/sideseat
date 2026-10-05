@@ -143,17 +143,19 @@ pub mod order_graph;
 mod props;
 mod types;
 
+mod block_hash;
 mod extraction;
 mod prefix;
 mod session;
 mod tool_merge;
 
+use block_hash::compute_block_hash;
 #[cfg(test)]
 use extraction::compose_error_text;
 pub use extraction::extract_tools_from_rows;
 use extraction::{
     append_error_messages, build_span_hierarchy, build_span_timestamps, classify_blocks,
-    classify_span_view_blocks, compute_block_hash, flatten_to_blocks, parse_span_rows,
+    classify_span_view_blocks, flatten_to_blocks, parse_span_rows,
 };
 use prefix::CrossTracePrefixState;
 #[cfg(test)]

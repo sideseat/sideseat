@@ -14,7 +14,7 @@
 use sideseat_core::config::ClickhouseConfig;
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 7;
+pub const SCHEMA_VERSION: i32 = 8;
 
 pub const TENANT_PROJECT_SETTING: &str = "SQL_sideseat_project_id";
 pub const TENANT_MAINTENANCE_SETTING: &str = "SQL_sideseat_maintenance";
@@ -808,6 +808,7 @@ fn otel_logs_columns() -> &'static str {
     search_severity_truncated UInt8 DEFAULT 0,
     search_attributes Array(String) DEFAULT [],
     search_attributes_truncated UInt8 DEFAULT 0,
+    messages String DEFAULT '[]' CODEC(ZSTD(3)),
     INDEX idx_trace_id trace_id TYPE bloom_filter GRANULARITY 1,
     INDEX idx_span_id span_id TYPE bloom_filter GRANULARITY 1,
     INDEX idx_search_body search_body TYPE text(tokenizer = 'array') GRANULARITY 1,

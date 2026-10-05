@@ -186,6 +186,39 @@ Both paths:
 - persist before returning success;
 - use the same staging and strict confirmation model as traces.
 
+### Log-carried messages
+
+Some instrumentations emit the conversation as log records linked to a span instead of as span events
+(OpenTelemetry's OpenAI v2 and botocore instrumentations by default, and the
+`gen_ai.client.inference.operation.details` event). A record that carries a trace and span id and that a
+declared `log_events` entry recognises is read at log ingest by the same event reader span events use, with
+no span context, and the resulting raw messages are stored in the derived `otel_logs.messages` column. The
+column is not producer content: it is outside `log_digest` and outside the confirmation identity.
+
+The messages are never written into the span's row. Span rows are latest-ingest-wins and may arrive after
+the log, and the log is durable before acknowledgement while the span may still be queued. Instead, every
+message read (`get_messages` and `get_project_messages`) left-joins one aggregate per `(trace, span)` of the
+log store's winners in the same statement:
+
+- one row per `(log_digest, ordinal)` - DuckDB keeps one row per identity, ClickHouse reads `FINAL`;
+- the traversal watermark applies to that winner on both backends, so a re-delivered record is as old as
+  its newest delivery (the only version DuckDB keeps);
+- arrays are concatenated in `(timestamp, log_digest, ordinal)` order, identical bytes on both backends;
+- the aggregate is narrowed by the span selector, through `GLOBAL IN` for a session on ClickHouse;
+- the content filter admits a span whose only messages are log-carried.
+
+At read time the log messages are appended to the span's raw messages before SideML projection, so roles,
+history and deduplication treat them as span events of the same name; a producer emitting a turn both ways
+is collapsed by content deduplication.
+
+Known limits:
+
+- the project feed pages by the span's `ingested_at`, so a log record arriving after its span was paged
+  does not bring that span back into the traversal; the next traversal shows it;
+- the tool-span enrichment applied to span events at ingest (copying the span's tool name and call id onto
+  its tool messages) is not applied to log-carried messages, because the message row carries no tool
+  attributes - a log event on a tool execution span keeps only what the record states.
+
 ## Framework knowledge
 
 Framework-specific knowledge is data under `server/assets/rules/` and is embedded by

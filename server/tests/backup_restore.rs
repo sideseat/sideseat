@@ -22,7 +22,9 @@ use sideseat_ports::clock::Clock;
 use sideseat_ports::traits::{
     AnalyticsRepository, DeletionCause, DeletionRecord, DeletionScope, TransactionalRepository,
 };
-use sideseat_ports::types::{NormalizedSpan, ProjectId};
+use sideseat_ports::types::{
+    ListLogsParams, MessageQueryParams, NormalizedLog, NormalizedSpan, ProjectId,
+};
 use tempfile::TempDir;
 
 #[derive(Debug)]
@@ -132,6 +134,27 @@ async fn backup_destroy_restore_repair_preserves_only_the_right_data() {
             ])
             .await
             .expect("analytics rows");
+        // Log-carried messages for the survivor and for the trace the journal deletes: the backup holds both,
+        // and the repair must leave the first joined to its span and take the second with its trace.
+        analytics
+            .insert_logs(&[
+                message_log(
+                    "survivor",
+                    "live",
+                    "survivor-log",
+                    now,
+                    "restored from logs",
+                ),
+                message_log(
+                    "requested-delete",
+                    "gone",
+                    "deleted-log",
+                    now,
+                    "deleted with its trace",
+                ),
+            ])
+            .await
+            .expect("message logs");
 
         // Analytics backup predates the requested deletion.
         duckdb.checkpoint().await.expect("duckdb checkpoint");
@@ -281,6 +304,36 @@ async fn backup_destroy_restore_repair_preserves_only_the_right_data() {
         files.get_file(&ProjectId::from("default"), &missing).await,
         Err(FileServiceError::ContentUnavailable { .. })
     ));
+    let survivor_messages = analytics
+        .get_messages(&MessageQueryParams {
+            project_id: ProjectId::from("default"),
+            trace_id: Some("survivor".to_owned()),
+            ..Default::default()
+        })
+        .await
+        .expect("survivor messages");
+    assert_eq!(survivor_messages.rows.len(), 1);
+    assert!(
+        survivor_messages.rows[0]
+            .log_messages_json
+            .contains("restored from logs"),
+        "a restored log record still joins its span: {}",
+        survivor_messages.rows[0].log_messages_json
+    );
+    let (deleted_logs, _) = analytics
+        .list_logs(&ListLogsParams {
+            project_id: ProjectId::from("default"),
+            page: 1,
+            limit: 10,
+            trace_id: Some("requested-delete".to_owned()),
+            ..Default::default()
+        })
+        .await
+        .expect("deleted trace logs");
+    assert!(
+        deleted_logs.is_empty(),
+        "the repair replays the deletion over the trace's log records too"
+    );
     let mut associations = database
         .get_file_hashes_for_traces(&ProjectId::from("default"), &["survivor".to_owned()])
         .await
@@ -302,6 +355,32 @@ fn span(
         timestamp_start,
         messages,
         ..NormalizedSpan::default()
+    }
+}
+
+fn message_log(
+    trace_id: &str,
+    span_id: &str,
+    digest: &str,
+    timestamp: chrono::DateTime<Utc>,
+    text: &str,
+) -> NormalizedLog {
+    NormalizedLog {
+        project_id: Some("default".to_owned()),
+        log_digest: digest.to_owned(),
+        timestamp,
+        time: Some(timestamp),
+        trace_id: Some(trace_id.to_owned()),
+        span_id: Some(span_id.to_owned()),
+        event_name: Some("gen_ai.user.message".to_owned()),
+        messages: Some(
+            serde_json::json!([{
+                "source": {"event": {"name": "gen_ai.user.message", "time": timestamp}},
+                "content": {"content": text}
+            }])
+            .to_string(),
+        ),
+        ..NormalizedLog::default()
     }
 }
 

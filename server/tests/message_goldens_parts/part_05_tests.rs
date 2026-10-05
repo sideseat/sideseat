@@ -33,6 +33,7 @@ fn bench_session_scaling() {
             messages_json: messages,
             tool_definitions_json: "[]".to_string(),
             tool_names_json: "[]".to_string(),
+            log_messages_json: "[]".to_string(),
             body_cache_key: None,
             model: Some("claude".to_string()),
             provider: Some("bedrock".to_string()),

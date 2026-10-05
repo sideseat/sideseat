@@ -34,6 +34,7 @@ pub(in crate::sideml::feed) fn parse_span_rows(rows: &[MessageSpanRow]) -> Vec<P
             parsed_bodies.insert(row.messages_json.as_str(), parsed.clone());
             parsed
         };
+        let raw_msgs = with_log_messages(row, raw_msgs);
 
         if let Some(raw_msgs) = raw_msgs {
             // Producer-owned projection rules may identify stored bookkeeping that is not another
@@ -97,6 +98,43 @@ pub(in crate::sideml::feed) fn parse_span_rows(rows: &[MessageSpanRow]) -> Vec<P
     }
 
     messages
+}
+
+/// The span's own raw messages followed by those its log records carry.
+///
+/// Log messages are read-time joined rather than stored on the span, and they are the same raw-message shape
+/// a span event produces, so appending them is all attaching takes: normalisation, role derivation and
+/// deduplication then treat a log event exactly as the span event of that name. A producer emitting the
+/// same turn both ways is collapsed by content deduplication like any other repeated observation.
+///
+/// Tool-span enrichment - copying the span's tool name and call id onto its tool messages - happens when a
+/// span's *events* are extracted and is not repeated here, because the row carries no tool attributes. A
+/// log event on a tool execution span therefore keeps only what the record itself says.
+fn with_log_messages(
+    row: &MessageSpanRow,
+    span_messages: Option<Arc<Vec<RawMessage>>>,
+) -> Option<Arc<Vec<RawMessage>>> {
+    if row.log_messages_json.is_empty() || row.log_messages_json == "[]" {
+        return span_messages;
+    }
+    match serde_json::from_str::<Vec<RawMessage>>(&row.log_messages_json) {
+        Ok(log_messages) if !log_messages.is_empty() => {
+            let mut all = span_messages
+                .map(|messages| messages.as_ref().clone())
+                .unwrap_or_default();
+            all.extend(log_messages);
+            Some(Arc::new(all))
+        }
+        Ok(_) => span_messages,
+        Err(error) => {
+            tracing::debug!(
+                span_id = %row.span_id,
+                %error,
+                "Failed to parse log messages JSON"
+            );
+            span_messages
+        }
+    }
 }
 
 /// Extract tool definitions and names from span rows.
@@ -860,126 +898,4 @@ fn extract_tool_name_from_block(block: &ContentBlock) -> Option<String> {
         ContentBlock::ToolUse { name, .. } => Some(name.clone()),
         _ => None,
     }
-}
-
-/// Hash binary content for deduplication - all of it.
-///
-/// This used to hash the length plus the first and last 128 bytes, which is not a digest but a
-/// sample: two assets of the same size whose first and last 128 bytes agree are *deterministically*
-/// identical to dedup, so one of them silently disappears from the feed. Three images generated from
-/// one prompt in one turn are exactly that shape - same encoder, same dimensions, same header and
-/// trailer - and every invariant in the suite still passes, because one image vanishing is
-/// indistinguishable from a framework that only reported two.
-///
-/// Hashing the whole payload is what makes identity mean identity. It is affordable because nothing
-/// here allocates: the bytes go straight into the hasher, at gigabytes per second, and a content hash
-/// is computed once per block rather than once per comparison.
-#[inline]
-fn hash_binary_content<H: std::hash::Hasher>(data: &[u8], hasher: &mut H) {
-    use std::hash::Hash;
-
-    // Length first, so that appending to a payload cannot collide with the payload itself.
-    data.len().hash(hasher);
-    hasher.write(data);
-}
-
-/// Compute a hash for a content block.
-pub(in crate::sideml::feed) fn compute_block_hash(block: &ContentBlock) -> u64 {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-
-    let mut hasher = DefaultHasher::new();
-
-    // Hash based on block type and key content
-    match block {
-        ContentBlock::Text { text } => {
-            "text".hash(&mut hasher);
-            text.trim().hash(&mut hasher); // Normalize whitespace
-        }
-        ContentBlock::ToolUse { name, input, .. } => {
-            // Hash by name + normalized input only (not id)
-            "tool_use".hash(&mut hasher);
-            name.hash(&mut hasher);
-            hash_json_into(input, &mut hasher);
-        }
-        ContentBlock::ToolResult {
-            name,
-            content,
-            is_error,
-            ..
-        } => {
-            // Hash by tool name, error flag and normalized content - not tool_use_id, which a
-            // history re-send regenerates.
-            //
-            // Content alone made every "ok" the same message: two tools both reporting success,
-            // or a success and a failure whose text happens to match, collapsed into one wherever
-            // this hash is the identity - which is the case for a result with no id.
-            "tool_result".hash(&mut hasher);
-            name.hash(&mut hasher);
-            is_error.hash(&mut hasher);
-            hash_tool_result_content_into(content, &mut hasher);
-        }
-        ContentBlock::Thinking { text, .. } => {
-            "thinking".hash(&mut hasher);
-            text.trim().hash(&mut hasher); // Normalize whitespace
-        }
-        ContentBlock::RedactedThinking { data } => {
-            "redacted_thinking".hash(&mut hasher);
-            data.hash(&mut hasher);
-        }
-        ContentBlock::Image { source, data, .. } => {
-            "image".hash(&mut hasher);
-            source.hash(&mut hasher);
-            hash_binary_content(data.as_bytes(), &mut hasher);
-        }
-        ContentBlock::Audio { source, data, .. } => {
-            "audio".hash(&mut hasher);
-            source.hash(&mut hasher);
-            hash_binary_content(data.as_bytes(), &mut hasher);
-        }
-        ContentBlock::Video { source, data, .. } => {
-            "video".hash(&mut hasher);
-            source.hash(&mut hasher);
-            hash_binary_content(data.as_bytes(), &mut hasher);
-        }
-        // A display name is the copy's label, not the content: one instrumentation keeps the filename
-        // beside the bytes and another drops it, and the two are one attachment.
-        ContentBlock::Document { source, data, .. } => {
-            "document".hash(&mut hasher);
-            source.hash(&mut hasher);
-            hash_binary_content(data.as_bytes(), &mut hasher);
-        }
-        // A display name is the copy's label, not the content: one instrumentation keeps the filename
-        // beside the bytes and another drops it, and the two are one attachment.
-        ContentBlock::File { source, data, .. } => {
-            "file".hash(&mut hasher);
-            source.hash(&mut hasher);
-            hash_binary_content(data.as_bytes(), &mut hasher);
-        }
-        ContentBlock::ToolDefinitions { tools, .. } => {
-            "tool_definitions".hash(&mut hasher);
-            tools.len().hash(&mut hasher);
-        }
-        ContentBlock::Context { data, context_type } => {
-            "context".hash(&mut hasher);
-            context_type.hash(&mut hasher);
-            hash_json_into(data, &mut hasher); // canonical key order
-        }
-        ContentBlock::Refusal { message } => {
-            "refusal".hash(&mut hasher);
-            message.hash(&mut hasher);
-        }
-        ContentBlock::Json { data } => {
-            "json".hash(&mut hasher);
-            // Structured normalization: a schema-filled answer and the model's raw one are the
-            // same answer. See normalize_structured_json_for_hash.
-            hash_structured_json_into(data, &mut hasher);
-        }
-        ContentBlock::Unknown { raw } => {
-            "unknown".hash(&mut hasher);
-            hash_json_into(raw, &mut hasher); // canonical key order
-        }
-    }
-
-    hasher.finish()
 }

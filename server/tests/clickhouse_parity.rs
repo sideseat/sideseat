@@ -15,7 +15,8 @@
 //!
 //! Covered: trace list and single trace, span list, spans for a trace, single span, events, links,
 //! bulk span counts, session list and single session, traces and trace ids for a session, message
-//! rows for span/trace/session, the project feed's span and message pages, filter options for all
+//! rows for span/trace/session (with log-carried messages joined, watermarked and re-sent), the project
+//! feed's span and message pages, filter options for all
 //! three scopes, tag options, project span counts, project stats, the four delete paths, and -
 //! per filter variant, since each is rendered by its own arm - pagination, sorting, time bounds
 //! and the advanced filters on the trace, span and session lists.
@@ -48,3 +49,4 @@ include!("clickhouse_parity_parts/part_05_tests.rs");
 include!("clickhouse_parity_parts/part_06_tests.rs");
 include!("clickhouse_parity_parts/part_07_tests.rs");
 include!("clickhouse_parity_parts/part_08_tests.rs");
+include!("clickhouse_parity_parts/part_09_tests.rs");

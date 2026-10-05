@@ -346,7 +346,8 @@ fn content_filter_matches_the_sql_predicate() {
     // The exact predicate, not a substring or clause count: checking only that the column names
     // appear left an inverted operator (`=` for `!=`) or a changed literal ('ERROR' -> 'error')
     // passing while `passes_content_filter` kept the old meaning.
-    const EXPECTED: &str = "(messages != '[]' OR tool_definitions != '[]' OR tool_names != '[]' OR status_code = 'ERROR')";
+    const EXPECTED: &str = "(messages != '[]' OR tool_definitions != '[]' OR tool_names != '[]' \
+                            OR status_code = 'ERROR' OR log_messages != '[]')";
     assert_eq!(
         MESSAGE_CONTENT_FILTER, EXPECTED,
         "the SQL predicate changed; re-derive passes_content_filter from it, then update this \

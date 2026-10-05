@@ -56,6 +56,7 @@ fn message_row(messages: &str) -> MessageSpanRow {
         messages_json: messages.into(),
         tool_definitions_json: "inline-tools".into(),
         tool_names_json: "inline-names".into(),
+        log_messages_json: "[]".to_string(),
         body_cache_key: None,
         model: None,
         provider: None,

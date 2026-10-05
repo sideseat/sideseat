@@ -299,6 +299,10 @@ fn digest_with(rows: &[MessageSpanRow], session_of_trace: &HashMap<String, Strin
                 }
             }
         }
+        // Outside the hydrated key: log records are joined by the query, not hydrated from span bodies, so a
+        // log arriving for an unchanged span changes the answer while the span's body key stays the same.
+        hasher.update(&(row.log_messages_json.len() as u64).to_le_bytes());
+        hasher.update(row.log_messages_json.as_bytes());
 
         // Present-or-absent is hashed as well as the value. Mapping `None` to `""` made them the same
         // input, and an empty attribute is accepted - so a span whose `status_code` went from absent to
@@ -384,6 +388,7 @@ mod tests {
             messages_json: messages.to_string(),
             tool_definitions_json: "[]".to_string(),
             tool_names_json: "[]".to_string(),
+            log_messages_json: "[]".to_string(),
             body_cache_key: None,
             model: None,
             provider: None,
@@ -469,6 +474,19 @@ mod tests {
                  two row sets differing only in it share a cache entry"
             );
         }
+    }
+
+    /// A log record arriving for a span changes the key even when the span's hydrated bodies have not.
+    #[test]
+    fn log_messages_reach_the_digest_beside_a_hydrated_body_key() {
+        let mut before = row("span-1", "[]");
+        before.body_cache_key = Some("hydrated".to_string());
+        let mut after = before.clone();
+        after.log_messages_json = r#"[{"source":{"event":{"name":"gen_ai.user.message","time":"2026-01-01T00:00:00Z"}},"content":{"content":"hi"}}]"#.to_string();
+        assert_ne!(
+            digest_with(&[before], &HashMap::new()),
+            digest_with(&[after], &HashMap::new())
+        );
     }
 
     /// The same rows are reconstructed once; different rows are not confused for them.

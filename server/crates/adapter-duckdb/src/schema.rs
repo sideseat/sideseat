@@ -6,7 +6,7 @@
 //! use an inline DEDUP_SPANS subquery.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 6;
+pub const SCHEMA_VERSION: i32 = 7;
 
 /// Complete schema SQL
 pub const SCHEMA: &str = r#"
@@ -383,7 +383,10 @@ CREATE TABLE IF NOT EXISTS otel_logs (
     raw_log                   JSON,
     ingested_at               TIMESTAMP NOT NULL,
     hold_until                TIMESTAMP,
-    logical_bytes             UBIGINT NOT NULL DEFAULT 0
+    logical_bytes             UBIGINT NOT NULL DEFAULT 0,
+    -- Raw messages a declared log event carries, derived at ingest and joined to the span it names at
+    -- read time. Not identity: `log_digest` covers the record, not this.
+    messages                  VARCHAR DEFAULT '[]'
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_logs_identity
     ON otel_logs(project_id, log_digest, ordinal);

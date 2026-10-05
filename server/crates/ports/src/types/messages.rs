@@ -54,6 +54,13 @@ pub struct MessageSpanRow {
     pub tool_definitions_json: String,
     /// Tool names (JSON string)
     pub tool_names_json: String,
+    /// Raw messages carried by log records that name this span, joined at read time (JSON string).
+    ///
+    /// The same raw-message array shape as `messages_json`, concatenated across the span's log records in
+    /// `(log time, log digest, ordinal)` order. `"[]"` when no log record carries messages for the span.
+    /// Kept apart from `messages_json` because the span's row and its log records are separate writes, and
+    /// the span row's body hydration does not cover log records.
+    pub log_messages_json: String,
     /// Compact digest of the interpretation-bearing body inputs.
     ///
     /// Body hydration derives this from content-addressed hashes, with inline bytes used for fields

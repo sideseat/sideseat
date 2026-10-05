@@ -381,4 +381,19 @@ pub const MIGRATIONS: &[Migration] = &[
         ],
         distributed_statements: &[],
     },
+    // The messages a log record carries for the span it names, derived at ingest and joined at read time.
+    // Existing rows take the empty array: nothing was read from them, which is what it says.
+    Migration {
+        version: 8,
+        name: "log_messages",
+        precondition: Some(
+            "SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM system.columns \
+             WHERE database = currentDatabase() AND table = 'otel_logs{local}' \
+             AND name = 'messages')",
+        ),
+        statements: &["ALTER TABLE otel_logs{local}{on_cluster} \
+             ADD COLUMN IF NOT EXISTS messages String DEFAULT '[]' CODEC(ZSTD(3))"],
+        distributed_statements: &["ALTER TABLE otel_logs{on_cluster} \
+             ADD COLUMN IF NOT EXISTS messages String DEFAULT '[]' CODEC(ZSTD(3))"],
+    },
 ];

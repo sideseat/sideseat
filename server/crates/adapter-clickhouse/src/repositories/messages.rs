@@ -53,6 +53,7 @@ struct ChMessageSpanRow {
     reasoning_tokens: i64,
     cost_input: f64,
     cost_output: f64,
+    log_messages: String,
 }
 
 impl From<ChMessageSpanRow> for MessageSpanRow {
@@ -79,6 +80,7 @@ impl From<ChMessageSpanRow> for MessageSpanRow {
             cost_total: row.cost_total,
             tool_definitions_json: row.tool_definitions,
             tool_names_json: row.tool_names,
+            log_messages_json: row.log_messages,
             body_cache_key: None,
             observation_type: row.observation_type,
             session_id: row.session_id,

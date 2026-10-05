@@ -53,6 +53,7 @@ fn normalize_for_test_with_mode(
                     .clone()
                     .unwrap_or_else(|| "[]".to_string()),
                 tool_names_json: span.tool_names.clone().unwrap_or_else(|| "[]".to_string()),
+                log_messages_json: "[]".to_string(),
                 body_cache_key: None,
                 model: span
                     .gen_ai_response_model
@@ -552,6 +553,7 @@ fn passes_content_filter(row: &MessageSpanRow) -> bool {
         || row.tool_definitions_json != "[]"
         || row.tool_names_json != "[]"
         || row.status_code.as_deref() == Some("ERROR")
+        || row.log_messages_json != "[]"
 }
 
 /// `ORDER BY timestamp_start ASC`, as the query does. Capture order is not query order.
