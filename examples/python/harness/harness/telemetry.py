@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable, Iterator, Sequence
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from typing import Any, Protocol
 from urllib.parse import urlsplit
 
@@ -73,6 +73,8 @@ class NativeTelemetry:
     def __init__(self, service_name: str) -> None:
         self.service_name = service_name
         self._provider: Any = None
+        self._trace: Callable[..., AbstractContextManager[Any]] | None = None
+        self._shutdown: Callable[[], None] | None = None
         # Instrumentations record message content only when asked to; every native suite asks.
         os.environ.setdefault(
             "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT", "true"
@@ -107,8 +109,32 @@ class NativeTelemetry:
         provider.add_span_processor(BatchSpanProcessor(self.exporter()))
         self._provider = provider
 
+    def hand_over(
+        self,
+        *,
+        trace: Callable[..., AbstractContextManager[Any]],
+        shutdown: Callable[[], None],
+    ) -> None:
+        """Let a framework that owns its tracer provider and span context open roots and flush.
+
+        Laminar parents spans from an isolated context of its own, so a root span opened through
+        OpenTelemetry would not be the parent of anything the framework records. ``trace`` is called
+        as ``trace(name, session_id=..., user_id=...)``.
+        """
+        self._trace = trace
+        self._shutdown = shutdown
+
+    def trace(
+        self, name: str, *, session_id: str, user_id: str
+    ) -> AbstractContextManager[Any]:
+        if self._trace is not None:
+            return self._trace(name, session_id=session_id, user_id=user_id)
+        return self._otel_trace(name, session_id=session_id, user_id=user_id)
+
     @contextmanager
-    def trace(self, name: str, *, session_id: str, user_id: str) -> Iterator[Span]:
+    def _otel_trace(
+        self, name: str, *, session_id: str, user_id: str
+    ) -> Iterator[Span]:
         # Native OpenTelemetry has no session scope: the root span carries the identifiers, which is
         # what the framework documentation tells users to do.
         tracer = otel_trace.get_tracer("example")
@@ -123,6 +149,9 @@ class NativeTelemetry:
             yield span
 
     def shutdown(self) -> None:
+        if self._shutdown is not None:
+            self._shutdown()
+            return
         provider = self._provider or otel_trace.get_tracer_provider()
         flush: Callable[..., bool] | None = getattr(provider, "force_flush", None)
         if flush is not None and not flush(30_000):

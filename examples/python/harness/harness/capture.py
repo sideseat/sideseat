@@ -45,7 +45,7 @@ import threading
 import tomllib
 import urllib.error
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -69,6 +69,14 @@ _FIXED_SESSION = b"00000000-0000-0000-0000-000000000000"
 _CLI_AGENT_ID = re.compile(rb"agentId: (a[0-9a-f]{16})")
 #: ...and reports how long the subagent took, a measurement no two runs share.
 _CLI_SUBAGENT_DURATION = re.compile(rb"(duration_ms: )(\d+)")
+#: Browser Use names a tab after the last four hex digits of its CDP target id, fresh in every browser,
+#: and writes that name into the page state the model reads and the actions it takes.
+_BROWSER_TAB = re.compile(
+    rb'(Tab |Current tab: |tab #|tab_id\\?"\s*:\s*\\?")([0-9A-F]{4})(?![0-9A-Za-z])'
+)
+#: Laminar writes every span's ancestry into an attribute as span ids in UUID form, and a rule reads the
+#: last of them as the id of the tool call the span executed.
+_LAMINAR_SPAN_ID = re.compile(rb"00000000-0000-0000-[0-9a-f]{4}-[0-9a-f]{12}")
 
 
 #: Credential values a producer can serialise into telemetry: CrewAI writes its model client's config,
@@ -92,22 +100,46 @@ def credential_in(payload: bytes) -> str | None:
     )
 
 
-def anonymise(raw: bytes, agents: dict[bytes, bytes] | None = None) -> bytes:
+@dataclass
+class Pins:
+    """Names one run mints afresh, each pinned to a fixed one in order of first appearance.
+
+    Held for a whole run, so a name keeps its pinned value across every payload of the run.
+    """
+
+    agents: dict[bytes, bytes] = field(default_factory=dict)
+    tabs: dict[bytes, bytes] = field(default_factory=dict)
+    spans: dict[bytes, bytes] = field(default_factory=dict)
+
+
+def anonymise(raw: bytes, pins: Pins | None = None) -> bytes:
     """Replace what differs between two runs of one conversation, or names the person capturing it.
 
-    The capturing user's account name, as it appears in file paths, becomes a placeholder, and the CLI's
-    per-run attachment directory and subagent ids fixed ones - ``agents`` holds the run's ids, so one
-    subagent keeps one id across payloads - so the native and SDK runs of a scenario compare. Every
-    replacement has the same length: protobuf payloads are length-prefixed, so any other length would
-    require re-encoding, and a re-encoded payload is no longer what the producer sent.
+    The capturing user's account name, as it appears in file paths, becomes a placeholder; the CLI's
+    per-run attachment directory and subagent ids, Browser Use's tab names and Laminar's span ids
+    become fixed ones, so the native and SDK runs of a scenario compare. Every replacement has the
+    same length: protobuf payloads are length-prefixed, so any other length would require re-encoding,
+    and a re-encoded payload is no longer what the producer sent.
     """
     raw = _CLI_ATTACHMENT_DIR.sub(rb"\g<1>" + _FIXED_SESSION + rb"\g<2>", raw)
     raw = _CLI_SUBAGENT_DURATION.sub(lambda m: m[1] + b"0" * len(m[2]), raw)
-    if agents is not None:
+    if pins is not None:
+        agents, tabs, spans = pins.agents, pins.tabs, pins.spans
         for found in _CLI_AGENT_ID.findall(raw):
             agents.setdefault(found, b"a%016x" % (len(agents) + 1))
         for real, pinned in agents.items():
             raw = raw.replace(real, pinned)
+        raw = _BROWSER_TAB.sub(
+            lambda m: m[1] + tabs.setdefault(m[2], b"%04X" % (len(tabs) + 1)), raw
+        )
+        raw = _LAMINAR_SPAN_ID.sub(
+            lambda m: m[0]
+            if m[0] == _FIXED_SESSION
+            else spans.setdefault(
+                m[0], b"00000000-0000-0000-0000-%012x" % (len(spans) + 1)
+            ),
+            raw,
+        )
     user = getpass.getuser().encode()
     if not user or user == PLACEHOLDER_USER:
         return raw
@@ -131,7 +163,7 @@ class _Recorder(BaseHTTPRequestHandler):
     forward: str | None
     count = 0
     counts: dict[str, int] = {}
-    agents: dict[bytes, bytes] = {}
+    pins = Pins()
     lock = threading.Lock()
 
     def log_message(self, fmt: str, *args: object) -> None:
@@ -171,7 +203,7 @@ class _Recorder(BaseHTTPRequestHandler):
                 if prefix == "req":
                     _Recorder.count = number
                 path = self.out / f"{prefix}-{number:03d}.{suffix}"
-                payload = anonymise(raw, _Recorder.agents)
+                payload = anonymise(raw, _Recorder.pins)
             path.write_bytes(payload)
         status, reply = 200, b"{}"
         if self.forward:
@@ -362,7 +394,7 @@ def capture_one(
     staging = Path(tempfile.mkdtemp(prefix=f"capture-{producer}-{scenario}-"))
     _Recorder.out, _Recorder.forward, _Recorder.count = staging, forward, 0
     _Recorder.counts = {}
-    _Recorder.agents = {}
+    _Recorder.pins = Pins()
     server = ThreadingHTTPServer(("127.0.0.1", 0), _Recorder)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     arguments = [scenario]

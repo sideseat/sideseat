@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from harness.capture import _Recorder, anonymise, recorded_prefix
+from harness.capture import Pins, _Recorder, anonymise, recorded_prefix
 
 
 def test_the_cli_attachment_directory_is_pinned_at_its_length() -> None:
@@ -29,9 +29,9 @@ def test_other_uuids_are_left_alone() -> None:
 
 
 def test_a_subagent_keeps_one_pinned_id_across_payloads() -> None:
-    agents: dict[bytes, bytes] = {}
-    first = anonymise(b"agentId: a2e3a1f7805cb8cf3 (use SendMessage)", agents)
-    second = anonymise(b'a message from \\"a2e3a1f7805cb8cf3\\"', agents)
+    pins = Pins()
+    first = anonymise(b"agentId: a2e3a1f7805cb8cf3 (use SendMessage)", pins)
+    second = anonymise(b'a message from \\"a2e3a1f7805cb8cf3\\"', pins)
 
     assert first == b"agentId: a0000000000000001 (use SendMessage)"
     assert b"a0000000000000001" in second
@@ -55,7 +55,7 @@ def test_a_log_export_is_written_beside_the_requests_and_anonymised(
 ) -> None:
     _Recorder.out, _Recorder.forward, _Recorder.count = tmp_path, None, 0
     _Recorder.counts = {}
-    _Recorder.agents = {}
+    _Recorder.pins = Pins()
     server = ThreadingHTTPServer(("127.0.0.1", 0), _Recorder)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     named = (
@@ -147,3 +147,38 @@ def test_a_payload_holding_an_aws_credential_is_recognised() -> None:
     reference = b'"aws_secret_access_key": {"type": "env_var", "env_vars": ["AWS_SECRET_ACCESS_KEY"]}'
     assert credential_in(reference) is None
     assert credential_in(b'{"agent_key": "74c1467e0000000000000000000000ff"}') is None
+
+
+def test_a_browser_tab_keeps_one_pinned_name_across_payloads() -> None:
+    pins = Pins()
+    first = anonymise(b"Available tabs:\\nTab 49B3: about:blank - \\nTab C0DE: x", pins)
+    second = anonymise(b'{"switch":{"tab_id":"C0DE"}} Switched to tab #49B3', pins)
+
+    assert first == b"Available tabs:\\nTab 0001: about:blank - \\nTab 0002: x"
+    assert second == b'{"switch":{"tab_id":"0002"}} Switched to tab #0001'
+
+
+def test_a_tab_name_needs_its_context() -> None:
+    raw = b"Table 49B3 and Tab 49B3F2"
+
+    assert anonymise(raw, Pins()) == raw
+
+
+def test_a_laminar_span_id_keeps_one_pinned_value_across_payloads() -> None:
+    pins = Pins()
+    first = anonymise(
+        b'["00000000-0000-0000-3094-7f0f22abcda2","00000000-0000-0000-67bf-4e57113db53c"]',
+        pins,
+    )
+    second = anonymise(b'["00000000-0000-0000-67bf-4e57113db53c"]', pins)
+
+    assert first == (
+        b'["00000000-0000-0000-0000-000000000001","00000000-0000-0000-0000-000000000002"]'
+    )
+    assert second == b'["00000000-0000-0000-0000-000000000002"]'
+
+
+def test_the_pinned_attachment_directory_is_not_taken_for_a_span_id() -> None:
+    raw = b"/claude-504/-x/a7ad154d-40ab-4873-8951-05668b1b8aa8/images/1.jpg"
+
+    assert b"/00000000-0000-0000-0000-000000000000/images/" in anonymise(raw, Pins())
