@@ -9,7 +9,9 @@ NOTARIZE ?= 0
 SERVER_DIR := server
 WEB_DIR := web
 CLI_DIR := cli
-DOTNET ?= dotnet
+# The .NET SDK pinned in mise.toml, even when the calling shell (a git hook, an IDE) has not activated
+# mise: an older system SDK on PATH cannot build the net10.0 targets.
+DOTNET ?= $(or $(shell command -v mise >/dev/null 2>&1 && mise which dotnet 2>/dev/null),dotnet)
 
 # Use the repository-pinned formatter; there is no root Node package.
 PRETTIER := $(WEB_DIR)/node_modules/.bin/prettier
