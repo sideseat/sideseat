@@ -154,7 +154,7 @@ program (`python`, `javascript`, `dotnet`, `rust`). The mode says who configured
 
 | Mode | Telemetry configured by |
 | --- | --- |
-| `_synthetic` | hand-written shapes, no SDK | 29 | 29 |
+| `_synthetic` | hand-written shapes, no SDK | 30 | 30 |
 | `adk-go/native` | Google ADK for Go 1.8.0 / Google GenAI for Go 1.57.0 / OpenTelemetry Go 1.47.0 on Go 1.27.1, ADK's telemetry on the application's tracer and logger providers with message content captured, against the harness's fake Gemini server; the conversation is only in GenAI log events, which SideSeat does not yet reconstruct | 11 | 11 |
 | `adk-go/sdk` | The same under SideSeat's OpenTelemetry recipe for Go (`sideseat.framework` on the resource) | 11 | 11 |
 | `adk/native` | Google ADK 2.11.0 / LiteLLM 1.104.0 (Bedrock Converse) / OpenTelemetry Python 1.42.1 on CPython 3.14.7, ADK's own tracing on a global provider; ADK's trace copy of a request leaves out inline parts, so `files` holds the request text only, and `transfer_to_agent`'s result reaches the next agent only as quoted context | 11 | 18 |

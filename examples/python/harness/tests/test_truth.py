@@ -164,6 +164,21 @@ def test_fake_model_truth_keeps_exact_call_ids_but_not_answers_built_from_result
     assert texts and all(f["require"] is None for f in texts)
 
 
+def test_a_fake_answer_built_from_results_asserts_no_output_count() -> None:
+    """The fake counts an answer's tokens from its text, so an unknowable text is an unknowable count."""
+    document = sources.fake(sources.Target("adk-go", "tool_use"), "fake-gemini", [])
+    unknowable = {
+        g["subject"]
+        for g in document["gaps"]
+        if g["reason"] == "answer_quotes_framework_rendering"
+    }
+    assert unknowable
+    for call in document["calls"]:
+        quotes = any(output in unknowable for output in call["outputs"])
+        assert (call["usage"]["output"] is None) == quotes, call["id"]
+        assert call["usage"]["input"] is not None
+
+
 def test_conformance_truth_describes_the_canonical_conversation() -> None:
     document = sources.conformance("rust")
     assert [c["usage"]["input"] for c in document["calls"]] == [12, 24]

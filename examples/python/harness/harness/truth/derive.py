@@ -409,6 +409,10 @@ def assemble(
                         "them, which the script does not know",
                         subject=fact,
                     )
+                    # The fake counts the answer's output tokens from its text, so a text the
+                    # script does not know is a count it does not know either.
+                    if record["usage"] is not None:
+                        record["usage"]["output"] = None
             elif part["type"] == "reasoning":
                 visible = bool(part["text"])
                 fact = builder.fact(

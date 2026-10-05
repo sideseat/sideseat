@@ -57,7 +57,7 @@
    "finish": "stop",
    "usage": {
     "input": 40,
-    "output": 12,
+    "output": null,
     "cache_read": null,
     "cache_write": null,
     "reasoning": null,
