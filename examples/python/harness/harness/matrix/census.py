@@ -106,7 +106,7 @@ def run(
                 environment.ensure_requirements(
                     matrix,
                     f"{matrix.suite.name}/census/{release.version}",
-                    [matrix.pin.format(version=release.version)],
+                    matrix.pinned(release.version),
                     released=release.date,
                 ),
                 None,

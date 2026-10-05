@@ -51,7 +51,7 @@ class Matrix:
     #: The distribution whose release history defines the support window.
     package: str
     #: The requirement installed for a release, ``{version}`` substituted.
-    pin: str
+    pin: tuple[str, ...]
     #: First day of the support window; the census covers every release from it on.
     since: str
     #: Every environment resolves as of this instant (``uv --exclude-newer``), so a variant installs the
@@ -72,7 +72,11 @@ class Matrix:
     exemptions: dict[str, tuple[str, str]] = field(default_factory=dict)
 
     def requirements(self, variant: Variant) -> list[str]:
-        return [self.pin.format(version=variant.version), *variant.also]
+        return [*self.pinned(variant.version), *variant.also]
+
+    def pinned(self, version: str) -> list[str]:
+        """The requirements installed for ``version``: the pin, and any companion packages it names."""
+        return [p.format(version=version) for p in self.pin]
 
     def variant(self, name: str) -> Variant:
         for variant in self.variants:
@@ -124,8 +128,11 @@ def parse(text: str, suite: Path) -> Matrix:
         scenarios = tuple(table["scenarios"])
     except KeyError as missing:
         raise MatrixError(f"[matrix] needs {missing}") from None
-    pin = table.get("pin", f"{package}=={{version}}")
-    if "{version}" not in pin:
+    # One requirement, or several: a framework whose companion packages import its internals names them
+    # bare, which lifts the suite's lower bound so `era` can resolve them as of the release's day.
+    pins = table.get("pin", f"{package}=={{version}}")
+    pin = tuple([pins] if isinstance(pins, str) else pins)
+    if not any("{version}" in p for p in pin):
         raise MatrixError("[matrix] pin must contain {version}")
     probes = tuple(table.get("probes", scenarios[:1]))
     if not probes or (stray := [p for p in probes if p not in scenarios]):
