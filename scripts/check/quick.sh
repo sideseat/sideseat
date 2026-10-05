@@ -141,8 +141,9 @@ if [ -n "$rust_files" ]; then
         # The golden comparison and the unit tests each keep about one core busy, so with every
         # target built they run side by side; the comparison's output is held back until it ends.
         # The comparison includes rubric v2, the truth check of every fixture over the views it already
-        # built; the truth documents, the ledger's shape and the rubric's mutation catalogue are cheap
-        # enough to ride along.
+        # built; the truth documents, the ledger's shape, the mutation catalogue and the adversarial
+        # cases are cheap enough to ride along. The delivery and framework-release invariance replays
+        # every fixture five times and runs in `make test`.
         golden=""
         if ((server)); then
             golden_log="$(mktemp)"
@@ -151,6 +152,7 @@ if [ -n "$rust_files" ]; then
                 message_truth::truth_violation_ledger_is_well_formed \
                 message_truth::truth_violation_ledger_only_shrinks_against_main \
                 message_truth::mutations::truth_rubric_rejects_each_mutation \
+                message_truth::adversarial::truth_adversarial_fixtures_fire_their_checks \
                 >"$golden_log" 2>&1 &
             golden=$!
         fi

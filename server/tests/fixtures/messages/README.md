@@ -50,7 +50,9 @@ The truth comparison runs inside `message_goldens`, on the four views it already
 1. **The truth is sound.** Ids are unique and every reference resolves; outputs belong to their call
    and conversation; every fact is sequenced once; an unasserted fact has a gap naming it; the source's
    SHA-256 matches the file; every fixture has a truth or a stated reason, and no truth names a missing
-   fixture (`truth_documents_are_internally_consistent`).
+   fixture; a requirement names every view its anchor reaches; every prompt, result and pair of
+   consecutive calls has its edge; gaps use a closed vocabulary and a per-fact gap names its fact
+   (`truth_documents_are_internally_consistent`).
 2. **Each call has exactly one span.** Calls are matched to spans injectively, by response id first,
    else by the spans whose output shows the call's asserted output - typed generation spans before
    others, the innermost before an enclosing re-listing. Two equal candidates are a violation, never a
@@ -74,7 +76,8 @@ The truth comparison runs inside `message_goldens`, on the four views it already
    decides how to show it.
 7. **Prompts, system prompt and attachments** are present: a prompt contained in (or equal to) a user
    text block; an echoed system prompt exactly; an attachment by modality, media type and the SHA-256 of
-   its decoded bytes wherever the bytes are kept inline.
+   its decoded bytes wherever the bytes are kept inline (long data that does not decode is damaged
+   bytes, not a placeholder).
 8. **Order** follows the truth: a response's parts in wire order (also in the feed), a prompt before its
    response, a call before its result, responses in call order (reversed in the feed, which is newest
    response first), a call's inputs between the previous response and its own, sessions' conversations in
@@ -88,7 +91,22 @@ The truth comparison runs inside `message_goldens`, on the four views it already
    call (a prompt on that span or one enclosing it), and a later call's span does not start first.
 10. **Nothing unexplained.** A trace or session view holds the truth's conversation and nothing else:
     every block no fact claims must be accounted for by a gap of the truth (an unrecorded system prompt,
-    an unknowable answer or tool result, reasoning without text, multi-agent routing), one block per gap.
+    an unknowable answer or tool result, reasoning without text, multi-agent routing), one block per gap
+    and only in the traces of the calls the gap concerns.
+
+Two properties are checked over every fixture in `make test`
+(`no_delivery_or_framework_release_changes_a_conversation`): the views do not change when the rows
+arrive reversed, when every span is delivered twice, when every span is exported in a request of its
+own, or when every timestamp is offset uniformly; and a scenario captured on another release of its
+framework (`<producer>/<mode>@<version>/<scenario>`, replayed from the same recorded responses) holds
+the same conversation as the current release's.
+
+What the truth cannot know is not asserted, and says so: which agent made a call and what one agent
+passed another (`multi_agent_routing`), a system prompt the cassette never recorded
+(`request_body_unrecorded`), which span reports a tool result, and whether a streamed and an unstreamed
+run of a scenario are equivalent (the truth records `streamed` per call but no scenario pair it calls
+equivalent). Sub-millisecond clock jitter is not asserted either: it crosses the pipeline's stated
+1 ms tie tolerance, where a changed answer is legitimate.
 
 What still fails is recorded in the shrink-only ledger
 [`../truth/known-violations.json`](../truth/known-violations.json): one entry per fixture, view,
@@ -108,7 +126,11 @@ every usage count; leaking across traces and views; failed attempts that speak, 
 ambiguous matches - to clean reconstructions, and requires each to add a violation, every registered
 check (`ASSERTION_FAMILIES`) to be fired by some mutation, and the positive controls (encodings of a
 result, parallel completion order, a failed attempt then its retry, namespaced tool names, a terminal
-answer tool without a result, a system prompt the truth cannot know) to add none.
+answer tool without a result, a system prompt the truth cannot know) to add none. And every check fires
+end to end on a committed fixture: `truth_adversarial_fixtures_fire_their_checks` runs the hand-written
+`_synthetic/adversarial_*` captures and the truths of `fixtures/truth-adversarial/cases.json` (a base
+truth patched one way per case) through ingestion, the views and the rubric, and each case records
+exactly which checks fire.
 
 ## Layout
 
