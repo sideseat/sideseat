@@ -339,9 +339,22 @@ fn native_gap_declarations_hold(
 
 /// `MESSAGE_FIXTURES=tracked` keeps only the samples git tracks, so a change can be verified against the
 /// committed corpus while captures still being recorded sit untracked in the same tree.
+/// `MESSAGE_FIXTURES=only:<producer>[,<producer>]` keeps only those producers' samples, so a recording
+/// run for a new suite writes nothing outside its own directories while other work sits in the tree.
 fn retain_requested_fixtures(root: &Path, fixtures: &mut BTreeMap<String, Vec<PathBuf>>) {
     if let Some(tracked) = requested_tracked_samples(root) {
         fixtures.retain(|label, _| tracked.contains(label));
+    }
+    if let Some(producers) = std::env::var("MESSAGE_FIXTURES")
+        .ok()
+        .and_then(|value| value.strip_prefix("only:").map(str::to_string))
+    {
+        let producers: Vec<&str> = producers.split(',').map(str::trim).collect();
+        fixtures.retain(|label, _| {
+            producers
+                .iter()
+                .any(|producer| label.split('/').next() == Some(producer))
+        });
     }
 }
 

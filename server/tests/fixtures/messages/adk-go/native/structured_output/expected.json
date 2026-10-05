@@ -1,0 +1,175 @@
+{
+  "label": "adk-go/native/structured_output",
+  "request_count": 1,
+  "span_count": 3,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/generate_content gemini-flash-latest/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"planner\".",
+          "content_digest": "ca54f8abf0a8501c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Plan a two-day trip to Vienna.\"}],\"role\":\"user\"}}",
+          "content_digest": "42d640dc04c9cc23",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"{\\\"budget_eur\\\":600,\\\"city\\\":\\\"Vienna\\\",\\\"days\\\":[\\\"Sch\\\\u00f6nbrunn Palace and the Naschmarkt\\\",\\\"St. Stephen's Cathedral and the Prater\\\"]}\"}],\"role\":\"model\"}}",
+          "content_digest": "949e1cf48eba66b2",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/invoke_agent planner/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/structured-output/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"planner\".",
+          "content_digest": "ca54f8abf0a8501c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Plan a two-day trip to Vienna.\"}],\"role\":\"user\"}}",
+          "content_digest": "42d640dc04c9cc23",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"{\\\"budget_eur\\\":600,\\\"city\\\":\\\"Vienna\\\",\\\"days\\\":[\\\"Sch\\\\u00f6nbrunn Palace and the Naschmarkt\\\",\\\"St. Stephen's Cathedral and the Prater\\\"]}\"}],\"role\":\"model\"}}",
+          "content_digest": "949e1cf48eba66b2",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "adk-go-structured_output": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"planner\".",
+          "content_digest": "ca54f8abf0a8501c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Plan a two-day trip to Vienna.\"}],\"role\":\"user\"}}",
+          "content_digest": "42d640dc04c9cc23",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"{\\\"budget_eur\\\":600,\\\"city\\\":\\\"Vienna\\\",\\\"days\\\":[\\\"Sch\\\\u00f6nbrunn Palace and the Naschmarkt\\\",\\\"St. Stephen's Cathedral and the Prater\\\"]}\"}],\"role\":\"model\"}}",
+          "content_digest": "949e1cf48eba66b2",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 3,
+    "role_sequence": [
+      "assistant",
+      "user",
+      "system"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"{\\\"budget_eur\\\":600,\\\"city\\\":\\\"Vienna\\\",\\\"days\\\":[\\\"Sch\\\\u00f6nbrunn Palace and the Naschmarkt\\\",\\\"St. Stephen's Cathedral and the Prater\\\"]}\"}],\"role\":\"model\"}}",
+        "content_digest": "949e1cf48eba66b2",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Plan a two-day trip to Vienna.\"}],\"role\":\"user\"}}",
+        "content_digest": "42d640dc04c9cc23",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"planner\".",
+        "content_digest": "ca54f8abf0a8501c",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

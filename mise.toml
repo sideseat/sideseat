@@ -5,4 +5,6 @@ node = "24"
 python = "3.13"
 uv = "0.12.13"
 dotnet = "10.0.401"
+# The Go example suites (examples/go).
+go = "1.27.1"
 "cargo:cargo-nextest" = "0.9.137"

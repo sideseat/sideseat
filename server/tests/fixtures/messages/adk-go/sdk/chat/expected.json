@@ -1,0 +1,175 @@
+{
+  "label": "adk-go/sdk/chat",
+  "request_count": 1,
+  "span_count": 3,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/chat/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/generate_content gemini-flash-latest/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"In one sentence, what is Kyoto best known for?\"}],\"role\":\"user\"}}",
+          "content_digest": "c5e92c8dbbbd1856",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Kyoto is best known for its historic Buddhist temples, Shinto shrines, and traditional gardens.\"}],\"role\":\"model\"}}",
+          "content_digest": "755b8ca9e295f5ae",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/invoke_agent assistant/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"In one sentence, what is Kyoto best known for?\"}],\"role\":\"user\"}}",
+          "content_digest": "c5e92c8dbbbd1856",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Kyoto is best known for its historic Buddhist temples, Shinto shrines, and traditional gardens.\"}],\"role\":\"model\"}}",
+          "content_digest": "755b8ca9e295f5ae",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "adk-go-chat": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"In one sentence, what is Kyoto best known for?\"}],\"role\":\"user\"}}",
+          "content_digest": "c5e92c8dbbbd1856",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Kyoto is best known for its historic Buddhist temples, Shinto shrines, and traditional gardens.\"}],\"role\":\"model\"}}",
+          "content_digest": "755b8ca9e295f5ae",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 3,
+    "role_sequence": [
+      "assistant",
+      "user",
+      "system"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Kyoto is best known for its historic Buddhist temples, Shinto shrines, and traditional gardens.\"}],\"role\":\"model\"}}",
+        "content_digest": "755b8ca9e295f5ae",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"In one sentence, what is Kyoto best known for?\"}],\"role\":\"user\"}}",
+        "content_digest": "c5e92c8dbbbd1856",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+        "content_digest": "f4fcdd0112621c7c",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

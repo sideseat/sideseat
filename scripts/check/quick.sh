@@ -227,6 +227,14 @@ if grep -qE '^sdk/python/' <<<"$changed"; then
 fi
 
 # --- .NET -------------------------------------------------------------------------------------
+if grep -qE '^examples/go/' <<<"$changed"; then
+    step "examples/go: gofmt, vet"
+    command -v go >/dev/null 2>&1 || { echo "[quick] go is required: mise install" >&2; exit 1; }
+    unformatted="$(cd examples/go && gofmt -l .)"
+    [ -z "$unformatted" ] || { echo "[quick] gofmt would reformat: $unformatted" >&2; exit 1; }
+    (cd examples/go && go vet ./...)
+fi
+
 if grep -qE '^sdk/dotnet/' <<<"$changed"; then
     step "sdk/dotnet: tests"
     DOTNET_COMMAND="${DOTNET:-dotnet}" ./scripts/test/dotnet-sdk.sh

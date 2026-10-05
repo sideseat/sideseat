@@ -1,0 +1,6 @@
+{
+  "producer": "adk-go",
+  "integrations": ["google-adk"],
+  "default-model": "fake-gemini",
+  "service-name": "adk-go"
+}

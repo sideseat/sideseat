@@ -66,6 +66,8 @@ AgentScope, Haystack, Browser Use, Logfire, TraceLoop, OpenInference, Langfuse, 
 
 **TypeScript:** Strands Agents, Vercel AI SDK, Claude Agent SDK.
 
+**Go:** Genkit, through plain OpenTelemetry and the [Go recipe](https://sideseat.ai/docs/integrations/frameworks/go/).
+
 **Coding agents:** Claude Code, OpenAI Codex CLI.
 
 **Providers:** Amazon Bedrock, Anthropic, OpenAI, Azure OpenAI, Google Gemini, Vertex AI.
@@ -73,13 +75,14 @@ AgentScope, Haystack, Browser Use, Logfire, TraceLoop, OpenInference, Langfuse, 
 Each of these is verified end to end. Its example suite runs a fixed set of scenarios - chat, multi-turn,
 sessions, tool use, a failing tool, and where the framework supports them streaming, structured output,
 reasoning, files, multi-agent and MCP tools - once with the framework's own OpenTelemetry setup and once
-with the SideSeat SDK, against current models (Claude Sonnet 5.5 on Bedrock, or a deterministic fake
+with the SideSeat SDK (for Go, the OpenTelemetry recipe), against current models (Claude Sonnet 5.5 on Bedrock, or a deterministic fake
 server where Bedrock does not serve the provider). SideSeat's reading of every captured trace, span and
 session is checked message by message, and both runs must read the same. Where an instrumentation itself
 drops content - images, documents, reasoning - the
 [compatibility matrix](https://sideseat.ai/docs/reference/production-readiness/) says so.
 
-**Also integrated, not yet covered by a captured suite:** Langflow in Python; Microsoft.Extensions.AI,
+**Also integrated, not yet covered by a captured suite:** Langflow in Python; Google ADK for Go, captured
+but whose conversation - recorded only as GenAI log events - SideSeat does not yet reconstruct; Microsoft.Extensions.AI,
 Microsoft Agent Framework and Semantic Kernel in .NET, where the SDK itself is verified by its
 conformance program.
 

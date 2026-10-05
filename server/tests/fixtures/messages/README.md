@@ -155,6 +155,8 @@ program (`python`, `javascript`, `dotnet`, `rust`). The mode says who configured
 | Mode | Telemetry configured by |
 | --- | --- |
 | `_synthetic` | hand-written shapes, no SDK | 29 | 29 |
+| `adk-go/native` | Google ADK for Go 1.8.0 / Google GenAI for Go 1.57.0 / OpenTelemetry Go 1.47.0 on Go 1.27.1, ADK's telemetry on the application's tracer and logger providers with message content captured, against the harness's fake Gemini server; the conversation is only in GenAI log events, which SideSeat does not yet reconstruct | 11 | 11 |
+| `adk-go/sdk` | The same under SideSeat's OpenTelemetry recipe for Go (`sideseat.framework` on the resource) | 11 | 11 |
 | `adk/native` | Google ADK 2.11.0 / LiteLLM 1.104.0 (Bedrock Converse) / OpenTelemetry Python 1.42.1 on CPython 3.14.7, ADK's own tracing on a global provider; ADK's trace copy of a request leaves out inline parts, so `files` holds the request text only, and `transfer_to_agent`'s result reaches the next agent only as quoted context | 11 | 18 |
 | `adk/native@1.17.0` | google-adk 1.17.0 / litellm 1.104.0 / opentelemetry-sdk 1.37.0, released 2025-10-22; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
 | `adk/native@1.22.1` | google-adk 1.22.1 / litellm 1.104.0 / opentelemetry-sdk 1.37.0, released 2026-01-12; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
@@ -213,6 +215,8 @@ program (`python`, `javascript`, `dotnet`, `rust`). The mode says who configured
 | `cross_span_tie/legacy` | a generation span and its tool span reporting the **identical** instant, with the tool span's id sorting *first* | `adopt_call_positions`. Disable it and this fixture reports the answer at index 1 before its question at index 3; every captured fixture stays green, because none of them ties |
 | `dotnet/native` | OpenTelemetry .NET 1.19.1 on .NET SDK 10.0.401 | 1 | 1 |
 | `dotnet/sdk` | SideSeat .NET 1.0.0 / OpenTelemetry 1.19.1 on .NET SDK 10.0.401 | 1 | 1 |
+| `genkit-go/native` | Genkit for Go 1.13.1 (Google AI plugin) / OpenTelemetry Go 1.47.0 on Go 1.27.1, Genkit tracing on the global tracer provider, against the harness's fake Gemini server; no `mcp_tools` | 10 | 10 |
+| `genkit-go/sdk` | The same under SideSeat's OpenTelemetry recipe for Go | 10 | 10 |
 | `google-genai/native` | Google GenAI 2.28.0 / Logfire 5.1.1 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.13.7, against the harness's fake Gemini server; reasoning thoughts arrive as text parts (the instrumentation drops Gemini's `thought` flag) and a failed tool call as an error message rather than a tool result | 9 | 9 |
 | `google-genai/sdk` | SideSeat Python 2.0.0 / Google GenAI 2.28.0 / Logfire 5.1.1 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.13.7, against the harness's fake Gemini server | 9 | 9 |
 | `haystack/native` | Haystack 3.3.0 / Amazon Bedrock Haystack 8.3.0 / MCP Haystack 1.5.1 / opentelemetry-haystack 1.0.0 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup; Haystack's tracer writes a placeholder in place of image and file bytes, so `files` carries the request text only | 11 | 16 |

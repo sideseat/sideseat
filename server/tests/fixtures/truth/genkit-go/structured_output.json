@@ -1,0 +1,126 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "genkit-go",
+ "scenario": "structured_output",
+ "fixtures": [
+  "genkit-go/native/structured_output",
+  "genkit-go/sdk/structured_output"
+ ],
+ "source": {
+  "kind": "fake-script",
+  "surface": "fake-gemini",
+  "path": "examples/python/harness/harness/fakes/script.py",
+  "sha256": "9265b22622c4203054a38668d76ac6c83900764d073b698df75b0799c7fdf5dd"
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "linear",
+ "request_bodies": "modelled",
+ "model_calls": 1,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "gemini.generate_content",
+   "streamed": false,
+   "status": 200,
+   "model": null,
+   "response_model": "gemini-flash-latest",
+   "response_id": null,
+   "stop_reason": "STOP",
+   "finish": "stop",
+   "usage": {
+    "input": 40,
+    "output": 38,
+    "cache_read": null,
+    "cache_write": null,
+    "reasoning": null,
+    "input_includes_cache": true
+   },
+   "outputs": [
+    "fact-002"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002"
+   ],
+   "final_answers": [
+    "fact-002"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Plan a two-day trip to Vienna."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "{\"city\":\"Vienna\",\"days\":[\"Sch\\u00f6nbrunn Palace and the Naschmarkt\",\"St. Stephen's Cathedral and the Prater\"],\"budget_eur\":600}"
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "json"
+   },
+   "call": "call-001"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "request",
+   "reason": "request_modelled",
+   "detail": "a fake model answers the request it receives, and that request was not recorded: the one modelled here declares the scenario's shared tools and schema as the scripts do, so a fact is only as certain as that model of the framework's request"
+  },
+  {
+   "fact": "model_metadata",
+   "reason": "fake_model_echoes_request",
+   "detail": "a fake model echoes the request's model and derives response ids from the request body; neither is recorded, so neither is asserted"
+  }
+ ]
+}

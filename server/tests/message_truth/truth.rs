@@ -217,9 +217,9 @@ pub(super) fn reason_without_truth(label: &str) -> Option<&'static str> {
     if scenario == Some("canonical") {
         return Some("a pre-catalog capture whose emitting program is not in the repository");
     }
-    // The fake model answers AutoGen's handoff tools from schemas the framework declares, and those
-    // requests are not recorded, so the derivation refuses this scenario.
-    if producer == "autogen" && scenario == Some("multi_agent") {
+    // The fake model answers these frameworks' delegation tools from schemas the framework declares,
+    // and those requests are not recorded, so the derivation refuses this scenario.
+    if matches!(producer, "autogen" | "adk-go" | "genkit-go") && scenario == Some("multi_agent") {
         return Some("handoff answers depend on unrecorded framework schemas");
     }
     None

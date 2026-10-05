@@ -183,7 +183,23 @@ fn the_member_vocabulary_answers_as_it_did_across_the_corpus() {
                 for key in map.keys() {
                     seen.insert(key.clone());
                 }
-                if is_plain_data_value(value) != is_plain_data_value_legacy(value) {
+                // The one reviewed delta: the retired list called Gemini's camelCase call and result parts
+                // message-shaped, and the vocabulary declares them content blocks only, for the reason its
+                // `members.function_call` entry gives. The oracle is asked without them.
+                let legacy = {
+                    let mut without = map.clone();
+                    without.remove("functionCall");
+                    without.remove("functionResponse");
+                    if without.len() == map.len() {
+                        is_plain_data_value_legacy(value)
+                    } else {
+                        // A part holding only a call or a result is bare data to the vocabulary: it is a
+                        // block of the turn around it, not a turn.
+                        without.is_empty()
+                            || is_plain_data_value_legacy(&serde_json::Value::Object(without))
+                    }
+                };
+                if is_plain_data_value(value) != legacy {
                     disagreements.push(format!(
                         "bare-data disagreement on {}",
                         &value.to_string()[..value.to_string().len().min(160)]
@@ -275,13 +291,7 @@ fn the_member_vocabulary_answers_as_it_did_across_the_corpus() {
     // Which declared members no captured message carries, as an exact set. Each is there for a dialect nobody
     // has captured, exactly as the unreached message rules are - and naming them means a member that starts
     // being carried, or one that stops, fails with a name instead of moving a proportion.
-    const UNOBSERVED: &[&str] = &[
-        "finishReason",
-        "functionCall",
-        "functionResponse",
-        "toolCalls",
-        "video",
-    ];
+    const UNOBSERVED: &[&str] = &["toolCalls", "video"];
 
     let declared: BTreeSet<&str> = sideseat_domain::rules::ruleset()
         .message_members

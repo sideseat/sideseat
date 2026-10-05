@@ -1,0 +1,513 @@
+{
+  "label": "adk-go/sdk/tool_use",
+  "request_count": 1,
+  "span_count": 11,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/execute_tool (merged)/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/execute_tool (merged)/span-8": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/execute_tool get_precipitation/span-10": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-1/execute_tool get_precipitation/span-9": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-1/execute_tool get_weather/span-5": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-1/execute_tool get_weather/span-6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-1/generate_content gemini-flash-latest/span-11": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "user",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?\"}],\"role\":\"user\"}}",
+          "content_digest": "a5f198acac194256",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"city\":\"Paris\",\"days\":2.0},\"id\":\"call_get_weather_dd57980a1fd3\",\"name\":\"get_weather\"}},{\"functionCall\":{\"args\":{\"city\":\"Tokyo\",\"days\":2.0},\"id\":\"call_get_weather_dfbbe93c6080\",\"name\":…[273 chars]",
+          "content_digest": "396e8df7cf0a7c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_get_weather_dd57980a1fd3\",\"name\":\"get_weather\",\"response\":{\"city\":\"Paris\",\"forecast\":[{\"condition\":\"sunny\",\"day\":1.0,\"high_c\":21.0},{\"condition\":\"sunny\",\"day\":2.0,\"high_c\":22.0…[475 chars]",
+          "content_digest": "e13a0bb426e7d9c5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"city\":\"Paris\"},\"id\":\"call_get_precipitation_9fdb3833e046\",\"name\":\"get_precipitation\"}},{\"functionCall\":{\"args\":{\"city\":\"Tokyo\"},\"id\":\"call_get_precipitation_d402837ea33e\",\"name\":\"get…[275 chars]",
+          "content_digest": "4ef2fca19fa19996",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_get_precipitation_9fdb3833e046\",\"name\":\"get_precipitation\",\"response\":{\"result\":\"10% chance of rain in Paris tomorrow.\"}}},{\"functionResponse\":{\"id\":\"call_get_precipitation_d40…[358 chars]",
+          "content_digest": "37d2f1edfb9b7009",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Paris: day 1 sunny at 21°C, day 2 sunny at 22°C; Tokyo: day 1 rain at 21°C, day 2 sunny at 22°C; 10% chance of rain in Paris tomorrow; 80% chance of rain in Tokyo tomorrow. Pack an umbrella for Tokyo…[261 chars]",
+          "content_digest": "16bd3c707f5d8f32",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/generate_content gemini-flash-latest/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?\"}],\"role\":\"user\"}}",
+          "content_digest": "a5f198acac194256",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"city\":\"Paris\",\"days\":2.0},\"id\":\"call_get_weather_dd57980a1fd3\",\"name\":\"get_weather\"}},{\"functionCall\":{\"args\":{\"city\":\"Tokyo\",\"days\":2.0},\"id\":\"call_get_weather_dfbbe93c6080\",\"name\":…[273 chars]",
+          "content_digest": "396e8df7cf0a7c7c",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/generate_content gemini-flash-latest/span-7": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?\"}],\"role\":\"user\"}}",
+          "content_digest": "a5f198acac194256",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"city\":\"Paris\",\"days\":2.0},\"id\":\"call_get_weather_dd57980a1fd3\",\"name\":\"get_weather\"}},{\"functionCall\":{\"args\":{\"city\":\"Tokyo\",\"days\":2.0},\"id\":\"call_get_weather_dfbbe93c6080\",\"name\":…[273 chars]",
+          "content_digest": "396e8df7cf0a7c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_get_weather_dd57980a1fd3\",\"name\":\"get_weather\",\"response\":{\"city\":\"Paris\",\"forecast\":[{\"condition\":\"sunny\",\"day\":1.0,\"high_c\":21.0},{\"condition\":\"sunny\",\"day\":2.0,\"high_c\":22.0…[475 chars]",
+          "content_digest": "e13a0bb426e7d9c5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"city\":\"Paris\"},\"id\":\"call_get_precipitation_9fdb3833e046\",\"name\":\"get_precipitation\"}},{\"functionCall\":{\"args\":{\"city\":\"Tokyo\"},\"id\":\"call_get_precipitation_d402837ea33e\",\"name\":\"get…[275 chars]",
+          "content_digest": "4ef2fca19fa19996",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/invoke_agent assistant/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/tool-use/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 9,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "user",
+        "assistant",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?\"}],\"role\":\"user\"}}",
+          "content_digest": "a5f198acac194256",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"city\":\"Paris\",\"days\":2.0},\"id\":\"call_get_weather_dd57980a1fd3\",\"name\":\"get_weather\"}},{\"functionCall\":{\"args\":{\"city\":\"Tokyo\",\"days\":2.0},\"id\":\"call_get_weather_dfbbe93c6080\",\"name\":…[273 chars]",
+          "content_digest": "396e8df7cf0a7c7c",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"city\":\"Paris\",\"days\":2.0},\"id\":\"call_get_weather_dd57980a1fd3\",\"name\":\"get_weather\"}},{\"functionCall\":{\"args\":{\"city\":\"Tokyo\",\"days\":2.0},\"id\":\"call_get_weather_dfbbe93c6080\",\"name\":…[273 chars]",
+          "content_digest": "396e8df7cf0a7c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_get_weather_dd57980a1fd3\",\"name\":\"get_weather\",\"response\":{\"city\":\"Paris\",\"forecast\":[{\"condition\":\"sunny\",\"day\":1.0,\"high_c\":21.0},{\"condition\":\"sunny\",\"day\":2.0,\"high_c\":22.0…[475 chars]",
+          "content_digest": "e13a0bb426e7d9c5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"city\":\"Paris\"},\"id\":\"call_get_precipitation_9fdb3833e046\",\"name\":\"get_precipitation\"}},{\"functionCall\":{\"args\":{\"city\":\"Tokyo\"},\"id\":\"call_get_precipitation_d402837ea33e\",\"name\":\"get…[275 chars]",
+          "content_digest": "4ef2fca19fa19996",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"city\":\"Paris\"},\"id\":\"call_get_precipitation_9fdb3833e046\",\"name\":\"get_precipitation\"}},{\"functionCall\":{\"args\":{\"city\":\"Tokyo\"},\"id\":\"call_get_precipitation_d402837ea33e\",\"name\":\"get…[275 chars]",
+          "content_digest": "4ef2fca19fa19996",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_get_precipitation_9fdb3833e046\",\"name\":\"get_precipitation\",\"response\":{\"result\":\"10% chance of rain in Paris tomorrow.\"}}},{\"functionResponse\":{\"id\":\"call_get_precipitation_d40…[358 chars]",
+          "content_digest": "37d2f1edfb9b7009",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Paris: day 1 sunny at 21°C, day 2 sunny at 22°C; Tokyo: day 1 rain at 21°C, day 2 sunny at 22°C; 10% chance of rain in Paris tomorrow; 80% chance of rain in Tokyo tomorrow. Pack an umbrella for Tokyo…[261 chars]",
+          "content_digest": "16bd3c707f5d8f32",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "adk-go-tool_use": {
+      "message_count": 9,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "user",
+        "assistant",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?\"}],\"role\":\"user\"}}",
+          "content_digest": "a5f198acac194256",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"city\":\"Paris\",\"days\":2.0},\"id\":\"call_get_weather_dd57980a1fd3\",\"name\":\"get_weather\"}},{\"functionCall\":{\"args\":{\"city\":\"Tokyo\",\"days\":2.0},\"id\":\"call_get_weather_dfbbe93c6080\",\"name\":…[273 chars]",
+          "content_digest": "396e8df7cf0a7c7c",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"city\":\"Paris\",\"days\":2.0},\"id\":\"call_get_weather_dd57980a1fd3\",\"name\":\"get_weather\"}},{\"functionCall\":{\"args\":{\"city\":\"Tokyo\",\"days\":2.0},\"id\":\"call_get_weather_dfbbe93c6080\",\"name\":…[273 chars]",
+          "content_digest": "396e8df7cf0a7c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_get_weather_dd57980a1fd3\",\"name\":\"get_weather\",\"response\":{\"city\":\"Paris\",\"forecast\":[{\"condition\":\"sunny\",\"day\":1.0,\"high_c\":21.0},{\"condition\":\"sunny\",\"day\":2.0,\"high_c\":22.0…[475 chars]",
+          "content_digest": "e13a0bb426e7d9c5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"city\":\"Paris\"},\"id\":\"call_get_precipitation_9fdb3833e046\",\"name\":\"get_precipitation\"}},{\"functionCall\":{\"args\":{\"city\":\"Tokyo\"},\"id\":\"call_get_precipitation_d402837ea33e\",\"name\":\"get…[275 chars]",
+          "content_digest": "4ef2fca19fa19996",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"city\":\"Paris\"},\"id\":\"call_get_precipitation_9fdb3833e046\",\"name\":\"get_precipitation\"}},{\"functionCall\":{\"args\":{\"city\":\"Tokyo\"},\"id\":\"call_get_precipitation_d402837ea33e\",\"name\":\"get…[275 chars]",
+          "content_digest": "4ef2fca19fa19996",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_get_precipitation_9fdb3833e046\",\"name\":\"get_precipitation\",\"response\":{\"result\":\"10% chance of rain in Paris tomorrow.\"}}},{\"functionResponse\":{\"id\":\"call_get_precipitation_d40…[358 chars]",
+          "content_digest": "37d2f1edfb9b7009",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Paris: day 1 sunny at 21°C, day 2 sunny at 22°C; Tokyo: day 1 rain at 21°C, day 2 sunny at 22°C; 10% chance of rain in Paris tomorrow; 80% chance of rain in Tokyo tomorrow. Pack an umbrella for Tokyo…[261 chars]",
+          "content_digest": "16bd3c707f5d8f32",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 9,
+    "role_sequence": [
+      "assistant",
+      "user",
+      "user",
+      "assistant",
+      "user",
+      "user",
+      "assistant",
+      "user",
+      "system"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 2,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Paris: day 1 sunny at 21°C, day 2 sunny at 22°C; Tokyo: day 1 rain at 21°C, day 2 sunny at 22°C; 10% chance of rain in Paris tomorrow; 80% chance of rain in Tokyo tomorrow. Pack an umbrella for Tokyo…[261 chars]",
+        "content_digest": "16bd3c707f5d8f32",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_get_precipitation_9fdb3833e046\",\"name\":\"get_precipitation\",\"response\":{\"result\":\"10% chance of rain in Paris tomorrow.\"}}},{\"functionResponse\":{\"id\":\"call_get_precipitation_d40…[358 chars]",
+        "content_digest": "37d2f1edfb9b7009",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"city\":\"Paris\"},\"id\":\"call_get_precipitation_9fdb3833e046\",\"name\":\"get_precipitation\"}},{\"functionCall\":{\"args\":{\"city\":\"Tokyo\"},\"id\":\"call_get_precipitation_d402837ea33e\",\"name\":\"get…[275 chars]",
+        "content_digest": "4ef2fca19fa19996",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"city\":\"Paris\"},\"id\":\"call_get_precipitation_9fdb3833e046\",\"name\":\"get_precipitation\"}},{\"functionCall\":{\"args\":{\"city\":\"Tokyo\"},\"id\":\"call_get_precipitation_d402837ea33e\",\"name\":\"get…[275 chars]",
+        "content_digest": "4ef2fca19fa19996",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_get_weather_dd57980a1fd3\",\"name\":\"get_weather\",\"response\":{\"city\":\"Paris\",\"forecast\":[{\"condition\":\"sunny\",\"day\":1.0,\"high_c\":21.0},{\"condition\":\"sunny\",\"day\":2.0,\"high_c\":22.0…[475 chars]",
+        "content_digest": "e13a0bb426e7d9c5",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "user",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"city\":\"Paris\",\"days\":2.0},\"id\":\"call_get_weather_dd57980a1fd3\",\"name\":\"get_weather\"}},{\"functionCall\":{\"args\":{\"city\":\"Tokyo\",\"days\":2.0},\"id\":\"call_get_weather_dfbbe93c6080\",\"name\":…[273 chars]",
+        "content_digest": "396e8df7cf0a7c7c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "assistant",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"city\":\"Paris\",\"days\":2.0},\"id\":\"call_get_weather_dd57980a1fd3\",\"name\":\"get_weather\"}},{\"functionCall\":{\"args\":{\"city\":\"Tokyo\",\"days\":2.0},\"id\":\"call_get_weather_dfbbe93c6080\",\"name\":…[273 chars]",
+        "content_digest": "396e8df7cf0a7c7c",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "user",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?\"}],\"role\":\"user\"}}",
+        "content_digest": "a5f198acac194256",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+        "content_digest": "f4fcdd0112621c7c",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

@@ -1,0 +1,74 @@
+---
+title: Go
+description: Send Genkit and Google ADK for Go telemetry to SideSeat with plain OpenTelemetry and two resource attributes.
+---
+
+There is no SideSeat SDK for Go: Go frameworks trace through OpenTelemetry, and SideSeat reads OTLP. Point an
+OTLP exporter at your project and, optionally, name the framework.
+
+## The recipe
+
+```go
+import (
+	"context"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/log/global"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+)
+
+func setupTelemetry(ctx context.Context) (shutdown func(context.Context) error, err error) {
+	base := "http://127.0.0.1:5388/otel/default"
+	traces, err := otlptracehttp.New(ctx, otlptracehttp.WithEndpointURL(base+"/v1/traces"))
+	if err != nil {
+		return nil, err
+	}
+	logs, err := otlploghttp.New(ctx, otlploghttp.WithEndpointURL(base+"/v1/logs"))
+	if err != nil {
+		return nil, err
+	}
+	res := resource.NewSchemaless(
+		attribute.String("service.name", "travel-agent"),
+		// Optional: names the framework when its own spans do not identify it.
+		attribute.String("sideseat.framework", "genkit"),
+	)
+	tp := sdktrace.NewTracerProvider(sdktrace.WithResource(res), sdktrace.WithBatcher(traces))
+	lp := sdklog.NewLoggerProvider(sdklog.WithResource(res), sdklog.WithProcessor(sdklog.NewBatchProcessor(logs)))
+	otel.SetTracerProvider(tp)
+	global.SetLoggerProvider(lp)
+	return func(ctx context.Context) error { _ = lp.Shutdown(ctx); return tp.Shutdown(ctx) }, nil
+}
+```
+
+Put `session.id` and `user.id` on the span that encloses a conversation, and SideSeat groups its traces into
+a session. Export logs as well as traces: some instrumentations record the conversation as OpenTelemetry
+GenAI log events linked to the span.
+
+## Genkit
+
+Genkit records every action - flows, generate calls, model calls, tools - on the global tracer provider, so
+the recipe is all it needs. SideSeat reads each model action's request and response, whichever model plugin
+served it. Genkit assigns a tool request its `ref` only after the model call, so SideSeat pairs calls with
+their results by name and order.
+
+## Google ADK for Go
+
+Pass the recipe's providers to ADK's telemetry:
+
+```go
+providers, err := telemetry.New(ctx,
+	telemetry.WithTracerProvider(tp),
+	telemetry.WithLoggerProvider(lp),
+	telemetry.WithGenAICaptureMessageContent(true),
+)
+providers.SetGlobalOtelProviders()
+```
+
+ADK for Go records invocations, model calls and tool executions as spans, and the conversation only as GenAI
+log events whose content is a Gemini `Content`. SideSeat shows the spans, models, usage and tool calls; the
+messages inside those log events are not yet reconstructed, and appear as raw JSON.

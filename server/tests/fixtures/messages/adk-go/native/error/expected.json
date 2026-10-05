@@ -1,0 +1,363 @@
+{
+  "label": "adk-go/native/error",
+  "request_count": 1,
+  "span_count": 5,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/error/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/execute_tool book_flight/span-4": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "*errors.errorString: BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+          "content_digest": "2f76e6eb3102eced",
+          "finish_reason": "Error",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/generate_content gemini-flash-latest/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Book me a flight from London to Oslo on 2026-11-14.\"}],\"role\":\"user\"}}",
+          "content_digest": "14f5affdc277fec8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"date\":\"2026-11-14\",\"destination\":\"Oslo\",\"origin\":\"London\"},\"id\":\"call_book_flight_ce9747242522\",\"name\":\"book_flight\"}}],\"role\":\"model\"}}",
+          "content_digest": "410280a450133d7f",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/generate_content gemini-flash-latest/span-5": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Book me a flight from London to Oslo on 2026-11-14.\"}],\"role\":\"user\"}}",
+          "content_digest": "14f5affdc277fec8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"date\":\"2026-11-14\",\"destination\":\"Oslo\",\"origin\":\"London\"},\"id\":\"call_book_flight_ce9747242522\",\"name\":\"book_flight\"}}],\"role\":\"model\"}}",
+          "content_digest": "410280a450133d7f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_book_flight_ce9747242522\",\"name\":\"book_flight\",\"response\":{\"error\":\"BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.\"}}}],\"role\":\"…[247 chars]",
+          "content_digest": "8303177e5433ce2c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"I could not book that flight: BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline. Please try again later.\"}],\"role\":\"model\"}}",
+          "content_digest": "7a1a575eb28a13a6",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/invoke_agent assistant/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Book me a flight from London to Oslo on 2026-11-14.\"}],\"role\":\"user\"}}",
+          "content_digest": "14f5affdc277fec8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"date\":\"2026-11-14\",\"destination\":\"Oslo\",\"origin\":\"London\"},\"id\":\"call_book_flight_ce9747242522\",\"name\":\"book_flight\"}}],\"role\":\"model\"}}",
+          "content_digest": "410280a450133d7f",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "*errors.errorString: BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+          "content_digest": "2f76e6eb3102eced",
+          "finish_reason": "Error",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"date\":\"2026-11-14\",\"destination\":\"Oslo\",\"origin\":\"London\"},\"id\":\"call_book_flight_ce9747242522\",\"name\":\"book_flight\"}}],\"role\":\"model\"}}",
+          "content_digest": "410280a450133d7f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_book_flight_ce9747242522\",\"name\":\"book_flight\",\"response\":{\"error\":\"BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.\"}}}],\"role\":\"…[247 chars]",
+          "content_digest": "8303177e5433ce2c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"I could not book that flight: BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline. Please try again later.\"}],\"role\":\"model\"}}",
+          "content_digest": "7a1a575eb28a13a6",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "adk-go-error": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Book me a flight from London to Oslo on 2026-11-14.\"}],\"role\":\"user\"}}",
+          "content_digest": "14f5affdc277fec8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"date\":\"2026-11-14\",\"destination\":\"Oslo\",\"origin\":\"London\"},\"id\":\"call_book_flight_ce9747242522\",\"name\":\"book_flight\"}}],\"role\":\"model\"}}",
+          "content_digest": "410280a450133d7f",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "*errors.errorString: BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+          "content_digest": "2f76e6eb3102eced",
+          "finish_reason": "Error",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"date\":\"2026-11-14\",\"destination\":\"Oslo\",\"origin\":\"London\"},\"id\":\"call_book_flight_ce9747242522\",\"name\":\"book_flight\"}}],\"role\":\"model\"}}",
+          "content_digest": "410280a450133d7f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_book_flight_ce9747242522\",\"name\":\"book_flight\",\"response\":{\"error\":\"BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.\"}}}],\"role\":\"…[247 chars]",
+          "content_digest": "8303177e5433ce2c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"I could not book that flight: BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline. Please try again later.\"}],\"role\":\"model\"}}",
+          "content_digest": "7a1a575eb28a13a6",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 7,
+    "role_sequence": [
+      "assistant",
+      "user",
+      "user",
+      "assistant",
+      "assistant",
+      "user",
+      "system"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"I could not book that flight: BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline. Please try again later.\"}],\"role\":\"model\"}}",
+        "content_digest": "7a1a575eb28a13a6",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_book_flight_ce9747242522\",\"name\":\"book_flight\",\"response\":{\"error\":\"BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.\"}}}],\"role\":\"…[247 chars]",
+        "content_digest": "8303177e5433ce2c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"date\":\"2026-11-14\",\"destination\":\"Oslo\",\"origin\":\"London\"},\"id\":\"call_book_flight_ce9747242522\",\"name\":\"book_flight\"}}],\"role\":\"model\"}}",
+        "content_digest": "410280a450133d7f",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "*errors.errorString: BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+        "content_digest": "2f76e6eb3102eced",
+        "finish_reason": "Error",
+        "observation_type": "tool"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"date\":\"2026-11-14\",\"destination\":\"Oslo\",\"origin\":\"London\"},\"id\":\"call_book_flight_ce9747242522\",\"name\":\"book_flight\"}}],\"role\":\"model\"}}",
+        "content_digest": "410280a450133d7f",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "user",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Book me a flight from London to Oslo on 2026-11-14.\"}],\"role\":\"user\"}}",
+        "content_digest": "14f5affdc277fec8",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+        "content_digest": "f4fcdd0112621c7c",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

@@ -148,11 +148,17 @@ def cli(target: Target) -> dict[str, Any]:
 
 
 def suite_scenarios(suite: capture.Suite) -> list[str]:
-    """The catalog scenarios a suite implements, read from its files rather than by running it."""
+    """The catalog scenarios a suite implements, read from its files rather than by running it.
+
+    A Go or JVM suite registers its scenarios in code rather than one file each, so it is asked, the way
+    capture asks it, with ``--list``.
+    """
     if suite.language == "python":
         names = {p.stem for p in (suite.root / "scenarios").glob("*.py")}
-    else:
+    elif suite.language == "javascript":
         names = {p.stem for p in (suite.root / "scenarios").glob("*.ts")}
+    else:
+        names = set(capture.scenarios_of(suite))
     return [name for name in catalog.CATALOG if name in names]
 
 

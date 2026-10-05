@@ -87,15 +87,18 @@ def test_a_log_export_is_written_beside_the_requests_and_anonymised(
     assert (tmp_path / "logs-001.json").read_bytes() == anonymise(named)
 
 
-def test_the_javascript_harness_reads_what_this_harness_says() -> None:
-    from harness.capture import JAVASCRIPT_CONTENT, javascript_content
+def test_every_other_harness_reads_what_this_harness_says() -> None:
+    from harness.capture import CONTENT_TARGETS, javascript_content
 
-    assert JAVASCRIPT_CONTENT.read_text() == javascript_content(), (
-        "examples/javascript/harness/content.json is stale; run capture --export-content"
-    )
+    present = [target for target in CONTENT_TARGETS if target.parent.is_dir()]
+    assert present, "no other language harness was found"
+    for target in present:
+        assert target.read_text() == javascript_content(), (
+            f"{target} is stale; run capture --export-content"
+        )
 
 
-def test_javascript_suites_are_discovered_beside_python_ones(
+def test_suites_in_every_language_are_discovered_beside_python_ones(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from harness import capture
@@ -110,8 +113,20 @@ def test_javascript_suites_are_discovered_beside_python_ones(
     (javascript / "suite.json").write_text(
         '{"producer": "strands-js", "integrations": ["strands"]}'
     )
+    for language, producer in (("go", "adk-go"), ("java", "spring-ai")):
+        directory = tmp_path / language / producer
+        directory.mkdir(parents=True)
+        (directory / "suite.json").write_text(
+            f'{{"producer": "{producer}", "integrations": []}}'
+        )
     monkeypatch.setattr(capture, "PYTHON_SUITES", tmp_path / "python")
-    monkeypatch.setattr(capture, "JAVASCRIPT_EXAMPLES", tmp_path / "javascript")
+    monkeypatch.setattr(
+        capture,
+        "MANIFEST_SUITES",
+        tuple(
+            (language, tmp_path / language) for language in ("javascript", "go", "java")
+        ),
+    )
 
     found = capture.suites()
 
@@ -132,6 +147,14 @@ def test_javascript_suites_are_discovered_beside_python_ones(
         "--",
         "tool_use",
         "--sideseat",
+    ]
+    assert found["adk-go"].sample("tool_use") == ["go", "run", ".", "tool_use"]
+    assert found["spring-ai"].sample("tool_use", "--sideseat") == [
+        str(tmp_path / "java" / "gradlew"),
+        "-q",
+        "--console=plain",
+        "run",
+        "--args=tool_use --sideseat",
     ]
 
 

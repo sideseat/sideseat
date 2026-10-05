@@ -1,0 +1,321 @@
+{
+  "label": "adk-go/native/streaming",
+  "request_count": 1,
+  "span_count": 5,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/execute_tool get_weather/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-1/generate_content gemini-flash-latest/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Check the weather in Rome for the next day and tell me what to wear.\"}],\"role\":\"user\"}}",
+          "content_digest": "8b10df2212977b83",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"city\":\"Rome\",\"days\":1.0},\"id\":\"call_get_weather_caad21d8fe08\",\"name\":\"get_weather\"}}],\"role\":\"model\"}}",
+          "content_digest": "bfbabbe7a122dab0",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/generate_content gemini-flash-latest/span-5": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Check the weather in Rome for the next day and tell me what to wear.\"}],\"role\":\"user\"}}",
+          "content_digest": "8b10df2212977b83",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"city\":\"Rome\",\"days\":1.0},\"id\":\"call_get_weather_caad21d8fe08\",\"name\":\"get_weather\"}}],\"role\":\"model\"}}",
+          "content_digest": "bfbabbe7a122dab0",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_get_weather_caad21d8fe08\",\"name\":\"get_weather\",\"response\":{\"city\":\"Rome\",\"forecast\":[{\"condition\":\"sunny\",\"day\":1.0,\"high_c\":21.0}]}}}],\"role\":\"user\"}}",
+          "content_digest": "e65ca882eefda75f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Rome: day 1 sunny at 21°C. Wear light layers and sunglasses.\"}],\"role\":\"model\"}}",
+          "content_digest": "d410946f6c55492f",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/invoke_agent assistant/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/streaming/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 6,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Check the weather in Rome for the next day and tell me what to wear.\"}],\"role\":\"user\"}}",
+          "content_digest": "8b10df2212977b83",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"city\":\"Rome\",\"days\":1.0},\"id\":\"call_get_weather_caad21d8fe08\",\"name\":\"get_weather\"}}],\"role\":\"model\"}}",
+          "content_digest": "bfbabbe7a122dab0",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"city\":\"Rome\",\"days\":1.0},\"id\":\"call_get_weather_caad21d8fe08\",\"name\":\"get_weather\"}}],\"role\":\"model\"}}",
+          "content_digest": "bfbabbe7a122dab0",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_get_weather_caad21d8fe08\",\"name\":\"get_weather\",\"response\":{\"city\":\"Rome\",\"forecast\":[{\"condition\":\"sunny\",\"day\":1.0,\"high_c\":21.0}]}}}],\"role\":\"user\"}}",
+          "content_digest": "e65ca882eefda75f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Rome: day 1 sunny at 21°C. Wear light layers and sunglasses.\"}],\"role\":\"model\"}}",
+          "content_digest": "d410946f6c55492f",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "adk-go-streaming": {
+      "message_count": 6,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Check the weather in Rome for the next day and tell me what to wear.\"}],\"role\":\"user\"}}",
+          "content_digest": "8b10df2212977b83",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"city\":\"Rome\",\"days\":1.0},\"id\":\"call_get_weather_caad21d8fe08\",\"name\":\"get_weather\"}}],\"role\":\"model\"}}",
+          "content_digest": "bfbabbe7a122dab0",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"city\":\"Rome\",\"days\":1.0},\"id\":\"call_get_weather_caad21d8fe08\",\"name\":\"get_weather\"}}],\"role\":\"model\"}}",
+          "content_digest": "bfbabbe7a122dab0",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_get_weather_caad21d8fe08\",\"name\":\"get_weather\",\"response\":{\"city\":\"Rome\",\"forecast\":[{\"condition\":\"sunny\",\"day\":1.0,\"high_c\":21.0}]}}}],\"role\":\"user\"}}",
+          "content_digest": "e65ca882eefda75f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Rome: day 1 sunny at 21°C. Wear light layers and sunglasses.\"}],\"role\":\"model\"}}",
+          "content_digest": "d410946f6c55492f",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 6,
+    "role_sequence": [
+      "assistant",
+      "user",
+      "user",
+      "assistant",
+      "user",
+      "system"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Rome: day 1 sunny at 21°C. Wear light layers and sunglasses.\"}],\"role\":\"model\"}}",
+        "content_digest": "d410946f6c55492f",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_get_weather_caad21d8fe08\",\"name\":\"get_weather\",\"response\":{\"city\":\"Rome\",\"forecast\":[{\"condition\":\"sunny\",\"day\":1.0,\"high_c\":21.0}]}}}],\"role\":\"user\"}}",
+        "content_digest": "e65ca882eefda75f",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"city\":\"Rome\",\"days\":1.0},\"id\":\"call_get_weather_caad21d8fe08\",\"name\":\"get_weather\"}}],\"role\":\"model\"}}",
+        "content_digest": "bfbabbe7a122dab0",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"city\":\"Rome\",\"days\":1.0},\"id\":\"call_get_weather_caad21d8fe08\",\"name\":\"get_weather\"}}],\"role\":\"model\"}}",
+        "content_digest": "bfbabbe7a122dab0",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Check the weather in Rome for the next day and tell me what to wear.\"}],\"role\":\"user\"}}",
+        "content_digest": "8b10df2212977b83",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+        "content_digest": "f4fcdd0112621c7c",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

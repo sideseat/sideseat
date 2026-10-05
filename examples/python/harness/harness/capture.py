@@ -6,9 +6,11 @@
     uv run --locked --directory examples/python/harness capture strands --mode sdk --model haiku
     uv run --locked --directory examples/python/harness capture strands --forward http://127.0.0.1:5388
     uv run --locked --directory examples/python/harness capture strands-js tool_use
+    uv run --locked --directory examples/python/harness capture adk-go tool_use
 
 A suite is a uv project under ``examples/python`` with a ``[tool.sideseat-example]`` table, or a
-directory of ``examples/javascript`` with a ``suite.json``; both run the same ``sample`` command line.
+directory of ``examples/javascript``, ``examples/go`` or ``examples/java`` with a ``suite.json``; all
+of them run the same ``sample`` command line.
 
 The first mode of each scenario talks to Bedrock through a recording proxy (:mod:`harness.proxy`) and
 saves the model's responses to ``<suite>/cassettes/<scenario>.json``; the other mode replays them, so
@@ -36,6 +38,7 @@ import gzip
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -55,8 +58,21 @@ REPO = Path(__file__).resolve().parents[4]
 FIXTURES = REPO / "server" / "tests" / "fixtures" / "messages"
 PYTHON_SUITES = REPO / "examples" / "python"
 JAVASCRIPT_EXAMPLES = REPO / "examples" / "javascript"
-#: The prompts, tools, scenarios and models of this harness, as the JavaScript harness reads them.
-JAVASCRIPT_CONTENT = JAVASCRIPT_EXAMPLES / "harness" / "content.json"
+GO_EXAMPLES = REPO / "examples" / "go"
+JAVA_EXAMPLES = REPO / "examples" / "java"
+#: The prompts, tools, scenarios and models of this harness, as the other languages' harnesses read
+#: them: one rendered document, written beside each.
+CONTENT_TARGETS = (
+    JAVASCRIPT_EXAMPLES / "harness" / "content.json",
+    GO_EXAMPLES / "harness" / "content.json",
+    JAVA_EXAMPLES / "harness" / "content.json",
+)
+#: Where each language keeps its suites, all of them described by a ``suite.json``.
+MANIFEST_SUITES = (
+    ("javascript", JAVASCRIPT_EXAMPLES),
+    ("go", GO_EXAMPLES),
+    ("java", JAVA_EXAMPLES),
+)
 
 
 #: The Claude Code CLI stores a user's attachments under a directory named for its session, a fresh
@@ -233,8 +249,9 @@ class _Recorder(BaseHTTPRequestHandler):
 
 @dataclass(frozen=True)
 class Suite:
-    """A framework suite: a uv project under ``examples/python``, or a directory of the npm project
-    under ``examples/javascript``. Both declare a producer, integrations and a default model."""
+    """A framework suite: a uv project under ``examples/python``, or a ``suite.json`` directory of the
+    npm, Go or Gradle project under ``examples/<language>``. Each declares a producer, integrations
+    and a default model."""
 
     root: Path
     language: str
@@ -245,6 +262,19 @@ class Suite:
         if self.language == "javascript":
             # npm runs the package script above the suite and passes the suite as INIT_CWD.
             return ["npm", "run", "--silent", "sample", "--", *args]
+        if self.language == "go":
+            return ["go", "run", ".", *args]
+        if self.language == "java":
+            # The suite is a subproject of the Gradle build above it, run through that build's wrapper;
+            # `run` takes one argument string.
+            wrapper = "gradlew.bat" if os.name == "nt" else "gradlew"
+            return [
+                str(self.root.parent / wrapper),
+                "-q",
+                "--console=plain",
+                "run",
+                f"--args={shlex.join(args)}",
+            ]
         return ["uv", "run", "--locked", "sample", *args]
 
 
@@ -256,9 +286,10 @@ def suites() -> dict[str, Suite]:
         )
         if table:
             found[table["producer"]] = Suite(manifest.parent, "python", table)
-    for manifest in sorted(JAVASCRIPT_EXAMPLES.glob("*/suite.json")):
-        table = json.loads(manifest.read_text())
-        found[table["producer"]] = Suite(manifest.parent, "javascript", table)
+    for language, examples in MANIFEST_SUITES:
+        for manifest in sorted(examples.glob("*/suite.json")):
+            table = json.loads(manifest.read_text())
+            found[table["producer"]] = Suite(manifest.parent, language, table)
     return found
 
 
@@ -337,11 +368,14 @@ def javascript_content() -> str:
     return json.dumps(document, indent=2, ensure_ascii=False) + "\n"
 
 
-def export_javascript_content() -> None:
+def export_content() -> None:
     rendered = javascript_content()
-    if not JAVASCRIPT_CONTENT.exists() or JAVASCRIPT_CONTENT.read_text() != rendered:
-        JAVASCRIPT_CONTENT.write_text(rendered)
-        print(f"[capture] wrote {JAVASCRIPT_CONTENT.relative_to(REPO)}")
+    for target in CONTENT_TARGETS:
+        if not target.parent.is_dir():
+            continue
+        if not target.exists() or target.read_text() != rendered:
+            target.write_text(rendered)
+            print(f"[capture] wrote {target.relative_to(REPO)}")
 
 
 def scenarios_of(suite: Suite) -> list[str]:
@@ -414,6 +448,16 @@ def capture_one(
         else "replaying model traffic"
     )
     print(f"[capture] {producer}/{mode}/{scenario}: {' '.join(arguments)} ({action})")
+    if deterministic and suite.language != "python":
+        # A Python suite starts its fake in-process; a suite in another language is pointed at one.
+        from harness import fakes
+        from harness.clients import FAKE_PATHS
+        from harness.models import resolve
+
+        surface = resolve(model or suite.manifest.get("default-model", "")).surface
+        env[f"{surface.upper().replace('-', '_')}_URL"] = (
+            fakes.start(surface) + FAKE_PATHS[surface]
+        )
     try:
         if deterministic:
             ok = (
@@ -501,7 +545,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--export-content",
         action="store_true",
-        help="write examples/javascript/harness/content.json and exit",
+        help="write each language harness's content.json and exit",
     )
     parser.add_argument(
         "--where",
@@ -511,7 +555,7 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     if args.export_content:
-        export_javascript_content()
+        export_content()
         return
     known = suites()
     if args.producer not in known:
@@ -520,9 +564,9 @@ def main(argv: list[str] | None = None) -> None:
     if args.where:
         print(suite.language, suite.root)
         return
-    if suite.language == "javascript":
-        # A JavaScript run reads what this harness says now, never a stale copy.
-        export_javascript_content()
+    if suite.language != "python":
+        # Another language's run reads what this harness says now, never a stale copy.
+        export_content()
     scenarios = args.scenario or scenarios_of(suite)
     modes = ("native", "sdk") if args.mode == "both" else (args.mode,)
     failed = []

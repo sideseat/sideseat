@@ -63,6 +63,7 @@ export default defineConfig({
                 { label: 'Microsoft Agent Framework', slug: 'docs/integrations/frameworks/agent-framework' },
                 { label: 'CrewAI', slug: 'docs/integrations/frameworks/crewai' },
                 { label: 'AutoGen', slug: 'docs/integrations/frameworks/autogen' },
+                { label: 'Go (Genkit, ADK)', slug: 'docs/integrations/frameworks/go' },
                 { label: 'Other Frameworks', slug: 'docs/integrations/frameworks/other' },
               ],
             },

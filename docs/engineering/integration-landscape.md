@@ -57,6 +57,18 @@ These write the telemetry. A framework is only as readable as the library that i
 | Mem0 | Python | 2.0M | none |
 | Langflow | Python | 0.04M | none (asset `langflow.json`) |
 
+## Go
+
+There is no SideSeat SDK for Go; the suites under `examples/go` run plain OpenTelemetry, natively and under
+the recipe in `docs/src/content/docs/docs/integrations/frameworks/go.mdx` (`sideseat.framework` on the
+resource).
+
+| Framework | Version | Verified suite |
+| --- | --- | --- |
+| Genkit for Go | 1.13.1 | `genkit-go` (fake Gemini) |
+| Google ADK for Go | 1.8.0 | `adk-go` (fake Gemini; conversation in GenAI log events, not yet reconstructed) |
+| Eino, LangChainGo | 0.9.21, 0.1.15 | none yet |
+
 ## Gaps, in the order to close them
 
 Each gap is a suite on the shared harness (`examples/<language>/<suite>`), a rule asset where the

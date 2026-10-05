@@ -206,7 +206,15 @@ def test_every_captured_fixture_has_a_truth_or_a_stated_reason() -> None:
         for label, reason in cli._fixtures_without_truth(covered)
         if reason == "no truth derived"
     ]
-    assert unexplained == ["autogen/native/multi_agent", "autogen/sdk/multi_agent"]
+    # The fake answers these frameworks' delegation tools from schemas they declare and never record.
+    assert unexplained == [
+        "adk-go/native/multi_agent",
+        "adk-go/sdk/multi_agent",
+        "autogen/native/multi_agent",
+        "autogen/sdk/multi_agent",
+        "genkit-go/native/multi_agent",
+        "genkit-go/sdk/multi_agent",
+    ]
 
 
 def test_a_terminal_answer_tool_ends_the_turn_without_a_result() -> None:

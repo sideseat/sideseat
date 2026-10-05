@@ -191,6 +191,15 @@ INTENTIONAL_WARNINGS: dict[str, dict[str, tuple[int, str]]] = {
         for mode in ("native", "sdk")
     },
     **{
+        f"genkit-go/{mode}/structured_output": {
+            "raw_json_text": (
+                2,
+                "Gemini returns schema-constrained JSON as assistant text",
+            ),
+        }
+        for mode in ("native", "sdk")
+    },
+    **{
         f"openai/{mode}/structured_output": {
             "raw_json_text": (
                 2,

@@ -1,0 +1,449 @@
+{
+  "label": "adk-go/native/multi_agent",
+  "request_count": 1,
+  "span_count": 7,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/execute_tool weather_specialist/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-1/generate_content gemini-flash-latest/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Ask weather_specialist for any forecast you need. You are an agent. Your internal name is \"coordinator\".",
+          "content_digest": "70c42a8d2bce46a1",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\"}],\"role\":\"user\"}}",
+          "content_digest": "87917556c86c82ca",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"request\":\"deterministic request\"},\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\"}}],\"role\":\"model\"}}",
+          "content_digest": "512fdb8687beb7dd",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/generate_content gemini-flash-latest/span-6": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"weather_specialist\". The description about you is \"Answers quest…[289 chars]",
+          "content_digest": "11ca977f6d165bb1",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"deterministic request\"}],\"role\":\"user\"}}",
+          "content_digest": "8aa8287f7eb1f655",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"This is a deterministic local response.\"}],\"role\":\"model\"}}",
+          "content_digest": "860700ec728b0757",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/generate_content gemini-flash-latest/span-7": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Ask weather_specialist for any forecast you need. You are an agent. Your internal name is \"coordinator\".",
+          "content_digest": "70c42a8d2bce46a1",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\"}],\"role\":\"user\"}}",
+          "content_digest": "87917556c86c82ca",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"request\":\"deterministic request\"},\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\"}}],\"role\":\"model\"}}",
+          "content_digest": "512fdb8687beb7dd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\",\"response\":{\"result\":\"This is a deterministic local response.\"}}}],\"role\":\"user\"}}",
+          "content_digest": "104d367ee67523d9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"This is a deterministic local response.\"}],\"role\":\"model\"}}",
+          "content_digest": "860700ec728b0757",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/invoke_agent coordinator/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/invoke_agent weather_specialist/span-5": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/multi-agent/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 9,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Ask weather_specialist for any forecast you need. You are an agent. Your internal name is \"coordinator\".",
+          "content_digest": "70c42a8d2bce46a1",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\"}],\"role\":\"user\"}}",
+          "content_digest": "87917556c86c82ca",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"request\":\"deterministic request\"},\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\"}}],\"role\":\"model\"}}",
+          "content_digest": "512fdb8687beb7dd",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"weather_specialist\". The description about you is \"Answers quest…[289 chars]",
+          "content_digest": "11ca977f6d165bb1",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"deterministic request\"}],\"role\":\"user\"}}",
+          "content_digest": "8aa8287f7eb1f655",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"This is a deterministic local response.\"}],\"role\":\"model\"}}",
+          "content_digest": "860700ec728b0757",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"request\":\"deterministic request\"},\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\"}}],\"role\":\"model\"}}",
+          "content_digest": "512fdb8687beb7dd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\",\"response\":{\"result\":\"This is a deterministic local response.\"}}}],\"role\":\"user\"}}",
+          "content_digest": "104d367ee67523d9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"This is a deterministic local response.\"}],\"role\":\"model\"}}",
+          "content_digest": "860700ec728b0757",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "adk-go-multi_agent": {
+      "message_count": 9,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Ask weather_specialist for any forecast you need. You are an agent. Your internal name is \"coordinator\".",
+          "content_digest": "70c42a8d2bce46a1",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\"}],\"role\":\"user\"}}",
+          "content_digest": "87917556c86c82ca",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"request\":\"deterministic request\"},\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\"}}],\"role\":\"model\"}}",
+          "content_digest": "512fdb8687beb7dd",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"weather_specialist\". The description about you is \"Answers quest…[289 chars]",
+          "content_digest": "11ca977f6d165bb1",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"deterministic request\"}],\"role\":\"user\"}}",
+          "content_digest": "8aa8287f7eb1f655",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"This is a deterministic local response.\"}],\"role\":\"model\"}}",
+          "content_digest": "860700ec728b0757",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"request\":\"deterministic request\"},\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\"}}],\"role\":\"model\"}}",
+          "content_digest": "512fdb8687beb7dd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "user",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\",\"response\":{\"result\":\"This is a deterministic local response.\"}}}],\"role\":\"user\"}}",
+          "content_digest": "104d367ee67523d9",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"This is a deterministic local response.\"}],\"role\":\"model\"}}",
+          "content_digest": "860700ec728b0757",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 9,
+    "role_sequence": [
+      "assistant",
+      "user",
+      "user",
+      "assistant",
+      "user",
+      "system",
+      "assistant",
+      "user",
+      "system"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"This is a deterministic local response.\"}],\"role\":\"model\"}}",
+        "content_digest": "860700ec728b0757",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\",\"response\":{\"result\":\"This is a deterministic local response.\"}}}],\"role\":\"user\"}}",
+        "content_digest": "104d367ee67523d9",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"request\":\"deterministic request\"},\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\"}}],\"role\":\"model\"}}",
+        "content_digest": "512fdb8687beb7dd",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"This is a deterministic local response.\"}],\"role\":\"model\"}}",
+        "content_digest": "860700ec728b0757",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"deterministic request\"}],\"role\":\"user\"}}",
+        "content_digest": "8aa8287f7eb1f655",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"weather_specialist\". The description about you is \"Answers quest…[289 chars]",
+        "content_digest": "11ca977f6d165bb1",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "assistant",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"request\":\"deterministic request\"},\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\"}}],\"role\":\"model\"}}",
+        "content_digest": "512fdb8687beb7dd",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "user",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\"}],\"role\":\"user\"}}",
+        "content_digest": "87917556c86c82ca",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Ask weather_specialist for any forecast you need. You are an agent. Your internal name is \"coordinator\".",
+        "content_digest": "70c42a8d2bce46a1",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

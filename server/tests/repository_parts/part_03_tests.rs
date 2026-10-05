@@ -186,6 +186,9 @@ fn the_documented_project_structure_matches_the_tree() {
     );
 }
 
+/// Generated dependency lock files, which the citation check does not read.
+const LOCK_FILES: &[&str] = &["go.sum", "Cargo.lock", "uv.lock", "package-lock.json"];
+
 /// Every citation of a Rust module by directory and filename, anywhere in the repository, resolves to a real
 /// file — in prose and in source comments alike.
 ///
@@ -218,6 +221,9 @@ fn every_module_path_cited_anywhere_resolves() {
     let citing: Vec<&String> = tracked
         .iter()
         .filter(|f| !f.starts_with("server/tests/fixtures/"))
+        // Lock files record dependency coordinates, not paths in this repository: `go.sum` lists every module
+        // as `github.com/...`, which reads like a citation and resolves to nothing here by design.
+        .filter(|f| !LOCK_FILES.iter().any(|lock| f.ends_with(lock)))
         // Text detection covers documentation, configuration, scripts, specifications, and extensionless hooks.
         .filter(|f| is_text(&repo.join(f)))
         .collect();

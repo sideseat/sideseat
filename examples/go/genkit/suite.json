@@ -1,0 +1,6 @@
+{
+  "producer": "genkit-go",
+  "integrations": ["genkit"],
+  "default-model": "fake-gemini",
+  "service-name": "genkit-go"
+}

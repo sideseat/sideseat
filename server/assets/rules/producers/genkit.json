@@ -1,0 +1,384 @@
+{
+  "$schema": "../../rules.schema.json",
+  "id": "genkit",
+  "doc": "The Genkit dialect, written alike by Genkit for Go and for JavaScript. Every action Genkit runs - a flow, a generate call, the model call inside it, each tool - is a span whose kind is `genkit:type` and `genkit:metadata:subtype`, and whose input and output are JSON under `genkit:input` and `genkit:output`. A model action's input is Genkit's own request (`messages` of role and content parts) and its output Genkit's own response (`message`, `finishReason`), whichever model plugin served it - so only model actions are read as messages, and Genkit's part shapes are read below, never the plugin's raw payload under `custom`.",
+  "carriers": [
+    {
+      "id": "genkit.input",
+      "doc": "What an action received. For a model action, the conversation as the model was sent it, which re-states earlier turns.",
+      "match": {
+        "attribute": "genkit:input"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true,
+        "carrier_holds_expandable_message_array": true
+      }
+    },
+    {
+      "id": "genkit.output",
+      "doc": "What an action produced. For a model action, the one response it answered with.",
+      "match": {
+        "attribute": "genkit:output"
+      },
+      "facts": {
+        "preset": "emission",
+        "carrier_holds_expandable_message_array": true
+      }
+    }
+  ],
+  "detect": [
+    {
+      "id": "genkit.detect",
+      "doc": "Every action span Genkit records carries its kind.",
+      "label": "Genkit",
+      "match": {
+        "attr_prefix": [
+          "genkit:"
+        ]
+      },
+      "legacy_rank": 217
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "genkit",
+      "label": "Genkit"
+    }
+  ],
+  "messages": [
+    {
+      "id": "genkit.model_request",
+      "doc": "The request a model action was sent: Genkit messages, each a role and content parts.",
+      "when": {
+        "attr_equals": [
+          {
+            "key": "genkit:metadata:subtype",
+            "value": "model"
+          }
+        ]
+      },
+      "read": {
+        "attribute": "genkit:input"
+      },
+      "parse": "json",
+      "emit": "message",
+      "legacy_rank": 1930,
+      "alternatives": [
+        {
+          "id": "messages",
+          "doc": "One message each.",
+          "select": "$.messages",
+          "each": true,
+          "require": {
+            "all": [
+              {
+                "path": "$.role",
+                "kind": "string",
+                "non_empty": true
+              },
+              {
+                "path": "$.content",
+                "kind": "array"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "genkit.model_response",
+      "doc": "The response a model action produced, with the reason it stopped, which Genkit states beside the message rather than inside it.",
+      "when": {
+        "attr_equals": [
+          {
+            "key": "genkit:metadata:subtype",
+            "value": "model"
+          }
+        ]
+      },
+      "read": {
+        "attribute": "genkit:output"
+      },
+      "parse": "json",
+      "emit": "message",
+      "legacy_rank": 1940,
+      "alternatives": [
+        {
+          "id": "message",
+          "doc": "The response message.",
+          "select": "$.message",
+          "lift": [
+            {
+              "doc": "The finish reason sits beside the message.",
+              "from": "parent",
+              "members": [
+                "finishReason"
+              ],
+              "on_conflict": "keep_target"
+            }
+          ],
+          "require": {
+            "all": [
+              {
+                "path": "$.content",
+                "kind": "array"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "genkit.model_tools",
+      "doc": "The tools a model action was offered.",
+      "when": {
+        "attr_equals": [
+          {
+            "key": "genkit:metadata:subtype",
+            "value": "model"
+          }
+        ]
+      },
+      "read": {
+        "attribute": "genkit:input"
+      },
+      "parse": "json",
+      "emit": "tool_definitions",
+      "aggregate_into_array": true,
+      "legacy_rank": 1950,
+      "alternatives": [
+        {
+          "id": "tools",
+          "select": "$.tools",
+          "each": true
+        }
+      ]
+    }
+  ],
+  "content_blocks": [
+    {
+      "id": "genkit.tool_request",
+      "at": "after_provider_formats",
+      "legacy_rank": 160,
+      "doc": "A tool the model asked for: Genkit's `toolRequest` part. Its `ref` is not read: Genkit assigns it only after the model call, so the model span's own copy has none while later restatements do, and reading it would make one call two.",
+      "require": {
+        "all": [
+          {
+            "path": "$.toolRequest.name",
+            "kind": "string",
+            "non_empty": true
+          }
+        ]
+      },
+      "tool_use": {
+        "name": [
+          "$.toolRequest.name"
+        ],
+        "input": [
+          "$.toolRequest.input"
+        ]
+      }
+    },
+    {
+      "id": "genkit.tool_response",
+      "at": "after_provider_formats",
+      "legacy_rank": 170,
+      "doc": "What a tool returned, paired with its request by name and order, for the reason the request's `ref` is not read.",
+      "require": {
+        "all": [
+          {
+            "path": "$.toolResponse.name",
+            "kind": "string",
+            "non_empty": true
+          }
+        ]
+      },
+      "tool_result": {
+        "name": [
+          "$.toolResponse.name"
+        ],
+        "content": [
+          "$.toolResponse.output"
+        ]
+      }
+    },
+    {
+      "id": "genkit.media",
+      "at": "after_provider_formats",
+      "legacy_rank": 180,
+      "doc": "An image or document, usually inline as a data URL under `url`, with its media type beside it.",
+      "require": {
+        "all": [
+          {
+            "path": "$.media.url",
+            "kind": "string",
+            "non_empty": true
+          }
+        ]
+      },
+      "media": {
+        "media_type": [
+          "$.media.contentType"
+        ],
+        "data": [
+          "$.media.url"
+        ]
+      }
+    },
+    {
+      "id": "genkit.reasoning",
+      "at": "after_provider_formats",
+      "legacy_rank": 190,
+      "doc": "The model's visible reasoning, Genkit's `reasoning` part.",
+      "require": {
+        "all": [
+          {
+            "path": "$.reasoning",
+            "kind": "string",
+            "non_empty": true
+          }
+        ]
+      },
+      "thinking": {
+        "text": [
+          "$.reasoning"
+        ]
+      }
+    }
+  ],
+  "observation_types": [
+    {
+      "id": "observation.genkit_model",
+      "rank": 88,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "genkit:metadata:subtype",
+              "value": "model"
+            }
+          ]
+        }
+      ],
+      "result": "generation",
+      "replaces_legacy_result": "span",
+      "doc": "Genkit states each action's subtype; a model action is the model call."
+    },
+    {
+      "id": "observation.genkit_tool",
+      "rank": 89,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "genkit:metadata:subtype",
+              "value": "tool.v2"
+            }
+          ]
+        }
+      ],
+      "result": "tool",
+      "replaces_legacy_result": "span"
+    },
+    {
+      "id": "observation.genkit_tool_v1",
+      "rank": 91,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "genkit:metadata:subtype",
+              "value": "tool"
+            }
+          ]
+        }
+      ],
+      "result": "tool",
+      "replaces_legacy_result": "span"
+    },
+    {
+      "id": "observation.genkit_flow",
+      "rank": 92,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "genkit:metadata:subtype",
+              "value": "flow"
+            }
+          ]
+        }
+      ],
+      "result": "chain",
+      "replaces_legacy_result": "span"
+    }
+  ],
+  "span_categories": [
+    {
+      "id": "category.genkit_model",
+      "rank": 101,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "genkit:metadata:subtype",
+              "value": "model"
+            }
+          ]
+        }
+      ],
+      "result": "llm",
+      "replaces_legacy_result": "other",
+      "doc": "The same statement, read as a category."
+    },
+    {
+      "id": "category.genkit_tool",
+      "rank": 102,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "genkit:metadata:subtype",
+              "value": "tool.v2"
+            }
+          ]
+        }
+      ],
+      "result": "tool",
+      "replaces_legacy_result": "other"
+    },
+    {
+      "id": "category.genkit_tool_v1",
+      "rank": 103,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "genkit:metadata:subtype",
+              "value": "tool"
+            }
+          ]
+        }
+      ],
+      "result": "tool",
+      "replaces_legacy_result": "other"
+    },
+    {
+      "id": "category.genkit_flow",
+      "rank": 104,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "genkit:metadata:subtype",
+              "value": "flow"
+            }
+          ]
+        }
+      ],
+      "result": "chain",
+      "replaces_legacy_result": "other"
+    }
+  ]
+}
