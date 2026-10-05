@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The API key replaces an `Authorization` header of any spelling from `OTEL_EXPORTER_OTLP_HEADERS`,
+  so exactly one credential is sent.
+- Blank arguments and environment variables count as unset; the project is URL-encoded in the
+  OTLP path.
+- A requested integration whose package, or a package of its extra, is missing raises
+  `IntegrationError`, including integrations whose hooks import nothing. A skipped detected integration
+  no longer names the service or appears in `sideseat.framework`.
+- `flush(timeout)` and `shutdown(timeout)` are bounded by their timeout as a whole and never raise;
+  a repeated `shutdown()` reports the first result. Shutdown also runs on `SIGTERM` and stops the
+  processors SideSeat added to an application's provider.
+- `init` after `shutdown()` raises `ConfigurationError`; `debug` and `span_processors` are part of the
+  settings a second `init` must match. `session()` requires a session id.
+- Logfire receives SideSeat's metric reader and log processor, so its metrics and logs are exported,
+  and its resource keeps attribute types. Agent Framework, Strands, and Semantic Kernel restore what
+  they changed at shutdown.
+
 ## [2.0.0]
 
 A rewrite against the cross-language SDK contract (`docs/engineering/sdk-contract.md`). There is no

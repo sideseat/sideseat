@@ -183,9 +183,10 @@ Each framework's page under [Integrations](https://sideseat.ai/docs/integrations
 
 ## Flushing and shutdown
 
-Telemetry is exported in batches. `sideseat.shutdown()` runs at exit and flushes everything; call
-`sideseat.flush()` in a short-lived process, such as a serverless handler, before it is frozen. Both
-return whether every span was exported.
+Telemetry is exported in batches. `sideseat.shutdown()` runs at exit, including on `SIGTERM` when no
+other handler is installed, and flushes everything; call `sideseat.flush()` in a short-lived process,
+such as a serverless handler, before it is frozen. Both take a timeout in milliseconds that bounds the
+whole call and return whether everything was exported within it.
 
 ## Testing
 

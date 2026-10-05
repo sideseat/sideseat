@@ -24,20 +24,22 @@ description: Every option of sideseat.init, its environment variable, and its de
 | `span_processors` | | none |
 
 Boolean variables accept `1`/`0`, `true`/`false`, and `yes`/`no`. Any other value raises
-`ConfigurationError` instead of silently using the default.
+`ConfigurationError` instead of silently using the default. An empty or blank argument or variable
+counts as unset and falls back to the next source; `integrations=[]`, an empty list, means none.
 
 ## Endpoint
 
 An endpoint without a path is a SideSeat server, and telemetry goes to its project:
 `http://host:5388` sends traces to `http://host:5388/otel/<project>/v1/traces`. An endpoint with a path
-is already an OTLP base and is used as given, which is how to send through a collector:
+is already an OTLP base and is used as given. The project is URL-encoded as one path segment, which is how to send through a collector:
 `https://collector.example.com/otel/team-a` sends traces to `.../otel/team-a/v1/traces`.
 
 ## Authentication
 
 With authentication enabled on the server - the default - pass an API key for the organization that
 owns the project. It is sent as `Authorization: Bearer <key>`. Headers from
-`OTEL_EXPORTER_OTLP_HEADERS` are sent too; the API key wins on a conflict.
+`OTEL_EXPORTER_OTLP_HEADERS` are sent too; the API key replaces an `Authorization` header of any
+spelling there, so exactly one credential is sent.
 
 ## Content
 
@@ -51,12 +53,16 @@ server.
 
 Log records are exported because several instrumentations emit GenAI content as log events.
 `capture_python_logs=True` additionally exports records from the `logging` root logger. Metrics are
-exported every minute; turn them off with `metrics=False`.
+exported every minute; turn them off with `metrics=False`. When Logfire owns the providers, SideSeat's
+log processor and metric reader go into Logfire's, so its metrics reach SideSeat too.
 
 ## An existing OpenTelemetry setup
 
-When the application has already installed an OpenTelemetry tracer provider, SideSeat adds its
-processors and exporter to it instead of replacing it, and leaves its shutdown to the application.
+When the application has already installed an OpenTelemetry tracer or logger provider, SideSeat adds
+its processors and exporter to it instead of replacing it. At shutdown it stops what it added and
+leaves the provider itself to the application. Signals then carry the application's resource. A meter
+provider cannot take another reader once built, so with one already installed SideSeat logs a warning
+and its metrics are not exported.
 Frameworks that build their own provider - Logfire and Browser Use's Laminar - own it, and SideSeat
 attaches to theirs.
 
@@ -64,7 +70,16 @@ attaches to theirs.
 
 `init` configures the process. Calling it again with the same arguments returns the same client;
 different arguments raise `ConfigurationError`, because a second configuration would silently leave the
-process exporting with whichever came first. Call `sideseat.shutdown()` before configuring again.
+process exporting with whichever came first. OpenTelemetry's global providers can be set once per
+process, so `init` after `sideseat.shutdown()` raises too; tests that need a fresh pipeline use
+`sideseat.testing.capture`.
+
+## Integrations that are missing
+
+An integration you name must be usable: if its framework or the packages of its `sideseat[...]` extra
+are not installed, `init` raises `IntegrationError` with the install command. A detected integration
+that cannot start is skipped with a warning, and is then left out of `service.name`,
+`sideseat.framework`, and `sideseat.integrations`.
 
 ## Disabling
 
