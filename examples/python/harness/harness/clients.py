@@ -53,8 +53,9 @@ def openai_client(model: Model, *, asynchronous: bool = False) -> Any:
         raise SystemExit(
             f"model {model.alias} is not served by an OpenAI-compatible API"
         )
+    # Long reasoning outlasts a shorter read timeout, and a retried call records a second request.
     http = (httpx2.AsyncClient if asynchronous else httpx2.Client)(
-        auth=sigv4(), timeout=180.0
+        auth=sigv4(), timeout=600.0
     )
     # The SDK requires an API key; SigV4 replaces the Authorization header it produces.
     return cls(base_url=bedrock_openai_base_url(), api_key="sigv4", http_client=http)
