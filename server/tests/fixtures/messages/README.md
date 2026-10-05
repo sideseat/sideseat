@@ -117,6 +117,8 @@ answer tool without a result, a system prompt the truth cannot know) to add none
 <producer>/<mode>/<scenario>/req-002.pb     one file per exported batch, in capture order
 <producer>/<mode>/<scenario>/logs-001.pb    captured OTLP log export, attached to the spans it names
 <producer>/<mode>/<scenario>/expected.json  committed expectation
+<producer>/<mode>@<version>[+<profile>]/<scenario>/  the same, captured from a historical release
+<producer>/versions.json                    provenance of each versioned mode (generated)
 _synthetic/<sample>/                        hand-written shapes no producer emits on its own
 ```
 
@@ -194,6 +196,7 @@ program (`python`, `javascript`, `dotnet`, `rust`). The mode says who configured
 | `rust/native` | OpenTelemetry Rust 0.33.0 on Rust 1.94.1 | 1 | 1 |
 | `rust/sdk` | SideSeat Rust 0.2.0 / OpenTelemetry Rust 0.33.0 on Rust 1.94.1 | 1 | 1 |
 | `sdk` | the SideSeat SDK, with the same scenario code |
+| `<mode>@<version>[+<profile>]` | the same mode, replayed against a historical release of the framework (and an opt-in profile) by `python -m harness matrix`; see `docs/engineering/framework-versions.md` |
 | `semantic-kernel/native` | Semantic Kernel 1.44.1 Bedrock connector / boto3 1.42.97 / OpenTelemetry Python 1.45.0 on CPython 3.12.8, its GenAI diagnostics switched on, messages as log records exported through a `LoggingHandler`; tool results are the Python `str()` of the function result, which is what Semantic Kernel sends the model | 8 | 14 |
 | `semantic-kernel/sdk` | SideSeat Python 2.0.0 / Semantic Kernel 1.44.1 Bedrock connector / boto3 1.42.97 / OpenTelemetry Python 1.45.0 on CPython 3.12.8 | 8 | 8 |
 | `smolagents/native` | Smolagents 1.26.0 / LiteLLM 1.103.2 (Bedrock) / OpenInference Smolagents instrumentor 0.1.42 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup; no `structured_output` or `files` (unsupported) and no `mcp_tools` (its MCP adapter misreads the server schema) | 8 | 15 |
@@ -201,6 +204,19 @@ program (`python`, `javascript`, `dotnet`, `rust`). The mode says who configured
 | `strands-js/native` | Strands Agents for TypeScript 1.19.0 (Bedrock) / OpenTelemetry JS 2.11.0, OTLP exporter 0.219.0 on Node.js 25.2.1, `setupTracer`; Strands reports no reasoning in a turn's output, so `reasoning` shows the answer only and `multi_turn` shows a turn's redacted reasoning after its answer, where the next request's history first carries it | 11 | 12 |
 | `strands-js/sdk` | SideSeat JavaScript 3.0.0 / Strands Agents for TypeScript 1.19.0 (Bedrock) / OpenTelemetry JS 2.11.0 on Node.js 25.2.1 | 11 | 11 |
 | `strands/native` | Strands Agents 1.57.2 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, `StrandsTelemetry` | 11 | 14 |
+| `strands/native@1.12.0` | strands-agents 1.12.0 / opentelemetry-sdk 1.45.0, released 2025-10-10; version matrix variant, replayed offline from the suite's cassettes | 3 | 21 |
+| `strands/native@1.12.0+semconv-latest` | strands-agents 1.12.0 / opentelemetry-sdk 1.45.0, profile `semconv-latest` (OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental), released 2025-10-10; version matrix variant, replayed offline from the suite's cassettes | 3 | 21 |
+| `strands/native@1.33.0` | strands-agents 1.33.0 / opentelemetry-sdk 1.45.0, released 2026-03-24; version matrix variant, replayed offline from the suite's cassettes | 3 | 11 |
+| `strands/native@1.33.0+semconv-latest` | strands-agents 1.33.0 / opentelemetry-sdk 1.45.0, profile `semconv-latest` (OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental), released 2026-03-24; version matrix variant, replayed offline from the suite's cassettes | 3 | 11 |
+| `strands/native@1.35.0` | strands-agents 1.35.0 / opentelemetry-sdk 1.45.0, released 2026-04-08; version matrix variant, replayed offline from the suite's cassettes | 3 | 21 |
+| `strands/native@1.35.0+semconv-latest` | strands-agents 1.35.0 / opentelemetry-sdk 1.45.0, profile `semconv-latest` (OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental), released 2026-04-08; version matrix variant, replayed offline from the suite's cassettes | 3 | 21 |
+| `strands/native@1.46.0+semconv-latest` | strands-agents 1.46.0 / opentelemetry-sdk 1.45.0, profile `semconv-latest` (OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental), released 2026-07-08; version matrix variant, replayed offline from the suite's cassettes | 3 | 3 |
+| `strands/native@1.50.2+semconv-latest` | strands-agents 1.50.2 / opentelemetry-sdk 1.45.0, profile `semconv-latest` (OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental), released 2026-07-27; version matrix variant, replayed offline from the suite's cassettes | 3 | 3 |
+| `strands/native@1.53.0` | strands-agents 1.53.0 / opentelemetry-sdk 1.45.0, released 2026-08-21; version matrix variant, replayed offline from the suite's cassettes | 3 | 3 |
+| `strands/native@1.53.0+semconv-latest` | strands-agents 1.53.0 / opentelemetry-sdk 1.45.0, profile `semconv-latest` (OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental), released 2026-08-21; version matrix variant, replayed offline from the suite's cassettes | 3 | 3 |
+| `strands/native@1.55.0` | strands-agents 1.55.0 / opentelemetry-sdk 1.45.0, released 2026-09-08; version matrix variant, replayed offline from the suite's cassettes | 3 | 3 |
+| `strands/native@1.55.0+semconv-latest` | strands-agents 1.55.0 / opentelemetry-sdk 1.45.0, profile `semconv-latest` (OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental), released 2026-09-08; version matrix variant, replayed offline from the suite's cassettes | 3 | 3 |
+| `strands/native@1.57.2+semconv-latest` | strands-agents 1.57.2 / opentelemetry-sdk 1.45.0, profile `semconv-latest` (OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental), released 2026-10-01; version matrix variant, replayed offline from the suite's cassettes | 3 | 3 |
 | `strands/sdk` | SideSeat Python 2.0.0 / Strands Agents 1.57.2 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 11 | 11 |
 | `tool_use/legacy` | a Strands call/result pair | the baseline hand-written case |
 | `traceloop/native` | TraceLoop SDK 0.62.4 / Bedrock instrumentation 0.62.4 / boto3 1.43.108 Converse / OpenTelemetry Python 1.45.0, native OTLP setup; image and document bytes are exported empty | 12 | 18 |

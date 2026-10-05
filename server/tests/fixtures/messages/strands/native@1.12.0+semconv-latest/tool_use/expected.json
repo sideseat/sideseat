@@ -1,0 +1,744 @@
+{
+  "label": "strands/native@1.12.0+semconv-latest/tool_use",
+  "request_count": 10,
+  "span_count": 10,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/chat/span-10": {
+      "message_count": 4,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "unknown",
+          "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"text\",\"content\":[{\"text\":\"What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?\"}]}}",
+          "content_digest": "12e12b28a23e6252",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "unknown",
+          "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"text\",\"content\":[{\"toolUse\":{\"toolUseId\":\"tooluse_CB5KDLDAq13BBc0a4fBQJ2\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}},{\"toolUse\":{\"toolUseId\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"name\":\"get_weather…[502 chars]",
+          "content_digest": "bb6ba936b9bd1216",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "unknown",
+          "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"text\",\"content\":[{\"toolResult\":{\"toolUseId\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"status\":\"success\",\"content\":[{\"text\":\"{'city': 'Tokyo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'c…[799 chars]",
+          "content_digest": "56feb757a5b6276c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "unknown",
+          "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"text\",\"content\":[{\"text\":\"**Paris:** It will be sunny both days, with highs of 21°C and 22°C. Rain chance tomorrow is only 10%, so you can skip the umbrella.\\n\\n**Tokyo:** Day 1 will be rainy with a high of …[345 chars]",
+          "content_digest": "44a7a6a11638aa17",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat/span-4": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "unknown",
+          "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"text\",\"content\":[{\"text\":\"What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?\"}]}}",
+          "content_digest": "12e12b28a23e6252",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "unknown",
+          "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"text\",\"content\":[{\"toolUse\":{\"toolUseId\":\"tooluse_CB5KDLDAq13BBc0a4fBQJ2\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}},{\"toolUse\":{\"toolUseId\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"name\":\"get_weather…[502 chars]",
+          "content_digest": "bb6ba936b9bd1216",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/execute_event_loop_cycle/span-3": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "unknown",
+          "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"text\",\"content\":[{\"text\":\"What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?\"}]}}",
+          "content_digest": "12e12b28a23e6252",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "unknown",
+          "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"text\",\"content\":[{\"toolResult\":{\"toolUseId\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"status\":\"success\",\"content\":[{\"text\":\"{'city': 'Tokyo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'c…[799 chars]",
+          "content_digest": "56feb757a5b6276c",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/execute_event_loop_cycle/span-9": {
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "unknown",
+          "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"text\",\"content\":[{\"text\":\"What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?\"}]}}",
+          "content_digest": "12e12b28a23e6252",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "unknown",
+          "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"text\",\"content\":[{\"toolUse\":{\"toolUseId\":\"tooluse_CB5KDLDAq13BBc0a4fBQJ2\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}},{\"toolUse\":{\"toolUseId\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"name\":\"get_weather…[502 chars]",
+          "content_digest": "bb6ba936b9bd1216",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "unknown",
+          "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"text\",\"content\":[{\"toolResult\":{\"toolUseId\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"status\":\"success\",\"content\":[{\"text\":\"{'city': 'Tokyo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'c…[799 chars]",
+          "content_digest": "56feb757a5b6276c",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/execute_tool get_precipitation/span-7": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_0BzGoCCczKGx9hbtM87eOT\",\"name\":\"get_precipitation\",\"input\":[{\"content\":{\"city\":\"Paris\"}}]}",
+          "content_digest": "1c601007038288b0",
+          "tool_name": "get_precipitation",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_0BzGoCCczKGx9hbtM87eOT\",\"content\":[{\"type\":\"text\",\"text\":\"10% chance of rain in Paris tomorrow.\"}]}",
+          "content_digest": "ad566032ae7727e6",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/execute_tool get_precipitation/span-8": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_2pG4GeHrYJ1Bl3lv55P0bq\",\"name\":\"get_precipitation\",\"input\":[{\"content\":{\"city\":\"Tokyo\"}}]}",
+          "content_digest": "7c7e784796202897",
+          "tool_name": "get_precipitation",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_2pG4GeHrYJ1Bl3lv55P0bq\",\"content\":[{\"type\":\"text\",\"text\":\"80% chance of rain in Tokyo tomorrow.\"}]}",
+          "content_digest": "4f1e2ce329896763",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/execute_tool get_weather/span-5": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_CB5KDLDAq13BBc0a4fBQJ2\",\"name\":\"get_weather\",\"input\":[{\"content\":{\"city\":\"Paris\",\"days\":2}}]}",
+          "content_digest": "d511e0cdd62930e5",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_CB5KDLDAq13BBc0a4fBQJ2\",\"content\":[{\"type\":\"text\",\"text\":\"{'city': 'Paris', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}\"}]}",
+          "content_digest": "a9bb24e43c0e0e5e",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/execute_tool get_weather/span-6": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"name\":\"get_weather\",\"input\":[{\"content\":{\"city\":\"Tokyo\",\"days\":2}}]}",
+          "content_digest": "1f5546523442b282",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"content\":[{\"type\":\"text\",\"text\":\"{'city': 'Tokyo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}\"}]}",
+          "content_digest": "f0d49131a199f01d",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/invoke_agent Strands Agents/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [
+        "get_precipitation",
+        "get_weather"
+      ],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "unknown",
+          "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"text\",\"content\":[{\"text\":\"What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?\"}]}}",
+          "content_digest": "12e12b28a23e6252",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Paris:** It will be sunny both days, with highs of 21°C and 22°C. Rain chance tomorrow is only 10%, so you can skip the umbrella. **Tokyo:** Day 1 will be rainy with a high of 21°C, and day 2 will be sunny with a high of 22°C. Rain chance…[278 chars]",
+          "content_digest": "d9991bb5472e41f5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/tool-use/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 14,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "tool",
+        "tool",
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [
+        "get_precipitation",
+        "get_weather"
+      ],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "unknown",
+          "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"text\",\"content\":[{\"text\":\"What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?\"}]}}",
+          "content_digest": "12e12b28a23e6252",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "unknown",
+          "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"text\",\"content\":[{\"toolUse\":{\"toolUseId\":\"tooluse_CB5KDLDAq13BBc0a4fBQJ2\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}},{\"toolUse\":{\"toolUseId\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"name\":\"get_weather…[502 chars]",
+          "content_digest": "bb6ba936b9bd1216",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_CB5KDLDAq13BBc0a4fBQJ2\",\"name\":\"get_weather\",\"input\":[{\"content\":{\"city\":\"Paris\",\"days\":2}}]}",
+          "content_digest": "d511e0cdd62930e5",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"name\":\"get_weather\",\"input\":[{\"content\":{\"city\":\"Tokyo\",\"days\":2}}]}",
+          "content_digest": "1f5546523442b282",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_0BzGoCCczKGx9hbtM87eOT\",\"name\":\"get_precipitation\",\"input\":[{\"content\":{\"city\":\"Paris\"}}]}",
+          "content_digest": "1c601007038288b0",
+          "tool_name": "get_precipitation",
+          "observation_type": "tool"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_2pG4GeHrYJ1Bl3lv55P0bq\",\"name\":\"get_precipitation\",\"input\":[{\"content\":{\"city\":\"Tokyo\"}}]}",
+          "content_digest": "7c7e784796202897",
+          "tool_name": "get_precipitation",
+          "observation_type": "tool"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"content\":[{\"type\":\"text\",\"text\":\"{'city': 'Tokyo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}\"}]}",
+          "content_digest": "f0d49131a199f01d",
+          "observation_type": "tool"
+        },
+        {
+          "index": 8,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_CB5KDLDAq13BBc0a4fBQJ2\",\"content\":[{\"type\":\"text\",\"text\":\"{'city': 'Paris', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}\"}]}",
+          "content_digest": "a9bb24e43c0e0e5e",
+          "observation_type": "tool"
+        },
+        {
+          "index": 9,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_2pG4GeHrYJ1Bl3lv55P0bq\",\"content\":[{\"type\":\"text\",\"text\":\"80% chance of rain in Tokyo tomorrow.\"}]}",
+          "content_digest": "4f1e2ce329896763",
+          "observation_type": "tool"
+        },
+        {
+          "index": 10,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_0BzGoCCczKGx9hbtM87eOT\",\"content\":[{\"type\":\"text\",\"text\":\"10% chance of rain in Paris tomorrow.\"}]}",
+          "content_digest": "ad566032ae7727e6",
+          "observation_type": "tool"
+        },
+        {
+          "index": 11,
+          "role": "user",
+          "entry_type": "unknown",
+          "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"text\",\"content\":[{\"toolResult\":{\"toolUseId\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"status\":\"success\",\"content\":[{\"text\":\"{'city': 'Tokyo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'c…[799 chars]",
+          "content_digest": "56feb757a5b6276c",
+          "observation_type": "span"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "unknown",
+          "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"text\",\"content\":[{\"text\":\"**Paris:** It will be sunny both days, with highs of 21°C and 22°C. Rain chance tomorrow is only 10%, so you can skip the umbrella.\\n\\n**Tokyo:** Day 1 will be rainy with a high of …[345 chars]",
+          "content_digest": "44a7a6a11638aa17",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 13,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Paris:** It will be sunny both days, with highs of 21°C and 22°C. Rain chance tomorrow is only 10%, so you can skip the umbrella. **Tokyo:** Day 1 will be rainy with a high of 21°C, and day 2 will be sunny with a high of 22°C. Rain chance…[278 chars]",
+          "content_digest": "d9991bb5472e41f5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "strands-tool_use": {
+      "message_count": 14,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "tool",
+        "tool",
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [
+        "get_precipitation",
+        "get_weather"
+      ],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "unknown",
+          "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"text\",\"content\":[{\"text\":\"What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?\"}]}}",
+          "content_digest": "12e12b28a23e6252",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "unknown",
+          "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"text\",\"content\":[{\"toolUse\":{\"toolUseId\":\"tooluse_CB5KDLDAq13BBc0a4fBQJ2\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}},{\"toolUse\":{\"toolUseId\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"name\":\"get_weather…[502 chars]",
+          "content_digest": "bb6ba936b9bd1216",
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_CB5KDLDAq13BBc0a4fBQJ2\",\"name\":\"get_weather\",\"input\":[{\"content\":{\"city\":\"Paris\",\"days\":2}}]}",
+          "content_digest": "d511e0cdd62930e5",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"name\":\"get_weather\",\"input\":[{\"content\":{\"city\":\"Tokyo\",\"days\":2}}]}",
+          "content_digest": "1f5546523442b282",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_0BzGoCCczKGx9hbtM87eOT\",\"name\":\"get_precipitation\",\"input\":[{\"content\":{\"city\":\"Paris\"}}]}",
+          "content_digest": "1c601007038288b0",
+          "tool_name": "get_precipitation",
+          "observation_type": "tool"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_2pG4GeHrYJ1Bl3lv55P0bq\",\"name\":\"get_precipitation\",\"input\":[{\"content\":{\"city\":\"Tokyo\"}}]}",
+          "content_digest": "7c7e784796202897",
+          "tool_name": "get_precipitation",
+          "observation_type": "tool"
+        },
+        {
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"content\":[{\"type\":\"text\",\"text\":\"{'city': 'Tokyo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}\"}]}",
+          "content_digest": "f0d49131a199f01d",
+          "observation_type": "tool"
+        },
+        {
+          "index": 8,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_CB5KDLDAq13BBc0a4fBQJ2\",\"content\":[{\"type\":\"text\",\"text\":\"{'city': 'Paris', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}\"}]}",
+          "content_digest": "a9bb24e43c0e0e5e",
+          "observation_type": "tool"
+        },
+        {
+          "index": 9,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_2pG4GeHrYJ1Bl3lv55P0bq\",\"content\":[{\"type\":\"text\",\"text\":\"80% chance of rain in Tokyo tomorrow.\"}]}",
+          "content_digest": "4f1e2ce329896763",
+          "observation_type": "tool"
+        },
+        {
+          "index": 10,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_0BzGoCCczKGx9hbtM87eOT\",\"content\":[{\"type\":\"text\",\"text\":\"10% chance of rain in Paris tomorrow.\"}]}",
+          "content_digest": "ad566032ae7727e6",
+          "observation_type": "tool"
+        },
+        {
+          "index": 11,
+          "role": "user",
+          "entry_type": "unknown",
+          "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"text\",\"content\":[{\"toolResult\":{\"toolUseId\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"status\":\"success\",\"content\":[{\"text\":\"{'city': 'Tokyo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'c…[799 chars]",
+          "content_digest": "56feb757a5b6276c",
+          "observation_type": "span"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "unknown",
+          "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"text\",\"content\":[{\"text\":\"**Paris:** It will be sunny both days, with highs of 21°C and 22°C. Rain chance tomorrow is only 10%, so you can skip the umbrella.\\n\\n**Tokyo:** Day 1 will be rainy with a high of …[345 chars]",
+          "content_digest": "44a7a6a11638aa17",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 13,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Paris:** It will be sunny both days, with highs of 21°C and 22°C. Rain chance tomorrow is only 10%, so you can skip the umbrella. **Tokyo:** Day 1 will be rainy with a high of 21°C, and day 2 will be sunny with a high of 22°C. Rain chance…[278 chars]",
+          "content_digest": "d9991bb5472e41f5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 14,
+    "role_sequence": [
+      "assistant",
+      "assistant",
+      "user",
+      "tool",
+      "tool",
+      "tool",
+      "tool",
+      "assistant",
+      "assistant",
+      "assistant",
+      "assistant",
+      "assistant",
+      "user",
+      "system"
+    ],
+    "tool_names": [
+      "get_precipitation",
+      "get_weather"
+    ],
+    "tool_definition_count": 2,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "**Paris:** It will be sunny both days, with highs of 21°C and 22°C. Rain chance tomorrow is only 10%, so you can skip the umbrella. **Tokyo:** Day 1 will be rainy with a high of 21°C, and day 2 will be sunny with a high of 22°C. Rain chance…[278 chars]",
+        "content_digest": "d9991bb5472e41f5",
+        "finish_reason": "Stop",
+        "observation_type": "agent"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "unknown",
+        "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"text\",\"content\":[{\"text\":\"**Paris:** It will be sunny both days, with highs of 21°C and 22°C. Rain chance tomorrow is only 10%, so you can skip the umbrella.\\n\\n**Tokyo:** Day 1 will be rainy with a high of …[345 chars]",
+        "content_digest": "44a7a6a11638aa17",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "unknown",
+        "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"text\",\"content\":[{\"toolResult\":{\"toolUseId\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"status\":\"success\",\"content\":[{\"text\":\"{'city': 'Tokyo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'c…[799 chars]",
+        "content_digest": "56feb757a5b6276c",
+        "observation_type": "span"
+      },
+      {
+        "index": 3,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_0BzGoCCczKGx9hbtM87eOT\",\"content\":[{\"type\":\"text\",\"text\":\"10% chance of rain in Paris tomorrow.\"}]}",
+        "content_digest": "ad566032ae7727e6",
+        "observation_type": "tool"
+      },
+      {
+        "index": 4,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_2pG4GeHrYJ1Bl3lv55P0bq\",\"content\":[{\"type\":\"text\",\"text\":\"80% chance of rain in Tokyo tomorrow.\"}]}",
+        "content_digest": "4f1e2ce329896763",
+        "observation_type": "tool"
+      },
+      {
+        "index": 5,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_CB5KDLDAq13BBc0a4fBQJ2\",\"content\":[{\"type\":\"text\",\"text\":\"{'city': 'Paris', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}\"}]}",
+        "content_digest": "a9bb24e43c0e0e5e",
+        "observation_type": "tool"
+      },
+      {
+        "index": 6,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"content\":[{\"type\":\"text\",\"text\":\"{'city': 'Tokyo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}\"}]}",
+        "content_digest": "f0d49131a199f01d",
+        "observation_type": "tool"
+      },
+      {
+        "index": 7,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_2pG4GeHrYJ1Bl3lv55P0bq\",\"name\":\"get_precipitation\",\"input\":[{\"content\":{\"city\":\"Tokyo\"}}]}",
+        "content_digest": "7c7e784796202897",
+        "tool_name": "get_precipitation",
+        "observation_type": "tool"
+      },
+      {
+        "index": 8,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_0BzGoCCczKGx9hbtM87eOT\",\"name\":\"get_precipitation\",\"input\":[{\"content\":{\"city\":\"Paris\"}}]}",
+        "content_digest": "1c601007038288b0",
+        "tool_name": "get_precipitation",
+        "observation_type": "tool"
+      },
+      {
+        "index": 9,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"name\":\"get_weather\",\"input\":[{\"content\":{\"city\":\"Tokyo\",\"days\":2}}]}",
+        "content_digest": "1f5546523442b282",
+        "tool_name": "get_weather",
+        "observation_type": "tool"
+      },
+      {
+        "index": 10,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_CB5KDLDAq13BBc0a4fBQJ2\",\"name\":\"get_weather\",\"input\":[{\"content\":{\"city\":\"Paris\",\"days\":2}}]}",
+        "content_digest": "d511e0cdd62930e5",
+        "tool_name": "get_weather",
+        "observation_type": "tool"
+      },
+      {
+        "index": 11,
+        "role": "assistant",
+        "entry_type": "unknown",
+        "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"text\",\"content\":[{\"toolUse\":{\"toolUseId\":\"tooluse_CB5KDLDAq13BBc0a4fBQJ2\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}},{\"toolUse\":{\"toolUseId\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"name\":\"get_weather…[502 chars]",
+        "content_digest": "bb6ba936b9bd1216",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 12,
+        "role": "user",
+        "entry_type": "unknown",
+        "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"text\",\"content\":[{\"text\":\"What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?\"}]}}",
+        "content_digest": "12e12b28a23e6252",
+        "observation_type": "agent"
+      },
+      {
+        "index": 13,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "agent"
+      }
+    ]
+  }
+}

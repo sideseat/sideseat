@@ -4,6 +4,19 @@
  "scenario": "streaming",
  "fixtures": [
   "strands/native/streaming",
+  "strands/native@1.12.0/streaming",
+  "strands/native@1.12.0+semconv-latest/streaming",
+  "strands/native@1.33.0/streaming",
+  "strands/native@1.33.0+semconv-latest/streaming",
+  "strands/native@1.35.0/streaming",
+  "strands/native@1.35.0+semconv-latest/streaming",
+  "strands/native@1.46.0+semconv-latest/streaming",
+  "strands/native@1.50.2+semconv-latest/streaming",
+  "strands/native@1.53.0/streaming",
+  "strands/native@1.53.0+semconv-latest/streaming",
+  "strands/native@1.55.0/streaming",
+  "strands/native@1.55.0+semconv-latest/streaming",
+  "strands/native@1.57.2+semconv-latest/streaming",
   "strands/sdk/streaming"
  ],
  "source": {

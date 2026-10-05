@@ -35,7 +35,7 @@ of the surviving messages rather than silently inventing or dropping content.
 
 ## Current checked-in boundary
 
-The current tracked corpus contains **73 suites, 637 samples, and 821 captured OTLP requests**:
+The current tracked corpus contains **86 suites, 676 samples, and 948 captured OTLP requests**:
 
 - SideSeat SDK versus plain OpenTelemetry pairs for Python, TypeScript/Node.js, .NET, and Rust;
 - a credential-free OpenAI 3.19.2 / Logfire 6.0.0b7 pair captured both natively and through
@@ -59,6 +59,9 @@ The current tracked corpus contains **73 suites, 637 samples, and 821 captured O
   observations, over Chat Completions and the Responses API on GPT-6.1-sol, covering chat,
   multi-turn history, two traces in one session, structured output, an inline image and PDF, a
   complete four-call tool roundtrip, a failing tool, and streaming, with exact native/SideSeat parity;
+- the Strands version matrix: thirteen historical Strands releases from 1.12 to 1.57, with and
+  without the `gen_ai_latest_experimental` opt-in, replayed offline from the suite's cassettes; one
+  variant per telemetry class of a census over every release since 2025-10-05;
 - a credential-free TraceLoop SDK 0.62.4 / OpenAI 3.22.1 pair covering retained history,
   streaming, decorator workflow/task/agent/tool spans, a complete tool roundtrip, two traces,
   one shared session, and exact native/SideSeat parity. Arbitrary decorator entity inputs and

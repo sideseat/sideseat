@@ -73,6 +73,28 @@ Releases are counted from 2025-10-05; "epochs" are static key-set epochs over th
   to `gen_ai.tool.definitions`, cache and reasoning token keys, `gen_ai.system` to `gen_ai.provider.name`), and
   producers adopted each rename at different times, often writing both spellings for a while.
 
+## Census results
+
+Taken with `make matrix-census`; each class is one shape over the probe scenarios, and its variant is
+the class's newest release.
+
+**Strands Agents** (52 releases since 2025-10-05, probes `tool_use`, `streaming`, `reasoning`; 14 classes):
+
+| Releases | Default format | `semconv-latest` profile |
+| --- | --- | --- |
+| 1.11 - 1.12 | per-message span events; tool spans without description, schema or server timing | `gen_ai.input.messages` / `gen_ai.output.messages`, inference-details event |
+| 1.13 - 1.33 | tool spans gain `gen_ai.tool.description` and `gen_ai.tool.json_schema`; server timing | the same additions |
+| 1.34 - 1.35 | the system prompt is also a `gen_ai.system.message` event | `gen_ai.system_instructions` |
+| 1.36 - 1.53 | event-loop spans carry `gen_ai.operation.name` `execute_event_loop_cycle` | the same (1.36 - 1.46); message JSON changes (1.47 - 1.50); `gen_ai.tool.call.arguments` / `.result` (1.51 - 1.53) |
+| 1.54 - 1.55.0 | semconv cache token keys beside the older ones | only the semconv cache keys |
+| 1.55.1 - 1.57.2 | the `system_prompt` span attribute, which `strands.system_prompt_message` reads, is gone | the same |
+
+1.38.0 and 1.39.0 call Bedrock CountTokens before every model call, which the cassettes predate; they are
+exempt until captured live. Reconstruction: every default-format class except 1.11 - 1.12 (whose tool results
+are the Python `str()` of the result, not JSON) reconstructs the same conversation as the current release, up to the order of parallel tool
+results; the `semconv-latest` profile is not yet read correctly in any release (user and assistant messages
+arrive as raw `unknown` blocks, reasoning is lost), which the truth ledger records under backlog item 156.
+
 ## Version variants in the rule language
 
 The rule language keeps one principle from the engine design: behaviour is selected by observable evidence,

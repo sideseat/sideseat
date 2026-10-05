@@ -1,0 +1,90 @@
+# The historical Strands releases this suite is replayed against; see `python -m harness matrix --help`
+# and docs/engineering/framework-versions.md. Each variant is the newest release of one telemetry class
+# in `versions.census.json`; its `doc` says what the class changed against the one before it.
+[matrix]
+package = "strands-agents"
+pin = "strands-agents[otel]=={version}"
+since = "2025-10-05"
+resolved-before = "2026-10-05T00:00:00Z"
+probes = ["tool_use", "streaming", "reasoning"]
+scenarios = ["tool_use", "streaming", "reasoning"]
+
+[matrix.profiles]
+# Strands 1.11 and later write the conversation as `gen_ai.input.messages` / `gen_ai.output.messages`
+# (and an inference-details event) instead of per-message span events, but only when asked to.
+semconv-latest = { OTEL_SEMCONV_STABILITY_OPT_IN = "gen_ai_latest_experimental" }
+
+[[variant]]
+version = "1.12.0"
+doc = "1.11-1.12: per-message span events; tool spans carry no description or JSON schema, and no server timing."
+
+[[variant]]
+version = "1.33.0"
+doc = "1.13-1.33: tool spans gain gen_ai.tool.description and gen_ai.tool.json_schema; model spans gain server timing."
+
+[[variant]]
+version = "1.35.0"
+doc = "1.34-1.35: the system prompt is also a gen_ai.system.message event."
+
+[[variant]]
+version = "1.53.0"
+doc = "1.36-1.53: event-loop cycle spans carry gen_ai.operation.name `execute_event_loop_cycle`."
+
+[[variant]]
+version = "1.55.0"
+doc = "1.54-1.55.0: semconv cache token keys (gen_ai.usage.cache_creation/cache_read.input_tokens) beside the older ones."
+
+[[variant]]
+version = "1.57.2"
+current = true
+doc = "1.55.1 onwards: the `system_prompt` span attribute is gone. The suite's locked release; its fixtures are the ordinary capture."
+
+[[variant]]
+version = "1.12.0"
+profile = "semconv-latest"
+doc = "1.11-1.12 opted in: gen_ai.input.messages / gen_ai.output.messages and the inference-details event."
+
+[[variant]]
+version = "1.33.0"
+profile = "semconv-latest"
+doc = "1.13-1.33 opted in: tool description and schema, server timing."
+
+[[variant]]
+version = "1.35.0"
+profile = "semconv-latest"
+doc = "1.34-1.35 opted in: gen_ai.system_instructions."
+
+[[variant]]
+version = "1.46.0"
+profile = "semconv-latest"
+doc = "1.36-1.46 opted in: execute_event_loop_cycle operation name."
+
+[[variant]]
+version = "1.50.2"
+profile = "semconv-latest"
+doc = "1.47-1.50 opted in: message JSON changes inside the opted-in carriers."
+
+[[variant]]
+version = "1.53.0"
+profile = "semconv-latest"
+doc = "1.51-1.53 opted in: tool spans carry gen_ai.tool.call.arguments and gen_ai.tool.call.result."
+
+[[variant]]
+version = "1.55.0"
+profile = "semconv-latest"
+doc = "1.54-1.55.0 opted in: only the semconv cache token keys; the older cache keys are gone."
+
+[[variant]]
+version = "1.57.2"
+profile = "semconv-latest"
+doc = "1.55.1 onwards opted in: no `system_prompt` attribute."
+
+[[exempt]]
+version = "1.38.0"
+reason = "Calls Bedrock CountTokens before each model call, which the committed cassettes predate; needs a live capture of its own cassette."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "1.39.0"
+reason = "Calls Bedrock CountTokens before each model call, which the committed cassettes predate; needs a live capture of its own cassette."
+revisit = "2027-01-05"
