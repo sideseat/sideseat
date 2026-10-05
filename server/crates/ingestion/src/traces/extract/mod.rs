@@ -662,7 +662,6 @@ pub fn extract_messages_batch(
                         otlp_span,
                         &span_attrs,
                         span.scope_name.as_deref(),
-                        span.scope_version.as_deref(),
                         span.timestamp_start,
                         mode,
                     );

@@ -99,10 +99,10 @@ fn a_rules_work_is_bounded_by_the_server() {
 
 /// A path used in a **singular** role reports when the payload offered more than one match.
 ///
-/// A JSONPath is plural by nature: `$.*` matches every member, so `elements.select: "$.*"` reads the *first*
-/// array of several and the others are gone with nothing said. Fifteen sites took
-/// `query(...).into_iter().next()`, and the same silent-first rule reaches a grouped `collect`, a `tag_from`,
-/// the indexed projections and several constructors.
+/// A JSONPath is plural by nature: `$.*` matches every member, so a `tag_from: "$.*"` reads the *first* member
+/// of several and the others are gone with nothing said. Fifteen sites took `query(...).into_iter().next()`,
+/// and the same silent-first rule reaches a grouped `collect`, a `tag_from`, the indexed projections and
+/// several constructors.
 ///
 /// Behaviour is unchanged deliberately. Which of those sites a real payload makes ambiguous is not something to
 /// guess at, and a strict "at most one" refusal applied blind would reject shapes the corpus may depend on - so
@@ -115,46 +115,35 @@ fn a_rules_work_is_bounded_by_the_server() {
 fn a_singular_path_takes_the_first_match_and_says_when_there_were_more() {
     use crate::rules::message_rules::{MessageContext, compile};
 
-    let plan = compile(&ParsedAssets::parse(&std::collections::BTreeMap::from([(
-        "t.json".to_string(),
-        br#"{"id":"t","messages":[{"id":"t.e","read":{"attribute":"x"},"parse":"json",
+    let plan = compile(
+        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","messages":[{"id":"t.e","read":{"attribute":"x"},"parse":"json",
              "emit":"message","legacy_rank":1,
-             "elements":{"select":"$.*","passes":[{"id":"named","tag_from":"$['event.name']"}]}}]}"#
-            .to_vec(),
-    )])).expect("the probe assets parse"))
+             "elements":{"passes":[{"id":"named","tag_from":"$.*"}]}}]}"#
+                .to_vec(),
+        )]))
+        .expect("the probe assets parse"),
+    )
     .expect("the probe compiles");
-
-    // Two arrays sit under one object, and `$.*` matches both.
-    let attrs = std::collections::HashMap::from([(
-        "x".to_string(),
-        r#"{"a":[{"event.name":"first"}],"b":[{"event.name":"second"}]}"#.to_string(),
-    )]);
-    let ctx = MessageContext::for_span("span", &attrs, false);
-    let tags: Vec<String> = plan
-        .run(&ctx)
-        .iter()
-        .map(|e| e.carrier.name().to_string())
-        .collect();
-    assert_eq!(
-        tags,
-        ["first".to_string()],
-        "the first array is read and the second is not - which is the behaviour, reported now rather than \
-         silent"
-    );
-
-    // One array is unambiguous, and answers the same way.
-    let attrs = std::collections::HashMap::from([(
-        "x".to_string(),
-        r#"{"a":[{"event.name":"only"}]}"#.to_string(),
-    )]);
-    let ctx = MessageContext::for_span("span", &attrs, false);
-    assert_eq!(
+    let tags = |payload: &str| {
+        let attrs = std::collections::HashMap::from([("x".to_string(), payload.to_string())]);
+        let ctx = MessageContext::for_span("span", &attrs, false);
         plan.run(&ctx)
             .iter()
             .map(|e| e.carrier.name().to_string())
-            .collect::<Vec<_>>(),
-        ["only".to_string()]
+            .collect::<Vec<_>>()
+    };
+
+    // Two members sit in one element, and `$.*` matches both.
+    assert_eq!(
+        tags(r#"[{"a":"first","b":"second"}]"#),
+        ["first".to_string()],
+        "the first match is read and the second is not - which is the behaviour, reported now rather than \
+         silent"
     );
+    // One member is unambiguous, and answers the same way.
+    assert_eq!(tags(r#"[{"a":"only"}]"#), ["only".to_string()]);
 }
 
 /// The predicate **mechanism** has migrated to the boolean grammar; the **semantics** have not, and this pins

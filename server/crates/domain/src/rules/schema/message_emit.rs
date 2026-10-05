@@ -19,6 +19,9 @@ where
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct WrapSpec {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     /// A literal role. One of this and `role_from` is required.
     #[serde(default)]
     pub role: Option<String>,
@@ -119,6 +122,9 @@ pub struct WrapSpec {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct BlockSpec {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     /// The block's `type` member - `tool_use`, `tool_result`.
     #[serde(rename = "type")]
     pub block_type: String,
@@ -373,6 +379,9 @@ pub struct Alternative {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CollectMembers {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     pub prefix: String,
     pub suffix: String,
 }
@@ -400,6 +409,9 @@ impl CollectMembers {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct MemberRequirements {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     /// Every one of these must be present.
     #[serde(default)]
     pub all_of: Vec<MemberRequirement>,
@@ -413,6 +425,9 @@ pub struct MemberRequirements {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct MemberRequirement {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     pub name: String,
     #[serde(default)]
     pub presence: MemberPresence,
@@ -437,6 +452,9 @@ pub enum MemberPresence {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ComposeSpec {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     /// The carrier the assembled message is tagged with.
     pub tag: String,
     /// The members, in the order they are inserted - which is observable, since content identity is
@@ -470,6 +488,9 @@ pub struct ComposeSpec {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ComposeMember {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     /// The member's name. Absent for a sweep, which takes its names from the keys it finds.
     #[serde(rename = "as", default)]
     pub as_member: Option<String>,
@@ -498,6 +519,9 @@ pub struct ComposeMember {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ComposeFallback {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     pub from: String,
     /// The evidence required before the fallback is read.
     pub when: DetectMatch,
@@ -510,6 +534,9 @@ pub struct ComposeFallback {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct SectionsSpec {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     /// The separator between sections.
     pub split_on: String,
     /// Routes, tried in order; the first whose tag matches wins, and a route with no `tag_prefix` is the
@@ -561,12 +588,12 @@ pub struct SectionRoute {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct SectionBlock {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     #[serde(rename = "type")]
     pub block_type: String,
     /// The member the tag's remainder becomes - an id that pairs this section with a call.
     #[serde(default)]
     pub capture_as: Option<String>,
-    /// The member the body becomes. Defaults to `content`.
-    #[serde(default)]
-    pub content_as: Option<String>,
 }

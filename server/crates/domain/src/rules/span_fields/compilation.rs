@@ -142,11 +142,7 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
         }
         // A literal with no gate is not a source: it answers on every span, so every source after it is dead
         // and the field is a constant.
-        if spec.value.is_some()
-            && spec.when.is_none()
-            && spec.unless.is_none()
-            && spec.when_json.is_none()
-        {
+        if spec.value.is_some() && spec.when.is_none() && spec.when_json.is_none() {
             return Err(FieldCompileError::UngatedLiteral {
                 file: file_id.to_string(),
                 rule: rule.id.clone(),
@@ -175,7 +171,7 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
         }
         // The same refusal message rules carry: this stage sees a span's own name and attributes, so a gate
         // needing resource attributes would compile and never hold.
-        for gate in [&spec.when, &spec.unless].into_iter().flatten() {
+        if let Some(gate) = &spec.when {
             if let Some(dimension) = unavailable_field_gate(gate) {
                 return Err(FieldCompileError::UnavailableGate {
                     file: file_id.to_string(),
@@ -193,29 +189,10 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
                 });
             }
         }
-        // A source admitted by a condition and skipped by the *same* condition can never run: false fails
-        // `when`, true triggers `unless`. Each was validated on its own, and neither validator asks about the
-        // other - so the pair compiled as a source that is simply never consulted, which reads as a narrowing
-        // somebody chose. Compared by structural equality, which is exact for "the same condition" and proves
-        // nothing about a pair that merely overlaps; that would need deciding predicate implication, and refusing
-        // on a guess breaks a build for a reason nobody can act on.
-        if let (Some(when), Some(unless)) = (&spec.when, &spec.unless)
-            && when == unless
-        {
-            return Err(FieldCompileError::DeadGate {
-                file: file_id.to_string(),
-                rule: rule.id.clone(),
-                detail: "is admitted and skipped by the same condition, so it can never be consulted",
-            });
-        }
         sources.push(CompiledSource {
             spec: spec.clone(),
             when: spec
                 .when
-                .as_ref()
-                .map(super::super::detect_rules::compile_signals),
-            unless: spec
-                .unless
                 .as_ref()
                 .map(super::super::detect_rules::compile_signals),
         });

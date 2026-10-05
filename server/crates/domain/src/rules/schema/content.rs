@@ -87,6 +87,9 @@ pub enum ValueKind {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct PredicateSet {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     #[serde(default)]
     pub all: Vec<ValuePredicate>,
     #[serde(default)]
@@ -116,6 +119,7 @@ pub struct PredicateSet {
 impl Clone for PredicateSet {
     fn clone(&self) -> Self {
         Self {
+            doc: self.doc.clone(),
             all: self.all.clone(),
             any: self.any.clone(),
             compiled: std::sync::OnceLock::new(),
@@ -145,6 +149,9 @@ impl PredicateSet {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ElementsSpec {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     /// The emitted carriers are *events*, not attributes.
     ///
     /// A real distinction, not bookkeeping: carrier semantics are declared per carrier and looked up by
@@ -153,10 +160,6 @@ pub struct ElementsSpec {
     /// attributes are all it has.
     #[serde(default)]
     pub tags_are_events: bool,
-    /// A JSONPath to the array. Absent means the parsed value itself.
-    #[serde(default)]
-    #[cfg_attr(test, schemars(with = "Option<String>"))]
-    pub select: Option<JsonPath>,
     /// Passes over the elements, in order. Each scans every element.
     pub passes: Vec<ElementPass>,
 }
@@ -201,6 +204,9 @@ pub struct ElementPass {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct GroupSpec {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     /// A decision table deriving the run key from an element - the first matching case wins, and an element
     /// matching none is skipped.
     pub by: Vec<DerivedCase>,
@@ -277,6 +283,9 @@ pub struct Fragment {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct WalkSpec {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     /// How many levels below the carrier to descend. Zero means the carrier itself only.
     pub max_depth: usize,
     /// Members not descended into, **because a named clause took them here**.
@@ -368,6 +377,9 @@ pub struct PruneSpec {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct SingleToolCallSpec {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     #[cfg_attr(test, schemars(with = "String"))]
     pub name: JsonPath,
     /// The name used when the path resolves to nothing. A call this dialect logged without one still
@@ -376,9 +388,6 @@ pub struct SingleToolCallSpec {
     pub name_default: Option<JsonValue>,
     #[cfg_attr(test, schemars(with = "String"))]
     pub arguments: JsonPath,
-    /// The member the call becomes. Defaults to `tool_call`.
-    #[serde(default)]
-    pub as_member: Option<String>,
     /// The value used when `arguments` resolves to nothing.
     #[serde(default)]
     pub arguments_default: Option<JsonValue>,
@@ -389,6 +398,9 @@ pub struct SingleToolCallSpec {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct PrependSpec {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     /// Where the block's content is, relative to the value being wrapped. Absent means no block is added,
     /// which is the ordinary case for a dialect that reports reasoning only sometimes.
     #[cfg_attr(test, schemars(with = "String"))]
@@ -407,6 +419,9 @@ pub struct PrependSpec {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ToolCallsSpec {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     /// The array of calls, relative to the value being wrapped.
     #[cfg_attr(test, schemars(with = "String"))]
     pub select: JsonPath,
@@ -425,9 +440,6 @@ pub struct ToolCallsSpec {
     /// showed one. Skipping may be right for a producer that logs partial calls; failing the message is right
     /// for one where a dropped call means the answer is not what the model did.
     pub on_invalid_item: InvalidItem,
-    /// The member the list becomes. Defaults to `tool_calls`.
-    #[serde(default)]
-    pub as_member: Option<String>,
 }
 
 /// What a tool-call list does with a member it cannot build.
@@ -502,6 +514,9 @@ pub enum ChainPosition {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ToolUseBlock {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     /// Ordered; absent is reported as null, because a provider that omits an id has still made the call.
     #[serde(default)]
     #[cfg_attr(test, schemars(with = "Vec<String>"))]
@@ -521,6 +536,9 @@ pub struct ToolUseBlock {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ToolResultBlock {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     #[serde(default)]
     #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub tool_use_id: Vec<JsonPath>,
@@ -543,6 +561,9 @@ pub struct ToolResultBlock {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct JsonDataBlock {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     #[serde(default)]
     #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub data: Vec<JsonPath>,
@@ -553,6 +574,9 @@ pub struct JsonDataBlock {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct TextBlock {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub text: Vec<JsonPath>,
 }
@@ -566,6 +590,9 @@ pub struct TextBlock {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ThinkingBlock {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     #[serde(default)]
     #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub text: Vec<JsonPath>,
@@ -581,9 +608,6 @@ pub struct ThinkingBlock {
 pub struct InstrumentationScopeMatch {
     /// Exact scope name. Empty names are refused when the rule is compiled.
     pub name: String,
-    /// Optional version prefix for producer changes that preserve the scope name.
-    #[serde(default)]
-    pub version_prefix: Option<String>,
 }
 
 /// A wrapper: the block's content is *inside* a member, and the member is normalised in its place.
@@ -598,6 +622,9 @@ pub struct InstrumentationScopeMatch {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct UnwrapSpec {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     /// Ordered; the first member that is present is unwrapped, whether or not it normalises.
     #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub from: Vec<JsonPath>,
@@ -612,6 +639,9 @@ pub struct UnwrapSpec {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct MediaBlock {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub media_type: Vec<JsonPath>,
     #[cfg_attr(test, schemars(with = "Vec<String>"))]

@@ -1,4 +1,3 @@
-
 /// How reconstruction scales with the history a read has to reprocess.
 ///
 /// Normalisation happens at query time, so a session read reparses and rehashes the whole session on
@@ -250,7 +249,10 @@ fn local_only_samples_are_actually_gitignored() {
     )
     .expect("read .gitignore");
 
-    for (suite, sample) in [("strands-js/legacy", "image-gen"), ("vercel-ai-js/legacy", "image-gen")] {
+    for (suite, sample) in [
+        ("strands-js/legacy", "image-gen"),
+        ("vercel-ai-js/legacy", "image-gen"),
+    ] {
         let path = format!("server/tests/fixtures/messages/{suite}/{sample}/");
         assert!(
             gitignore.lines().any(|line| line.trim() == path),
@@ -308,7 +310,10 @@ fn exception_conservation_violations(built: &Built) -> Vec<String> {
             // production rule leaves the exception out there because the result says the same thing.
             // The block reads `Type: message`, and the result quotes the message.
             let reported_as_result = |r: &InvariantRow| {
-                let message = r.content.split_once(": ").map_or(r.content.as_str(), |(_, m)| m);
+                let message = r
+                    .content
+                    .split_once(": ")
+                    .map_or(r.content.as_str(), |(_, m)| m);
                 trace_rows
                     .iter()
                     .any(|t| t.entry_type == "tool_result" && t.full_content.contains(message))
@@ -573,16 +578,9 @@ fn rules_that_emit() -> BTreeSet<String> {
             let request = decode_request(path);
             for resource in &request.resource_spans {
                 for scope in &resource.scope_spans {
-                    let (scope_name, scope_version) = scope
-                        .scope
-                        .as_ref()
-                        .map(|scope| {
-                            (
-                                Some(scope.name.as_str()).filter(|name| !name.is_empty()),
-                                Some(scope.version.as_str()).filter(|version| !version.is_empty()),
-                            )
-                        })
-                        .unwrap_or((None, None));
+                    let scope_name = scope.scope.as_ref().and_then(|scope| {
+                        Some(scope.name.as_str()).filter(|name| !name.is_empty())
+                    });
                     for span in &scope.spans {
                         let attrs = extract_attributes(&span.attributes);
                         // The same declared fact the extractor asks, so this measures the plan as ingestion
@@ -592,11 +590,7 @@ fn rules_that_emit() -> BTreeSet<String> {
                             &attrs,
                         );
                         let ctx = MessageContext::for_scoped_span(
-                            &span.name,
-                            scope_name,
-                            scope_version,
-                            &attrs,
-                            is_tool,
+                            &span.name, scope_name, &attrs, is_tool,
                         );
                         let mut read: std::collections::HashSet<OwnedCarrier> =
                             std::collections::HashSet::new();

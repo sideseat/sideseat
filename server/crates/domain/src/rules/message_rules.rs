@@ -93,7 +93,6 @@ struct Construction<'a> {
 pub struct MessageContext<'a> {
     pub span_name: &'a str,
     pub scope_name: Option<&'a str>,
-    pub scope_version: Option<&'a str>,
     /// The map a rule's `read` draws from - a span's attributes, or an event's when reading one.
     pub span_attrs: &'a HashMap<String, String>,
     /// The map a rule's `when`/`unless` asks about, which is always the **span's**.
@@ -116,7 +115,6 @@ impl<'a> MessageContext<'a> {
         Self {
             span_name,
             scope_name: None,
-            scope_version: None,
             span_attrs,
             gate_attrs: span_attrs,
             is_tool_span,
@@ -127,14 +125,12 @@ impl<'a> MessageContext<'a> {
     pub fn for_scoped_span(
         span_name: &'a str,
         scope_name: Option<&'a str>,
-        scope_version: Option<&'a str>,
         span_attrs: &'a HashMap<String, String>,
         is_tool_span: bool,
     ) -> Self {
         Self {
             span_name,
             scope_name,
-            scope_version,
             span_attrs,
             gate_attrs: span_attrs,
             is_tool_span,
@@ -151,7 +147,6 @@ impl<'a> MessageContext<'a> {
         Self {
             span_name,
             scope_name: None,
-            scope_version: None,
             span_attrs: event_attrs,
             gate_attrs: span_attrs,
             is_tool_span,

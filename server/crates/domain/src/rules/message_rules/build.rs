@@ -92,9 +92,8 @@ pub(super) fn wrapped(
     // The canonical tool-call list replaces the content: a message that carries calls carries no text.
     match &wrap.tool_calls_from {
         Some(spec) => {
-            let member = spec.as_member.as_deref().unwrap_or("tool_calls");
             object.insert(
-                member.to_string(),
+                "tool_calls".to_string(),
                 JsonValue::Array(canonical_tool_calls(subject, spec)?),
             );
         }
@@ -105,10 +104,7 @@ pub(super) fn wrapped(
     if let Some(spec) = &wrap.tool_call_from
         && let Some(call) = single_tool_call(subject, spec)
     {
-        object.insert(
-            spec.as_member.as_deref().unwrap_or("tool_call").to_string(),
-            call,
-        );
+        object.insert("tool_call".to_string(), call);
     }
     for attach in wrap.attach.iter().filter(|a| a.after_content) {
         if let Some(attached) = attached_value(attach, ctx, payload, subject) {
@@ -517,10 +513,7 @@ pub(super) fn sectioned(raw: &str, spec: &SectionsSpec) -> Vec<(String, JsonValu
                 {
                     object.insert(member.clone(), json!(captured));
                 }
-                object.insert(
-                    block.content_as.as_deref().unwrap_or("content").to_string(),
-                    json!(body),
-                );
+                object.insert("content".to_string(), json!(body));
                 message.insert(
                     "content".to_string(),
                     JsonValue::Array(vec![JsonValue::Object(object)]),

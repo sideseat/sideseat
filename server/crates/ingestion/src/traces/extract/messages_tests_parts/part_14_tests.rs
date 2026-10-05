@@ -28,7 +28,6 @@ fn a_langchain_message_dict_reads_its_data_member() {
             name: "RunnableSequence",
             attrs: &attrs,
             scope_name: Some("openinference.instrumentation.langchain"),
-            scope_version: Some("0.1.78"),
             is_tool_span: false,
         },
         Utc::now(),
@@ -41,7 +40,10 @@ fn a_langchain_message_dict_reads_its_data_member() {
         .collect();
     assert_eq!(roles, ["system", "user", "assistant", "tool"]);
     assert_eq!(messages[0].content["content"].as_str(), Some("Be brief."));
-    assert_eq!(messages[1].content["content"].as_str(), Some("Plan a trip."));
+    assert_eq!(
+        messages[1].content["content"].as_str(),
+        Some("Plan a trip.")
+    );
     assert!(messages[2].content["tool_calls"].is_array());
     assert_eq!(messages[3].content["tool_call_id"].as_str(), Some("call_1"));
 }
@@ -73,7 +75,6 @@ fn a_rendered_chat_prompt_is_read_as_its_messages() {
             name: "ChatPromptTemplate",
             attrs: &attrs,
             scope_name: Some("openinference.instrumentation.langchain"),
-            scope_version: Some("0.1.78"),
             is_tool_span: false,
         },
         Utc::now(),
@@ -82,7 +83,9 @@ fn a_rendered_chat_prompt_is_read_as_its_messages() {
 
     let rendered: Vec<_> = messages
         .iter()
-        .filter(|m| matches!(&m.source, MessageSource::Attribute { key, .. } if key == "output.value"))
+        .filter(
+            |m| matches!(&m.source, MessageSource::Attribute { key, .. } if key == "output.value"),
+        )
         .map(|m| {
             (
                 m.content["role"].as_str().unwrap_or_default(),
@@ -92,7 +95,10 @@ fn a_rendered_chat_prompt_is_read_as_its_messages() {
         .collect();
     assert_eq!(
         rendered,
-        [("system", "Be brief."), ("user", "What is Kyoto known for?")]
+        [
+            ("system", "Be brief."),
+            ("user", "What is Kyoto known for?")
+        ]
     );
 }
 
@@ -124,7 +130,6 @@ fn a_llamaindex_request_preparation_span_contributes_no_messages() {
             name: "BedrockConverse._prepare_chat_with_tools",
             attrs: &attrs,
             scope_name: Some("openinference.instrumentation.llama_index"),
-            scope_version: Some("4.5.4"),
             is_tool_span: false,
         },
         Utc::now(),

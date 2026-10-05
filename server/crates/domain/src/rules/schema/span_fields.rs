@@ -407,9 +407,6 @@ pub struct FieldSource {
     /// Consulted only when this holds of the span. Signals are ORed, as everywhere else.
     #[serde(default)]
     pub when: Option<DetectMatch>,
-    /// Skipped when this holds of the span.
-    #[serde(default)]
-    pub unless: Option<DetectMatch>,
 }
 
 /// How several matches of one path become one value.
@@ -451,6 +448,9 @@ pub enum MalformedPolicy {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct JsonFieldSource {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     /// The attribute whose text is parsed. Parsed once per span however many sources name it.
     pub attribute: String,
     /// Where in it the value sits.

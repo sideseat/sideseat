@@ -189,6 +189,9 @@ pub struct DetectAlternative {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct SdkSlug {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     pub slug: String,
     pub label: String,
 }
@@ -357,6 +360,9 @@ pub struct MessageProjectionRule {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct MessageProjectionMatch {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     pub scope_name: String,
     pub scope_version_major_at_least: u64,
     pub span_name_prefix: String,
@@ -653,6 +659,9 @@ pub enum ParametersEncoding {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct Facts {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     /// `emission`, `snapshot` or `accumulated_state`.
     pub preset: String,
     #[serde(default)]

@@ -796,7 +796,7 @@ fn a_field_source_may_not_declare_a_gate_that_never_holds() {
             "an empty attribute key, which nothing writes",
             r#"{"id":"t","doc":"d","span_fields":[
                 {"id":"f","doc":"d","target":"user_id",
-                 "sources":[{"id":"probe.src","attribute":"k","unless":{"attr_exists":[""]}}]}]}"#,
+                 "sources":[{"id":"probe.src","attribute":"k","when":{"attr_exists":[""]}}]}]}"#,
         ),
         (
             "a reduction on a witness, which asks only whether a member is there",

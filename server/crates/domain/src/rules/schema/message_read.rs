@@ -214,6 +214,9 @@ pub struct MessageRule {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ReadSpec {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     #[serde(default)]
     pub attribute: Option<String>,
     /// Ordered carrier alternatives: **the first** of these the span carries is read, and the observation
@@ -470,6 +473,9 @@ impl ReadSpec {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct EventAttributeSource {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
     /// The event whose attributes are read.
     pub event: String,
     /// The attribute on that event.

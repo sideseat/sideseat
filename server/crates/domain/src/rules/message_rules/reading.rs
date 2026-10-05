@@ -646,17 +646,10 @@ pub(super) fn sniffed_value(raw: &str) -> JsonValue {
 
 /// Both gates, in one place so every read form is subject to them.
 pub(super) fn gates_allow(rule: &CompiledMessageRule, ctx: &MessageContext<'_>) -> bool {
-    if let Some(scope) = &rule.instrumentation_scope {
-        if ctx.scope_name != Some(scope.name.as_str()) {
-            return false;
-        }
-        if let Some(prefix) = &scope.version_prefix
-            && !ctx
-                .scope_version
-                .is_some_and(|version| version.starts_with(prefix))
-        {
-            return false;
-        }
+    if let Some(scope) = &rule.instrumentation_scope
+        && ctx.scope_name != Some(scope.name.as_str())
+    {
+        return false;
     }
     if let Some(gate) = &rule.when
         && !super::detect_rules::compiled_signals_hold(gate, ctx.span_name, ctx.gate_attrs)

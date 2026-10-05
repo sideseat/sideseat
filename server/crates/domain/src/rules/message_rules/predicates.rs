@@ -147,11 +147,8 @@ pub(super) fn element_passes(
     parsed: &JsonValue,
     spec: &ElementsSpec,
 ) -> Vec<(String, JsonValue, Vec<Vec<String>>)> {
-    let array = match &spec.select {
-        Some(path) => singular(parsed, path, "elements select"),
-        None => Some(parsed),
-    };
-    let Some(items) = array.and_then(JsonValue::as_array) else {
+    // The elements are the parsed value itself: every shipped dialect packs them as a root array.
+    let Some(items) = parsed.as_array() else {
         return Vec::new();
     };
 

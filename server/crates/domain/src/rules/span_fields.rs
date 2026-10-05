@@ -203,7 +203,6 @@ pub enum FieldCompileError {
 struct CompiledSource {
     spec: FieldSource,
     when: Option<super::detect_rules::CompiledDetect>,
-    unless: Option<super::detect_rules::CompiledDetect>,
 }
 
 struct CompiledRule {
@@ -452,11 +451,6 @@ fn source_applies(
 ) -> bool {
     if let Some(gate) = &source.when
         && !super::detect_rules::compiled_signals_hold(gate, span_name, attrs)
-    {
-        return false;
-    }
-    if let Some(gate) = &source.unless
-        && super::detect_rules::compiled_signals_hold(gate, span_name, attrs)
     {
         return false;
     }

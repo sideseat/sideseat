@@ -303,14 +303,6 @@ fn every_span_field_refusal_fires() {
             |e| matches!(e, E::DeadGate { .. }),
         ),
         (
-            // Each gate was validated on its own and neither validator asked about the other, so the pair
-            // compiled as a source that is simply never consulted - which reads as a narrowing somebody chose.
-            "a source admitted and skipped by the same condition",
-            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
-               "sources":[{"id":"s","attribute":"k","when":{"attr_exists":["m"]},"unless":{"attr_exists":["m"]}}]}]}"#,
-            |e| matches!(e, E::DeadGate { .. }),
-        ),
-        (
             "a gate naming a resource dimension field resolution is never given",
             r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
                "sources":[{"id":"s","attribute":"k","when":{"service_name":["x"]}}]}]}"#,
@@ -335,16 +327,6 @@ fn every_span_field_refusal_fires() {
                 .to_vec(),
         )]))
         .is_err()
-    );
-
-    // Two *different* gates on one source are fine - that is an admitted-unless pair, which several assets use.
-    assert!(
-        compiled(
-            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
-               "sources":[{"id":"s","attribute":"k","when":{"attr_exists":["m"]},"unless":{"attr_exists":["n"]}}]}]}"#
-        )
-        .is_ok(),
-        "two different conditions are an ordinary admitted-unless pair"
     );
 
     // And a rule stating one reader with nothing dead about it compiles, or the refusals are simply a ban.

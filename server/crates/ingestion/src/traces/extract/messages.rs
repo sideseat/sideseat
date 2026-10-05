@@ -81,7 +81,6 @@ struct SpanExtraction<'a> {
     name: &'a str,
     attrs: &'a HashMap<String, String>,
     scope_name: Option<&'a str>,
-    scope_version: Option<&'a str>,
     is_tool_span: bool,
 }
 
@@ -92,7 +91,6 @@ impl<'a> SpanExtraction<'a> {
             name,
             attrs,
             scope_name: None,
-            scope_version: None,
             is_tool_span,
         }
     }
@@ -101,7 +99,6 @@ impl<'a> SpanExtraction<'a> {
         sideseat_domain::rules::MessageContext::for_scoped_span(
             self.name,
             self.scope_name,
-            self.scope_version,
             self.attrs,
             self.is_tool_span,
         )
@@ -522,14 +519,13 @@ pub(super) fn extract_messages_for_span(
     timestamp: DateTime<Utc>,
     mode: ExtractionMode,
 ) -> (Vec<RawMessage>, Vec<RawToolDefinition>, Vec<RawToolNames>) {
-    extract_messages_for_scoped_span(otlp_span, span_attrs, None, None, timestamp, mode)
+    extract_messages_for_scoped_span(otlp_span, span_attrs, None, timestamp, mode)
 }
 
 pub(super) fn extract_messages_for_scoped_span(
     otlp_span: &Span,
     span_attrs: &HashMap<String, String>,
     scope_name: Option<&str>,
-    scope_version: Option<&str>,
     timestamp: DateTime<Utc>,
     mode: ExtractionMode,
 ) -> (Vec<RawMessage>, Vec<RawToolDefinition>, Vec<RawToolNames>) {
@@ -538,7 +534,6 @@ pub(super) fn extract_messages_for_scoped_span(
         name: &otlp_span.name,
         attrs: span_attrs,
         scope_name,
-        scope_version,
         is_tool_span,
     };
 

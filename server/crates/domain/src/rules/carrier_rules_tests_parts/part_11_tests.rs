@@ -240,15 +240,14 @@ fn a_scoped_constructor_repr_decoder_yields_to_the_general_carrier_reader() {
         )
         .expect("the OTLP string layer serialises"),
     )]);
-    let scoped =
-        MessageContext::for_scoped_span("tool", Some("specific"), Some("1.0"), &attrs, true);
+    let scoped = MessageContext::for_scoped_span("tool", Some("specific"), &attrs, true);
     let read = plan.run(&scoped);
     assert_eq!(read.len(), 1);
     assert_eq!(read[0].rule_id, "t.constructor");
     assert_eq!(read[0].value["content"][0]["is_error"], true);
     assert_eq!(read[0].value["content"][0]["content"][0]["text"], "failed");
 
-    let other = MessageContext::for_scoped_span("tool", Some("other"), Some("1.0"), &attrs, true);
+    let other = MessageContext::for_scoped_span("tool", Some("other"), &attrs, true);
     let read = plan.run(&other);
     assert_eq!(read.len(), 1);
     assert_eq!(
@@ -285,8 +284,7 @@ fn a_list_of_constructor_reprs_is_read_as_blocks_and_only_whole() {
 
     let run = |value: serde_json::Value| {
         let attrs = std::collections::HashMap::from([("result".to_string(), value.to_string())]);
-        let context =
-            MessageContext::for_scoped_span("tool", Some("specific"), Some("1.0"), &attrs, true);
+        let context = MessageContext::for_scoped_span("tool", Some("specific"), &attrs, true);
         plan.run(&context)
     };
 

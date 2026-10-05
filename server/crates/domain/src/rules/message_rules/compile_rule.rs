@@ -45,9 +45,10 @@ pub(super) fn compile_rule(
     let non_empty = require_non_empty.unwrap_or(false);
     let non_blank = require_non_blank.unwrap_or(false);
     let tool_spans = reads_tool_spans.unwrap_or(false);
-    if instrumentation_scope.as_ref().is_some_and(|scope| {
-        scope.name.is_empty() || scope.version_prefix.as_ref().is_some_and(String::is_empty)
-    }) {
+    if instrumentation_scope
+        .as_ref()
+        .is_some_and(|scope| scope.name.is_empty())
+    {
         return Err(MessageCompileError::Inexpressible {
             rule: id.clone(),
             detail: "an instrumentation scope name or version prefix is empty, which would match no \
@@ -209,19 +210,11 @@ pub(super) fn compile_rule(
             );
         }
         names.extend(wrap.attach.iter().map(|a| a.as_member.clone()));
-        if let Some(spec) = &wrap.tool_calls_from {
-            names.push(
-                spec.as_member
-                    .clone()
-                    .unwrap_or_else(|| "tool_calls".to_string()),
-            );
+        if wrap.tool_calls_from.is_some() {
+            names.push("tool_calls".to_string());
         }
-        if let Some(spec) = &wrap.tool_call_from {
-            names.push(
-                spec.as_member
-                    .clone()
-                    .unwrap_or_else(|| "tool_call".to_string()),
-            );
+        if wrap.tool_call_from.is_some() {
+            names.push("tool_call".to_string());
         }
         let mut seen: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
         if names.iter().any(|name| !seen.insert(name.as_str())) {

@@ -256,6 +256,14 @@
       "description": "The **nine** carrier facts, named by preset with optional per-field overrides.\n\nA preset is a constructor, not a category: `snapshot` and `accumulated_state` differ in one bit, so two\ndeclarations that read as different kinds of thing can be the same nine facts - and the name does not\nsurvive compilation. 37 of the 55 shipped clauses override something, and nearly all of those overrides are\ncompensating for direction or encoding being bundled into a preset that is otherwise about *reconstruction*.\n\nA preset plus overrides rather than six booleans spelled out per clause: the presets are the\nvocabulary the model is stated in, and a clause that writes them all out invites one being wrong in\na way no reader notices.",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "preset": {
           "description": "`emission`, `snapshot` or `accumulated_state`.",
           "type": "string"
@@ -891,6 +899,14 @@
       "description": "The carrier a message rule reads: exactly one form, checked at compile time.\n\nOptional fields rather than a tagged enum, for the same reason the carrier match spec uses them: an\nexternally-tagged enum needs `{\"attribute\": {\"attribute\": \"k\"}}` in JSON, which is the shape nobody writes\nand serde rejects silently at the file level. Requiring exactly one is the check that makes this equivalent\nwhile staying readable.\n\nThere is deliberately **no `event` form**. One existed, was accepted by this schema, and was refused\nunconditionally by the compiler as unimplemented - so the format advertised four read forms and could\nexecute three. An author reading the schema as the format's reference was being told something untrue,\nwhich is worse than the missing capability: a span's *events* are routed to `MessagePlan::from_event`,\nwhere `when_event` selects the rule and the event's attributes are read exactly as a span's are. If a rule\never needs to read one event while running over a span, that is a new construct to design rather than a\nfield to un-refuse.",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "attribute": {
           "type": [
             "string",
@@ -986,6 +1002,14 @@
       "description": "A set of value predicates, combined.\n\n`all` and `any` both, because the dialects need both and the difference is real: a request's message\nneeds a role *and* content, while a response may carry either a structured message *or* streamed text.",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "all": {
           "type": "array",
           "items": {
@@ -1219,6 +1243,14 @@
       "description": "A message assembled from several attributes of one span.",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "tag": {
           "description": "The carrier the assembled message is tagged with.",
           "type": "string"
@@ -1256,6 +1288,14 @@
       "description": "One member of a composed message: a named source, or a sweep of a prefix.",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "as": {
           "description": "The member's name. Absent for a sweep, which takes its names from the keys it finds.",
           "type": [
@@ -1317,6 +1357,14 @@
       "description": "A conditional last-resort source.",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "from": {
           "type": "string"
         },
@@ -1465,6 +1513,14 @@
       "description": "The envelope a bare payload is wrapped in.\n\nSome carriers hold a payload rather than a message - a tool's arguments, an instruction, a response's\ntext - and what that payload *is* is a fact about the carrier, so the envelope is declared beside it.",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "role": {
           "description": "A literal role. One of this and `role_from` is required.",
           "type": [
@@ -1696,6 +1752,14 @@
       "description": "A block built from another member of the same value, placed before the content.",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "from": {
           "description": "Where the block's content is, relative to the value being wrapped. Absent means no block is added,\nwhich is the ordinary case for a dialect that reports reasoning only sometimes.",
           "type": "string"
@@ -1719,6 +1783,14 @@
       "description": "A content block built around the read value.",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "type": {
           "description": "The block's `type` member - `tool_use`, `tool_result`.",
           "type": "string"
@@ -1748,6 +1820,14 @@
       "description": "The canonical tool-call list, built from a dialect's own array of calls.",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "select": {
           "description": "The array of calls, relative to the value being wrapped.",
           "type": "string"
@@ -1765,14 +1845,6 @@
         "on_invalid_item": {
           "description": "What to do with a call that has no id or no name.\n\n**Required**, because it was hardcoded twice over - \"an id is mandatory\" and \"skip the invalid item\" -\nand neither is right for every producer. AutoGen's rule admits a list where *at least one* member has an\nid and a name; the constructor then dropped the others silently, so a response that called two tools\nshowed one. Skipping may be right for a producer that logs partial calls; failing the message is right\nfor one where a dropped call means the answer is not what the model did.",
           "$ref": "#/$defs/InvalidItem"
-        },
-        "as_member": {
-          "description": "The member the list becomes. Defaults to `tool_calls`.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null
         }
       },
       "additionalProperties": false,
@@ -1803,6 +1875,14 @@
       "description": "One tool call at a named member, as the normaliser's `{name, arguments}` convention.",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "name": {
           "type": "string"
         },
@@ -1812,14 +1892,6 @@
         },
         "arguments": {
           "type": "string"
-        },
-        "as_member": {
-          "description": "The member the call becomes. Defaults to `tool_call`.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null
         },
         "arguments_default": {
           "description": "The value used when `arguments` resolves to nothing.",
@@ -1861,14 +1933,6 @@
         "name": {
           "description": "Exact scope name. Empty names are refused when the rule is compiled.",
           "type": "string"
-        },
-        "version_prefix": {
-          "description": "Optional version prefix for producer changes that preserve the scope name.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null
         }
       },
       "additionalProperties": false,
@@ -2065,6 +2129,14 @@
       "description": "The member-name pattern of [`Alternative::collect_members`].",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "prefix": {
           "type": "string"
         },
@@ -2120,18 +2192,18 @@
       "description": "An array-valued carrier read element by element.",
       "type": "object",
       "properties": {
-        "tags_are_events": {
-          "description": "The emitted carriers are *events*, not attributes.\n\nA real distinction, not bookkeeping: carrier semantics are declared per carrier and looked up by\nwhich kind it is, so an event reported as an attribute gets a different reading of what it is\nevidence of. These elements *are* events - the dialect packs them into one attribute because\nattributes are all it has.",
-          "type": "boolean",
-          "default": false
-        },
-        "select": {
-          "description": "A JSONPath to the array. Absent means the parsed value itself.",
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
           "type": [
             "string",
             "null"
           ],
           "default": null
+        },
+        "tags_are_events": {
+          "description": "The emitted carriers are *events*, not attributes.\n\nA real distinction, not bookkeeping: carrier semantics are declared per carrier and looked up by\nwhich kind it is, so an event reported as an attribute gets a different reading of what it is\nevidence of. These elements *are* events - the dialect packs them into one attribute because\nattributes are all it has.",
+          "type": "boolean",
+          "default": false
         },
         "passes": {
           "description": "Passes over the elements, in order. Each scans every element.",
@@ -2194,6 +2266,14 @@
       "description": "Runs of consecutive elements collapsed into one message.\n\nBounded: one pass, no recursion, and a run ends as soon as the derived key changes.",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "by": {
           "description": "A decision table deriving the run key from an element - the first matching case wins, and an element\nmatching none is skipped.",
           "type": "array",
@@ -2258,6 +2338,14 @@
       "description": "A bounded walk over a state object.",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "max_depth": {
           "description": "How many levels below the carrier to descend. Zero means the carrier itself only.",
           "type": "integer",
@@ -2314,6 +2402,14 @@
       "description": "A text carrier read as tagged sections.",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "split_on": {
           "description": "The separator between sections.",
           "type": "string"
@@ -2385,19 +2481,19 @@
       "description": "A block built from a section, carrying what the tag captured.",
       "type": "object",
       "properties": {
-        "type": {
-          "type": "string"
-        },
-        "capture_as": {
-          "description": "The member the tag's remainder becomes - an id that pairs this section with a call.",
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
           "type": [
             "string",
             "null"
           ],
           "default": null
         },
-        "content_as": {
-          "description": "The member the body becomes. Defaults to `content`.",
+        "type": {
+          "type": "string"
+        },
+        "capture_as": {
+          "description": "The member the tag's remainder becomes - an id that pairs this section with a call.",
           "type": [
             "string",
             "null"
@@ -2414,6 +2510,14 @@
       "description": "Which members an indexed entry must carry.",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "all_of": {
           "description": "Every one of these must be present.",
           "type": "array",
@@ -2435,6 +2539,14 @@
       "description": "One member, and how its presence is decided.",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "name": {
           "type": "string"
         },
@@ -2500,6 +2612,14 @@
       "description": "The stored row and extracted-message shape a projection rule recognises.\n\nAll dimensions are required so a producer rule cannot accidentally suppress a broad class of\nordinary input-only spans. The source condition means every extracted message must come from the\nnamed attribute; an empty message list never matches.",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "scope_name": {
           "type": "string"
         },
@@ -2961,6 +3081,14 @@
       "description": "A model asking for a tool to be run.",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "id": {
           "description": "Ordered; absent is reported as null, because a provider that omits an id has still made the call.",
           "type": "array",
@@ -2994,6 +3122,14 @@
       "description": "What a tool returned.",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "tool_use_id": {
           "type": "array",
           "items": {
@@ -3030,6 +3166,14 @@
       "description": "Structured data that is not prose.",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "data": {
           "type": "array",
           "items": {
@@ -3044,6 +3188,14 @@
       "description": "Prose. Only a string is text.",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "text": {
           "type": "array",
           "items": {
@@ -3060,6 +3212,14 @@
       "description": "Bytes, or a reference to them. The block's kind and whether it is a reference are both *derived*.",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "media_type": {
           "type": "array",
           "items": {
@@ -3091,6 +3251,14 @@
       "description": "A model's own reasoning.\n\n`text` is **not** required: a producer that wraps its reasoning in a member holding no text has still said\nthe block is reasoning, and the retired reader emitted an empty one rather than falling through - which is\nwhat stops a signature-only block from being read as something else.",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "text": {
           "type": "array",
           "items": {
@@ -3112,6 +3280,14 @@
       "description": "A wrapper: the block's content is *inside* a member, and the member is normalised in its place.\n\nThe one form that does not build a block. Several dialects wrap a content block in a member of their own -\na serialisation envelope, a constructor's keyword arguments - and what is inside is an ordinary block of\nwhatever shape. So the case selects it and the chain starts again from the top with that value.\n\nA case whose member does not normalise answers nothing, which leaves the **original** block to the rest of\nthe chain: that is what the retired readers did, and it is why an unwrap is not a claim.",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "from": {
           "description": "Ordered; the first member that is present is unwrapped, whether or not it normalises.",
           "type": "array",
@@ -3369,6 +3545,14 @@
       "description": "One SDK-declared slug and the label it resolves to.",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "slug": {
           "type": "string"
         },
@@ -3623,17 +3807,6 @@
               "type": "null"
             }
           ]
-        },
-        "unless": {
-          "description": "Skipped when this holds of the span.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/DetectMatch"
-            },
-            {
-              "type": "null"
-            }
-          ]
         }
       },
       "additionalProperties": false,
@@ -3660,6 +3833,14 @@
       "description": "A value inside a JSON-valued attribute.",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "attribute": {
           "description": "The attribute whose text is parsed. Parsed once per span however many sources name it.",
           "type": "string"
@@ -3721,6 +3902,14 @@
       "description": "An attribute of one of a span's events.",
       "type": "object",
       "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
         "event": {
           "description": "The event whose attributes are read.",
           "type": "string"

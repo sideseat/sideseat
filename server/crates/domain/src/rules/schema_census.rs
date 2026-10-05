@@ -30,76 +30,58 @@ const ASSET_SCHEMA_REF: &str = "../../rules.schema.json";
 ///
 /// Keyed `Definition.property` for an optional property and `Definition=value` for an enum value. An entry
 /// here is a promise that the option is deliberate; the census refuses an unused option missing from this list
-/// and an entry that has become used, so the list cannot rot in either direction.
+/// and an entry that has become used, so the list cannot rot in either direction. `doc` members are not
+/// census options: documentation is metadata, and exercising it shows nothing about the grammar.
 const UNUSED: &[(&str, &str)] = &[
     (
-        "ElementsSpec.select",
-        "unassessed: implemented and probed by unit tests, unused by every shipped asset - resolve (remove, or use with a fixture) under backlog 145",
-    ),
-    (
         "Facts.carrier_is_atomic_emission",
-        "a preset override: every shipped clause takes this fact from its preset, and the override is what lets a clause state an exception without a new preset - resolve under backlog 145",
+        "every fact axis of a carrier preset stays independently overridable, so a clause can state an \
+         exception without a new preset; no shipped clause needs this one yet",
     ),
     (
         "Facts.may_contain_framework_state",
-        "a preset override, as `carrier_is_atomic_emission` - resolve under backlog 145",
+        "every fact axis stays independently overridable, as `carrier_is_atomic_emission`",
     ),
     (
         "Facts.may_restate_prior_observations",
-        "a preset override, as `carrier_is_atomic_emission` - resolve under backlog 145",
-    ),
-    (
-        "FieldCombine=first_wins",
-        "unassessed: implemented and probed by unit tests, unused by every shipped asset - resolve (remove, or use with a fixture) under backlog 145",
-    ),
-    (
-        "FieldSource.unless",
-        "unassessed: implemented and probed by unit tests, unused by every shipped asset - resolve (remove, or use with a fixture) under backlog 145 (and backlog 101 replaces it with `where`)",
-    ),
-    (
-        "InstrumentationScopeMatch.version_prefix",
-        "unassessed: implemented and probed by unit tests, unused by every shipped asset - resolve (remove, or use with a fixture) under backlog 145 (and backlog 107 replaces it with `where`)",
-    ),
-    (
-        "MalformedPolicy=stop",
-        "unassessed: implemented and probed by unit tests, unused by every shipped asset - resolve (remove, or use with a fixture) under backlog 145",
-    ),
-    (
-        "MemberPresence=exact",
-        "unassessed: implemented and probed by unit tests, unused by every shipped asset - resolve (remove, or use with a fixture) under backlog 145",
-    ),
-    (
-        "MessageStage=dialect",
-        "unassessed: implemented and probed by unit tests, unused by every shipped asset - resolve (remove, or use with a fixture) under backlog 145",
-    ),
-    (
-        "ParametersSpec.doc",
-        "`doc` is meant to be accepted on every clause object (backlog 16)",
-    ),
-    (
-        "RawEventForm=message",
-        "the default raw form: an asset states it by omission, so naming it explicitly would be redundant",
-    ),
-    (
-        "SectionBlock.content_as",
-        "unassessed: implemented and probed by unit tests, unused by every shipped asset - resolve (remove, or use with a fixture) under backlog 145",
-    ),
-    (
-        "SingleToolCallSpec.as_member",
-        "unassessed: implemented and probed by unit tests, unused by every shipped asset - resolve (remove, or use with a fixture) under backlog 145",
-    ),
-    (
-        "ToolCallsSpec.as_member",
-        "unassessed: implemented and probed by unit tests, unused by every shipped asset - resolve (remove, or use with a fixture) under backlog 145",
+        "every fact axis stays independently overridable, as `carrier_is_atomic_emission`",
     ),
     (
         "ValueKind=null",
-        "part of the closed JSON kind vocabulary a `kind` predicate offers; a kind set missing one would be an arbitrary hole",
+        "part of the closed JSON kind vocabulary a `kind` predicate offers; a kind set missing one would be an \
+         arbitrary hole",
     ),
     (
         "ValueKind=number",
         "part of the closed JSON kind vocabulary, as `null`",
     ),
+];
+
+/// Enum values no asset spells because they are the default, which an asset states by omission.
+///
+/// Separate from [`UNUSED`] because the reason is structural and checkable: the test below proves each value
+/// is what omission means, so spelling it would only restate the default.
+const IMPLICIT_DEFAULTS: &[&str] = &[
+    "FieldCombine=first_wins",
+    "MalformedPolicy=stop",
+    "MemberPresence=exact",
+    "MessageStage=dialect",
+    "RawEventForm=message",
+];
+
+/// Schema objects that do not accept `doc`, each with the reason.
+///
+/// They derive equality that overlap, shadowing and arena checks compare on, so a `doc` would make two
+/// otherwise identical declarations unequal and slip past those refusals. Each is retired by the unified
+/// predicate and source grammar, which gives `where` and sources `doc` from the start.
+const DOC_EXEMPT: &[&str] = &[
+    "MatchSpec",
+    "DetectMatch",
+    "KeyValue",
+    "TextContains",
+    "SpanSource",
+    "EventSource",
+    "InstrumentationScopeMatch",
 ];
 
 fn generated() -> Value {
@@ -387,7 +369,7 @@ fn options(schema: &Value) -> BTreeSet<String> {
             .unwrap_or_default();
         if let Some(properties) = node.get("properties").and_then(Value::as_object) {
             for name in properties.keys() {
-                if !required.contains(name.as_str()) {
+                if name != "doc" && !required.contains(name.as_str()) {
                     out.insert(format!("{owner}.{name}"));
                 }
             }
@@ -486,7 +468,11 @@ fn every_unused_schema_option_is_declared_with_a_reason() {
     let schema = generated();
     let offered = options(&schema);
     let used = embedded_coverage(&schema);
-    let declared: BTreeSet<&str> = UNUSED.iter().map(|(key, _)| *key).collect();
+    let declared: BTreeSet<&str> = UNUSED
+        .iter()
+        .map(|(key, _)| *key)
+        .chain(IMPLICIT_DEFAULTS.iter().copied())
+        .collect();
     let undeclared: Vec<&String> = offered
         .iter()
         .filter(|option| !used.contains(*option) && !declared.contains(option.as_str()))
@@ -509,4 +495,66 @@ fn every_unused_schema_option_is_declared_with_a_reason() {
     for (key, reason) in UNUSED {
         assert!(!reason.trim().is_empty(), "`{key}` needs a reason");
     }
+}
+
+#[test]
+fn every_implicit_default_is_what_omission_means() {
+    use super::schema::{
+        FieldCombine, MalformedPolicy, MemberPresence, MessageStage, RawEventForm,
+    };
+    fn omitted<T: serde::de::DeserializeOwned + Default + PartialEq>(spelled: &str) -> bool {
+        serde_json::from_value::<T>(Value::String(spelled.to_string())).ok() == Some(T::default())
+    }
+    for key in IMPLICIT_DEFAULTS {
+        let (definition, value) = key.split_once('=').expect("`Definition=value`");
+        let holds = match definition {
+            "FieldCombine" => omitted::<FieldCombine>(value),
+            "MalformedPolicy" => omitted::<MalformedPolicy>(value),
+            "MemberPresence" => omitted::<MemberPresence>(value),
+            "MessageStage" => omitted::<MessageStage>(value),
+            "RawEventForm" => omitted::<RawEventForm>(value),
+            other => panic!("`{other}` has no default check here; add one"),
+        };
+        assert!(
+            holds,
+            "`{key}` is listed as an implicit default and is not the default"
+        );
+    }
+}
+
+#[test]
+fn every_schema_object_accepts_doc() {
+    let schema = generated();
+    let root_has_doc = schema.pointer("/properties/doc").is_some();
+    let mut missing: Vec<&str> = Vec::new();
+    let defs = schema
+        .get("$defs")
+        .and_then(Value::as_object)
+        .expect("definitions");
+    for (name, def) in defs {
+        let Some(properties) = def.get("properties").and_then(Value::as_object) else {
+            continue;
+        };
+        let required = def
+            .get("required")
+            .and_then(Value::as_array)
+            .is_some_and(|names| names.iter().any(|n| n == "doc"));
+        if (!properties.contains_key("doc") || required) && !DOC_EXEMPT.contains(&name.as_str()) {
+            missing.push(name);
+        }
+    }
+    let stale: Vec<&&str> = DOC_EXEMPT
+        .iter()
+        .filter(|name| {
+            defs.get(**name)
+                .and_then(|def| def.pointer("/properties/doc"))
+                .is_some()
+        })
+        .collect();
+    assert!(root_has_doc, "`RuleFile` must accept `doc`");
+    assert!(
+        missing.is_empty() && stale.is_empty(),
+        "every schema object accepts an optional `doc`, or is in `DOC_EXEMPT` with the reason.\nmissing: \
+         {missing:?}\nexempt but accepting it: {stale:?}"
+    );
 }
