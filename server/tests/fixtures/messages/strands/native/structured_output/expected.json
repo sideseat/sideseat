@@ -74,8 +74,8 @@
           "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_YttHwiHfMEowEzmOv25YC2\",\"content\":[{\"type\":\"text\",\"text\":\"Successfully validated TripPlan structured output\"}]}",
-          "content_digest": "e1c54ede96c2fb55",
+          "content": "Successfully validated TripPlan structured output",
+          "content_digest": "5fe78a982d61c55c",
           "observation_type": "span"
         }
       ]

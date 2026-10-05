@@ -266,8 +266,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_FuoJ9mweQvSP2ZtcbSC4VG\",\"name\":\"book_flight\",\"content\":{\"error\":\"Failed to invoke Tool `book_flight` with parameters {'origin': 'London', 'destination': 'Oslo', 'date': '2026-11-14'}. Error: No s…[313 chars]",
-          "content_digest": "e733b4d9aceb33f2",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_FuoJ9mweQvSP2ZtcbSC4VG\",\"name\":\"book_flight\",\"content\":{\"error\":\"Failed to invoke Tool `book_flight` with parameters {'origin': 'London', 'destination': 'Oslo', 'date': '2026-11-14'}. Error: No s…[329 chars]",
+          "content_digest": "25ce2fea13f4c1a7",
           "tool_name": "book_flight",
           "observation_type": "tool"
         },
@@ -333,8 +333,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_FuoJ9mweQvSP2ZtcbSC4VG\",\"name\":\"book_flight\",\"content\":{\"error\":\"Failed to invoke Tool `book_flight` with parameters {'origin': 'London', 'destination': 'Oslo', 'date': '2026-11-14'}. Error: No s…[313 chars]",
-          "content_digest": "e733b4d9aceb33f2",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_FuoJ9mweQvSP2ZtcbSC4VG\",\"name\":\"book_flight\",\"content\":{\"error\":\"Failed to invoke Tool `book_flight` with parameters {'origin': 'London', 'destination': 'Oslo', 'date': '2026-11-14'}. Error: No s…[329 chars]",
+          "content_digest": "25ce2fea13f4c1a7",
           "tool_name": "book_flight",
           "observation_type": "tool"
         },
@@ -374,8 +374,8 @@
         "index": 0,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_FuoJ9mweQvSP2ZtcbSC4VG\",\"name\":\"book_flight\",\"content\":{\"error\":\"Failed to invoke Tool `book_flight` with parameters {'origin': 'London', 'destination': 'Oslo', 'date': '2026-11-14'}. Error: No s…[313 chars]",
-        "content_digest": "e733b4d9aceb33f2",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_FuoJ9mweQvSP2ZtcbSC4VG\",\"name\":\"book_flight\",\"content\":{\"error\":\"Failed to invoke Tool `book_flight` with parameters {'origin': 'London', 'destination': 'Oslo', 'date': '2026-11-14'}. Error: No s…[329 chars]",
+        "content_digest": "25ce2fea13f4c1a7",
         "tool_name": "book_flight",
         "observation_type": "tool"
       },

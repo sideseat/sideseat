@@ -67,8 +67,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_QGXx96RZTAeTcHCqiaFG5r\",\"content\":[{\"type\":\"text\",\"text\":\"395.0\"}]}",
-          "content_digest": "e7483293638a9508",
+          "content": "395.0",
+          "content_digest": "dc4bf9adfef95fa2",
           "observation_type": "generation"
         },
         {
@@ -151,8 +151,8 @@
           "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_QGXx96RZTAeTcHCqiaFG5r\",\"content\":[{\"type\":\"text\",\"text\":\"395.0\"}]}",
-          "content_digest": "e7483293638a9508",
+          "content": "395.0",
+          "content_digest": "dc4bf9adfef95fa2",
           "observation_type": "span"
         }
       ]
@@ -188,8 +188,8 @@
           "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_QGXx96RZTAeTcHCqiaFG5r\",\"content\":[{\"type\":\"text\",\"text\":\"395.0\"}]}",
-          "content_digest": "e7483293638a9508",
+          "content": "395.0",
+          "content_digest": "dc4bf9adfef95fa2",
           "observation_type": "span"
         }
       ]

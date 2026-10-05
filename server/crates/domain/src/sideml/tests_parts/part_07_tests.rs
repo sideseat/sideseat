@@ -840,3 +840,50 @@ fn a_content_list_beside_flattened_content_keeps_the_reasoning() {
         message.content
     );
 }
+
+/// The conventions' `gen_ai.choice` event wraps the model's turn in `message`, beside `index` and
+/// `finish_reason`. Read as it stood, the whole message was the content and rendered as raw JSON.
+#[test]
+fn a_choice_envelope_is_read_as_the_message_it_holds() {
+    let message = normalize(&json!({
+        "role": "assistant",
+        "index": 0,
+        "finish_reason": "tool_use",
+        "message": {"role": "assistant", "content": [
+            {"text": "Checking."},
+            {"toolUse": {"toolUseId": "call-1", "name": "get_weather", "input": {"city": "Rome"}}}
+        ]}
+    }));
+    assert!(
+        matches!(
+            &message.content[..],
+            [ContentBlock::Text { text }, ContentBlock::ToolUse { id: Some(id), name, .. }]
+                if text == "Checking." && id == "call-1" && name == "get_weather"
+        ),
+        "{:?}",
+        message.content
+    );
+    assert!(message.finish_reason.is_some(), "the envelope's finish reason is the message's");
+}
+
+/// A Converse tool result block reads in the canonical form a tool message's content takes, so one result
+/// carried both ways is one result: a lone text is its string, a lone structured value is that value.
+#[test]
+fn a_converse_tool_result_takes_the_canonical_content_form() {
+    let block = |content: serde_json::Value| {
+        normalize(&json!({"role": "user", "content": [
+            {"toolResult": {"toolUseId": "call-1", "content": content}}
+        ]}))
+    };
+    for (content, want) in [
+        (json!([{"text": "10% chance of rain."}]), json!("10% chance of rain.")),
+        (json!([{"json": {"city": "Rome"}}]), json!({"city": "Rome"})),
+    ] {
+        let message = block(content);
+        assert!(
+            matches!(&message.content[..], [ContentBlock::ToolResult { content, .. }] if *content == want),
+            "{:?}",
+            message.content
+        );
+    }
+}

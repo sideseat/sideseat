@@ -805,29 +805,24 @@ fn test_strands_choice_does_not_add_tool_result() {
 
 #[test]
 fn test_strands_tool_result_rich_format_from_content() {
-    // When tool message has toolResult in content (from extraction-level tool.result handling),
-    // normalize produces tool_result with RICH content (array format).
-    let input = json!({
-        "role": "tool",
-        "tool_call_id": "tooluse_abc123",
-        "content": [{"toolResult": {"toolUseId": "tooluse_abc123", "status": "success", "content": [{"text": "Weather: sunny"}]}}]
-    });
-    let output = normalize(&input);
-
-    assert_eq!(output.content.len(), 1);
-    assert_eq!(block_to_json(&output.content[0])["type"], "tool_result");
-    assert_eq!(
-        block_to_json(&output.content[0])["tool_use_id"],
-        "tooluse_abc123"
-    );
-    // Content should be the ARRAY format from Bedrock
-    let content = &block_to_json(&output.content[0])["content"];
-    assert!(
-        content.is_array(),
-        "content should be array, got: {}",
-        content
-    );
-    assert_eq!(content[0]["text"], "Weather: sunny");
+    // A toolResult takes the canonical content form a tool message's content takes: a lone text is its
+    // string, and only a result of several blocks stays a list, so nothing it returned is lost.
+    let normalized = |content: serde_json::Value| {
+        let output = normalize(&json!({
+            "role": "tool",
+            "tool_call_id": "tooluse_abc123",
+            "content": [{"toolResult": {"toolUseId": "tooluse_abc123", "status": "success", "content": content}}]
+        }));
+        assert_eq!(output.content.len(), 1);
+        let block = block_to_json(&output.content[0]);
+        assert_eq!(block["type"], "tool_result");
+        assert_eq!(block["tool_use_id"], "tooluse_abc123");
+        block["content"].clone()
+    };
+    assert_eq!(normalized(json!([{"text": "Weather: sunny"}])), json!("Weather: sunny"));
+    let rich = normalized(json!([{"text": "Weather: sunny"}, {"text": "Wind: light"}]));
+    assert!(rich.is_array(), "several blocks stay a list, got: {rich}");
+    assert_eq!(rich[0]["text"], "Weather: sunny");
 }
 
 // ============================================================================

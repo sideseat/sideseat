@@ -48,8 +48,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_ZqWpG8lkT0y4eKvrWy7AN8\",\"content\":[{\"type\":\"text\",\"text\":\"{\\\"city\\\": \\\"Barcelona\\\", \\\"forecast\\\": [{\\\"day\\\": 1, \\\"condition\\\": \\\"rain\\\", \\\"high_c\\\": 21}, {\\\"day\\\": 2, \\\"condition\\\": \\\"sunny\\\", \\\"…[259 chars]",
-          "content_digest": "e5a8cb1b1d567c28",
+          "content": "{\"city\": \"Barcelona\", \"forecast\": [{\"day\": 1, \"condition\": \"rain\", \"high_c\": 21}, {\"day\": 2, \"condition\": \"sunny\", \"high_c\": 22}]}",
+          "content_digest": "9de3a7898463a9f4",
           "observation_type": "generation"
         },
         {
@@ -65,8 +65,8 @@
           "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_B3c3rG0eSyTdpsnss5TDzx\",\"content\":[{\"type\":\"text\",\"text\":\"Handing off to writer: Please write a one-paragraph packing list for a trip to Barcelona based on the two-day forecast below.\"}]}",
-          "content_digest": "185c71dc11a9a474",
+          "content": "Handing off to writer: Please write a one-paragraph packing list for a trip to Barcelona based on the two-day forecast below.",
+          "content_digest": "412a1ec493e1484e",
           "observation_type": "generation"
         },
         {
@@ -196,8 +196,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_ZqWpG8lkT0y4eKvrWy7AN8\",\"content\":[{\"type\":\"text\",\"text\":\"{\\\"city\\\": \\\"Barcelona\\\", \\\"forecast\\\": [{\\\"day\\\": 1, \\\"condition\\\": \\\"rain\\\", \\\"high_c\\\": 21}, {\\\"day\\\": 2, \\\"condition\\\": \\\"sunny\\\", \\\"…[259 chars]",
-          "content_digest": "e5a8cb1b1d567c28",
+          "content": "{\"city\": \"Barcelona\", \"forecast\": [{\"day\": 1, \"condition\": \"rain\", \"high_c\": 21}, {\"day\": 2, \"condition\": \"sunny\", \"high_c\": 22}]}",
+          "content_digest": "9de3a7898463a9f4",
           "observation_type": "generation"
         },
         {
@@ -245,8 +245,8 @@
           "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_ZqWpG8lkT0y4eKvrWy7AN8\",\"content\":[{\"type\":\"text\",\"text\":\"{\\\"city\\\": \\\"Barcelona\\\", \\\"forecast\\\": [{\\\"day\\\": 1, \\\"condition\\\": \\\"rain\\\", \\\"high_c\\\": 21}, {\\\"day\\\": 2, \\\"condition\\\": \\\"sunny\\\", \\\"…[259 chars]",
-          "content_digest": "e5a8cb1b1d567c28",
+          "content": "{\"city\": \"Barcelona\", \"forecast\": [{\"day\": 1, \"condition\": \"rain\", \"high_c\": 21}, {\"day\": 2, \"condition\": \"sunny\", \"high_c\": 22}]}",
+          "content_digest": "9de3a7898463a9f4",
           "observation_type": "span"
         },
         {
@@ -262,8 +262,8 @@
           "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_B3c3rG0eSyTdpsnss5TDzx\",\"content\":[{\"type\":\"text\",\"text\":\"Handing off to writer: Please write a one-paragraph packing list for a trip to Barcelona based on the two-day forecast below.\"}]}",
-          "content_digest": "185c71dc11a9a474",
+          "content": "Handing off to writer: Please write a one-paragraph packing list for a trip to Barcelona based on the two-day forecast below.",
+          "content_digest": "412a1ec493e1484e",
           "observation_type": "span"
         }
       ]
@@ -317,8 +317,8 @@
           "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_ZqWpG8lkT0y4eKvrWy7AN8\",\"content\":[{\"type\":\"text\",\"text\":\"{\\\"city\\\": \\\"Barcelona\\\", \\\"forecast\\\": [{\\\"day\\\": 1, \\\"condition\\\": \\\"rain\\\", \\\"high_c\\\": 21}, {\\\"day\\\": 2, \\\"condition\\\": \\\"sunny\\\", \\\"…[259 chars]",
-          "content_digest": "e5a8cb1b1d567c28",
+          "content": "{\"city\": \"Barcelona\", \"forecast\": [{\"day\": 1, \"condition\": \"rain\", \"high_c\": 21}, {\"day\": 2, \"condition\": \"sunny\", \"high_c\": 22}]}",
+          "content_digest": "9de3a7898463a9f4",
           "observation_type": "span"
         }
       ]
@@ -356,8 +356,8 @@
           "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_ZqWpG8lkT0y4eKvrWy7AN8\",\"content\":[{\"type\":\"text\",\"text\":\"{\\\"city\\\": \\\"Barcelona\\\", \\\"forecast\\\": [{\\\"day\\\": 1, \\\"condition\\\": \\\"rain\\\", \\\"high_c\\\": 21}, {\\\"day\\\": 2, \\\"condition\\\": \\\"sunny\\\", \\\"…[259 chars]",
-          "content_digest": "e5a8cb1b1d567c28",
+          "content": "{\"city\": \"Barcelona\", \"forecast\": [{\"day\": 1, \"condition\": \"rain\", \"high_c\": 21}, {\"day\": 2, \"condition\": \"sunny\", \"high_c\": 22}]}",
+          "content_digest": "9de3a7898463a9f4",
           "observation_type": "span"
         },
         {
@@ -373,8 +373,8 @@
           "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_B3c3rG0eSyTdpsnss5TDzx\",\"content\":[{\"type\":\"text\",\"text\":\"Handing off to writer: Please write a one-paragraph packing list for a trip to Barcelona based on the two-day forecast below.\"}]}",
-          "content_digest": "185c71dc11a9a474",
+          "content": "Handing off to writer: Please write a one-paragraph packing list for a trip to Barcelona based on the two-day forecast below.",
+          "content_digest": "412a1ec493e1484e",
           "observation_type": "span"
         }
       ]

@@ -229,4 +229,45 @@ mod tests {
             "no declaration"
         );
     }
+
+    /// Bytes in a message are content, read as base64: OpenTelemetry's botocore instrumentation writes the
+    /// image and the PDF a user sent as byte values, and the generic hex conversion made them unreadable as
+    /// the media they are.
+    #[test]
+    fn byte_content_is_base64() {
+        let record = linked(LogRecord {
+            event_name: "gen_ai.user.message".to_string(),
+            body: Some(map(vec![kv(
+                "content",
+                AnyValue {
+                    value: Some(any_value::Value::ArrayValue(ArrayValue {
+                        values: vec![map(vec![kv(
+                            "image",
+                            map(vec![
+                                kv("format", text("jpeg")),
+                                kv(
+                                    "source",
+                                    map(vec![kv(
+                                        "bytes",
+                                        AnyValue {
+                                            value: Some(any_value::Value::BytesValue(vec![
+                                                0xff, 0xd8, 0xff,
+                                            ])),
+                                        },
+                                    )]),
+                                ),
+                            ]),
+                        )])],
+                    })),
+                },
+            )])),
+            ..Default::default()
+        });
+        let messages = log_record_messages(&record);
+        assert_eq!(
+            messages[0].content["content"][0]["image"]["source"]["bytes"],
+            json!("/9j/"),
+            "base64, not hex"
+        );
+    }
 }

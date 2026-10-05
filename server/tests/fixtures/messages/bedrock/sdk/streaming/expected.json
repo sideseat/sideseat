@@ -84,8 +84,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_1AESV2rtpr1i44F8ykUuRZ\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}]}",
-          "content_digest": "174980780c905487",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_1AESV2rtpr1i44F8ykUuRZ\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "88da4a44f6f1d6a3",
           "observation_type": "generation"
         },
         {
@@ -150,8 +150,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_1AESV2rtpr1i44F8ykUuRZ\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}]}",
-          "content_digest": "174980780c905487",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_1AESV2rtpr1i44F8ykUuRZ\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "88da4a44f6f1d6a3",
           "observation_type": "generation"
         },
         {
@@ -209,8 +209,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_1AESV2rtpr1i44F8ykUuRZ\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}]}",
-          "content_digest": "174980780c905487",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_1AESV2rtpr1i44F8ykUuRZ\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "88da4a44f6f1d6a3",
           "observation_type": "generation"
         },
         {
@@ -250,8 +250,8 @@
         "index": 1,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_1AESV2rtpr1i44F8ykUuRZ\",\"content\":[{\"type\":\"json\",\"data\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}]}",
-        "content_digest": "174980780c905487",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_1AESV2rtpr1i44F8ykUuRZ\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+        "content_digest": "88da4a44f6f1d6a3",
         "observation_type": "generation"
       },
       {

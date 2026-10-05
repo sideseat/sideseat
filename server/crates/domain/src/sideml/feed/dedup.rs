@@ -378,6 +378,21 @@ fn adopt_attachment_name(survivor: &mut BlockEntry, other: &BlockEntry) {
     }
 }
 
+/// A tool result keeps the failure a dropped copy of it reported.
+///
+/// One instrumentation can carry a result twice - as the tool message and inside the next request's user
+/// turn - and only one copy may say the call failed. The copy that wins on quality is not necessarily that
+/// one, and the failure is the one thing about a result a copy can lose without changing its text.
+fn adopt_failure(survivor: &mut BlockEntry, other: &BlockEntry) {
+    if let (
+        ContentBlock::ToolResult { is_error, .. },
+        ContentBlock::ToolResult { is_error: true, .. },
+    ) = (&mut survivor.content, &other.content)
+    {
+        *is_error = true;
+    }
+}
+
 /// Deduplicate blocks by identity, keeping highest quality version.
 ///
 /// Note: Birth time is computed during sorting, not here. Deduplication only
@@ -602,6 +617,7 @@ fn deduplicate_with_lineage(
                     block.clone()
                 };
                 adopt_attachment_name(existing, &other);
+                adopt_failure(existing, &other);
             })
             .or_insert((block, quality));
     }

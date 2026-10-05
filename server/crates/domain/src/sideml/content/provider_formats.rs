@@ -376,7 +376,13 @@ pub(super) fn try_bedrock_format(block: &JsonValue) -> Option<JsonValue> {
     // Tool result
     if let Some(tool_result) = block.get("toolResult") {
         let raw_content = tool_result.get("content").cloned();
-        let normalized_content = normalize_tool_result_content(raw_content);
+        // The same canonical form a tool-role message's content takes, so one result reads alike whether a
+        // producer wrote it as a Converse block or as a tool message: a lone text is its string, a lone
+        // structured value is that value.
+        let normalized_content = match normalize_tool_result_content(raw_content) {
+            JsonValue::Array(blocks) => super::tool_result::create_inner_content(&blocks),
+            other => other,
+        };
         return Some(json!({
             "type": "tool_result",
             "tool_use_id": tool_result.get("toolUseId"),

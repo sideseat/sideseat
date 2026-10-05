@@ -46,8 +46,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_abc123\",\"content\":[{\"type\":\"text\",\"text\":\"391\"}]}",
-          "content_digest": "a5f8c250f3ee95d9",
+          "content": "391",
+          "content_digest": "5245a39f6f120043",
           "observation_type": "generation"
         }
       ]

@@ -218,9 +218,38 @@ pub fn is_plain_data_value_legacy(val: &JsonValue) -> bool {
 /// let message = normalize(&raw);
 /// assert_eq!(message.role, ChatRole::User);
 /// ```
+/// The message inside a choice envelope, with the envelope's finish reason.
+///
+/// The conventions' `gen_ai.choice` event carries `index`, `finish_reason` and a `message` holding the
+/// model's turn. Read as it stands, the message member was the content, and a whole message is not a content
+/// block, so the answer rendered as raw JSON. Only an envelope that is not itself message-shaped is opened.
+fn unwrap_choice_envelope(raw: JsonValue) -> JsonValue {
+    // A role may already be on the envelope: the event's name implies one, and it is assigned before this.
+    let is_envelope = ["content", "contents", "parts", "tool_calls"]
+        .iter()
+        .all(|member| raw.get(member).is_none());
+    let Some(inner) = raw
+        .get("message")
+        .and_then(JsonValue::as_object)
+        .filter(|inner| inner.contains_key("content") || inner.contains_key("tool_calls"))
+    else {
+        return raw;
+    };
+    if !is_envelope {
+        return raw;
+    }
+    let mut message = inner.clone();
+    if let Some(reason) = raw.get("finish_reason")
+        && !message.contains_key("finish_reason")
+    {
+        message.insert("finish_reason".to_string(), reason.clone());
+    }
+    JsonValue::Object(message)
+}
+
 pub fn normalize(raw: &JsonValue) -> ChatMessage {
     // Unflatten dotted keys first (e.g., "tool_calls.0.function.name" -> nested)
-    let raw = unflatten::unflatten_dotted_keys(raw);
+    let raw = unwrap_choice_envelope(unflatten::unflatten_dotted_keys(raw));
 
     // Infer role: explicit role > tool_calls presence > default to user
     let role_str = raw.get("role").and_then(|r| r.as_str()).unwrap_or_else(|| {

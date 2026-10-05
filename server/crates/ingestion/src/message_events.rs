@@ -138,9 +138,34 @@ pub(crate) fn structured_attributes(attrs: &[KeyValue]) -> HashMap<String, Strin
 fn structured_value(value: &AnyValue) -> String {
     match &value.value {
         Some(any_value::Value::ArrayValue(_) | any_value::Value::KvlistValue(_)) => {
-            serde_json::to_string(&any_value_to_json(value)).unwrap_or_default()
+            serde_json::to_string(&content_json(value)).unwrap_or_default()
         }
         _ => any_value_to_string(value),
+    }
+}
+
+/// A structured event value as JSON, with bytes as base64.
+///
+/// Bytes inside a message are content - an image or a document a user sent - and base64 is how every
+/// content block carries binary data. The generic conversion writes bytes as hex, which suits an identifier
+/// and made such a payload unreadable as the media it is.
+fn content_json(value: &AnyValue) -> JsonValue {
+    use base64::Engine as _;
+    match &value.value {
+        Some(any_value::Value::BytesValue(bytes)) => {
+            json!(base64::engine::general_purpose::STANDARD.encode(bytes))
+        }
+        Some(any_value::Value::ArrayValue(array)) => {
+            JsonValue::Array(array.values.iter().map(content_json).collect())
+        }
+        Some(any_value::Value::KvlistValue(members)) => JsonValue::Object(
+            members
+                .values
+                .iter()
+                .filter_map(|kv| kv.value.as_ref().map(|v| (kv.key.clone(), content_json(v))))
+                .collect(),
+        ),
+        _ => any_value_to_json(value),
     }
 }
 
