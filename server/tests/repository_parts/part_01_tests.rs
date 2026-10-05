@@ -565,13 +565,17 @@ fn dependabot_covers_every_manifest_in_the_tree() {
 /// A list, and a short one, because the alternative is worse in both directions: no list means the sweep cannot
 /// distinguish a scrubbed archive from an unscrubbed one, and a *derived* answer would have to decide whether an
 /// arbitrary name is a real account, which nothing in a repository can know.
-const HOME_PLACEHOLDERS: [&str; 3] = [
+const HOME_PLACEHOLDERS: [&str; 6] = [
     // What the capture tool's `anonymise` substitutes (`examples/python/harness/harness/capture.py`).
     "sideseat",
     // What the replay archives under `scripts/tools/otel-replay/fixtures/` were scrubbed to.
     "test-user",
     // The generic in documentation and doc comments (`expand_path("~") -> /home/user`).
     "user",
+    // The foreign accounts the anonymiser's own tests feed in (`examples/python/harness/tests/`).
+    "someone",
+    "Jdoe1",
+    "a.b",
 ];
 
 /// No **tracked file** carries the capturing developer's account name — compressed archives included.
@@ -705,8 +709,10 @@ fn no_tracked_file_carries_the_capturing_users_name() {
                         Some((head, _)) => (head.to_string(), true),
                         None => (name, false),
                     };
+                    // The capture anonymiser replaces a name at equal length, so a shorter account
+                    // becomes the placeholder cut to its length (`sides` for a five-letter name).
                     let stands_for_a_home = HOME_PLACEHOLDERS.contains(&name.as_str())
-                        || (truncated
+                        || ((truncated || name.len() >= 3)
                             && HOME_PLACEHOLDERS
                                 .iter()
                                 .any(|placeholder| placeholder.starts_with(&name)));

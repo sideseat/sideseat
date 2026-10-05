@@ -1,11 +1,14 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --locked --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["zstandard>=0.23", "opentelemetry-proto==1.45.0"]
+# ///
 """Measure how compactly the captured trace corpus can be stored, layer by layer.
 
 Reproduces the numbers in docs/engineering/compact-storage.md. Offline: it reads the committed OTLP
 fixtures and nothing else.
 
-    uv run --no-project --with zstandard --with opentelemetry-proto==1.45.0 \\
-        python scripts/perf/storage-entropy.py [--exclude codex] [--only codex]
+    uv run --locked --script scripts/perf/storage-entropy.py [--exclude codex] [--only codex]
 
 A tenant is one framework's native captures: one application run many times, which is what a hosted
 user is. The SDK mode is left out because it replays the same model responses and would flatter
