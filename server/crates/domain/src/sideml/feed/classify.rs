@@ -38,6 +38,7 @@
 //! - Tool results from non-tool spans
 
 use super::types::BlockEntry;
+use crate::sideml::types::ChatRole;
 
 /// Determine if a block should use span_end for effective timestamp.
 ///
@@ -71,13 +72,22 @@ pub fn uses_span_end(block: &BlockEntry) -> bool {
     }
 
     // JSON structured output from output sources (e.g. output.value on root spans)
-    // Without this, effective_time = span_start, same as user input → wrong sort order
-    if block.is_json_block() && block.is_output_source() {
+    // Without this, effective_time = span_start, same as user input → wrong sort order.
+    // A user's or system's JSON in an output carrier that restates earlier observations is the input
+    // re-listed in a state snapshot - an attachment the request carried - and was given, not produced,
+    // so it keeps its own time. In a carrier that only emits, the role stands as stated.
+    if block.is_json_block() && block.is_output_source() && !is_restated_input(block) {
         return true;
     }
 
     // Everything else uses event_time
     false
+}
+
+fn is_restated_input(block: &BlockEntry) -> bool {
+    matches!(block.role, ChatRole::User | ChatRole::System)
+        && crate::sideml::carrier::semantics_for_context(&block.carrier_context())
+            .may_restate_prior_observations
 }
 
 #[cfg(test)]
@@ -259,5 +269,63 @@ mod tests {
         block.source_type = "attribute".to_string();
         block.source_attribute = Some("input.value".to_string());
         assert!(!uses_span_end(&block));
+    }
+
+    /// A user's attachment re-listed in an output snapshot was given to the span, not produced by it,
+    /// so it keeps its own time instead of sorting after the answer at the span's end.
+    #[test]
+    fn test_user_json_in_an_output_snapshot_uses_event_time() {
+        let mut block = make_block(
+            "json",
+            Some("agent"),
+            None,
+            MessageCategory::GenAIUserMessage,
+            None,
+        );
+        block.role = ChatRole::User;
+        block.content = ContentBlock::Json {
+            data: serde_json::json!({"file": {"filename": "task.pdf"}}),
+        };
+        block.source_type = "attribute".to_string();
+        block.source_attribute = Some("output.value".to_string());
+        assert!(block.is_output_source());
+        assert!(!uses_span_end(&block));
+    }
+
+    /// In a carrier that only emits, a stated role does not make the block a restatement.
+    #[test]
+    fn test_user_json_in_an_emission_uses_span_end() {
+        let mut block = make_block(
+            "json",
+            Some("generation"),
+            None,
+            MessageCategory::GenAIUserMessage,
+            None,
+        );
+        block.role = ChatRole::User;
+        block.content = ContentBlock::Json {
+            data: serde_json::json!({"name": "Jane"}),
+        };
+        block.source_type = "attribute".to_string();
+        block.source_attribute = Some("llm.output_messages.0.message".to_string());
+        assert!(block.is_output_source());
+        assert!(uses_span_end(&block));
+    }
+
+    /// `output.value` on a model call is that call's ordered response; elsewhere it is framework state
+    /// whose re-listed positions say nothing.
+    #[test]
+    fn a_model_calls_output_value_orders_parts_even_when_restated() {
+        let semantics = |observation_type| {
+            crate::sideml::carrier::semantics_for_context(&crate::rules::CarrierContext {
+                event: None,
+                attribute: Some("output.value"),
+                observation_type: Some(observation_type),
+                span_name: None,
+            })
+        };
+        assert!(semantics("generation").history_positions_provide_sequence_order);
+        assert!(semantics("generation").may_restate_prior_observations);
+        assert!(!semantics("chain").history_positions_provide_sequence_order);
     }
 }

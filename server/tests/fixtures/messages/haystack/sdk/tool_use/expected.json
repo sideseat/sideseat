@@ -484,7 +484,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_eA0urAIIP2PmtRJ2Clmwpw\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
           "content_digest": "5a2665d14f5ba470",
           "tool_name": "get_weather",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -493,7 +493,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_56UtgF2Stqtx4q5nKEBqRf\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
           "content_digest": "3309f0e9d92c1d71",
           "tool_name": "get_weather",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 4,
@@ -502,7 +502,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_I3aPV9XCsTMdg83wlBsoWJ\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
           "content_digest": "6e3fef6424c45958",
           "tool_name": "get_precipitation",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 5,
@@ -511,7 +511,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_k7ay3wCJvzM733qOfPYif4\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
           "content_digest": "72ff984c091631b5",
           "tool_name": "get_precipitation",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 6,
@@ -555,7 +555,7 @@
           "entry_type": "text",
           "content": "Paris will be sunny both days, with highs of 21°C and 22°C and only a 10% chance of rain tomorrow, so you can leave the umbrella at home. Tokyo will have rain on day 1 (80% chance tomorrow) with a high of 21°C, then sun on day 2 with a high…[277 chars]",
           "content_digest": "4c6504679ca19cac",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -602,7 +602,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_eA0urAIIP2PmtRJ2Clmwpw\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
           "content_digest": "5a2665d14f5ba470",
           "tool_name": "get_weather",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -611,7 +611,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_56UtgF2Stqtx4q5nKEBqRf\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
           "content_digest": "3309f0e9d92c1d71",
           "tool_name": "get_weather",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 4,
@@ -620,7 +620,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_I3aPV9XCsTMdg83wlBsoWJ\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
           "content_digest": "6e3fef6424c45958",
           "tool_name": "get_precipitation",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 5,
@@ -629,7 +629,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_k7ay3wCJvzM733qOfPYif4\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
           "content_digest": "72ff984c091631b5",
           "tool_name": "get_precipitation",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 6,
@@ -673,7 +673,7 @@
           "entry_type": "text",
           "content": "Paris will be sunny both days, with highs of 21°C and 22°C and only a 10% chance of rain tomorrow, so you can leave the umbrella at home. Tokyo will have rain on day 1 (80% chance tomorrow) with a high of 21°C, then sun on day 2 with a high…[277 chars]",
           "content_digest": "4c6504679ca19cac",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -681,23 +681,31 @@
   "feed_view": {
     "message_count": 11,
     "role_sequence": [
+      "assistant",
       "tool",
       "tool",
       "tool",
       "tool",
+      "assistant",
+      "assistant",
+      "assistant",
+      "assistant",
       "system",
-      "user",
-      "assistant",
-      "assistant",
-      "assistant",
-      "assistant",
-      "assistant"
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 0,
     "messages": [
       {
         "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Paris will be sunny both days, with highs of 21°C and 22°C and only a 10% chance of rain tomorrow, so you can leave the umbrella at home. Tokyo will have rain on day 1 (80% chance tomorrow) with a high of 21°C, then sun on day 2 with a high…[277 chars]",
+        "content_digest": "4c6504679ca19cac",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "80% chance of rain in Tokyo tomorrow.",
@@ -706,7 +714,7 @@
         "observation_type": "tool"
       },
       {
-        "index": 1,
+        "index": 2,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "10% chance of rain in Paris tomorrow.",
@@ -715,7 +723,7 @@
         "observation_type": "tool"
       },
       {
-        "index": 2,
+        "index": 3,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_56UtgF2Stqtx4q5nKEBqRf\",\"name\":\"get_weather\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
@@ -724,7 +732,7 @@
         "observation_type": "tool"
       },
       {
-        "index": 3,
+        "index": 4,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_eA0urAIIP2PmtRJ2Clmwpw\",\"name\":\"get_weather\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
@@ -733,7 +741,43 @@
         "observation_type": "tool"
       },
       {
-        "index": 4,
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_eA0urAIIP2PmtRJ2Clmwpw\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
+        "content_digest": "5a2665d14f5ba470",
+        "tool_name": "get_weather",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_56UtgF2Stqtx4q5nKEBqRf\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
+        "content_digest": "3309f0e9d92c1d71",
+        "tool_name": "get_weather",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_I3aPV9XCsTMdg83wlBsoWJ\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
+        "content_digest": "6e3fef6424c45958",
+        "tool_name": "get_precipitation",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_k7ay3wCJvzM733qOfPYif4\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
+        "content_digest": "72ff984c091631b5",
+        "tool_name": "get_precipitation",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -741,55 +785,11 @@
         "observation_type": "agent"
       },
       {
-        "index": 5,
+        "index": 10,
         "role": "user",
         "entry_type": "text",
         "content": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?",
         "content_digest": "12fbb235830ec0c9",
-        "observation_type": "agent"
-      },
-      {
-        "index": 6,
-        "role": "assistant",
-        "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_eA0urAIIP2PmtRJ2Clmwpw\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
-        "content_digest": "5a2665d14f5ba470",
-        "tool_name": "get_weather",
-        "observation_type": "agent"
-      },
-      {
-        "index": 7,
-        "role": "assistant",
-        "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_56UtgF2Stqtx4q5nKEBqRf\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
-        "content_digest": "3309f0e9d92c1d71",
-        "tool_name": "get_weather",
-        "observation_type": "agent"
-      },
-      {
-        "index": 8,
-        "role": "assistant",
-        "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_I3aPV9XCsTMdg83wlBsoWJ\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
-        "content_digest": "6e3fef6424c45958",
-        "tool_name": "get_precipitation",
-        "observation_type": "agent"
-      },
-      {
-        "index": 9,
-        "role": "assistant",
-        "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_k7ay3wCJvzM733qOfPYif4\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
-        "content_digest": "72ff984c091631b5",
-        "tool_name": "get_precipitation",
-        "observation_type": "agent"
-      },
-      {
-        "index": 10,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "Paris will be sunny both days, with highs of 21°C and 22°C and only a 10% chance of rain tomorrow, so you can leave the umbrella at home. Tokyo will have rain on day 1 (80% chance tomorrow) with a high of 21°C, then sun on day 2 with a high…[277 chars]",
-        "content_digest": "4c6504679ca19cac",
         "observation_type": "agent"
       }
     ]

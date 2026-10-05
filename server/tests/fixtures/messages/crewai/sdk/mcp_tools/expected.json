@@ -196,7 +196,7 @@
           "entry_type": "text",
           "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
           "content_digest": "9c00dff086e79acc",
-          "observation_type": "chain"
+          "observation_type": "agent"
         },
         {
           "index": 1,
@@ -204,7 +204,7 @@
           "entry_type": "text",
           "content": "Current Task: Use the calculator to compute (17 * 23) + 4, then report the result. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a s…[247 chars]",
           "content_digest": "0cdb1557d73d947c",
-          "observation_type": "chain"
+          "observation_type": "agent"
         },
         {
           "index": 2,
@@ -213,7 +213,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_8drru3rBrq9TZgW8J1vVCX\",\"name\":\"uv_run_locked_directory_scripts_tools_mcp_calculator_mc_6c1053df\",\"input\":{}}",
           "content_digest": "4885a26ee9ff2604",
           "tool_name": "uv_run_locked_directory_scripts_tools_mcp_calculator_mc_6c1053df",
-          "observation_type": "chain"
+          "observation_type": "agent"
         },
         {
           "index": 3,
@@ -221,7 +221,7 @@
           "entry_type": "tool_result",
           "content": "1 validation error for call[calculate] expression Missing required argument [type=missing_argument, input_value={}, input_type=dict] For further information visit https://errors.pydantic.dev/2.13/v/missing_argument",
           "content_digest": "a48e965b1a288c53",
-          "observation_type": "chain"
+          "observation_type": "agent"
         },
         {
           "index": 4,
@@ -230,7 +230,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_gTMwyYLlJn54NjfiCeWG5o\",\"name\":\"uv_run_locked_directory_scripts_tools_mcp_calculator_mc_6c1053df\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
           "content_digest": "a0c0c4ded7e19a86",
           "tool_name": "uv_run_locked_directory_scripts_tools_mcp_calculator_mc_6c1053df",
-          "observation_type": "chain"
+          "observation_type": "agent"
         },
         {
           "index": 5,
@@ -238,7 +238,7 @@
           "entry_type": "tool_result",
           "content": "395.0",
           "content_digest": "a060ef9b78c0dffa",
-          "observation_type": "chain"
+          "observation_type": "agent"
         },
         {
           "index": 6,
@@ -246,7 +246,7 @@
           "entry_type": "text",
           "content": "(17 × 23) + 4 = **395**.",
           "content_digest": "52aaa6c961cd0f52",
-          "observation_type": "chain"
+          "observation_type": "agent"
         }
       ]
     }
@@ -272,7 +272,7 @@
           "entry_type": "text",
           "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
           "content_digest": "9c00dff086e79acc",
-          "observation_type": "chain"
+          "observation_type": "agent"
         },
         {
           "index": 1,
@@ -280,7 +280,7 @@
           "entry_type": "text",
           "content": "Current Task: Use the calculator to compute (17 * 23) + 4, then report the result. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a s…[247 chars]",
           "content_digest": "0cdb1557d73d947c",
-          "observation_type": "chain"
+          "observation_type": "agent"
         },
         {
           "index": 2,
@@ -289,7 +289,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_8drru3rBrq9TZgW8J1vVCX\",\"name\":\"uv_run_locked_directory_scripts_tools_mcp_calculator_mc_6c1053df\",\"input\":{}}",
           "content_digest": "4885a26ee9ff2604",
           "tool_name": "uv_run_locked_directory_scripts_tools_mcp_calculator_mc_6c1053df",
-          "observation_type": "chain"
+          "observation_type": "agent"
         },
         {
           "index": 3,
@@ -297,7 +297,7 @@
           "entry_type": "tool_result",
           "content": "1 validation error for call[calculate] expression Missing required argument [type=missing_argument, input_value={}, input_type=dict] For further information visit https://errors.pydantic.dev/2.13/v/missing_argument",
           "content_digest": "a48e965b1a288c53",
-          "observation_type": "chain"
+          "observation_type": "agent"
         },
         {
           "index": 4,
@@ -306,7 +306,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_gTMwyYLlJn54NjfiCeWG5o\",\"name\":\"uv_run_locked_directory_scripts_tools_mcp_calculator_mc_6c1053df\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
           "content_digest": "a0c0c4ded7e19a86",
           "tool_name": "uv_run_locked_directory_scripts_tools_mcp_calculator_mc_6c1053df",
-          "observation_type": "chain"
+          "observation_type": "agent"
         },
         {
           "index": 5,
@@ -314,7 +314,7 @@
           "entry_type": "tool_result",
           "content": "395.0",
           "content_digest": "a060ef9b78c0dffa",
-          "observation_type": "chain"
+          "observation_type": "agent"
         },
         {
           "index": 6,
@@ -322,7 +322,7 @@
           "entry_type": "text",
           "content": "(17 × 23) + 4 = **395**.",
           "content_digest": "52aaa6c961cd0f52",
-          "observation_type": "chain"
+          "observation_type": "agent"
         }
       ]
     }
@@ -347,7 +347,7 @@
         "entry_type": "text",
         "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
         "content_digest": "9c00dff086e79acc",
-        "observation_type": "chain"
+        "observation_type": "agent"
       },
       {
         "index": 1,
@@ -355,7 +355,7 @@
         "entry_type": "text",
         "content": "Current Task: Use the calculator to compute (17 * 23) + 4, then report the result. This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a s…[247 chars]",
         "content_digest": "0cdb1557d73d947c",
-        "observation_type": "chain"
+        "observation_type": "agent"
       },
       {
         "index": 2,
@@ -364,7 +364,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_8drru3rBrq9TZgW8J1vVCX\",\"name\":\"uv_run_locked_directory_scripts_tools_mcp_calculator_mc_6c1053df\",\"input\":{}}",
         "content_digest": "4885a26ee9ff2604",
         "tool_name": "uv_run_locked_directory_scripts_tools_mcp_calculator_mc_6c1053df",
-        "observation_type": "chain"
+        "observation_type": "agent"
       },
       {
         "index": 3,
@@ -372,7 +372,7 @@
         "entry_type": "tool_result",
         "content": "1 validation error for call[calculate] expression Missing required argument [type=missing_argument, input_value={}, input_type=dict] For further information visit https://errors.pydantic.dev/2.13/v/missing_argument",
         "content_digest": "a48e965b1a288c53",
-        "observation_type": "chain"
+        "observation_type": "agent"
       },
       {
         "index": 4,
@@ -381,7 +381,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_gTMwyYLlJn54NjfiCeWG5o\",\"name\":\"uv_run_locked_directory_scripts_tools_mcp_calculator_mc_6c1053df\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
         "content_digest": "a0c0c4ded7e19a86",
         "tool_name": "uv_run_locked_directory_scripts_tools_mcp_calculator_mc_6c1053df",
-        "observation_type": "chain"
+        "observation_type": "agent"
       },
       {
         "index": 5,
@@ -389,7 +389,7 @@
         "entry_type": "tool_result",
         "content": "395.0",
         "content_digest": "a060ef9b78c0dffa",
-        "observation_type": "chain"
+        "observation_type": "agent"
       },
       {
         "index": 6,
@@ -397,7 +397,7 @@
         "entry_type": "text",
         "content": "(17 × 23) + 4 = **395**.",
         "content_digest": "52aaa6c961cd0f52",
-        "observation_type": "chain"
+        "observation_type": "agent"
       }
     ]
   }

@@ -357,7 +357,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_coq2K8MBbG9xGZwlfJSTnt\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
           "content_digest": "70ee35fbb46feb49",
           "tool_name": "get_weather",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -373,7 +373,7 @@
           "entry_type": "text",
           "content": "Rome will be sunny tomorrow with a high of 21°C. Wear a light long-sleeve shirt or t-shirt with a light jacket or sweater for the cooler morning and evening. Bring sunglasses and comfortable walking shoes.",
           "content_digest": "52ea09b0a0abcccc",
-          "observation_type": "chain"
+          "observation_type": "generation"
         }
       ]
     }
@@ -416,7 +416,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_coq2K8MBbG9xGZwlfJSTnt\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
           "content_digest": "70ee35fbb46feb49",
           "tool_name": "get_weather",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -432,7 +432,7 @@
           "entry_type": "text",
           "content": "Rome will be sunny tomorrow with a high of 21°C. Wear a light long-sleeve shirt or t-shirt with a light jacket or sweater for the cooler morning and evening. Bring sunglasses and comfortable walking shoes.",
           "content_digest": "52ea09b0a0abcccc",
-          "observation_type": "chain"
+          "observation_type": "generation"
         }
       ]
     }
@@ -457,7 +457,7 @@
         "entry_type": "text",
         "content": "Rome will be sunny tomorrow with a high of 21°C. Wear a light long-sleeve shirt or t-shirt with a light jacket or sweater for the cooler morning and evening. Bring sunglasses and comfortable walking shoes.",
         "content_digest": "52ea09b0a0abcccc",
-        "observation_type": "chain"
+        "observation_type": "generation"
       },
       {
         "index": 1,
@@ -482,7 +482,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_coq2K8MBbG9xGZwlfJSTnt\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
         "content_digest": "70ee35fbb46feb49",
         "tool_name": "get_weather",
-        "observation_type": "chain"
+        "observation_type": "generation"
       },
       {
         "index": 4,

@@ -109,7 +109,7 @@
           "entry_type": "text",
           "content": "Kyoto is best known for its well-preserved temples, shrines, geisha districts, and traditional culture, having served as Japan's imperial capital for over a thousand years.",
           "content_digest": "14e01ad0dfe7859d",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -147,7 +147,7 @@
           "entry_type": "text",
           "content": "Kyoto is best known for its well-preserved temples, shrines, geisha districts, and traditional culture, having served as Japan's imperial capital for over a thousand years.",
           "content_digest": "14e01ad0dfe7859d",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -156,8 +156,8 @@
     "message_count": 3,
     "role_sequence": [
       "system",
-      "user",
-      "assistant"
+      "assistant",
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 0,
@@ -172,18 +172,18 @@
       },
       {
         "index": 1,
-        "role": "user",
-        "entry_type": "text",
-        "content": "In one sentence, what is Kyoto best known for?",
-        "content_digest": "0f69e296627452c3",
-        "observation_type": "agent"
-      },
-      {
-        "index": 2,
         "role": "assistant",
         "entry_type": "text",
         "content": "Kyoto is best known for its well-preserved temples, shrines, geisha districts, and traditional culture, having served as Japan's imperial capital for over a thousand years.",
         "content_digest": "14e01ad0dfe7859d",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "In one sentence, what is Kyoto best known for?",
+        "content_digest": "0f69e296627452c3",
         "observation_type": "agent"
       }
     ]

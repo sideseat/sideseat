@@ -135,8 +135,8 @@
         "system",
         "user",
         "assistant",
-        "tool",
-        "assistant"
+        "assistant",
+        "tool"
       ],
       "tool_names": [
         "book_flight"
@@ -162,6 +162,14 @@
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "redacted_thinking",
+          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQS8QUKEggSEAEYAjgBQgh0aGlua2luZxIMhlS1AD/hzeSv0FL8Ggz7rkPtQzHQqyQWhJwiMO7bmdDyTDztfuuTrLwaMMqOFiLEhAyrVg46UlMGNbs7t+7ERrcVnWemirQLE475zSqMBVwtDKhEX/Ih00dYpDQZsYS8ESIF5ru/cU5Da6rFzXLKBUx9Di11jisGDyVIW8xk…[1054 chars]",
+          "content_digest": "8c0b1636301b81f5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_ArzCvJ4ihWeDE7rvOT8ySn\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
           "content_digest": "f9091e0acf10cad7",
@@ -169,19 +177,11 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "Error: BookingUnavailable('No seats from London to Oslo on 2026-11-14: the booking system is offline.') Please fix your mistakes.",
           "content_digest": "81520774d3443f66",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
-          "role": "assistant",
-          "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQS8QUKEggSEAEYAjgBQgh0aGlua2luZxIMhlS1AD/hzeSv0FL8Ggz7rkPtQzHQqyQWhJwiMO7bmdDyTDztfuuTrLwaMMqOFiLEhAyrVg46UlMGNbs7t+7ERrcVnWemirQLE475zSqMBVwtDKhEX/Ih00dYpDQZsYS8ESIF5ru/cU5Da6rFzXLKBUx9Di11jisGDyVIW8xk…[1054 chars]",
-          "content_digest": "8c0b1636301b81f5",
           "observation_type": "generation"
         }
       ]
@@ -699,7 +699,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_BGI9ojCQpEhWL2n43aI0rQ\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
           "content_digest": "b384b3c1776dca13",
           "tool_name": "book_flight",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -715,7 +715,7 @@
           "entry_type": "redacted_thinking",
           "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQS8QUKEggSEAEYAjgBQgh0aGlua2luZxIMhlS1AD/hzeSv0FL8Ggz7rkPtQzHQqyQWhJwiMO7bmdDyTDztfuuTrLwaMMqOFiLEhAyrVg46UlMGNbs7t+7ERrcVnWemirQLE475zSqMBVwtDKhEX/Ih00dYpDQZsYS8ESIF5ru/cU5Da6rFzXLKBUx9Di11jisGDyVIW8xk…[1054 chars]",
           "content_digest": "8c0b1636301b81f5",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 5,
@@ -724,7 +724,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_ArzCvJ4ihWeDE7rvOT8ySn\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
           "content_digest": "f9091e0acf10cad7",
           "tool_name": "book_flight",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 6,
@@ -740,7 +740,7 @@
           "entry_type": "text",
           "content": "I couldn't book the London to Oslo flight for 2026-11-14. I tried twice, and both times the booking system was offline and returned a \"no seats\" error. The details I sent were correct, so this isn't an input mistake. I can try again later, …[275 chars]",
           "content_digest": "2e2eb6d53f94ad20",
-          "observation_type": "chain"
+          "observation_type": "generation"
         }
       ]
     }
@@ -786,7 +786,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_BGI9ojCQpEhWL2n43aI0rQ\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
           "content_digest": "b384b3c1776dca13",
           "tool_name": "book_flight",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -802,7 +802,7 @@
           "entry_type": "redacted_thinking",
           "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQS8QUKEggSEAEYAjgBQgh0aGlua2luZxIMhlS1AD/hzeSv0FL8Ggz7rkPtQzHQqyQWhJwiMO7bmdDyTDztfuuTrLwaMMqOFiLEhAyrVg46UlMGNbs7t+7ERrcVnWemirQLE475zSqMBVwtDKhEX/Ih00dYpDQZsYS8ESIF5ru/cU5Da6rFzXLKBUx9Di11jisGDyVIW8xk…[1054 chars]",
           "content_digest": "8c0b1636301b81f5",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 5,
@@ -811,7 +811,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_ArzCvJ4ihWeDE7rvOT8ySn\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
           "content_digest": "f9091e0acf10cad7",
           "tool_name": "book_flight",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 6,
@@ -827,7 +827,7 @@
           "entry_type": "text",
           "content": "I couldn't book the London to Oslo flight for 2026-11-14. I tried twice, and both times the booking system was offline and returned a \"no seats\" error. The details I sent were correct, so this isn't an input mistake. I can try again later, …[275 chars]",
           "content_digest": "2e2eb6d53f94ad20",
-          "observation_type": "chain"
+          "observation_type": "generation"
         }
       ]
     }
@@ -855,7 +855,7 @@
         "entry_type": "text",
         "content": "I couldn't book the London to Oslo flight for 2026-11-14. I tried twice, and both times the booking system was offline and returned a \"no seats\" error. The details I sent were correct, so this isn't an input mistake. I can try again later, …[275 chars]",
         "content_digest": "2e2eb6d53f94ad20",
-        "observation_type": "chain"
+        "observation_type": "generation"
       },
       {
         "index": 1,
@@ -871,7 +871,7 @@
         "entry_type": "redacted_thinking",
         "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQS8QUKEggSEAEYAjgBQgh0aGlua2luZxIMhlS1AD/hzeSv0FL8Ggz7rkPtQzHQqyQWhJwiMO7bmdDyTDztfuuTrLwaMMqOFiLEhAyrVg46UlMGNbs7t+7ERrcVnWemirQLE475zSqMBVwtDKhEX/Ih00dYpDQZsYS8ESIF5ru/cU5Da6rFzXLKBUx9Di11jisGDyVIW8xk…[1054 chars]",
         "content_digest": "8c0b1636301b81f5",
-        "observation_type": "chain"
+        "observation_type": "generation"
       },
       {
         "index": 3,
@@ -880,7 +880,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_ArzCvJ4ihWeDE7rvOT8ySn\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
         "content_digest": "f9091e0acf10cad7",
         "tool_name": "book_flight",
-        "observation_type": "chain"
+        "observation_type": "generation"
       },
       {
         "index": 4,
@@ -905,7 +905,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_BGI9ojCQpEhWL2n43aI0rQ\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
         "content_digest": "b384b3c1776dca13",
         "tool_name": "book_flight",
-        "observation_type": "chain"
+        "observation_type": "generation"
       },
       {
         "index": 7,

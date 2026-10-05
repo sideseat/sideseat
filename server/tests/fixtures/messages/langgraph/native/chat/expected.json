@@ -127,7 +127,7 @@
           "entry_type": "text",
           "content": "Kyoto is best known for its well-preserved temples, shrines, geisha districts, and traditional culture, having served as Japan's imperial capital for over a thousand years.",
           "content_digest": "14e01ad0dfe7859d",
-          "observation_type": "chain"
+          "observation_type": "generation"
         }
       ]
     }
@@ -165,7 +165,7 @@
           "entry_type": "text",
           "content": "Kyoto is best known for its well-preserved temples, shrines, geisha districts, and traditional culture, having served as Japan's imperial capital for over a thousand years.",
           "content_digest": "14e01ad0dfe7859d",
-          "observation_type": "chain"
+          "observation_type": "generation"
         }
       ]
     }
@@ -194,7 +194,7 @@
         "entry_type": "text",
         "content": "Kyoto is best known for its well-preserved temples, shrines, geisha districts, and traditional culture, having served as Japan's imperial capital for over a thousand years.",
         "content_digest": "14e01ad0dfe7859d",
-        "observation_type": "chain"
+        "observation_type": "generation"
       },
       {
         "index": 2,

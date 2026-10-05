@@ -450,7 +450,7 @@
           "entry_type": "redacted_thinking",
           "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSwQQKEggSEAEYAjgBQgh0aGlua2luZxIM4Ig7RWtntUDbFc9RGgxUsI09SuKRZFDM2EUiMG0QYEWnEqoeesvw3mvhGUtt7Tct7bgF+EYMpdhnz3dMiW+FJROo0BDoe52eqM6dOyrcAwGskwfWyUXZqD0xR+YjqzhSiUrCAwTxYaIn211Uz/30vx0yUy+svYxVkjJxwcwi…[818 chars]",
           "content_digest": "24f5f5667e8d54da",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -458,7 +458,7 @@
           "entry_type": "text",
           "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has winding streets, fado bars, and views from the Miradouro das Portas do Sol, and it's walkable to major sights. If you'd prefer something flatter and more central, Baixa is a good alt…[249 chars]",
           "content_digest": "35686d25b663b5fb",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 4,
@@ -474,7 +474,7 @@
           "entry_type": "text",
           "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod, thin fried potatoes, eggs, and olives. For a sweet finish, pair it with a pastel de nata.",
           "content_digest": "4ae978dc0fba7fe0",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 6,
@@ -490,7 +490,7 @@
           "entry_type": "text",
           "content": "Stay in Alfama for its historic charm and fado bars, and try bacalhau à Brás, a comforting dish of salt cod, potatoes, and eggs.",
           "content_digest": "02474f77858ddce7",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -533,7 +533,7 @@
           "entry_type": "redacted_thinking",
           "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSwQQKEggSEAEYAjgBQgh0aGlua2luZxIM4Ig7RWtntUDbFc9RGgxUsI09SuKRZFDM2EUiMG0QYEWnEqoeesvw3mvhGUtt7Tct7bgF+EYMpdhnz3dMiW+FJROo0BDoe52eqM6dOyrcAwGskwfWyUXZqD0xR+YjqzhSiUrCAwTxYaIn211Uz/30vx0yUy+svYxVkjJxwcwi…[818 chars]",
           "content_digest": "24f5f5667e8d54da",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -541,7 +541,7 @@
           "entry_type": "text",
           "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has winding streets, fado bars, and views from the Miradouro das Portas do Sol, and it's walkable to major sights. If you'd prefer something flatter and more central, Baixa is a good alt…[249 chars]",
           "content_digest": "35686d25b663b5fb",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 4,
@@ -557,7 +557,7 @@
           "entry_type": "text",
           "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod, thin fried potatoes, eggs, and olives. For a sweet finish, pair it with a pastel de nata.",
           "content_digest": "4ae978dc0fba7fe0",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 6,
@@ -573,7 +573,7 @@
           "entry_type": "text",
           "content": "Stay in Alfama for its historic charm and fado bars, and try bacalhau à Brás, a comforting dish of salt cod, potatoes, and eggs.",
           "content_digest": "02474f77858ddce7",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -581,20 +581,28 @@
   "feed_view": {
     "message_count": 8,
     "role_sequence": [
+      "assistant",
       "user",
       "assistant",
       "user",
+      "assistant",
       "assistant",
       "system",
-      "user",
-      "assistant",
-      "assistant"
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 0,
     "messages": [
       {
         "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Stay in Alfama for its historic charm and fado bars, and try bacalhau à Brás, a comforting dish of salt cod, potatoes, and eggs.",
+        "content_digest": "02474f77858ddce7",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
         "role": "user",
         "entry_type": "text",
         "content": "Summarise your two suggestions in one sentence.",
@@ -602,15 +610,15 @@
         "observation_type": "agent"
       },
       {
-        "index": 1,
+        "index": 2,
         "role": "assistant",
         "entry_type": "text",
-        "content": "Stay in Alfama for its historic charm and fado bars, and try bacalhau à Brás, a comforting dish of salt cod, potatoes, and eggs.",
-        "content_digest": "02474f77858ddce7",
-        "observation_type": "agent"
+        "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod, thin fried potatoes, eggs, and olives. For a sweet finish, pair it with a pastel de nata.",
+        "content_digest": "4ae978dc0fba7fe0",
+        "observation_type": "generation"
       },
       {
-        "index": 2,
+        "index": 3,
         "role": "user",
         "entry_type": "text",
         "content": "What is one dish I should try there?",
@@ -618,15 +626,23 @@
         "observation_type": "agent"
       },
       {
-        "index": 3,
+        "index": 4,
         "role": "assistant",
-        "entry_type": "text",
-        "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod, thin fried potatoes, eggs, and olives. For a sweet finish, pair it with a pastel de nata.",
-        "content_digest": "4ae978dc0fba7fe0",
-        "observation_type": "agent"
+        "entry_type": "redacted_thinking",
+        "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSwQQKEggSEAEYAjgBQgh0aGlua2luZxIM4Ig7RWtntUDbFc9RGgxUsI09SuKRZFDM2EUiMG0QYEWnEqoeesvw3mvhGUtt7Tct7bgF+EYMpdhnz3dMiW+FJROo0BDoe52eqM6dOyrcAwGskwfWyUXZqD0xR+YjqzhSiUrCAwTxYaIn211Uz/30vx0yUy+svYxVkjJxwcwi…[818 chars]",
+        "content_digest": "24f5f5667e8d54da",
+        "observation_type": "generation"
       },
       {
-        "index": 4,
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has winding streets, fado bars, and views from the Miradouro das Portas do Sol, and it's walkable to major sights. If you'd prefer something flatter and more central, Baixa is a good alt…[249 chars]",
+        "content_digest": "35686d25b663b5fb",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -634,27 +650,11 @@
         "observation_type": "agent"
       },
       {
-        "index": 5,
+        "index": 7,
         "role": "user",
         "entry_type": "text",
         "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
         "content_digest": "c366c7539466c187",
-        "observation_type": "agent"
-      },
-      {
-        "index": 6,
-        "role": "assistant",
-        "entry_type": "redacted_thinking",
-        "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSwQQKEggSEAEYAjgBQgh0aGlua2luZxIM4Ig7RWtntUDbFc9RGgxUsI09SuKRZFDM2EUiMG0QYEWnEqoeesvw3mvhGUtt7Tct7bgF+EYMpdhnz3dMiW+FJROo0BDoe52eqM6dOyrcAwGskwfWyUXZqD0xR+YjqzhSiUrCAwTxYaIn211Uz/30vx0yUy+svYxVkjJxwcwi…[818 chars]",
-        "content_digest": "24f5f5667e8d54da",
-        "observation_type": "agent"
-      },
-      {
-        "index": 7,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has winding streets, fado bars, and views from the Miradouro das Portas do Sol, and it's walkable to major sights. If you'd prefer something flatter and more central, Baixa is a good alt…[249 chars]",
-        "content_digest": "35686d25b663b5fb",
         "observation_type": "agent"
       }
     ]

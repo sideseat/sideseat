@@ -627,14 +627,35 @@ const SPAN_CLOCK_SKEW: chrono::TimeDelta = chrono::TimeDelta::milliseconds(1);
 /// the model call's copy can carry the earlier time. The survivor then followed clock noise, and
 /// with it the observation the message was attributed to. The spans relating the two copies may
 /// carry no messages and be absent from the rows, so the kinds of span decide. Beyond the skew, and
-/// between any other kinds of span, time stands; produced copies are left to time as well, since the
-/// model call produced the message before anything re-listed it.
+/// between any other kinds of span, time stands.
+///
+/// A produced copy is the original when it is a model call's own emission, which the sort before this
+/// already puts first (see `is_fresh_emission`). Otherwise every produced copy re-lists, and the one
+/// nearest the work is the original: an enclosing span's report of what a span below it produced is
+/// the enclosing span restating it, whichever of the two ended first - so the earliest is replaced by a
+/// produced copy on a span it encloses, repeatedly, until none is left below it.
 fn original_copy(
     blocks: &[BlockEntry],
     sorted: &[(usize, bool, bool, chrono::DateTime<chrono::Utc>)],
 ) -> usize {
     let (first, is_output, _, time) = sorted[0];
-    if is_output || !blocks[first].is_generation_span() {
+    if is_output {
+        if is_fresh_emission(&blocks[first]) {
+            return 0;
+        }
+        // Bounded by the number of copies, so a span path that loops cannot.
+        let mut keep = 0;
+        for _ in 0..sorted.len() {
+            match sorted.iter().position(|&(index, other_output, _, _)| {
+                other_output && encloses(&blocks[sorted[keep].0], &blocks[index])
+            }) {
+                Some(inner) => keep = inner,
+                None => break,
+            }
+        }
+        return keep;
+    }
+    if !blocks[first].is_generation_span() {
         return 0;
     }
     sorted
@@ -643,6 +664,22 @@ fn original_copy(
             !other_output && other_time - time < SPAN_CLOCK_SKEW && blocks[index].is_agent_span()
         })
         .unwrap_or(0)
+}
+
+/// Whether `outer`'s span is a strict ancestor of `inner`'s.
+fn encloses(outer: &BlockEntry, inner: &BlockEntry) -> bool {
+    outer.span_id != inner.span_id
+        && inner
+            .span_path
+            .split_last()
+            .is_some_and(|(_, ancestors)| ancestors.contains(&outer.span_id))
+}
+
+/// A model call reporting what it produced, in a carrier that never restates earlier observations.
+fn is_fresh_emission(block: &BlockEntry) -> bool {
+    block.is_generation_span()
+        && !crate::sideml::carrier::semantics_for_context(&block.carrier_context())
+            .may_restate_prior_observations
 }
 
 /// Find indices of duplicate blocks that should be marked as history.
@@ -720,9 +757,23 @@ fn find_duplicate_indices(
             })
             .collect();
 
+        // Between two *produced* copies, a model call's own emission decides before time does: it is
+        // the response itself, and an enclosing span - or a later call's accumulated state - that
+        // reports the same content re-lists it. Time cannot say which is which: an enclosing span that
+        // ends in the same millisecond, or a callback that closes the model call's span after its
+        // parent's, put the re-listing first. Only an emission counts, so a generation carrier that may
+        // restate earlier observations is left to time like any other re-listing.
         sorted.sort_by(|a, b| {
+            let emission_first = || {
+                if a.1 && b.1 {
+                    is_fresh_emission(&blocks[b.0]).cmp(&is_fresh_emission(&blocks[a.0]))
+                } else {
+                    std::cmp::Ordering::Equal
+                }
+            };
             b.1.cmp(&a.1)
                 .then_with(|| b.2.cmp(&a.2))
+                .then_with(emission_first)
                 .then_with(|| a.3.cmp(&b.3))
                 .then_with(|| blocks[a.0].origin_rank().cmp(&blocks[b.0].origin_rank()))
         });

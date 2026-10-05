@@ -844,3 +844,154 @@ fn a_root_model_call_keeps_its_question_when_a_later_call_resends_tool_results()
         "the question is the turn's only record"
     );
 }
+
+/// Two copies of one response, both reported as output: the model call's and an enclosing span's
+/// re-listing of it. The model call's survives even when the enclosing span ends first, because time
+/// cannot tell a producer from a re-listing - an enclosing span closed in the same millisecond, or a
+/// callback that ends the model call's span after its parent's, used to give the answer to the parent.
+#[test]
+fn a_model_calls_own_output_outranks_an_earlier_relisting() {
+    let start = Utc::now();
+    let mut relisting = make_block(
+        "text",
+        Some("chain"),
+        None,
+        MessageCategory::GenAIAssistantMessage,
+        None,
+    );
+    relisting.span_id = "chain".to_string();
+    relisting.span_path = vec!["chain".to_string()];
+    relisting.source_attribute = Some("output.value".to_string());
+    relisting.source_type = "attribute".to_string();
+    relisting.event_name = None;
+    let mut produced = relisting.clone();
+    produced.span_id = "model".to_string();
+    produced.parent_span_id = Some("chain".to_string());
+    produced.span_path = vec!["chain".to_string(), "model".to_string()];
+    produced.observation_type = Some("generation".to_string());
+    produced.source_attribute = Some("llm.output_messages.0.message".to_string());
+    for block in [&mut relisting, &mut produced] {
+        block.timestamp = start;
+        block.uses_span_end = true;
+    }
+    assert!(relisting.is_output_source() && produced.is_output_source());
+    let span_timestamps: HashMap<String, SpanTimestamps> = [
+        ("chain", start + chrono::TimeDelta::milliseconds(5)),
+        ("model", start + chrono::TimeDelta::milliseconds(6)),
+    ]
+    .into_iter()
+    .map(|(span, end)| {
+        (
+            span.to_string(),
+            SpanTimestamps {
+                span_start: start,
+                span_end: Some(end),
+            },
+        )
+    })
+    .collect();
+    let mut blocks = vec![relisting, produced];
+    mark_history(&mut blocks, &span_timestamps);
+    assert!(blocks[0].is_history, "the re-listing is the copy");
+    assert!(
+        !blocks[1].is_history,
+        "the model call's output is the original"
+    );
+}
+
+/// A generation carrier that may restate earlier observations is a re-listing like any other, so
+/// between it and another re-listing time decides, not the kind of span.
+#[test]
+fn a_generations_restating_output_is_left_to_time() {
+    let start = Utc::now();
+    let mut earlier = make_block(
+        "text",
+        Some("agent"),
+        None,
+        MessageCategory::GenAIAssistantMessage,
+        None,
+    );
+    earlier.span_id = "agent".to_string();
+    earlier.span_path = vec!["agent".to_string()];
+    earlier.source_attribute = Some("output.value".to_string());
+    earlier.source_type = "attribute".to_string();
+    earlier.event_name = None;
+    let mut restated = earlier.clone();
+    // A sibling, not a span the agent encloses: a later call re-listing an earlier answer.
+    restated.span_id = "later-model".to_string();
+    restated.span_path = vec!["later-model".to_string()];
+    restated.observation_type = Some("generation".to_string());
+    for block in [&mut earlier, &mut restated] {
+        block.timestamp = start;
+        block.uses_span_end = true;
+    }
+    assert!(!is_fresh_emission(&restated), "accumulated state restates");
+    let span_timestamps: HashMap<String, SpanTimestamps> = [
+        ("agent", start + chrono::TimeDelta::milliseconds(3)),
+        ("later-model", start + chrono::TimeDelta::milliseconds(4)),
+    ]
+    .into_iter()
+    .map(|(span, end)| {
+        (
+            span.to_string(),
+            SpanTimestamps {
+                span_start: start,
+                span_end: Some(end),
+            },
+        )
+    })
+    .collect();
+    let mut blocks = vec![restated, earlier];
+    mark_history(&mut blocks, &span_timestamps);
+    assert!(blocks[0].is_history, "the later restatement is the copy");
+    assert!(!blocks[1].is_history, "the earlier report stands");
+}
+
+/// Two re-listings of one produced message, one enclosing the other: the inner one is nearer the work,
+/// whichever ended first.
+#[test]
+fn an_enclosing_relisting_loses_to_the_span_it_encloses() {
+    let start = Utc::now();
+    let mut outer = make_block(
+        "text",
+        Some("chain"),
+        None,
+        MessageCategory::GenAIAssistantMessage,
+        None,
+    );
+    outer.span_id = "kickoff".to_string();
+    outer.span_path = vec!["kickoff".to_string()];
+    outer.source_attribute = Some("output.value".to_string());
+    outer.source_type = "attribute".to_string();
+    outer.event_name = None;
+    let mut inner = outer.clone();
+    inner.span_id = "task".to_string();
+    inner.span_path = vec!["kickoff".to_string(), "task".to_string()];
+    inner.observation_type = Some("agent".to_string());
+    for block in [&mut outer, &mut inner] {
+        block.timestamp = start;
+        block.uses_span_end = true;
+    }
+    let span_timestamps: HashMap<String, SpanTimestamps> = [
+        ("kickoff", start + chrono::TimeDelta::milliseconds(3)),
+        ("task", start + chrono::TimeDelta::milliseconds(4)),
+    ]
+    .into_iter()
+    .map(|(span, end)| {
+        (
+            span.to_string(),
+            SpanTimestamps {
+                span_start: start,
+                span_end: Some(end),
+            },
+        )
+    })
+    .collect();
+    let mut blocks = vec![outer, inner];
+    mark_history(&mut blocks, &span_timestamps);
+    assert!(blocks[0].is_history, "the enclosing span restates it");
+    assert!(
+        !blocks[1].is_history,
+        "the enclosed span reported it first-hand"
+    );
+}

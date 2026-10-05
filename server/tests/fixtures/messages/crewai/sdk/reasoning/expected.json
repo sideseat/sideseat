@@ -102,7 +102,7 @@
           "entry_type": "text",
           "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
           "content_digest": "9c00dff086e79acc",
-          "observation_type": "chain"
+          "observation_type": "agent"
         },
         {
           "index": 1,
@@ -110,7 +110,7 @@
           "entry_type": "text",
           "content": "Current Task: Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the …[446 chars]",
           "content_digest": "a9a04fcc0ae0c006",
-          "observation_type": "chain"
+          "observation_type": "agent"
         },
         {
           "index": 2,
@@ -118,7 +118,7 @@
           "entry_type": "text",
           "content": "The fastest total crossing time is **17 minutes**. The schedule is: 1 and 2 cross together (2 min), 1 returns with the torch (1 min), 5 and 10 cross together (10 min), 2 returns with the torch (2 min), then 1 and 2 cross again (2 min). That…[364 chars]",
           "content_digest": "d7890433c4425b62",
-          "observation_type": "chain"
+          "observation_type": "agent"
         }
       ]
     }
@@ -140,7 +140,7 @@
           "entry_type": "text",
           "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
           "content_digest": "9c00dff086e79acc",
-          "observation_type": "chain"
+          "observation_type": "agent"
         },
         {
           "index": 1,
@@ -148,7 +148,7 @@
           "entry_type": "text",
           "content": "Current Task: Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the …[446 chars]",
           "content_digest": "a9a04fcc0ae0c006",
-          "observation_type": "chain"
+          "observation_type": "agent"
         },
         {
           "index": 2,
@@ -156,7 +156,7 @@
           "entry_type": "text",
           "content": "The fastest total crossing time is **17 minutes**. The schedule is: 1 and 2 cross together (2 min), 1 returns with the torch (1 min), 5 and 10 cross together (10 min), 2 returns with the torch (2 min), then 1 and 2 cross again (2 min). That…[364 chars]",
           "content_digest": "d7890433c4425b62",
-          "observation_type": "chain"
+          "observation_type": "agent"
         }
       ]
     }
@@ -177,7 +177,7 @@
         "entry_type": "text",
         "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
         "content_digest": "9c00dff086e79acc",
-        "observation_type": "chain"
+        "observation_type": "agent"
       },
       {
         "index": 1,
@@ -185,7 +185,7 @@
         "entry_type": "text",
         "content": "Current Task: Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the …[446 chars]",
         "content_digest": "a9a04fcc0ae0c006",
-        "observation_type": "chain"
+        "observation_type": "agent"
       },
       {
         "index": 2,
@@ -193,7 +193,7 @@
         "entry_type": "text",
         "content": "The fastest total crossing time is **17 minutes**. The schedule is: 1 and 2 cross together (2 min), 1 returns with the torch (1 min), 5 and 10 cross together (10 min), 2 returns with the torch (2 min), then 1 and 2 cross again (2 min). That…[364 chars]",
         "content_digest": "d7890433c4425b62",
-        "observation_type": "chain"
+        "observation_type": "agent"
       }
     ]
   }

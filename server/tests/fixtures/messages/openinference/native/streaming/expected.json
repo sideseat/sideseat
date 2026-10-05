@@ -191,7 +191,7 @@
           "entry_type": "text",
           "content": "Rome will be sunny tomorrow with a high of 21°C. Wear light, breathable layers like a T-shirt or light shirt with trousers or a skirt. Bring a light jacket or sweater for the cooler morning and evening, plus sunglasses and comfortable walki…[249 chars]",
           "content_digest": "858faa8892b984c2",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -248,7 +248,7 @@
           "entry_type": "text",
           "content": "Rome will be sunny tomorrow with a high of 21°C. Wear light, breathable layers like a T-shirt or light shirt with trousers or a skirt. Bring a light jacket or sweater for the cooler morning and evening, plus sunglasses and comfortable walki…[249 chars]",
           "content_digest": "858faa8892b984c2",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -257,10 +257,10 @@
     "message_count": 5,
     "role_sequence": [
       "tool",
+      "assistant",
       "system",
       "assistant",
-      "user",
-      "assistant"
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 1,
@@ -275,6 +275,14 @@
       },
       {
         "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Rome will be sunny tomorrow with a high of 21°C. Wear light, breathable layers like a T-shirt or light shirt with trousers or a skirt. Bring a light jacket or sweater for the cooler morning and evening, plus sunglasses and comfortable walki…[249 chars]",
+        "content_digest": "858faa8892b984c2",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -282,7 +290,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 2,
+        "index": 3,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_03XK05rYyC3SHCOHyV60Hy\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
@@ -291,19 +299,11 @@
         "observation_type": "generation"
       },
       {
-        "index": 3,
+        "index": 4,
         "role": "user",
         "entry_type": "text",
         "content": "Check the weather in Rome for the next day and tell me what to wear.",
         "content_digest": "3801edeb34a2cb29",
-        "observation_type": "agent"
-      },
-      {
-        "index": 4,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "Rome will be sunny tomorrow with a high of 21°C. Wear light, breathable layers like a T-shirt or light shirt with trousers or a skirt. Bring a light jacket or sweater for the cooler morning and evening, plus sunglasses and comfortable walki…[249 chars]",
-        "content_digest": "858faa8892b984c2",
         "observation_type": "agent"
       }
     ]

@@ -102,7 +102,7 @@
           "entry_type": "text",
           "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
           "content_digest": "9c00dff086e79acc",
-          "observation_type": "chain"
+          "observation_type": "agent"
         },
         {
           "index": 1,
@@ -110,7 +110,7 @@
           "entry_type": "text",
           "content": "Current Task: In one sentence, what is Kyoto best known for? This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. Provide your c…[257 chars]",
           "content_digest": "ac0e7f83cd40ed81",
-          "observation_type": "chain"
+          "observation_type": "agent"
         },
         {
           "index": 2,
@@ -118,7 +118,7 @@
           "entry_type": "text",
           "content": "Kyoto is best known for its classical Japanese culture, including more than 1,600 Buddhist temples, Shinto shrines like Fushimi Inari, traditional geisha districts such as Gion, and its role as Japan's imperial capital for over a thousand y…[245 chars]",
           "content_digest": "273b33649c1f1bb9",
-          "observation_type": "chain"
+          "observation_type": "agent"
         }
       ]
     }
@@ -140,7 +140,7 @@
           "entry_type": "text",
           "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
           "content_digest": "9c00dff086e79acc",
-          "observation_type": "chain"
+          "observation_type": "agent"
         },
         {
           "index": 1,
@@ -148,7 +148,7 @@
           "entry_type": "text",
           "content": "Current Task: In one sentence, what is Kyoto best known for? This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. Provide your c…[257 chars]",
           "content_digest": "ac0e7f83cd40ed81",
-          "observation_type": "chain"
+          "observation_type": "agent"
         },
         {
           "index": 2,
@@ -156,7 +156,7 @@
           "entry_type": "text",
           "content": "Kyoto is best known for its classical Japanese culture, including more than 1,600 Buddhist temples, Shinto shrines like Fushimi Inari, traditional geisha districts such as Gion, and its role as Japan's imperial capital for over a thousand y…[245 chars]",
           "content_digest": "273b33649c1f1bb9",
-          "observation_type": "chain"
+          "observation_type": "agent"
         }
       ]
     }
@@ -177,7 +177,7 @@
         "entry_type": "text",
         "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
         "content_digest": "9c00dff086e79acc",
-        "observation_type": "chain"
+        "observation_type": "agent"
       },
       {
         "index": 1,
@@ -185,7 +185,7 @@
         "entry_type": "text",
         "content": "Current Task: In one sentence, what is Kyoto best known for? This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. Provide your c…[257 chars]",
         "content_digest": "ac0e7f83cd40ed81",
-        "observation_type": "chain"
+        "observation_type": "agent"
       },
       {
         "index": 2,
@@ -193,7 +193,7 @@
         "entry_type": "text",
         "content": "Kyoto is best known for its classical Japanese culture, including more than 1,600 Buddhist temples, Shinto shrines like Fushimi Inari, traditional geisha districts such as Gion, and its role as Japan's imperial capital for over a thousand y…[245 chars]",
         "content_digest": "273b33649c1f1bb9",
-        "observation_type": "chain"
+        "observation_type": "agent"
       }
     ]
   }

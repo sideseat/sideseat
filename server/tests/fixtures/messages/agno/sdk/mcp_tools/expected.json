@@ -239,7 +239,7 @@
           "entry_type": "text",
           "content": "(17 × 23) + 4 = **395**.",
           "content_digest": "52aaa6c961cd0f52",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -298,7 +298,7 @@
           "entry_type": "text",
           "content": "(17 × 23) + 4 = **395**.",
           "content_digest": "52aaa6c961cd0f52",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -307,10 +307,10 @@
     "message_count": 5,
     "role_sequence": [
       "tool",
+      "assistant",
       "system",
       "assistant",
-      "user",
-      "assistant"
+      "user"
     ],
     "tool_names": [
       "calculate"
@@ -327,6 +327,14 @@
       },
       {
         "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "(17 × 23) + 4 = **395**.",
+        "content_digest": "52aaa6c961cd0f52",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Do not reflect on the quality of the returned search results in your response",
@@ -334,7 +342,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 2,
+        "index": 3,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_017fLAaw5AFeVhkDGUKXnRcJ\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
@@ -343,19 +351,11 @@
         "observation_type": "generation"
       },
       {
-        "index": 3,
+        "index": 4,
         "role": "user",
         "entry_type": "text",
         "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
         "content_digest": "94524de89ab3c69f",
-        "observation_type": "agent"
-      },
-      {
-        "index": 4,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "(17 × 23) + 4 = **395**.",
-        "content_digest": "52aaa6c961cd0f52",
         "observation_type": "agent"
       }
     ]

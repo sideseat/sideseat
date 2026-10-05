@@ -127,7 +127,7 @@
           "entry_type": "text",
           "content": "**Image:** A curving black path winds through a sunny park with green lawns, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The five-page document …[342 chars]",
           "content_digest": "79b63c0314c655cb",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -174,7 +174,7 @@
           "entry_type": "text",
           "content": "**Image:** A curving black path winds through a sunny park with green lawns, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The five-page document …[342 chars]",
           "content_digest": "79b63c0314c655cb",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -184,8 +184,8 @@
     "role_sequence": [
       "system",
       "user",
-      "user",
-      "assistant"
+      "assistant",
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 0,
@@ -208,18 +208,18 @@
       },
       {
         "index": 2,
-        "role": "user",
-        "entry_type": "text",
-        "content": "Describe the image in one sentence, then summarise the document in one sentence.",
-        "content_digest": "66bed9fc16754ebe",
-        "observation_type": "agent"
-      },
-      {
-        "index": 3,
         "role": "assistant",
         "entry_type": "text",
         "content": "**Image:** A curving black path winds through a sunny park with green lawns, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The five-page document …[342 chars]",
         "content_digest": "79b63c0314c655cb",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+        "content_digest": "66bed9fc16754ebe",
         "observation_type": "agent"
       }
     ]

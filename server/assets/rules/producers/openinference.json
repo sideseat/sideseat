@@ -17,6 +17,20 @@
       }
     },
     {
+      "id": "openinference.llm_output_value",
+      "doc": "On an OpenInference LLM span, `output.value` is the serialised response of this one call, listing its parts in the order the model returned them. Still accumulated state - it may repeat what the flattened `llm.output_messages` already states - but its positions order the parts even where that flattened copy is the one kept, because the flattening separates content from tool calls and loses which came first. The observation-type qualifier makes this strictly narrower than the generic `output.value` carrier.",
+      "match": {
+        "attribute": "output.value",
+        "observation_type": [
+          "generation"
+        ]
+      },
+      "facts": {
+        "preset": "accumulated_state",
+        "history_positions_provide_sequence_order": true
+      }
+    },
+    {
       "id": "openinference.output_messages",
       "doc": "What this span produced, as an indexed array.",
       "match": {

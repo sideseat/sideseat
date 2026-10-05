@@ -260,7 +260,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_FuoJ9mweQvSP2ZtcbSC4VG\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
           "content_digest": "7cf856a33a9312de",
           "tool_name": "book_flight",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -277,7 +277,7 @@
           "entry_type": "redacted_thinking",
           "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQS2gQKEggSEAEYAjgBQgh0aGlua2luZxIMbDy1L+EHFCH/mG+NGgwzwxIui3rsno8Tb28iMKIn4ZBiAXpDrzVhulmrb9gCUA9L2CpJzpLdd1QqUmhVoI+G3mux4PnFi1uOleqbaCr1A5IceNE0kBckgt0z3SHfceaXNziup0IBncFBUjtTaXnHTvjFg/Ga9mMz758wNOIv…[850 chars]",
           "content_digest": "81f8070cc1a7bcbc",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 5,
@@ -285,7 +285,7 @@
           "entry_type": "text",
           "content": "I couldn't book the London to Oslo flight for 2026-11-14 because the booking system is offline. Nothing has been reserved. I can try again in a bit, or try a nearby date if you'd like.",
           "content_digest": "ee45b805bb327450",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -327,7 +327,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_FuoJ9mweQvSP2ZtcbSC4VG\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
           "content_digest": "7cf856a33a9312de",
           "tool_name": "book_flight",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -344,7 +344,7 @@
           "entry_type": "redacted_thinking",
           "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQS2gQKEggSEAEYAjgBQgh0aGlua2luZxIMbDy1L+EHFCH/mG+NGgwzwxIui3rsno8Tb28iMKIn4ZBiAXpDrzVhulmrb9gCUA9L2CpJzpLdd1QqUmhVoI+G3mux4PnFi1uOleqbaCr1A5IceNE0kBckgt0z3SHfceaXNziup0IBncFBUjtTaXnHTvjFg/Ga9mMz758wNOIv…[850 chars]",
           "content_digest": "81f8070cc1a7bcbc",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 5,
@@ -352,7 +352,7 @@
           "entry_type": "text",
           "content": "I couldn't book the London to Oslo flight for 2026-11-14 because the booking system is offline. Nothing has been reserved. I can try again in a bit, or try a nearby date if you'd like.",
           "content_digest": "ee45b805bb327450",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -360,18 +360,34 @@
   "feed_view": {
     "message_count": 6,
     "role_sequence": [
+      "assistant",
+      "assistant",
       "tool",
+      "assistant",
       "system",
-      "user",
-      "assistant",
-      "assistant",
-      "assistant"
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 0,
     "messages": [
       {
         "index": 0,
+        "role": "assistant",
+        "entry_type": "redacted_thinking",
+        "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQS2gQKEggSEAEYAjgBQgh0aGlua2luZxIMbDy1L+EHFCH/mG+NGgwzwxIui3rsno8Tb28iMKIn4ZBiAXpDrzVhulmrb9gCUA9L2CpJzpLdd1QqUmhVoI+G3mux4PnFi1uOleqbaCr1A5IceNE0kBckgt0z3SHfceaXNziup0IBncFBUjtTaXnHTvjFg/Ga9mMz758wNOIv…[850 chars]",
+        "content_digest": "81f8070cc1a7bcbc",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "I couldn't book the London to Oslo flight for 2026-11-14 because the booking system is offline. Nothing has been reserved. I can try again in a bit, or try a nearby date if you'd like.",
+        "content_digest": "ee45b805bb327450",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_FuoJ9mweQvSP2ZtcbSC4VG\",\"name\":\"book_flight\",\"content\":{\"error\":\"Failed to invoke Tool `book_flight` with parameters {'origin': 'London', 'destination': 'Oslo', 'date': '2026-11-14'}. Error: No s…[329 chars]",
@@ -380,7 +396,16 @@
         "observation_type": "tool"
       },
       {
-        "index": 1,
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_FuoJ9mweQvSP2ZtcbSC4VG\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
+        "content_digest": "7cf856a33a9312de",
+        "tool_name": "book_flight",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -388,36 +413,11 @@
         "observation_type": "agent"
       },
       {
-        "index": 2,
+        "index": 5,
         "role": "user",
         "entry_type": "text",
         "content": "Book me a flight from London to Oslo on 2026-11-14.",
         "content_digest": "1b969baf99595bc8",
-        "observation_type": "agent"
-      },
-      {
-        "index": 3,
-        "role": "assistant",
-        "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_FuoJ9mweQvSP2ZtcbSC4VG\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
-        "content_digest": "7cf856a33a9312de",
-        "tool_name": "book_flight",
-        "observation_type": "agent"
-      },
-      {
-        "index": 4,
-        "role": "assistant",
-        "entry_type": "redacted_thinking",
-        "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQS2gQKEggSEAEYAjgBQgh0aGlua2luZxIMbDy1L+EHFCH/mG+NGgwzwxIui3rsno8Tb28iMKIn4ZBiAXpDrzVhulmrb9gCUA9L2CpJzpLdd1QqUmhVoI+G3mux4PnFi1uOleqbaCr1A5IceNE0kBckgt0z3SHfceaXNziup0IBncFBUjtTaXnHTvjFg/Ga9mMz758wNOIv…[850 chars]",
-        "content_digest": "81f8070cc1a7bcbc",
-        "observation_type": "agent"
-      },
-      {
-        "index": 5,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "I couldn't book the London to Oslo flight for 2026-11-14 because the booking system is offline. Nothing has been reserved. I can try again in a bit, or try a nearby date if you'd like.",
-        "content_digest": "ee45b805bb327450",
         "observation_type": "agent"
       }
     ]

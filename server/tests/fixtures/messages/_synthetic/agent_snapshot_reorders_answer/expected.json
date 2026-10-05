@@ -262,7 +262,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"c1\",\"name\":\"temp\",\"input\":{\"city\":\"NYC\"}}",
           "content_digest": "3f4a0f557d58e33e",
           "tool_name": "temp",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 2,
@@ -271,7 +271,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"c2\",\"name\":\"precip\",\"input\":{\"city\":\"NYC\"}}",
           "content_digest": "74005877e610cad6",
           "tool_name": "precip",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -310,9 +310,9 @@
       "assistant",
       "tool",
       "tool",
-      "user",
       "assistant",
-      "assistant"
+      "assistant",
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 2,
@@ -346,28 +346,28 @@
       },
       {
         "index": 3,
-        "role": "user",
-        "entry_type": "text",
-        "content": "forecast?",
-        "content_digest": "a481181f594a7b26",
-        "observation_type": "agent"
-      },
-      {
-        "index": 4,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"c1\",\"name\":\"temp\",\"input\":{\"city\":\"NYC\"}}",
         "content_digest": "3f4a0f557d58e33e",
         "tool_name": "temp",
-        "observation_type": "agent"
+        "observation_type": "generation"
       },
       {
-        "index": 5,
+        "index": 4,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"c2\",\"name\":\"precip\",\"input\":{\"city\":\"NYC\"}}",
         "content_digest": "74005877e610cad6",
         "tool_name": "precip",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "user",
+        "entry_type": "text",
+        "content": "forecast?",
+        "content_digest": "a481181f594a7b26",
         "observation_type": "agent"
       }
     ]

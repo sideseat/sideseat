@@ -705,7 +705,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_9c45qxAKZ87MxyGChBeFBy\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
           "content_digest": "fd793166428ce8e2",
           "tool_name": "get_weather",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -714,7 +714,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_S8UJOoHHUjlmSiGTGKyzni\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
           "content_digest": "79e8b9e990eaf2a8",
           "tool_name": "get_weather",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 4,
@@ -723,7 +723,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_Mhm5XDIYjjvY4awBYlYVfJ\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
           "content_digest": "a64ce3c1608d72de",
           "tool_name": "get_precipitation",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 5,
@@ -732,7 +732,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_kO5VSRUYPhdsDD3j4i3O3m\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
           "content_digest": "e665e0d78b59b0fa",
           "tool_name": "get_precipitation",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 6,
@@ -772,7 +772,7 @@
           "entry_type": "text",
           "content": "**Paris:** It will be sunny both days, with highs of 21°C and 22°C. Rain chance tomorrow is only 10%, so you can leave the umbrella at home. **Tokyo:** Day 1 will be rainy with a high of 21°C, and day 2 will be sunny with a high of 22°C. Ra…[287 chars]",
           "content_digest": "057d604e0b4335d8",
-          "observation_type": "chain"
+          "observation_type": "generation"
         }
       ]
     }
@@ -822,7 +822,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_9c45qxAKZ87MxyGChBeFBy\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
           "content_digest": "fd793166428ce8e2",
           "tool_name": "get_weather",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -831,7 +831,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_S8UJOoHHUjlmSiGTGKyzni\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
           "content_digest": "79e8b9e990eaf2a8",
           "tool_name": "get_weather",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 4,
@@ -840,7 +840,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_Mhm5XDIYjjvY4awBYlYVfJ\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
           "content_digest": "a64ce3c1608d72de",
           "tool_name": "get_precipitation",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 5,
@@ -849,7 +849,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_kO5VSRUYPhdsDD3j4i3O3m\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
           "content_digest": "e665e0d78b59b0fa",
           "tool_name": "get_precipitation",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 6,
@@ -889,7 +889,7 @@
           "entry_type": "text",
           "content": "**Paris:** It will be sunny both days, with highs of 21°C and 22°C. Rain chance tomorrow is only 10%, so you can leave the umbrella at home. **Tokyo:** Day 1 will be rainy with a high of 21°C, and day 2 will be sunny with a high of 22°C. Ra…[287 chars]",
           "content_digest": "057d604e0b4335d8",
-          "observation_type": "chain"
+          "observation_type": "generation"
         }
       ]
     }
@@ -921,7 +921,7 @@
         "entry_type": "text",
         "content": "**Paris:** It will be sunny both days, with highs of 21°C and 22°C. Rain chance tomorrow is only 10%, so you can leave the umbrella at home. **Tokyo:** Day 1 will be rainy with a high of 21°C, and day 2 will be sunny with a high of 22°C. Ra…[287 chars]",
         "content_digest": "057d604e0b4335d8",
-        "observation_type": "chain"
+        "observation_type": "generation"
       },
       {
         "index": 1,
@@ -970,7 +970,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_9c45qxAKZ87MxyGChBeFBy\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
         "content_digest": "fd793166428ce8e2",
         "tool_name": "get_weather",
-        "observation_type": "chain"
+        "observation_type": "generation"
       },
       {
         "index": 7,
@@ -979,7 +979,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_S8UJOoHHUjlmSiGTGKyzni\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
         "content_digest": "79e8b9e990eaf2a8",
         "tool_name": "get_weather",
-        "observation_type": "chain"
+        "observation_type": "generation"
       },
       {
         "index": 8,
@@ -988,7 +988,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_Mhm5XDIYjjvY4awBYlYVfJ\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
         "content_digest": "a64ce3c1608d72de",
         "tool_name": "get_precipitation",
-        "observation_type": "chain"
+        "observation_type": "generation"
       },
       {
         "index": 9,
@@ -997,7 +997,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_kO5VSRUYPhdsDD3j4i3O3m\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
         "content_digest": "e665e0d78b59b0fa",
         "tool_name": "get_precipitation",
-        "observation_type": "chain"
+        "observation_type": "generation"
       },
       {
         "index": 10,

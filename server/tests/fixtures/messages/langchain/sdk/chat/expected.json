@@ -154,7 +154,7 @@
           "entry_type": "text",
           "content": "Kyoto is best known for its well-preserved temples, shrines, geisha districts, and traditional culture as Japan's former imperial capital for over a thousand years.",
           "content_digest": "269770ff52b25a50",
-          "observation_type": "chain"
+          "observation_type": "generation"
         }
       ]
     }
@@ -192,7 +192,7 @@
           "entry_type": "text",
           "content": "Kyoto is best known for its well-preserved temples, shrines, geisha districts, and traditional culture as Japan's former imperial capital for over a thousand years.",
           "content_digest": "269770ff52b25a50",
-          "observation_type": "chain"
+          "observation_type": "generation"
         }
       ]
     }
@@ -200,15 +200,23 @@
   "feed_view": {
     "message_count": 3,
     "role_sequence": [
+      "assistant",
       "system",
-      "user",
-      "assistant"
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 0,
     "messages": [
       {
         "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Kyoto is best known for its well-preserved temples, shrines, geisha districts, and traditional culture as Japan's former imperial capital for over a thousand years.",
+        "content_digest": "269770ff52b25a50",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -216,20 +224,12 @@
         "observation_type": "span"
       },
       {
-        "index": 1,
+        "index": 2,
         "role": "user",
         "entry_type": "text",
         "content": "In one sentence, what is Kyoto best known for?",
         "content_digest": "0f69e296627452c3",
         "observation_type": "span"
-      },
-      {
-        "index": 2,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "Kyoto is best known for its well-preserved temples, shrines, geisha districts, and traditional culture as Japan's former imperial capital for over a thousand years.",
-        "content_digest": "269770ff52b25a50",
-        "observation_type": "chain"
       }
     ]
   }

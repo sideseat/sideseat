@@ -179,7 +179,7 @@
           "entry_type": "text",
           "content": "**Image:** A curving black path winds through a sunny, green park with a low stone retaining wall, bare and evergreen trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The five-page document is alm…[330 chars]",
           "content_digest": "868b21757e36b8cd",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -235,7 +235,7 @@
           "entry_type": "text",
           "content": "**Image:** A curving black path winds through a sunny, green park with a low stone retaining wall, bare and evergreen trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The five-page document is alm…[330 chars]",
           "content_digest": "868b21757e36b8cd",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -243,17 +243,25 @@
   "feed_view": {
     "message_count": 5,
     "role_sequence": [
+      "assistant",
       "system",
       "user",
       "user",
-      "user",
-      "assistant"
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 0,
     "messages": [
       {
         "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "**Image:** A curving black path winds through a sunny, green park with a low stone retaining wall, bare and evergreen trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The five-page document is alm…[330 chars]",
+        "content_digest": "868b21757e36b8cd",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -261,7 +269,7 @@
         "observation_type": "agent"
       },
       {
-        "index": 1,
+        "index": 2,
         "role": "user",
         "entry_type": "text",
         "content": "Describe the image in one sentence, then summarise the document in one sentence.",
@@ -269,7 +277,7 @@
         "observation_type": "agent"
       },
       {
-        "index": 2,
+        "index": 3,
         "role": "user",
         "entry_type": "unknown",
         "content": "{\"type\":\"unknown\",\"raw\":{\"image\":{\"base64_image\":\"Base64 string (218624 characters)\",\"mime_type\":\"image/jpeg\",\"detail\":null,\"meta\":{\"file_path\":\"/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a303a146a047db1b0/examples/assets/…[270 chars]",
@@ -277,19 +285,11 @@
         "observation_type": "agent"
       },
       {
-        "index": 3,
+        "index": 4,
         "role": "user",
         "entry_type": "json",
         "content": "{\"type\":\"json\",\"data\":{\"file\":{\"base64_data\":\"Base64 string (17612 characters)\",\"mime_type\":\"application/pdf\",\"filename\":\"task.pdf\",\"extra\":{},\"validation\":false}}}",
         "content_digest": "a0cc44bfe786df95",
-        "observation_type": "agent"
-      },
-      {
-        "index": 4,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "**Image:** A curving black path winds through a sunny, green park with a low stone retaining wall, bare and evergreen trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The five-page document is alm…[330 chars]",
-        "content_digest": "868b21757e36b8cd",
         "observation_type": "agent"
       }
     ]

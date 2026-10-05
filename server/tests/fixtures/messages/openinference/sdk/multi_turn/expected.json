@@ -293,7 +293,7 @@
           "entry_type": "text",
           "content": "I'd suggest **Alfama**, Lisbon's oldest district, with winding streets, fado bars, and views from the Miradouro das Portas do Sol. It's walkable to the main sights, though hilly. If you'd like something flatter and more central, Baixa is a …[257 chars]",
           "content_digest": "bfcbc21ff9b2b37d",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -309,7 +309,7 @@
           "entry_type": "text",
           "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod scrambled with thin fried potatoes, onions, and eggs, often topped with olives and parsley. If you have room for dessert, follow it with a pastel de nata.",
           "content_digest": "44a682847db2b3bd",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 5,
@@ -325,7 +325,7 @@
           "entry_type": "text",
           "content": "Stay in the historic, fado-filled neighbourhood of Alfama, and try the comforting salt cod, egg, and potato dish bacalhau à Brás.",
           "content_digest": "89811eb21acefc00",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -367,7 +367,7 @@
           "entry_type": "text",
           "content": "I'd suggest **Alfama**, Lisbon's oldest district, with winding streets, fado bars, and views from the Miradouro das Portas do Sol. It's walkable to the main sights, though hilly. If you'd like something flatter and more central, Baixa is a …[257 chars]",
           "content_digest": "bfcbc21ff9b2b37d",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -383,7 +383,7 @@
           "entry_type": "text",
           "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod scrambled with thin fried potatoes, onions, and eggs, often topped with olives and parsley. If you have room for dessert, follow it with a pastel de nata.",
           "content_digest": "44a682847db2b3bd",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 5,
@@ -399,7 +399,7 @@
           "entry_type": "text",
           "content": "Stay in the historic, fado-filled neighbourhood of Alfama, and try the comforting salt cod, egg, and potato dish bacalhau à Brás.",
           "content_digest": "89811eb21acefc00",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -407,19 +407,27 @@
   "feed_view": {
     "message_count": 7,
     "role_sequence": [
-      "user",
       "assistant",
       "user",
       "assistant",
+      "user",
       "system",
-      "user",
-      "assistant"
+      "assistant",
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 0,
     "messages": [
       {
         "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Stay in the historic, fado-filled neighbourhood of Alfama, and try the comforting salt cod, egg, and potato dish bacalhau à Brás.",
+        "content_digest": "89811eb21acefc00",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
         "role": "user",
         "entry_type": "text",
         "content": "Summarise your two suggestions in one sentence.",
@@ -427,27 +435,19 @@
         "observation_type": "agent"
       },
       {
-        "index": 1,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "Stay in the historic, fado-filled neighbourhood of Alfama, and try the comforting salt cod, egg, and potato dish bacalhau à Brás.",
-        "content_digest": "89811eb21acefc00",
-        "observation_type": "agent"
-      },
-      {
         "index": 2,
-        "role": "user",
-        "entry_type": "text",
-        "content": "What is one dish I should try there?",
-        "content_digest": "fa205a3ea90d1fdf",
-        "observation_type": "agent"
-      },
-      {
-        "index": 3,
         "role": "assistant",
         "entry_type": "text",
         "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod scrambled with thin fried potatoes, onions, and eggs, often topped with olives and parsley. If you have room for dessert, follow it with a pastel de nata.",
         "content_digest": "44a682847db2b3bd",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is one dish I should try there?",
+        "content_digest": "fa205a3ea90d1fdf",
         "observation_type": "agent"
       },
       {
@@ -460,18 +460,18 @@
       },
       {
         "index": 5,
-        "role": "user",
-        "entry_type": "text",
-        "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
-        "content_digest": "c366c7539466c187",
-        "observation_type": "agent"
-      },
-      {
-        "index": 6,
         "role": "assistant",
         "entry_type": "text",
         "content": "I'd suggest **Alfama**, Lisbon's oldest district, with winding streets, fado bars, and views from the Miradouro das Portas do Sol. It's walkable to the main sights, though hilly. If you'd like something flatter and more central, Baixa is a …[257 chars]",
         "content_digest": "bfcbc21ff9b2b37d",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "entry_type": "text",
+        "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+        "content_digest": "c366c7539466c187",
         "observation_type": "agent"
       }
     ]

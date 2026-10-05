@@ -478,7 +478,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_eK7pvpQIN1hrSJpbxEcLuM\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
           "content_digest": "0c85cfadd057eb70",
           "tool_name": "get_weather",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -487,7 +487,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_iNyUqb3JwIvU0xyD1QNfSe\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
           "content_digest": "dc6e26390b96c395",
           "tool_name": "get_weather",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 4,
@@ -496,7 +496,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_EEskWKnUgJbVsjTHqo1bXJ\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
           "content_digest": "6e2066eb36441f2c",
           "tool_name": "get_precipitation",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 5,
@@ -505,7 +505,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_zflEOpHv3DHXK6YL7SKQOM\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
           "content_digest": "a36b2a0c88c6ae48",
           "tool_name": "get_precipitation",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 6,
@@ -597,7 +597,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_eK7pvpQIN1hrSJpbxEcLuM\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
           "content_digest": "0c85cfadd057eb70",
           "tool_name": "get_weather",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -606,7 +606,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_iNyUqb3JwIvU0xyD1QNfSe\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
           "content_digest": "dc6e26390b96c395",
           "tool_name": "get_weather",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 4,
@@ -615,7 +615,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_EEskWKnUgJbVsjTHqo1bXJ\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
           "content_digest": "6e2066eb36441f2c",
           "tool_name": "get_precipitation",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 5,
@@ -624,7 +624,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_zflEOpHv3DHXK6YL7SKQOM\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
           "content_digest": "a36b2a0c88c6ae48",
           "tool_name": "get_precipitation",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 6,
@@ -682,12 +682,12 @@
       "tool",
       "tool",
       "tool",
+      "assistant",
+      "assistant",
+      "assistant",
+      "assistant",
       "system",
-      "user",
-      "assistant",
-      "assistant",
-      "assistant",
-      "assistant"
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 2,
@@ -739,6 +739,42 @@
       },
       {
         "index": 5,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_eK7pvpQIN1hrSJpbxEcLuM\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
+        "content_digest": "0c85cfadd057eb70",
+        "tool_name": "get_weather",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_iNyUqb3JwIvU0xyD1QNfSe\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
+        "content_digest": "dc6e26390b96c395",
+        "tool_name": "get_weather",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_EEskWKnUgJbVsjTHqo1bXJ\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
+        "content_digest": "6e2066eb36441f2c",
+        "tool_name": "get_precipitation",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_zflEOpHv3DHXK6YL7SKQOM\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
+        "content_digest": "a36b2a0c88c6ae48",
+        "tool_name": "get_precipitation",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -746,47 +782,11 @@
         "observation_type": "agent"
       },
       {
-        "index": 6,
+        "index": 10,
         "role": "user",
         "entry_type": "text",
         "content": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?",
         "content_digest": "12fbb235830ec0c9",
-        "observation_type": "agent"
-      },
-      {
-        "index": 7,
-        "role": "assistant",
-        "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_eK7pvpQIN1hrSJpbxEcLuM\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
-        "content_digest": "0c85cfadd057eb70",
-        "tool_name": "get_weather",
-        "observation_type": "agent"
-      },
-      {
-        "index": 8,
-        "role": "assistant",
-        "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_iNyUqb3JwIvU0xyD1QNfSe\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
-        "content_digest": "dc6e26390b96c395",
-        "tool_name": "get_weather",
-        "observation_type": "agent"
-      },
-      {
-        "index": 9,
-        "role": "assistant",
-        "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_EEskWKnUgJbVsjTHqo1bXJ\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
-        "content_digest": "6e2066eb36441f2c",
-        "tool_name": "get_precipitation",
-        "observation_type": "agent"
-      },
-      {
-        "index": 10,
-        "role": "assistant",
-        "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_zflEOpHv3DHXK6YL7SKQOM\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
-        "content_digest": "a36b2a0c88c6ae48",
-        "tool_name": "get_precipitation",
         "observation_type": "agent"
       }
     ]

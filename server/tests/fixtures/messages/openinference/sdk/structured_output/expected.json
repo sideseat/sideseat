@@ -184,7 +184,7 @@
           "entry_type": "text",
           "content": "I've recorded a two-day Vienna plan with an estimated budget of €450. I didn't check weather or bookings, because I only had the plan-recording tool. - **Day 1:** Explore the Innere Stadt, including St. Stephen's Cathedral, Hofburg Palace a…[511 chars]",
           "content_digest": "af0987177fea47d0",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -241,7 +241,7 @@
           "entry_type": "text",
           "content": "I've recorded a two-day Vienna plan with an estimated budget of €450. I didn't check weather or bookings, because I only had the plan-recording tool. - **Day 1:** Explore the Innere Stadt, including St. Stephen's Cathedral, Hofburg Palace a…[511 chars]",
           "content_digest": "af0987177fea47d0",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -250,10 +250,10 @@
     "message_count": 5,
     "role_sequence": [
       "tool",
+      "assistant",
       "system",
       "assistant",
-      "user",
-      "assistant"
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 1,
@@ -268,6 +268,14 @@
       },
       {
         "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "I've recorded a two-day Vienna plan with an estimated budget of €450. I didn't check weather or bookings, because I only had the plan-recording tool. - **Day 1:** Explore the Innere Stadt, including St. Stephen's Cathedral, Hofburg Palace a…[511 chars]",
+        "content_digest": "af0987177fea47d0",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Hand the finished plan to trip_plan.",
@@ -275,7 +283,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 2,
+        "index": 3,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_Y5ubTGWB3m884Kw9NISu9t\",\"name\":\"trip_plan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt — St. Stephen's Cathedral, Hofburg Palace, and a Sachertorte at Café Sacher; evening at a traditio…[449 chars]",
@@ -284,19 +292,11 @@
         "observation_type": "generation"
       },
       {
-        "index": 3,
+        "index": 4,
         "role": "user",
         "entry_type": "text",
         "content": "Plan a two-day trip to Vienna.",
         "content_digest": "5f56235d64bfe00d",
-        "observation_type": "agent"
-      },
-      {
-        "index": 4,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "I've recorded a two-day Vienna plan with an estimated budget of €450. I didn't check weather or bookings, because I only had the plan-recording tool. - **Day 1:** Explore the Innere Stadt, including St. Stephen's Cathedral, Hofburg Palace a…[511 chars]",
-        "content_digest": "af0987177fea47d0",
         "observation_type": "agent"
       }
     ]

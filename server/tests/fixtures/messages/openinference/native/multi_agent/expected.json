@@ -284,7 +284,7 @@
           "entry_type": "text",
           "content": "Barcelona's forecast for the next two days is rain on day 1 with a high of 21°C, then sun on day 2 with a high of 22°C. **Packing list:** Pack for mild weather with one wet day and one sunny day. Bring layers like a light sweater or long-sl…[741 chars]",
           "content_digest": "e49922b66c32dba5",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 5,
@@ -308,7 +308,7 @@
           "entry_type": "text",
           "content": "**Packing list for Barcelona:** Expect mild weather with one wet day and one sunny day (rain and a high of 21°C on day 1, sun and a high of 22°C on day 2). Pack layers such as a light sweater or long-sleeve shirt, plus a few T-shirts for th…[695 chars]",
           "content_digest": "40be5ca5681da8dc",
-          "observation_type": "chain"
+          "observation_type": "generation"
         }
       ]
     }
@@ -368,7 +368,7 @@
           "entry_type": "text",
           "content": "Barcelona's forecast for the next two days is rain on day 1 with a high of 21°C, then sun on day 2 with a high of 22°C. **Packing list:** Pack for mild weather with one wet day and one sunny day. Bring layers like a light sweater or long-sl…[741 chars]",
           "content_digest": "e49922b66c32dba5",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 5,
@@ -392,7 +392,7 @@
           "entry_type": "text",
           "content": "**Packing list for Barcelona:** Expect mild weather with one wet day and one sunny day (rain and a high of 21°C on day 1, sun and a high of 22°C on day 2). Pack layers such as a light sweater or long-sleeve shirt, plus a few T-shirts for th…[695 chars]",
           "content_digest": "40be5ca5681da8dc",
-          "observation_type": "chain"
+          "observation_type": "generation"
         }
       ]
     }
@@ -401,13 +401,13 @@
     "message_count": 8,
     "role_sequence": [
       "system",
+      "assistant",
       "user",
       "tool",
+      "assistant",
       "system",
       "assistant",
-      "assistant",
-      "user",
-      "assistant"
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 1,
@@ -422,6 +422,14 @@
       },
       {
         "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "**Packing list for Barcelona:** Expect mild weather with one wet day and one sunny day (rain and a high of 21°C on day 1, sun and a high of 22°C on day 2). Pack layers such as a light sweater or long-sleeve shirt, plus a few T-shirts for th…[695 chars]",
+        "content_digest": "40be5ca5681da8dc",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
         "role": "user",
         "entry_type": "text",
         "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it. Researcher's findings: Barcelona's forecast for the next two days is rain on day 1 with a high of 21°C, then sun on day 2 with a h…[874 chars]",
@@ -429,7 +437,7 @@
         "observation_type": "agent"
       },
       {
-        "index": 2,
+        "index": 3,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_mfC4ee8OdpnWTTd4FpSDYp\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
@@ -437,7 +445,15 @@
         "observation_type": "generation"
       },
       {
-        "index": 3,
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Barcelona's forecast for the next two days is rain on day 1 with a high of 21°C, then sun on day 2 with a high of 22°C. **Packing list:** Pack for mild weather with one wet day and one sunny day. Bring layers like a light sweater or long-sl…[741 chars]",
+        "content_digest": "e49922b66c32dba5",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
         "role": "system",
         "entry_type": "text",
         "content": "You research weather with the tool and report the forecast.",
@@ -445,7 +461,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 4,
+        "index": 6,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_mfC4ee8OdpnWTTd4FpSDYp\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
@@ -454,27 +470,11 @@
         "observation_type": "generation"
       },
       {
-        "index": 5,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "Barcelona's forecast for the next two days is rain on day 1 with a high of 21°C, then sun on day 2 with a high of 22°C. **Packing list:** Pack for mild weather with one wet day and one sunny day. Bring layers like a light sweater or long-sl…[741 chars]",
-        "content_digest": "e49922b66c32dba5",
-        "observation_type": "agent"
-      },
-      {
-        "index": 6,
+        "index": 7,
         "role": "user",
         "entry_type": "text",
         "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
         "content_digest": "603f05d965d18b4d",
-        "observation_type": "chain"
-      },
-      {
-        "index": 7,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "**Packing list for Barcelona:** Expect mild weather with one wet day and one sunny day (rain and a high of 21°C on day 1, sun and a high of 22°C on day 2). Pack layers such as a light sweater or long-sleeve shirt, plus a few T-shirts for th…[695 chars]",
-        "content_digest": "40be5ca5681da8dc",
         "observation_type": "chain"
       }
     ]

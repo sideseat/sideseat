@@ -241,7 +241,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_KcWQ1r0hVheVINbBpbNBSr\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
           "content_digest": "db455b8c86264e1a",
           "tool_name": "get_weather",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -258,7 +258,7 @@
           "entry_type": "text",
           "content": "Rome will be sunny tomorrow with a high of 21°C. Wear light, breathable layers such as a T-shirt or light shirt with a thin jacket or sweater for the cooler morning and evening. Bring sunglasses and comfortable walking shoes.",
           "content_digest": "7421bf118b19b42f",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -299,7 +299,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_KcWQ1r0hVheVINbBpbNBSr\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
           "content_digest": "db455b8c86264e1a",
           "tool_name": "get_weather",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -316,7 +316,7 @@
           "entry_type": "text",
           "content": "Rome will be sunny tomorrow with a high of 21°C. Wear light, breathable layers such as a T-shirt or light shirt with a thin jacket or sweater for the cooler morning and evening. Bring sunglasses and comfortable walking shoes.",
           "content_digest": "7421bf118b19b42f",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -324,17 +324,25 @@
   "feed_view": {
     "message_count": 5,
     "role_sequence": [
-      "tool",
-      "system",
-      "user",
       "assistant",
-      "assistant"
+      "tool",
+      "assistant",
+      "system",
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 0,
     "messages": [
       {
         "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Rome will be sunny tomorrow with a high of 21°C. Wear light, breathable layers such as a T-shirt or light shirt with a thin jacket or sweater for the cooler morning and evening. Bring sunglasses and comfortable walking shoes.",
+        "content_digest": "7421bf118b19b42f",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_KcWQ1r0hVheVINbBpbNBSr\",\"name\":\"get_weather\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
@@ -343,7 +351,16 @@
         "observation_type": "tool"
       },
       {
-        "index": 1,
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_KcWQ1r0hVheVINbBpbNBSr\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+        "content_digest": "db455b8c86264e1a",
+        "tool_name": "get_weather",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -351,28 +368,11 @@
         "observation_type": "agent"
       },
       {
-        "index": 2,
+        "index": 4,
         "role": "user",
         "entry_type": "text",
         "content": "Check the weather in Rome for the next day and tell me what to wear.",
         "content_digest": "3801edeb34a2cb29",
-        "observation_type": "agent"
-      },
-      {
-        "index": 3,
-        "role": "assistant",
-        "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_KcWQ1r0hVheVINbBpbNBSr\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
-        "content_digest": "db455b8c86264e1a",
-        "tool_name": "get_weather",
-        "observation_type": "agent"
-      },
-      {
-        "index": 4,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "Rome will be sunny tomorrow with a high of 21°C. Wear light, breathable layers such as a T-shirt or light shirt with a thin jacket or sweater for the cooler morning and evening. Bring sunglasses and comfortable walking shoes.",
-        "content_digest": "7421bf118b19b42f",
         "observation_type": "agent"
       }
     ]

@@ -456,7 +456,7 @@
           "entry_type": "redacted_thinking",
           "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQS0wQKEggSEAEYAjgBQgh0aGlua2luZxIMGDomacRqBhudsZd3GgxzseuPd7HD0DKhqwEiMJA9FxveKuVLDc4qbfGP4aDO+EEin3MR31pmQBkum/5jc3Ciok9rUDcsKX72XEV4EiruAwxAc4X/zLwxj0hoQJLc/DXEnoqve19WG30gRZRtrI3kqLeX0CKfofEBg7TrsR6m…[842 chars]",
           "content_digest": "fcaf417716400016",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -464,7 +464,7 @@
           "entry_type": "text",
           "content": "I'd suggest **Alfama**, Lisbon's oldest district. It has winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and you can walk to many major sights. If you prefer something flatter and more central, Baixa is a good a…[251 chars]",
           "content_digest": "c2ae0b639c956ca3",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 4,
@@ -480,7 +480,7 @@
           "entry_type": "text",
           "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, ideally warm with a sprinkle of cinnamon. For the classic version, head to Pastéis de Belém, though many local pastelarias make excellent ones too.",
           "content_digest": "1aa04140789ecab4",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 6,
@@ -496,7 +496,7 @@
           "entry_type": "text",
           "content": "Stay in historic Alfama for its atmospheric streets and viewpoints, and try warm pastéis de nata, Lisbon's iconic custard tarts.",
           "content_digest": "64838ba7767b1d66",
-          "observation_type": "chain"
+          "observation_type": "generation"
         }
       ]
     }
@@ -539,7 +539,7 @@
           "entry_type": "redacted_thinking",
           "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQS0wQKEggSEAEYAjgBQgh0aGlua2luZxIMGDomacRqBhudsZd3GgxzseuPd7HD0DKhqwEiMJA9FxveKuVLDc4qbfGP4aDO+EEin3MR31pmQBkum/5jc3Ciok9rUDcsKX72XEV4EiruAwxAc4X/zLwxj0hoQJLc/DXEnoqve19WG30gRZRtrI3kqLeX0CKfofEBg7TrsR6m…[842 chars]",
           "content_digest": "fcaf417716400016",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -547,7 +547,7 @@
           "entry_type": "text",
           "content": "I'd suggest **Alfama**, Lisbon's oldest district. It has winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and you can walk to many major sights. If you prefer something flatter and more central, Baixa is a good a…[251 chars]",
           "content_digest": "c2ae0b639c956ca3",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 4,
@@ -563,7 +563,7 @@
           "entry_type": "text",
           "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, ideally warm with a sprinkle of cinnamon. For the classic version, head to Pastéis de Belém, though many local pastelarias make excellent ones too.",
           "content_digest": "1aa04140789ecab4",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 6,
@@ -579,7 +579,7 @@
           "entry_type": "text",
           "content": "Stay in historic Alfama for its atmospheric streets and viewpoints, and try warm pastéis de nata, Lisbon's iconic custard tarts.",
           "content_digest": "64838ba7767b1d66",
-          "observation_type": "chain"
+          "observation_type": "generation"
         }
       ]
     }
@@ -605,7 +605,7 @@
         "entry_type": "text",
         "content": "Stay in historic Alfama for its atmospheric streets and viewpoints, and try warm pastéis de nata, Lisbon's iconic custard tarts.",
         "content_digest": "64838ba7767b1d66",
-        "observation_type": "chain"
+        "observation_type": "generation"
       },
       {
         "index": 1,
@@ -621,7 +621,7 @@
         "entry_type": "text",
         "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, ideally warm with a sprinkle of cinnamon. For the classic version, head to Pastéis de Belém, though many local pastelarias make excellent ones too.",
         "content_digest": "1aa04140789ecab4",
-        "observation_type": "chain"
+        "observation_type": "generation"
       },
       {
         "index": 3,
@@ -645,7 +645,7 @@
         "entry_type": "redacted_thinking",
         "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQS0wQKEggSEAEYAjgBQgh0aGlua2luZxIMGDomacRqBhudsZd3GgxzseuPd7HD0DKhqwEiMJA9FxveKuVLDc4qbfGP4aDO+EEin3MR31pmQBkum/5jc3Ciok9rUDcsKX72XEV4EiruAwxAc4X/zLwxj0hoQJLc/DXEnoqve19WG30gRZRtrI3kqLeX0CKfofEBg7TrsR6m…[842 chars]",
         "content_digest": "fcaf417716400016",
-        "observation_type": "chain"
+        "observation_type": "generation"
       },
       {
         "index": 6,
@@ -653,7 +653,7 @@
         "entry_type": "text",
         "content": "I'd suggest **Alfama**, Lisbon's oldest district. It has winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and you can walk to many major sights. If you prefer something flatter and more central, Baixa is a good a…[251 chars]",
         "content_digest": "c2ae0b639c956ca3",
-        "observation_type": "chain"
+        "observation_type": "generation"
       },
       {
         "index": 7,
