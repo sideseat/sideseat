@@ -24,6 +24,25 @@ export function formatTimestamp24h(iso: string | null): string {
 }
 
 /**
+ * Format an ISO timestamp with millisecond precision, for span detail where sub-second order matters.
+ */
+export function formatTimestampPrecise(iso: string | null | undefined): string {
+  if (!iso) return "-";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+
+  return date.toLocaleString(undefined, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    fractionalSecondDigits: 3,
+  });
+}
+
+/**
  * Format duration in milliseconds to a readable string
  * Examples: "123ms", "1.2s", "2m 30.5s"
  */

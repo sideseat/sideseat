@@ -11,8 +11,6 @@ import type {
   TraceDetailParams,
   SpanDetailParams,
   SpanFilterOptionsParams,
-  FeedMessagesParams,
-  FeedSpansParams,
 } from "../types";
 
 /** Extract filter params by omitting pagination fields for comparison */
@@ -311,34 +309,5 @@ export function useProjectStats(
     staleTime: 10_000,
     refetchInterval: options?.refetchInterval ?? 30_000,
     placeholderData: keepPreviousData, // Keep old data visible while fetching new
-  });
-}
-
-// === Feed ===
-export function useFeedMessages(
-  projectId: string,
-  params?: FeedMessagesParams,
-  options?: { enabled?: boolean },
-) {
-  const otelClient = useOtelClient();
-  return useQuery({
-    queryKey: otelKeys.feed.messages(projectId, params),
-    queryFn: () => otelClient.getFeedMessages(projectId, params),
-    enabled: !!projectId && (options?.enabled ?? true),
-    staleTime: 0, // Always consider stale for real-time updates
-  });
-}
-
-export function useFeedSpans(
-  projectId: string,
-  params?: FeedSpansParams,
-  options?: { enabled?: boolean },
-) {
-  const otelClient = useOtelClient();
-  return useQuery({
-    queryKey: otelKeys.feed.spans(projectId, params),
-    queryFn: () => otelClient.getFeedSpans(projectId, params),
-    enabled: !!projectId && (options?.enabled ?? true),
-    staleTime: 0, // Always consider stale for real-time updates
   });
 }

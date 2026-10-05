@@ -1,7 +1,8 @@
 import { memo } from "react";
 import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
 import { cn } from "@/lib/utils";
-import { SPAN_TYPE_CONFIG, formatDuration, formatTokens, formatCost } from "../lib/span-config";
+import { formatCost, formatDuration, formatTokens } from "@/lib/format";
+import { SPAN_TYPE_CONFIG } from "../lib/span-config";
 import type { SpanType } from "../lib/types";
 
 export interface SpanNodeData extends Record<string, unknown> {
@@ -46,7 +47,7 @@ export const SpanNode = memo(function SpanNode({ data, selected }: NodeProps<Spa
           <div className="mt-1 flex flex-wrap gap-x-2 text-xs text-muted-foreground">
             {data.duration !== undefined && <span>{formatDuration(data.duration)}</span>}
             {data.tokens !== undefined && data.tokens > 0 && (
-              <span>{formatTokens(0, 0, data.tokens)}</span>
+              <span>{formatTokens(data.tokens)} tokens</span>
             )}
             {data.cost !== undefined && data.cost > 0 && <span>{formatCost(data.cost)}</span>}
           </div>

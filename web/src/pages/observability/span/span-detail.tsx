@@ -26,15 +26,16 @@ import { DataInspector } from "@/components/data-inspector";
 import { JsonContent } from "@/components/thread/content/json-content";
 import { useSpan, useSpanMessages, useTrace } from "@/api/otel/hooks/queries";
 import { useSpanStream } from "@/api/otel/hooks/streams";
+import { SPAN_TYPE_CONFIG } from "@/components/trace-view/lib/span-config";
 import {
-  SPAN_TYPE_CONFIG,
-  formatDuration,
-  formatCost,
-} from "@/components/trace-view/lib/span-config";
+  blocksToInspectorData,
+  spanInspectorSections,
+} from "@/components/trace-view/components/span-detail/utils";
+import { formatCost, formatDuration } from "@/lib/format";
 import { RawSpanView } from "./raw-span-view";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
-import type { SpanDetail as SpanDetailType, Block } from "@/api/otel/types";
+import type { SpanDetail as SpanDetailType } from "@/api/otel/types";
 import type { SpanType } from "@/components/trace-view/lib/types";
 
 export type SpanTab = "overview" | "messages" | "raw";
@@ -45,35 +46,6 @@ export const SPAN_TABS: { value: SpanTab; label: string; icon: ReactNode }[] = [
   { value: "messages", label: "Messages", icon: <MessageSquare className="h-4 w-4" /> },
   { value: "raw", label: "Raw", icon: <Braces className="h-4 w-4" /> },
 ];
-
-function formatTimestamp(ts: string | null | undefined): string {
-  if (!ts) return "-";
-  try {
-    const d = new Date(ts);
-    return d.toLocaleString(undefined, {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      fractionalSecondDigits: 3,
-    });
-  } catch {
-    return ts;
-  }
-}
-
-function transformBlocksToData(blocks: Block[]): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  blocks.forEach((block, i) => {
-    const key = `${i + 1}. ${block.role}${block.name ? ` (${block.name})` : ""}`;
-    const entry: Record<string, unknown> = { type: block.entry_type, content: block.content };
-    if (block.tool_use_id) entry.tool_use_id = block.tool_use_id;
-    result[key] = entry;
-  });
-  return result;
-}
 
 /** Map span_category to SpanType for icon/label lookup */
 function getSpanType(span: SpanDetailType): SpanType {
@@ -250,12 +222,6 @@ function SpanHeader({
   );
 }
 
-interface RawSpan {
-  attributes?: Record<string, unknown>;
-  resource?: { attributes?: Record<string, unknown> };
-  links?: Array<{ trace_id: string; span_id: string; attributes: Record<string, unknown> }>;
-}
-
 interface SpanDetailProps {
   traceId: string;
   spanId: string;
@@ -378,7 +344,7 @@ function SpanDetailContent({
 
   const messages = messagesData?.messages;
   const messagesForInspector = useMemo(
-    () => (messages ? transformBlocksToData(messages) : {}),
+    () => (messages ? blocksToInspectorData(messages) : {}),
     [messages],
   );
 
@@ -393,85 +359,13 @@ function SpanDetailContent({
         rawSpan: null,
       };
     }
-
-    // Get finish reason
-    const finishReason =
-      spanData.finish_reasons?.length === 1
-        ? spanData.finish_reasons[0]
-        : spanData.finish_reasons?.length
-          ? spanData.finish_reasons
-          : undefined;
-
-    // Build overview data (matching span-detail-panel structure)
-    const overview: Record<string, unknown> = {
-      ...(spanData.gen_ai_system && { system: spanData.gen_ai_system }),
-      ...(spanData.agent_name && { agent: spanData.agent_name }),
-      ...(spanData.user_id && { user_id: spanData.user_id }),
-      ...(spanData.session_id && { session_id: spanData.session_id }),
-      trace_id: spanData.trace_id,
-      span_id: spanData.span_id,
-      ...(spanData.parent_span_id && { parent_span_id: spanData.parent_span_id }),
-      start_time: formatTimestamp(spanData.timestamp_start),
-      ...(spanData.timestamp_end && { end_time: formatTimestamp(spanData.timestamp_end) }),
-      ...(finishReason && { finish_reason: finishReason }),
-    };
-
-    // Build tokens data
-    const tokens: Record<string, number> = {};
-    if (spanData.input_tokens > 0) tokens.input = spanData.input_tokens;
-    if (spanData.output_tokens > 0) tokens.output = spanData.output_tokens;
-    if (spanData.cache_read_tokens > 0) tokens.cache_read = spanData.cache_read_tokens;
-    if (spanData.cache_write_tokens > 0) tokens.cache_write = spanData.cache_write_tokens;
-    if (spanData.reasoning_tokens > 0) tokens.reasoning = spanData.reasoning_tokens;
-    if (spanData.total_tokens > 0) tokens.total = spanData.total_tokens;
-
-    // Build cost data with percentages
-    const cost: Record<string, string> = {};
-    const totalCost =
-      spanData.total_cost > 0
-        ? spanData.total_cost
-        : spanData.input_cost +
-          spanData.output_cost +
-          spanData.cache_read_cost +
-          spanData.cache_write_cost +
-          spanData.reasoning_cost;
-
-    const formatCostWithPercent = (value: number) => {
-      if (totalCost === 0) return formatCost(value);
-      const pct = (value / totalCost) * 100;
-      const pctStr = pct > 0 && pct < 1 ? "<1%" : `${Math.round(pct)}%`;
-      return `${formatCost(value)} (${pctStr})`;
-    };
-
-    if (spanData.input_cost > 0) cost.input = formatCostWithPercent(spanData.input_cost);
-    if (spanData.output_cost > 0) cost.output = formatCostWithPercent(spanData.output_cost);
-    if (spanData.cache_read_cost > 0)
-      cost.cache_read = formatCostWithPercent(spanData.cache_read_cost);
-    if (spanData.cache_write_cost > 0)
-      cost.cache_write = formatCostWithPercent(spanData.cache_write_cost);
-    if (spanData.reasoning_cost > 0)
-      cost.reasoning = formatCostWithPercent(spanData.reasoning_cost);
-    if (spanData.total_cost > 0) cost.total = formatCost(spanData.total_cost);
-
-    // Build metadata from raw_span
-    const raw = spanData.raw_span as RawSpan | undefined;
-    const metadata: Record<string, unknown> = {};
-    if (raw?.attributes && Object.keys(raw.attributes).length > 0) {
-      metadata.attributes = raw.attributes;
-    }
-    if (raw?.resource?.attributes && Object.keys(raw.resource.attributes).length > 0) {
-      metadata.resourceAttributes = raw.resource.attributes;
-    }
-    if (raw?.links && raw.links.length > 0) {
-      metadata.links = raw.links;
-    }
-
+    const sections = spanInspectorSections(spanData);
     return {
-      overviewData: overview,
-      tokensData: Object.keys(tokens).length > 0 ? tokens : null,
-      costData: Object.keys(cost).length > 0 ? cost : null,
-      metadataData: Object.keys(metadata).length > 0 ? metadata : null,
-      rawSpan: raw,
+      overviewData: sections.overview,
+      tokensData: sections.tokens,
+      costData: sections.cost,
+      metadataData: sections.metadata,
+      rawSpan: sections.rawSpan,
     };
   }, [spanData]);
 

@@ -9,11 +9,8 @@ import {
   Binary,
   type LucideIcon,
 } from "lucide-react";
-import { formatDuration } from "@/lib/format";
 import { tw } from "@/lib/utils";
 import type { SpanType } from "./types";
-
-export { formatDuration };
 
 interface SpanTypeConfig {
   icon: LucideIcon;
@@ -82,26 +79,4 @@ export function getDurationHeatmapColor(duration: number, maxDuration: number): 
   if (percentage < 50) return tw("text-heat-low");
   if (percentage < 75) return tw("text-heat-mid");
   return tw("text-destructive");
-}
-
-export function formatTokens(input: number, output: number, total: number): string {
-  if (input > 0 || output > 0) {
-    const sum = total > 0 ? total : input + output;
-    return `${input.toLocaleString()} → ${output.toLocaleString()} (Σ ${sum.toLocaleString()})`;
-  }
-  if (total > 0) {
-    return `${total.toLocaleString()} tokens`;
-  }
-  return "";
-}
-
-export function formatCost(cost: number): string {
-  if (cost === 0) return "";
-  if (cost >= 1) return `$${cost.toFixed(2)}`;
-
-  // Dynamic precision: show 3 significant figures
-  const decimals = Math.min(10, Math.max(2, Math.ceil(-Math.log10(cost)) + 2));
-  const formatted = cost.toFixed(decimals);
-  // Strip trailing zeros but keep at least 2 decimal places
-  return `$${formatted.replace(/(\.\d{2,}?)0+$/, "$1")}`;
 }

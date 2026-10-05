@@ -3,7 +3,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { TreeNode } from "../../lib/types";
-import { SPAN_TYPE_CONFIG, formatDuration, formatCost } from "../../lib/span-config";
+import { formatCost, formatDuration } from "@/lib/format";
+import { SPAN_TYPE_CONFIG } from "../../lib/span-config";
 
 interface SpanDetailHeaderProps {
   node: TreeNode;

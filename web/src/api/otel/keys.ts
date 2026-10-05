@@ -8,8 +8,6 @@ import type {
   SpanDetailParams,
   SpanFilterOptionsParams,
   ProjectStatsParams,
-  FeedMessagesParams,
-  FeedSpansParams,
 } from "./types";
 
 // ============================================================================
@@ -88,12 +86,5 @@ export const otelKeys = {
     all: (projectId: string) => [...otelKeys.project(projectId), "stats"] as const,
     query: (projectId: string, params: ProjectStatsParams) =>
       [...otelKeys.stats.all(projectId), params] as const,
-  },
-  feed: {
-    all: (projectId: string) => [...otelKeys.project(projectId), "feed"] as const,
-    messages: (projectId: string, params?: FeedMessagesParams) =>
-      [...otelKeys.feed.all(projectId), "messages", params] as const,
-    spans: (projectId: string, params?: FeedSpansParams) =>
-      [...otelKeys.feed.all(projectId), "spans", params] as const,
   },
 };

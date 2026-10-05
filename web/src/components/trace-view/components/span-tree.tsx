@@ -2,12 +2,8 @@ import { useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { TreeView, type TreeNodeState } from "@/components/tree-view";
 import type { TreeNode } from "../lib/types";
-import {
-  SPAN_TYPE_CONFIG,
-  getDurationHeatmapColor,
-  formatDuration,
-  formatCost,
-} from "../lib/span-config";
+import { formatCost, formatDuration } from "@/lib/format";
+import { SPAN_TYPE_CONFIG, getDurationHeatmapColor } from "../lib/span-config";
 import { useTraceView } from "../contexts/use-trace-view";
 
 export function SpanTree() {
@@ -40,7 +36,7 @@ export function SpanTree() {
           ? getDurationHeatmapColor(node.duration, rootDuration)
           : "text-muted-foreground";
 
-      const costStr = formatCost(node.totalCost);
+      const costStr = node.totalCost > 0 ? formatCost(node.totalCost) : "";
 
       return (
         <div className="flex items-center gap-2.5">

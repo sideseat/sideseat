@@ -3,12 +3,8 @@ import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TimelineMetrics } from "@/components/timeline";
 import type { TreeNode } from "../lib/types";
-import {
-  SPAN_TYPE_CONFIG,
-  formatDuration,
-  formatCost,
-  getDurationHeatmapColor,
-} from "../lib/span-config";
+import { formatCost, formatDuration } from "@/lib/format";
+import { SPAN_TYPE_CONFIG, getDurationHeatmapColor } from "../lib/span-config";
 
 interface SpanTimelineRowProps {
   node: TreeNode;
