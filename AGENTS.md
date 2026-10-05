@@ -177,7 +177,8 @@ The developer loop is a product requirement, not a convenience. Every change mus
 - A new test, gate, hook, or dependency that makes `make quick` slower than the budget belongs in
   `make test` or an opt-in target instead. Measure it before adding it.
 - Git hooks stay cheap: pre-commit runs formatting, the file-length check, and the secret scan only; heavier
-  checks belong to pre-push and CI.
+  checks belong to pre-push and CI. Never bypass them (`--no-verify`): a hook that fails on someone else's
+  work in progress is a reason to wait for or fix that work, not to commit unchecked.
 - If the loop has become slow, fixing that takes priority over the feature you are working on.
 
 ## Verification
