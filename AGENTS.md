@@ -10,6 +10,25 @@ logs, reconstructs each framework's conversations as SideML, and serves them thr
 WebSocket, and the web application. The SDKs (`sdk/python`, `sdk/js`, `sdk/dotnet`, `sdk/rust`) configure
 OpenTelemetry export for an application; they carry no parsing logic of their own.
 
+## Hard requirement: byte-level efficiency, total correctness, minimal resources
+
+This is what distinguishes SideSeat. Every change is judged on all three, and none is traded for another.
+
+- **Bytes.** Storage, memory, and wire formats are optimised at the byte level. The targets are at least 25x
+  smaller than raw OTLP protobuf per signal, and sustained ingest of at least 25,000 spans per second with the
+  server and its embedded backend inside 2 GB of RAM. Redundancy is a defect: repeated attributes, re-sent
+  message history, JSON text, and inline media are encoded once, by reference, with dictionaries and compact
+  binary encodings.
+- **Correctness.** 100 %, proven rather than assumed. Raw telemetry round-trips byte for byte, every
+  reconstructed conversation matches its truth, and an optimisation that changes any golden, truth, or parity
+  answer is wrong until shown otherwise.
+- **Resources.** Memory is bounded by design, not by luck: streaming over buffering, fixed-size caches,
+  back-pressure instead of unbounded queues, no per-request allocation that grows with history. CPU and
+  disk work is proportional to new data, never to what is already stored.
+- **Measured, never estimated.** A claim about size, speed, or memory comes with a reproducible measurement
+  (`make footprint`, `make bench-http`, `scripts/perf/`) taken before and after the change. Regression gates fail
+  the build when a measured figure gets worse.
+
 ## Repository map
 
 ```
