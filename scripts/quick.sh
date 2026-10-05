@@ -70,7 +70,12 @@ if [ -n "$rust_files" ]; then
     done <<<"$rust_files"
 
     step "rustfmt"
-    cargo fmt --all -- --check
+    # The changed files only: their formatting is all this change can have altered.
+    rs_existing="$(grep -E '\.rs$' <<<"$rust_files" | existing || true)"
+    if [ -n "$rs_existing" ]; then
+        # shellcheck disable=SC2086
+        rustfmt --check --edition 2024 $rs_existing
+    fi
     if ((workspace)); then
         step "clippy (workspace: a workspace manifest changed)"
         cargo clippy --locked --workspace --all-targets -- -D warnings
@@ -89,10 +94,16 @@ if [ -n "$rust_files" ]; then
         # and per-fixture invariants; the corpus-wide property tests each re-read every fixture in a
         # process of their own and run in `make test`. One invocation, so nextest runs every selected
         # crate's tests in parallel and cargo builds them in one pass.
+        # The repository invariants check docs, scripts and layout, which a change to Rust source
+        # alone cannot break; they run when anything else changed too.
         targets=()
         if printf '%s\n' "${crates[@]}" | grep -qx sideseat-server; then
-            targets=(--lib --bins --test message_goldens --test repository
-                -E 'not binary(message_goldens) or test(=message_goldens)')
+            if grep -qvE '\.rs$' <<<"$changed"; then
+                targets=(--lib --bins --test message_goldens --test repository
+                    -E 'not binary(message_goldens) or test(=message_goldens)')
+            else
+                targets=(--lib --bins --test message_goldens -E 'not binary(message_goldens) or test(=message_goldens)')
+            fi
         fi
         step "tests ${crates[*]}"
         command -v cargo-nextest >/dev/null 2>&1 || {
