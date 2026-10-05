@@ -260,6 +260,29 @@ fn tool_identity_distinguishes_an_empty_collection_from_a_missing_one() {
     );
 }
 
+/// An executed call reports the optional parameters its framework injected as `null`.
+#[test]
+fn a_null_argument_is_the_argument_left_out() {
+    use serde_json::json;
+    let call = |input: &serde_json::Value| compute_tool_call_hash("get_weather", input);
+
+    let made = json!({"city": "Barcelona", "days": 2});
+    assert_eq!(
+        call(&made),
+        call(&json!({"instructions_override": null, "city": "Barcelona", "days": 2})),
+    );
+    assert_ne!(
+        call(&made),
+        call(&json!({"city": "Barcelona", "days": 2, "filters": []})),
+        "an empty collection is still an argument"
+    );
+    assert_ne!(
+        call(&json!({"place": {"city": "Barcelona"}})),
+        call(&json!({"place": {"city": "Barcelona", "region": null}})),
+        "a null inside an argument's value is part of that value"
+    );
+}
+
 #[test]
 fn identity_ignores_schema_filled_empty_fields() {
     use serde_json::json;

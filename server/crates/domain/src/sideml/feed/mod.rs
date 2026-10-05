@@ -187,7 +187,8 @@ use sideseat_ports::types::{MessageCategory, MessageSpanRow};
 
 use classify::uses_span_end;
 use dedup::{
-    SpanTimestamps, hash_json_into, hash_structured_json_into, hash_tool_result_content_into,
+    SpanTimestamps, hash_json_into, hash_structured_json_into, hash_tool_input_into,
+    hash_tool_result_content_into,
 };
 use history::{mark_history, mark_span_history};
 

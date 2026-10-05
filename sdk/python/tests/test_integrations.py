@@ -159,3 +159,44 @@ def test_the_claude_code_cli_environment_points_at_the_project() -> None:
     assert env["OTEL_EXPORTER_OTLP_TRACES_HEADERS"] == "Authorization=Bearer secret"
     assert env["OTEL_LOG_USER_PROMPTS"] == "1"
     assert env["OTEL_TRACES_EXPORTER"] == "otlp"
+
+
+def test_semantic_kernel_exports_the_log_records_its_diagnostics_write(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Semantic Kernel writes prompts and completions as INFO records of its model-diagnostics
+    logger and never as span attributes, so the integration must hand them to the log pipeline."""
+    import logging
+    import sys
+    import types
+
+    from opentelemetry import _logs
+    from opentelemetry.sdk._logs.export import (
+        InMemoryLogRecordExporter,
+        SimpleLogRecordProcessor,
+    )
+
+    for module_name in (
+        "semantic_kernel.utils.telemetry.agent_diagnostics.decorators",
+        "semantic_kernel.utils.telemetry.model_diagnostics.decorators",
+        "semantic_kernel.utils.telemetry.model_diagnostics.function_tracer",
+    ):
+        module = types.ModuleType(module_name)
+        module.MODEL_DIAGNOSTICS_SETTINGS = types.SimpleNamespace(  # type: ignore[attr-defined]
+            enable_otel_diagnostics=False, enable_otel_diagnostics_sensitive=False
+        )
+        monkeypatch.setitem(sys.modules, module_name, module)
+
+    sideseat.init(integrations=["semantic-kernel"], export=False, metrics=False)
+    exporter = InMemoryLogRecordExporter()
+    _logs.get_logger_provider().add_log_record_processor(  # type: ignore[attr-defined]
+        SimpleLogRecordProcessor(exporter)
+    )
+    logging.getLogger("semantic_kernel.utils.telemetry.model_diagnostics.decorators").info(
+        '{"role": "user", "content": "Hello"}', extra={"event.name": "gen_ai.user.message"}
+    )
+
+    records = [data.log_record for data in exporter.get_finished_logs()]
+    assert [record.body for record in records] == ['{"role": "user", "content": "Hello"}']
+    assert records[0].attributes is not None
+    assert records[0].attributes["event.name"] == "gen_ai.user.message"

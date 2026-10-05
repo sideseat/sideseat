@@ -405,7 +405,10 @@ pub fn mark_history(
             continue;
         }
 
-        if !block.is_generation_span() {
+        // A generation span at the conversation root is the only carrier of its turn: no agent span
+        // above it holds the authoritative copy that this pass assumes, so its re-sent inputs are left
+        // to identity deduplication instead.
+        if !block.is_generation_span() || at_root(block) {
             continue;
         }
 

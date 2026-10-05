@@ -779,3 +779,68 @@ fn a_received_copy_inside_the_clock_skew_is_the_agent_spans() {
         "beyond the skew, time stands"
     );
 }
+
+/// Where no span above a model call carries the conversation, the model call is the only record of
+/// its turn's question. Semantic Kernel logs each request's messages against its own chat span, and the
+/// second request of a tool loop re-sends the first's tool results; that re-send once marked every
+/// generation block in the trace as history, and the question vanished from the trace.
+#[test]
+fn a_root_model_call_keeps_its_question_when_a_later_call_resends_tool_results() {
+    let on_span = |mut block: BlockEntry, span: &str| {
+        block.span_id = span.to_string();
+        block.span_path = vec!["loop".to_string(), span.to_string()];
+        block.parent_span_id = Some("loop".to_string());
+        block
+    };
+    let input = |role, category| {
+        make_block_with_source(
+            "text",
+            Some("generation"),
+            Some("gen_ai.user.message"),
+            "event",
+            category,
+            role,
+        )
+    };
+    let mut agent_output = make_block_with_source(
+        "text",
+        Some("agent"),
+        None,
+        "attribute",
+        MessageCategory::GenAIAssistantMessage,
+        ChatRole::Assistant,
+    );
+    agent_output.span_path = vec!["agent".to_string()];
+    let mut resent_result = make_block_with_source(
+        "tool_result",
+        Some("generation"),
+        Some("gen_ai.tool.message"),
+        "event",
+        MessageCategory::GenAIToolMessage,
+        ChatRole::Tool,
+    );
+    resent_result = on_span(resent_result, "second_call");
+
+    let mut blocks = vec![
+        agent_output,
+        on_span(
+            input(ChatRole::System, MessageCategory::GenAISystemMessage),
+            "first_call",
+        ),
+        on_span(
+            input(ChatRole::User, MessageCategory::GenAIUserMessage),
+            "first_call",
+        ),
+        resent_result,
+    ];
+    mark_history(&mut blocks, &HashMap::new());
+
+    assert!(
+        !blocks[1].is_history,
+        "the system instruction is the turn's only record"
+    );
+    assert!(
+        !blocks[2].is_history,
+        "the question is the turn's only record"
+    );
+}

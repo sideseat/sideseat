@@ -40,7 +40,7 @@ pub(in crate::sideml::feed) fn compute_block_hash(block: &ContentBlock) -> u64 {
             // Hash by name + normalized input only (not id)
             "tool_use".hash(&mut hasher);
             name.hash(&mut hasher);
-            hash_json_into(input, &mut hasher);
+            hash_tool_input_into(input, &mut hasher);
         }
         ContentBlock::ToolResult {
             name,

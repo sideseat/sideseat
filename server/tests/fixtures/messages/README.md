@@ -115,8 +115,8 @@ program (`python`, `javascript`, `dotnet`, `rust`). The mode says who configured
 | `rust/native` | OpenTelemetry Rust 0.33.0 on Rust 1.94.1 | 1 | 1 |
 | `rust/sdk` | SideSeat Rust 0.2.0 / OpenTelemetry Rust 0.33.0 on Rust 1.94.1 | 1 | 1 |
 | `sdk` | the SideSeat SDK, with the same scenario code |
-| `semantic-kernel/native` | Semantic Kernel 1.44.1 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0, native OTLP setup | 1 | 1 |
-| `semantic-kernel/sdk` | SideSeat Python 1.0.8 / Semantic Kernel 1.44.1 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 | 1 | 1 |
+| `semantic-kernel/native` | Semantic Kernel 1.44.1 Bedrock connector / boto3 1.42.97 / OpenTelemetry Python 1.45.0 on CPython 3.12.8, its GenAI diagnostics switched on, messages as log records exported through a `LoggingHandler`; tool results are the Python `str()` of the function result, which is what Semantic Kernel sends the model | 8 | 14 |
+| `semantic-kernel/sdk` | SideSeat Python 2.0.0 / Semantic Kernel 1.44.1 Bedrock connector / boto3 1.42.97 / OpenTelemetry Python 1.45.0 on CPython 3.12.8 | 8 | 8 |
 | `smolagents/native` | Smolagents 1.26.0 / LiteLLM 1.103.2 (Bedrock) / OpenInference Smolagents instrumentor 0.1.42 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup; no `structured_output` or `files` (unsupported) and no `mcp_tools` (its MCP adapter misreads the server schema) | 8 | 15 |
 | `smolagents/sdk` | SideSeat Python 2.0.0 / Smolagents 1.26.0 / LiteLLM 1.103.2 (Bedrock) / OpenInference Smolagents instrumentor 0.1.42 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 8 | 8 |
 | `strands-js/native` | Strands Agents for TypeScript 1.19.0 (Bedrock) / OpenTelemetry JS 2.11.0, OTLP exporter 0.219.0 on Node.js 25.2.1, `setupTracer`; Strands reports no reasoning in a turn's output, so `reasoning` shows the answer only and `multi_turn` shows a turn's redacted reasoning after its answer, where the next request's history first carries it | 11 | 12 |

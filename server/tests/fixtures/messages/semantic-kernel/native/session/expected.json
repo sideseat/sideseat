@@ -1,0 +1,355 @@
+{
+  "label": "semantic-kernel/native/session",
+  "request_count": 2,
+  "span_count": 8,
+  "trace_count": 2,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/AutoFunctionInvocationLoop/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/chat global.anthropic.claude-sonnet-5-5/span-4": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one museum to visit in Madrid.",
+          "content_digest": "9d08c76a1df2d525",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'd recommend the **Museo del Prado**, one of the world's great art museums with masterpieces by Velázquez, Goya, and El Greco, including Velázquez's *Las Meninas*. It's located in the heart of Madrid's \"Golden Triangle of Art,\" within walk…[438 chars]",
+          "content_digest": "0278b1898d4f68a0",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/invoke_agent assistant/span-2": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'd recommend the **Museo del Prado**, one of the world's great art museums with masterpieces by Velázquez, Goya, and El Greco, including Velázquez's *Las Meninas*. It's located in the heart of Madrid's \"Golden Triangle of Art,\" within walk…[438 chars]",
+          "content_digest": "0278b1898d4f68a0",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/session-turn-1/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/AutoFunctionInvocationLoop/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/chat global.anthropic.claude-sonnet-5-5/span-4": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one park to visit in Madrid.",
+          "content_digest": "95fac62b5ab37eb3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I suggest **Retiro Park (Parque del Buen Retiro)**. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll the shaded garden paths. It's also central and free to enter, so it's easy to fit into any itinerary.",
+          "content_digest": "9578077980711fb2",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/invoke_agent assistant/span-2": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I suggest **Retiro Park (Parque del Buen Retiro)**. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll the shaded garden paths. It's also central and free to enter, so it's easy to fit into any itinerary.",
+          "content_digest": "9578077980711fb2",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-2/session-turn-2/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one museum to visit in Madrid.",
+          "content_digest": "9d08c76a1df2d525",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'd recommend the **Museo del Prado**, one of the world's great art museums with masterpieces by Velázquez, Goya, and El Greco, including Velázquez's *Las Meninas*. It's located in the heart of Madrid's \"Golden Triangle of Art,\" within walk…[438 chars]",
+          "content_digest": "0278b1898d4f68a0",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one park to visit in Madrid.",
+          "content_digest": "95fac62b5ab37eb3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I suggest **Retiro Park (Parque del Buen Retiro)**. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll the shaded garden paths. It's also central and free to enter, so it's easy to fit into any itinerary.",
+          "content_digest": "9578077980711fb2",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "semantic-kernel-session": {
+      "message_count": 6,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one museum to visit in Madrid.",
+          "content_digest": "9d08c76a1df2d525",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'd recommend the **Museo del Prado**, one of the world's great art museums with masterpieces by Velázquez, Goya, and El Greco, including Velázquez's *Las Meninas*. It's located in the heart of Madrid's \"Golden Triangle of Art,\" within walk…[438 chars]",
+          "content_digest": "0278b1898d4f68a0",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one park to visit in Madrid.",
+          "content_digest": "95fac62b5ab37eb3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I suggest **Retiro Park (Parque del Buen Retiro)**. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll the shaded garden paths. It's also central and free to enter, so it's easy to fit into any itinerary.",
+          "content_digest": "9578077980711fb2",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 6,
+    "role_sequence": [
+      "assistant",
+      "user",
+      "system",
+      "assistant",
+      "user",
+      "system"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "I suggest **Retiro Park (Parque del Buen Retiro)**. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll the shaded garden paths. It's also central and free to enter, so it's easy to fit into any itinerary.",
+        "content_digest": "9578077980711fb2",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Suggest one park to visit in Madrid.",
+        "content_digest": "95fac62b5ab37eb3",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "I'd recommend the **Museo del Prado**, one of the world's great art museums with masterpieces by Velázquez, Goya, and El Greco, including Velázquez's *Las Meninas*. It's located in the heart of Madrid's \"Golden Triangle of Art,\" within walk…[438 chars]",
+        "content_digest": "0278b1898d4f68a0",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Suggest one museum to visit in Madrid.",
+        "content_digest": "9d08c76a1df2d525",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

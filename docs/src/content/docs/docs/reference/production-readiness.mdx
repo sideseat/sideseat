@@ -35,7 +35,7 @@ of the surviving messages rather than silently inventing or dropping content.
 
 ## Current checked-in boundary
 
-The current tracked corpus contains **71 suites, 607 samples, and 785 captured OTLP requests**:
+The current tracked corpus contains **71 suites, 621 samples, and 805 captured OTLP requests**:
 
 - SideSeat SDK versus plain OpenTelemetry pairs for Python, TypeScript/Node.js, .NET, and Rust;
 - a credential-free OpenAI 3.19.2 / Logfire 6.0.0b7 pair captured both natively and through
@@ -69,9 +69,10 @@ The current tracked corpus contains **71 suites, 607 samples, and 785 captured O
 - a credential-free AgentScope 2.0.9 / OpenAI 3.22.1 pair using AgentScope's built-in
   `TracingMiddleware`, covering retained history, streaming, automatic tool execution,
   two traces, one shared session, and exact native/SideSeat parity;
-- a credential-free Semantic Kernel 1.44.1 / OpenAI 3.22.1 pair covering multi-turn history,
-  automatic tool execution, two traces, one shared session, current Python instrumentation
-  scopes, and exact native/SideSeat parity;
+- live captures of eight catalogue scenarios for Semantic Kernel 1.44.1 on Claude Sonnet 5.5
+  through its Bedrock connector, in native and SideSeat mode with exact parity. Semantic Kernel
+  writes every prompt and completion as a Python log record rather than a span attribute, so both
+  modes export its logs beside the traces;
 - a credential-free Agno 3.0.11 / OpenAI 3.22.1 / OpenInference instrumentor 1.0.12 pair
   covering persisted history, streaming, automatic tool execution, two traces, and one shared
   session with exact native/SideSeat parity;

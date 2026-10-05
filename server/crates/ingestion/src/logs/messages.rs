@@ -38,6 +38,9 @@ pub(super) fn log_record_messages(record: &LogRecord) -> Vec<RawMessage> {
                 Some(any_value::Value::KvlistValue(members)) => {
                     structured_attributes(&members.values)
                 }
+                // The same map as JSON text: a Python `logging` record's body is its message string, so a
+                // producer that logs an event through `logging` serialises the members into it.
+                Some(any_value::Value::StringValue(text)) => json_members(text),
                 // A body that is not a map has no members, which reads as an event with no attributes - what
                 // the same event emitted on a span with none would read as.
                 _ => Default::default(),
@@ -56,6 +59,23 @@ pub(super) fn log_record_messages(record: &LogRecord) -> Vec<RawMessage> {
         nanos_to_datetime(nanos),
         EventSpan::unattached(),
     )
+}
+
+/// The members of a JSON object written as text, each as the string an attribute of that value would be.
+fn json_members(text: &str) -> std::collections::HashMap<String, String> {
+    let Ok(serde_json::Value::Object(members)) = serde_json::from_str(text) else {
+        return Default::default();
+    };
+    members
+        .into_iter()
+        .map(|(key, value)| {
+            let value = match value {
+                serde_json::Value::String(text) => text,
+                other => other.to_string(),
+            };
+            (key, value)
+        })
+        .collect()
 }
 
 /// Whether the record carries a usable trace and span id. All-zero ids are OpenTelemetry's "invalid".
@@ -269,5 +289,25 @@ mod tests {
             json!("/9j/"),
             "base64, not hex"
         );
+    }
+
+    /// A Python `logging` record's body is its message string, so an event logged through `logging` carries
+    /// its members as JSON text. Semantic Kernel logs every prompt and completion this way.
+    #[test]
+    fn body_members_written_as_json_text_are_the_event_attributes() {
+        let record = linked(LogRecord {
+            attributes: vec![kv("event.name", text("gen_ai.choice"))],
+            body: Some(text(
+                r#"{"message": {"role": "assistant", "content": "Paris"}, "finish_reason": "stop"}"#,
+            )),
+            ..Default::default()
+        });
+        let messages = log_record_messages(&record);
+        assert_eq!(sources(&messages), vec!["event:gen_ai.choice".to_string()]);
+        assert_eq!(
+            messages[0].content["message"],
+            json!({"role": "assistant", "content": "Paris"})
+        );
+        assert_eq!(messages[0].content["finish_reason"], json!("stop"));
     }
 }

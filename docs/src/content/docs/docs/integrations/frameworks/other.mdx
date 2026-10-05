@@ -128,10 +128,14 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-The integration switches on Semantic Kernel's GenAI diagnostics, content included. Without the SDK,
-set `SEMANTICKERNEL_EXPERIMENTAL_GENAI_ENABLE_OTEL_DIAGNOSTICS=true` and
+The integration switches on Semantic Kernel's GenAI diagnostics, content included, and exports the
+log records they write: Semantic Kernel records every prompt and completion as a Python log record,
+not as a span attribute, so a trace without its logs holds no conversation. Without the SDK, set
+`SEMANTICKERNEL_EXPERIMENTAL_GENAI_ENABLE_OTEL_DIAGNOSTICS=true` and
 `SEMANTICKERNEL_EXPERIMENTAL_GENAI_ENABLE_OTEL_DIAGNOSTICS_SENSITIVE=true` before Semantic Kernel is
-imported. For .NET, use the `semantic-kernel` integration of the [.NET SDK](/docs/sdks/dotnet/).
+imported, export logs to SideSeat's `/otel/default/v1/logs` endpoint beside the traces, and attach an
+OpenTelemetry `LoggingHandler` at `INFO` to the `semantic_kernel` logger. For .NET, use the
+`semantic-kernel` integration of the [.NET SDK](/docs/sdks/dotnet/).
 
 ## Agno
 
