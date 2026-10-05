@@ -174,8 +174,8 @@ credentials, so they keep the harness itself under test.
 `crewai/agent_core` is gitignored: CrewAI serialises its entire model config into a span
 attribute, so the captured payload contained a live `aws_secret_access_key` and
 `aws_session_token`. A secret in a fixture goes straight into git history, where it cannot be
-taken back — `scripts/message-fixtures/capture.sh` now discards any fixture whose payload matches that
-shape rather than leaving the decision to a later reader.
+taken back — the capture tool (`examples/python/harness/harness/capture.py`) now discards any run whose
+payload holds an AWS credential value rather than leaving the decision to a later reader.
 
-`scripts/message-fixtures/capture.sh` prints a warning for any payload over 1MB, so a capture that
+The capture tool prints a warning for any payload over 1 MB, so a capture that
 inlines megabytes of media is a decision rather than a surprise.

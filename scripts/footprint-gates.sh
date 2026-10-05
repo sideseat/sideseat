@@ -166,7 +166,7 @@ with open(path, "wb") as output:
 PY
 else
   FIXTURE="$ROOT/server/tests/fixtures/messages/$FIXTURE_NAME"
-  [ -d "$FIXTURE" ] || fail "fixture $FIXTURE_NAME not found; capture it with scripts/message-fixtures/capture.sh"
+  [ -d "$FIXTURE" ] || fail "fixture $FIXTURE_NAME not found; capture it with make capture P=<producer>"
   ls "$FIXTURE"/*.pb >/dev/null 2>&1 || fail "fixture $FIXTURE_NAME holds no captured requests"
 fi
 

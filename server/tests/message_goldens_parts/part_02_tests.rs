@@ -433,7 +433,7 @@ fn message_goldens() {
         // Not a silent pass: capturing fixtures needs credentials and a live model, so a
         // clean checkout legitimately has none. Say so loudly instead of reporting success.
         eprintln!(
-            "message_goldens: no fixtures under {} - run scripts/message-fixtures/capture.sh",
+            "message_goldens: no fixtures under {} - run make capture P=<producer>",
             fixture_root().display()
         );
         return;

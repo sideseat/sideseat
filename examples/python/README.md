@@ -11,7 +11,7 @@ dependencies on first use. Install uv with `curl -LsSf https://astral.sh/uv/inst
 All suites share the same CLI options (`--model`, `--sideseat`, `--list`, `--help`), but **not
 the same sample names** — the provider suites have their own (`bedrock` has `converse` and
 `invoke_model`, not `tool_use`). Run `--list` to see what a suite actually offers; that is also
-what `scripts/message-fixtures/capture.sh` does rather than assuming.
+what `make capture` does rather than assuming.
 
 Without `--sideseat`, each suite uses its framework's native instrumentation and a raw
 OpenTelemetry exporter. With `--sideseat`, the SideSeat SDK owns framework instrumentation

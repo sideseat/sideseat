@@ -6,7 +6,7 @@
 //! test still passes because they each cover one stage in isolation.
 //!
 //! This harness closes that gap end to end. Each fixture is the exact OTLP payload a real
-//! sample sent (captured by `scripts/message-fixtures/record-otlp.py`, see `scripts/message-fixtures/capture.sh`).
+//! sample sent (captured by `make capture`, see `examples/python/harness/harness/capture.py`).
 //! It is replayed through the real ingestion path — `extract_attributes_batch`,
 //! `extract_messages_batch`, SideML conversion, enrichment — and then through each of the
 //! four views the API exposes:

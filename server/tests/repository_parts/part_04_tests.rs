@@ -1,27 +1,5 @@
 
 #[test]
-fn fixture_capture_only_stops_its_own_recorder() {
-    let script = std::fs::read_to_string(repo_root().join("scripts/message-fixtures/capture.sh"))
-        .expect("fixture capture script");
-
-    assert!(
-        !script.contains("pkill"),
-        "fixture capture must not terminate recorders by global process matching"
-    );
-    for required in [
-        "RECORDER_PID_FILE=",
-        "printf '%s\\n' \"$recorder_pid\" >\"$RECORDER_PID_FILE\"",
-        "read -r pid <\"$RECORDER_PID_FILE\"",
-        "kill -TERM \"$pid\"",
-    ] {
-        assert!(
-            script.contains(required),
-            "fixture capture must contain `{required}`"
-        );
-    }
-}
-
-#[test]
 fn container_tests_share_trapped_cleanup() {
     let script = std::fs::read_to_string(repo_root().join("scripts/container-test.sh"))
         .expect("container test helper");

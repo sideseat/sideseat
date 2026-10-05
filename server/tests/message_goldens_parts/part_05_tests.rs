@@ -152,7 +152,7 @@ fn bench_session_scaling() {
 fn a_session_known_only_to_the_store_reconstructs_identically() {
     let fixtures = discover_fixtures();
     if fixtures.is_empty() {
-        eprintln!("session grouping: no fixtures - run scripts/message-fixtures/capture.sh");
+        eprintln!("session grouping: no fixtures - run make capture P=<producer>");
         return;
     }
 

@@ -566,7 +566,7 @@ fn dependabot_covers_every_manifest_in_the_tree() {
 /// distinguish a scrubbed archive from an unscrubbed one, and a *derived* answer would have to decide whether an
 /// arbitrary name is a real account, which nothing in a repository can know.
 const HOME_PLACEHOLDERS: [&str; 3] = [
-    // What `scripts/message-fixtures/capture.sh` substitutes.
+    // What the capture tool's `anonymise` substitutes (`examples/python/harness/harness/capture.py`).
     "sideseat",
     // What the replay archives under `tools/otel-replay/fixtures/` were scrubbed to.
     "test-user",
@@ -736,7 +736,7 @@ fn no_tracked_file_carries_the_capturing_users_name() {
     assert!(
         offenders.is_empty(),
         "{} tracked file(s) name a home directory a public repository should not carry - re-capture with \
-         scripts/message-fixtures/capture.sh, which substitutes `{}`:\n  {}",
+         the capture tool's anonymise, which substitutes `{}`:\n  {}",
         offenders.len(),
         HOME_PLACEHOLDERS[0],
         offenders.join("\n  ")

@@ -146,57 +146,16 @@ Run the complete message gate with:
 cargo test --locked -p sideseat-server --test message_goldens
 ```
 
-Framework captures that call real models require the corresponding provider credentials. CI
-uses committed OTLP payloads, so verification remains deterministic and does not make paid or
-network-dependent model calls.
-
-The direct OpenAI, Azure OpenAI, Anthropic, Google GenAI, Vertex AI, Pydantic AI, Agno,
-Smolagents, TraceLoop, and generic Logfire parity fixtures can also be recaptured offline; the
-harness suites replay their committed model cassettes with `make capture-offline P=<producer>`:
+Every framework suite is captured with one command. A live capture runs the native mode against the
+model through a recording proxy and saves the model's responses as a cassette beside the suite; the
+SDK run replays that cassette byte for byte, so both modes hold the same conversation. CI and an
+offline recapture replay the committed cassettes and make no model calls:
 
 ```bash
-make capture-offline P=openai
-make capture-offline P=azure-openai
-
-scripts/message-fixtures/fake-openai.py --port 5401
-OPENAI_API_KEY=x OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
-  CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
-  scripts/message-fixtures/capture.sh semantic-kernel canonical both
-
-scripts/message-fixtures/fake-openai.py --port 5401
-OPENAI_API_KEY=x OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
-  CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
-  scripts/message-fixtures/capture.sh agno canonical both
-
-scripts/message-fixtures/fake-openai.py --port 5401
-OPENAI_API_KEY=x OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
-  CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
-  scripts/message-fixtures/capture.sh smolagents canonical both
-
-scripts/message-fixtures/fake-openai.py --port 5401
-OPENAI_API_KEY=x OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \
-  CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
-  scripts/message-fixtures/capture.sh traceloop canonical both
-
-scripts/message-fixtures/fake-anthropic.py --port 5402
-ANTHROPIC_API_KEY=x ANTHROPIC_BASE_URL=http://127.0.0.1:5402 \
-  CAPTURE_MODEL=claude-sonnet-4-6 \
-  scripts/message-fixtures/capture.sh anthropic messages both
-
-scripts/message-fixtures/capture.sh pydantic-ai agent both
-
-scripts/message-fixtures/capture.sh logfire canonical both
-
-scripts/message-fixtures/fake-google-genai.py --port 5404
-GOOGLE_GENAI_BASE_URL=http://127.0.0.1:5404 \
-  scripts/message-fixtures/capture.sh google-genai generate_content both
-
-scripts/message-fixtures/fake-google-genai.py --port 5404
-VERTEX_AI_BASE_URL=http://127.0.0.1:5404 \
-  scripts/message-fixtures/capture.sh vertex-ai canonical both
+make capture P=<producer>            # live, with AWS credentials for Bedrock
+make capture-offline P=<producer>    # replay the committed cassettes; no credentials
 ```
 
-Pydantic AI uses a deterministic in-process `FunctionModel`; no provider credential or local
-HTTP fixture server is required. The Google endpoint is a deterministic Gemini-compatible wire
-fixture; the samples still run the real Google GenAI client and OpenTelemetry instrumentor in
-Gemini Developer API and current Enterprise/Vertex AI modes.
+Suites whose provider Bedrock does not serve - Google GenAI, Vertex AI, Azure OpenAI, AutoGen - run
+the real client against the harness's deterministic fake model servers, which start in-process, so
+their captures need no credentials at all.
