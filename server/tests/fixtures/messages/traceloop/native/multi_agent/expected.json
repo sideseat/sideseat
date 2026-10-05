@@ -38,6 +38,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_zneMpoBS09IO2V7UwVvcQh\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
           "content_digest": "73be8235fea1f79e",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         }
       ]
@@ -210,6 +211,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_zneMpoBS09IO2V7UwVvcQh\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
           "content_digest": "73be8235fea1f79e",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -296,6 +298,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_zneMpoBS09IO2V7UwVvcQh\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
           "content_digest": "73be8235fea1f79e",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -423,6 +426,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_zneMpoBS09IO2V7UwVvcQh\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
         "content_digest": "73be8235fea1f79e",
         "tool_name": "get_weather",
+        "finish_reason": "ToolUse",
         "observation_type": "generation"
       }
     ]

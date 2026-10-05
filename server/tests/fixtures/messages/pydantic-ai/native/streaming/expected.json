@@ -38,6 +38,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_M42J5S29ptIYRsUa5T70zX\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
           "content_digest": "30bca12440e1a31c",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         }
       ]
@@ -77,6 +78,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_M42J5S29ptIYRsUa5T70zX\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
           "content_digest": "30bca12440e1a31c",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -163,6 +165,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_M42J5S29ptIYRsUa5T70zX\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
           "content_digest": "30bca12440e1a31c",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "agent"
         },
         {
@@ -229,6 +232,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_M42J5S29ptIYRsUa5T70zX\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
           "content_digest": "30bca12440e1a31c",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -288,6 +292,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_M42J5S29ptIYRsUa5T70zX\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
           "content_digest": "30bca12440e1a31c",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -348,6 +353,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_M42J5S29ptIYRsUa5T70zX\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
         "content_digest": "30bca12440e1a31c",
         "tool_name": "get_weather",
+        "finish_reason": "ToolUse",
         "observation_type": "generation"
       },
       {

@@ -61,6 +61,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_YfBFux9th2ZULkwyppr86l\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
           "content_digest": "23706258bbcb6155",
           "tool_name": "calculate",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -116,6 +117,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_YfBFux9th2ZULkwyppr86l\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
           "content_digest": "23706258bbcb6155",
           "tool_name": "calculate",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         }
       ]
@@ -184,6 +186,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_YfBFux9th2ZULkwyppr86l\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
           "content_digest": "23706258bbcb6155",
           "tool_name": "calculate",
+          "finish_reason": "ToolUse",
           "observation_type": "agent"
         },
         {
@@ -264,6 +267,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_YfBFux9th2ZULkwyppr86l\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
           "content_digest": "23706258bbcb6155",
           "tool_name": "calculate",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -323,6 +327,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_YfBFux9th2ZULkwyppr86l\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
           "content_digest": "23706258bbcb6155",
           "tool_name": "calculate",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -383,6 +388,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_YfBFux9th2ZULkwyppr86l\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
         "content_digest": "23706258bbcb6155",
         "tool_name": "calculate",
+        "finish_reason": "ToolUse",
         "observation_type": "generation"
       },
       {

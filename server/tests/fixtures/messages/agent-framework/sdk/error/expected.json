@@ -38,6 +38,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01TcHgXTi3DgxJ6kNWC9RGDi\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
           "content_digest": "dd2f1dba5cc3cc1d",
           "tool_name": "book_flight",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         }
       ]
@@ -226,7 +227,8 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01TcHgXTi3DgxJ6kNWC9RGDi\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
           "content_digest": "dd2f1dba5cc3cc1d",
           "tool_name": "book_flight",
-          "observation_type": "agent"
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -284,7 +286,8 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01TcHgXTi3DgxJ6kNWC9RGDi\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
           "content_digest": "dd2f1dba5cc3cc1d",
           "tool_name": "book_flight",
-          "observation_type": "agent"
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -310,9 +313,9 @@
     "message_count": 5,
     "role_sequence": [
       "assistant",
+      "assistant",
       "system",
       "user",
-      "assistant",
       "tool"
     ],
     "tool_names": [],
@@ -329,6 +332,16 @@
       },
       {
         "index": 1,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01TcHgXTi3DgxJ6kNWC9RGDi\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
+        "content_digest": "dd2f1dba5cc3cc1d",
+        "tool_name": "book_flight",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -336,20 +349,11 @@
         "observation_type": "agent"
       },
       {
-        "index": 2,
+        "index": 3,
         "role": "user",
         "entry_type": "text",
         "content": "Book me a flight from London to Oslo on 2026-11-14.",
         "content_digest": "1b969baf99595bc8",
-        "observation_type": "agent"
-      },
-      {
-        "index": 3,
-        "role": "assistant",
-        "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01TcHgXTi3DgxJ6kNWC9RGDi\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
-        "content_digest": "dd2f1dba5cc3cc1d",
-        "tool_name": "book_flight",
         "observation_type": "agent"
       },
       {

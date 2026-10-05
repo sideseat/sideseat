@@ -56,6 +56,7 @@
           "entry_type": "text",
           "content": "**Image:** A curving black path winds through a sunny, grassy park with a low stone retaining wall, bare and evergreen trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The five-page document conta…[346 chars]",
           "content_digest": "f70b7943e1423b28",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -125,6 +126,7 @@
           "entry_type": "text",
           "content": "**Image:** A curving black path winds through a sunny, grassy park with a low stone retaining wall, bare and evergreen trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The five-page document conta…[346 chars]",
           "content_digest": "f70b7943e1423b28",
+          "finish_reason": "Stop",
           "observation_type": "agent"
         }
       ]
@@ -182,6 +184,7 @@
           "entry_type": "text",
           "content": "**Image:** A curving black path winds through a sunny, grassy park with a low stone retaining wall, bare and evergreen trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The five-page document conta…[346 chars]",
           "content_digest": "f70b7943e1423b28",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -239,6 +242,7 @@
           "entry_type": "text",
           "content": "**Image:** A curving black path winds through a sunny, grassy park with a low stone retaining wall, bare and evergreen trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The five-page document conta…[346 chars]",
           "content_digest": "f70b7943e1423b28",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -262,6 +266,7 @@
         "entry_type": "text",
         "content": "**Image:** A curving black path winds through a sunny, grassy park with a low stone retaining wall, bare and evergreen trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The five-page document conta…[346 chars]",
         "content_digest": "f70b7943e1423b28",
+        "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {

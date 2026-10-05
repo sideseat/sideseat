@@ -25,6 +25,7 @@ pub mod content_blocks;
 pub mod detect_rules;
 pub mod diagnostics;
 pub mod expr;
+pub mod finish_reasons;
 pub mod log_events;
 pub mod members;
 pub mod message_projection;
@@ -247,6 +248,8 @@ pub struct Ruleset {
     pub message_members: members::MemberPlan,
     /// `gen_ai.system` values that are a framework's own name and mean a provider the catalogue prices.
     pub provider_aliases: std::collections::BTreeMap<String, String>,
+    /// What each declared spelling of a finish reason means.
+    pub finish_reasons: finish_reasons::FinishReasonPlan,
     /// BLAKE3 of the asset bytes that produced this plan, hex-encoded.
     ///
     /// Joins the reconstruction cache key. That cache is a memo over a pure function of the rows, and
@@ -309,6 +312,10 @@ impl Ruleset {
         let observation_types = found.take(S::Classification, classify::compile(assets));
         let message_members = found.take(S::MessageMembers, members::compile(assets));
         let provider_aliases = found.take(S::ProviderAliases, compile_provider_aliases(files));
+        let finish_reasons = found.take(
+            S::FinishReasons,
+            finish_reasons::FinishReasonPlan::compile(files),
+        );
         // Every section is `Some` exactly when it compiled, and each `None` recorded its defect - so a full
         // match is a ruleset and anything else is the collected report.
         match (
@@ -327,6 +334,7 @@ impl Ruleset {
             observation_types,
             message_members,
             provider_aliases,
+            finish_reasons,
         ) {
             (
                 Some(carriers),
@@ -344,6 +352,7 @@ impl Ruleset {
                 Some(observation_types),
                 Some(message_members),
                 Some(provider_aliases),
+                Some(finish_reasons),
             ) => Ok(Ruleset {
                 carriers,
                 detect,
@@ -360,6 +369,7 @@ impl Ruleset {
                 observation_types,
                 message_members,
                 provider_aliases,
+                finish_reasons,
                 tagged_source_names,
                 digest: assets.digest().to_owned(),
             }),

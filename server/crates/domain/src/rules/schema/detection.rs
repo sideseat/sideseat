@@ -14,6 +14,25 @@ pub struct ProviderAlias {
     pub provider: String,
 }
 
+/// One finish category, and every spelling producers write it in.
+///
+/// A provider's word for why a response ended is a fact about that provider (`end_turn`, `STOP`, `endTurn`),
+/// and as a Rust match arm it was a list of providers the code had to know. The category is this engine's
+/// own vocabulary; the spellings are the assets'.
+#[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct FinishReasonSpellings {
+    pub id: String,
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The category every spelling below means.
+    pub means: crate::sideml::FinishReason,
+    /// The spellings, compared with case and word separators (`_`, `-`, space) folded away - so `end_turn`,
+    /// `END_TURN` and `endTurn` are one spelling and an asset states it once.
+    pub spellings: Vec<String>,
+}
+
 /// One member name, and what its presence means.
 #[derive(Debug, Deserialize, Clone)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]

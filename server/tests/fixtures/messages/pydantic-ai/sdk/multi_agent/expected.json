@@ -38,6 +38,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_xP4UUWIrPSI2V2aJreX2JR\",\"name\":\"ask_researcher\",\"input\":{\"request\":\"What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humi…[269 chars]",
           "content_digest": "7350a8c47516c894",
           "tool_name": "ask_researcher",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         }
       ]
@@ -75,6 +76,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_uGTu6I8EP6QkocF1QatZu6\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
           "content_digest": "9a49f205afd1b0dc",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         }
       ]
@@ -114,6 +116,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_uGTu6I8EP6QkocF1QatZu6\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
           "content_digest": "9a49f205afd1b0dc",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -171,6 +174,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_xP4UUWIrPSI2V2aJreX2JR\",\"name\":\"ask_researcher\",\"input\":{\"request\":\"What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humi…[269 chars]",
           "content_digest": "7350a8c47516c894",
           "tool_name": "ask_researcher",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -286,6 +290,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_uGTu6I8EP6QkocF1QatZu6\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
           "content_digest": "9a49f205afd1b0dc",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "agent"
         },
         {
@@ -343,6 +348,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_xP4UUWIrPSI2V2aJreX2JR\",\"name\":\"ask_researcher\",\"input\":{\"request\":\"What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humi…[269 chars]",
           "content_digest": "7350a8c47516c894",
           "tool_name": "ask_researcher",
+          "finish_reason": "ToolUse",
           "observation_type": "agent"
         },
         {
@@ -414,6 +420,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_xP4UUWIrPSI2V2aJreX2JR\",\"name\":\"ask_researcher\",\"input\":{\"request\":\"What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humi…[269 chars]",
           "content_digest": "7350a8c47516c894",
           "tool_name": "ask_researcher",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -439,6 +446,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_uGTu6I8EP6QkocF1QatZu6\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
           "content_digest": "9a49f205afd1b0dc",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -521,6 +529,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_xP4UUWIrPSI2V2aJreX2JR\",\"name\":\"ask_researcher\",\"input\":{\"request\":\"What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humi…[269 chars]",
           "content_digest": "7350a8c47516c894",
           "tool_name": "ask_researcher",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -546,6 +555,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_uGTu6I8EP6QkocF1QatZu6\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
           "content_digest": "9a49f205afd1b0dc",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -647,6 +657,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_uGTu6I8EP6QkocF1QatZu6\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
         "content_digest": "9a49f205afd1b0dc",
         "tool_name": "get_weather",
+        "finish_reason": "ToolUse",
         "observation_type": "generation"
       },
       {
@@ -672,6 +683,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_xP4UUWIrPSI2V2aJreX2JR\",\"name\":\"ask_researcher\",\"input\":{\"request\":\"What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humi…[269 chars]",
         "content_digest": "7350a8c47516c894",
         "tool_name": "ask_researcher",
+        "finish_reason": "ToolUse",
         "observation_type": "generation"
       },
       {

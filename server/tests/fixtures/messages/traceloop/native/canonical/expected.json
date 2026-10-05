@@ -158,6 +158,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"call-get-weather-f725a428067c\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
           "content_digest": "ad95609e35247925",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         }
       ]
@@ -325,6 +326,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"call-get-weather-f725a428067c\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
           "content_digest": "ad95609e35247925",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -430,6 +432,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"call-get-weather-f725a428067c\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
           "content_digest": "ad95609e35247925",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -509,6 +512,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"call-get-weather-f725a428067c\",\"name\":\"get_weather\",\"input\":{\"location\":\"Paris\"}}",
         "content_digest": "ad95609e35247925",
         "tool_name": "get_weather",
+        "finish_reason": "ToolUse",
         "observation_type": "generation"
       },
       {

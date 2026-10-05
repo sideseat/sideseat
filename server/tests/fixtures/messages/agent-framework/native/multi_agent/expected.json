@@ -38,6 +38,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01NP1rM9DaCA6ZAM4jz3CGpA\",\"name\":\"researcher\",\"input\":{\"task\":\"Find the weather forecast for Barcelona, Spain for the next two days (temperatures high/low, precipitation chance, wind, humidity, UV, and ge…[261 chars]",
           "content_digest": "7e3f97fd46a43eba",
           "tool_name": "researcher",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         }
       ]
@@ -75,6 +76,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01S1iThQUVmH3EgGVJnPnM71\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
           "content_digest": "335b9d7539c890bd",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         }
       ]
@@ -408,7 +410,8 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01NP1rM9DaCA6ZAM4jz3CGpA\",\"name\":\"researcher\",\"input\":{\"task\":\"Find the weather forecast for Barcelona, Spain for the next two days (temperatures high/low, precipitation chance, wind, humidity, UV, and ge…[261 chars]",
           "content_digest": "7e3f97fd46a43eba",
           "tool_name": "researcher",
-          "observation_type": "agent"
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -433,7 +436,8 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01S1iThQUVmH3EgGVJnPnM71\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
           "content_digest": "335b9d7539c890bd",
           "tool_name": "get_weather",
-          "observation_type": "agent"
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
         },
         {
           "index": 6,
@@ -515,7 +519,8 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01NP1rM9DaCA6ZAM4jz3CGpA\",\"name\":\"researcher\",\"input\":{\"task\":\"Find the weather forecast for Barcelona, Spain for the next two days (temperatures high/low, precipitation chance, wind, humidity, UV, and ge…[261 chars]",
           "content_digest": "7e3f97fd46a43eba",
           "tool_name": "researcher",
-          "observation_type": "agent"
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -540,7 +545,8 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01S1iThQUVmH3EgGVJnPnM71\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
           "content_digest": "335b9d7539c890bd",
           "tool_name": "get_weather",
-          "observation_type": "agent"
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
         },
         {
           "index": 6,
@@ -588,12 +594,12 @@
       "tool",
       "assistant",
       "tool",
+      "assistant",
       "system",
       "user",
       "assistant",
       "system",
-      "user",
-      "assistant"
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 2,
@@ -636,6 +642,16 @@
       },
       {
         "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01S1iThQUVmH3EgGVJnPnM71\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
+        "content_digest": "335b9d7539c890bd",
+        "tool_name": "get_weather",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
         "role": "system",
         "entry_type": "text",
         "content": "You research weather with the tool and report the forecast.",
@@ -643,7 +659,7 @@
         "observation_type": "agent"
       },
       {
-        "index": 5,
+        "index": 6,
         "role": "user",
         "entry_type": "text",
         "content": "Find the weather forecast for Barcelona, Spain for the next two days (temperatures high/low, precipitation chance, wind, humidity, UV, and general conditions).",
@@ -651,16 +667,17 @@
         "observation_type": "agent"
       },
       {
-        "index": 6,
+        "index": 7,
         "role": "assistant",
         "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01S1iThQUVmH3EgGVJnPnM71\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
-        "content_digest": "335b9d7539c890bd",
-        "tool_name": "get_weather",
-        "observation_type": "agent"
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01NP1rM9DaCA6ZAM4jz3CGpA\",\"name\":\"researcher\",\"input\":{\"task\":\"Find the weather forecast for Barcelona, Spain for the next two days (temperatures high/low, precipitation chance, wind, humidity, UV, and ge…[261 chars]",
+        "content_digest": "7e3f97fd46a43eba",
+        "tool_name": "researcher",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
       },
       {
-        "index": 7,
+        "index": 8,
         "role": "system",
         "entry_type": "text",
         "content": "You write the final packing list. Ask the researcher for the weather first.",
@@ -668,20 +685,11 @@
         "observation_type": "agent"
       },
       {
-        "index": 8,
+        "index": 9,
         "role": "user",
         "entry_type": "text",
         "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
         "content_digest": "603f05d965d18b4d",
-        "observation_type": "agent"
-      },
-      {
-        "index": 9,
-        "role": "assistant",
-        "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01NP1rM9DaCA6ZAM4jz3CGpA\",\"name\":\"researcher\",\"input\":{\"task\":\"Find the weather forecast for Barcelona, Spain for the next two days (temperatures high/low, precipitation chance, wind, humidity, UV, and ge…[261 chars]",
-        "content_digest": "7e3f97fd46a43eba",
-        "tool_name": "researcher",
         "observation_type": "agent"
       }
     ]

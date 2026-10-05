@@ -1,0 +1,67 @@
+{
+  "$schema": "../../rules.schema.json",
+  "id": "finish-reasons",
+  "doc": "What each provider's word for why a response ended means, in this engine's five finish categories. Spellings are compared with case and word separators folded away, so `end_turn`, `END_TURN` and Bedrock's `endTurn` are one spelling and each is stated once; the stored finish reason keeps the producer's own word, and only its category is read from here.",
+  "finish_reasons": [
+    {
+      "id": "finish-reasons.stop",
+      "means": "stop",
+      "doc": "The model ended its answer itself: OpenAI and the conventions (`stop`), Anthropic and Bedrock (`end_turn`, `stop_sequence`), Gemini (`STOP`), and the completion words some frameworks write in its place.",
+      "spellings": [
+        "stop",
+        "end_turn",
+        "eos",
+        "end",
+        "complete",
+        "completed",
+        "stop_sequence"
+      ]
+    },
+    {
+      "id": "finish-reasons.length",
+      "means": "length",
+      "doc": "A token limit cut the answer off: OpenAI and the conventions (`length`), Anthropic, Bedrock and Gemini (`max_tokens`).",
+      "spellings": [
+        "length",
+        "max_tokens",
+        "token_limit",
+        "truncated"
+      ]
+    },
+    {
+      "id": "finish-reasons.tool_use",
+      "means": "tool_use",
+      "doc": "The model asked for a tool: OpenAI (`tool_calls`, and `function_call` before it), Anthropic and Bedrock (`tool_use`), the conventions (`tool_call`), AutoGen's own `function_calls`, and the bare `tool`. The Vercel AI SDK's `tool-calls` is `tool_calls` with another separator.",
+      "spellings": [
+        "tool_calls",
+        "tool_use",
+        "tool_call",
+        "function_call",
+        "function_calls",
+        "tool"
+      ]
+    },
+    {
+      "id": "finish-reasons.content_filter",
+      "means": "content_filter",
+      "doc": "A filter stopped the answer: OpenAI and the conventions (`content_filter`), Gemini (`SAFETY`, `RECITATION`, `BLOCKED`).",
+      "spellings": [
+        "content_filter",
+        "safety",
+        "recitation",
+        "blocked",
+        "filtered"
+      ]
+    },
+    {
+      "id": "finish-reasons.error",
+      "means": "error",
+      "doc": "The generation failed, in the words frameworks write for it.",
+      "spellings": [
+        "error",
+        "failure",
+        "failed"
+      ]
+    }
+  ]
+}

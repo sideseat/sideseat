@@ -38,6 +38,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"call_1\",\"name\":\"calculator\",\"input\":{\"expression\":\"2+2\"}}",
           "content_digest": "cf5ee4641e7036ad",
           "tool_name": "calculator",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         }
       ]
@@ -220,7 +221,8 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"call_1\",\"name\":\"calculator\",\"input\":{\"expression\":\"2+2\"}}",
           "content_digest": "cf5ee4641e7036ad",
           "tool_name": "calculator",
-          "observation_type": "agent"
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -249,9 +251,9 @@
     "role_sequence": [
       "assistant",
       "tool",
+      "assistant",
       "system",
-      "user",
-      "assistant"
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 1,
@@ -276,6 +278,16 @@
       },
       {
         "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call_1\",\"name\":\"calculator\",\"input\":{\"expression\":\"2+2\"}}",
+        "content_digest": "cf5ee4641e7036ad",
+        "tool_name": "calculator",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
         "role": "system",
         "entry_type": "text",
         "content": "You are a calculator.",
@@ -283,20 +295,11 @@
         "observation_type": "agent"
       },
       {
-        "index": 3,
+        "index": 4,
         "role": "user",
         "entry_type": "text",
         "content": "what is 2+2?",
         "content_digest": "b1117f89fd8abfce",
-        "observation_type": "agent"
-      },
-      {
-        "index": 4,
-        "role": "assistant",
-        "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"call_1\",\"name\":\"calculator\",\"input\":{\"expression\":\"2+2\"}}",
-        "content_digest": "cf5ee4641e7036ad",
-        "tool_name": "calculator",
         "observation_type": "agent"
       }
     ]

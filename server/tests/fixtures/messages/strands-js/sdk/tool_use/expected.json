@@ -113,6 +113,7 @@
           "entry_type": "text",
           "content": "Paris will be sunny both days, with highs of 21°C and 22°C and only a 10% chance of rain tomorrow, so you can leave the umbrella at home. Tokyo will have rain on day 1 (80% chance tomorrow) with a high of 21°C, then sun on day 2 with a high…[277 chars]",
           "content_digest": "4c6504679ca19cac",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -392,6 +393,7 @@
           "entry_type": "text",
           "content": "Paris will be sunny both days, with highs of 21°C and 22°C and only a 10% chance of rain tomorrow, so you can leave the umbrella at home. Tokyo will have rain on day 1 (80% chance tomorrow) with a high of 21°C, then sun on day 2 with a high…[277 chars]",
           "content_digest": "4c6504679ca19cac",
+          "finish_reason": "Stop",
           "observation_type": "agent"
         }
       ]
@@ -516,6 +518,7 @@
           "entry_type": "text",
           "content": "Paris will be sunny both days, with highs of 21°C and 22°C and only a 10% chance of rain tomorrow, so you can leave the umbrella at home. Tokyo will have rain on day 1 (80% chance tomorrow) with a high of 21°C, then sun on day 2 with a high…[277 chars]",
           "content_digest": "4c6504679ca19cac",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -633,6 +636,7 @@
           "entry_type": "text",
           "content": "Paris will be sunny both days, with highs of 21°C and 22°C and only a 10% chance of rain tomorrow, so you can leave the umbrella at home. Tokyo will have rain on day 1 (80% chance tomorrow) with a high of 21°C, then sun on day 2 with a high…[277 chars]",
           "content_digest": "4c6504679ca19cac",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -665,6 +669,7 @@
         "entry_type": "text",
         "content": "Paris will be sunny both days, with highs of 21°C and 22°C and only a 10% chance of rain tomorrow, so you can leave the umbrella at home. Tokyo will have rain on day 1 (80% chance tomorrow) with a high of 21°C, then sun on day 2 with a high…[277 chars]",
         "content_digest": "4c6504679ca19cac",
+        "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {

@@ -129,6 +129,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_mWDITCkIIXFjZFTNYFyhk6\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
           "content_digest": "3c1e4b3434c5bd8f",
           "tool_name": "calculate",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         }
       ]
@@ -198,6 +199,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_mWDITCkIIXFjZFTNYFyhk6\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
           "content_digest": "3c1e4b3434c5bd8f",
           "tool_name": "calculate",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -256,6 +258,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_mWDITCkIIXFjZFTNYFyhk6\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
           "content_digest": "3c1e4b3434c5bd8f",
           "tool_name": "calculate",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -330,6 +333,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_mWDITCkIIXFjZFTNYFyhk6\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
         "content_digest": "3c1e4b3434c5bd8f",
         "tool_name": "calculate",
+        "finish_reason": "ToolUse",
         "observation_type": "generation"
       }
     ]

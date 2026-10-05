@@ -728,6 +728,7 @@ const SHARED_VOCABULARY: &[&str] = &[
     "content-blocks-wrappers",
     "tool-shapes",
     "role-authority",
+    "finish-reasons",
 ];
 
 /// Assets naming a **provider** rather than a framework. The pricing catalogue is entitled to those names,

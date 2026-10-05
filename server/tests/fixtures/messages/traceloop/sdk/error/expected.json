@@ -57,6 +57,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_H6L4dppkza9iGkvlGMzfi1\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
           "content_digest": "b1b43e05b43573a4",
           "tool_name": "book_flight",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         }
       ]
@@ -179,6 +180,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_H6L4dppkza9iGkvlGMzfi1\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
           "content_digest": "b1b43e05b43573a4",
           "tool_name": "book_flight",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -247,6 +249,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_H6L4dppkza9iGkvlGMzfi1\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
           "content_digest": "b1b43e05b43573a4",
           "tool_name": "book_flight",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -340,6 +343,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_H6L4dppkza9iGkvlGMzfi1\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
         "content_digest": "b1b43e05b43573a4",
         "tool_name": "book_flight",
+        "finish_reason": "ToolUse",
         "observation_type": "generation"
       }
     ]

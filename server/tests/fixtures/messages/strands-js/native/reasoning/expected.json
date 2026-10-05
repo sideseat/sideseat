@@ -28,6 +28,7 @@
           "entry_type": "text",
           "content": "**The fastest time is 17 minutes.** ## Schedule | Step | Move | Time | Running total | |---|---|---|---| | 1 | 1 and 2 cross | 2 | 2 | | 2 | 1 returns with the torch | 1 | 3 | | 3 | 5 and 10 cross | 10 | 13 | | 4 | 2 returns with the torch …[1489 chars]",
           "content_digest": "4495cbda835a7015",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -62,6 +63,7 @@
           "entry_type": "text",
           "content": "**The fastest time is 17 minutes.** ## Schedule | Step | Move | Time | Running total | |---|---|---|---| | 1 | 1 and 2 cross | 2 | 2 | | 2 | 1 returns with the torch | 1 | 3 | | 3 | 5 and 10 cross | 10 | 13 | | 4 | 2 returns with the torch …[1489 chars]",
           "content_digest": "4495cbda835a7015",
+          "finish_reason": "Stop",
           "observation_type": "agent"
         }
       ]
@@ -98,6 +100,7 @@
           "entry_type": "text",
           "content": "**The fastest time is 17 minutes.** ## Schedule | Step | Move | Time | Running total | |---|---|---|---| | 1 | 1 and 2 cross | 2 | 2 | | 2 | 1 returns with the torch | 1 | 3 | | 3 | 5 and 10 cross | 10 | 13 | | 4 | 2 returns with the torch …[1489 chars]",
           "content_digest": "4495cbda835a7015",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -127,6 +130,7 @@
           "entry_type": "text",
           "content": "**The fastest time is 17 minutes.** ## Schedule | Step | Move | Time | Running total | |---|---|---|---| | 1 | 1 and 2 cross | 2 | 2 | | 2 | 1 returns with the torch | 1 | 3 | | 3 | 5 and 10 cross | 10 | 13 | | 4 | 2 returns with the torch …[1489 chars]",
           "content_digest": "4495cbda835a7015",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -147,6 +151,7 @@
         "entry_type": "text",
         "content": "**The fastest time is 17 minutes.** ## Schedule | Step | Move | Time | Running total | |---|---|---|---| | 1 | 1 and 2 cross | 2 | 2 | | 2 | 1 returns with the torch | 1 | 3 | | 3 | 5 and 10 cross | 10 | 13 | | 4 | 2 returns with the torch …[1489 chars]",
         "content_digest": "4495cbda835a7015",
+        "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {

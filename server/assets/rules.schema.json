@@ -109,6 +109,13 @@
         "$ref": "#/$defs/ProviderAlias"
       }
     },
+    "finish_reasons": {
+      "description": "What each spelling of a finish reason means, in this engine's finish categories.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/FinishReasonSpellings"
+      }
+    },
     "message_members": {
       "description": "Member names a producer uses, and what each one's presence means.\n\nThree questions about one vocabulary, which is why they are one section: which member holds a message's\ncontent (ordered - the first present one wins), which members mean a value is *message-shaped* rather\nthan bare data, and which mean it is a content **block**. A member usually answers more than one, and as\nthree lists in Rust they drifted: `contents` held content and said \"message-shaped\", while `toolCallId`\nsaid \"content block\" only.",
       "type": "array",
@@ -3330,6 +3337,69 @@
       "required": [
         "system",
         "provider"
+      ]
+    },
+    "FinishReasonSpellings": {
+      "description": "One finish category, and every spelling producers write it in.\n\nA provider's word for why a response ended is a fact about that provider (`end_turn`, `STOP`, `endTurn`),\nand as a Rust match arm it was a list of providers the code had to know. The category is this engine's\nown vocabulary; the spellings are the assets'.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "means": {
+          "description": "The category every spelling below means.",
+          "$ref": "#/$defs/FinishReason"
+        },
+        "spellings": {
+          "description": "The spellings, compared with case and word separators (`_`, `-`, space) folded away - so `end_turn`,\n`END_TURN` and `endTurn` are one spelling and an asset states it once.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "means",
+        "spellings"
+      ]
+    },
+    "FinishReason": {
+      "description": "Why a response ended, in this engine's own categories.\n\nWhich provider word means which category is declared in the assets' `finish_reasons` sections, not here.",
+      "oneOf": [
+        {
+          "description": "The model finished its answer.",
+          "type": "string",
+          "const": "stop"
+        },
+        {
+          "description": "A token limit cut the answer off.",
+          "type": "string",
+          "const": "length"
+        },
+        {
+          "description": "The model asked for a tool.",
+          "type": "string",
+          "const": "tool_use"
+        },
+        {
+          "description": "A content or safety filter stopped the answer.",
+          "type": "string",
+          "const": "content_filter"
+        },
+        {
+          "description": "The generation failed.",
+          "type": "string",
+          "const": "error"
+        }
       ]
     },
     "MessageMemberRule": {

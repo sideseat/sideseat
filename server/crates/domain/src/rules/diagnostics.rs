@@ -34,6 +34,7 @@ pub enum RuleSection {
     Classification,
     MessageMembers,
     ProviderAliases,
+    FinishReasons,
 }
 
 impl RuleSection {
@@ -54,6 +55,7 @@ impl RuleSection {
             Self::Classification => "observation_types/span_categories",
             Self::MessageMembers => "message_members",
             Self::ProviderAliases => "provider_aliases",
+            Self::FinishReasons => "finish_reasons",
         }
     }
 }
@@ -396,6 +398,16 @@ impl SectionDefect for super::members::MemberCompileError {
             | E::ContentWithoutARank { file, .. }
             | E::RankWithoutContent { file, .. } => vec![file],
             E::SharedRank { .. } | E::DuplicateMember { .. } => Vec::new(),
+        }
+    }
+}
+
+impl SectionDefect for super::finish_reasons::FinishReasonCompileError {
+    fn clauses(&self) -> Vec<&str> {
+        use super::finish_reasons::FinishReasonCompileError as E;
+        match self {
+            E::EmptySpelling { id } => vec![id],
+            E::Repeated { first, second, .. } => vec![first, second],
         }
     }
 }

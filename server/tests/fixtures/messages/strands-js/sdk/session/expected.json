@@ -37,6 +37,7 @@
           "entry_type": "text",
           "content": "Visit the Museo del Prado, Madrid's premier art museum, which houses masterpieces by Velázquez (Las Meninas), Goya, and El Greco. It's on the Paseo del Prado, and going late afternoon on weekdays often means smaller crowds. Check the museum…[292 chars]",
           "content_digest": "7fa05ecf8bbf2001",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -80,6 +81,7 @@
           "entry_type": "text",
           "content": "Visit the Museo del Prado, Madrid's premier art museum, which houses masterpieces by Velázquez (Las Meninas), Goya, and El Greco. It's on the Paseo del Prado, and going late afternoon on weekdays often means smaller crowds. Check the museum…[292 chars]",
           "content_digest": "7fa05ecf8bbf2001",
+          "finish_reason": "Stop",
           "observation_type": "agent"
         }
       ]
@@ -123,6 +125,7 @@
           "entry_type": "text",
           "content": "I suggest Retiro Park (Parque del Buen Retiro), Madrid's most famous green space. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll through the rose garden. It's central and free to enter, and it's close to the Pr…[251 chars]",
           "content_digest": "e2f281513a3280aa",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -166,6 +169,7 @@
           "entry_type": "text",
           "content": "I suggest Retiro Park (Parque del Buen Retiro), Madrid's most famous green space. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll through the rose garden. It's central and free to enter, and it's close to the Pr…[251 chars]",
           "content_digest": "e2f281513a3280aa",
+          "finish_reason": "Stop",
           "observation_type": "agent"
         }
       ]
@@ -211,6 +215,7 @@
           "entry_type": "text",
           "content": "Visit the Museo del Prado, Madrid's premier art museum, which houses masterpieces by Velázquez (Las Meninas), Goya, and El Greco. It's on the Paseo del Prado, and going late afternoon on weekdays often means smaller crowds. Check the museum…[292 chars]",
           "content_digest": "7fa05ecf8bbf2001",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -247,6 +252,7 @@
           "entry_type": "text",
           "content": "I suggest Retiro Park (Parque del Buen Retiro), Madrid's most famous green space. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll through the rose garden. It's central and free to enter, and it's close to the Pr…[251 chars]",
           "content_digest": "e2f281513a3280aa",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -288,6 +294,7 @@
           "entry_type": "text",
           "content": "Visit the Museo del Prado, Madrid's premier art museum, which houses masterpieces by Velázquez (Las Meninas), Goya, and El Greco. It's on the Paseo del Prado, and going late afternoon on weekdays often means smaller crowds. Check the museum…[292 chars]",
           "content_digest": "7fa05ecf8bbf2001",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         },
         {
@@ -312,6 +319,7 @@
           "entry_type": "text",
           "content": "I suggest Retiro Park (Parque del Buen Retiro), Madrid's most famous green space. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll through the rose garden. It's central and free to enter, and it's close to the Pr…[251 chars]",
           "content_digest": "e2f281513a3280aa",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -336,6 +344,7 @@
         "entry_type": "text",
         "content": "I suggest Retiro Park (Parque del Buen Retiro), Madrid's most famous green space. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll through the rose garden. It's central and free to enter, and it's close to the Pr…[251 chars]",
         "content_digest": "e2f281513a3280aa",
+        "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {
@@ -360,6 +369,7 @@
         "entry_type": "text",
         "content": "Visit the Museo del Prado, Madrid's premier art museum, which houses masterpieces by Velázquez (Las Meninas), Goya, and El Greco. It's on the Paseo del Prado, and going late afternoon on weekdays often means smaller crowds. Check the museum…[292 chars]",
         "content_digest": "7fa05ecf8bbf2001",
+        "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {

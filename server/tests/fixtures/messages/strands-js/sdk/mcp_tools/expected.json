@@ -38,6 +38,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_yW16vOq8kwZPH9DoCvkvYm\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
           "content_digest": "6c2d3abddd48289d",
           "tool_name": "calculate",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         }
       ]
@@ -93,6 +94,7 @@
           "entry_type": "text",
           "content": "(17 × 23) + 4 = **395**.",
           "content_digest": "52aaa6c961cd0f52",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -193,6 +195,7 @@
           "entry_type": "text",
           "content": "(17 × 23) + 4 = **395**.",
           "content_digest": "52aaa6c961cd0f52",
+          "finish_reason": "Stop",
           "observation_type": "agent"
         }
       ]
@@ -243,6 +246,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_yW16vOq8kwZPH9DoCvkvYm\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
           "content_digest": "6c2d3abddd48289d",
           "tool_name": "calculate",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -259,6 +263,7 @@
           "entry_type": "text",
           "content": "(17 × 23) + 4 = **395**.",
           "content_digest": "52aaa6c961cd0f52",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -302,6 +307,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_yW16vOq8kwZPH9DoCvkvYm\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
           "content_digest": "6c2d3abddd48289d",
           "tool_name": "calculate",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -318,6 +324,7 @@
           "entry_type": "text",
           "content": "(17 × 23) + 4 = **395**.",
           "content_digest": "52aaa6c961cd0f52",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -343,6 +350,7 @@
         "entry_type": "text",
         "content": "(17 × 23) + 4 = **395**.",
         "content_digest": "52aaa6c961cd0f52",
+        "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {
@@ -360,6 +368,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_yW16vOq8kwZPH9DoCvkvYm\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
         "content_digest": "6c2d3abddd48289d",
         "tool_name": "calculate",
+        "finish_reason": "ToolUse",
         "observation_type": "generation"
       },
       {

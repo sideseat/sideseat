@@ -37,6 +37,7 @@
           "entry_type": "text",
           "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has narrow cobbled streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to the castle and cathedral. If you'd prefer something flatter and more central,…[269 chars]",
           "content_digest": "be6e55d31f8eea42",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -100,6 +101,7 @@
           "entry_type": "text",
           "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, ideally warm with a dusting of cinnamon. For a savory option, **bacalhau à Brás** (shredded salt cod with eggs and potatoes) is a classic local dish.",
           "content_digest": "4a6d38a2abc932c4",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -181,6 +183,7 @@
           "entry_type": "text",
           "content": "Stay in the historic, fado-filled neighbourhood of Alfama, and be sure to try pastéis de nata, Lisbon's iconic custard tarts.",
           "content_digest": "740ad93b05ae8f80",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -314,6 +317,7 @@
           "entry_type": "text",
           "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has narrow cobbled streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to the castle and cathedral. If you'd prefer something flatter and more central,…[269 chars]",
           "content_digest": "be6e55d31f8eea42",
+          "finish_reason": "Stop",
           "observation_type": "agent"
         }
       ]
@@ -350,6 +354,7 @@
           "entry_type": "text",
           "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, ideally warm with a dusting of cinnamon. For a savory option, **bacalhau à Brás** (shredded salt cod with eggs and potatoes) is a classic local dish.",
           "content_digest": "4a6d38a2abc932c4",
+          "finish_reason": "Stop",
           "observation_type": "agent"
         }
       ]
@@ -386,6 +391,7 @@
           "entry_type": "text",
           "content": "Stay in the historic, fado-filled neighbourhood of Alfama, and be sure to try pastéis de nata, Lisbon's iconic custard tarts.",
           "content_digest": "740ad93b05ae8f80",
+          "finish_reason": "Stop",
           "observation_type": "agent"
         }
       ]
@@ -436,6 +442,7 @@
           "entry_type": "text",
           "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has narrow cobbled streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to the castle and cathedral. If you'd prefer something flatter and more central,…[269 chars]",
           "content_digest": "be6e55d31f8eea42",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         },
         {
@@ -460,6 +467,7 @@
           "entry_type": "text",
           "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, ideally warm with a dusting of cinnamon. For a savory option, **bacalhau à Brás** (shredded salt cod with eggs and potatoes) is a classic local dish.",
           "content_digest": "4a6d38a2abc932c4",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         },
         {
@@ -476,6 +484,7 @@
           "entry_type": "text",
           "content": "Stay in the historic, fado-filled neighbourhood of Alfama, and be sure to try pastéis de nata, Lisbon's iconic custard tarts.",
           "content_digest": "740ad93b05ae8f80",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -519,6 +528,7 @@
           "entry_type": "text",
           "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has narrow cobbled streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to the castle and cathedral. If you'd prefer something flatter and more central,…[269 chars]",
           "content_digest": "be6e55d31f8eea42",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         },
         {
@@ -543,6 +553,7 @@
           "entry_type": "text",
           "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, ideally warm with a dusting of cinnamon. For a savory option, **bacalhau à Brás** (shredded salt cod with eggs and potatoes) is a classic local dish.",
           "content_digest": "4a6d38a2abc932c4",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         },
         {
@@ -559,6 +570,7 @@
           "entry_type": "text",
           "content": "Stay in the historic, fado-filled neighbourhood of Alfama, and be sure to try pastéis de nata, Lisbon's iconic custard tarts.",
           "content_digest": "740ad93b05ae8f80",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -585,6 +597,7 @@
         "entry_type": "text",
         "content": "Stay in the historic, fado-filled neighbourhood of Alfama, and be sure to try pastéis de nata, Lisbon's iconic custard tarts.",
         "content_digest": "740ad93b05ae8f80",
+        "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {
@@ -601,6 +614,7 @@
         "entry_type": "text",
         "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, ideally warm with a dusting of cinnamon. For a savory option, **bacalhau à Brás** (shredded salt cod with eggs and potatoes) is a classic local dish.",
         "content_digest": "4a6d38a2abc932c4",
+        "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {
@@ -625,6 +639,7 @@
         "entry_type": "text",
         "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has narrow cobbled streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to the castle and cathedral. If you'd prefer something flatter and more central,…[269 chars]",
         "content_digest": "be6e55d31f8eea42",
+        "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {

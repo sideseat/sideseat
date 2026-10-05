@@ -38,6 +38,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_0191y2tfmmHXKKU2Mx4qFBTV\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
           "content_digest": "bffa2c04a3ad5b41",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         }
       ]
@@ -226,7 +227,8 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_0191y2tfmmHXKKU2Mx4qFBTV\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
           "content_digest": "bffa2c04a3ad5b41",
           "tool_name": "get_weather",
-          "observation_type": "agent"
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -285,7 +287,8 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_0191y2tfmmHXKKU2Mx4qFBTV\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
           "content_digest": "bffa2c04a3ad5b41",
           "tool_name": "get_weather",
-          "observation_type": "agent"
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -313,9 +316,9 @@
     "role_sequence": [
       "assistant",
       "tool",
+      "assistant",
       "system",
-      "user",
-      "assistant"
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 1,
@@ -340,6 +343,16 @@
       },
       {
         "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_0191y2tfmmHXKKU2Mx4qFBTV\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+        "content_digest": "bffa2c04a3ad5b41",
+        "tool_name": "get_weather",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -347,20 +360,11 @@
         "observation_type": "agent"
       },
       {
-        "index": 3,
+        "index": 4,
         "role": "user",
         "entry_type": "text",
         "content": "Check the weather in Rome for the next day and tell me what to wear.",
         "content_digest": "3801edeb34a2cb29",
-        "observation_type": "agent"
-      },
-      {
-        "index": 4,
-        "role": "assistant",
-        "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_0191y2tfmmHXKKU2Mx4qFBTV\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
-        "content_digest": "bffa2c04a3ad5b41",
-        "tool_name": "get_weather",
         "observation_type": "agent"
       }
     ]

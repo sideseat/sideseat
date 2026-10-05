@@ -38,6 +38,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_tSgNZvA1JM6F2BZRtYD0SH\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
           "content_digest": "c16f54c3f2f84e89",
           "tool_name": "book_flight",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         }
       ]
@@ -93,6 +94,7 @@
           "entry_type": "text",
           "content": "I couldn't book the flight from London to Oslo on 2026-11-14. The error said the booking system is offline, so no seats were reserved. I can try again in a bit, or try a different date if you'd like.",
           "content_digest": "55d3beafc9b942d0",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -200,6 +202,7 @@
           "entry_type": "text",
           "content": "I couldn't book the flight from London to Oslo on 2026-11-14. The error said the booking system is offline, so no seats were reserved. I can try again in a bit, or try a different date if you'd like.",
           "content_digest": "55d3beafc9b942d0",
+          "finish_reason": "Stop",
           "observation_type": "agent"
         }
       ]
@@ -243,6 +246,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_tSgNZvA1JM6F2BZRtYD0SH\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
           "content_digest": "c16f54c3f2f84e89",
           "tool_name": "book_flight",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -259,6 +263,7 @@
           "entry_type": "text",
           "content": "I couldn't book the flight from London to Oslo on 2026-11-14. The error said the booking system is offline, so no seats were reserved. I can try again in a bit, or try a different date if you'd like.",
           "content_digest": "55d3beafc9b942d0",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -302,6 +307,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_tSgNZvA1JM6F2BZRtYD0SH\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
           "content_digest": "c16f54c3f2f84e89",
           "tool_name": "book_flight",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -318,6 +324,7 @@
           "entry_type": "text",
           "content": "I couldn't book the flight from London to Oslo on 2026-11-14. The error said the booking system is offline, so no seats were reserved. I can try again in a bit, or try a different date if you'd like.",
           "content_digest": "55d3beafc9b942d0",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -343,6 +350,7 @@
         "entry_type": "text",
         "content": "I couldn't book the flight from London to Oslo on 2026-11-14. The error said the booking system is offline, so no seats were reserved. I can try again in a bit, or try a different date if you'd like.",
         "content_digest": "55d3beafc9b942d0",
+        "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {
@@ -360,6 +368,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_tSgNZvA1JM6F2BZRtYD0SH\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
         "content_digest": "c16f54c3f2f84e89",
         "tool_name": "book_flight",
+        "finish_reason": "ToolUse",
         "observation_type": "generation"
       },
       {

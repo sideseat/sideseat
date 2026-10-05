@@ -101,19 +101,22 @@ impl std::fmt::Display for ChatRole {
     }
 }
 
-/// Normalized finish reasons across all providers
+/// Why a response ended, in this engine's own categories.
+///
+/// Which provider word means which category is declared in the assets' `finish_reasons` sections, not here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum FinishReason {
-    /// Normal completion (stop, end_turn, eos, complete, stop_sequence)
+    /// The model finished its answer.
     Stop,
-    /// Max tokens reached (length, max_tokens, token_limit, truncated)
+    /// A token limit cut the answer off.
     Length,
-    /// Tool/function call requested (tool_calls, tool_use, function_call)
+    /// The model asked for a tool.
     ToolUse,
-    /// Content/safety filter triggered (content_filter, safety, recitation, blocked)
+    /// A content or safety filter stopped the answer.
     ContentFilter,
-    /// Generation error/failure (error, failure, failed)
+    /// The generation failed.
     Error,
 }
 
@@ -128,20 +131,9 @@ impl FinishReason {
         }
     }
 
-    /// Normalize finish reason from various providers
+    /// The category a producer's finish-reason spelling means, through the declared spellings.
     pub fn from_str_normalized(s: &str) -> Option<Self> {
-        Some(match s.to_lowercase().as_str() {
-            "stop" | "end_turn" | "eos" | "end" | "complete" | "completed" | "stop_sequence" => {
-                Self::Stop
-            }
-            "length" | "max_tokens" | "token_limit" | "truncated" => Self::Length,
-            "tool_calls" | "tool-calls" | "tool_use" | "function_call" | "tool" => Self::ToolUse,
-            "content_filter" | "safety" | "recitation" | "blocked" | "filtered" => {
-                Self::ContentFilter
-            }
-            "error" | "failure" | "failed" => Self::Error,
-            _ => return None,
-        })
+        crate::rules::ruleset().finish_reasons.lookup(s)
     }
 }
 

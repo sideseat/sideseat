@@ -38,6 +38,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_q10jK5oNvO49Pre3ll26n4\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
           "content_digest": "c07b599738700486",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         }
       ]
@@ -325,7 +326,8 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_q10jK5oNvO49Pre3ll26n4\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
           "content_digest": "c07b599738700486",
           "tool_name": "get_weather",
-          "observation_type": "agent"
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -412,7 +414,8 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_q10jK5oNvO49Pre3ll26n4\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
           "content_digest": "c07b599738700486",
           "tool_name": "get_weather",
-          "observation_type": "agent"
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -468,9 +471,9 @@
       "user",
       "assistant",
       "tool",
+      "assistant",
       "system",
-      "user",
-      "assistant"
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 1,
@@ -520,6 +523,16 @@
       },
       {
         "index": 5,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_q10jK5oNvO49Pre3ll26n4\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+        "content_digest": "c07b599738700486",
+        "tool_name": "get_weather",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
         "role": "system",
         "entry_type": "text",
         "content": "You research weather with the tool and report the forecast.",
@@ -527,20 +540,11 @@
         "observation_type": "agent"
       },
       {
-        "index": 6,
+        "index": 7,
         "role": "user",
         "entry_type": "text",
         "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
         "content_digest": "603f05d965d18b4d",
-        "observation_type": "agent"
-      },
-      {
-        "index": 7,
-        "role": "assistant",
-        "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_q10jK5oNvO49Pre3ll26n4\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
-        "content_digest": "c07b599738700486",
-        "tool_name": "get_weather",
         "observation_type": "agent"
       }
     ]

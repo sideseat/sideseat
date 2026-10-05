@@ -67,7 +67,7 @@ index construction therefore stay off the per-observation path.
 
 ## Asset organisation
 
-The embedded corpus currently contains **48 assets holding 528 clauses** in three groups:
+The embedded corpus currently contains **49 assets holding 533 clauses** in three groups:
 
 ```text
 server/assets/rules/
@@ -102,6 +102,7 @@ Each asset has a stable `id`, optional prose documentation, and any subset of th
 | `span_categories` | Ranked broad span classification |
 | `span_facts` | Producer-neutral facts established by producer-specific evidence |
 | `provider_aliases` | Framework-owned aliases needed for pricing lookup |
+| `finish_reasons` | What each finish-reason spelling means, compared with case and word boundaries canonicalised; declared only by the `finish-reasons` vocabulary asset |
 | `convention_namespaces` | Namespaces owned by shared telemetry conventions |
 
 `RuleFile` uses `deny_unknown_fields`, and compilation rejects malformed or ambiguous declarations. A typo
@@ -271,8 +272,8 @@ The guarantees above have explicit boundaries:
 - The per-message explain trace is incomplete.
 - The boundary invariant is not yet fully met. Content-block normalisation still runs four hardcoded
   provider-format handlers between the `before_provider_formats` and `after_provider_formats` chain
-  positions, and SideML normalisation still holds role and finish-reason alias tables and several
-  payload-shape special cases in Rust. Provider spellings, model-name normalisation, and cache and
+  positions, and SideML normalisation still holds the role alias table and several payload-shape special
+  cases in Rust. Provider spellings, model-name normalisation, and cache and
   reasoning counter policy used for pricing also remain in Rust; `provider_aliases` covers only a
   framework that names itself where a provider is expected.
 

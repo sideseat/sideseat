@@ -38,6 +38,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_7WWrRJPkviXLB6WmJefqxf\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
           "content_digest": "5deb12127e5f2492",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         }
       ]
@@ -93,6 +94,7 @@
           "entry_type": "text",
           "content": "Rome will be sunny tomorrow with a high of 21°C (about 70°F). Wear light, breathable layers like a t-shirt or light shirt with trousers or a skirt. Bring a light jacket or sweater for the cooler evening, plus sunglasses and sunscreen.",
           "content_digest": "5861ec48acf86a15",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -193,6 +195,7 @@
           "entry_type": "text",
           "content": "Rome will be sunny tomorrow with a high of 21°C (about 70°F). Wear light, breathable layers like a t-shirt or light shirt with trousers or a skirt. Bring a light jacket or sweater for the cooler evening, plus sunglasses and sunscreen.",
           "content_digest": "5861ec48acf86a15",
+          "finish_reason": "Stop",
           "observation_type": "agent"
         }
       ]
@@ -243,6 +246,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_7WWrRJPkviXLB6WmJefqxf\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
           "content_digest": "5deb12127e5f2492",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -259,6 +263,7 @@
           "entry_type": "text",
           "content": "Rome will be sunny tomorrow with a high of 21°C (about 70°F). Wear light, breathable layers like a t-shirt or light shirt with trousers or a skirt. Bring a light jacket or sweater for the cooler evening, plus sunglasses and sunscreen.",
           "content_digest": "5861ec48acf86a15",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -302,6 +307,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_7WWrRJPkviXLB6WmJefqxf\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
           "content_digest": "5deb12127e5f2492",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -318,6 +324,7 @@
           "entry_type": "text",
           "content": "Rome will be sunny tomorrow with a high of 21°C (about 70°F). Wear light, breathable layers like a t-shirt or light shirt with trousers or a skirt. Bring a light jacket or sweater for the cooler evening, plus sunglasses and sunscreen.",
           "content_digest": "5861ec48acf86a15",
+          "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
@@ -343,6 +350,7 @@
         "entry_type": "text",
         "content": "Rome will be sunny tomorrow with a high of 21°C (about 70°F). Wear light, breathable layers like a t-shirt or light shirt with trousers or a skirt. Bring a light jacket or sweater for the cooler evening, plus sunglasses and sunscreen.",
         "content_digest": "5861ec48acf86a15",
+        "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {
@@ -360,6 +368,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_7WWrRJPkviXLB6WmJefqxf\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
         "content_digest": "5deb12127e5f2492",
         "tool_name": "get_weather",
+        "finish_reason": "ToolUse",
         "observation_type": "generation"
       },
       {

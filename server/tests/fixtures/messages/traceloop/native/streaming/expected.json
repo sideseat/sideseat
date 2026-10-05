@@ -38,6 +38,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DLGkZy3xAoRaC7nlBTcAvD\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
           "content_digest": "9ca3220bb1f10f0b",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         }
       ]
@@ -156,6 +157,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DLGkZy3xAoRaC7nlBTcAvD\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
           "content_digest": "9ca3220bb1f10f0b",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -214,6 +216,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DLGkZy3xAoRaC7nlBTcAvD\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
           "content_digest": "9ca3220bb1f10f0b",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -288,6 +291,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_DLGkZy3xAoRaC7nlBTcAvD\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
         "content_digest": "9ca3220bb1f10f0b",
         "tool_name": "get_weather",
+        "finish_reason": "ToolUse",
         "observation_type": "generation"
       }
     ]

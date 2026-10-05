@@ -38,6 +38,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_I9U0NFamfe7c1IvgBS6WXL\",\"name\":\"trip_plan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a coffee-house stop at Café Central; evening stroll…[425 chars]",
           "content_digest": "6dc7862d39647fea",
           "tool_name": "trip_plan",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         }
       ]
@@ -149,6 +150,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_I9U0NFamfe7c1IvgBS6WXL\",\"name\":\"trip_plan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a coffee-house stop at Café Central; evening stroll…[425 chars]",
           "content_digest": "6dc7862d39647fea",
           "tool_name": "trip_plan",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -207,6 +209,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_I9U0NFamfe7c1IvgBS6WXL\",\"name\":\"trip_plan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a coffee-house stop at Café Central; evening stroll…[425 chars]",
           "content_digest": "6dc7862d39647fea",
           "tool_name": "trip_plan",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -281,6 +284,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_I9U0NFamfe7c1IvgBS6WXL\",\"name\":\"trip_plan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a coffee-house stop at Café Central; evening stroll…[425 chars]",
         "content_digest": "6dc7862d39647fea",
         "tool_name": "trip_plan",
+        "finish_reason": "ToolUse",
         "observation_type": "generation"
       }
     ]

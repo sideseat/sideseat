@@ -47,6 +47,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LqEXFsjIbhwWAXjLKKvaxe\",\"name\":\"strands_structured_output\",\"input\":{\"message\":\"For your two-day trip to Barcelona, expect rain on Day 1 (high of 21°C) and sunshine on Day 2 (high of 22°C), so pack light, lay…[994 chars]",
           "content_digest": "7ec7ac79b6167fbf",
           "tool_name": "strands_structured_output",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         }
       ]
@@ -84,6 +85,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LbscGcrDZF31Z1OBXySPbS\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
           "content_digest": "1a487d98fa036072",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         }
       ]
@@ -140,6 +142,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_HtetRIR8oz5OVkp9sUJjvC\",\"name\":\"strands_structured_output\",\"input\":{\"agentId\":\"writer\",\"message\":\"Write a one-paragraph packing list for a two-day trip to Barcelona based on the weather findings in the conte…[373 chars]",
           "content_digest": "70f541fdcc3dbd45",
           "tool_name": "strands_structured_output",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         }
       ]
@@ -387,6 +390,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LbscGcrDZF31Z1OBXySPbS\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
           "content_digest": "1a487d98fa036072",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -404,6 +408,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_HtetRIR8oz5OVkp9sUJjvC\",\"name\":\"strands_structured_output\",\"input\":{\"agentId\":\"writer\",\"message\":\"Write a one-paragraph packing list for a two-day trip to Barcelona based on the weather findings in the conte…[373 chars]",
           "content_digest": "70f541fdcc3dbd45",
           "tool_name": "strands_structured_output",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -445,6 +450,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LqEXFsjIbhwWAXjLKKvaxe\",\"name\":\"strands_structured_output\",\"input\":{\"message\":\"For your two-day trip to Barcelona, expect rain on Day 1 (high of 21°C) and sunshine on Day 2 (high of 22°C), so pack light, lay…[994 chars]",
           "content_digest": "7ec7ac79b6167fbf",
           "tool_name": "strands_structured_output",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -502,6 +508,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LbscGcrDZF31Z1OBXySPbS\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
           "content_digest": "1a487d98fa036072",
           "tool_name": "get_weather",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -519,6 +526,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_HtetRIR8oz5OVkp9sUJjvC\",\"name\":\"strands_structured_output\",\"input\":{\"agentId\":\"writer\",\"message\":\"Write a one-paragraph packing list for a two-day trip to Barcelona based on the weather findings in the conte…[373 chars]",
           "content_digest": "70f541fdcc3dbd45",
           "tool_name": "strands_structured_output",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -560,6 +568,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LqEXFsjIbhwWAXjLKKvaxe\",\"name\":\"strands_structured_output\",\"input\":{\"message\":\"For your two-day trip to Barcelona, expect rain on Day 1 (high of 21°C) and sunshine on Day 2 (high of 22°C), so pack light, lay…[994 chars]",
           "content_digest": "7ec7ac79b6167fbf",
           "tool_name": "strands_structured_output",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -608,6 +617,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LqEXFsjIbhwWAXjLKKvaxe\",\"name\":\"strands_structured_output\",\"input\":{\"message\":\"For your two-day trip to Barcelona, expect rain on Day 1 (high of 21°C) and sunshine on Day 2 (high of 22°C), so pack light, lay…[994 chars]",
         "content_digest": "7ec7ac79b6167fbf",
         "tool_name": "strands_structured_output",
+        "finish_reason": "ToolUse",
         "observation_type": "generation"
       },
       {
@@ -649,6 +659,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_HtetRIR8oz5OVkp9sUJjvC\",\"name\":\"strands_structured_output\",\"input\":{\"agentId\":\"writer\",\"message\":\"Write a one-paragraph packing list for a two-day trip to Barcelona based on the weather findings in the conte…[373 chars]",
         "content_digest": "70f541fdcc3dbd45",
         "tool_name": "strands_structured_output",
+        "finish_reason": "ToolUse",
         "observation_type": "generation"
       },
       {
@@ -666,6 +677,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LbscGcrDZF31Z1OBXySPbS\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
         "content_digest": "1a487d98fa036072",
         "tool_name": "get_weather",
+        "finish_reason": "ToolUse",
         "observation_type": "generation"
       },
       {

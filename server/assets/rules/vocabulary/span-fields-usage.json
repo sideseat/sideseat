@@ -69,6 +69,27 @@
           },
           "on_malformed": "continue",
           "doc": "Another dialect's response object, whose member names follow whichever provider answered."
+        },
+        {
+          "id": "haystack_reply_prompt_tokens",
+          "json": {
+            "attribute": "haystack.agent.step.llm.output",
+            "path": "$.replies[0:].meta.usage.prompt_tokens"
+          },
+          "on_malformed": "continue",
+          "doc": "The usage a reply's metadata states."
+        },
+        {
+          "id": "langfuse_usage_input",
+          "json": {
+            "attribute": "langfuse.observation.usage_details",
+            "first_present_of": [
+              "$.input_tokens",
+              "$.prompt_tokens"
+            ]
+          },
+          "on_malformed": "continue",
+          "doc": "The usage object a generation records, whose member names follow whichever API answered."
         }
       ]
     },
@@ -135,6 +156,25 @@
             ]
           },
           "on_malformed": "continue"
+        },
+        {
+          "id": "haystack_reply_completion_tokens",
+          "json": {
+            "attribute": "haystack.agent.step.llm.output",
+            "path": "$.replies[0:].meta.usage.completion_tokens"
+          },
+          "on_malformed": "continue"
+        },
+        {
+          "id": "langfuse_usage_output",
+          "json": {
+            "attribute": "langfuse.observation.usage_details",
+            "first_present_of": [
+              "$.output_tokens",
+              "$.completion_tokens"
+            ]
+          },
+          "on_malformed": "continue"
         }
       ]
     },
@@ -193,6 +233,29 @@
             "path": "$.usage.cache_read_input_tokens"
           },
           "on_malformed": "continue"
+        },
+        {
+          "id": "raw_usage_cached_tokens",
+          "json": {
+            "attribute": "gen_ai.usage.raw",
+            "first_present_of": [
+              "$.input_tokens_details.cached_tokens",
+              "$.prompt_tokens_details.cached_tokens"
+            ]
+          },
+          "on_malformed": "continue",
+          "doc": "The provider's own usage object, kept whole beside the conventional counters; read only after them."
+        },
+        {
+          "id": "langfuse_usage_cached_tokens",
+          "json": {
+            "attribute": "langfuse.observation.usage_details",
+            "first_present_of": [
+              "$.input_tokens_details.cached_tokens",
+              "$.prompt_tokens_details.cached_tokens"
+            ]
+          },
+          "on_malformed": "continue"
         }
       ]
     },
@@ -237,6 +300,28 @@
             "path": "$.usage.cache_creation_input_tokens"
           },
           "on_malformed": "continue"
+        },
+        {
+          "id": "raw_usage_cache_write_tokens",
+          "json": {
+            "attribute": "gen_ai.usage.raw",
+            "first_present_of": [
+              "$.input_tokens_details.cache_write_tokens",
+              "$.prompt_tokens_details.cache_write_tokens"
+            ]
+          },
+          "on_malformed": "continue"
+        },
+        {
+          "id": "langfuse_usage_cache_write_tokens",
+          "json": {
+            "attribute": "langfuse.observation.usage_details",
+            "first_present_of": [
+              "$.input_tokens_details.cache_write_tokens",
+              "$.prompt_tokens_details.cache_write_tokens"
+            ]
+          },
+          "on_malformed": "continue"
         }
       ]
     },
@@ -253,6 +338,30 @@
             "gen_ai.usage.reasoning_tokens",
             "ai.usage.reasoningTokens"
           ]
+        },
+        {
+          "id": "raw_usage_reasoning_tokens",
+          "json": {
+            "attribute": "gen_ai.usage.raw",
+            "first_present_of": [
+              "$.output_tokens_details.reasoning_tokens",
+              "$.completion_tokens_details.reasoning_tokens",
+              "$.output_tokens_details.thinking_tokens"
+            ]
+          },
+          "on_malformed": "continue",
+          "doc": "The provider's own usage object: OpenAI's Responses and Chat Completions spellings, and the thinking count of the Anthropic shape that nests one."
+        },
+        {
+          "id": "langfuse_usage_reasoning_tokens",
+          "json": {
+            "attribute": "langfuse.observation.usage_details",
+            "first_present_of": [
+              "$.output_tokens_details.reasoning_tokens",
+              "$.completion_tokens_details.reasoning_tokens"
+            ]
+          },
+          "on_malformed": "continue"
         }
       ]
     },

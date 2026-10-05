@@ -38,6 +38,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_4yA0LToOJ1kFY33SGUgosm\",\"name\":\"trip_plan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a stroll along the Ringstrasse, with Sachertorte at…[391 chars]",
           "content_digest": "bc17819aaa23f8d0",
           "tool_name": "trip_plan",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         }
       ]
@@ -241,7 +242,8 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_4yA0LToOJ1kFY33SGUgosm\",\"name\":\"trip_plan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a stroll along the Ringstrasse, with Sachertorte at…[391 chars]",
           "content_digest": "bc17819aaa23f8d0",
           "tool_name": "trip_plan",
-          "observation_type": "agent"
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -300,7 +302,8 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_4yA0LToOJ1kFY33SGUgosm\",\"name\":\"trip_plan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a stroll along the Ringstrasse, with Sachertorte at…[391 chars]",
           "content_digest": "bc17819aaa23f8d0",
           "tool_name": "trip_plan",
-          "observation_type": "agent"
+          "finish_reason": "ToolUse",
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -328,9 +331,9 @@
     "role_sequence": [
       "assistant",
       "tool",
+      "assistant",
       "system",
-      "user",
-      "assistant"
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 1,
@@ -355,6 +358,16 @@
       },
       {
         "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_4yA0LToOJ1kFY33SGUgosm\",\"name\":\"trip_plan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a stroll along the Ringstrasse, with Sachertorte at…[391 chars]",
+        "content_digest": "bc17819aaa23f8d0",
+        "tool_name": "trip_plan",
+        "finish_reason": "ToolUse",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Hand the finished plan to trip_plan.",
@@ -362,20 +375,11 @@
         "observation_type": "agent"
       },
       {
-        "index": 3,
+        "index": 4,
         "role": "user",
         "entry_type": "text",
         "content": "Plan a two-day trip to Vienna.",
         "content_digest": "5f56235d64bfe00d",
-        "observation_type": "agent"
-      },
-      {
-        "index": 4,
-        "role": "assistant",
-        "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_4yA0LToOJ1kFY33SGUgosm\",\"name\":\"trip_plan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a stroll along the Ringstrasse, with Sachertorte at…[391 chars]",
-        "content_digest": "bc17819aaa23f8d0",
-        "tool_name": "trip_plan",
         "observation_type": "agent"
       }
     ]

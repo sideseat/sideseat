@@ -38,6 +38,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_3YMaSqTgCvzRtww9kRHTMV\",\"name\":\"strands_structured_output\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a coffee-house stop with Sachertort…[399 chars]",
           "content_digest": "2d49f3083923c1ff",
           "tool_name": "strands_structured_output",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         }
       ]
@@ -137,6 +138,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_3YMaSqTgCvzRtww9kRHTMV\",\"name\":\"strands_structured_output\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a coffee-house stop with Sachertort…[399 chars]",
           "content_digest": "2d49f3083923c1ff",
           "tool_name": "strands_structured_output",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -185,6 +187,7 @@
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_3YMaSqTgCvzRtww9kRHTMV\",\"name\":\"strands_structured_output\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a coffee-house stop with Sachertort…[399 chars]",
           "content_digest": "2d49f3083923c1ff",
           "tool_name": "strands_structured_output",
+          "finish_reason": "ToolUse",
           "observation_type": "generation"
         },
         {
@@ -224,6 +227,7 @@
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_3YMaSqTgCvzRtww9kRHTMV\",\"name\":\"strands_structured_output\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a coffee-house stop with Sachertort…[399 chars]",
         "content_digest": "2d49f3083923c1ff",
         "tool_name": "strands_structured_output",
+        "finish_reason": "ToolUse",
         "observation_type": "generation"
       },
       {
