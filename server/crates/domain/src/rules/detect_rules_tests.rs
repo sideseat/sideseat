@@ -406,6 +406,35 @@ fn an_exact_instrumentation_scope_identifies_the_framework_using_openinference()
     );
 }
 
+/// Logfire's OpenAI Agents instrumentation writes Logfire's own attributes on every span, so the
+/// spans used to be labelled Logfire. Its scope is what says they describe the Agents SDK.
+#[test]
+fn logfire_s_openai_agents_scope_identifies_the_agents_sdk() {
+    let plan = &ruleset().detect;
+    let detected = |scope_name: &str| {
+        plan.resolve(&DetectContext {
+            span_name: "Agent run: {name!r}",
+            scope_name: Some(scope_name),
+            span_attrs: &attrs(&[
+                ("logfire.span_type", "span"),
+                ("logfire.msg_template", "Agent run: {name!r}"),
+            ]),
+            resource_attrs: &attrs(&[("telemetry.sdk.name", "logfire")]),
+        })
+        .map(|found| found.label.to_string())
+    };
+
+    assert_eq!(
+        detected("logfire.openai_agents").as_deref(),
+        Some("OpenAIAgents")
+    );
+    assert_eq!(
+        detected("logfire.openai").as_deref(),
+        Some("Logfire"),
+        "Logfire instrumenting a provider client is still Logfire"
+    );
+}
+
 /// Google Gen AI uses one instrumentation scope for both APIs, while many frameworks can call
 /// models hosted on Vertex. Only the conjunction identifies the direct Vertex SDK integration.
 #[test]

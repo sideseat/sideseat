@@ -5,9 +5,12 @@
   "detect": [
     {
       "id": "openai-agents.detect",
-      "doc": "Identifies OpenAIAgents by the signals below.",
+      "doc": "Identifies OpenAIAgents by the signals below. Logfire's instrumentation records the SDK's spans under its own `logfire.openai_agents` scope and with Logfire's attributes, so the scope is the evidence that the spans describe this framework rather than Logfire itself, and the relationship to Logfire's detection is declared rather than left to rank.",
       "label": "OpenAIAgents",
       "match": {
+        "scope_name": [
+          "logfire.openai_agents"
+        ],
         "attr_prefix": [
           "openai.agents."
         ],
@@ -16,7 +19,10 @@
           "openai_agents"
         ]
       },
-      "legacy_rank": 240
+      "legacy_rank": 240,
+      "supersedes": [
+        "logfire.detect"
+      ]
     }
   ],
   "sdk_slugs": [
