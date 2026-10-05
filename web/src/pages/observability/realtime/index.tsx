@@ -42,8 +42,8 @@ import {
   MAX_BUFFER_SIZE,
   MIN_REFETCH_INTERVAL_MS,
   REFETCH_LIMIT,
-  compareSpansDesc,
   estimateBlockHeight,
+  mergeSpans,
   tracesToDisplayBlocks,
 } from "./realtime-data";
 import type { RealtimeTab, TraceData } from "./realtime-data";
@@ -312,18 +312,11 @@ export default function RealtimePage() {
         }
 
         setSpans((prev) => {
-          const existingIds = new Set(prev.map((s) => s.span_id));
-          const newUnique = res.data.filter((s) => !existingIds.has(s.span_id));
-          if (newUnique.length > 0) {
-            const merged = [...prev, ...newUnique];
-            merged.sort(compareSpansDesc);
-            const limited = merged.slice(0, MAX_BUFFER_SIZE);
-            if (!autoScrollModeRef.current) {
-              setNewCount((c) => c + newUnique.length);
-            }
-            return limited;
+          const { spans: merged, added } = mergeSpans(prev, res.data, MAX_BUFFER_SIZE);
+          if (added > 0 && !autoScrollModeRef.current) {
+            setNewCount((c) => c + added);
           }
-          return prev;
+          return merged;
         });
       }
     } catch (error) {

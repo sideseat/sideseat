@@ -59,6 +59,30 @@ export function compareSpansDesc(a: SpanSummary, b: SpanSummary): number {
   return a.span_id.localeCompare(b.span_id);
 }
 
+/**
+ * Adds newly fetched spans to the newest-first buffer, keeping at most `max`.
+ *
+ * Spans are identified by trace and span id together: span ids are client-provided and only unique
+ * within their trace, so keying by span id alone dropped a new span whose id another trace had used.
+ */
+export function mergeSpans(
+  existing: SpanSummary[],
+  incoming: SpanSummary[],
+  max: number,
+): { spans: SpanSummary[]; added: number } {
+  const key = (s: SpanSummary) => `${s.trace_id}\u0000${s.span_id}`;
+  const seen = new Set(existing.map(key));
+  const fresh = incoming.filter((s) => {
+    const k = key(s);
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  if (fresh.length === 0) return { spans: existing, added: 0 };
+  const merged = [...existing, ...fresh].sort(compareSpansDesc).slice(0, max);
+  return { spans: merged, added: fresh.length };
+}
+
 export function estimateBlockHeight(block: Block): number {
   let baseHeight: number;
   const content = block.content;
