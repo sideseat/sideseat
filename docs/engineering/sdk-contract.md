@@ -36,7 +36,7 @@ Explicit arguments win over environment variables, which win over defaults.
 | debug logging | `SIDESEAT_DEBUG` | off |
 
 Boolean variables accept `1/0`, `true/false`, and `yes/no`, in any case. An invalid value is an error,
-not a silent default.
+not a silent default. An empty or blank argument or variable counts as unset.
 
 **Endpoint resolution.** An endpoint without a path is a SideSeat server; the OTLP base is
 `{endpoint}/otel/{project}`. An endpoint with a path is already an OTLP base. Each signal is exported to
@@ -44,7 +44,10 @@ not a silent default.
 is an error.
 
 **Authentication.** An API key is sent as `Authorization: Bearer <key>`. Headers from
-`OTEL_EXPORTER_OTLP_HEADERS` are kept; the API key wins on conflict.
+`OTEL_EXPORTER_OTLP_HEADERS` are kept; the API key replaces an `Authorization` header of any spelling.
+
+**Signals.** Metrics are exported every minute, the OpenTelemetry default. Each signal can be switched
+off, and turning export off sends nothing, which tests use with extra span processors.
 
 ## Lifecycle
 
@@ -52,11 +55,14 @@ is an error.
   settings returns the existing client. Calling it with different settings is an error: telemetry
   configuration is global, so a silent second configuration would leave the process exporting with
   whichever won.
-- `flush(timeout)` exports everything pending and reports whether it all succeeded.
+- `flush(timeout)` exports everything pending and reports whether it all succeeded within the timeout.
+  Where the OpenTelemetry SDK does not surface export results from a flush (.NET), it reports whether
+  every exporter finished in time.
 - `shutdown(timeout)` flushes, stops every exporter and integration, and reports success. It runs at
-  process exit automatically and is idempotent. OpenTelemetry's global providers can be set once per
-  process, so a second pipeline after shutdown is a testing facility (`sideseat.testing` in Python),
-  not a production feature.
+  process exit automatically and is idempotent. Rust has no exit hook; its pipeline shuts down when the
+  last clone of the client drops. OpenTelemetry's global providers can be set once per process, so a
+  second pipeline after shutdown is a testing facility (`sideseat.testing` in Python), not a production
+  feature.
 - When disabled, every call is a no-op. Spans are non-recording and nothing is exported.
 
 ## Provider ownership
@@ -64,7 +70,13 @@ is an error.
 SideSeat owns the global tracer, logger, and meter providers unless an integration has to own one. A
 framework that builds its own tracer provider (Logfire, Laminar) owns it; SideSeat then attaches its
 processors to that provider and suppresses the framework's own exporters. At most one integration may own
-a provider. An existing SDK tracer provider set by the application is reused rather than replaced.
+a provider.
+
+An existing SDK tracer provider set by the application is reused rather than replaced where the
+language's OpenTelemetry SDK can add processors to a built provider (Python). Elsewhere it cannot, so the
+SDK offers a hook into the application's own pipeline instead (`AddSideSeat` in .NET), or warns that
+the global provider was already taken (TypeScript). Rust's global setter cannot tell an SDK provider from
+another, so `init` replaces it.
 
 Processor order on the tracer provider is fixed:
 
@@ -75,7 +87,9 @@ Processor order on the tracer provider is fixed:
 ## Correlation
 
 `session(session_id, user_id)` is a scope, not a span. Inside it, every span started in the process
-receives `session.id` and `user.id` attributes, including spans created by a framework. The values travel
+receives `session.id` and `user.id` attributes, including spans created by a framework. A session id is
+required and a user id optional; an empty one is an error, because it would merge unrelated
+conversations. The values travel
 in the OpenTelemetry context under a private key, so they follow the trace context across `async`
 boundaries and into threads that propagate context. They are deliberately not W3C baggage: HTTP client
 instrumentation injects baggage into every outgoing request, which would send end-user identifiers to
@@ -91,7 +105,9 @@ Application code never needs to set `session.id` on a span by hand.
 
 Content capture is on by default because the point of SideSeat is to read the conversation. The SDK sets
 the standard `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` switch, and each integration enables
-its framework's own equivalent. Turning capture off is honoured by every integration. Binary content is
+its framework's own equivalent. Rust is the exception: modifying the environment of a running Rust
+program is unsound once other threads may read it, so it exposes the setting as `captures_content()`.
+Turning capture off is honoured by every integration. Binary content is
 exported base64-encoded; the server moves it to file storage on ingest.
 
 ## Integrations
@@ -108,13 +124,22 @@ all of them are recorded in `sideseat.integrations`. Auto-detection never activa
 client library, because those are installed transitively by many frameworks.
 
 An integration must not leave the process environment changed after `init` returns, except for the
-documented content-capture switches that instrumentations read lazily.
+documented content-capture switches that instrumentations read lazily. One integration needs a narrow
+exception: a framework that configures a child process only through the environment it inherits, where
+the language cannot wrap the framework's options instead (the Claude Agent SDK in TypeScript, whose ES
+module exports cannot be patched). It sets only variables the application has not set and removes them
+at shutdown. Switches an integration sets elsewhere, such as .NET `AppContext` switches, are restored at
+shutdown.
+
+An SDK whose language has no integrations (Rust) neither detects nor records any; applications set
+`sideseat.framework` as an explicit resource attribute when it applies.
 
 ## Resource
 
 Every signal carries `service.name`, `service.version`, `telemetry.sdk.name = sideseat`,
-`telemetry.sdk.language`, `telemetry.sdk.version`, `sideseat.framework`, and `sideseat.integrations`,
-plus anything in `OTEL_RESOURCE_ATTRIBUTES` and explicit resource attributes.
+`telemetry.sdk.language`, and `telemetry.sdk.version`; when an integration is active, also
+`sideseat.framework` and `sideseat.integrations`. `OTEL_RESOURCE_ATTRIBUTES` sits underneath them and
+explicit resource attributes on top.
 
 ## Errors
 
