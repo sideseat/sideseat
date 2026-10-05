@@ -62,16 +62,24 @@ No SDK? Point any OpenTelemetry exporter at `http://localhost:5388/otel/default`
 
 **Python:** Strands Agents, LangGraph, LangChain, CrewAI, AutoGen, AG2, OpenAI Agents SDK, Google ADK,
 Pydantic AI, Microsoft Agent Framework, Semantic Kernel, Claude Agent SDK, Agno, smolagents, LlamaIndex,
-AgentScope, Haystack, Browser Use, Langflow, Logfire, TraceLoop, OpenInference.
+AgentScope, Haystack, Browser Use, Logfire, TraceLoop, OpenInference.
 
-**TypeScript:** Strands Agents, Vercel AI SDK, Claude Agent SDK. **.NET:** Microsoft.Extensions.AI,
-Microsoft Agent Framework, Semantic Kernel. **Providers:** Amazon Bedrock, Anthropic, OpenAI, Azure
-OpenAI, Google Gemini, Vertex AI.
+**TypeScript:** Strands Agents, Vercel AI SDK, Claude Agent SDK.
 
-Every integration is verified end to end: each one runs a fixed set of scenarios - tool use, multi-turn,
-sessions, streaming, reasoning, files, multi-agent - with and without the SDK, and SideSeat's reading of
-the captured telemetry is checked message by message. See
-[compatibility and verification](https://sideseat.ai/docs/reference/production-readiness/).
+**Providers:** Amazon Bedrock, Anthropic, OpenAI, Azure OpenAI, Google Gemini, Vertex AI.
+
+Each of these is verified end to end. Its example suite runs a fixed set of scenarios - chat, multi-turn,
+sessions, tool use, a failing tool, and where the framework supports them streaming, structured output,
+reasoning, files, multi-agent and MCP tools - once with the framework's own OpenTelemetry setup and once
+with the SideSeat SDK, against current models (Claude Sonnet 5.5 on Bedrock, or a deterministic fake
+server where Bedrock does not serve the provider). SideSeat's reading of every captured trace, span and
+session is checked message by message, and both runs must read the same. Where an instrumentation itself
+drops content - images, documents, reasoning - the
+[compatibility matrix](https://sideseat.ai/docs/reference/production-readiness/) says so.
+
+**Also integrated, not yet covered by a captured suite:** Langflow in Python; Microsoft.Extensions.AI,
+Microsoft Agent Framework and Semantic Kernel in .NET, where the SDK itself is verified by its
+conformance program.
 
 ## SDKs
 
