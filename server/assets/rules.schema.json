@@ -1171,6 +1171,11 @@
           "const": "python_constructor_repr_array"
         },
         {
+          "description": "Parse the Python `str()` of a dict or a list - single-quoted strings, `True`, `False`, `None` -\ninto a JSON tree; the carrier is skipped when the whole text is not one.\n\nA container at the top level only: `str(1)` and `str(\"1\")` are indistinguishable from text a tool\ngenuinely returned. No constructors - that is `python_constructor_repr`. For a producer that renders a\ntool's returned value with `str()` where the conventions expect JSON; opt-in per rule, because the\nsame text from anyone else may be prose.",
+          "type": "string",
+          "const": "python_literal"
+        },
+        {
           "description": "Keep the raw text. Some carriers hold prose, and parsing it would turn a bare word into a\nnon-string or an accidental number into a number.",
           "type": "string",
           "const": "text"

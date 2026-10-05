@@ -523,6 +523,14 @@ pub enum ParseMode {
     /// A serialised list of framework objects. All or nothing: an element that is not such a repr means the
     /// carrier is some other shape, and it is left to the rules that read that shape.
     PythonConstructorReprArray,
+    /// Parse the Python `str()` of a dict or a list - single-quoted strings, `True`, `False`, `None` -
+    /// into a JSON tree; the carrier is skipped when the whole text is not one.
+    ///
+    /// A container at the top level only: `str(1)` and `str("1")` are indistinguishable from text a tool
+    /// genuinely returned. No constructors - that is `python_constructor_repr`. For a producer that renders a
+    /// tool's returned value with `str()` where the conventions expect JSON; opt-in per rule, because the
+    /// same text from anyone else may be prose.
+    PythonLiteral,
     /// Keep the raw text. Some carriers hold prose, and parsing it would turn a bare word into a
     /// non-string or an accidental number into a number.
     Text,

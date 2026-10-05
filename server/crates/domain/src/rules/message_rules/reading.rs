@@ -45,6 +45,7 @@ pub(super) fn parse_value(raw: &str, mode: ParseMode) -> Option<JsonValue> {
                 .collect::<Option<Vec<_>>>()
                 .map(JsonValue::Array)
         }
+        ParseMode::PythonLiteral => crate::sideml::content::try_parse_python_literal(raw),
         // Prose. Parsing it would turn a bare word into a non-string and an accidental digit string
         // into a number.
         ParseMode::Text => Some(json!(raw)),

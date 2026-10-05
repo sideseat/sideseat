@@ -245,8 +245,8 @@
           "index": 0,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{'city': 'Paris', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}",
-          "content_digest": "4d29ca2e133d977b",
+          "content": "{\"type\":\"tool_result\",\"name\":\"get_weather\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "6d785b2b8dba3758",
           "tool_name": "get_weather",
           "observation_type": "tool"
         }
@@ -264,8 +264,8 @@
           "index": 0,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{'city': 'Tokyo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}",
-          "content_digest": "da01413a9644a063",
+          "content": "{\"type\":\"tool_result\",\"name\":\"get_weather\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "c8efe3ba2cf3e3dc",
           "tool_name": "get_weather",
           "observation_type": "tool"
         }
@@ -385,8 +385,8 @@
           "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{'city': 'Tokyo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}",
-          "content_digest": "ccb7eae8258c81ad",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_get_weather_dfbbe93c6080\",\"name\":\"get_weather\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "d5adc53b9a3c52ff",
           "tool_name": "get_weather",
           "observation_type": "tool"
         },
@@ -394,8 +394,8 @@
           "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{'city': 'Paris', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}",
-          "content_digest": "aaa0e41f8a587b29",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_get_weather_dd57980a1fd3\",\"name\":\"get_weather\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "e2ffbbe700595fe6",
           "tool_name": "get_weather",
           "observation_type": "tool"
         },
@@ -503,8 +503,8 @@
           "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{'city': 'Tokyo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}",
-          "content_digest": "ccb7eae8258c81ad",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_get_weather_dfbbe93c6080\",\"name\":\"get_weather\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "d5adc53b9a3c52ff",
           "tool_name": "get_weather",
           "observation_type": "tool"
         },
@@ -512,8 +512,8 @@
           "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{'city': 'Paris', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}",
-          "content_digest": "aaa0e41f8a587b29",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_get_weather_dd57980a1fd3\",\"name\":\"get_weather\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "e2ffbbe700595fe6",
           "tool_name": "get_weather",
           "observation_type": "tool"
         },
@@ -630,8 +630,8 @@
         "index": 5,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{'city': 'Paris', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}",
-        "content_digest": "aaa0e41f8a587b29",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_get_weather_dd57980a1fd3\",\"name\":\"get_weather\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+        "content_digest": "e2ffbbe700595fe6",
         "tool_name": "get_weather",
         "observation_type": "tool"
       },
@@ -639,8 +639,8 @@
         "index": 6,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{'city': 'Tokyo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}",
-        "content_digest": "ccb7eae8258c81ad",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_get_weather_dfbbe93c6080\",\"name\":\"get_weather\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+        "content_digest": "d5adc53b9a3c52ff",
         "tool_name": "get_weather",
         "observation_type": "tool"
       },

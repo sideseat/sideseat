@@ -27,5 +27,38 @@
       "slug": "semantic-kernel",
       "label": "SemanticKernel"
     }
+  ],
+  "messages": [
+    {
+      "id": "semantic-kernel.tool_call_result_literal",
+      "doc": "Semantic Kernel records a tool's result as the Python `str()` of what the function returned - which is also what it sends the model - so a dict arrives single-quoted. Read as the value it renders, on the kernel-function scope only; a result that is not a whole Python container falls through to the semantic-conventions rule and is read as text.",
+      "instrumentation_scope": {
+        "name": "semantic_kernel.functions.kernel_function"
+      },
+      "read": {
+        "attribute": "gen_ai.tool.call.result"
+      },
+      "parse": "python_literal",
+      "wrap": {
+        "role": "tool",
+        "block": {
+          "type": "tool_result",
+          "attach": [
+            {
+              "from": "gen_ai.tool.name",
+              "as": "name",
+              "or_span_name_after": "execute_tool "
+            },
+            {
+              "from": "gen_ai.tool.call.id",
+              "as": "tool_use_id"
+            }
+          ]
+        }
+      },
+      "emit": "message",
+      "legacy_rank": 168,
+      "reads_tool_spans": true
+    }
   ]
 }

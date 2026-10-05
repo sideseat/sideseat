@@ -435,3 +435,27 @@ fn an_id_template_is_refused_unless_it_can_build_distinct_ids() {
         );
     }
 }
+
+#[test]
+fn a_python_literal_parses_only_as_a_whole_container_of_literals() {
+    assert_eq!(
+        try_parse_python_literal(
+            "{'city': 'Paris', 'ok': True, 'n': None, 'days': [1, 2.5], 'pair': ('a', \"b's\")}"
+        ),
+        Some(json!({"city": "Paris", "ok": true, "n": null, "days": [1, 2.5], "pair": ["a", "b's"]}))
+    );
+    assert_eq!(try_parse_python_literal("  [1, 'x']  "), Some(json!([1, "x"])));
+    for refused in [
+        "1",
+        "'text'",
+        "Paris",
+        "{'a': Sunny}",
+        "[TextContent(type='text', text='x')]",
+        "{'state': <State.OK: 'ok'>}",
+        "{'a': 1} trailing",
+        "{'a': 1",
+        "{'a': 1, 'a': 2}",
+    ] {
+        assert_eq!(try_parse_python_literal(refused), None, "{refused}");
+    }
+}

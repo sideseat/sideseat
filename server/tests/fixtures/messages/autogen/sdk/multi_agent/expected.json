@@ -620,8 +620,8 @@
           "index": 0,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{'city': 'Barcelona', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}",
-          "content_digest": "9852790ca753094e",
+          "content": "{\"type\":\"tool_result\",\"name\":\"get_weather\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "e0c527fd3bdedb76",
           "tool_name": "get_weather",
           "observation_type": "tool"
         }
@@ -686,8 +686,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{'city': 'Barcelona', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}",
-          "content_digest": "d2413c58c5c8e7a2",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_get_weather_63d74bb0a4c7\",\"name\":\"get_weather\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "e1f142f73355ec11",
           "tool_name": "get_weather",
           "observation_type": "tool"
         },
@@ -762,8 +762,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{'city': 'Barcelona', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}",
-          "content_digest": "d2413c58c5c8e7a2",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_get_weather_63d74bb0a4c7\",\"name\":\"get_weather\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "e1f142f73355ec11",
           "tool_name": "get_weather",
           "observation_type": "tool"
         },
@@ -836,8 +836,8 @@
         "index": 3,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{'city': 'Barcelona', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}",
-        "content_digest": "d2413c58c5c8e7a2",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_get_weather_63d74bb0a4c7\",\"name\":\"get_weather\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+        "content_digest": "e1f142f73355ec11",
         "tool_name": "get_weather",
         "observation_type": "tool"
       },

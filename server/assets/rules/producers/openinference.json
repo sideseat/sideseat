@@ -315,6 +315,44 @@
       "reads_tool_spans": true
     },
     {
+      "id": "openinference.tool_output_literal",
+      "doc": "AutoGen's TOOL span records the result as the Python `str()` of what the tool returned (and labels it `text/plain`, which is that rendering's MIME type, not the value's), so a dict arrives single-quoted. Read as the value it renders; a result that is not a whole Python container falls through to `openinference.tool_output` and is read as JSON or text.",
+      "instrumentation_scope": {
+        "name": "openinference.instrumentation.autogen_agentchat"
+      },
+      "when": {
+        "attr_equals_ignore_case": [
+          {
+            "key": "openinference.span.kind",
+            "value": "tool"
+          }
+        ]
+      },
+      "read": {
+        "attribute": "output.value"
+      },
+      "parse": "python_literal",
+      "wrap": {
+        "role": "tool",
+        "block": {
+          "type": "tool_result",
+          "attach": [
+            {
+              "from": "tool.name",
+              "as": "name"
+            },
+            {
+              "from": "gen_ai.tool.call.id",
+              "as": "tool_use_id"
+            }
+          ]
+        }
+      },
+      "emit": "message",
+      "legacy_rank": 212,
+      "reads_tool_spans": true
+    },
+    {
       "id": "openinference.tool_output",
       "doc": "The return value of an OpenInference TOOL span from AutoGen. AutoGen 0.7.5 records the call id on its sibling semantic-convention span rather than this OpenInference span, so the result keeps the tool name and query-time correlation links it to the oldest unclaimed call of that name.",
       "instrumentation_scope": {

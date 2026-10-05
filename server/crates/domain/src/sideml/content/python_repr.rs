@@ -141,6 +141,22 @@ pub(crate) fn try_parse_python_constructor_repr(s: &str) -> Option<JsonValue> {
     (parser.position == source.len()).then_some(value)
 }
 
+/// Parse the Python `str()` of a dict, list or tuple - strings in either quote, numbers, `True`, `False`,
+/// `None`, nested containers - into a JSON tree, through the same sealed and depth-bounded parser as
+/// constructor reprs with constructors, enum reprs and bare names refused. The whole text must be one
+/// container; anything else is `None`, leaving the telemetry to be read as text.
+pub(crate) fn try_parse_python_literal(s: &str) -> Option<JsonValue> {
+    let source = s.trim();
+    if !matches!(source.chars().next()?, '{' | '[' | '(') {
+        return None;
+    }
+    let mut parser = PythonConstructorParser::new(source);
+    parser.literals_only = true;
+    let value = parser.parse_value(0)?;
+    parser.skip_whitespace();
+    (parser.position == source.len()).then_some(value)
+}
+
 /// Normalize a JSON-decoded list whose members are constructor repr strings.
 ///
 /// The caller already knows the surrounding value is a tool response. This helper still requires at least
@@ -180,6 +196,8 @@ pub(super) fn try_normalize_python_constructor_content(value: &JsonValue) -> Opt
 struct PythonConstructorParser<'a> {
     source: &'a str,
     position: usize,
+    /// Refuse constructors, enum reprs and bare identifiers: the plain-literal subset only.
+    literals_only: bool,
 }
 
 impl<'a> PythonConstructorParser<'a> {
@@ -187,6 +205,7 @@ impl<'a> PythonConstructorParser<'a> {
         Self {
             source,
             position: 0,
+            literals_only: false,
         }
     }
 
@@ -257,6 +276,7 @@ impl<'a> PythonConstructorParser<'a> {
             '[' => self.parse_array(depth + 1, '[', ']').map(JsonValue::Array),
             '(' => self.parse_array(depth + 1, '(', ')').map(JsonValue::Array),
             '{' => self.parse_object(depth + 1),
+            '<' if self.literals_only => None,
             '<' => self.parse_enum_repr(depth + 1),
             '-' | '0'..='9' => self.parse_number(),
             _ => {
@@ -266,6 +286,7 @@ impl<'a> PythonConstructorParser<'a> {
                     "True" => Some(JsonValue::Bool(true)),
                     "False" => Some(JsonValue::Bool(false)),
                     "None" => Some(JsonValue::Null),
+                    _ if self.literals_only => None,
                     _ => {
                         self.skip_whitespace();
                         if self.peek() == Some('(') {

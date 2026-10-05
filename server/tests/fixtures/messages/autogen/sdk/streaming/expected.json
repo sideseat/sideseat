@@ -100,8 +100,8 @@
           "index": 0,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{'city': 'Rome', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}]}",
-          "content_digest": "0684b70bb2456214",
+          "content": "{\"type\":\"tool_result\",\"name\":\"get_weather\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "703cb9b980accba8",
           "tool_name": "get_weather",
           "observation_type": "tool"
         }
@@ -185,8 +185,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{'city': 'Rome', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}]}",
-          "content_digest": "51932873e7aa0f7a",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_get_weather_caad21d8fe08\",\"name\":\"get_weather\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "47f68778121ae744",
           "tool_name": "get_weather",
           "observation_type": "tool"
         },
@@ -243,8 +243,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{'city': 'Rome', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}]}",
-          "content_digest": "51932873e7aa0f7a",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_get_weather_caad21d8fe08\",\"name\":\"get_weather\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "47f68778121ae744",
           "tool_name": "get_weather",
           "observation_type": "tool"
         },
@@ -283,8 +283,8 @@
         "index": 1,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{'city': 'Rome', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}]}",
-        "content_digest": "51932873e7aa0f7a",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_get_weather_caad21d8fe08\",\"name\":\"get_weather\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+        "content_digest": "47f68778121ae744",
         "tool_name": "get_weather",
         "observation_type": "tool"
       },
