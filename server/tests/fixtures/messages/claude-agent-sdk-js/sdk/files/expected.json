@@ -1,0 +1,218 @@
+{
+  "label": "claude-agent-sdk-js/sdk/files",
+  "request_count": 2,
+  "span_count": 3,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/claude_code.interaction/span-2": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+          "content_digest": "66bed9fc16754ebe",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/claude_code.llm_request/span-3": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+          "content_digest": "66bed9fc16754ebe",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "[Image: source: /private/tmp/claude-504/-private-var-folders-n--kvwhfj054zx3zjmwj941d53c0000gr-T-sideseat-claude-agent-sdk-js/00000000-0000-0000-0000-000000000000/images/1.jpg]",
+          "content_digest": "7c3fe64406fb7832",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Image:** A curved black path winds through a sunny park with neatly mown grass, a low stone retaining wall, bare and evergreen trees, and brick buildings in the background under a clear blue sky. **Document:** The five-page PDF is almost …[358 chars]",
+          "content_digest": "2052ebae766db7ce",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/files/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+          "content_digest": "66bed9fc16754ebe",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "[Image: source: /private/tmp/claude-504/-private-var-folders-n--kvwhfj054zx3zjmwj941d53c0000gr-T-sideseat-claude-agent-sdk-js/00000000-0000-0000-0000-000000000000/images/1.jpg]",
+          "content_digest": "7c3fe64406fb7832",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Image:** A curved black path winds through a sunny park with neatly mown grass, a low stone retaining wall, bare and evergreen trees, and brick buildings in the background under a clear blue sky. **Document:** The five-page PDF is almost …[358 chars]",
+          "content_digest": "2052ebae766db7ce",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "claude-agent-sdk-js-files": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+          "content_digest": "66bed9fc16754ebe",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "[Image: source: /private/tmp/claude-504/-private-var-folders-n--kvwhfj054zx3zjmwj941d53c0000gr-T-sideseat-claude-agent-sdk-js/00000000-0000-0000-0000-000000000000/images/1.jpg]",
+          "content_digest": "7c3fe64406fb7832",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Image:** A curved black path winds through a sunny park with neatly mown grass, a low stone retaining wall, bare and evergreen trees, and brick buildings in the background under a clear blue sky. **Document:** The five-page PDF is almost …[358 chars]",
+          "content_digest": "2052ebae766db7ce",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 4,
+    "role_sequence": [
+      "system",
+      "user",
+      "assistant",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "[Image: source: /private/tmp/claude-504/-private-var-folders-n--kvwhfj054zx3zjmwj941d53c0000gr-T-sideseat-claude-agent-sdk-js/00000000-0000-0000-0000-000000000000/images/1.jpg]",
+        "content_digest": "7c3fe64406fb7832",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "**Image:** A curved black path winds through a sunny park with neatly mown grass, a low stone retaining wall, bare and evergreen trees, and brick buildings in the background under a clear blue sky. **Document:** The five-page PDF is almost …[358 chars]",
+        "content_digest": "2052ebae766db7ce",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+        "content_digest": "66bed9fc16754ebe",
+        "observation_type": "span"
+      }
+    ]
+  }
+}

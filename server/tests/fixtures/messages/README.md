@@ -67,7 +67,8 @@ program (`python`, `javascript`, `dotnet`, `rust`). The mode says who configured
 | `azure-openai/sdk` | SideSeat Python 2.0.0 / OpenAI 3.24.0 (`AzureOpenAI`) / OpenInference OpenAI instrumentor 0.1.63 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, against the harness's fake OpenAI server | 9 | 9 |
 | `bedrock/legacy` | boto3 (bedrock runtime); only `invoke_model` remains, because no catalog scenario calls InvokeModel | 1 | 3 |
 | `bedrock/sdk` | SideSeat Python 2.0.0 / boto3 1.43.107 Converse and ConverseStream / OpenTelemetry Python 1.45.0 on CPython 3.14.7; no native pair, because OpenTelemetry botocore instrumentation records messages only as log events, which capture does not record | 9 | 11 |
-| `claude-agent-sdk-js/legacy` | @anthropic-ai/claude-agent-sdk ^0.3.246 | 8 | 17 |
+| `claude-agent-sdk-js/native` | Claude Agent SDK for TypeScript 0.3.289 (Claude Code CLI 2.1.289 telemetry) on Bedrock / OpenTelemetry JS 2.11.0 on Node.js 25.2.1; like the Python suite, the CLI exports attachments as text placeholders and no thinking | 11 | 23 |
+| `claude-agent-sdk-js/sdk` | SideSeat JavaScript 3.0.0 / Claude Agent SDK for TypeScript 0.3.289 (Claude Code CLI 2.1.289) on Bedrock / OpenTelemetry JS 2.11.0 on Node.js 25.2.1 | 11 | 23 |
 | `claude-agent-sdk/native` | Claude Agent SDK 0.2.163 (Claude Code CLI telemetry) on Bedrock / OpenTelemetry Python 1.45.0 on CPython 3.13.7; the CLI exports attachments as text placeholders and no thinking | 11 | 26 |
 | `claude-agent-sdk/sdk` | SideSeat Python 2.0.0 / Claude Agent SDK 0.2.163 on Bedrock / OpenTelemetry Python 1.45.0 on CPython 3.13.7 | 11 | 23 |
 | `crewai/native` | CrewAI 1.15.23 / OpenInference CrewAI instrumentor 1.1.20 / OpenTelemetry Python 1.45.0 on CPython 3.12.8, native OTLP setup; no `structured_output`, `files`, or `streaming`: CrewAI's Bedrock provider forces tool choice, refuses media for Claude 5, and does not run a streamed tool call | 8 | 13 |
@@ -138,9 +139,7 @@ by hand, so its exemption would have asserted a cause the fixture did not exhibi
 ## Capability exemptions
 
 `PAIRING_EXEMPT` in the test names fixtures whose *source* telemetry cannot satisfy tool
-pairing, with the reason. Both `claude-agent-sdk*/subagents` are listed: the Claude Code CLI
-emits a subagent's tool executions without the matching `tool_use` block, so the result is
-callless upstream. A capability limit of a framework is recorded per fixture rather than
+pairing, with the reason; it is empty today. A capability limit of a framework is recorded per fixture rather than
 weakening the check for everyone.
 
 `scripts/message-fixtures/review-goldens.py` also classifies the small set of source shapes

@@ -124,9 +124,6 @@ INTENTIONAL_WARNINGS: dict[str, dict[str, tuple[int, str]]] = {
     "claude-agent-sdk/structured_output": {
         "unbalanced_tools": (2, "StructuredOutput is a terminal schema pseudo-tool"),
     },
-    "claude-agent-sdk-js/structured-output": {
-        "unbalanced_tools": (2, "StructuredOutput is a terminal schema pseudo-tool"),
-    },
     "crewai/structured_output": {
         "json_block": (
             2,
@@ -154,7 +151,8 @@ INTENTIONAL_WARNINGS: dict[str, dict[str, tuple[int, str]]] = {
         }.items()
     },
     **{
-        f"claude-agent-sdk/{mode}/{scenario}": warnings
+        f"{producer}/{mode}/{scenario}": warnings
+        for producer in ("claude-agent-sdk", "claude-agent-sdk-js")
         for mode in ("native", "sdk")
         for scenario, warnings in {
             "multi_agent": {

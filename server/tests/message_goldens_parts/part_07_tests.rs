@@ -159,3 +159,51 @@ fn without_media(mut golden: Golden) -> Golden {
         .for_each(strip);
     golden
 }
+
+/// The form `capture.py`'s `anonymise` pins a Claude Code subagent's measured duration to.
+const PINNED_DURATION: &str = "duration_ms: 0";
+
+/// Rows with every pinned duration collapsed to one zero, for comparing two runs.
+///
+/// The Claude Code CLI tells the model how long each subagent took. Capture zeroes the digits but
+/// keeps their count, because a protobuf payload's strings are length-prefixed, so two runs of one
+/// conversation still differ wherever one subagent took 99 ms and the other 100 ms. Comparing the
+/// pair with the count collapsed leaves every other character of those messages compared.
+fn without_run_measurements(rows: Vec<(String, MessageSpanRow)>) -> Vec<(String, MessageSpanRow)> {
+    rows.into_iter()
+        .map(|(source, mut row)| {
+            if row.messages_json.contains(PINNED_DURATION) {
+                row.messages_json = collapse_pinned_durations(&row.messages_json);
+            }
+            (source, row)
+        })
+        .collect()
+}
+
+fn collapse_pinned_durations(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find(PINNED_DURATION) {
+        let end = at + PINNED_DURATION.len();
+        out.push_str(&rest[..end]);
+        rest = rest[end..].trim_start_matches('0');
+    }
+    out.push_str(rest);
+    out
+}
+
+#[test]
+fn a_pinned_duration_compares_by_presence_alone() {
+    let collapsed = collapse_pinned_durations;
+
+    assert_eq!(
+        collapsed("tool_uses: 2 duration_ms: 00</usage> duration_ms: 0000 x"),
+        collapsed("tool_uses: 2 duration_ms: 000</usage> duration_ms: 0 x"),
+    );
+    assert_eq!(collapsed("duration_ms: 1200"), "duration_ms: 1200", "only pinned values collapse");
+    assert_ne!(
+        collapsed("tool_uses: 2 duration_ms: 00"),
+        collapsed("tool_uses: 3 duration_ms: 00"),
+        "only the duration may differ"
+    );
+}

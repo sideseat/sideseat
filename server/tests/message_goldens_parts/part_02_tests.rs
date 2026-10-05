@@ -717,8 +717,10 @@ fn framework_sdk_and_native_conversations_are_identical() {
             .get(&sdk_label)
             .unwrap_or_else(|| panic!("missing SideSeat framework fixture {sdk_label}"));
 
-        let native = build_golden(&native_label, native_paths, &rows_for(native_paths)).golden;
-        let sdk = build_golden(&sdk_label, sdk_paths, &rows_for(sdk_paths)).golden;
+        let native_rows = without_run_measurements(rows_for(native_paths));
+        let sdk_rows = without_run_measurements(rows_for(sdk_paths));
+        let native = build_golden(&native_label, native_paths, &native_rows).golden;
+        let sdk = build_golden(&sdk_label, sdk_paths, &sdk_rows).golden;
         let (native, sdk) = with_restored_media_aligned(&sdk_label, native, sdk);
 
         if !VARIABLE_STEP_SPANS.iter().any(|(label, _)| *label == sdk_label) {

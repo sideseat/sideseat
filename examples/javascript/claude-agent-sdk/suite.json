@@ -1,0 +1,4 @@
+{
+  "producer": "claude-agent-sdk-js",
+  "integrations": ["claude-agent-sdk"]
+}

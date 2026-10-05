@@ -959,17 +959,10 @@ fn extract_tool_use_id(row: &InvariantRow) -> Option<&str> {
 /// Fixtures whose SOURCE telemetry cannot satisfy tool pairing, with the reason.
 ///
 /// A capability limit of the framework, not a parsing defect, so it is recorded per fixture
-/// rather than weakening the check for everyone. Verified by reading the raw payload: the id in
-/// question appears only on `claude_code.tool.execution` / `claude_code.tool` spans as
-/// `tool_use_id`, and the Claude Code CLI never emits a matching `tool_use` block for a
-/// SUBAGENT's tool call — the subagent's assistant message is not part of the exported
-/// conversation. The result is therefore genuinely callless upstream.
-const PAIRING_EXEMPT: &[(&str, &str)] = &[
-    (
-        "claude-agent-sdk-js/legacy/subagents",
-        "Claude Code CLI emits subagent tool executions without the matching tool_use block",
-    ),
-];
+/// rather than weakening the check for everyone. Empty since the legacy Claude Agent SDK capture
+/// it excused was retired: the current Claude Code CLI exports a subagent's calls beside their
+/// results. Kept, like `NO_ANSWER_EXPECTED`, so the next genuine limit has a place to be declared.
+const PAIRING_EXEMPT: &[(&str, &str)] = &[];
 
 /// Fixtures whose source has no answer to show, with the reason.
 ///
