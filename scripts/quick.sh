@@ -83,12 +83,23 @@ if [ -n "$rust_files" ]; then
         for c in "${crates[@]}"; do packages+=(-p "$c"); done
         step "clippy ${crates[*]}"
         cargo clippy --locked "${packages[@]}" --all-targets -- -D warnings
-        step "tests ${crates[*]}"
-        if command -v cargo-nextest >/dev/null 2>&1; then
-            cargo nextest run --locked "${packages[@]}" --no-tests=pass
-        else
-            cargo test --locked "${packages[@]}"
+        # The server's container parity, backup-restore and footprint suites are opt-in targets, so they
+        # are neither built nor run here: its offline gates are the message goldens and the repository
+        # invariants. Of the goldens, the loop runs the comparison itself - every fixture's expected views
+        # and per-fixture invariants; the corpus-wide property tests each re-read every fixture in a
+        # process of their own and run in `make test`. One invocation, so nextest runs every selected
+        # crate's tests in parallel and cargo builds them in one pass.
+        targets=()
+        if printf '%s\n' "${crates[@]}" | grep -qx sideseat-server; then
+            targets=(--lib --bins --test message_goldens --test repository
+                -E 'not binary(message_goldens) or test(=message_goldens)')
         fi
+        step "tests ${crates[*]}"
+        command -v cargo-nextest >/dev/null 2>&1 || {
+            echo "[quick] cargo-nextest is required: mise install (or cargo install cargo-nextest --locked)" >&2
+            exit 1
+        }
+        cargo nextest run --locked --no-tests=pass "${packages[@]}" ${targets[@]+"${targets[@]}"}
     fi
 fi
 
