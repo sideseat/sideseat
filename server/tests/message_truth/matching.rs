@@ -290,6 +290,9 @@ pub(super) fn check_metadata(
         };
         let generation = &recon.generations[index];
         let carried = Carried::of(generation.raw.as_deref());
+        // What the span says about the *answer*: a member stating what was requested is not a statement
+        // of which model answered, even when the two values coincide.
+        let answered = Carried::of_answer(generation.raw.as_deref());
         let mut differ = |assertion: &str, expected: &str, actual: String| {
             out.push(Violation::new(
                 ViolationView::Call,
@@ -316,17 +319,19 @@ pub(super) fn check_metadata(
                 "call.response_model",
                 &call.response_model,
                 &generation.response_model,
+                &answered,
             ),
             (
                 "call.response_id",
                 &call.response_id,
                 &generation.response_id,
+                &carried,
             ),
         ];
-        for (assertion, expected, actual) in pairs {
+        for (assertion, expected, actual, raw) in pairs {
             if let Some(e) = expected
                 && actual.as_ref() != Some(e)
-                && (actual.is_some() || carried.string(e))
+                && (actual.is_some() || raw.string(e))
             {
                 differ(assertion, e, describe(&[actual]));
             }
@@ -405,11 +410,31 @@ pub(super) fn check_metadata(
 struct Carried {
     strings: BTreeSet<String>,
     numbers: BTreeSet<i64>,
+    skip_requests: bool,
+}
+
+/// A member whose name puts it in a request namespace (`gen_ai.request.model`, `request_model`).
+fn states_a_request(key: &str) -> bool {
+    key.split(['.', '_'])
+        .any(|segment| segment.eq_ignore_ascii_case("request"))
 }
 
 impl Carried {
     fn of(raw: Option<&str>) -> Self {
-        let mut carried = Carried::default();
+        Self::walked(raw, false)
+    }
+
+    /// The scalars outside every member that states a request: `gen_ai.request.model` names the model
+    /// asked for, so its value is not evidence that the span states the model that answered.
+    fn of_answer(raw: Option<&str>) -> Self {
+        Self::walked(raw, true)
+    }
+
+    fn walked(raw: Option<&str>, skip_requests: bool) -> Self {
+        let mut carried = Carried {
+            skip_requests,
+            ..Carried::default()
+        };
         if let Some(value) = raw.and_then(|r| serde_json::from_str::<serde_json::Value>(r).ok()) {
             carried.walk(&value, 0);
         }
@@ -439,7 +464,13 @@ impl Carried {
                 }
             }
             Value::Array(items) => items.iter().for_each(|v| self.walk(v, depth)),
-            Value::Object(map) => map.values().for_each(|v| self.walk(v, depth)),
+            Value::Object(map) => {
+                for (key, member) in map {
+                    if !(self.skip_requests && states_a_request(key)) {
+                        self.walk(member, depth);
+                    }
+                }
+            }
             _ => {}
         }
     }

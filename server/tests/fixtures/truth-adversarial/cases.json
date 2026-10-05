@@ -954,6 +954,15 @@
     "trace:extra.unexplained:assistant/text/ca45296f4393966d"
    ],
    "why": "the ERROR span of the throttled attempt still reports a reply"
+  },
+  {
+   "name": "only a member stating the answer carries a response model",
+   "truth": "request_model_only",
+   "patch": [],
+   "fires": [
+    "call:call.response_model:call-002"
+   ],
+   "why": "neither span states a response model the parser reads; the first states only the requested model, which is not which model answered, while the second carries the answering model under a member nothing reads"
   }
  ]
 }
