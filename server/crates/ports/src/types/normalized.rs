@@ -189,6 +189,13 @@ pub struct NormalizedLog {
     pub logical_bytes: u64,
     /// Server-derived search terms. They are not producer content and are not part of identity.
     pub search: SearchDocument,
+    /// Raw messages read from a record that a declared `log_events` entry recognises, pre-serialized as
+    /// the same JSON array a span's `messages` column holds. `None` stores the empty array.
+    ///
+    /// Derived from producer content, never part of it: `log_digest` and the confirmation identity are
+    /// computed without it, and the read path joins it to the span it names rather than copying it into
+    /// that span's row.
+    pub messages: Option<String>,
 }
 
 // ============================================================================

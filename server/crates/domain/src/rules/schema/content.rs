@@ -629,6 +629,41 @@ pub struct MessageEvent {
     pub doc: Option<String>,
 }
 
+/// One OTLP **log record** shape that carries a message event.
+///
+/// Several instrumentations emit the conversation as log records linked to a span instead of as span
+/// events: the record names a `message_events` entry and carries what a span event would carry in its
+/// attributes, either as the members of its body or as its own attributes. A declaration says which, and
+/// where the record states its event name; the event is then read exactly as the span event of that name
+/// is. Every `name` must also be a `message_events` entry, because the readings and the raw form are
+/// declared there - a log event no reading recognises would be stored and never answer.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct LogEvent {
+    /// This declaration's identity, required like every other clause's.
+    pub id: String,
+    /// The event name, which must also be declared in `message_events`.
+    pub name: String,
+    /// Where a record states its event name, tried in order: the first present source decides.
+    ///
+    /// `event_name` is the log record's own field; `attributes:<key>` is a record attribute, which is how
+    /// producers that predate the field wrote it.
+    pub name_from: Vec<String>,
+    /// Where the event's attributes are on the record.
+    pub payload: LogEventPayload,
+    pub doc: Option<String>,
+}
+
+/// Where a log event keeps what a span event of the same name keeps in its attributes.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LogEventPayload {
+    /// The record's body is a map, and its members are the event's attributes.
+    BodyMembers,
+    /// The record's own attributes are the event's attributes.
+    Attributes,
+}
+
 /// What an event's own attributes are, once its readings have run.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]

@@ -58,6 +58,7 @@ pub fn extract_logs_batch(
                     .map(any_value_to_json)
                     .unwrap_or_default();
                 let body_text = record.body.as_ref().and_then(body_text);
+                let messages = super::messages::log_record_messages(record);
 
                 let mut log = NormalizedLog {
                     project_id: resource_map.get(PROJECT_ID_ATTR).cloned(),
@@ -96,6 +97,8 @@ pub fn extract_logs_batch(
                     hold_until: None,
                     logical_bytes: 0,
                     search: Default::default(),
+                    messages: (!messages.is_empty())
+                        .then(|| serde_json::to_string(&messages).unwrap_or_default()),
                 };
                 log.logical_bytes = crate::accounting::log_logical_bytes(&log);
                 result.push(log);
@@ -156,6 +159,53 @@ mod tests {
                 .iter()
                 .map(|row| (&row.log_digest, row.ordinal))
                 .collect::<Vec<_>>()
+        );
+    }
+
+    /// The derived messages are a function of the record alone: a re-delivery reads identically and keeps
+    /// its identity, and the column is not part of what the digest covers.
+    #[test]
+    fn a_redelivered_message_record_keeps_its_identity_and_its_messages() {
+        let member = |key: &str, value: &str| opentelemetry_proto::tonic::common::v1::KeyValue {
+            key: key.to_string(),
+            value: Some(AnyValue {
+                value: Some(any_value::Value::StringValue(value.to_string())),
+            }),
+        };
+        let record = LogRecord {
+            time_unix_nano: 1_700_000_000_000_000_000,
+            event_name: "gen_ai.user.message".to_string(),
+            trace_id: vec![1; 16],
+            span_id: vec![2; 8],
+            attributes: vec![member("gen_ai.system", "openai")],
+            body: Some(AnyValue {
+                value: Some(any_value::Value::KvlistValue(
+                    opentelemetry_proto::tonic::common::v1::KeyValueList {
+                        values: vec![member("content", "hi"), member("role", "user")],
+                    },
+                )),
+            }),
+            ..Default::default()
+        };
+        let request = ExportLogsServiceRequest {
+            resource_logs: vec![ResourceLogs {
+                scope_logs: vec![ScopeLogs {
+                    log_records: vec![record.clone()],
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }],
+        };
+        let now = DateTime::from_timestamp(1_700_000_100, 0).unwrap();
+        let first = extract_logs_batch(&request, now);
+        let retry = extract_logs_batch(&request, now + chrono::TimeDelta::minutes(5));
+        assert!(first[0].messages.is_some(), "a declared event is read");
+        assert_eq!(first[0].messages, retry[0].messages);
+        assert_eq!(first[0].log_digest, retry[0].log_digest);
+        assert_eq!(
+            first[0].log_digest,
+            super::super::identity::log_digest(&record, None, "", None, ""),
+            "the digest is the record's, not the derived column's"
         );
     }
 }

@@ -534,6 +534,68 @@
       "doc": "A container whose own attributes are the request and the response."
     }
   ],
+  "log_events": [
+    {
+      "id": "semconv.log_event.system_message",
+      "name": "gen_ai.system.message",
+      "name_from": [
+        "event_name",
+        "attributes:event.name"
+      ],
+      "payload": "body_members",
+      "doc": "A system instruction, as a log record whose body members are the event's attributes."
+    },
+    {
+      "id": "semconv.log_event.user_message",
+      "name": "gen_ai.user.message",
+      "name_from": [
+        "event_name",
+        "attributes:event.name"
+      ],
+      "payload": "body_members",
+      "doc": "A user turn, as a log record whose body members are the event's attributes - the shape the OpenTelemetry OpenAI and botocore instrumentations emit by default."
+    },
+    {
+      "id": "semconv.log_event.assistant_message",
+      "name": "gen_ai.assistant.message",
+      "name_from": [
+        "event_name",
+        "attributes:event.name"
+      ],
+      "payload": "body_members",
+      "doc": "An assistant turn, as a log record whose body members are the event's attributes."
+    },
+    {
+      "id": "semconv.log_event.tool_message",
+      "name": "gen_ai.tool.message",
+      "name_from": [
+        "event_name",
+        "attributes:event.name"
+      ],
+      "payload": "body_members",
+      "doc": "A tool result handed back to a model, as a log record whose body members are the event's attributes."
+    },
+    {
+      "id": "semconv.log_event.choice",
+      "name": "gen_ai.choice",
+      "name_from": [
+        "event_name",
+        "attributes:event.name"
+      ],
+      "payload": "body_members",
+      "doc": "What the model chose, as a log record whose body carries `index`, `finish_reason` and `message`."
+    },
+    {
+      "id": "semconv.log_event.client_inference_operation_details",
+      "name": "gen_ai.client.inference.operation.details",
+      "name_from": [
+        "event_name",
+        "attributes:event.name"
+      ],
+      "payload": "attributes",
+      "doc": "The inference-details container as a log record: its own attributes are the request and the response, read by the same container readings as the span event."
+    }
+  ],
   "event_roles": [
     {
       "id": "semconv.event_role.system_message",

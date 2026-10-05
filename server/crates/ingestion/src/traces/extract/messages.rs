@@ -11,8 +11,13 @@ use std::collections::{HashMap, HashSet};
 use chrono::{DateTime, Utc};
 use opentelemetry_proto::tonic::trace::v1::Span;
 use opentelemetry_proto::tonic::trace::v1::span::Event;
-use serde_json::{Value as JsonValue, json};
+#[cfg(test)]
+use serde_json::Value as JsonValue;
+use serde_json::json;
 
+#[cfg(test)]
+use crate::message_events::parse_json_with_fallback;
+use crate::message_events::{EventSpan, is_message_event, read_message_event};
 use crate::otlp::extract_attributes;
 use sideseat_core::utils::time::nanos_to_datetime;
 pub use sideseat_domain::observations::{
@@ -23,59 +28,6 @@ use sideseat_ports::types::ObservationType;
 #[cfg(test)]
 use super::extract_json;
 use super::keys;
-
-// ============================================================================
-// JSON PARSING HELPERS
-// ============================================================================
-
-/// Parse a string as JSON, with logging on parse failure.
-///
-/// Returns the parsed JSON value on success, or the original string as a JSON string on failure.
-/// Logs a trace-level warning when falling back to string representation.
-fn parse_json_with_fallback(value: &str, context: &str) -> JsonValue {
-    match serde_json::from_str(value) {
-        Ok(json) => json,
-        Err(e) => {
-            tracing::trace!(
-                context = context,
-                error = %e,
-                value_preview = %truncate_for_log(value, 100),
-                "JSON parse failed, using string fallback"
-            );
-            json!(value)
-        }
-    }
-}
-
-/// Truncate a string for logging purposes (UTF-8 safe).
-fn truncate_for_log(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
-        s.to_string()
-    } else {
-        // Find a valid UTF-8 char boundary at or before max_len
-        let mut end = max_len;
-        while end > 0 && !s.is_char_boundary(end) {
-            end -= 1;
-        }
-        format!("{}...", &s[..end])
-    }
-}
-
-// ============================================================================
-// MESSAGE EVENT RECOGNITION
-// ============================================================================
-
-/// Check if an event name is a recognized message event.
-/// Whether this event carries messages at all.
-///
-/// Declared (`message_events`), not a list here: which events a producer writes messages on is the same kind
-/// of fact as which attributes it writes them on. As a Rust list it also made a new `when_event` rule a
-/// valid but *dead* declaration - the rule compiled, and the event was rejected before the plan was asked.
-fn is_message_event(event_name: &str) -> bool {
-    sideseat_domain::rules::ruleset()
-        .message_events
-        .contains_key(event_name)
-}
 
 // ============================================================================
 // MESSAGE EXTRACTION FROM EVENTS
@@ -98,80 +50,26 @@ pub(crate) fn extract_messages_from_events(
     }
 }
 
-/// The span is passed as well as the event, because a rule's gate asks about the span while its `read` draws
-/// from the event. With only the event, a `span_name` gate compiled and could never hold.
+/// One span event, read by the shared event reader with its span as context.
 pub(crate) fn extract_message_from_event(
     event: &Event,
     span_name: &str,
     span_attrs: &HashMap<String, String>,
     is_tool_span: bool,
 ) -> Vec<RawMessage> {
-    // Only process known message events
     if !is_message_event(&event.name) {
         return vec![];
     }
-
-    let attrs = extract_attributes(&event.attributes);
-    let event_time = nanos_to_datetime(event.time_unix_nano);
-
-    // What the assets declare about *this* event, read from its own attributes. `replaces` says whether the
-    // event's raw form is a message as well: a container event's attributes *are* the messages inside it, so
-    // emitting the container too would report the conversation twice, while an event carrying a reply and a
-    // bundled tool result wants both.
-    let reading = sideseat_domain::rules::ruleset().messages.from_event(
+    read_message_event(
         &event.name,
-        &attrs,
-        span_name,
-        span_attrs,
-        is_tool_span,
-    );
-    // A declared container that **nothing read** keeps its raw form, and says so. Suppressing it produced no
-    // messages and no record: the event was indistinguishable from one never emitted, which for a container
-    // whose payload failed to parse is the difference between "this span said nothing" and "this span said
-    // something we could not read".
-    if reading.unhandled_container {
-        tracing::warn!(
-            event = %event.name,
-            span = %span_name,
-            "event declares its raw form is a container, and no declared reading produced anything from it - \
-             keeping the raw form rather than dropping the event"
-        );
-    }
-    let declared: Vec<RawMessage> = reading
-        .emissions
-        .into_iter()
-        .map(|emission| RawMessage::from_event(emission.carrier.name(), event_time, emission.value))
-        .collect();
-    if reading.replaces_raw {
-        return declared;
-    }
-
-    // Build raw message preserving literal attributes only (no metadata)
-    let mut raw = serde_json::Map::new();
-    for (key, value) in &attrs {
-        // Try to parse JSON values, otherwise keep as string
-        let json_val = if value.starts_with('{') || value.starts_with('[') {
-            parse_json_with_fallback(value, &format!("event.{}.{}", event.name, key))
-        } else {
-            json!(value)
-        };
-        raw.insert(key.clone(), json_val);
-    }
-
-    // Role derivation moved to query-time in sideml/normalize.rs
-    // (role_from_event_name_with_context handles tool span semantics)
-    // Store raw event data; let query-time pipeline derive role from event name
-
-    let mut messages = vec![RawMessage::from_event(
-        &event.name,
-        event_time,
-        JsonValue::Object(raw.clone()),
-    )];
-
-    // Whatever the assets said about this event, beside its raw form.
-    messages.extend(declared);
-
-    messages
+        &extract_attributes(&event.attributes),
+        nanos_to_datetime(event.time_unix_nano),
+        EventSpan {
+            name: span_name,
+            attrs: span_attrs,
+            is_tool_span,
+        },
+    )
 }
 
 // ============================================================================

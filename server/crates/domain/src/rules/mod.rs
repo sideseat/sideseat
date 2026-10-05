@@ -23,6 +23,7 @@ pub mod classify;
 pub mod content_blocks;
 pub mod detect_rules;
 pub mod expr;
+pub mod log_events;
 pub mod members;
 pub mod message_projection;
 pub mod message_rules;
@@ -189,6 +190,8 @@ pub struct Ruleset {
     /// runtime questions (is this event a message carrier, and is its body a container its readings replace)
     /// and a set of names could answer only the first, with the second stated on the readings instead.
     pub message_events: std::collections::BTreeMap<String, DeclaredMessageEvent>,
+    /// Which OTLP log records carry one of those events, and where each keeps the event's attributes.
+    pub log_events: log_events::LogEventPlan,
     /// Which role each source name carries, and which instead on a tool execution span.
     pub event_roles: std::collections::BTreeMap<String, DeclaredEventRole>,
     /// What authority a stated role carries, by spelling.
@@ -277,6 +280,10 @@ pub fn ruleset() -> &'static Ruleset {
         let messages = message_rules::compile(&sources)
             .unwrap_or_else(|e| panic!("embedded message rules are malformed: {e}"));
         let files = parsed_files(&sources);
+        let message_events = compile_message_events(&files)
+            .unwrap_or_else(|e| panic!("embedded message events are malformed: {e}"));
+        let log_events = log_events::LogEventPlan::compile(&files, &message_events)
+            .unwrap_or_else(|e| panic!("embedded log events are malformed: {e}"));
         Ruleset {
             carriers,
             detect,
@@ -284,8 +291,8 @@ pub fn ruleset() -> &'static Ruleset {
             message_projection: message_projection::MessageProjectionPlan::compile(&files)
                 .unwrap_or_else(|e| panic!("embedded message projection rules are malformed: {e}")),
             content_blocks: content_blocks::ContentBlockPlan::compile(&files),
-            message_events: compile_message_events(&files)
-                .unwrap_or_else(|e| panic!("embedded message events are malformed: {e}")),
+            message_events,
+            log_events,
             role_authority: compile_role_authority(&files).unwrap_or_else(|error| {
                 panic!("the embedded role-authority declarations are malformed: {error}")
             }),

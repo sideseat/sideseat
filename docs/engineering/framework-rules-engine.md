@@ -67,7 +67,7 @@ index construction therefore stay off the per-observation path.
 
 ## Asset organisation
 
-The embedded corpus currently contains **45 assets holding 459 clauses** in three groups:
+The embedded corpus currently contains **45 assets holding 465 clauses** in three groups:
 
 ```text
 server/assets/rules/
@@ -90,6 +90,7 @@ Each asset has a stable `id`, optional prose documentation, and any subset of th
 | `messages` | How carriers and events produce canonical readings |
 | `fragments` | One-level reusable message-shape tables |
 | `message_events` | Events that may contain messages |
+| `log_events` | Log-record shapes that carry one of the `message_events`, and where their attributes are |
 | `event_roles` | Roles implied by source or event names |
 | `role_authority` | Precedence of explicit and inferred role spellings |
 | `message_members` | Content, message-shape, and content-block member vocabulary |

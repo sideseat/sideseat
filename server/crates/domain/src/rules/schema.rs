@@ -57,6 +57,12 @@ pub struct RuleFile {
     /// somebody also edited the list.
     #[serde(default)]
     pub message_events: Vec<MessageEvent>,
+    /// The log-record shapes that carry one of the `message_events`.
+    ///
+    /// Recognition, like `message_events`: a log record matching no declaration is stored as a log and
+    /// nothing more, and one that matches is read as the span event of that name would be.
+    #[serde(default)]
+    pub log_events: Vec<LogEvent>,
     /// How a provider writes a tool *definition*, so the canonical shape is reached by declaration.
     #[serde(default)]
     pub tool_shapes: Vec<ToolShapeRule>,
@@ -222,6 +228,7 @@ impl RuleFile {
                 messages: _,
                 message_projections: _,
                 message_events: _,
+                log_events: _,
                 tool_shapes: _,
                 convention_namespaces: _,
                 event_roles: _,
@@ -310,6 +317,13 @@ impl RuleFile {
         out.push((
             "message_events".to_string(),
             self.message_events
+                .iter()
+                .map(|event| event.id.clone())
+                .collect(),
+        ));
+        out.push((
+            "log_events".to_string(),
+            self.log_events
                 .iter()
                 .map(|event| event.id.clone())
                 .collect(),

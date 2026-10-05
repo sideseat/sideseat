@@ -538,6 +538,7 @@ fn the_engine_names_no_framework() {
         ("classify.rs", include_str!("../classify.rs")),
         ("members.rs", include_str!("../members.rs")),
         ("expr.rs", include_str!("../expr.rs")),
+        ("log_events.rs", include_str!("../log_events.rs")),
         ("refusal.rs", include_str!("../refusal.rs")),
         ("tool_shapes.rs", include_str!("../tool_shapes.rs")),
     ];
