@@ -3060,6 +3060,16 @@
               "type": "null"
             }
           ]
+        },
+        "splice": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SpliceSpec"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false,
@@ -3343,6 +3353,31 @@
           "description": "The member is a block serialised as JSON text, decoded before it is normalised. A member that does\nnot decode leaves the original block to the rest of the chain, as one that does not normalise does.",
           "type": "boolean",
           "default": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "from"
+      ]
+    },
+    "SpliceSpec": {
+      "description": "Several blocks written as one: the block's member is a **list** of blocks, and each takes the block's place.\n\nThe one form that answers with more than one block, so it is legal only at `message_envelope` - a\nmessage's content is a list a block can be spliced into, while every other caller of the chain asks for a\nsingle block. A dialect that wraps a provider's whole content list in one part of its own (a text part\nwhose content is the list) otherwise renders the list as one unknown block. Each member is normalised on its\nown terms, and may itself be spliced; the recursion is bounded because a member is always strictly inside\nthe block that held it. A member that is not a list leaves the block to the chain.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "from": {
+          "description": "Ordered; the first member that is present is the list, whether or not it is one.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": false,
@@ -4028,6 +4063,19 @@
         "occurrence": {
           "description": "Which occurrence answers, when a span carries the event more than once.\n\nExplicit because there is no defensible default: a span with two `gen_ai.choice` events has two\nanswers, and taking the first silently is what the retired hand-written loop did with a `break`.",
           "$ref": "#/$defs/EventOccurrence"
+        },
+        "path": {
+          "description": "Where in the attribute's JSON the value sits, by RFC 9535 JSONPath; absent means the attribute's text\nis the value. The event counterpart of a `json` source's `path`: an event can carry a serialised\npayload as a span attribute can, and the conventions' inference-details event holds the output\nmessages, each stating why the model stopped. The first match that yields answers.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "scalar_only": {
+          "description": "Each match must be a scalar string, as a `json` source's `scalar_only` says.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false,

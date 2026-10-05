@@ -371,6 +371,17 @@
           "doc": "A serialised output message list that keeps the provider's own `stop_reason` member. After `finish_reason`, so a list stating both answers with the conventions' member."
         },
         {
+          "id": "inference_details_output_messages_finish_reason",
+          "event_attribute": {
+            "event": "gen_ai.client.inference.operation.details",
+            "attribute": "gen_ai.output.messages",
+            "path": "$[0:].finish_reason",
+            "scalar_only": true
+          },
+          "on_malformed": "continue",
+          "doc": "The output message list on the conventions' inference-details event, which carries the request and the response as its own attributes when a producer reports them as an event rather than on the span. Read as the span attribute's list is; after it, so a span stating both answers from its own attribute."
+        },
+        {
           "id": "agent_llm_response_finish_reason",
           "json": {
             "attribute": "gcp.vertex.agent.llm_response",

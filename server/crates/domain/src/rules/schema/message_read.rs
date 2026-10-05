@@ -486,6 +486,16 @@ pub struct EventAttributeSource {
     /// answers, and taking the first silently is what the retired hand-written loop did with a `break`.
     #[serde(default)]
     pub occurrence: EventOccurrence,
+    /// Where in the attribute's JSON the value sits, by RFC 9535 JSONPath; absent means the attribute's text
+    /// is the value. The event counterpart of a `json` source's `path`: an event can carry a serialised
+    /// payload as a span attribute can, and the conventions' inference-details event holds the output
+    /// messages, each stating why the model stopped. The first match that yields answers.
+    #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Option<String>"))]
+    pub path: Option<JsonPath>,
+    /// Each match must be a scalar string, as a `json` source's `scalar_only` says.
+    #[serde(default)]
+    pub scalar_only: bool,
 }
 
 /// Which occurrence of a repeated event supplies the value.

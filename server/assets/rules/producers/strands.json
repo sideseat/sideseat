@@ -1,7 +1,7 @@
 {
   "$schema": "../../rules.schema.json",
   "id": "strands",
-  "doc": "Strands Agents' own name for the system prompt.",
+  "doc": "Strands Agents: its own name for the system prompt, and the parts its semconv-latest telemetry writes for blocks the conventions have no part type for.",
   "carriers": [
     {
       "id": "strands.system_prompt",
@@ -108,6 +108,100 @@
       },
       "emit": "message",
       "legacy_rank": 20
+    }
+  ],
+  "content_blocks": [
+    {
+      "id": "strands.content_list_part",
+      "doc": "Strands 1.12's semconv-latest telemetry writes a whole Bedrock content list as one part: `{\"type\": \"text\", \"content\": [{\"text\": ...}, {\"toolUse\": ...}]}`, whatever the blocks are. Each member is a block in the message's place - the prompt's text, the calls, the results handed back - so the list is spliced in and each is read as the provider block it is. A text part whose content is a string is the conventions' own and is not touched.",
+      "at": "message_envelope",
+      "legacy_rank": 5,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "text"
+            ]
+          },
+          {
+            "path": "$.content",
+            "kind": "array"
+          }
+        ]
+      },
+      "splice": {
+        "from": [
+          "$.content"
+        ]
+      }
+    },
+    {
+      "id": "strands.reasoning_content_part",
+      "doc": "Strands' semconv-latest telemetry writes a Bedrock content block the conventions have no part for as a part typed with the block's own key, its value under `content`: reasoning arrives as `{\"type\": \"reasoningContent\", \"content\": {\"reasoningText\": {...}}}`. Nothing read that, so the model's reasoning rendered as an unknown block holding raw JSON. A redacted block carries no text and keeps its opaque payload out of the text.",
+      "at": "before_provider_formats",
+      "legacy_rank": 92,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "reasoningContent"
+            ]
+          },
+          {
+            "path": "$.content",
+            "kind": "object"
+          }
+        ]
+      },
+      "thinking": {
+        "text": [
+          "$.content.reasoningText.text"
+        ],
+        "signature": [
+          "$.content.reasoningText.signature"
+        ]
+      }
+    },
+    {
+      "id": "strands.tool_call_argument_list",
+      "doc": "Strands 1.12's semconv-latest tool span writes a call's arguments as a one-member list holding them under `content`, `[{\"content\": {\"city\": \"Paris\"}}]`, where later releases write the object itself. Read through the list, or the tool span's copy of the call disagreed with the model's and both survived.",
+      "at": "before_provider_formats",
+      "legacy_rank": 93,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "tool_call"
+            ]
+          },
+          {
+            "path": "$.name",
+            "kind": "string"
+          },
+          {
+            "path": "$.arguments[0].content",
+            "kind": "object"
+          },
+          {
+            "path": "$.arguments[1]",
+            "exists": false
+          }
+        ]
+      },
+      "tool_use": {
+        "id": [
+          "$.id"
+        ],
+        "name": [
+          "$.name"
+        ],
+        "input": [
+          "$.arguments[0].content"
+        ]
+      }
     }
   ]
 }

@@ -54,6 +54,14 @@ pub enum ContentBlockCompileError {
         rank: i32,
         position: &'static str,
     },
+    #[error(
+        "content-block rule `{rule}` splices at `{position}`, but only a message's own content is a list a \
+         block can be spliced into - declare it at `message_envelope`"
+    )]
+    SpliceOutsideMessageContent {
+        rule: String,
+        position: &'static str,
+    },
     #[error("content-block rule `{rule}` declares the id template `{template}`, which {defect}")]
     IdTemplate {
         rule: String,
@@ -92,7 +100,8 @@ impl ContentBlockPlan {
                 + usize::from(rule.text.is_some())
                 + usize::from(rule.media.is_some())
                 + usize::from(rule.thinking.is_some())
-                + usize::from(rule.unwrap.is_some());
+                + usize::from(rule.unwrap.is_some())
+                + usize::from(rule.splice.is_some());
             if forms != 1 {
                 return Err(ContentBlockCompileError::TargetForms {
                     rule: rule.id.clone(),
@@ -158,6 +167,31 @@ impl ContentBlockPlan {
                 if spec.from.iter().any(|path| path.to_string() == "$") {
                     return Err(ContentBlockCompileError::UnwrapsWholeBlock {
                         rule: rule.id.clone(),
+                    });
+                }
+            }
+            // A splice re-enters the chain once per member, so it has the unwrap's bounds - and it answers with
+            // several blocks, which only a message's content list can hold.
+            if let Some(spec) = &rule.splice {
+                if spec.from.is_empty() {
+                    return Err(ContentBlockCompileError::UnwrapsNothing {
+                        rule: rule.id.clone(),
+                    });
+                }
+                if spec.from.iter().any(|path| path.to_string() == "$") {
+                    return Err(ContentBlockCompileError::UnwrapsWholeBlock {
+                        rule: rule.id.clone(),
+                    });
+                }
+                let position = match rule.at {
+                    ChainPosition::MessageEnvelope => None,
+                    ChainPosition::BeforeProviderFormats => Some("before_provider_formats"),
+                    ChainPosition::AfterProviderFormats => Some("after_provider_formats"),
+                };
+                if let Some(position) = position {
+                    return Err(ContentBlockCompileError::SpliceOutsideMessageContent {
+                        rule: rule.id.clone(),
+                        position,
                     });
                 }
             }
@@ -251,6 +285,25 @@ impl ContentBlockPlan {
             }
         }
         None
+    }
+
+    /// The list of blocks a message content block stands for, where a declared splice recognises it.
+    ///
+    /// Consulted before a message's content is normalised, block by block, and never by the single-block
+    /// chain: there a splice answers nothing and the block is left to the cases after it.
+    pub fn splice<'b>(&self, block: &'b JsonValue) -> Option<&'b Vec<JsonValue>> {
+        // The first envelope case that recognises the block decides, whatever its form, so a splice cannot
+        // reach past a higher-ranked envelope that claims the same block.
+        let spec = self
+            .envelopes
+            .iter()
+            .find(|rule| predicates_hold(block, &rule.require))?
+            .splice
+            .as_ref()?;
+        spec.from
+            .iter()
+            .find_map(|path| query(block, path).into_iter().next())?
+            .as_array()
     }
 
     pub fn rule_count(&self) -> usize {
@@ -809,6 +862,57 @@ mod tests {
         let decoded = normalize(r#"{"type": "text", "text": "inside"}"#).expect("decodes");
         assert_eq!(decoded["text"].as_str(), Some("inside"));
         assert!(normalize("{not json").is_none());
+    }
+
+    fn splice_rule(at: &str) -> serde_json::Value {
+        serde_json::json!({
+            "id": "probe.splice",
+            "at": at,
+            "legacy_rank": 1,
+            "require": {"all": [{"path": "$.type", "one_of": ["text"]}, {"path": "$.content", "kind": "array"}]},
+            "splice": {"from": ["$.content"]},
+        })
+    }
+
+    /// Only a message's content is a list a block can be spliced into; every other caller of the chain asks
+    /// for one block, so a splice anywhere else could never answer.
+    #[test]
+    fn a_splice_outside_the_message_envelope_is_refused() {
+        refused(
+            splice_rule("before_provider_formats"),
+            "splices at `before_provider_formats`",
+        );
+        refused(
+            splice_rule("after_provider_formats"),
+            "splices at `after_provider_formats`",
+        );
+        let mut whole = splice_rule("message_envelope");
+        whole["splice"]["from"] = serde_json::json!(["$"]);
+        refused(whole, "unwraps the whole block");
+    }
+
+    /// A splice answers with the member list, and never through the single-block chain - where it leaves the
+    /// block to the cases after it rather than claiming it.
+    #[test]
+    fn a_splice_yields_its_member_list_and_nothing_to_the_single_block_chain() {
+        let plan = plan_from(splice_rule("message_envelope"));
+        let block =
+            serde_json::json!({"type": "text", "content": [{"text": "a"}, {"toolUse": {}}]});
+        assert_eq!(
+            plan.splice(&block),
+            Some(&vec![
+                serde_json::json!({"text": "a"}),
+                serde_json::json!({"toolUse": {}})
+            ])
+        );
+        assert!(
+            plan.normalize(&block, ChainPosition::MessageEnvelope)
+                .is_none()
+        );
+        assert!(
+            plan.splice(&serde_json::json!({"type": "text", "content": "prose"}))
+                .is_none()
+        );
     }
 
     /// A stored reference is the authority on its own media type.

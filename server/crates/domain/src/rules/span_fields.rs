@@ -487,7 +487,13 @@ fn source_label(spec: &FieldSource) -> String {
         return format!("the literal `{value}`");
     }
     if let Some(event) = &spec.event_attribute {
-        return format!("`{}` on the `{}` event", event.attribute, event.event);
+        return match &event.path {
+            Some(path) => format!(
+                "`{}{}` on the `{}` event",
+                event.attribute, path, event.event
+            ),
+            None => format!("`{}` on the `{}` event", event.attribute, event.event),
+        };
     }
     String::new()
 }
@@ -583,13 +589,27 @@ fn read_event_attribute(
     // `occurrence` has one policy, so it is not consulted: the first occurrence carrying the attribute
     // answers. A list-valued "every occurrence" policy existed and no asset used it.
     let super::schema::EventOccurrence::FirstYielding = spec.occurrence;
-    match events
+    let Some(raw) = events
         .iter()
         .filter(|event| event.name == spec.event)
         .find_map(|event| event.attributes.get(&spec.attribute))
-    {
-        Some(raw) => from_text(raw, field_type),
-        None => Reading::Absent,
+    else {
+        return Reading::Absent;
+    };
+    let Some(path) = &spec.path else {
+        return from_text(raw, field_type);
+    };
+    // A JSON-valued event attribute, read the way a span attribute's `json` source is. Parsed per reading
+    // rather than through the span's cache, which is keyed by span attribute name and must not answer for an
+    // event's attribute of the same name.
+    match serde_json::from_str::<JsonValue>(raw) {
+        Ok(value) => first_yielding_match(&value, path, spec.scalar_only, field_type),
+        Err(_) => Reading::Malformed {
+            detail: format!(
+                "`{}` on the `{}` event is not JSON",
+                spec.attribute, spec.event
+            ),
+        },
     }
 }
 
@@ -715,19 +735,29 @@ fn read_json<'a>(
     // sits on whichever one declared it, so stopping at element 0's empty or absent member reported no model at
     // all - the same reason a flat chain steps over an empty value. Only the first match's outcome is carried
     // out as the diagnosis, since that is the one a reader would look at.
+    first_yielding_match(value, path, json.scalar_only, field_type)
+}
+
+/// The first match of `path` in `value` that yields, read as the field's type; else the first match's outcome.
+fn first_yielding_match(
+    value: &JsonValue,
+    path: &super::schema::JsonPath,
+    scalar_only: bool,
+    field_type: FieldType,
+) -> Reading {
     let matched = path.query(value);
     let mut first = Reading::Absent;
     // Where the source says each match is a scalar string, read it as text and lift it into the field's list -
     // so an array *at the match* is malformed and the chain moves on, which is what the retired `as_str()`
     // readers did. Reading it as the field's own list type accepted `["stop"]` and answered here instead of
     // falling through to the next producer's statement.
-    let read_as = if json.scalar_only {
+    let read_as = if scalar_only {
         FieldType::Text
     } else {
         field_type
     };
     for (position, found) in matched.iter().enumerate() {
-        let reading = match (json.scalar_only, from_json(found, read_as)) {
+        let reading = match (scalar_only, from_json(found, read_as)) {
             (true, Reading::Text(text)) if field_type == FieldType::StringList => {
                 Reading::StringList(vec![text])
             }

@@ -84,8 +84,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_tyGn1CL4V0FKPCsVfWXc5A\",\"content\":[{\"type\":\"json\",\"data\":[{\"type\":\"text\",\"text\":\"395.0\"}]}]}",
-          "content_digest": "5d939956d832b754",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_tyGn1CL4V0FKPCsVfWXc5A\",\"content\":[{\"type\":\"text\",\"text\":\"395.0\"}]}",
+          "content_digest": "9b412fc2ab1ced85",
           "observation_type": "generation"
         },
         {
@@ -178,8 +178,8 @@
           "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_tyGn1CL4V0FKPCsVfWXc5A\",\"content\":[{\"type\":\"json\",\"data\":[{\"type\":\"text\",\"text\":\"395.0\"}]}]}",
-          "content_digest": "5d939956d832b754",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_tyGn1CL4V0FKPCsVfWXc5A\",\"content\":[{\"type\":\"text\",\"text\":\"395.0\"}]}",
+          "content_digest": "9b412fc2ab1ced85",
           "observation_type": "agent"
         }
       ]

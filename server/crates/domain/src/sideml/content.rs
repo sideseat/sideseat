@@ -92,9 +92,14 @@ pub fn normalize_content(content: Option<&JsonValue>) -> JsonValue {
             let has_empty = arr.iter().any(is_sparse_array_placeholder);
             let should_filter_placeholders = has_non_empty && has_empty;
 
-            let blocks: Vec<JsonValue> = arr
-                .iter()
-                .filter(|v| !should_filter_placeholders || !is_sparse_array_placeholder(v))
+            let mut spliced = Vec::with_capacity(arr.len());
+            splice_into(
+                arr.iter()
+                    .filter(|v| !should_filter_placeholders || !is_sparse_array_placeholder(v)),
+                &mut spliced,
+            );
+            let blocks: Vec<JsonValue> = spliced
+                .into_iter()
                 .filter_map(normalize_content_block)
                 .map(withheld_thinking_as_redacted)
                 .filter(is_renderable_block)
@@ -106,6 +111,9 @@ pub fn normalize_content(content: Option<&JsonValue>) -> JsonValue {
             if is_sparse_array_placeholder(obj) {
                 return json!([]);
             }
+            if let Some(members) = crate::rules::ruleset().content_blocks.splice(obj) {
+                return normalize_content(Some(&JsonValue::Array(members.clone())));
+            }
             match normalize_content_block(obj).map(withheld_thinking_as_redacted) {
                 Some(block) if is_renderable_block(&block) => json!([block]),
                 _ => json!([]),
@@ -115,6 +123,18 @@ pub fn normalize_content(content: Option<&JsonValue>) -> JsonValue {
             json!([{"type": "text", "text": scalar.to_string()}])
         }
         _ => json!([]),
+    }
+}
+
+/// A message's content blocks, with every block a declared splice recognises replaced by its members, in order.
+///
+/// Recursive, and bounded: a member is always strictly inside the block that held it.
+fn splice_into<'b>(blocks: impl Iterator<Item = &'b JsonValue>, out: &mut Vec<&'b JsonValue>) {
+    for block in blocks {
+        match crate::rules::ruleset().content_blocks.splice(block) {
+            Some(members) => splice_into(members.iter(), out),
+            None => out.push(block),
+        }
     }
 }
 

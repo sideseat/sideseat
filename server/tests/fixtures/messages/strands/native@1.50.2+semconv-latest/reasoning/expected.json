@@ -26,9 +26,9 @@
         {
           "index": 1,
           "role": "assistant",
-          "entry_type": "unknown",
-          "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"reasoningContent\",\"content\":{\"reasoningText\":{\"text\":\"This is the classic bridge and torch puzzle with crossing times 1, 2, 5, 10 minutes, and I recall the optimal solution takes 17 minutes. I'm working out …[52176 chars]",
-          "content_digest": "5162baaf123aa9ce",
+          "entry_type": "thinking",
+          "content": "This is the classic bridge and torch puzzle with crossing times 1, 2, 5, 10 minutes, and I recall the optimal solution takes 17 minutes. I'm working out the schedule: send 1 and 2 across together, have 1 return, send 5 and 10 across togethe…[10102 chars]",
+          "content_digest": "6293d57bbe30d7b2",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -119,9 +119,9 @@
         {
           "index": 1,
           "role": "assistant",
-          "entry_type": "unknown",
-          "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"reasoningContent\",\"content\":{\"reasoningText\":{\"text\":\"This is the classic bridge and torch puzzle with crossing times 1, 2, 5, 10 minutes, and I recall the optimal solution takes 17 minutes. I'm working out …[52176 chars]",
-          "content_digest": "5162baaf123aa9ce",
+          "entry_type": "thinking",
+          "content": "This is the classic bridge and torch puzzle with crossing times 1, 2, 5, 10 minutes, and I recall the optimal solution takes 17 minutes. I'm working out the schedule: send 1 and 2 across together, have 1 return, send 5 and 10 across togethe…[10102 chars]",
+          "content_digest": "6293d57bbe30d7b2",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -159,9 +159,9 @@
         {
           "index": 1,
           "role": "assistant",
-          "entry_type": "unknown",
-          "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"reasoningContent\",\"content\":{\"reasoningText\":{\"text\":\"This is the classic bridge and torch puzzle with crossing times 1, 2, 5, 10 minutes, and I recall the optimal solution takes 17 minutes. I'm working out …[52176 chars]",
-          "content_digest": "5162baaf123aa9ce",
+          "entry_type": "thinking",
+          "content": "This is the classic bridge and torch puzzle with crossing times 1, 2, 5, 10 minutes, and I recall the optimal solution takes 17 minutes. I'm working out the schedule: send 1 and 2 across together, have 1 return, send 5 and 10 across togethe…[10102 chars]",
+          "content_digest": "6293d57bbe30d7b2",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -190,9 +190,9 @@
       {
         "index": 0,
         "role": "assistant",
-        "entry_type": "unknown",
-        "content": "{\"type\":\"unknown\",\"raw\":{\"type\":\"reasoningContent\",\"content\":{\"reasoningText\":{\"text\":\"This is the classic bridge and torch puzzle with crossing times 1, 2, 5, 10 minutes, and I recall the optimal solution takes 17 minutes. I'm working out …[52176 chars]",
-        "content_digest": "5162baaf123aa9ce",
+        "entry_type": "thinking",
+        "content": "This is the classic bridge and torch puzzle with crossing times 1, 2, 5, 10 minutes, and I recall the optimal solution takes 17 minutes. I'm working out the schedule: send 1 and 2 across together, have 1 return, send 5 and 10 across togethe…[10102 chars]",
+        "content_digest": "6293d57bbe30d7b2",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },

@@ -140,6 +140,16 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
                 });
             }
         }
+        // The event form's `scalar_only` has the same domain as the `json` form's: a path into a list field.
+        if let Some(event) = &spec.event_attribute
+            && event.scalar_only
+            && (event.path.is_none() || rule.target.field_type() != FieldType::StringList)
+        {
+            return Err(FieldCompileError::ScalarOnlyWithoutAPath {
+                file: file_id.to_string(),
+                rule: rule.id.clone(),
+            });
+        }
         // A literal with no gate is not a source: it answers on every span, so every source after it is dead
         // and the field is a constant.
         if spec.value.is_some() && spec.when.is_none() && spec.when_json.is_none() {

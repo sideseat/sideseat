@@ -488,6 +488,8 @@ pub struct ContentBlockRule {
     pub thinking: Option<ThinkingBlock>,
     #[serde(default)]
     pub unwrap: Option<UnwrapSpec>,
+    #[serde(default)]
+    pub splice: Option<SpliceSpec>,
 }
 
 /// Where a content-block case sits relative to the provider wire formats.
@@ -656,6 +658,26 @@ pub struct UnwrapSpec {
     /// not decode leaves the original block to the rest of the chain, as one that does not normalise does.
     #[serde(default)]
     pub parse_json: bool,
+}
+
+/// Several blocks written as one: the block's member is a **list** of blocks, and each takes the block's place.
+///
+/// The one form that answers with more than one block, so it is legal only at `message_envelope` - a
+/// message's content is a list a block can be spliced into, while every other caller of the chain asks for a
+/// single block. A dialect that wraps a provider's whole content list in one part of its own (a text part
+/// whose content is the list) otherwise renders the list as one unknown block. Each member is normalised on its
+/// own terms, and may itself be spliced; the recursion is bounded because a member is always strictly inside
+/// the block that held it. A member that is not a list leaves the block to the chain.
+#[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct SpliceSpec {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// Ordered; the first member that is present is the list, whether or not it is one.
+    #[cfg_attr(test, schemars(with = "Vec<String>"))]
+    pub from: Vec<JsonPath>,
 }
 
 /// Bytes, or a reference to them. The block's kind and whether it is a reference are both *derived*.

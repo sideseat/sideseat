@@ -437,6 +437,7 @@ impl SectionDefect for super::content_blocks::ContentBlockCompileError {
             | E::UnwrapsNothing { rule }
             | E::UnwrapsWholeBlock { rule }
             | E::EmptyRequiredSelector { rule, .. }
+            | E::SpliceOutsideMessageContent { rule, .. }
             | E::IdTemplate { rule, .. } => vec![rule],
             E::SharedRank { first, second, .. } => vec![first, second],
         }

@@ -105,7 +105,10 @@ fn a_chat_completions_file_part_is_a_document() {
     assert_eq!(result["source"], "file");
 
     let uploaded = json!({"type": "file", "file": {"file_id": "file-abc"}});
-    assert_eq!(normalize_content_block(&uploaded).unwrap()["data"], "file-abc");
+    assert_eq!(
+        normalize_content_block(&uploaded).unwrap()["data"],
+        "file-abc"
+    );
 
     // A `file` block in another dialect's shape is not claimed here.
     let other = json!({"type": "file", "mediaType": "image/png", "data": "#!B64!#image/png::h"});
@@ -273,7 +276,8 @@ fn canonical_tool_results_preserve_scalar_and_structured_json() {
 #[test]
 fn a_semconv_blob_part_is_a_media_block_of_its_mime_type() {
     for (mime, kind) in [("image/jpeg", "image"), ("application/pdf", "document")] {
-        let block = json!({"type": "blob", "mime_type": mime, "modality": "image", "content": "AAAA"});
+        let block =
+            json!({"type": "blob", "mime_type": mime, "modality": "image", "content": "AAAA"});
         let normalized = normalize_content_block(&block).expect("the blob normalises");
         assert_eq!(normalized["type"], kind, "{mime}");
         assert_eq!(normalized["media_type"], mime);
@@ -442,9 +446,14 @@ fn a_python_literal_parses_only_as_a_whole_container_of_literals() {
         try_parse_python_literal(
             "{'city': 'Paris', 'ok': True, 'n': None, 'days': [1, 2.5], 'pair': ('a', \"b's\")}"
         ),
-        Some(json!({"city": "Paris", "ok": true, "n": null, "days": [1, 2.5], "pair": ["a", "b's"]}))
+        Some(
+            json!({"city": "Paris", "ok": true, "n": null, "days": [1, 2.5], "pair": ["a", "b's"]})
+        )
     );
-    assert_eq!(try_parse_python_literal("  [1, 'x']  "), Some(json!([1, "x"])));
+    assert_eq!(
+        try_parse_python_literal("  [1, 'x']  "),
+        Some(json!([1, "x"]))
+    );
     for refused in [
         "1",
         "'text'",
@@ -458,4 +467,51 @@ fn a_python_literal_parses_only_as_a_whole_container_of_literals() {
     ] {
         assert_eq!(try_parse_python_literal(refused), None, "{refused}");
     }
+}
+
+/// A tool result part whose `response` is a list of text parts is content; a list of values is a value.
+#[test]
+fn a_tool_call_response_list_is_content_only_when_every_member_is_a_text_part() {
+    let result = |response: JsonValue| {
+        normalize_content_block(
+            &json!({"type": "tool_call_response", "id": "c1", "response": response}),
+        )
+        .expect("a tool result normalises")["content"]
+            .clone()
+    };
+    assert_eq!(
+        result(json!([{"text": "sunny"}, {"type": "text", "text": "warm"}])),
+        json!([{"type": "text", "text": "sunny"}, {"type": "text", "text": "warm"}])
+    );
+    assert_eq!(
+        result(json!([1, 2])),
+        json!([{"type": "json", "data": [1, 2]}])
+    );
+    assert_eq!(
+        result(json!([{"text": "sunny"}, {"temp": 72}])),
+        json!([{"type": "json", "data": [{"text": "sunny"}, {"temp": 72}]}])
+    );
+}
+
+/// A part holding a whole provider content list is spliced into the message, each member read as the block
+/// it is and in order; a text part holding prose is untouched.
+#[test]
+fn a_declared_splice_puts_each_member_of_a_content_list_in_the_message() {
+    let content = json!([
+        {"type": "text", "content": [
+            {"text": "Checking."},
+            {"toolUse": {"toolUseId": "t1", "name": "get_weather", "input": {"city": "Rome"}}}
+        ]},
+        {"type": "text", "content": "Done."}
+    ]);
+    let blocks = normalize_content(Some(&content));
+    let kinds: Vec<&str> = blocks
+        .as_array()
+        .expect("a block list")
+        .iter()
+        .filter_map(|block| block["type"].as_str())
+        .collect();
+    assert_eq!(kinds, ["text", "tool_use", "text"]);
+    assert_eq!(blocks[1]["id"], "t1");
+    assert_eq!(blocks[2]["text"], "Done.");
 }

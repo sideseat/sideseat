@@ -221,6 +221,62 @@ fn a_field_source_can_read_an_event_and_says_which_occurrence_answers() {
     );
 }
 
+/// An event attribute holding JSON is read through a path, as a span attribute's `json` source is: the first
+/// match that yields answers, an unparseable payload is malformed rather than absent, and `scalar_only` has the
+/// same domain on both forms.
+#[test]
+fn an_event_source_reads_a_json_payload_through_a_path() {
+    use crate::rules::span_fields::{Reading, SpanEvent, compile};
+
+    let asset = |source: &str| {
+        let body = format!(
+            r#"{{"id":"t","span_fields":[{{"id":"t.rule","target":"gen_ai_finish_reasons","sources":[{source}]}}]}}"#
+        );
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                body.into_bytes(),
+            )]))
+            .expect("the probe assets parse"),
+        )
+    };
+    let details = |payload: &str| SpanEvent {
+        name: "acme.details".to_string(),
+        attributes: std::collections::HashMap::from([(
+            "acme.output".to_string(),
+            payload.to_string(),
+        )]),
+    };
+    let attrs = std::collections::HashMap::new();
+    let plan = asset(
+        r#"{"id":"t.s","event_attribute":{"event":"acme.details","attribute":"acme.output",
+             "path":"$[0:].finish_reason","scalar_only":true}}"#,
+    )
+    .expect("a path on an event source compiles");
+
+    let reading = |events: &[SpanEvent]| {
+        plan.resolve("span", &attrs, events)
+            .into_iter()
+            .map(|r| (r.reading, r.refused.len()))
+            .next()
+    };
+    // The first message stating a reason answers; one without a reason is stepped over.
+    assert!(matches!(
+        reading(&[details(r#"[{"role":"assistant"},{"finish_reason":"tool_use"}]"#)]),
+        Some((Reading::StringList(items), 0)) if items == vec!["tool_use".to_string()]
+    ));
+    // A payload that does not parse is malformed - the chain has to see it.
+    assert!(matches!(reading(&[details("not json")]), Some((_, 1))));
+    // `scalar_only` without a path has nothing to apply to, on the event form as on the `json` form.
+    assert!(
+        asset(
+            r#"{"id":"t.s","event_attribute":{"event":"acme.details","attribute":"acme.output",
+                 "scalar_only":true}}"#
+        )
+        .is_err()
+    );
+}
+
 /// Starvation is refused for **every** multi-owner reading, not only for a compose.
 ///
 /// This replaces `a_composed_reading_cannot_be_starved_by_a_lower_ranked_rule`, a repository test that scanned

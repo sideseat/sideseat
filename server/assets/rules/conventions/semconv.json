@@ -751,6 +751,39 @@
           "$.uri"
         ]
       }
+    },
+    {
+      "id": "semconv.tool_call_response_parts",
+      "doc": "The conventions' tool result part whose `response` is a list of text parts. The conventions leave `response` as whatever the tool returned; Strands writes there the Bedrock content blocks it hands back to the model (`[{\"text\": ...}]`, the same list its `gen_ai.tool.call.result` attribute holds) and Vercel AI writes typed text parts, so such a list is read as the result's content, each member through the returned-value chain. Only a list every member of which is a part with `text`: a tool returning a JSON array of values returned a value, not content, and keeps the provider format's reading as one `json` block. The provider formats wrapped every non-string response that way, so a list of text parts rendered as the list itself and the attribute's copy of the same result no longer matched it.",
+      "at": "before_provider_formats",
+      "legacy_rank": 62,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "tool_call_response"
+            ]
+          },
+          {
+            "path": "$.response[0].text",
+            "kind": "string"
+          },
+          {
+            "path": "$.response[?!@.text]",
+            "exists": false,
+            "doc": "No member lacks a `text`: the list is content parts throughout, not a value that happens to start with one."
+          }
+        ]
+      },
+      "tool_result": {
+        "tool_use_id": [
+          "$.id"
+        ],
+        "content": [
+          "$.response"
+        ]
+      }
     }
   ]
 }
