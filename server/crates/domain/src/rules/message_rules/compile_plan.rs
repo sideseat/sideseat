@@ -116,6 +116,16 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
                 detail,
             });
         }
+        if let Some(detail) = wraps(rule)
+            .into_iter()
+            .flat_map(wrap_attachments)
+            .find_map(attach_defect)
+        {
+            return Err(MessageCompileError::Inexpressible {
+                rule: rule.rule_id.clone(),
+                detail,
+            });
+        }
     }
 
     // An event name no asset recognises makes a rule *dead*: recognition rejects the event before the plan

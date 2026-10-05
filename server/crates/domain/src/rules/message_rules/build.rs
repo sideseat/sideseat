@@ -312,7 +312,15 @@ pub(super) fn attached_value(
         }
         // A value that will not parse falls through to the default below, which is what an unparseable
         // structured member should do: the member exists in the shape, so it carries its empty form.
-        if let Some(parsed) = parse_value(raw, attach.parse.unwrap_or(ParseMode::Text)) {
+        let parsed = parse_value(raw, attach.parse.unwrap_or(ParseMode::Text));
+        let parsed = match &attach.select {
+            Some(path) => parsed
+                .as_ref()
+                .and_then(|parsed| singular(parsed, path, "attach select"))
+                .cloned(),
+            None => parsed,
+        };
+        if let Some(parsed) = parsed {
             // `require` asked here too, where it used to apply to `from_value_any_of` alone - a modifier that
             // silently means nothing beside one source form is the same defect as a source form that means two
             // things.

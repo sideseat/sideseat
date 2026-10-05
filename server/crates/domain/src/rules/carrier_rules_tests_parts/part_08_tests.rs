@@ -759,6 +759,70 @@ fn a_span_name_can_be_an_attachments_only_source() {
     );
 }
 
+/// An attachment can take one member of a structured sibling attribute.
+///
+/// A tracer that reports no call id still records which span ran the tool: Laminar writes a span's ancestry
+/// as an array ending with the span's own id. Without that id two identical executions on two spans had the
+/// same identity, and deduplication left one call and one result where the agent had run the tool twice.
+#[test]
+fn an_attachment_can_select_a_member_of_its_attribute() {
+    use crate::rules::message_rules::{MessageContext, compile};
+
+    let plan = compile(&std::collections::BTreeMap::from([(
+        "t.json".to_string(),
+        br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"text",
+             "emit":"message","legacy_rank":1,
+             "wrap":{"role":"tool","block":{"type":"tool_result","attach":[
+               {"as":"tool_use_id","from":"path","parse":"json","select":"$[-1]","default":"none"}]}}}]}"#
+            .to_vec(),
+    )]))
+    .expect("the probe compiles");
+    let id = |path: Option<&str>| {
+        let mut attrs = std::collections::HashMap::from([("x".to_string(), "result".to_string())]);
+        if let Some(path) = path {
+            attrs.insert("path".to_string(), path.to_string());
+        }
+        let ctx = MessageContext::for_span("tool", &attrs, false);
+        plan.run(&ctx)[0].value["content"][0]["tool_use_id"].clone()
+    };
+
+    assert_eq!(id(Some(r#"["root","step","own"]"#)), "own");
+    assert_eq!(
+        id(Some("[]")),
+        "none",
+        "a path that selects nothing falls through to the default, like an absent attribute"
+    );
+    assert_eq!(id(None), "none");
+}
+
+/// `select` reads inside a parsed attribute, so it is refused where there is no attribute or no structure.
+#[test]
+fn a_selection_needs_a_structured_attribute() {
+    use crate::rules::message_rules::compile;
+
+    let asset = |attach: &str| {
+        let body = format!(
+            r#"{{"id":"t","messages":[{{"id":"t.r","read":{{"attribute":"x"}},"parse":"text",
+                 "emit":"message","legacy_rank":1,"alternatives":[{{"id":"a",
+                 "wrap":{{"role":"tool","block":{{"type":"tool_result","attach":[{attach}]}}}}}}]}}]}}"#
+        );
+        compile(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            body.into_bytes(),
+        )]))
+    };
+
+    assert!(
+        asset(r#"{"as":"id","from_path":"$.ids","select":"$[-1]"}"#).is_err(),
+        "a selection with no `from` attribute selects from nothing"
+    );
+    assert!(
+        asset(r#"{"as":"id","from":"ids","select":"$[-1]"}"#).is_err(),
+        "an attribute read as text has no members to select"
+    );
+    assert!(asset(r#"{"as":"id","from":"ids","parse":"json","select":"$[-1]"}"#).is_ok());
+}
+
 /// A walk stops on the clauses it **names**, and a clause it names must exist.
 ///
 /// The boolean it replaces asked "did anything get selected at this node", which is wider than "was this node a

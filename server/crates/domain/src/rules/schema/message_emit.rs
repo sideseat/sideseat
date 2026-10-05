@@ -173,6 +173,14 @@ pub struct AttachSpec {
     /// How to read it. Defaults to text.
     #[serde(default)]
     pub parse: Option<ParseMode>,
+    /// The member of the parsed `from` attribute to attach, rather than the whole value.
+    ///
+    /// An attribute may hold a structure of which one member is the fact: one tracer writes a span's
+    /// ancestry as an array of ids, ending with the span's own, and that last id is what tells two
+    /// identical tool executions apart. Requires `from` and a JSON parse; a path that resolves nothing
+    /// falls through to the span name and the default, like an absent attribute.
+    #[serde(default)]
+    pub select: Option<JsonPath>,
     /// Attach only when the source attribute equals this exactly.
     ///
     /// How a boolean flag arrives: an attribute whose string is `"true"`. Without the comparison the

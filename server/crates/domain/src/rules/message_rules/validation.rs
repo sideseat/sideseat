@@ -320,6 +320,57 @@ pub(super) fn predicate_sets(rule: &CompiledMessageRule) -> Vec<&PredicateSet> {
     out
 }
 
+/// Every envelope a compiled rule holds, wherever the declaration put it - the same places
+/// [`predicate_sets`] walks.
+pub(super) fn wraps(rule: &CompiledMessageRule) -> Vec<&WrapSpec> {
+    let mut out = Vec::new();
+    if let Some(set) = &rule.branch_set {
+        for sub in set.primary.iter().chain(&set.fallback).chain(&set.always) {
+            out.extend(wraps(sub));
+        }
+    }
+    for reading in rule
+        .alternatives
+        .iter()
+        .chain(&rule.also)
+        .chain(&rule.fallback)
+    {
+        for spec in std::iter::once(&reading.spec).chain(reading.fragment_cases.iter()) {
+            out.extend(spec.wrap.as_ref());
+        }
+    }
+    out.extend(rule.wrap.as_ref());
+    out
+}
+
+/// Why an attachment can never read what it declares.
+pub(super) fn attach_defect(attach: &AttachSpec) -> Option<&'static str> {
+    attach.select.as_ref()?;
+    if attach.from.is_none() {
+        return Some("`select` reads inside the `from` attribute, and the attachment names none");
+    }
+    if !matches!(
+        attach.parse,
+        Some(ParseMode::Json | ParseMode::JsonOrString | ParseMode::StringifiedArray)
+    ) {
+        return Some(
+            "`select` reads a member of a structure, so the `from` attribute must be parsed as JSON - \
+             as text it has no members and the attachment could never resolve",
+        );
+    }
+    None
+}
+
+/// Every attachment an envelope holds, on the envelope itself and on the blocks it builds.
+pub(super) fn wrap_attachments(wrap: &WrapSpec) -> impl Iterator<Item = &AttachSpec> {
+    wrap.attach.iter().chain(
+        wrap.block
+            .iter()
+            .chain(wrap.prepend_block.as_ref().map(|p| &p.block))
+            .flat_map(|block| block.attach.iter()),
+    )
+}
+
 /// Every predicate set an envelope holds.
 pub(super) fn wrap_predicate_sets(wrap: &WrapSpec) -> Vec<&PredicateSet> {
     let mut out = vec![&wrap.require_after];
