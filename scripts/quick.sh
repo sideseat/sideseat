@@ -94,23 +94,41 @@ if [ -n "$rust_files" ]; then
         # and per-fixture invariants; the corpus-wide property tests each re-read every fixture in a
         # process of their own and run in `make test`. One invocation, so nextest runs every selected
         # crate's tests in parallel and cargo builds them in one pass.
-        # The repository invariants check docs, scripts and layout, which a change to Rust source
-        # alone cannot break; they run when anything else changed too.
-        targets=()
-        if printf '%s\n' "${crates[@]}" | grep -qx sideseat-server; then
+        # Unit tests run under `cargo test`: one process per binary instead of nextest's one per test,
+        # which on macOS made process start-up most of this step (about 20 s against 3 s for the
+        # domain and ingestion crates). The Rust SDK keeps nextest, because its tests each own the
+        # process's global providers. Of the server, the loop runs its unit tests and the golden
+        # comparison itself; the corpus-wide golden properties and the container suites run in
+        # `make test`, and the repository invariants - docs, scripts, layout - only when something
+        # other than Rust source changed.
+        step "tests ${crates[*]}"
+        unit=()
+        sdk=0
+        server=0
+        for c in "${crates[@]}"; do
+            case "$c" in
+                sideseat) sdk=1 ;;
+                sideseat-server) server=1 ;;
+                *) unit+=(-p "$c") ;;
+            esac
+        done
+        if ((${#unit[@]})); then
+            cargo test --locked -q "${unit[@]}" --lib --bins --tests
+        fi
+        if ((server)); then
+            cargo test --locked -q -p sideseat-server --lib --bins
+            cargo test --locked -q -p sideseat-server --test message_goldens -- --exact message_goldens
             if grep -qvE '\.rs$' <<<"$changed"; then
-                targets=(--lib --bins --test message_goldens --test repository
-                    -E 'not binary(message_goldens) or test(=message_goldens)')
-            else
-                targets=(--lib --bins --test message_goldens -E 'not binary(message_goldens) or test(=message_goldens)')
+                cargo test --locked -q -p sideseat-server --test repository
             fi
         fi
-        step "tests ${crates[*]}"
-        command -v cargo-nextest >/dev/null 2>&1 || {
-            echo "[quick] cargo-nextest is required: mise install (or cargo install cargo-nextest --locked)" >&2
-            exit 1
-        }
-        cargo nextest run --locked --no-tests=pass "${packages[@]}" ${targets[@]+"${targets[@]}"}
+        if ((sdk)); then
+            command -v cargo-nextest >/dev/null 2>&1 || {
+                echo "[quick] cargo-nextest is required: mise install (or cargo install cargo-nextest --locked)" >&2
+                exit 1
+            }
+            cargo nextest run --locked --no-tests=pass -p sideseat
+        fi
     fi
 fi
 
