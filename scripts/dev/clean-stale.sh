@@ -24,6 +24,14 @@ else
 fi
 
 incremental_dirs=0
+# Another build reads and writes these while it runs, so deleting them under it fails that build with missing
+# dep-graph files. Only an idle target directory loses its incremental state.
+if pgrep -x cargo >/dev/null 2>&1 || pgrep -x rustc >/dev/null 2>&1; then
+  echo "[clean-stale] a cargo or rustc process is running; keeping incremental directories"
+  after="$(du -sk "$target_dir" 2>/dev/null | awk '{print $1}')"
+  echo "[clean-stale] target: $((before / 1024)) MB -> $((${after:-0} / 1024)) MB"
+  exit 0
+fi
 while IFS= read -r -d '' directory; do
   rm -rf -- "$directory"
   incremental_dirs=$((incremental_dirs + 1))

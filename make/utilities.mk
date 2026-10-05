@@ -107,7 +107,7 @@ disk-guard:
 	@used=$$(du -sm "$(CARGO_TARGET_DIR)" 2>/dev/null | awk '{print $$1}'); \
 	used=$${used:-0}; \
 	available=$$(df -Pm . | awk 'NR == 2 {print $$4}'); \
-	if [ "$$used" -gt "$(DISK_BUDGET_MB)" ] || [ "$$available" -lt "$(DISK_FREE_MIN_MB)" ]; then \
+	if [ "$$available" -lt "$(DISK_FREE_MIN_MB)" ]; then \
 		echo "[disk-guard] target=$$used MB, free=$$available MB; reclaiming stale artifacts"; \
 		$(MAKE) --no-print-directory clean-stale; \
 	fi; \

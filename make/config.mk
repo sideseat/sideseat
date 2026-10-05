@@ -38,8 +38,9 @@ CARGO_TARGET_DIR ?= target
 override CARGO_TARGET_DIR := $(abspath $(CARGO_TARGET_DIR))
 export CARGO_TARGET_DIR
 
-# The target size that triggers reclaiming stale artifacts; a build is refused only when free space
-# falls below the reserve, because a target over budget on a roomy disk harms nothing.
+# The target size `make disk` reports against. Reclaiming runs, and a build is refused, only when free space
+# falls below the reserve: a target over budget on a roomy disk harms nothing, and reclaiming while another
+# build runs would delete the incremental state it is using.
 DISK_BUDGET_MB   ?= 12000
 DISK_FREE_MIN_MB ?= 10000
 
