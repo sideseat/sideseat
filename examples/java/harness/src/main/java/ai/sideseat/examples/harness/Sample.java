@@ -10,12 +10,13 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 /**
- * {@code sample}: the command every JVM suite runs, with the Python harness's command line.
+ * {@code sample}: the command every JVM suite runs, with the Python harness's command line. Run it
+ * from the repository root, naming the suite (here Koog) with {@code -p}.
  *
  * <pre>
- * ../gradlew -q run --args="--list"
- * ../gradlew -q run --args="tool_use"
- * ../gradlew -q run --args="tool_use --sideseat --model haiku"
+ * examples/java/gradlew -p examples/java/koog -q run --args="--list"
+ * examples/java/gradlew -p examples/java/koog -q run --args="tool_use"
+ * examples/java/gradlew -p examples/java/koog -q run --args="tool_use --sideseat --model haiku"
  * </pre>
  *
  * The suite is the working directory: it holds {@code suite.json} ({@code producer}, {@code
