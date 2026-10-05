@@ -30,8 +30,6 @@ setup: ## Install development dependencies and hooks
 	@cd examples/javascript && npm ci
 	@echo "[setup] Installing Python dependencies..."
 	@cd sdk/python && uv sync --locked
-	@# Install shared example helpers; framework suites sync lazily when invoked.
-	@cd examples/python/common && uv sync --locked
 	@echo "[setup] Installing cargo-tarpaulin..."
 	@cargo install cargo-tarpaulin --quiet
 	@mkdir -p .sideseat
