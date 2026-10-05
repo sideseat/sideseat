@@ -1,0 +1,36 @@
+# The historical Agent Framework releases this suite is replayed against; see `python -m harness matrix --help`.
+# Stable releases only: before 1.0 (2026-04-02) the window holds weekly betas whose APIs the scenarios do
+# not run.
+[matrix]
+package = "agent-framework-core"
+pin = ["agent-framework-core=={version}", "agent-framework-anthropic", "agent-framework-orchestrations"]
+since = "2025-10-05"
+resolved-before = "2026-10-05T00:00:00Z"
+probes = ["tool_use", "streaming"]
+scenarios = ["tool_use", "streaming"]
+# The provider and orchestration packages release in lockstep with the core and import its internals, so
+# they resolve as of each core release's day.
+era = ["agent-framework-anthropic", "agent-framework-orchestrations"]
+
+[matrix.profiles]
+# Agent Framework 1.15 and later honour the GenAI semantic-convention opt-in.
+semconv-latest = { OTEL_SEMCONV_STABILITY_OPT_IN = "gen_ai_latest_experimental" }
+
+# Each variant is the newest release of one telemetry class in `versions.census.json`; the opt-in profile
+# changes nothing in any stable release of the window.
+[[variant]]
+version = "1.0.1"
+doc = "1.0.0-1.0.1: the first stable format."
+
+[[variant]]
+version = "1.8.1"
+doc = "1.1-1.8: message JSON changes inside the conversation carriers."
+
+[[variant]]
+version = "1.9.0"
+doc = "1.9.0 alone: semconv cache token keys (gen_ai.usage.cache_creation/cache_read.input_tokens) appear."
+
+[[variant]]
+version = "1.19.0"
+current = true
+doc = "1.10 onwards: message JSON changes again. The suite's locked release; its fixtures are the ordinary capture."

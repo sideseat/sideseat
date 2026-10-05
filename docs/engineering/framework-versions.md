@@ -120,14 +120,20 @@ boundaries: 1.42 `gen_ai.provider.name` and `gen_ai.tool.definitions`; 1.68 the 
 the carriers. 1.28.0 fails every tool call on Bedrock (it imports the optional `anthropic` package) and is
 exempt.
 
+**Agent Framework** (27 stable releases from 1.0.0 to 1.20.0, probes `tool_use`, `streaming`; 4 classes, no
+failures). 1.0 - 1.0.1, 1.1 - 1.8 (message JSON), 1.9.0 alone (semconv cache token keys) and 1.10 onwards.
+The `gen_ai_latest_experimental` opt-in changes nothing in any of them. The provider and orchestration
+packages release in lockstep and import the core's internals, so they resolve as of each core release's day.
+The weekly pre-1.0 betas are not covered.
+
 ### Not yet covered by the matrix
 
 - **Live captures needed:** Strands 1.38.0 and 1.39.0 (Bedrock CountTokens before each call); any release
   whose model traffic differs from the committed cassettes in call count or API.
 - **No matrix yet:** the JavaScript suites (`ai` 5.x / 6.x / 7.x with `@ai-sdk/otel`, `@strands-agents/sdk`,
   the Claude Agent SDK, whose format is the bundled Claude Code CLI's) need an npm variant of the environment
-  builder; Agent Framework (its fixtures are recorded but wait for an engine batch), the OpenInference
-  instrumentors and the remaining Python suites need only a `versions.toml` and a census.
+  builder; Agent Framework's pre-1.0 betas, the OpenInference instrumentors and the remaining Python
+  suites need only a `versions.toml` and a census.
 
 ## Version variants in the rule language
 
