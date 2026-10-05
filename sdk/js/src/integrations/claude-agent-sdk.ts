@@ -40,12 +40,18 @@ export function cliEnvironment(settings: Settings): Record<string, string> {
   return env;
 }
 
+/** The variables this process set for the CLI, so shutdown can remove exactly those. */
+const applied = new Map<string, string>();
+
 /**
  * The Claude Agent SDK runs the Claude Code CLI as a child process, which carries its own
- * OpenTelemetry instrumentation configured through environment variables. They are set on this
- * process, unless already set, so every CLI the SDK spawns inherits them. An application that
- * passes `options.env` replaces the inherited environment and must spread `process.env` into it.
- * The Agent SDK passes the active span to the CLI as `TRACEPARENT`, so its spans join the trace.
+ * OpenTelemetry instrumentation configured through environment variables.
+ *
+ * Python wraps the options constructor to add them to each spawned CLI. ES module exports cannot be
+ * wrapped, so here they are set on this process, never over a value the application chose, and
+ * removed again at shutdown. Every CLI the SDK spawns inherits them; an application that passes
+ * `options.env` replaces the inherited environment and must spread `process.env` into it. The Agent
+ * SDK passes the active span to the CLI as `TRACEPARENT`, so its spans join the trace.
  */
 export const claudeAgentSDK: Integration = {
   name: "claude-agent-sdk",
@@ -53,7 +59,16 @@ export const claudeAgentSDK: Integration = {
   detectable: true,
   instrument(ctx) {
     for (const [key, value] of Object.entries(cliEnvironment(ctx.settings))) {
-      if (!process.env[key]) process.env[key] = value;
+      if (process.env[key]) continue;
+      process.env[key] = value;
+      applied.set(key, value);
     }
+  },
+  shutdown() {
+    for (const [key, value] of applied) {
+      // A value the application replaced after init is its own now.
+      if (process.env[key] === value) delete process.env[key];
+    }
+    applied.clear();
   },
 };

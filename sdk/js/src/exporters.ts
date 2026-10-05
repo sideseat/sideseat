@@ -1,3 +1,10 @@
+/**
+ * Span exporters for offline capture.
+ *
+ * ```ts
+ * import { JsonlSpanExporter } from "@sideseat/sdk/exporters";
+ * ```
+ */
 import { SpanKind, SpanStatusCode } from "@opentelemetry/api";
 import type { HrTime } from "@opentelemetry/api";
 import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
@@ -18,7 +25,7 @@ function hrTimeToMs(hrTime: HrTime): number {
 }
 
 // Encode value for JSON (match Python encode_value)
-export function encodeValue(value: unknown): unknown {
+function encodeValue(value: unknown): unknown {
   if (value === null || value === undefined) return value;
   if (
     typeof value === "string" ||
@@ -62,7 +69,7 @@ function encodeAttributes(
 }
 
 // Convert ReadableSpan to dictionary format (match Python span_to_dict)
-export function spanToDict(span: ReadableSpan): Record<string, unknown> {
+function spanToDict(span: ReadableSpan): Record<string, unknown> {
   const ctx = span.spanContext();
   const scope = span.instrumentationScope;
 
@@ -107,7 +114,10 @@ export function spanToDict(span: ReadableSpan): Record<string, unknown> {
   };
 }
 
-// JSONL file exporter (match Python JsonlSpanExporter)
+/**
+ * Writes one JSON object per finished span to a file, with binary content base64-encoded, for
+ * offline capture. Mode `"a"` appends; `"w"` truncates first.
+ */
 export class JsonlSpanExporter implements SpanExporter {
   private _fh: fs.WriteStream;
   private _closed: boolean = false;

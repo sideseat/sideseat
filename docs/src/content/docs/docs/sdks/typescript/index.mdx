@@ -6,7 +6,7 @@ description: Send traces, sessions, and conversations from Node.js AI applicatio
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 
 `@sideseat/sdk` is an OpenTelemetry distribution for AI applications on Node.js. One call configures
-tracing and logs for a SideSeat project, switches on your framework's telemetry, and attributes every
+tracing, metrics, and logs for a SideSeat project, switches on your framework's telemetry, and attributes every
 span to the right session and user.
 
 ## Install
@@ -49,8 +49,10 @@ covers everything else.
 ## Sessions and users
 
 `session()` is a scope, not a span: every span started inside the callback - including the ones your
-framework creates - gets `session.id` and `user.id`. The values follow the async context and are never
-sent as W3C baggage, which HTTP instrumentation would forward to model providers.
+framework creates - gets `session.id` and `user.id`. `sessionId` is required; `userId` is optional, and
+both must be non-empty. A nested scope overrides the outer one until its callback returns. The values
+follow the async context and are never sent as W3C baggage, which HTTP instrumentation would forward to
+model providers.
 
 ## Traces and spans
 
@@ -73,15 +75,18 @@ callback's result, and record and rethrow its exception.
 | --- | --- | --- |
 | `strands` | `@strands-agents/sdk` | Emits through the global tracer provider. |
 | `vercel-ai` | `ai` 7 or newer | Registers `@ai-sdk/otel` (install it alongside `ai`). Each call still needs `experimental_telemetry: { isEnabled: true }`. |
-| `claude-agent-sdk` | `@anthropic-ai/claude-agent-sdk` | Configures the telemetry of the Claude Code CLI it spawns. If you pass `options.env`, spread `process.env` into it. |
+| `claude-agent-sdk` | `@anthropic-ai/claude-agent-sdk` | Configures the telemetry of the Claude Code CLI it spawns through environment variables it inherits. They never replace a value you set, and are removed at shutdown. If you pass `options.env`, spread `process.env` into it. |
 
-Without `integrations`, the installed framework is detected. Pass `[]` for none.
+Without `integrations`, the installed framework is detected. Pass `[]` for none. Naming an integration
+whose package is not installed rejects with `IntegrationError`; a detected one that cannot install is
+skipped with a warning.
 
 ## Shutdown
 
 `shutdown()` runs before the process exits and on `SIGINT` and `SIGTERM`, after which the signal ends the
 process as it would have without SideSeat. In a serverless handler, `await sideseat.flush()` before
-returning. Both resolve to whether every span was exported.
+returning. Both take a timeout in milliseconds (30 seconds by default) and resolve to whether every
+span, metric, and log record was exported; export failures never throw. `shutdown()` is idempotent.
 
 ## Testing your application
 
@@ -92,3 +97,7 @@ const spans = await capture({ integrations: [] }, () =>
   sideseat.session({ sessionId: "s-1" }, () => runAgent()),
 );
 ```
+
+`capture` initializes SideSeat without export, runs the callback, shuts down, and resolves to the
+finished spans. It resets OpenTelemetry's global registrations, so use it only in tests. To write spans
+to a file instead, `JsonlSpanExporter` from `@sideseat/sdk/exporters` writes one JSON object per span.

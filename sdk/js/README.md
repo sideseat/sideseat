@@ -1,6 +1,6 @@
 # @sideseat/sdk
 
-OpenTelemetry for AI agents in Node.js: one call configures tracing and logs for a
+OpenTelemetry for AI agents in Node.js: one call configures tracing, metrics, and logs for a
 [SideSeat](https://sideseat.ai) project, switches on your framework's telemetry, and attributes every
 span to the right session and user.
 
@@ -38,7 +38,7 @@ providers.
 | --- | --- | --- |
 | `strands` | `@strands-agents/sdk` | Emits through the global tracer provider. |
 | `vercel-ai` | `ai` (AI SDK 7+) | Registers `@ai-sdk/otel`; install it alongside `ai`. Calls still need `experimental_telemetry: { isEnabled: true }`. |
-| `claude-agent-sdk` | `@anthropic-ai/claude-agent-sdk` | Configures the Claude Code CLI it spawns. If you pass `options.env`, spread `process.env` into it. |
+| `claude-agent-sdk` | `@anthropic-ai/claude-agent-sdk` | Configures the Claude Code CLI it spawns through inherited environment variables, removed at shutdown. If you pass `options.env`, spread `process.env` into it. |
 
 Without `integrations`, the installed framework is detected. Pass `[]` for none.
 
@@ -60,17 +60,18 @@ exception and mark the span as failed when the callback throws.
 | `endpoint` | `SIDESEAT_ENDPOINT`, `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://127.0.0.1:5388` |
 | `project` | `SIDESEAT_PROJECT_ID` | `default` |
 | `apiKey` | `SIDESEAT_API_KEY` | none |
-| `serviceName` | `OTEL_SERVICE_NAME` | the framework's package name |
+| `serviceName` | `OTEL_SERVICE_NAME` | the framework's package name, else `sideseat-app` |
 | `integrations` | `SIDESEAT_INTEGRATIONS` | detected |
 | `captureContent` | `SIDESEAT_CAPTURE_CONTENT` | `true` |
 | `disabled` | `SIDESEAT_DISABLED` | `false` |
 | `debug` | `SIDESEAT_DEBUG` | `false` |
 
-An endpoint without a path is a SideSeat server; one with a path is used as the OTLP base. Calling
+The full option list is at https://sideseat.ai/docs/sdks/typescript/configuration/. An endpoint
+without a path is a SideSeat server; one with a path is used as the OTLP base. Calling
 `init` twice with the same options returns the same client; different options reject with
 `ConfigurationError`.
 
-`flush()` and `shutdown()` resolve to whether every span was exported. Shutdown also runs before the
+`flush()` and `shutdown()` resolve to whether all telemetry was exported; export failures never throw. Shutdown also runs before the
 process exits and on `SIGINT`/`SIGTERM`.
 
 ## Testing

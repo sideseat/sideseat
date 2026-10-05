@@ -16,6 +16,11 @@
       "types": "./dist/testing.d.ts",
       "import": "./dist/testing.js",
       "require": "./dist/testing.cjs"
+    },
+    "./exporters": {
+      "types": "./dist/exporters.d.ts",
+      "import": "./dist/exporters.js",
+      "require": "./dist/exporters.cjs"
     }
   },
   "files": [
@@ -24,7 +29,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsup src/index.ts src/testing.ts --format esm,cjs --dts --clean",
+    "build": "tsup src/index.ts src/testing.ts src/exporters.ts --format esm,cjs --dts --clean",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
@@ -34,19 +39,22 @@
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/api-logs": "^0.222.0",
+    "@opentelemetry/core": "^2.11.0",
     "@opentelemetry/exporter-logs-otlp-http": "^0.222.0",
+    "@opentelemetry/exporter-metrics-otlp-http": "^0.222.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.222.0",
     "@opentelemetry/resources": "^2.11.0",
     "@opentelemetry/sdk-logs": "^0.222.0",
+    "@opentelemetry/sdk-metrics": "^2.11.0",
     "@opentelemetry/sdk-trace-base": "^2.11.0",
     "@opentelemetry/sdk-trace-node": "^2.11.0"
   },
   "devDependencies": {
     "@ai-sdk/otel": "^1.0.127",
     "@eslint/js": "^10.0.1",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.4",
     "ai": "^7.0.127",
-    "eslint": "^10.11.0",
+    "eslint": "^10.12.0",
     "prettier": "^3.9.9",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3",
@@ -74,8 +82,8 @@
     "node": ">=20.19"
   },
   "peerDependencies": {
-    "ai": ">=7",
-    "@ai-sdk/otel": ">=1"
+    "@ai-sdk/otel": ">=1",
+    "ai": ">=7"
   },
   "peerDependenciesMeta": {
     "ai": {

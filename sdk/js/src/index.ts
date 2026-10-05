@@ -10,7 +10,7 @@
  */
 import { identity, resolveSettings, type SideSeatOptions } from "./config.js";
 import { SideSeat, type SpanOptions, type TraceOptions } from "./client.js";
-import type { Correlation } from "./correlation.js";
+import type { SessionOptions } from "./correlation.js";
 import { ConfigurationError, SideSeatError } from "./errors.js";
 import type { Span } from "@opentelemetry/api";
 
@@ -71,8 +71,8 @@ export async function shutdown(timeoutMs?: number): Promise<boolean> {
 }
 
 /** Attributes every span started inside `fn` to a session and, optionally, a user. */
-export function session<T>(correlation: Correlation, fn: () => T): T {
-  return getClient().session(correlation, fn);
+export function session<T>(options: SessionOptions, fn: () => T): T {
+  return getClient().session(options, fn);
 }
 
 /** Runs `fn` in a new root span, even inside another span. */
@@ -119,19 +119,12 @@ export { SideSeat } from "./client.js";
 export type { SpanOptions, TraceOptions } from "./client.js";
 export { DEFAULT_ENDPOINT, DEFAULT_PROJECT } from "./config.js";
 export type { SideSeatOptions, Settings } from "./config.js";
-export type { Correlation } from "./correlation.js";
+export type { Correlation, SessionOptions } from "./correlation.js";
 export {
   ConfigurationError,
   IntegrationError,
   SideSeatError,
 } from "./errors.js";
-export { JsonlSpanExporter } from "./exporters.js";
-export {
-  claudeAgentSDK,
-  cliEnvironment,
-  integrationNames,
-  strands,
-  vercelAI,
-} from "./integrations/index.js";
+export { integrationNames } from "./integrations/index.js";
 export type { Integration, SetupContext } from "./integrations/index.js";
 export { VERSION } from "./version.js";

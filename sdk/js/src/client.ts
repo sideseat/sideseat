@@ -3,6 +3,7 @@ import {
   diag,
   DiagConsoleLogger,
   DiagLogLevel,
+  ProxyTracerProvider,
   SpanKind,
   SpanStatusCode,
   trace as otelTrace,
@@ -12,6 +13,8 @@ import {
   type Tracer,
 } from "@opentelemetry/api";
 import {
+  detectResources,
+  envDetector,
   resourceFromAttributes,
   type Resource,
 } from "@opentelemetry/resources";
@@ -30,6 +33,7 @@ import {
   CorrelationSpanProcessor,
   withCorrelation,
   type Correlation,
+  type SessionOptions,
 } from "./correlation.js";
 import { IntegrationError } from "./errors.js";
 import { resolveIntegrations } from "./integrations/index.js";
@@ -38,6 +42,8 @@ import type { Integration, SetupContext } from "./integrations/types.js";
 import { VERSION } from "./version.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
+/** Hands out non-recording tracers whatever the global registration, for disabled clients. */
+const NO_OP_PROVIDER = new ProxyTracerProvider();
 const GENAI_CAPTURE_CONTENT =
   "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT";
 
@@ -52,14 +58,19 @@ export interface TraceOptions extends SpanOptions, Correlation {}
 
 type SpanCallback<T> = (span: Span) => T | Promise<T>;
 
+interface SignalProvider {
+  forceFlush(): Promise<void>;
+  shutdown(): Promise<void>;
+}
+
 /** A configured telemetry pipeline. Create it with `init`. */
 export class SideSeat {
   readonly settings: Settings;
   private readonly active: Integration[] = [];
   private provider: NodeTracerProvider | undefined;
-  private loggerProvider:
-    { forceFlush(): Promise<void>; shutdown(): Promise<void> } | undefined;
-  private tracer: Tracer = otelTrace.getTracer("sideseat", VERSION);
+  private loggerProvider: SignalProvider | undefined;
+  private meterProvider: SignalProvider | undefined;
+  private tracer: Tracer = NO_OP_PROVIDER.getTracer("sideseat", VERSION);
   private shutdownPromise: Promise<boolean> | undefined;
   private readonly detachHandlers: Array<() => void> = [];
 
@@ -67,7 +78,7 @@ export class SideSeat {
     this.settings = settings;
   }
 
-  /** Builds the pipeline. Prefer `init`, which also makes the client process-wide. */
+  /** @internal Builds the pipeline; `init` is the entry point, because the pipeline is process-wide. */
   static async start(settings: Settings): Promise<SideSeat> {
     const client = new SideSeat(settings);
     if (settings.debug)
@@ -85,15 +96,17 @@ export class SideSeat {
     return this.provider;
   }
 
+  /** A tracer on SideSeat's provider; non-recording when the client is disabled. */
   getTracer(name: string, version?: string): Tracer {
-    return this.provider
-      ? this.provider.getTracer(name, version)
-      : otelTrace.getTracer(name, version);
+    return (this.provider ?? NO_OP_PROVIDER).getTracer(name, version);
   }
 
   /** Attributes every span started inside `fn` to a session and, optionally, a user. */
-  session<T>(correlation: Correlation, fn: () => T): T {
-    return context.with(withCorrelation(context.active(), correlation), fn);
+  session<T>(options: SessionOptions, fn: () => T): T {
+    if (options?.sessionId === undefined) {
+      throw new TypeError("session() requires a sessionId");
+    }
+    return context.with(withCorrelation(context.active(), options), fn);
   }
 
   /** Runs `fn` in a new root span, even when another span is active. */
@@ -133,6 +146,7 @@ export class SideSeat {
     const pending = [
       this.provider.forceFlush(),
       this.loggerProvider?.forceFlush(),
+      this.meterProvider?.forceFlush(),
     ];
     return withTimeout(Promise.all(pending), timeoutMs, "flush");
   }
@@ -198,9 +212,15 @@ export class SideSeat {
 
     for (const integration of candidates) {
       if (
-        await guard(integration, explicit, "prepare", () =>
-          integration.prepare?.(ctx),
-        )
+        await guard(integration, explicit, "prepare", () => {
+          // A pass-through integration has no import that would fail, so check the package itself.
+          if (firstInstalled(integration.packages) === undefined) {
+            throw new Error(
+              `none of ${integration.packages.join(", ")} is installed`,
+            );
+          }
+          return integration.prepare?.(ctx);
+        })
       ) {
         this.active.push(integration);
       }
@@ -242,7 +262,9 @@ export class SideSeat {
     this.tracer = this.provider.getTracer("sideseat", VERSION);
     ctx.tracerProvider = this.provider;
 
-    if (settings.logs && settings.export) await this.startLogs(ctx.resource);
+    if (settings.logs) await this.startLogs(ctx.resource);
+    if (settings.metrics && settings.export)
+      await this.startMetrics(ctx.resource);
 
     for (const integration of [...this.active]) {
       if (
@@ -269,16 +291,52 @@ export class SideSeat {
       import("@opentelemetry/sdk-logs"),
       import("@opentelemetry/exporter-logs-otlp-http"),
     ]);
-    const exporter = new OTLPLogExporter({
-      url: signalEndpoint(this.settings, "logs"),
-      headers: exportHeaders(this.settings),
-    });
-    const provider = new LoggerProvider({
-      resource,
-      processors: [new BatchLogRecordProcessor({ exporter })],
-    });
-    logs.setGlobalLoggerProvider(provider);
+    const processors = this.settings.export
+      ? [
+          new BatchLogRecordProcessor({
+            exporter: new OTLPLogExporter({
+              url: signalEndpoint(this.settings, "logs"),
+              headers: exportHeaders(this.settings),
+            }),
+          }),
+        ]
+      : [];
+    const provider = new LoggerProvider({ resource, processors });
+    if (logs.setGlobalLoggerProvider(provider) !== provider) {
+      diag.warn(
+        "[sideseat] another library registered the global logger provider first; its log records will not reach SideSeat",
+      );
+    }
     this.loggerProvider = provider;
+  }
+
+  private async startMetrics(resource: Resource): Promise<void> {
+    const [
+      { metrics },
+      { MeterProvider, PeriodicExportingMetricReader },
+      { OTLPMetricExporter },
+    ] = await Promise.all([
+      import("@opentelemetry/api"),
+      import("@opentelemetry/sdk-metrics"),
+      import("@opentelemetry/exporter-metrics-otlp-http"),
+    ]);
+    const provider = new MeterProvider({
+      resource,
+      readers: [
+        new PeriodicExportingMetricReader({
+          exporter: new OTLPMetricExporter({
+            url: signalEndpoint(this.settings, "metrics"),
+            headers: exportHeaders(this.settings),
+          }),
+        }),
+      ],
+    });
+    if (!metrics.setGlobalMeterProvider(provider)) {
+      diag.warn(
+        "[sideseat] another library registered the global meter provider first; its metrics will not reach SideSeat",
+      );
+    }
+    this.meterProvider = provider;
   }
 
   private attachExitHandlers(): void {
@@ -311,18 +369,16 @@ export class SideSeat {
         );
       }
     }
-    try {
-      await Promise.all([
+    const stopped = withTimeout(
+      Promise.all([
         this.provider?.shutdown(),
         this.loggerProvider?.shutdown(),
-      ]);
-    } catch (error) {
-      ok = false;
-      diag.warn(
-        `[sideseat] a telemetry provider failed to shut down: ${String(error)}`,
-      );
-    }
-    return ok;
+        this.meterProvider?.shutdown(),
+      ]),
+      timeoutMs,
+      "shutdown",
+    );
+    return (await stopped) && ok;
   }
 }
 
@@ -367,10 +423,11 @@ function buildResource(
       (integration) => integration.name,
     );
   }
-  return resourceFromAttributes({
-    ...attributes,
-    ...settings.resourceAttributes,
-  });
+  // OTEL_RESOURCE_ATTRIBUTES sits underneath, as in every OpenTelemetry SDK; a provider given an
+  // explicit resource does not read it on its own.
+  return detectResources({ detectors: [envDetector] }).merge(
+    resourceFromAttributes({ ...attributes, ...settings.resourceAttributes }),
+  );
 }
 
 async function withTimeout(

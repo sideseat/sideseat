@@ -1,5 +1,6 @@
 import { context, propagation, trace as otelTrace } from "@opentelemetry/api";
-import { afterEach, describe, expect, it } from "vitest";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import * as sideseat from "../index.js";
 import { capture, resetGlobals } from "../testing.js";
 
@@ -96,6 +97,19 @@ describe("correlation", () => {
     });
   });
 
+  it("requires a non-empty session id and user id", async () => {
+    await sideseat.init({ integrations: [], export: false });
+    expect(() =>
+      sideseat.session({} as { sessionId: string }, () => undefined),
+    ).toThrow(TypeError);
+    expect(() => sideseat.session({ sessionId: "" }, () => undefined)).toThrow(
+      TypeError,
+    );
+    expect(() =>
+      sideseat.session({ sessionId: "s", userId: "" }, () => undefined),
+    ).toThrow(TypeError);
+  });
+
   it("is never sent over the network as baggage", async () => {
     await capture({ integrations: [] }, () =>
       sideseat.session({ sessionId: "private", userId: "person" }, () => {
@@ -147,15 +161,112 @@ describe("lifecycle", () => {
   });
 
   it("names the SDK and the primary integration in the resource", async () => {
-    const spans = await capture(
-      { integrations: ["strands"], serviceName: "travel-agent" },
-      () => sideseat.span("work", () => undefined),
+    const spans = await capture({ integrations: ["vercel-ai"] }, () =>
+      sideseat.span("work", () => undefined),
     );
     expect(spans[0]!.resource.attributes).toMatchObject({
-      "service.name": "travel-agent",
+      "service.name": "ai",
+      "service.version": "7.0.127",
       "telemetry.sdk.name": "sideseat",
-      "sideseat.framework": "strands",
-      "sideseat.integrations": ["strands"],
+      "telemetry.sdk.language": "nodejs",
+      "telemetry.sdk.version": sideseat.VERSION,
+      "sideseat.framework": "vercel-ai",
+      "sideseat.integrations": ["vercel-ai"],
     });
+  });
+
+  it("falls back to the app name and SDK version without integrations", async () => {
+    const spans = await capture({ integrations: [] }, () =>
+      sideseat.span("work", () => undefined),
+    );
+    const attributes = spans[0]!.resource.attributes;
+    expect(attributes["service.name"]).toBe("sideseat-app");
+    expect(attributes["service.version"]).toBe(sideseat.VERSION);
+    expect(attributes["sideseat.framework"]).toBeUndefined();
+    expect(attributes["sideseat.integrations"]).toBeUndefined();
+  });
+
+  it("layers explicit attributes over OTEL_RESOURCE_ATTRIBUTES", async () => {
+    vi.stubEnv(
+      "OTEL_RESOURCE_ATTRIBUTES",
+      "deployment.environment.name=staging,team=ai",
+    );
+    try {
+      const spans = await capture(
+        { integrations: [], resourceAttributes: { team: "platform" } },
+        () => sideseat.span("work", () => undefined),
+      );
+      expect(spans[0]!.resource.attributes).toMatchObject({
+        "deployment.environment.name": "staging",
+        team: "platform",
+        "telemetry.sdk.name": "sideseat",
+      });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("stays non-recording when disabled even if another provider is registered", async () => {
+    const other = new NodeTracerProvider();
+    other.register();
+    const client = await sideseat.init({ disabled: true });
+    await client.span("ignored", (span) =>
+      expect(span.isRecording()).toBe(false),
+    );
+    expect(client.getTracer("lib").startSpan("x").isRecording()).toBe(false);
+    await other.shutdown();
+  });
+
+  it("is disabled by SIDESEAT_DISABLED", async () => {
+    vi.stubEnv("SIDESEAT_DISABLED", "yes");
+    try {
+      const client = await sideseat.init();
+      expect(client.settings.disabled).toBe(true);
+      expect(client.tracerProvider).toBeUndefined();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("shuts down once and reports success every time", async () => {
+    const client = await sideseat.init({
+      integrations: [],
+      export: false,
+      logs: false,
+    });
+    const first = client.shutdown();
+    expect(client.shutdown()).toBe(first);
+    await expect(first).resolves.toBe(true);
+    await expect(sideseat.shutdown()).resolves.toBe(true);
+    await expect(sideseat.shutdown()).resolves.toBe(true);
+    expect(() => sideseat.getClient()).toThrow(sideseat.SideSeatError);
+  });
+
+  it("reports a processor that cannot shut down", async () => {
+    const client = await sideseat.init({
+      integrations: [],
+      export: false,
+      spanProcessors: [
+        {
+          onStart: () => undefined,
+          onEnd: () => undefined,
+          forceFlush: async () => undefined,
+          shutdown: () => Promise.reject(new Error("stuck")),
+        },
+      ],
+    });
+    await expect(client.shutdown()).resolves.toBe(false);
+  });
+
+  it("configures again after shutdown", async () => {
+    await sideseat.init({ integrations: [], export: false, project: "a" });
+    await sideseat.shutdown();
+    resetGlobals();
+    const next = await sideseat.init({
+      integrations: [],
+      export: false,
+      project: "b",
+    });
+    expect(next.settings.project).toBe("b");
   });
 });

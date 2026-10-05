@@ -8,6 +8,7 @@ import { vercelAI } from "./vercel-ai.js";
 /** Every built-in integration, in auto-detection priority order. */
 const REGISTRY: readonly Integration[] = [strands, claudeAgentSDK, vercelAI];
 
+/** Every built-in integration name, in auto-detection priority order. */
 export function integrationNames(): string[] {
   return REGISTRY.map((integration) => integration.name);
 }
@@ -44,7 +45,4 @@ export function resolveIntegrations(
   return [result, true];
 }
 
-export { claudeAgentSDK, cliEnvironment } from "./claude-agent-sdk.js";
-export { strands } from "./strands.js";
 export type { Integration, SetupContext } from "./types.js";
-export { vercelAI } from "./vercel-ai.js";

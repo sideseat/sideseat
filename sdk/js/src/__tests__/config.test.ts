@@ -61,4 +61,40 @@ describe("settings", () => {
     vi.stubEnv("SIDESEAT_INTEGRATIONS", "strands, vercel-ai,");
     expect(resolveSettings().integrations).toEqual(["strands", "vercel-ai"]);
   });
+
+  it("treats blank values as unset", () => {
+    vi.stubEnv("SIDESEAT_ENDPOINT", " ");
+    vi.stubEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector:4318");
+    vi.stubEnv("SIDESEAT_PROJECT_ID", "");
+    vi.stubEnv("SIDESEAT_API_KEY", "from-env");
+    const settings = resolveSettings({ apiKey: "", serviceName: " " });
+    expect(signalEndpoint(settings, "traces")).toBe(
+      "http://collector:4318/otel/default/v1/traces",
+    );
+    expect(settings.apiKey).toBe("from-env");
+    expect(settings.serviceName).toBeUndefined();
+  });
+
+  it("replaces an authorization header of any spelling with the API key", () => {
+    vi.stubEnv("OTEL_EXPORTER_OTLP_HEADERS", "authorization=Basic old");
+    expect(exportHeaders(resolveSettings({ apiKey: "k" }))).toEqual({
+      Authorization: "Bearer k",
+    });
+    expect(exportHeaders(resolveSettings())).toEqual({
+      authorization: "Basic old",
+    });
+  });
+
+  it("reads service identity and flags from the environment", () => {
+    vi.stubEnv("OTEL_SERVICE_NAME", "travel-agent");
+    vi.stubEnv("OTEL_SERVICE_VERSION", "2.1.0");
+    vi.stubEnv("SIDESEAT_CAPTURE_CONTENT", "No");
+    vi.stubEnv("SIDESEAT_DEBUG", "TRUE");
+    const settings = resolveSettings();
+    expect(settings.serviceName).toBe("travel-agent");
+    expect(settings.serviceVersion).toBe("2.1.0");
+    expect(settings.captureContent).toBe(false);
+    expect(settings.debug).toBe(true);
+    expect(resolveSettings({ captureContent: true }).captureContent).toBe(true);
+  });
 });

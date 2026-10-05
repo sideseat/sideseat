@@ -9,7 +9,8 @@
  * });
  * ```
  */
-import { context, propagation, trace } from "@opentelemetry/api";
+import { context, metrics, propagation, trace } from "@opentelemetry/api";
+import { logs } from "@opentelemetry/api-logs";
 import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
@@ -31,6 +32,7 @@ export async function capture(
   const exporter = new InMemorySpanExporter();
   await init({
     export: false,
+    metrics: false,
     logs: false,
     ...options,
     spanProcessors: [
@@ -49,9 +51,11 @@ export async function capture(
   }
 }
 
-/** Forgets OpenTelemetry's global tracer provider, context manager, and propagator. */
+/** Forgets OpenTelemetry's global providers, context manager, and propagator. For tests only. */
 export function resetGlobals(): void {
   trace.disable();
+  metrics.disable();
+  logs.disable();
   context.disable();
   propagation.disable();
 }

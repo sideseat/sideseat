@@ -5,10 +5,15 @@ import type {
   SpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 
-/** The session and user a span belongs to. */
+/** The session and user a span belongs to. Unset values are inherited from the enclosing scope. */
 export interface Correlation {
   readonly sessionId?: string;
   readonly userId?: string;
+}
+
+/** A session scope: every span started inside it belongs to `sessionId` and, if given, `userId`. */
+export interface SessionOptions extends Correlation {
+  readonly sessionId: string;
 }
 
 /**

@@ -8,26 +8,33 @@ description: Every option of init, its environment variable, and its default.
 | `endpoint` | `SIDESEAT_ENDPOINT`, then `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://127.0.0.1:5388` |
 | `project` | `SIDESEAT_PROJECT_ID` | `default` |
 | `apiKey` | `SIDESEAT_API_KEY` | none |
-| `serviceName` | `OTEL_SERVICE_NAME` | the primary integration's package name |
-| `serviceVersion` | `OTEL_SERVICE_VERSION` | that package's version |
+| `serviceName` | `OTEL_SERVICE_NAME` | the primary integration's package name, else `sideseat-app` |
+| `serviceVersion` | `OTEL_SERVICE_VERSION` | that package's version, else the SDK version |
 | `integrations` | `SIDESEAT_INTEGRATIONS` | detected |
 | `captureContent` | `SIDESEAT_CAPTURE_CONTENT` | `true` |
 | `disabled` | `SIDESEAT_DISABLED` | `false` |
 | `debug` | `SIDESEAT_DEBUG` | `false` |
 | `export` | | `true` |
+| `metrics` | | `true` |
 | `logs` | | `true` |
-| `resourceAttributes` | | none |
+| `resourceAttributes` | `OTEL_RESOURCE_ATTRIBUTES` (merged underneath) | none |
 | `spanProcessors` | | none |
 
-Boolean variables accept `1`/`0`, `true`/`false`, and `yes`/`no`; anything else throws
-`ConfigurationError`.
+Boolean variables accept `1`/`0`, `true`/`false`, and `yes`/`no` in any case; anything else rejects
+with `ConfigurationError`. An empty or blank option or variable counts as unset.
 
 **Endpoint.** Without a path it is a SideSeat server and telemetry goes to
 `{endpoint}/otel/{project}/v1/traces`. With a path it is an OTLP base used as given, for example a
 collector at `https://collector.example.com/otel/team-a`.
 
-**Authentication.** An API key is sent as `Authorization: Bearer <key>`, merged over
-`OTEL_EXPORTER_OTLP_HEADERS`.
+**Authentication.** An API key is sent as `Authorization: Bearer <key>`. Headers from
+`OTEL_EXPORTER_OTLP_HEADERS` are sent too; the API key replaces an `Authorization` header of any
+spelling.
+
+**Signals.** Spans, metrics, and log records each go to their own OTLP/HTTP endpoint,
+`{base}/v1/traces`, `{base}/v1/metrics`, and `{base}/v1/logs`. Metrics are exported every minute.
+`metrics: false` and `logs: false` turn a signal off; `export: false` sends nothing, which is useful with
+`spanProcessors` in tests.
 
 **Content.** Prompts, responses, and tool payloads are recorded by default; `captureContent: false`
 turns them off. With it on, SideSeat sets `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true`
@@ -36,6 +43,10 @@ unless you chose a value.
 **Calling init twice.** The same options resolve to the same client; different options reject with
 `ConfigurationError`. Call `shutdown()` first to configure again.
 
-**Another provider registered first.** OpenTelemetry keeps the first global tracer provider. If another
-library registered one before `init`, SideSeat warns: spans created through the global tracer go to that
-provider. Call `init` earlier.
+**Another provider registered first.** OpenTelemetry JS cannot add processors to a provider that is
+already built, so SideSeat always creates its own. It keeps the first global tracer, meter, and logger
+provider; if another library registered one before `init`, SideSeat warns, and telemetry created through
+that global goes to the other provider. Call `init` earlier.
+
+**Disabling.** `disabled: true` or `SIDESEAT_DISABLED=true` configures nothing. Every call still works:
+callbacks run, spans are non-recording, and `flush` and `shutdown` resolve to `true`.

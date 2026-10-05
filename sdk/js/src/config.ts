@@ -27,9 +27,11 @@ export interface SideSeatOptions {
   debug?: boolean;
   /** Send telemetry over OTLP. Off is useful with `spanProcessors` in tests. */
   export?: boolean;
+  /** Export OpenTelemetry metrics. */
+  metrics?: boolean;
   /** Export OpenTelemetry log records, which some instrumentations use for GenAI events. */
   logs?: boolean;
-  /** Extra resource attributes for every signal. */
+  /** Extra resource attributes for every signal, over `OTEL_RESOURCE_ATTRIBUTES`. */
   resourceAttributes?: Readonly<Record<string, string | number | boolean>>;
   /** Extra processors, run after correlation and before export. */
   spanProcessors?: ReadonlyArray<SpanProcessor>;
@@ -47,6 +49,7 @@ export interface Settings {
   readonly disabled: boolean;
   readonly debug: boolean;
   readonly export: boolean;
+  readonly metrics: boolean;
   readonly logs: boolean;
   readonly resourceAttributes: Readonly<
     Record<string, string | number | boolean>
@@ -55,23 +58,16 @@ export interface Settings {
 }
 
 export function resolveSettings(options: SideSeatOptions = {}): Settings {
-  const env = process.env;
-  const envIntegrations = env.SIDESEAT_INTEGRATIONS?.trim();
+  const envIntegrations = text(undefined, "SIDESEAT_INTEGRATIONS");
   return Object.freeze({
     endpoint: normalizeEndpoint(
-      options.endpoint ??
-        env.SIDESEAT_ENDPOINT ??
-        env.OTEL_EXPORTER_OTLP_ENDPOINT,
+      text(options.endpoint, "SIDESEAT_ENDPOINT") ??
+        text(undefined, "OTEL_EXPORTER_OTLP_ENDPOINT"),
     ),
-    project: (
-      options.project ??
-      env.SIDESEAT_PROJECT_ID ??
-      DEFAULT_PROJECT
-    ).trim(),
-    apiKey: options.apiKey ?? (env.SIDESEAT_API_KEY || undefined),
-    serviceName: options.serviceName ?? (env.OTEL_SERVICE_NAME || undefined),
-    serviceVersion:
-      options.serviceVersion ?? (env.OTEL_SERVICE_VERSION || undefined),
+    project: text(options.project, "SIDESEAT_PROJECT_ID") ?? DEFAULT_PROJECT,
+    apiKey: text(options.apiKey, "SIDESEAT_API_KEY"),
+    serviceName: text(options.serviceName, "OTEL_SERVICE_NAME"),
+    serviceVersion: text(options.serviceVersion, "OTEL_SERVICE_VERSION"),
     integrations:
       options.integrations ??
       (envIntegrations ? splitNames(envIntegrations) : undefined),
@@ -83,6 +79,7 @@ export function resolveSettings(options: SideSeatOptions = {}): Settings {
     disabled: flag(options.disabled, "SIDESEAT_DISABLED", false),
     debug: flag(options.debug, "SIDESEAT_DEBUG", false),
     export: options.export ?? true,
+    metrics: options.metrics ?? true,
     logs: options.logs ?? true,
     resourceAttributes: Object.freeze({ ...options.resourceAttributes }),
     spanProcessors: Object.freeze([...(options.spanProcessors ?? [])]),
@@ -116,7 +113,13 @@ export function exportHeaders(settings: Settings): Record<string, string> {
         decodeURIComponent(pair.slice(separator + 1).trim());
     }
   }
-  if (settings.apiKey) headers.Authorization = `Bearer ${settings.apiKey}`;
+  if (settings.apiKey) {
+    // Header names are case-insensitive; two spellings would send two credentials.
+    for (const name of Object.keys(headers)) {
+      if (name.toLowerCase() === "authorization") delete headers[name];
+    }
+    headers.Authorization = `Bearer ${settings.apiKey}`;
+  }
   return headers;
 }
 
@@ -135,9 +138,19 @@ export function identity(settings: Settings): string {
     settings.captureContent,
     settings.disabled,
     settings.export,
+    settings.metrics,
     settings.logs,
     Object.entries(settings.resourceAttributes).sort(),
   ]);
+}
+
+/** An explicit option, else its environment variable; blank values count as unset, trimmed. */
+function text(explicit: string | undefined, name: string): string | undefined {
+  for (const raw of [explicit, process.env[name]]) {
+    const value = raw?.trim();
+    if (value) return value;
+  }
+  return undefined;
 }
 
 function normalizeEndpoint(raw: string | undefined): string {
