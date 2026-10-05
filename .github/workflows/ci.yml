@@ -455,7 +455,7 @@ jobs:
             examples/python/sdk-conformance/uv.lock
 
       - name: Install dependencies
-        run: cd sdk/python && uv sync --locked --extra dev
+        run: cd sdk/python && uv sync --locked
 
       # Delegated to the Makefile, so CI and `make` cannot disagree about *what* is checked. Running ruff
       # inside `sdk/python` covered the SDK alone, while the Makefile had been extended to `scripts/` and
@@ -467,7 +467,7 @@ jobs:
         run: make lint-python
 
       - name: Type check
-        run: cd sdk/python && uv run --locked --extra dev mypy src
+        run: cd sdk/python && uv run --locked mypy src
 
       - name: Test
         run: make test-sdk-python

@@ -143,7 +143,7 @@ if [ -n "$py_files" ]; then
 fi
 if grep -qE '^sdk/python/' <<<"$changed"; then
     step "sdk/python: mypy, pytest"
-    (cd sdk/python && uv run --locked --extra dev mypy src && uv run --locked --extra dev pytest -q -x)
+    (cd sdk/python && uv run --locked mypy src && uv run --locked pytest -q -x)
 fi
 
 # --- .NET -------------------------------------------------------------------------------------

@@ -113,8 +113,8 @@ test-sdk-js: ## Run JavaScript SDK tests
 
 test-sdk-python: ## Run Python SDK tests
 	@echo "[test-sdk-python] Running Python SDK tests..."
-	@cd sdk/python && uv run --locked --extra dev pytest
-	@cd examples/python/common && uv run --locked --extra dev pytest
+	@cd sdk/python && uv run --locked pytest
+	@cd examples/python/harness && uv run --locked --all-extras pytest -q
 	@uv run --locked --project examples/python/sdk-conformance \
 		python examples/python/sdk-conformance/conformance.py --help >/dev/null
 
