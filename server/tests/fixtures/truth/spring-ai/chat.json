@@ -1,0 +1,116 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "spring-ai",
+ "scenario": "chat",
+ "fixtures": [
+  "spring-ai/native/chat",
+  "spring-ai/sdk/chat"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/java/spring-ai/cassettes/chat.json",
+  "sha256": "0f3e4f9548f1f3b441ee0059a5bd1a2f9043d0dea24f0a502e26825f884ced51",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "linear",
+ "request_bodies": "unrecorded",
+ "model_calls": 1,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 67,
+    "output": 57,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-002"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002"
+   ],
+   "final_answers": [
+    "fact-002"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "In one sentence, what is Kyoto best known for?"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "Kyoto is best known for its well-preserved temples, shrines, geisha districts, and traditional culture, having served as Japan's imperial capital for over a thousand years."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-001"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  }
+ ]
+}

@@ -1,0 +1,164 @@
+{
+  "label": "spring-ai/sdk/structured_output",
+  "request_count": 1,
+  "span_count": 2,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/generate/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna. Your response should be in JSON format. Do not include any explanations, only provide a RFC8259 compliant JSON response following this format without deviation. Do not include markdown code blocks in your resp…[692 chars]",
+          "content_digest": "236591656bc86102",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"budget_eur\":350,\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt with St. Stephen's Cathedral, the Hofburg Palace, and the Graben. Have lunch at a traditional Beisl and enjoy coffee and Sachertorte at a class…[537 chars]",
+          "content_digest": "722c8a41cf2ad190",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/structured-output/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna. Your response should be in JSON format. Do not include any explanations, only provide a RFC8259 compliant JSON response following this format without deviation. Do not include markdown code blocks in your resp…[692 chars]",
+          "content_digest": "236591656bc86102",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"budget_eur\":350,\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt with St. Stephen's Cathedral, the Hofburg Palace, and the Graben. Have lunch at a traditional Beisl and enjoy coffee and Sachertorte at a class…[537 chars]",
+          "content_digest": "722c8a41cf2ad190",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "spring-ai-structured_output": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna. Your response should be in JSON format. Do not include any explanations, only provide a RFC8259 compliant JSON response following this format without deviation. Do not include markdown code blocks in your resp…[692 chars]",
+          "content_digest": "236591656bc86102",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"budget_eur\":350,\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt with St. Stephen's Cathedral, the Hofburg Palace, and the Graben. Have lunch at a traditional Beisl and enjoy coffee and Sachertorte at a class…[537 chars]",
+          "content_digest": "722c8a41cf2ad190",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 3,
+    "role_sequence": [
+      "assistant",
+      "system",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"budget_eur\":350,\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt with St. Stephen's Cathedral, the Hofburg Palace, and the Graben. Have lunch at a traditional Beisl and enjoy coffee and Sachertorte at a class…[537 chars]",
+        "content_digest": "722c8a41cf2ad190",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Plan a two-day trip to Vienna. Your response should be in JSON format. Do not include any explanations, only provide a RFC8259 compliant JSON response following this format without deviation. Do not include markdown code blocks in your resp…[692 chars]",
+        "content_digest": "236591656bc86102",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

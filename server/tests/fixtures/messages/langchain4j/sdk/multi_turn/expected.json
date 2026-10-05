@@ -1,0 +1,452 @@
+{
+  "label": "langchain4j/sdk/multi_turn",
+  "request_count": 1,
+  "span_count": 7,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/AiService.chat/span-2": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'd suggest **Alfama**, Lisbon's oldest district. It's full of narrow streets, fado bars, and viewpoints, and it's within walking distance of the cathedral and São Jorge Castle. If you'd prefer something flatter and more central, Baixa is a…[258 chars]",
+          "content_digest": "4834b18853601f40",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/AiService.chat/span-4": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod scrambled with thin fried potatoes, onions, and eggs, often topped with olives and parsley. If you have room for dessert, follow it with a pastel de nata.",
+          "content_digest": "44a682847db2b3bd",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/AiService.chat/span-6": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in Alfama for its historic charm and viewpoints, and try bacalhau à Brás, a comforting dish of shredded salt cod with crispy potatoes, onions, and eggs.",
+          "content_digest": "f87ff45277260328",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/LLM/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'd suggest **Alfama**, Lisbon's oldest district. It's full of narrow streets, fado bars, and viewpoints, and it's within walking distance of the cathedral and São Jorge Castle. If you'd prefer something flatter and more central, Baixa is a…[258 chars]",
+          "content_digest": "4834b18853601f40",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/LLM/span-5": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'd suggest **Alfama**, Lisbon's oldest district. It's full of narrow streets, fado bars, and viewpoints, and it's within walking distance of the cathedral and São Jorge Castle. If you'd prefer something flatter and more central, Baixa is a…[258 chars]",
+          "content_digest": "4834b18853601f40",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod scrambled with thin fried potatoes, onions, and eggs, often topped with olives and parsley. If you have room for dessert, follow it with a pastel de nata.",
+          "content_digest": "44a682847db2b3bd",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/LLM/span-7": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'd suggest **Alfama**, Lisbon's oldest district. It's full of narrow streets, fado bars, and viewpoints, and it's within walking distance of the cathedral and São Jorge Castle. If you'd prefer something flatter and more central, Baixa is a…[258 chars]",
+          "content_digest": "4834b18853601f40",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod scrambled with thin fried potatoes, onions, and eggs, often topped with olives and parsley. If you have room for dessert, follow it with a pastel de nata.",
+          "content_digest": "44a682847db2b3bd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarise your two suggestions in one sentence.",
+          "content_digest": "3a58af4870fae288",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in Alfama for its historic charm and viewpoints, and try bacalhau à Brás, a comforting dish of shredded salt cod with crispy potatoes, onions, and eggs.",
+          "content_digest": "f87ff45277260328",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/multi-turn/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'd suggest **Alfama**, Lisbon's oldest district. It's full of narrow streets, fado bars, and viewpoints, and it's within walking distance of the cathedral and São Jorge Castle. If you'd prefer something flatter and more central, Baixa is a…[258 chars]",
+          "content_digest": "4834b18853601f40",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod scrambled with thin fried potatoes, onions, and eggs, often topped with olives and parsley. If you have room for dessert, follow it with a pastel de nata.",
+          "content_digest": "44a682847db2b3bd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarise your two suggestions in one sentence.",
+          "content_digest": "3a58af4870fae288",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in Alfama for its historic charm and viewpoints, and try bacalhau à Brás, a comforting dish of shredded salt cod with crispy potatoes, onions, and eggs.",
+          "content_digest": "f87ff45277260328",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "langchain4j-multi_turn": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'd suggest **Alfama**, Lisbon's oldest district. It's full of narrow streets, fado bars, and viewpoints, and it's within walking distance of the cathedral and São Jorge Castle. If you'd prefer something flatter and more central, Baixa is a…[258 chars]",
+          "content_digest": "4834b18853601f40",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod scrambled with thin fried potatoes, onions, and eggs, often topped with olives and parsley. If you have room for dessert, follow it with a pastel de nata.",
+          "content_digest": "44a682847db2b3bd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarise your two suggestions in one sentence.",
+          "content_digest": "3a58af4870fae288",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in Alfama for its historic charm and viewpoints, and try bacalhau à Brás, a comforting dish of shredded salt cod with crispy potatoes, onions, and eggs.",
+          "content_digest": "f87ff45277260328",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 7,
+    "role_sequence": [
+      "user",
+      "assistant",
+      "user",
+      "assistant",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Summarise your two suggestions in one sentence.",
+        "content_digest": "3a58af4870fae288",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Stay in Alfama for its historic charm and viewpoints, and try bacalhau à Brás, a comforting dish of shredded salt cod with crispy potatoes, onions, and eggs.",
+        "content_digest": "f87ff45277260328",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is one dish I should try there?",
+        "content_digest": "fa205a3ea90d1fdf",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod scrambled with thin fried potatoes, onions, and eggs, often topped with olives and parsley. If you have room for dessert, follow it with a pastel de nata.",
+        "content_digest": "44a682847db2b3bd",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "user",
+        "entry_type": "text",
+        "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+        "content_digest": "c366c7539466c187",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "I'd suggest **Alfama**, Lisbon's oldest district. It's full of narrow streets, fado bars, and viewpoints, and it's within walking distance of the cathedral and São Jorge Castle. If you'd prefer something flatter and more central, Baixa is a…[258 chars]",
+        "content_digest": "4834b18853601f40",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

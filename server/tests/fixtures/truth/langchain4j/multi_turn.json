@@ -1,0 +1,320 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "langchain4j",
+ "scenario": "multi_turn",
+ "fixtures": [
+  "langchain4j/native/multi_turn",
+  "langchain4j/sdk/multi_turn"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/java/langchain4j/cassettes/multi_turn.json",
+  "sha256": "c40cab1842b6a15598d62b722ff8cfe6d3056baaa00854226a38e5070e575c51",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "linear",
+ "request_bodies": "unrecorded",
+ "model_calls": 3,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 79,
+    "output": 141,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-002",
+    "fact-003"
+   ]
+  },
+  {
+   "id": "call-002",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 189,
+    "output": 115,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-005",
+    "fact-006"
+   ]
+  },
+  {
+   "id": "call-003",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 295,
+    "output": 66,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-008"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002",
+    "fact-003",
+    "fact-004",
+    "fact-005",
+    "fact-006",
+    "fact-007",
+    "fact-008"
+   ],
+   "final_answers": [
+    "fact-003",
+    "fact-006",
+    "fact-008"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "reasoning",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "",
+    "signed": true,
+    "redacted": false
+   },
+   "require": null,
+   "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "I'd suggest **Alfama**, Lisbon's oldest district. It's full of narrow streets, fado bars, and viewpoints, and it's within walking distance of the cathedral and São Jorge Castle. If you'd prefer something flatter and more central, Baixa is a good alternative."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-004",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "What is one dish I should try there?"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-005",
+   "kind": "reasoning",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "",
+    "signed": true,
+    "redacted": false
+   },
+   "require": null,
+   "call": "call-002"
+  },
+  {
+   "id": "fact-006",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod scrambled with thin fried potatoes, onions, and eggs, often topped with olives and parsley. If you have room for dessert, follow it with a pastel de nata."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-002"
+  },
+  {
+   "id": "fact-007",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Summarise your two suggestions in one sentence."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-008",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "Stay in Alfama for its historic charm and viewpoints, and try bacalhau à Brás, a comforting dish of shredded salt cod with crispy potatoes, onions, and eggs."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-003"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  },
+  {
+   "kind": "call_order",
+   "before": "call-001",
+   "after": "call-002"
+  },
+  {
+   "kind": "prompt_of",
+   "from": "fact-004",
+   "to": "call-002"
+  },
+  {
+   "kind": "call_order",
+   "before": "call-002",
+   "after": "call-003"
+  },
+  {
+   "kind": "prompt_of",
+   "from": "fact-007",
+   "to": "call-003"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "reasoning",
+   "reason": "reasoning_text_omitted",
+   "detail": "the provider returned a signed reasoning block with no visible text; whether a reconstruction shows a placeholder for it is a product decision, not a fidelity fact",
+   "subject": "fact-002"
+  },
+  {
+   "fact": "reasoning",
+   "reason": "reasoning_text_omitted",
+   "detail": "the provider returned a signed reasoning block with no visible text; whether a reconstruction shows a placeholder for it is a product decision, not a fidelity fact",
+   "subject": "fact-005"
+  }
+ ]
+}

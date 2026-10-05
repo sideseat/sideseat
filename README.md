@@ -68,6 +68,9 @@ AgentScope, Haystack, Browser Use, Logfire, TraceLoop, OpenInference, Langfuse, 
 
 **Go:** Genkit, through plain OpenTelemetry and the [Go recipe](https://sideseat.ai/docs/integrations/frameworks/go/).
 
+**Java and Kotlin:** Spring AI and LangChain4j through OpenInference, and Koog, with plain OpenTelemetry and
+the [JVM recipe](https://sideseat.ai/docs/integrations/frameworks/java/).
+
 **Coding agents:** Claude Code, OpenAI Codex CLI.
 
 **Providers:** Amazon Bedrock, Anthropic, OpenAI, Azure OpenAI, Google Gemini, Vertex AI.
@@ -75,7 +78,7 @@ AgentScope, Haystack, Browser Use, Logfire, TraceLoop, OpenInference, Langfuse, 
 Each of these is verified end to end. Its example suite runs a fixed set of scenarios - chat, multi-turn,
 sessions, tool use, a failing tool, and where the framework supports them streaming, structured output,
 reasoning, files, multi-agent and MCP tools - once with the framework's own OpenTelemetry setup and once
-with the SideSeat SDK (for Go, the OpenTelemetry recipe), against current models (Claude Sonnet 5.5 on Bedrock, or a deterministic fake
+with the SideSeat SDK (for Go and the JVM, the OpenTelemetry recipe), against current models (Claude Sonnet 5.5 on Bedrock, or a deterministic fake
 server where Bedrock does not serve the provider). SideSeat's reading of every captured trace, span and
 session is checked message by message, and both runs must read the same. Where an instrumentation itself
 drops content - images, documents, reasoning - the

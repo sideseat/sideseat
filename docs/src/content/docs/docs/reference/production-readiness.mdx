@@ -35,7 +35,7 @@ of the surviving messages rather than silently inventing or dropping content.
 
 ## Current checked-in boundary
 
-The current tracked corpus contains **155 suites, 881 samples, and 1176 captured OTLP requests**:
+The current tracked corpus contains **161 suites, 922 samples, and 1223 captured OTLP requests**:
 
 - SideSeat SDK versus plain OpenTelemetry pairs for Python, TypeScript/Node.js, .NET, and Rust;
 - a credential-free OpenAI 3.19.2 / Logfire 6.0.0b7 pair captured both natively and through
@@ -77,6 +77,10 @@ The current tracked corpus contains **155 suites, 881 samples, and 1176 captured
   reasoning, an image and a PDF, and a delegating tool, native beside SideSeat's OpenTelemetry recipe;
 - a credential-free Google ADK for Go 1.8.0 pair over all eleven scenarios, whose conversation arrives
   only as GenAI log events and is not yet reconstructed (ledgered under `rv2/*/adk-go`);
+- JVM suites captured live on Claude Sonnet 5.5 through Bedrock, each beside SideSeat's OpenTelemetry
+  recipe: Koog 1.3.0 (chat, tool use, a failing tool, sessions, a delegating agent), LangChain4j 1.21.0
+  with OpenInference (eight scenarios), and Spring AI 2.0.1 with OpenInference (eight scenarios, where the
+  instrumentor records only the first of several tool results in one message);
 - a credential-free TraceLoop SDK 0.62.4 / OpenAI 3.22.1 pair covering retained history,
   streaming, decorator workflow/task/agent/tool spans, a complete tool roundtrip, two traces,
   one shared session, and exact native/SideSeat parity. Arbitrary decorator entity inputs and

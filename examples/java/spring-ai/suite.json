@@ -1,0 +1,5 @@
+{
+  "producer": "spring-ai",
+  "integrations": ["openinference"],
+  "service-name": "spring-ai"
+}

@@ -7,4 +7,6 @@ uv = "0.12.13"
 dotnet = "10.0.401"
 # The Go example suites (examples/go).
 go = "1.27.1"
+# The JVM example suites (examples/java); Gradle comes from their wrapper.
+java = "temurin-25.0.1+8.0.LTS"
 "cargo:cargo-nextest" = "0.9.137"

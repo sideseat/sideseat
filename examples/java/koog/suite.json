@@ -1,0 +1,5 @@
+{
+  "producer": "koog",
+  "integrations": ["koog"],
+  "service-name": "koog"
+}

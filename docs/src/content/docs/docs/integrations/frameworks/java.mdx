@@ -1,0 +1,84 @@
+---
+title: Java and Kotlin
+description: Send Spring AI, LangChain4j and Koog telemetry to SideSeat with plain OpenTelemetry.
+---
+
+There is no SideSeat SDK for the JVM: JVM frameworks trace through OpenTelemetry, and SideSeat reads OTLP.
+Point an OTLP exporter at your project and, optionally, name the framework on the resource.
+
+## The recipe
+
+```java
+var resource = Resource.create(Attributes.builder()
+    .put("service.name", "travel-agent")
+    // Optional: names the framework when its own spans do not identify it.
+    .put("sideseat.framework", "openinference")
+    .build());
+String base = "http://127.0.0.1:5388/otel/default";
+OpenTelemetrySdk sdk = OpenTelemetrySdk.builder()
+    .setTracerProvider(SdkTracerProvider.builder().setResource(resource)
+        .addSpanProcessor(BatchSpanProcessor.builder(
+            OtlpHttpSpanExporter.builder().setEndpoint(base + "/v1/traces").build()).build())
+        .build())
+    .setLoggerProvider(SdkLoggerProvider.builder().setResource(resource)
+        .addLogRecordProcessor(BatchLogRecordProcessor.builder(
+            OtlpHttpLogRecordExporter.builder().setEndpoint(base + "/v1/logs").build()).build())
+        .build())
+    .buildAndRegisterGlobal();
+```
+
+Put `session.id` and `user.id` on the span that encloses a conversation, and SideSeat groups its traces into
+a session.
+
+## Spring AI
+
+Spring AI reports each model call as a Micrometer observation and keeps prompt and completion text out of
+its traces. Arize's OpenInference instrumentor (`com.arize:openinference-instrumentation-springAI`) is the
+observation handler that records the conversation:
+
+```java
+ObservationRegistry observations = ObservationRegistry.create();
+observations.observationConfig().observationHandler(
+    new SpringAIInstrumentor(new OITracer(sdk.getTracer("com.arize.spring-ai"))));
+// Pass `observations` to the chat model and ChatClient builders.
+```
+
+The instrumentor records model calls only, so tool results reach SideSeat through the next request's
+messages.
+
+## LangChain4j
+
+Install Arize's OpenInference instrumentor (`com.arize:openinference-instrumentation-langchain4j`) and
+register its listeners on the model and the AI service:
+
+```java
+var instrumentor = LangChain4jInstrumentor.instrument(sdk.getSdkTracerProvider());
+var model = BedrockChatModel.builder()
+    .modelId("global.anthropic.claude-sonnet-5-5")
+    .listeners(List.of(instrumentor.createModelListener()))
+    .build();
+var assistant = AiServices.builder(Assistant.class)
+    .chatModel(model)
+    .registerListeners(instrumentor.createAiServiceListeners())
+    .build();
+```
+
+## Koog
+
+Koog's OpenTelemetry feature builds an SDK of its own, so give it an OTLP exporter rather than the recipe's
+SDK, and stamp the session on its spans with a span adapter:
+
+```kotlin
+install(OpenTelemetry) {
+    addSpanExporter(OtlpHttpSpanExporter.builder().setEndpoint("$base/v1/traces").build())
+    addResourceAttributes(mapOf("sideseat.framework" to "koog"))
+    addSpanAdapter(object : SpanAdapter() {
+        override fun onBeforeSpanStarted(span: GenAIAgentSpan) {
+            span.addAttribute(CustomAttribute("session.id", sessionId))
+        }
+    })
+    setVerbose(true) // records message content
+}
+```
+
+Koog writes the current OpenTelemetry GenAI conventions, which SideSeat reads directly.

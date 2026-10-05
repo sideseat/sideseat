@@ -64,6 +64,7 @@ export default defineConfig({
                 { label: 'CrewAI', slug: 'docs/integrations/frameworks/crewai' },
                 { label: 'AutoGen', slug: 'docs/integrations/frameworks/autogen' },
                 { label: 'Go (Genkit, ADK)', slug: 'docs/integrations/frameworks/go' },
+                { label: 'Java and Kotlin', slug: 'docs/integrations/frameworks/java' },
                 { label: 'Other Frameworks', slug: 'docs/integrations/frameworks/other' },
               ],
             },

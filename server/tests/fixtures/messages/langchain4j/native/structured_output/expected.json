@@ -1,0 +1,209 @@
+{
+  "label": "langchain4j/native/structured_output",
+  "request_count": 1,
+  "span_count": 3,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/AiService.chat/span-2": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "TripPlan[city=Vienna, days=[Day 1: Explore the Innere Stadt, including St. Stephen's Cathedral, the Hofburg Palace and Graben. Have lunch at a traditional Beisl, visit the Kunsthistorisches Museum, then enjoy dinner and Viennese coffee hous…[484 chars]",
+          "content_digest": "7427fedbe20a7e3e",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/LLM/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna. You must answer strictly in the following JSON format: { \"city\": (type: string), \"days\": (type: array of string), \"budget_eur\": (type: integer) }",
+          "content_digest": "311de0bf9736c763",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt, including St. Stephen's Cathedral, the Hofburg Palace and Graben. Have lunch at a traditional Beisl, visit the Kunsthistorisches Museum, then enjoy dinner and …[508 chars]",
+          "content_digest": "eb6918dc5d82e9b9",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/structured-output/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 4,
+      "role_sequence": [
+        "assistant",
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "TripPlan[city=Vienna, days=[Day 1: Explore the Innere Stadt, including St. Stephen's Cathedral, the Hofburg Palace and Graben. Have lunch at a traditional Beisl, visit the Kunsthistorisches Museum, then enjoy dinner and Viennese coffee hous…[484 chars]",
+          "content_digest": "7427fedbe20a7e3e",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna. You must answer strictly in the following JSON format: { \"city\": (type: string), \"days\": (type: array of string), \"budget_eur\": (type: integer) }",
+          "content_digest": "311de0bf9736c763",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt, including St. Stephen's Cathedral, the Hofburg Palace and Graben. Have lunch at a traditional Beisl, visit the Kunsthistorisches Museum, then enjoy dinner and …[508 chars]",
+          "content_digest": "eb6918dc5d82e9b9",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "langchain4j-structured_output": {
+      "message_count": 4,
+      "role_sequence": [
+        "assistant",
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "TripPlan[city=Vienna, days=[Day 1: Explore the Innere Stadt, including St. Stephen's Cathedral, the Hofburg Palace and Graben. Have lunch at a traditional Beisl, visit the Kunsthistorisches Museum, then enjoy dinner and Viennese coffee hous…[484 chars]",
+          "content_digest": "7427fedbe20a7e3e",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna. You must answer strictly in the following JSON format: { \"city\": (type: string), \"days\": (type: array of string), \"budget_eur\": (type: integer) }",
+          "content_digest": "311de0bf9736c763",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "json",
+          "content": "{\"type\":\"json\",\"data\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt, including St. Stephen's Cathedral, the Hofburg Palace and Graben. Have lunch at a traditional Beisl, visit the Kunsthistorisches Museum, then enjoy dinner and …[508 chars]",
+          "content_digest": "eb6918dc5d82e9b9",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 4,
+    "role_sequence": [
+      "assistant",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt, including St. Stephen's Cathedral, the Hofburg Palace and Graben. Have lunch at a traditional Beisl, visit the Kunsthistorisches Museum, then enjoy dinner and …[508 chars]",
+        "content_digest": "eb6918dc5d82e9b9",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Plan a two-day trip to Vienna. You must answer strictly in the following JSON format: { \"city\": (type: string), \"days\": (type: array of string), \"budget_eur\": (type: integer) }",
+        "content_digest": "311de0bf9736c763",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "TripPlan[city=Vienna, days=[Day 1: Explore the Innere Stadt, including St. Stephen's Cathedral, the Hofburg Palace and Graben. Have lunch at a traditional Beisl, visit the Kunsthistorisches Museum, then enjoy dinner and Viennese coffee hous…[484 chars]",
+        "content_digest": "7427fedbe20a7e3e",
+        "observation_type": "agent"
+      }
+    ]
+  }
+}

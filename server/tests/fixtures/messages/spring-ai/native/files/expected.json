@@ -1,0 +1,164 @@
+{
+  "label": "spring-ai/native/files",
+  "request_count": 1,
+  "span_count": 2,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/files/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/generate/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+          "content_digest": "66bed9fc16754ebe",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Image:** A curving tarmac path winds through a sunny park with green lawns, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings under a clear blue sky. **Document:** The five-page PDF is almost empty: page …[311 chars]",
+          "content_digest": "44a0f396b301c56c",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+          "content_digest": "66bed9fc16754ebe",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Image:** A curving tarmac path winds through a sunny park with green lawns, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings under a clear blue sky. **Document:** The five-page PDF is almost empty: page …[311 chars]",
+          "content_digest": "44a0f396b301c56c",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "spring-ai-files": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+          "content_digest": "66bed9fc16754ebe",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Image:** A curving tarmac path winds through a sunny park with green lawns, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings under a clear blue sky. **Document:** The five-page PDF is almost empty: page …[311 chars]",
+          "content_digest": "44a0f396b301c56c",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 3,
+    "role_sequence": [
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+        "content_digest": "66bed9fc16754ebe",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "**Image:** A curving tarmac path winds through a sunny park with green lawns, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings under a clear blue sky. **Document:** The five-page PDF is almost empty: page …[311 chars]",
+        "content_digest": "44a0f396b301c56c",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

@@ -1,0 +1,825 @@
+{
+  "label": "koog/native/multi_agent",
+  "request_count": 2,
+  "span_count": 23,
+  "trace_count": 2,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/chat global.anthropic.claude-sonnet-5-5/span-6": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Ask weather_specialist for any forecast you need.",
+          "content_digest": "eec3ba841d7dfb04",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_UulsjEyaanoMR4vZEt8eqL\",\"name\":\"weather_specialist\",\"input\":{\"request\":\"What is the weather forecast for Barcelona for the next two days (temperatures, precipitation, wind)?\"}}",
+          "content_digest": "a2fc71e37ede188f",
+          "tool_name": "weather_specialist",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat global.anthropic.claude-sonnet-5-5/span-9": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Ask weather_specialist for any forecast you need.",
+          "content_digest": "eec3ba841d7dfb04",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_UulsjEyaanoMR4vZEt8eqL\",\"name\":\"weather_specialist\",\"input\":{\"request\":\"What is the weather forecast for Barcelona for the next two days (temperatures, precipitation, wind)?\"}}",
+          "content_digest": "a2fc71e37ede188f",
+          "tool_name": "weather_specialist",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "\"Barcelona's forecast for the next two days:\\n- **Day 1:** Rain, with a high of 21°C. Tomorrow has an 80% chance of rain.\\n- **Day 2:** Sunny, with a high of 22°C.\\n\\nThe forecast doesn't include low temperatures or wind, so I can't tell yo…[249 chars]",
+          "content_digest": "a48dbec3a5146f4a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "For the next two days, pack a compact umbrella and a light waterproof jacket for Day 1, which will be rainy with a high of 21°C. Add water-resistant shoes and quick-dry layers. For Day 2, which will be sunny with a high of 22°C, bring sungl…[384 chars]",
+          "content_digest": "171f5540952052c4",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/create_agent 97a8b88c-1652-44c1-8cf9-dd36d918fd63/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/execute_tool weather_specialist/span-8": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_UulsjEyaanoMR4vZEt8eqL\",\"name\":\"weather_specialist\",\"input\":{\"request\":\"What is the weather forecast for Barcelona for the next two days (temperatures, precipitation, wind)?\"}}",
+          "content_digest": "a2fc71e37ede188f",
+          "tool_name": "weather_specialist",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Barcelona's forecast for the next two days: - **Day 1:** Rain, with a high of 21°C. Tomorrow has an 80% chance of rain. - **Day 2:** Sunny, with a high of 22°C. The forecast doesn't include low temperatures or wind, so I can't tell you thos…[242 chars]",
+          "content_digest": "c1c35a6d7e8f38e7",
+          "tool_name": "weather_specialist",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/invoke_agent 97a8b88c-1652-44c1-8cf9-dd36d918fd63/span-2": {
+      "message_count": 1,
+      "role_sequence": [
+        "system"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Ask weather_specialist for any forecast you need.",
+          "content_digest": "eec3ba841d7dfb04",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/node __finish__/span-11": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/node __start__/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/node nodeCallLLM/span-5": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/node nodeExecuteTool/span-7": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/node nodeSendToolResult/span-10": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/strategy single_run/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/chat global.anthropic.claude-sonnet-5-5/span-11": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather forecast for Barcelona for the next two days (temperatures, precipitation, wind)?",
+          "content_digest": "ca3854f1c3e8998e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_M82R9hZgHnlpWqzYwSq8I6\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "f90abdc541f78a1e",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_IliWlmNJeivFYFOPnNNH9t\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Barcelona\"}}",
+          "content_digest": "12895ad585077ab8",
+          "tool_name": "get_precipitation",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "\"{\\\"city\\\":\\\"Barcelona\\\",\\\"forecast\\\":[{\\\"day\\\":1,\\\"condition\\\":\\\"rain\\\",\\\"high_c\\\":21},{\\\"day\\\":2,\\\"condition\\\":\\\"sunny\\\",\\\"high_c\\\":22}]}\"",
+          "content_digest": "39fc53a04e4b96dd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "\"80% chance of rain in Barcelona tomorrow.\"",
+          "content_digest": "ae6be8d07827aaef",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Barcelona's forecast for the next two days: - **Day 1:** Rain, with a high of 21°C. Tomorrow has an 80% chance of rain. - **Day 2:** Sunny, with a high of 22°C. The forecast doesn't include low temperatures or wind, so I can't tell you thos…[242 chars]",
+          "content_digest": "274ef4be9101a296",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/chat global.anthropic.claude-sonnet-5-5/span-2": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather forecast for Barcelona for the next two days (temperatures, precipitation, wind)?",
+          "content_digest": "ca3854f1c3e8998e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_M82R9hZgHnlpWqzYwSq8I6\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "f90abdc541f78a1e",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_IliWlmNJeivFYFOPnNNH9t\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Barcelona\"}}",
+          "content_digest": "12895ad585077ab8",
+          "tool_name": "get_precipitation",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/create_agent 0c52045d-3cd4-4275-9d52-27573b1c492a/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/execute_tool get_precipitation/span-9": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_IliWlmNJeivFYFOPnNNH9t\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Barcelona\"}}",
+          "content_digest": "12895ad585077ab8",
+          "tool_name": "get_precipitation",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "80% chance of rain in Barcelona tomorrow.",
+          "content_digest": "c3ee14a7644d1746",
+          "tool_name": "get_precipitation",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-2/execute_tool get_weather/span-7": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_M82R9hZgHnlpWqzYwSq8I6\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "f90abdc541f78a1e",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}",
+          "content_digest": "54d5b659e541c895",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-2/invoke_agent 0c52045d-3cd4-4275-9d52-27573b1c492a/span-3": {
+      "message_count": 1,
+      "role_sequence": [
+        "system"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-2/node __finish__/span-12": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/node __start__/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/node nodeCallLLM/span-5": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/node nodeExecuteTool/span-8": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/node nodeSendToolResult/span-10": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/strategy single_run/span-6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Ask weather_specialist for any forecast you need.",
+          "content_digest": "eec3ba841d7dfb04",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_UulsjEyaanoMR4vZEt8eqL\",\"name\":\"weather_specialist\",\"input\":{\"request\":\"What is the weather forecast for Barcelona for the next two days (temperatures, precipitation, wind)?\"}}",
+          "content_digest": "a2fc71e37ede188f",
+          "tool_name": "weather_specialist",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Barcelona's forecast for the next two days: - **Day 1:** Rain, with a high of 21°C. Tomorrow has an 80% chance of rain. - **Day 2:** Sunny, with a high of 22°C. The forecast doesn't include low temperatures or wind, so I can't tell you thos…[242 chars]",
+          "content_digest": "c1c35a6d7e8f38e7",
+          "tool_name": "weather_specialist",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "For the next two days, pack a compact umbrella and a light waterproof jacket for Day 1, which will be rainy with a high of 21°C. Add water-resistant shoes and quick-dry layers. For Day 2, which will be sunny with a high of 22°C, bring sungl…[384 chars]",
+          "content_digest": "171f5540952052c4",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 2,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather forecast for Barcelona for the next two days (temperatures, precipitation, wind)?",
+          "content_digest": "ca3854f1c3e8998e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_M82R9hZgHnlpWqzYwSq8I6\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "f90abdc541f78a1e",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_IliWlmNJeivFYFOPnNNH9t\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Barcelona\"}}",
+          "content_digest": "12895ad585077ab8",
+          "tool_name": "get_precipitation",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}",
+          "content_digest": "54d5b659e541c895",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 5,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "80% chance of rain in Barcelona tomorrow.",
+          "content_digest": "c3ee14a7644d1746",
+          "tool_name": "get_precipitation",
+          "observation_type": "tool"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Barcelona's forecast for the next two days: - **Day 1:** Rain, with a high of 21°C. Tomorrow has an 80% chance of rain. - **Day 2:** Sunny, with a high of 22°C. The forecast doesn't include low temperatures or wind, so I can't tell you thos…[242 chars]",
+          "content_digest": "274ef4be9101a296",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "koog-multi_agent": {
+      "message_count": 12,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 3,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Ask weather_specialist for any forecast you need.",
+          "content_digest": "eec3ba841d7dfb04",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_UulsjEyaanoMR4vZEt8eqL\",\"name\":\"weather_specialist\",\"input\":{\"request\":\"What is the weather forecast for Barcelona for the next two days (temperatures, precipitation, wind)?\"}}",
+          "content_digest": "a2fc71e37ede188f",
+          "tool_name": "weather_specialist",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Barcelona's forecast for the next two days: - **Day 1:** Rain, with a high of 21°C. Tomorrow has an 80% chance of rain. - **Day 2:** Sunny, with a high of 22°C. The forecast doesn't include low temperatures or wind, so I can't tell you thos…[242 chars]",
+          "content_digest": "c1c35a6d7e8f38e7",
+          "tool_name": "weather_specialist",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "For the next two days, pack a compact umbrella and a light waterproof jacket for Day 1, which will be rainy with a high of 21°C. Add water-resistant shoes and quick-dry layers. For Day 2, which will be sunny with a high of 22°C, bring sungl…[384 chars]",
+          "content_digest": "171f5540952052c4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is the weather forecast for Barcelona for the next two days (temperatures, precipitation, wind)?",
+          "content_digest": "ca3854f1c3e8998e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_M82R9hZgHnlpWqzYwSq8I6\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+          "content_digest": "f90abdc541f78a1e",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_IliWlmNJeivFYFOPnNNH9t\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Barcelona\"}}",
+          "content_digest": "12895ad585077ab8",
+          "tool_name": "get_precipitation",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}",
+          "content_digest": "54d5b659e541c895",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 10,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "80% chance of rain in Barcelona tomorrow.",
+          "content_digest": "c3ee14a7644d1746",
+          "tool_name": "get_precipitation",
+          "observation_type": "tool"
+        },
+        {
+          "index": 11,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Barcelona's forecast for the next two days: - **Day 1:** Rain, with a high of 21°C. Tomorrow has an 80% chance of rain. - **Day 2:** Sunny, with a high of 22°C. The forecast doesn't include low temperatures or wind, so I can't tell you thos…[242 chars]",
+          "content_digest": "274ef4be9101a296",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 12,
+    "role_sequence": [
+      "tool",
+      "assistant",
+      "assistant",
+      "tool",
+      "tool",
+      "system",
+      "user",
+      "assistant",
+      "assistant",
+      "user",
+      "assistant",
+      "system"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 3,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Barcelona's forecast for the next two days: - **Day 1:** Rain, with a high of 21°C. Tomorrow has an 80% chance of rain. - **Day 2:** Sunny, with a high of 22°C. The forecast doesn't include low temperatures or wind, so I can't tell you thos…[242 chars]",
+        "content_digest": "c1c35a6d7e8f38e7",
+        "tool_name": "weather_specialist",
+        "observation_type": "tool"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "For the next two days, pack a compact umbrella and a light waterproof jacket for Day 1, which will be rainy with a high of 21°C. Add water-resistant shoes and quick-dry layers. For Day 2, which will be sunny with a high of 22°C, bring sungl…[384 chars]",
+        "content_digest": "171f5540952052c4",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Barcelona's forecast for the next two days: - **Day 1:** Rain, with a high of 21°C. Tomorrow has an 80% chance of rain. - **Day 2:** Sunny, with a high of 22°C. The forecast doesn't include low temperatures or wind, so I can't tell you thos…[242 chars]",
+        "content_digest": "274ef4be9101a296",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "80% chance of rain in Barcelona tomorrow.",
+        "content_digest": "c3ee14a7644d1746",
+        "tool_name": "get_precipitation",
+        "observation_type": "tool"
+      },
+      {
+        "index": 4,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}",
+        "content_digest": "54d5b659e541c895",
+        "tool_name": "get_weather",
+        "observation_type": "tool"
+      },
+      {
+        "index": 5,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "agent"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is the weather forecast for Barcelona for the next two days (temperatures, precipitation, wind)?",
+        "content_digest": "ca3854f1c3e8998e",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_M82R9hZgHnlpWqzYwSq8I6\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
+        "content_digest": "f90abdc541f78a1e",
+        "tool_name": "get_weather",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_IliWlmNJeivFYFOPnNNH9t\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Barcelona\"}}",
+        "content_digest": "12895ad585077ab8",
+        "tool_name": "get_precipitation",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+        "content_digest": "603f05d965d18b4d",
+        "observation_type": "generation"
+      },
+      {
+        "index": 10,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_UulsjEyaanoMR4vZEt8eqL\",\"name\":\"weather_specialist\",\"input\":{\"request\":\"What is the weather forecast for Barcelona for the next two days (temperatures, precipitation, wind)?\"}}",
+        "content_digest": "a2fc71e37ede188f",
+        "tool_name": "weather_specialist",
+        "observation_type": "generation"
+      },
+      {
+        "index": 11,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Ask weather_specialist for any forecast you need.",
+        "content_digest": "eec3ba841d7dfb04",
+        "observation_type": "agent"
+      }
+    ]
+  }
+}

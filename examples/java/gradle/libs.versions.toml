@@ -1,0 +1,34 @@
+# Every JVM dependency of the example suites, at the latest release, in one place.
+[versions]
+spring-ai = "2.0.1"
+openinference-springai = "0.1.10"
+langchain4j = "1.21.0"
+openinference-langchain4j = "0.1.9"
+awssdk = "2.55.11"
+kotlin = "2.4.20"
+koog = "1.3.0"
+kotlinx-coroutines = "1.11.0"
+opentelemetry = "1.66.0"
+jackson = "2.22.3"
+
+[libraries]
+spring-ai-bedrock-converse = { module = "org.springframework.ai:spring-ai-bedrock-converse", version.ref = "spring-ai" }
+spring-ai-client-chat = { module = "org.springframework.ai:spring-ai-client-chat", version.ref = "spring-ai" }
+openinference-springai = { module = "com.arize:openinference-instrumentation-springAI", version.ref = "openinference-springai" }
+langchain4j = { module = "dev.langchain4j:langchain4j", version.ref = "langchain4j" }
+langchain4j-bedrock = { module = "dev.langchain4j:langchain4j-bedrock", version.ref = "langchain4j" }
+openinference-langchain4j = { module = "com.arize:openinference-instrumentation-langchain4j", version.ref = "openinference-langchain4j" }
+awssdk-bom = { module = "software.amazon.awssdk:bom", version.ref = "awssdk" }
+awssdk-bedrockruntime = { module = "software.amazon.awssdk:bedrockruntime" }
+awssdk-netty = { module = "software.amazon.awssdk:netty-nio-client" }
+koog-agents = { module = "ai.koog:koog-agents", version.ref = "koog" }
+koog-opentelemetry = { module = "ai.koog:agents-features-opentelemetry-jvm", version.ref = "koog" }
+koog-bedrock = { module = "ai.koog:prompt-executor-bedrock-client-jvm", version.ref = "koog" }
+opentelemetry-bom = { module = "io.opentelemetry:opentelemetry-bom", version.ref = "opentelemetry" }
+opentelemetry-sdk = { module = "io.opentelemetry:opentelemetry-sdk" }
+opentelemetry-exporter-otlp = { module = "io.opentelemetry:opentelemetry-exporter-otlp" }
+jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }

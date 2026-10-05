@@ -1,0 +1,5 @@
+{
+  "producer": "langchain4j",
+  "integrations": ["openinference"],
+  "service-name": "langchain4j"
+}

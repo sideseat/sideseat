@@ -1,0 +1,182 @@
+{
+  "label": "langchain4j/sdk/files",
+  "request_count": 1,
+  "span_count": 3,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/AiService.chat/span-2": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I can't describe the image because I only received the raw base64 data, not a rendered picture, so I'd be guessing. I can't summarise the document either: the PDF is 5 pages with compressed text streams that I can't read. If you paste the P…[395 chars]",
+          "content_digest": "3c77f792ae9d8e10",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/LLM/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "UserMessage { name = null, contents = [TextContent { text = \"Describe the image in one sentence, then summarise the document in one sentence.\" }, ImageContent { image = Image { url = null, base64Data = \"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEB…[236629 chars]",
+          "content_digest": "ff285778321994d4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I can't describe the image because I only received the raw base64 data, not a rendered picture, so I'd be guessing. I can't summarise the document either: the PDF is 5 pages with compressed text streams that I can't read. If you paste the P…[395 chars]",
+          "content_digest": "3c77f792ae9d8e10",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/files/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "UserMessage { name = null, contents = [TextContent { text = \"Describe the image in one sentence, then summarise the document in one sentence.\" }, ImageContent { image = Image { url = null, base64Data = \"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEB…[236629 chars]",
+          "content_digest": "ff285778321994d4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I can't describe the image because I only received the raw base64 data, not a rendered picture, so I'd be guessing. I can't summarise the document either: the PDF is 5 pages with compressed text streams that I can't read. If you paste the P…[395 chars]",
+          "content_digest": "3c77f792ae9d8e10",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "langchain4j-files": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "UserMessage { name = null, contents = [TextContent { text = \"Describe the image in one sentence, then summarise the document in one sentence.\" }, ImageContent { image = Image { url = null, base64Data = \"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEB…[236629 chars]",
+          "content_digest": "ff285778321994d4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I can't describe the image because I only received the raw base64 data, not a rendered picture, so I'd be guessing. I can't summarise the document either: the PDF is 5 pages with compressed text streams that I can't read. If you paste the P…[395 chars]",
+          "content_digest": "3c77f792ae9d8e10",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 3,
+    "role_sequence": [
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "UserMessage { name = null, contents = [TextContent { text = \"Describe the image in one sentence, then summarise the document in one sentence.\" }, ImageContent { image = Image { url = null, base64Data = \"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEB…[236629 chars]",
+        "content_digest": "ff285778321994d4",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "I can't describe the image because I only received the raw base64 data, not a rendered picture, so I'd be guessing. I can't summarise the document either: the PDF is 5 pages with compressed text streams that I can't read. If you paste the P…[395 chars]",
+        "content_digest": "3c77f792ae9d8e10",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

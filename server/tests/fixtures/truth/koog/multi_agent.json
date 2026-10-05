@@ -1,0 +1,381 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "koog",
+ "scenario": "multi_agent",
+ "fixtures": [
+  "koog/native/multi_agent",
+  "koog/sdk/multi_agent"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/java/koog/cassettes/multi_agent.json",
+  "sha256": "fabf50d2ad6777f726ca94b6348884ee7bde0a9a2d5b57f0488ef621bf92c8c2",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "multi_agent",
+ "request_bodies": "unrecorded",
+ "model_calls": 4,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 485,
+    "output": 83,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-002"
+   ]
+  },
+  {
+   "id": "call-002",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 581,
+    "output": 124,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-003",
+    "fact-004"
+   ]
+  },
+  {
+   "id": "call-003",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 871,
+    "output": 107,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-007"
+   ]
+  },
+  {
+   "id": "call-004",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 685,
+    "output": 149,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-008"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002",
+    "fact-003",
+    "fact-004",
+    "fact-005",
+    "fact-006",
+    "fact-007",
+    "fact-008"
+   ],
+   "final_answers": [
+    "fact-007",
+    "fact-008"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "tooluse_UulsjEyaanoMR4vZEt8eqL",
+    "name": "weather_specialist",
+    "arguments": {
+     "request": "What is the weather forecast for Barcelona for the next two days (temperatures, precipitation, wind)?"
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "tooluse_M82R9hZgHnlpWqzYwSq8I6",
+    "name": "get_weather",
+    "arguments": {
+     "city": "Barcelona",
+     "days": 2
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-002"
+  },
+  {
+   "id": "fact-004",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "tooluse_IliWlmNJeivFYFOPnNNH9t",
+    "name": "get_precipitation",
+    "arguments": {
+     "city": "Barcelona"
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-002"
+  },
+  {
+   "id": "fact-005",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": "tooluse_M82R9hZgHnlpWqzYwSq8I6",
+    "name": "get_weather",
+    "value": {
+     "city": "Barcelona",
+     "forecast": [
+      {
+       "day": 1,
+       "condition": "rain",
+       "high_c": 21
+      },
+      {
+       "day": 2,
+       "condition": "sunny",
+       "high_c": 22
+      }
+     ]
+    },
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-006",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": "tooluse_IliWlmNJeivFYFOPnNNH9t",
+    "name": "get_precipitation",
+    "value": "80% chance of rain in Barcelona tomorrow.",
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-007",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "Barcelona's forecast for the next two days:\n- **Day 1:** Rain, with a high of 21°C. Tomorrow has an 80% chance of rain.\n- **Day 2:** Sunny, with a high of 22°C.\n\nThe forecast doesn't include low temperatures or wind, so I can't tell you those."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-003"
+  },
+  {
+   "id": "fact-008",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "For the next two days, pack a compact umbrella and a light waterproof jacket for Day 1, which will be rainy with a high of 21°C. Add water-resistant shoes and quick-dry layers. For Day 2, which will be sunny with a high of 22°C, bring sunglasses, sunscreen, and a light T-shirt or long-sleeve top. The forecast had no lows or wind, so a light sweater for the evenings is a safe extra."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-004"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-005",
+   "to": "fact-003"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-006",
+   "to": "fact-004"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "routing",
+   "reason": "multi_agent_routing",
+   "detail": "which agent made each call, and what one agent passed another, is the framework's; only each call's own output and the shared tools' results are asserted"
+  },
+  {
+   "fact": "tool_result",
+   "reason": "tool_not_deterministic",
+   "detail": "weather_specialist is not one of the shared deterministic tools",
+   "subject": "fact-002"
+  }
+ ]
+}

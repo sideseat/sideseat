@@ -1,0 +1,116 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "spring-ai",
+ "scenario": "structured_output",
+ "fixtures": [
+  "spring-ai/native/structured_output",
+  "spring-ai/sdk/structured_output"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/java/spring-ai/cassettes/structured_output.json",
+  "sha256": "3b30692661c198bfc4ce844ad3423c1b70ec5afc5bea865c77c6cbf99d5f4315",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "linear",
+ "request_bodies": "unrecorded",
+ "model_calls": 1,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 345,
+    "output": 225,
+    "cache_read": 0,
+    "cache_write": 0,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-002"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002"
+   ],
+   "final_answers": [
+    "fact-002"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Plan a two-day trip to Vienna."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "{\"budget_eur\":350,\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt with St. Stephen's Cathedral, the Hofburg Palace, and the Graben. Have lunch at a traditional Beisl and enjoy coffee and Sachertorte at a classic Viennese café. Finish with an evening at the Naschmarkt area.\",\"Day 2: Tour Schönbrunn Palace and its gardens in the morning. Afterwards visit the Belvedere to see Klimt's The Kiss, then stroll through the Ringstrasse and the Stadtpark. End with dinner in a Heuriger or a classical concert.\"]}"
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "json"
+   },
+   "call": "call-001"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  }
+ ]
+}

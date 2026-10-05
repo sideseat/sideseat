@@ -69,6 +69,18 @@ resource).
 | Google ADK for Go | 1.8.0 | `adk-go` (fake Gemini; conversation in GenAI log events, not yet reconstructed) |
 | Eino, LangChainGo | 0.9.21, 0.1.15 | none yet |
 
+## Java and Kotlin
+
+There is no SideSeat SDK for the JVM; the suites under `examples/java` (one Gradle build, wrapper-pinned) run
+plain OpenTelemetry, natively and under the recipe in `docs/src/content/docs/docs/integrations/frameworks/java.mdx`.
+
+| Framework | Version | Instrumentation | Verified suite |
+| --- | --- | --- | --- |
+| Spring AI | 2.0.1 | OpenInference Spring AI 0.1.10 | `spring-ai` |
+| LangChain4j | 1.21.0 | OpenInference LangChain4j 0.1.9 | `langchain4j` |
+| Koog | 1.3.0 | its own OpenTelemetry feature | `koog` |
+| Google ADK for Java, Semantic Kernel for Java | 1.11.0, 1.5.0 | their own | none yet |
+
 ## Gaps, in the order to close them
 
 Each gap is a suite on the shared harness (`examples/<language>/<suite>`), a rule asset where the
