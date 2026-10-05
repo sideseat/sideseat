@@ -768,9 +768,8 @@ fn test_gemini_function_call_format() {
         }
     });
 
-    let result = try_gemini_format(&block);
-    assert!(result.is_some());
-    let normalized = result.unwrap();
+    // Declared now (`content-blocks-gemini.json`), so through the whole chain.
+    let normalized = normalize_content_block(&block).expect("a call normalises");
 
     assert_eq!(normalized["type"], "tool_use");
     assert_eq!(normalized["name"], "search");

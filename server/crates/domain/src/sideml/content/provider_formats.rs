@@ -481,6 +481,16 @@ pub(super) fn try_gemini_format(block: &JsonValue) -> Option<JsonValue> {
             "data": uri
         }));
     }
+    None
+}
+
+/// The retired Gemini function-call and function-response reader.
+///
+/// Declared in `rules/vocabulary/content-blocks-gemini.json`, at the front of the `after_provider_formats`
+/// position. Kept as the equivalence oracle - `the_declared_gemini_parts_match_the_reader_they_replace`
+/// runs both over every form it recognised and every shape where it declined.
+#[cfg(test)]
+pub(super) fn try_gemini_function_format(block: &JsonValue) -> Option<JsonValue> {
     // functionCall / function_call (Gemini tool use - both camelCase and snake_case)
     // Gemini doesn't provide tool call IDs, so we generate synthetic IDs based on
     // function name + args hash to prevent deduplication collisions when the same

@@ -324,3 +324,114 @@ fn a_converse_json_result_block_is_its_value() {
         "a value with members beside `json` is the producer's own data"
     );
 }
+
+#[test]
+fn the_declared_gemini_parts_match_the_reader_they_replace() {
+    use crate::rules::schema::ChainPosition;
+
+    let plan = &crate::rules::ruleset().content_blocks;
+    let cases: Vec<(&str, JsonValue)> = vec![
+        (
+            "a call",
+            json!({"functionCall": {"name": "get_weather", "args": {"city": "Paris"}}}),
+        ),
+        (
+            "a call under the snake-case member",
+            json!({"function_call": {"name": "get_weather", "args": {"city": "Paris"}}}),
+        ),
+        (
+            "a call with no arguments",
+            json!({"functionCall": {"name": "now"}}),
+        ),
+        (
+            "a call with empty arguments",
+            json!({"function_call": {"name": "now", "args": {}}}),
+        ),
+        (
+            "the same function with other arguments, which must not share the id",
+            json!({"functionCall": {"name": "get_weather", "args": {"city": "Tokyo"}}}),
+        ),
+        (
+            "a part holding both envelopes, read from the camelCase one",
+            json!({"functionCall": {"name": "a", "args": {"x": 1}}, "function_call": {"name": "a", "args": {"x": 1}}}),
+        ),
+        (
+            "a response",
+            json!({"functionResponse": {"name": "get_weather", "response": {"city": "Paris"}}}),
+        ),
+        (
+            "a response under the snake-case member",
+            json!({"function_response": {"name": "get_weather", "response": {"result": "10%"}}}),
+        ),
+        (
+            "a response with no content",
+            json!({"functionResponse": {"name": "get_weather"}}),
+        ),
+        ("a text part, which neither reads", json!({"text": "hello"})),
+    ];
+    // The declared case states its result id as `null` where the retired reader left the member out; the
+    // typed block reads both as no id.
+    let declared_form = |mut value: JsonValue| {
+        if let Some(object) = value.as_object_mut()
+            && object.get("tool_use_id") == Some(&JsonValue::Null)
+        {
+            object.remove("tool_use_id");
+        }
+        value
+    };
+    for (what, block) in cases {
+        let declared = plan
+            .normalize(&block, ChainPosition::AfterProviderFormats)
+            .map(declared_form);
+        let retired = try_gemini_function_format(&block);
+        assert_eq!(
+            declared, retired,
+            "the declared cases disagree with the reader they replace: {what}"
+        );
+    }
+
+    // The one stated difference: a call with no name. The retired reader named it `unknown`, which no
+    // function is; the declared case leaves the block to the rest of the chain.
+    let nameless = json!({"functionCall": {"args": {"x": 1}}});
+    assert_eq!(
+        try_gemini_function_format(&nameless).map(|b| b["name"].clone()),
+        Some(json!("unknown"))
+    );
+    assert_eq!(
+        plan.normalize(&nameless, ChainPosition::AfterProviderFormats),
+        None
+    );
+}
+
+#[test]
+fn an_id_template_is_refused_unless_it_can_build_distinct_ids() {
+    let rule = |template: &str, id_after: bool| {
+        let mut id = vec![json!({"template": template})];
+        if id_after {
+            id.push(json!("$.id"));
+        }
+        serde_json::from_value::<crate::rules::schema::RuleFile>(json!({
+            "id": "t",
+            "content_blocks": [{
+                "id": "t.call", "at": "after_provider_formats", "legacy_rank": 1,
+                "require": {"all": [{"path": "$.call", "exists": true}]},
+                "tool_use": {"id": id, "name": ["$.call.name"]}
+            }]
+        }))
+        .expect("the test asset parses")
+    };
+    let compile = |file| crate::rules::content_blocks::ContentBlockPlan::compile(&[file]);
+    assert!(compile(rule("c_{name}_{stable_hash(input)}", false)).is_ok());
+    for (template, id_after) in [
+        ("constant", false),
+        ("c_{nmae}", false),
+        ("c_{name", false),
+        ("c_}{name}", false),
+        ("c_{name}", true),
+    ] {
+        assert!(
+            compile(rule(template, id_after)).is_err(),
+            "`{template}` (followed by a path: {id_after}) must be refused"
+        );
+    }
+}

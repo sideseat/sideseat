@@ -1,0 +1,117 @@
+{
+  "$schema": "../../rules.schema.json",
+  "id": "content-blocks-gemini",
+  "doc": "Gemini's content parts for a function call and its response, which Google GenAI, Vertex AI and ADK all write - a wire vocabulary rather than one instrumentation's. Each part comes in the API's camelCase and the Python SDK's snake_case; the two are separate rules, camelCase first, so a part holding both envelopes is read from one of them rather than mixing an id from one with a name from the other. Tried before every other declared case at this position, which is where the retired reader sat: after the other provider formats.",
+  "content_blocks": [
+    {
+      "id": "gemini.function_call",
+      "at": "after_provider_formats",
+      "legacy_rank": 1,
+      "doc": "A call, under the API's member name.",
+      "require": {
+        "all": [
+          {
+            "path": "$.functionCall",
+            "exists": true
+          }
+        ]
+      },
+      "tool_use": {
+        "id": [
+          {
+            "template": "gemini_{name}_call_{stable_hash(input)}",
+            "doc": "Gemini states no call id, so one is built from the call: two calls of one function with different arguments get different ids, and the same call re-sent gets the same one."
+          }
+        ],
+        "name": [
+          "$.functionCall.name"
+        ],
+        "input": [
+          "$.functionCall.args"
+        ]
+      }
+    },
+    {
+      "id": "gemini.function_call_snake",
+      "at": "after_provider_formats",
+      "legacy_rank": 2,
+      "doc": "The same call under the Python SDK's member name, read only when the camelCase envelope is absent.",
+      "require": {
+        "all": [
+          {
+            "path": "$.function_call",
+            "exists": true
+          },
+          {
+            "path": "$.functionCall",
+            "exists": false
+          }
+        ]
+      },
+      "tool_use": {
+        "id": [
+          {
+            "template": "gemini_{name}_call_{stable_hash(input)}",
+            "doc": "Gemini states no call id, so one is built from the call: two calls of one function with different arguments get different ids, and the same call re-sent gets the same one."
+          }
+        ],
+        "name": [
+          "$.function_call.name"
+        ],
+        "input": [
+          "$.function_call.args"
+        ]
+      }
+    },
+    {
+      "id": "gemini.function_response",
+      "at": "after_provider_formats",
+      "legacy_rank": 3,
+      "doc": "What the function returned, under the API's member name.",
+      "require": {
+        "all": [
+          {
+            "path": "$.functionResponse",
+            "exists": true
+          }
+        ]
+      },
+      "tool_result": {
+        "doc": "No call id: the feed's correlation pairs the result with its call by name, the only place both halves are visible at once.",
+        "name": [
+          "$.functionResponse.name"
+        ],
+        "content": [
+          "$.functionResponse.response"
+        ]
+      }
+    },
+    {
+      "id": "gemini.function_response_snake",
+      "at": "after_provider_formats",
+      "legacy_rank": 4,
+      "doc": "The same, under the Python SDK's member name.",
+      "require": {
+        "all": [
+          {
+            "path": "$.function_response",
+            "exists": true
+          },
+          {
+            "path": "$.functionResponse",
+            "exists": false
+          }
+        ]
+      },
+      "tool_result": {
+        "doc": "No call id: the feed's correlation pairs the result with its call by name, the only place both halves are visible at once.",
+        "name": [
+          "$.function_response.name"
+        ],
+        "content": [
+          "$.function_response.response"
+        ]
+      }
+    }
+  ]
+}

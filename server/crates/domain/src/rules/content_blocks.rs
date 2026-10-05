@@ -11,7 +11,7 @@
 use serde_json::{Value as JsonValue, json};
 
 use super::message_rules::{predicate_defect, predicates_hold, query};
-use super::schema::{ChainPosition, ContentBlockRule, RuleFile};
+use super::schema::{ChainPosition, ContentBlockRule, IdSource, RuleFile};
 
 /// Why the content-block rules would not compile.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -53,6 +53,12 @@ pub enum ContentBlockCompileError {
         second: String,
         rank: i32,
         position: &'static str,
+    },
+    #[error("content-block rule `{rule}` declares the id template `{template}`, which {defect}")]
+    IdTemplate {
+        rule: String,
+        template: String,
+        defect: &'static str,
     },
 }
 
@@ -155,6 +161,33 @@ impl ContentBlockPlan {
                     });
                 }
             }
+            if let Some(spec) = &rule.tool_use {
+                for (position, source) in spec.id.iter().enumerate() {
+                    let IdSource::Template(template) = source else {
+                        continue;
+                    };
+                    let defect = match template_segments(&template.template) {
+                        Err(defect) => Some(defect),
+                        Ok(segments)
+                            if !segments.iter().any(|s| !matches!(s, Segment::Literal(_))) =>
+                        {
+                            Some("has no placeholder, so every call it builds would share one id")
+                        }
+                        // A template always yields, so a source after it could never answer.
+                        Ok(_) if position + 1 != spec.id.len() => {
+                            Some("is followed by another id source that it would always shadow")
+                        }
+                        Ok(_) => None,
+                    };
+                    if let Some(defect) = defect {
+                        return Err(ContentBlockCompileError::IdTemplate {
+                            rule: rule.id.clone(),
+                            template: template.template.clone(),
+                            defect,
+                        });
+                    }
+                }
+            }
             if let Some(member) = empty_required {
                 return Err(ContentBlockCompileError::EmptyRequiredSelector {
                     rule: rule.id.clone(),
@@ -246,15 +279,79 @@ fn member<'b>(
     })
 }
 
+/// The first source that states an id: a member holding a non-blank string, or a template, which always does.
+fn call_id(
+    block: &JsonValue,
+    sources: &[IdSource],
+    name: &str,
+    input: &JsonValue,
+) -> Option<String> {
+    sources.iter().find_map(|source| match source {
+        IdSource::Path(path) => query(block, path)
+            .into_iter()
+            .next()
+            .and_then(JsonValue::as_str)
+            .filter(|id| !id.trim().is_empty())
+            .map(str::to_string),
+        IdSource::Template(template) => {
+            template_segments(&template.template).ok().map(|segments| {
+                segments
+                    .iter()
+                    .map(|segment| match segment {
+                        Segment::Literal(text) => text.clone(),
+                        Segment::Name => name.to_string(),
+                        Segment::InputHash => crate::sideml::content::compute_short_hash(input),
+                    })
+                    .collect()
+            })
+        }
+    })
+}
+
+/// A piece of an id template.
+enum Segment {
+    Literal(String),
+    Name,
+    InputHash,
+}
+
+/// The template's pieces, or why it cannot be one: the placeholder set is closed, so a misspelt one is a
+/// refusal rather than literal text in every id.
+fn template_segments(template: &str) -> Result<Vec<Segment>, &'static str> {
+    let mut segments = Vec::new();
+    let mut rest = template;
+    while let Some(open) = rest.find(['{', '}']) {
+        if rest[open..].starts_with('}') {
+            return Err("closes a placeholder it never opened");
+        }
+        if open > 0 {
+            segments.push(Segment::Literal(rest[..open].to_string()));
+        }
+        let close = rest[open..]
+            .find('}')
+            .ok_or("opens a placeholder it never closes")?;
+        segments.push(match &rest[open + 1..open + close] {
+            "name" => Segment::Name,
+            "stable_hash(input)" => Segment::InputHash,
+            _ => return Err("names a placeholder other than `{name}` and `{stable_hash(input)}`"),
+        });
+        rest = &rest[open + close + 1..];
+    }
+    if !rest.is_empty() {
+        segments.push(Segment::Literal(rest.to_string()));
+    }
+    Ok(segments)
+}
+
 fn built(block: &JsonValue, rule: &ContentBlockRule) -> Option<JsonValue> {
     if let Some(spec) = &rule.tool_use {
         // A nameless call names nothing to run, so the case does not recognise the block. The id may be
         // absent and is reported as null: a provider that omits it has still made the call.
         let name = member(block, &spec.name, false)?.as_str()?;
-        let id = member(block, &spec.id, false).and_then(JsonValue::as_str);
         let input = member(block, &spec.input, true)
             .cloned()
             .unwrap_or_else(|| json!({}));
+        let id = call_id(block, &spec.id, name, &input);
         return Some(json!({"type": "tool_use", "id": id, "name": name, "input": input}));
     }
     if let Some(spec) = &rule.tool_result {

@@ -3097,12 +3097,11 @@
           "default": null
         },
         "id": {
-          "description": "Ordered; absent is reported as null, because a provider that omits an id has still made the call.",
+          "description": "Ordered: the first member holding a non-blank string, else a declared `template`; absent is\nreported as null, because a provider that omits an id has still made the call.",
           "type": "array",
           "items": {
-            "type": "string"
-          },
-          "default": []
+            "$ref": "#/$defs/IdSource"
+          }
         },
         "name": {
           "description": "Required: a nameless call names nothing to run, so the case does not recognise the block.",
@@ -3123,6 +3122,39 @@
       "additionalProperties": false,
       "required": [
         "name"
+      ]
+    },
+    "IdSource": {
+      "description": "One place a call's id may come from.",
+      "anyOf": [
+        {
+          "description": "A member of the block, by RFC 9535 JSONPath.",
+          "type": "string"
+        },
+        {
+          "description": "An id built from the call itself, for a provider that states none.",
+          "$ref": "#/$defs/IdTemplate"
+        }
+      ]
+    },
+    "IdTemplate": {
+      "description": "A synthetic id: literal text with closed placeholders - `{name}` (the call's resolved name) and\n`{stable_hash(input)}` (eight hex digits of FNV-1a over the resolved input's serialisation). The last\nsource of an id, since it always yields; two calls of one tool with different arguments get different\nids, and the same call re-sent gets the same one.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "template": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "template"
       ]
     },
     "ToolResultBlock": {

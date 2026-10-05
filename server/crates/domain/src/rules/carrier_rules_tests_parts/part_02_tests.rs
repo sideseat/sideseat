@@ -726,6 +726,7 @@ const SHARED_VOCABULARY: &[&str] = &[
     "span-fields-usage",
     "content-blocks-vercel",
     "content-blocks-wrappers",
+    "content-blocks-gemini",
     "tool-shapes",
     "role-authority",
     "finish-reasons",

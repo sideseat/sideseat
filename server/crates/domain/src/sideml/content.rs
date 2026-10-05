@@ -13,11 +13,11 @@ mod provider_formats;
 mod python_repr;
 mod tool_result;
 
-#[cfg(test)]
-use provider_formats::try_vercel_format;
 use provider_formats::{
     try_anthropic_format, try_bedrock_format, try_gemini_format, try_openai_format,
 };
+#[cfg(test)]
+use provider_formats::{try_gemini_function_format, try_vercel_format};
 pub(crate) use python_repr::try_parse_python_constructor_repr;
 use python_repr::{try_normalize_python_constructor_content, try_parse_python_repr};
 pub use tool_result::convert_to_tool_result;
@@ -47,7 +47,7 @@ fn fnv1a_hash(data: &[u8]) -> u32 {
 /// Used for generating synthetic IDs for providers that don't supply them (e.g., Gemini).
 /// This hash is **deterministic across process restarts and platforms**, making it
 /// suitable for correlating tool calls and results across server restarts.
-fn compute_short_hash(value: &JsonValue) -> String {
+pub(crate) fn compute_short_hash(value: &JsonValue) -> String {
     // Serialize to JSON string (deterministic ordering from serde_json)
     let json_str = serde_json::to_string(value).unwrap_or_default();
     let hash = fnv1a_hash(json_str.as_bytes());

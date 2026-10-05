@@ -517,10 +517,10 @@ pub struct ToolUseBlock {
     /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
     #[serde(default)]
     pub doc: Option<String>,
-    /// Ordered; absent is reported as null, because a provider that omits an id has still made the call.
+    /// Ordered: the first member holding a non-blank string, else a declared `template`; absent is
+    /// reported as null, because a provider that omits an id has still made the call.
     #[serde(default)]
-    #[cfg_attr(test, schemars(with = "Vec<String>"))]
-    pub id: Vec<JsonPath>,
+    pub id: Vec<IdSource>,
     /// Required: a nameless call names nothing to run, so the case does not recognise the block.
     #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub name: Vec<JsonPath>,
@@ -529,6 +529,30 @@ pub struct ToolUseBlock {
     #[serde(default)]
     #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub input: Vec<JsonPath>,
+}
+
+/// One place a call's id may come from.
+#[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(untagged)]
+pub enum IdSource {
+    /// A member of the block, by RFC 9535 JSONPath.
+    Path(#[cfg_attr(test, schemars(with = "String"))] JsonPath),
+    /// An id built from the call itself, for a provider that states none.
+    Template(IdTemplate),
+}
+
+/// A synthetic id: literal text with closed placeholders - `{name}` (the call's resolved name) and
+/// `{stable_hash(input)}` (eight hex digits of FNV-1a over the resolved input's serialisation). The last
+/// source of an id, since it always yields; two calls of one tool with different arguments get different
+/// ids, and the same call re-sent gets the same one.
+#[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct IdTemplate {
+    #[serde(default)]
+    pub doc: Option<String>,
+    pub template: String,
 }
 
 /// What a tool returned.
