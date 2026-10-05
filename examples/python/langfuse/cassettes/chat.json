@@ -1,0 +1,14 @@
+{
+ "interactions": [
+  {
+   "method": "POST",
+   "path": "/openai/v1/chat/completions",
+   "status": 200,
+   "headers": {
+    "content-type": "application/json"
+   },
+   "body": "eyJjaG9pY2VzIjpbeyJmaW5pc2hfcmVhc29uIjoic3RvcCIsImluZGV4IjowLCJtZXNzYWdlIjp7ImFubm90YXRpb25zIjpbXSwiY29udGVudCI6Ikt5b3RvIGlzIGJlc3Qga25vd24gZm9yIGl0cyBoaXN0b3JpYyB0ZW1wbGVzIGFuZCBzaHJpbmVzLCB0cmFkaXRpb25hbCB3b29kZW4gYXJjaGl0ZWN0dXJlLCBiZWF1dGlmdWwgZ2FyZGVucywgYW5kIGdlaXNoYSBjdWx0dXJlLiIsInJlZnVzYWwiOm51bGwsInJvbGUiOiJhc3Npc3RhbnQifX1dLCJjcmVhdGVkIjoxNzkxMTYwMDQ5LCJpZCI6ImNoYXRjbXBsLXltdnZiZ2V5dHBxajJzeHJsbmJuZXFqenlldmRibXBkdHNyNGF1Z3ZtNDZwM25wcTdkeWEiLCJtb2RlbCI6Imdsb2JhbC5vcGVuYWkuZ3B0LTYuMS1zb2wiLCJvYmplY3QiOiJjaGF0LmNvbXBsZXRpb24iLCJzZXJ2aWNlX3RpZXIiOiJkZWZhdWx0IiwidXNhZ2UiOnsiY29tcGxldGlvbl90b2tlbnMiOjI5LCJjb21wbGV0aW9uX3Rva2Vuc19kZXRhaWxzIjp7ImFjY2VwdGVkX3ByZWRpY3Rpb25fdG9rZW5zIjowLCJhdWRpb190b2tlbnMiOjAsInJlYXNvbmluZ190b2tlbnMiOjAsInJlamVjdGVkX3ByZWRpY3Rpb25fdG9rZW5zIjowfSwicHJvbXB0X3Rva2VucyI6NDcsInByb21wdF90b2tlbnNfZGV0YWlscyI6eyJhdWRpb190b2tlbnMiOjAsImNhY2hlX3dyaXRlX3Rva2VucyI6MCwiY2FjaGVkX3Rva2VucyI6MH0sInRvdGFsX3Rva2VucyI6NzZ9LCJzeXN0ZW1fZmluZ2VycHJpbnQiOm51bGx9",
+   "request_sha256": "f4f75bdbf947ff8e927cd92f9d0072a1bb6ea528150755d446c7e702f5d77f74"
+  }
+ ]
+}

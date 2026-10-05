@@ -1469,6 +1469,27 @@ wheels = [
 ]
 
 [[package]]
+name = "langfuse"
+version = "4.15.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "backoff" },
+    { name = "httpx" },
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-exporter-otlp-proto-http" },
+    { name = "opentelemetry-sdk" },
+    { name = "packaging" },
+    { name = "pydantic" },
+    { name = "typing-extensions" },
+    { name = "wrapt", version = "1.17.3", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-8-sideseat-browser-use'" },
+    { name = "wrapt", version = "2.5.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-8-sideseat-traceloop' or extra != 'extra-8-sideseat-browser-use'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4a/19/59253a357d77147e8cd3ad97817519e158af5d3336654656c92c2fc922f1/langfuse-4.15.6.tar.gz", hash = "sha256:af80ed1199e57c2641c9f228066bf9dc324657c06ce6e68660118fa46b237e35", size = 392968, upload-time = "2026-09-24T13:32:47.032Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1a/c5/927a01c47c0adf53832c6e5e35951e3d4998072ef955f3bb8e87e6d10517/langfuse-4.15.6-py3-none-any.whl", hash = "sha256:2364d5f17342301a8651ef166abb5bb260aaadd94d1ac72aa30c298b3a395d85", size = 706806, upload-time = "2026-09-24T13:32:48.577Z" },
+]
+
+[[package]]
 name = "lazy-imports"
 version = "1.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -4214,6 +4235,9 @@ haystack = [
 langchain = [
     { name = "openinference-instrumentation-langchain" },
 ]
+langfuse = [
+    { name = "langfuse" },
+]
 langgraph = [
     { name = "openinference-instrumentation-langchain" },
 ]
@@ -4266,6 +4290,7 @@ requires-dist = [
     { name = "ag-ui-protocol", marker = "extra == 'runtime'", specifier = ">=1.0" },
     { name = "ag2", extras = ["tracing"], marker = "extra == 'ag2'", specifier = ">=1.1.1" },
     { name = "agentscope", marker = "extra == 'agentscope'", specifier = ">=2.0.9" },
+    { name = "langfuse", marker = "extra == 'langfuse'", specifier = ">=4.15.6" },
     { name = "lmnr", marker = "extra == 'browser-use'", specifier = ">=0.7.64" },
     { name = "logfire", marker = "extra == 'anthropic'", specifier = ">=5.1.1" },
     { name = "logfire", marker = "extra == 'logfire'", specifier = ">=5.1.1" },
@@ -4291,7 +4316,7 @@ requires-dist = [
     { name = "websockets", marker = "extra == 'runtime'", specifier = ">=17" },
     { name = "wrapt", marker = "extra == 'bedrock'", specifier = ">=1.14" },
 ]
-provides-extras = ["ag2", "agentscope", "agno", "anthropic", "autogen", "azure-openai", "bedrock", "browser-use", "crewai", "google-genai", "haystack", "langchain", "langgraph", "llama-index", "logfire", "openai", "openai-agents", "pydantic-ai", "runtime", "smolagents", "traceloop", "vertex-ai"]
+provides-extras = ["ag2", "agentscope", "agno", "anthropic", "autogen", "azure-openai", "bedrock", "browser-use", "crewai", "google-genai", "haystack", "langchain", "langfuse", "langgraph", "llama-index", "logfire", "openai", "openai-agents", "pydantic-ai", "runtime", "smolagents", "traceloop", "vertex-ai"]
 
 [package.metadata.requires-dev]
 dev = [

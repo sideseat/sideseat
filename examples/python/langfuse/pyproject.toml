@@ -1,0 +1,24 @@
+[project]
+name = "example-langfuse"
+version = "0.0.0"
+description = "Langfuse SDK scenarios (OpenAI drop-in and @observe) for SideSeat"
+requires-python = ">=3.11"
+dependencies = [
+    "langfuse>=4.16.0",
+    "openai>=3.24.0",
+    "sideseat[langfuse]",
+    "sideseat-example-harness[openai]",
+]
+
+[tool.sideseat-example]
+producer = "langfuse"
+integrations = ["langfuse"]
+default-model = "gpt"
+
+[tool.uv]
+required-version = "==0.12.13"
+package = false
+
+[tool.uv.sources]
+sideseat-example-harness = { path = "../harness", editable = true }
+sideseat = { path = "../../../sdk/python", editable = true }

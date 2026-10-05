@@ -31,6 +31,7 @@ Current lockfile baselines:
 | Claude Agent SDK | `claude-agent-sdk 0.2.159` |
 | Anthropic provider | `anthropic 1.8.0` |
 | OpenAI provider | `openai 3.24.0` |
+| Langfuse | `langfuse 4.16.0` |
 
 ### Strands
 

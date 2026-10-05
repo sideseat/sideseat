@@ -1,0 +1,457 @@
+{
+  "$schema": "../../rules.schema.json",
+  "id": "langfuse",
+  "doc": "The Langfuse dialect. Langfuse 4 records each observation as an OpenTelemetry span: its kind under `langfuse.observation.type`, and what it received and produced as JSON under `langfuse.observation.input` and `.output`. For a generation those are the provider's own request and response shapes - an OpenAI chat message list, or a Responses request with its `input` items - which the content normaliser already reads. Other observations hold a decorated function's arguments and return value, which describe the application rather than the conversation, so only generations are read as messages.",
+  "carriers": [
+    {
+      "id": "langfuse.observation_input",
+      "doc": "What the observation received. For a generation, the conversation as the model was sent it, which re-states earlier turns.",
+      "match": {
+        "attribute": "langfuse.observation.input"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true,
+        "carrier_holds_expandable_message_array": true
+      }
+    },
+    {
+      "id": "langfuse.observation_output",
+      "doc": "What the observation produced. For a generation, one response: a message, or the function calls it made.",
+      "match": {
+        "attribute": "langfuse.observation.output"
+      },
+      "facts": {
+        "preset": "emission",
+        "carrier_holds_expandable_message_array": true
+      }
+    }
+  ],
+  "detect": [
+    {
+      "id": "langfuse.detect",
+      "doc": "Every observation Langfuse records carries its kind.",
+      "label": "Langfuse",
+      "match": {
+        "attr_prefix": [
+          "langfuse.observation."
+        ]
+      },
+      "legacy_rank": 215
+    }
+  ],
+  "sdk_slugs": [
+    {
+      "slug": "langfuse",
+      "label": "Langfuse"
+    }
+  ],
+  "messages": [
+    {
+      "id": "langfuse.generation_input",
+      "doc": "The request a generation sent. A Responses request is an object whose `input` holds the items; a chat request is the message list itself.",
+      "when": {
+        "attr_equals": [
+          {
+            "key": "langfuse.observation.type",
+            "value": "generation"
+          }
+        ]
+      },
+      "read": {
+        "attribute": "langfuse.observation.input"
+      },
+      "parse": "json",
+      "emit": "message",
+      "legacy_rank": 1900,
+      "alternatives": [
+        {
+          "id": "responses_input",
+          "doc": "A Responses request: its items under `input`.",
+          "select": "$.input[*]",
+          "then_fragment": "langfuse.item",
+          "require_parent": {
+            "all": [
+              {
+                "path": "$.input",
+                "kind": "array",
+                "non_empty": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "chat_messages",
+          "doc": "A chat request: the message list itself.",
+          "select": "$[*]",
+          "then_fragment": "langfuse.item"
+        }
+      ]
+    },
+    {
+      "id": "langfuse.generation_output",
+      "doc": "The response a generation received: a chat message, a Responses message item, or the items of a turn that called tools. Langfuse unwraps a one-element list, so a single item arrives bare.",
+      "when": {
+        "attr_equals": [
+          {
+            "key": "langfuse.observation.type",
+            "value": "generation"
+          }
+        ]
+      },
+      "read": {
+        "attribute": "langfuse.observation.output"
+      },
+      "parse": "json",
+      "emit": "message",
+      "legacy_rank": 1910,
+      "alternatives": [
+        {
+          "id": "items",
+          "doc": "Several Responses items.",
+          "select": "$[*]",
+          "then_fragment": "langfuse.item"
+        },
+        {
+          "id": "single",
+          "doc": "One message or item.",
+          "select": "$",
+          "then_fragment": "langfuse.item"
+        }
+      ]
+    },
+    {
+      "id": "langfuse.generation_tools",
+      "doc": "The tools a Responses request offered.",
+      "when": {
+        "attr_equals": [
+          {
+            "key": "langfuse.observation.type",
+            "value": "generation"
+          }
+        ]
+      },
+      "read": {
+        "attribute": "langfuse.observation.input"
+      },
+      "parse": "json",
+      "emit": "tool_definitions",
+      "aggregate_into_array": true,
+      "legacy_rank": 1920,
+      "alternatives": [
+        {
+          "id": "tools",
+          "select": "$.tools",
+          "each": true
+        }
+      ]
+    }
+  ],
+  "observation_types": [
+    {
+      "id": "observation.langfuse_generation",
+      "rank": 78,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "langfuse.observation.type",
+              "value": "generation"
+            }
+          ]
+        }
+      ],
+      "result": "generation",
+      "replaces_legacy_result": "span",
+      "doc": "Langfuse states each observation's kind directly; one rule per kind it shares with this vocabulary."
+    },
+    {
+      "id": "observation.langfuse_tool",
+      "rank": 79,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "langfuse.observation.type",
+              "value": "tool"
+            }
+          ]
+        }
+      ],
+      "result": "tool",
+      "replaces_legacy_result": "span"
+    },
+    {
+      "id": "observation.langfuse_agent",
+      "rank": 81,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "langfuse.observation.type",
+              "value": "agent"
+            }
+          ]
+        }
+      ],
+      "result": "agent",
+      "replaces_legacy_result": "span"
+    },
+    {
+      "id": "observation.langfuse_chain",
+      "rank": 82,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "langfuse.observation.type",
+              "value": "chain"
+            }
+          ]
+        }
+      ],
+      "result": "chain",
+      "replaces_legacy_result": "span"
+    },
+    {
+      "id": "observation.langfuse_retriever",
+      "rank": 83,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "langfuse.observation.type",
+              "value": "retriever"
+            }
+          ]
+        }
+      ],
+      "result": "retriever",
+      "replaces_legacy_result": "span"
+    },
+    {
+      "id": "observation.langfuse_embedding",
+      "rank": 84,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "langfuse.observation.type",
+              "value": "embedding"
+            }
+          ]
+        }
+      ],
+      "result": "embedding",
+      "replaces_legacy_result": "span"
+    },
+    {
+      "id": "observation.langfuse_evaluator",
+      "rank": 85,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "langfuse.observation.type",
+              "value": "evaluator"
+            }
+          ]
+        }
+      ],
+      "result": "evaluator",
+      "replaces_legacy_result": "span"
+    },
+    {
+      "id": "observation.langfuse_guardrail",
+      "rank": 86,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "langfuse.observation.type",
+              "value": "guardrail"
+            }
+          ]
+        }
+      ],
+      "result": "guardrail",
+      "replaces_legacy_result": "span"
+    }
+  ],
+  "span_categories": [
+    {
+      "id": "category.langfuse_generation",
+      "rank": 93,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "langfuse.observation.type",
+              "value": "generation"
+            }
+          ]
+        }
+      ],
+      "result": "llm",
+      "replaces_legacy_result": "other",
+      "doc": "The same statement, read as a category."
+    },
+    {
+      "id": "category.langfuse_tool",
+      "rank": 94,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "langfuse.observation.type",
+              "value": "tool"
+            }
+          ]
+        }
+      ],
+      "result": "tool",
+      "replaces_legacy_result": "other"
+    },
+    {
+      "id": "category.langfuse_agent",
+      "rank": 95,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "langfuse.observation.type",
+              "value": "agent"
+            }
+          ]
+        }
+      ],
+      "result": "agent",
+      "replaces_legacy_result": "other"
+    },
+    {
+      "id": "category.langfuse_chain",
+      "rank": 96,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "langfuse.observation.type",
+              "value": "chain"
+            }
+          ]
+        }
+      ],
+      "result": "chain",
+      "replaces_legacy_result": "other"
+    },
+    {
+      "id": "category.langfuse_retriever",
+      "rank": 97,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "langfuse.observation.type",
+              "value": "retriever"
+            }
+          ]
+        }
+      ],
+      "result": "retriever",
+      "replaces_legacy_result": "other"
+    },
+    {
+      "id": "category.langfuse_embedding",
+      "rank": 98,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "langfuse.observation.type",
+              "value": "embedding"
+            }
+          ]
+        }
+      ],
+      "result": "embedding",
+      "replaces_legacy_result": "other"
+    }
+  ],
+  "fragments": {
+    "item": {
+      "doc": "One element of what a generation recorded: an OpenAI chat message, or an OpenAI Responses item. Langfuse records the provider's shapes verbatim, and a Responses conversation interleaves messages with call and result items that carry no role. Ordered cases: the first that recognises the element wins; an encrypted reasoning item matches nothing, because it holds nothing a reader can see.",
+      "cases": [
+        {
+          "id": "function_call",
+          "doc": "The model asking for one tool to run.",
+          "require": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "function_call"
+                ]
+              }
+            ]
+          },
+          "wrap": {
+            "role": "assistant",
+            "tool_calls_from": {
+              "select": "$",
+              "id": "$.call_id",
+              "name": "$.name",
+              "arguments": "$.arguments",
+              "on_invalid_item": "fail_message"
+            }
+          }
+        },
+        {
+          "id": "function_call_output",
+          "doc": "What the application returned for that call, paired to it by the call id.",
+          "require": {
+            "all": [
+              {
+                "path": "$.type",
+                "one_of": [
+                  "function_call_output"
+                ]
+              },
+              {
+                "path": "$.call_id",
+                "kind": "string",
+                "non_empty": true
+              }
+            ]
+          },
+          "wrap": {
+            "role": "tool",
+            "content_from_any_of": [
+              "$.output"
+            ],
+            "attach": [
+              {
+                "from_value_any_of": [
+                  "$.call_id"
+                ],
+                "as": "tool_call_id"
+              }
+            ]
+          }
+        },
+        {
+          "id": "message",
+          "doc": "A chat message or a Responses message item: it states its own role, and its content is read structurally at query time.",
+          "require": {
+            "all": [
+              {
+                "path": "$.role",
+                "kind": "string",
+                "non_empty": true
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

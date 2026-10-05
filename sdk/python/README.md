@@ -87,6 +87,7 @@ never detected, so name them explicitly.
 | `browser-use` | Browser Use | `browser-use` |
 | `langflow`, `openinference` | Langflow, hand-written OpenInference spans | |
 | `logfire`, `traceloop` | Logfire, TraceLoop (OpenLLMetry) | same name |
+| `langfuse` | Langfuse: `@observe` and its drop-in OpenAI, LangChain and other wrappers record on SideSeat's provider | `langfuse` |
 | `bedrock` | Amazon Bedrock through boto3 | `bedrock` |
 | `openai`, `azure-openai` | OpenAI and Azure OpenAI clients | same name |
 | `anthropic` | Anthropic client | `anthropic` |

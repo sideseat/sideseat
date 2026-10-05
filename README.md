@@ -62,7 +62,7 @@ No SDK? Point any OpenTelemetry exporter at `http://localhost:5388/otel/default`
 
 **Python:** Strands Agents, LangGraph, LangChain, CrewAI, AutoGen, AG2, OpenAI Agents SDK, Google ADK,
 Pydantic AI, Microsoft Agent Framework, Semantic Kernel, Claude Agent SDK, Agno, smolagents, LlamaIndex,
-AgentScope, Haystack, Browser Use, Logfire, TraceLoop, OpenInference.
+AgentScope, Haystack, Browser Use, Logfire, TraceLoop, OpenInference, Langfuse.
 
 **TypeScript:** Strands Agents, Vercel AI SDK, Claude Agent SDK.
 

@@ -44,6 +44,9 @@ ag2 = ["ag2[tracing]>=1.1.1"]
 agentscope = ["agentscope>=2.0.9"]
 haystack = ["opentelemetry-haystack>=1.0.0"]
 traceloop = ["traceloop-sdk>=0.62.4"]
+# 4.16 requires OpenTelemetry 1.45, which Logfire 5.1 does not yet accept; 4.15.6 is the newest release
+# that installs beside every other extra.
+langfuse = ["langfuse>=4.15.6"]
 browser-use = ["lmnr>=0.7.64"]
 logfire = ["logfire>=5.1.1"]
 openai-agents = ["logfire>=5.1.1"]
@@ -120,6 +123,7 @@ module = [
     "botocore.*",
     "claude_agent_sdk.*",
     "google.adk.*",
+    "langfuse.*",
     "lmnr.*",
     "logfire.*",
     "rich.*",

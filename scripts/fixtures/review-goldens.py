@@ -200,6 +200,15 @@ INTENTIONAL_WARNINGS: dict[str, dict[str, tuple[int, str]]] = {
         for mode in ("native", "sdk")
     },
     **{
+        f"langfuse/{mode}/structured_output": {
+            "json_block": (
+                2,
+                "structured assistant output is canonically represented as JSON",
+            ),
+        }
+        for mode in ("native", "sdk")
+    },
+    **{
         f"azure-openai/{mode}/structured_output": {
             "json_block": (
                 2,

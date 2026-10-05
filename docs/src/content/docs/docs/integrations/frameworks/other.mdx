@@ -1,6 +1,6 @@
 ---
 title: Other Frameworks
-description: Use SideSeat with LangChain, Pydantic AI, LlamaIndex, Semantic Kernel, Agno, smolagents, AG2, AgentScope, Haystack, Browser Use, Logfire, TraceLoop, OpenInference, or any OpenTelemetry producer.
+description: Use SideSeat with LangChain, Pydantic AI, LlamaIndex, Semantic Kernel, Agno, smolagents, AG2, AgentScope, Haystack, Browser Use, Logfire, TraceLoop, Langfuse, OpenInference, or any OpenTelemetry producer.
 ---
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
@@ -409,6 +409,42 @@ themselves, and images stay inline instead of going to TraceLoop's uploader. Dec
 outputs (`traceloop.entity.input`, `traceloop.entity.output`) are kept as raw span attributes; the
 conversation comes from the provider instrumentation's `gen_ai.input.messages` and
 `gen_ai.output.messages`.
+
+## Langfuse
+
+```bash
+pip install openai "sideseat[langfuse]"
+```
+
+```python
+import sideseat
+from langfuse import observe
+from langfuse.openai import OpenAI
+
+sideseat.init(integrations=["langfuse"])
+client = OpenAI()
+
+
+@observe(name="answer", as_type="agent")
+def answer(question: str) -> str:
+    response = client.chat.completions.create(
+        model="gpt-6.1-sol",
+        messages=[{"role": "user", "content": question}],
+    )
+    return response.choices[0].message.content or ""
+
+
+with sideseat.session("conversation-42", user_id="user-7"):
+    print(answer("What is the speed of light?"))
+```
+
+Langfuse 4 records its observations as OpenTelemetry spans. The integration gives Langfuse SideSeat's
+tracer provider and an exporter that sends nothing to Langfuse's cloud, and turns media upload off so
+images and documents stay inline. SideSeat reads each generation's recorded request and response - OpenAI
+chat messages, or Responses API items including function calls and their outputs - and classifies tool,
+agent, chain, retriever, embedding, evaluator and guardrail observations from Langfuse's own type. The
+inputs and outputs of other observations describe your functions rather than the conversation, so they
+stay span attributes.
 
 ## OpenInference
 

@@ -1610,6 +1610,7 @@ requires-dist = [
     { name = "ag-ui-protocol", marker = "extra == 'runtime'", specifier = ">=1.0" },
     { name = "ag2", extras = ["tracing"], marker = "extra == 'ag2'", specifier = ">=1.1.1" },
     { name = "agentscope", marker = "extra == 'agentscope'", specifier = ">=2.0.9" },
+    { name = "langfuse", marker = "extra == 'langfuse'", specifier = ">=4.15.6" },
     { name = "lmnr", marker = "extra == 'browser-use'", specifier = ">=0.7.64" },
     { name = "logfire", marker = "extra == 'anthropic'", specifier = ">=5.1.1" },
     { name = "logfire", marker = "extra == 'logfire'", specifier = ">=5.1.1" },
@@ -1635,7 +1636,7 @@ requires-dist = [
     { name = "websockets", marker = "extra == 'runtime'", specifier = ">=17" },
     { name = "wrapt", marker = "extra == 'bedrock'", specifier = ">=1.14" },
 ]
-provides-extras = ["ag2", "agentscope", "agno", "anthropic", "autogen", "azure-openai", "bedrock", "browser-use", "crewai", "google-genai", "haystack", "langchain", "langgraph", "llama-index", "logfire", "openai", "openai-agents", "pydantic-ai", "runtime", "smolagents", "traceloop", "vertex-ai"]
+provides-extras = ["ag2", "agentscope", "agno", "anthropic", "autogen", "azure-openai", "bedrock", "browser-use", "crewai", "google-genai", "haystack", "langchain", "langfuse", "langgraph", "llama-index", "logfire", "openai", "openai-agents", "pydantic-ai", "runtime", "smolagents", "traceloop", "vertex-ai"]
 
 [package.metadata.requires-dev]
 dev = [
