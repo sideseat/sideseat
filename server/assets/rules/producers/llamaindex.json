@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "llamaindex",
   "doc": "The LlamaIndex dialect.",
   "carriers": [],

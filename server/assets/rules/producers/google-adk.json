@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "google-adk",
   "doc": "The GoogleADK dialect.",
   "carriers": [

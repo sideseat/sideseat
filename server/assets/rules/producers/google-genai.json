@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "google-genai",
   "doc": "OpenTelemetry's Google Gen AI instrumentation, which serves both the Gemini Developer API and Vertex AI modes of the `google-genai` client. Identity lives in `vertex-ai.json`; this asset holds the instrumentation's own message shapes.",
   "carriers": [],

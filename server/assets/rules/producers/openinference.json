@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "openinference",
   "doc": "The OpenInference dialect. Its messages arrive as *indexed attribute families* - a list of objects flattened into dotted keys, because OTel attributes are a flat map - and its retrieval spans report documents the same way. The one thing that is not a plain read is the multimodal overlay: the dotted keys lose file blocks and redact URLs, while a serialised `input.value` on the same span holds the whole content, so the richer copy is joined on by position.",
   "carriers": [

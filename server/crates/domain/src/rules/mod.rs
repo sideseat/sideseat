@@ -39,6 +39,8 @@ pub mod tool_shapes;
 mod carrier_rules_tests;
 #[cfg(test)]
 mod detect_rules_tests;
+#[cfg(test)]
+mod schema_census;
 
 pub use carrier_rules::CarrierContext;
 pub use detect_rules::DetectContext;

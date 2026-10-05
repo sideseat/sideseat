@@ -5686,6 +5686,7 @@ dependencies = [
  "proc-macro2",
  "proptest",
  "regex",
+ "schemars",
  "serde",
  "serde_json",
  "serde_json_path",

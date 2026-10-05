@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "haystack",
   "doc": "The Haystack dialect. The official OpenTelemetry integration writes structured agent, component and pipeline snapshots under `haystack.*`; model-step inputs may fall back to a Python repr when they contain callbacks or Tool objects, so the lossless aggregate snapshots are the authoritative conversation evidence.",
   "carriers": [

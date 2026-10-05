@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "traceloop",
   "doc": "Detects TraceLoop/OpenLLMetry spans. Decorator entity input and output are arbitrary function values, not conversation carriers; provider instrumentation supplies the GenAI message attributes.",
   "detect": [

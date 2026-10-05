@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "browser-use",
   "doc": "The Browser Use dialect, traced by Laminar. Each agent step is one model call, recorded by Laminar's provider instrumentation, whose reply is a single `AgentOutput` tool call listing the browser actions to take; Browser Use then runs every action under a Laminar TOOL span of its own, named after the action, with `{action, params}` as its input and the action's result as its output. Those spans are the executions, so each one states its call and its result.",
   "carriers": [

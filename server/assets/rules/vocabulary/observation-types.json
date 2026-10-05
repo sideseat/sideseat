@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "observation-types",
   "doc": "What kind of observation a span is. Ordered first-match rules: the rank *is* the knowledge, because the answer is a precedence rather than a set of independent facts.\n\nThe order says three things worth stating plainly. A transport attribute makes a span a plain span whatever else it carries, because with a framework SDK present that span duplicates the real generation. A conventional operation name outranks a dialect's own span-kind attribute, since the convention is the more specific statement. And a span *name* that merely mentions a tool loses to any attribute, because a name is the weakest evidence there is.\n\nA rule holds when **every** one of its `all_of` conditions holds, and each condition is internally a disjunction. Three rules need that conjunction, and each is a case where one signal alone means something different: an operation name beside a model whose name says it is an embedding, an operation name beside the system that gives it another meaning, and a dialect's model attribute beside the operation id that says which call it was.",
   "observation_types": [

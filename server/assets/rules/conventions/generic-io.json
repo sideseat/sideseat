@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "generic-io",
   "doc": "The framework-neutral IO pair, and the composed error block. These carriers name no framework: `input.value` / `output.value` is what a great many instrumentations write when they write anything, which is why they are a dialect of their own rather than any one framework's file.",
   "carriers": [

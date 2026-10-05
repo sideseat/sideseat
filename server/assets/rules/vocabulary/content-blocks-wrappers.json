@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "content-blocks-wrappers",
   "doc": "Envelopes: a content block wrapped in a member of some dialect's own, and reasoning under a member that names it. These run before the provider wire formats **and only when normalising a message's own content block** - the nested chain, a tool's returned value, must not consult them. One dialect writes structured output as a `json` block whose payload is under `value`, and a wrapper case looking at `value` would unwrap it there instead of letting that dialect's own case read it. The golden fixtures caught exactly that, which is why `message_envelope` is a position of its own rather than the one before the provider formats.\n\nOrder matters between the three and is the order the retired reader used: a plain wrapper first, then reasoning, then a serialisation envelope. A block carrying both a wrapper and a reasoning member is unwrapped, and whatever is inside is then read on its own terms.",
   "content_blocks": [

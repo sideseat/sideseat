@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "span-fields-semantic",
   "doc": "Where a span's non-GenAI stored fields are written. One resolver per field, sources in the order they are preferred - which is the only thing a framework contributes here: a key name. As an ordered `&[&str]` in Rust this was a list of frameworks the extractor had to know, and adding a producer meant editing a chain.\n\nNot claimed, unlike a message carrier: a key naming a session is evidence about the session whoever else reads it, and there is no conversation to report twice.",
   "span_fields": [

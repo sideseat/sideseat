@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "bedrock",
   "doc": "The AWSBedrock dialect.",
   "carriers": [],

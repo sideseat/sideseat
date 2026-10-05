@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "claude-agent-sdk",
   "doc": "The Claude Code CLI's own names. The SDK emits no in-process telemetry; the CLI it spawns self-instruments, so these are the CLI's vocabulary.",
   "carriers": [

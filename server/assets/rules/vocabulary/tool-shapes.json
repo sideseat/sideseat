@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "tool-shapes",
   "doc": "The shapes a provider writes a tool definition in. The canonical form is the server's; every path into a producer's own shape is here. Named for what the file holds rather than for who wrote it, because the five shapes belong to providers rather than to frameworks - which is also why the framework sweep never saw them in Rust: its markers derive from asset ids, and provider names are excluded by design.",
   "tool_shapes": [

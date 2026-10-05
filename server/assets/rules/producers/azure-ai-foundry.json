@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "azure-ai-foundry",
   "doc": "The AzureAIFoundry dialect.",
   "carriers": [],

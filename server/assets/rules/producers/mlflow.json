@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "mlflow",
   "doc": "The MLflow dialect.",
   "carriers": [

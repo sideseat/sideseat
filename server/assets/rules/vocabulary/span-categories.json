@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "span-categories",
   "doc": "Which broad category a span falls in. Ordered first-match rules, like the observation type, and a **separate question with its own precedence**: a transport call is an HTTP category and a plain observation, and one dialect's operation names name an agent here where the conventions leave them unclassified there.\n\nThe transport rules come first for the same reason they do there - with a framework SDK also instrumenting, that span is a duplicate view of the real generation, and one provider's own API calls announce themselves only as an RPC system. Whether such traces are visible at all is the trace list's business.",
   "span_categories": [

@@ -15,6 +15,7 @@ use super::*;
 /// measurement. What stays here is the structural half - which carrier, who claims it, in what order, what it
 /// emits - because that is ownership and policy rather than a transform.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct MessageRule {
     pub id: String,
@@ -210,6 +211,7 @@ pub struct MessageRule {
 /// ever needs to read one event while running over a span, that is a new construct to design rather than a
 /// field to un-refuse.
 #[derive(Debug, Deserialize, Clone, Default)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ReadSpec {
     #[serde(default)]
@@ -291,6 +293,7 @@ pub struct ReadSpec {
     /// `<prefix>.<n>.tool.json_schema` - is a list of those payloads, not a list of objects with a member
     /// called `tool`. The projection says which leaf is the datum.
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Option<String>"))]
     pub entry_value: Option<JsonPath>,
     /// How the projected value is read. `json` **drops** an entry whose payload does not parse, which is
     /// what a schema that failed to parse always meant - an indexed member is otherwise sniffed, and a
@@ -304,6 +307,7 @@ pub struct ReadSpec {
 
 /// One dialect's evidence for a fact about a span.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct SpanFactRule {
     pub id: String,
@@ -316,6 +320,7 @@ pub struct SpanFactRule {
 
 /// A fact about a span that rules and readers ask about by name.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum SpanFact {
     /// The span *is a tool running*, so its messages are that tool's input and result rather than a
@@ -325,6 +330,7 @@ pub enum SpanFact {
 
 /// One piece of evidence. At least one form, and both together read as a conjunction.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct SpanSignal {
     /// This clause's own name, unique within the rule or fragment that holds it.
@@ -358,13 +364,16 @@ pub struct SpanSignal {
 /// labels its embedded documentation uses, how its type names map to JSON Schema's - is here, because
 /// that is its vocabulary and not a fact about Python.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ToolReprSpec {
     pub doc: Option<String>,
     /// The carrier's entries. One entry at a time, so two entries each holding a list interleave as the
     /// payload has them rather than by path - which is what keeps the reported order the framework's own.
+    #[cfg_attr(test, schemars(with = "String"))]
     pub entries: JsonPath,
     /// Where an entry holds tools, in order. Each resolved value is tried as a tool definition.
+    #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub candidates: Vec<JsonPath>,
     /// The repr fields naming a tool and its documentation - `name='search'`.
     pub name_field: String,
@@ -399,6 +408,7 @@ pub struct ToolReprSpec {
 
 /// What an argument type the map does not name becomes.
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum UnknownType {
     /// No `type` member at all, which is what "the widest type" means in JSON Schema - it constrains nothing.
@@ -423,6 +433,7 @@ impl UnknownType {
 /// same message. A flattened family loses whole content blocks and redacts urls, while the serialised copy
 /// beside it keeps them, so where both describe one message the richer one is preferred.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct OverlaySpec {
     pub doc: Option<String>,
@@ -431,6 +442,7 @@ pub struct OverlaySpec {
     #[serde(default)]
     pub parse: Option<ParseMode>,
     /// Ordered paths to the counterpart list; the first that resolves to an array is used.
+    #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub select_any_of: Vec<JsonPath>,
     /// Unwrap a list of exactly one list. A serialiser that accepts a batch of conversations writes one
     /// conversation as a batch of one, and the members of *that* are the messages.
@@ -447,6 +459,7 @@ pub struct OverlaySpec {
     /// that is known to be lossy.
     pub when_member_prefix: String,
     /// Ordered paths to the counterpart's content.
+    #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub content_any_of: Vec<JsonPath>,
     /// What that content must be for the overlay to be an improvement.
     #[serde(default)]
@@ -468,6 +481,7 @@ impl ReadSpec {
 
 /// An attribute of one of a span's events.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct EventAttributeSource {
     /// The event whose attributes are read.
@@ -484,6 +498,7 @@ pub struct EventAttributeSource {
 
 /// Which occurrence of a repeated event supplies the value.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum EventOccurrence {
     /// The first occurrence that holds the attribute at all. What the retired reader did.
@@ -496,6 +511,7 @@ pub enum EventOccurrence {
 
 /// A family of attributes under one root, read as one observation per member.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct AttributeFamilySource {
     /// The root. A key belongs to the family when it is `root` followed by `.` and a member name - the same
@@ -511,6 +527,7 @@ pub struct AttributeFamilySource {
 /// A default would be the thing a reader assumes and the format would say nothing about it, which is how the
 /// answer becomes a hash map's iteration order.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum AttributeFamilyOrder {
     /// Lexicographic by the member name. Deterministic, and the only order available - producer order is lost
@@ -520,6 +537,7 @@ pub enum AttributeFamilyOrder {
 
 /// How a raw attribute string becomes a value.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ParseMode {
     /// Parse as JSON; skip the carrier entirely if it does not parse.

@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "autogen-runtime",
   "doc": "Additional AutoGen message carriers that share the typed-message fragment declared by the main AutoGen asset.",
   "carriers": [

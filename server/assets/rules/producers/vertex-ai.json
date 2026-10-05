@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "vertex-ai",
   "doc": "Vertex AI through Google's current unified Gen AI SDK. The native SDK shares its instrumentation scope and message carriers with the Gemini Developer API, so identity requires both that exact scope and the cloud-specific provider value. The older vertexai span-name signal remains as a historical fallback for already stored OpenLLMetry telemetry.",
   "carriers": [],

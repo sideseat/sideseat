@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "span-fields-genai",
   "doc": "Where a span's GenAI scalar fields are written. Same shape as the semantic fields: one resolver per target, sources in the order they are preferred, and the only framework-specific part is a key name.\n\nThree things the retired code did that the order here has to keep. A **flat attribute wins** over a serialised parameter object, because the flat one is the convention and the object is a framework's own copy. Where two objects both hold a parameter, `request_data` precedes `llm.invocation_parameters` - that is the order the retired chain used, and reversing it would silently prefer a different producer's value. And a parameter written badly is *stepped over* (`on_malformed: continue`) rather than ending the chain: the flat attribute is one of several places one framework states the same value, unlike a status code, where a second key's number would be a different attribute's answer.",
   "span_fields": [

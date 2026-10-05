@@ -26,8 +26,13 @@ pub use span_fields::*;
 /// Every section is optional: a framework that only needs to declare its carriers says nothing about
 /// messages, and a shared dialect fragment may declare carriers alone.
 #[derive(Debug, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct RuleFile {
+    /// The editor schema this asset is written against. Document metadata: no section reads it, and the
+    /// repository requires it to name the generated `rules.schema.json`.
+    #[serde(rename = "$schema", default)]
+    pub schema: Option<String>,
     /// Stable id for diagnostics and explain traces. Not a framework identity anything branches on.
     pub id: String,
     /// What this file is for, in prose. Surfaced by the explain trace, which is why documentation is a
@@ -221,6 +226,7 @@ impl RuleFile {
         // is discarded - the walk reads `self`.
         {
             let Self {
+                schema: _,
                 id: _,
                 doc: _,
                 carriers: _,

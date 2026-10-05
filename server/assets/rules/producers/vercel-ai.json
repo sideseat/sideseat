@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "vercel-ai",
   "doc": "The Vercel AI SDK's own `ai.*` shape (its legacy OpenTelemetry integration). Its current integration emits pure `gen_ai.*` and is served by the semconv rules. Note that those rules read `gen_ai.output.messages` as an emission on every span, including a root `invoke_agent` span that is re-listing the whole turn - the misordering that causes is known and unfixed, because carrier-local facts cannot tell a re-listing from a sole witness.",
   "carriers": [

@@ -16,6 +16,7 @@ where
 /// Some carriers hold a payload rather than a message - a tool's arguments, an instruction, a response's
 /// text - and what that payload *is* is a fact about the carrier, so the envelope is declared beside it.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct WrapSpec {
     /// A literal role. One of this and `role_from` is required.
@@ -26,6 +27,7 @@ pub struct WrapSpec {
     /// Several dialects put the role *in* the payload - Gemini's `{parts, role}` is the clearest case - so
     /// a literal here would either be wrong or need one rule per role.
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Option<String>"))]
     pub role_from: Option<JsonPath>,
     /// Rename a role the payload supplied.
     ///
@@ -50,6 +52,7 @@ pub struct WrapSpec {
     /// twice, in two members, with the ordering between them implicit in the code rather than in the
     /// declaration. The 16 singular uses are now one-element lists.
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub content_from_any_of: Vec<JsonPath>,
     /// The content when none of the paths above resolve. Absent means the reading is not this shape.
     ///
@@ -120,6 +123,7 @@ pub struct WrapSpec {
 
 /// A content block built around the read value.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct BlockSpec {
     /// The block's `type` member - `tool_use`, `tool_result`.
@@ -135,6 +139,7 @@ pub struct BlockSpec {
 
 /// One member taken from a sibling attribute.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct AttachSpec {
     /// Why this member is taken from where it is, where that is not obvious. A field rather than a comment,
@@ -149,6 +154,7 @@ pub struct AttachSpec {
     /// The same serialisation variance as the content: a member may sit at the top level or under the
     /// wrapper a serialiser added.
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub from_value_any_of: Vec<JsonPath>,
     /// The attached value must satisfy this, or the member is left off.
     ///
@@ -160,6 +166,7 @@ pub struct AttachSpec {
     /// Relative to the whole payload, deliberately: a dialect reports why a turn stopped beside the
     /// content rather than inside it, so the member being attached sits outside the part being wrapped.
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Option<String>"))]
     pub from_path: Option<JsonPath>,
     /// Lower-case the attached string.
     ///
@@ -180,6 +187,7 @@ pub struct AttachSpec {
     /// identical tool executions apart. Requires `from` and a JSON parse; a path that resolves nothing
     /// falls through to the span name and the default, like an absent attribute.
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Option<String>"))]
     pub select: Option<JsonPath>,
     /// Attach only when the source attribute equals this exactly.
     ///
@@ -229,6 +237,7 @@ pub struct AttachSpec {
 
 /// What an emitted observation is.
 #[derive(Debug, Deserialize, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum EmitTarget {
     #[default]
@@ -248,6 +257,7 @@ pub enum EmitTarget {
 
 /// One documented shape of a payload: where to look, what to require, and what to carry down.
 #[derive(Debug, Deserialize, Clone, Default)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct Alternative {
     /// This clause's own name, unique within the rule or fragment that holds it.
@@ -269,6 +279,7 @@ pub struct Alternative {
     /// the hand-built resolver had a bug. Compiled when the asset loads, so a malformed path is a startup
     /// error naming its file rather than a query that silently finds nothing.
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Option<String>"))]
     pub select: Option<JsonPath>,
     /// Treat the selected value as a list and read each element.
     #[serde(default)]
@@ -337,6 +348,7 @@ pub struct Alternative {
     /// under one of two spellings or are a declaration themselves, and deciding once for the whole array
     /// would drop the odd group out.
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub then_any_of: Vec<JsonPath>,
     /// Like `then_any_of`, but chosen by the member being **present** rather than by its yielding anything.
     ///
@@ -345,6 +357,7 @@ pub struct Alternative {
     /// something" skips the present-but-empty member and falls through to emitting the wrapper itself as a
     /// tool. Presence also settles which of two spellings wins when both appear.
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub then_present_any_of: Vec<JsonPath>,
     /// Fall back to the element itself when none of `then_any_of` resolved.
     ///
@@ -383,6 +396,7 @@ pub struct Alternative {
 
 /// The member-name pattern of [`Alternative::collect_members`].
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CollectMembers {
     pub prefix: String,
@@ -409,6 +423,7 @@ impl CollectMembers {
 
 /// What a presence coalesce falls back to.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum PresenceFallback {
     /// The element itself is the contents.
@@ -419,6 +434,7 @@ pub enum PresenceFallback {
 
 /// Which members an indexed entry must carry.
 #[derive(Debug, Deserialize, Clone, Default)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct MemberRequirements {
     /// Every one of these must be present.
@@ -431,6 +447,7 @@ pub struct MemberRequirements {
 
 /// One member, and how its presence is decided.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct MemberRequirement {
     pub name: String,
@@ -440,6 +457,7 @@ pub struct MemberRequirement {
 
 /// How a member's presence is established.
 #[derive(Debug, Deserialize, Clone, Copy, Default, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum MemberPresence {
     /// The member's own key exists.
@@ -453,6 +471,7 @@ pub enum MemberPresence {
 
 /// A message assembled from several attributes of one span.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ComposeSpec {
     /// The carrier the assembled message is tagged with.
@@ -486,6 +505,7 @@ pub struct ComposeSpec {
 
 /// One member of a composed message: a named source, or a sweep of a prefix.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ComposeMember {
     /// The member's name. Absent for a sweep, which takes its names from the keys it finds.
@@ -513,6 +533,7 @@ pub struct ComposeMember {
 
 /// A conditional last-resort source.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ComposeFallback {
     pub from: String,
@@ -524,6 +545,7 @@ pub struct ComposeFallback {
 
 /// A text carrier read as tagged sections.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct SectionsSpec {
     /// The separator between sections.
@@ -535,6 +557,7 @@ pub struct SectionsSpec {
 
 /// What to do with a section whose tag matches.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct SectionRoute {
     /// This clause's own name, unique within the rule or fragment that holds it.
@@ -573,6 +596,7 @@ pub struct SectionRoute {
 
 /// A block built from a section, carrying what the tag captured.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct SectionBlock {
     #[serde(rename = "type")]

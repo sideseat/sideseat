@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "logfire",
   "doc": "Logfire's dialect. The request side has several overlapping spellings: `events`, `prompt`, and `all_messages_events` are primary, while `request_data` is read only when none of them supplied a conversation. `response_data` is always read because a request carrier must not suppress the answer. The paired generic Logfire capture exercises every branch, repeated history, and overlapping response evidence.",
   "carriers": [

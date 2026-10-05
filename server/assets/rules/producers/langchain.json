@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "langchain",
   "doc": "The LangChain dialect. It also carries the shared **message fragment**: this vocabulary is how more than one framework serialises a conversation, and one dialect recognises these shapes at four different selection points, so the table lives here once rather than per point.",
   "carriers": [],

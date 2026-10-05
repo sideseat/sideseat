@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "content-blocks-vercel",
   "doc": "One dialect's content blocks. Hyphenated type names and camelCase members, which is what distinguishes them from the provider wire formats - so they belong *after* those in the chain, where a dialect's additions to a provider's vocabulary go.\n\nThe last case is the odd one and the reason the conditions are as fussy as they are: this dialect also writes an aggregated response with no `type` at all, recognised by a member only it carries. The retired reader returned early for **any** block whose `type` is a string, so that case must not claim a block carrying an unrecognised type - which is why its condition says the type is absent or is not a string, spelled out rather than assumed.",
   "content_blocks": [

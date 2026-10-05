@@ -1,0 +1,3853 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RuleFile",
+  "description": "One rule file's parsed contents.\n\nEvery section is optional: a framework that only needs to declare its carriers says nothing about\nmessages, and a shared dialect fragment may declare carriers alone.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "The editor schema this asset is written against. Document metadata: no section reads it, and the\nrepository requires it to name the generated `rules.schema.json`.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    },
+    "id": {
+      "description": "Stable id for diagnostics and explain traces. Not a framework identity anything branches on.",
+      "type": "string"
+    },
+    "doc": {
+      "description": "What this file is for, in prose. Surfaced by the explain trace, which is why documentation is a\nfield rather than a comment.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    },
+    "carriers": {
+      "description": "Carrier semantics declarations.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/CarrierRule"
+      }
+    },
+    "detect": {
+      "description": "Detection signals. Produce a **label** and nothing else: no behaviour reads it.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/DetectRule"
+      }
+    },
+    "messages": {
+      "description": "Which carriers an ingestion reads on this dialect's spans, and how each is parsed.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/MessageRule"
+      }
+    },
+    "message_projections": {
+      "description": "Stored message rows that are producer bookkeeping rather than another conversation.\n\nExtraction remains lossless: these rules apply only when building the read-time SideML\nprojection, so the raw span and its extracted message payload stay queryable.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/MessageProjectionRule"
+      }
+    },
+    "message_events": {
+      "description": "The events this dialect writes messages on.\n\nRecognition, not reading: an event named here is read, and one not named by any asset is ignored\nentirely. Declared because it is the same kind of fact as a carrier - which key a producer writes -\nand as a Rust list it meant a new `when_event` rule was a valid but *dead* declaration until\nsomebody also edited the list.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/MessageEvent"
+      }
+    },
+    "log_events": {
+      "description": "The log-record shapes that carry one of the `message_events`.\n\nRecognition, like `message_events`: a log record matching no declaration is stored as a log and\nnothing more, and one that matches is read as the span event of that name would be.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/LogEvent"
+      }
+    },
+    "tool_shapes": {
+      "description": "How a provider writes a tool *definition*, so the canonical shape is reached by declaration.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ToolShapeRule"
+      }
+    },
+    "convention_namespaces": {
+      "description": "Attribute namespaces the **conventions** own, as opposed to a producer's own.\n\nDeclared by the conventions' asset and nowhere else, which is **refused** rather than assumed: a\ndeclaration elsewhere is ignored, and a dialect could otherwise state that its own namespace is a\nconvention and read as having done so. A key's first segment says who coined it, and the\nstructural sweep that forbids a producer's key in production Rust needs to know which segments are not\na producer's - `session.id` and `enduser.id` are OTel's and appear only in a shared fallback chain,\nexactly where `ai.usage.promptTokens` appears. Inferring it from *absence* - no dialect file mentions\nthe namespace - was tried and is not evidence: a producer key declared only in a shared chain under a\nnamespace nothing else names would be excused by it.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "event_roles": {
+      "description": "What role a message's source name implies, where the name decides it.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/EventRole"
+      }
+    },
+    "role_authority": {
+      "description": "Which role spellings outrank the name a reading was found under. This engine's own vocabulary.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/RoleAuthority"
+      }
+    },
+    "content_blocks": {
+      "description": "Content-block shapes this dialect writes.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ContentBlockRule"
+      }
+    },
+    "provider_aliases": {
+      "description": "A value a producer writes in `gen_ai.system` that names a **provider** the catalogue knows.\n\nOnly the ones that are a *framework's* own name: a framework is not a provider, but one of them names\nitself in that attribute while its models are served by a provider the catalogue prices. Provider\nspellings proper (`azure_openai`, `amazon-bedrock`) stay in Rust, because those are the catalogue's\nvocabulary rather than any framework's - and this table is consulted before them, so a framework's claim\nabout itself never has to be spelled as if it were a provider's.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ProviderAlias"
+      }
+    },
+    "message_members": {
+      "description": "Member names a producer uses, and what each one's presence means.\n\nThree questions about one vocabulary, which is why they are one section: which member holds a message's\ncontent (ordered - the first present one wins), which members mean a value is *message-shaped* rather\nthan bare data, and which mean it is a content **block**. A member usually answers more than one, and as\nthree lists in Rust they drifted: `contents` held content and said \"message-shaped\", while `toolCallId`\nsaid \"content block\" only.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/MessageMemberRule"
+      }
+    },
+    "span_categories": {
+      "description": "Which broad category a span falls in, as ordered first-match rules.\n\nA separate question from the observation type and with its own precedence: a transport call is an HTTP\nspan *and* a plain observation, and one dialect's operation names name an agent here where the\nconventions leave them unclassified there.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ClassifyRule"
+      }
+    },
+    "observation_types": {
+      "description": "What kind of observation a span is, as ordered first-match rules.\n\nOrdered because the answer is a *precedence*, not a set of independent facts: a transport attribute\nmakes a span a plain span whatever else it carries, and a conventional operation name outranks a\ndialect's own span-kind attribute. The rank is the whole of that knowledge, so it is data.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ClassifyRule"
+      }
+    },
+    "span_facts": {
+      "description": "Facts about a *span* this dialect can establish, as opposed to about a carrier.\n\n\"Is this a tool execution\" is one question with several answers - an operation name, a span-kind\nattribute, a pair of attributes that only appear together - and each dialect knows its own. The\nunion answers it, so a dialect declares its signal rather than the code carrying a list of them.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SpanFactRule"
+      }
+    },
+    "fragments": {
+      "description": "Named reading tables other rules may apply.\n\nOne dialect's message shapes are recognised at four different selection points - the node itself, a\n`messages` list, every member of a state object, and a nested state object - and a table repeated\nper point is four places to fix a shape. Referenced as `<file id>.<name>`, resolved at compile time\nby inlining, and a fragment's own cases may **not** reference a fragment: one level, no recursion,\nnothing to bound at runtime.",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/Fragment"
+      }
+    },
+    "sdk_slugs": {
+      "description": "The slugs an SDK may write into `sideseat.framework` for this framework, and the label they\nresolve to.\n\nSeparate from `detect` because a declaration is evidence about the *process*, not about a span,\nand is consulted only after every signal has failed. Provider slugs (`bedrock`, `openai`) belong\nto no framework file, which is how they keep resolving to nothing.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SdkSlug"
+      }
+    },
+    "span_fields": {
+      "description": "Which keys carry a *span field* - a scalar or list on the stored span, as opposed to a message.\n\nThe same kind of fact as a carrier, at a different granularity: `gen_ai.usage.input_tokens`,\n`ai.usage.promptTokens` and a bare `input_tokens` are three spellings of one number, and as an\nordered `&[&str]` in Rust they were a list of frameworks the code had to know.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SpanFieldRule"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "id"
+  ],
+  "$defs": {
+    "CarrierRule": {
+      "description": "One carrier declaration: what to match, and what the matched carrier is evidence of.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Stable clause id, reported by the explain trace.",
+          "type": "string"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "match": {
+          "$ref": "#/$defs/MatchSpec"
+        },
+        "facts": {
+          "description": "The preset this clause resolves to, optionally with named overrides.",
+          "$ref": "#/$defs/Facts"
+        },
+        "ordering_family": {
+          "description": "The ordering family this carrier belongs to, when it is a *fragmented ordered input*: several\nattribute keys that are one array (`llm.input_messages.0.message` and `.1.message`).\n\nThe seventh carrier fact. It was hardcoded in the order resolver, which is exactly the shape of\ndefect this engine exists to remove: a semantic fact about one framework's carrier, written in\nRust, that no rule file could state.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "match",
+        "facts"
+      ]
+    },
+    "MatchSpec": {
+      "description": "What an observation must look like for a clause to apply. Every field is optional and all present\nfields must hold, so a clause constraining more dimensions is strictly more specific.\n\nThe dimensions are a fixed, finite set of orthogonal scalar constraints - which is what makes\nspecificity well-defined here, unlike the tree-shape predicates of the content chain, where\nordering has to be declared by name instead.",
+      "type": "object",
+      "properties": {
+        "event": {
+          "description": "Exact OTel event name the observation was read from.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "attribute": {
+          "description": "Exact attribute key.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "attribute_prefix": {
+          "description": "Attribute key prefix, for indexed families (`llm.input_messages.0.message`).",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "attribute_family": {
+          "description": "A dotted attribute **family**: the root itself and every key below it.\n\nSeparate from `attribute_prefix`, which is raw text. Every undelimited prefix in the assets was really\na family root, and the raw reading selected keys that are not in the family:\n`attribute_prefix: \"ai.response\"` matched `ai.responses`, and `gen_ai.output.messages` matched\n`gen_ai.output.messages_extra`. A prefix ending in `.` is genuinely raw and stays one.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "observation_type": {
+          "description": "Any of these observation types. This is the dimension the span-blind lookup lacked: the same\ncarrier name means different things on a generation span and on an aggregator.\n\n`Option`, not `Vec`, because an explicitly empty `observation_type: []` was silently the same as\nomitting the qualifier - so a clause that reads as narrow held for every span. Omission is `None` and\nmeans no restriction; `Some([])` states nothing and is refused. A `Vec` cannot tell those apart, which\nis why the first attempt at this refusal was dead code.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "default": null
+        }
+      },
+      "additionalProperties": false
+    },
+    "Facts": {
+      "description": "The **nine** carrier facts, named by preset with optional per-field overrides.\n\nA preset is a constructor, not a category: `snapshot` and `accumulated_state` differ in one bit, so two\ndeclarations that read as different kinds of thing can be the same nine facts - and the name does not\nsurvive compilation. 37 of the 55 shipped clauses override something, and nearly all of those overrides are\ncompensating for direction or encoding being bundled into a preset that is otherwise about *reconstruction*.\n\nA preset plus overrides rather than six booleans spelled out per clause: the presets are the\nvocabulary the model is stated in, and a clause that writes them all out invites one being wrong in\na way no reader notices.",
+      "type": "object",
+      "properties": {
+        "preset": {
+          "description": "`emission`, `snapshot` or `accumulated_state`.",
+          "type": "string"
+        },
+        "position_proves_distinct_occurrence": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
+        },
+        "position_provides_sequence_order": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
+        },
+        "history_positions_provide_sequence_order": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
+        },
+        "carrier_is_atomic_emission": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
+        },
+        "may_restate_prior_observations": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
+        },
+        "may_contain_framework_state": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "carrier_holds_span_output": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
+        },
+        "carrier_is_detached_request_frame": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
+        },
+        "carrier_holds_span_input": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
+        },
+        "carrier_holds_expandable_message_array": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "preset"
+      ]
+    },
+    "DetectRule": {
+      "description": "One detection rule: signals that identify a producer, and the label they yield.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "label": {
+          "description": "The label written to the span's `framework` column. A display and filtering value.",
+          "type": "string"
+        },
+        "legacy_rank": {
+          "description": "Where this rule sits in the ordered sweep - a **migration bridge**, not the target design.\n\nThe accepted design is order-independent: each rule states sufficient conditions, a unique\nsufficient candidate wins, and a declared `supersedes` resolves a known overlap. Today's rules do\nnot state sufficient conditions - they were transcribed from a first-match table whose order is\nload-bearing, because the SideSeat SDK defaults `service.name` to one framework's name, so a\nservice-name signal evaluated early claims every span of every framework using the SDK.\n\nSo the rank reproduces that answer while the overlaps are *collected and reported* rather than\nsilently resolved (`overlapping_candidates`). It goes when the predicates are narrow enough that\nno span has two candidates - and until then, naming it `legacy_rank` is the honest description of\nwhat it is.",
+          "type": "integer",
+          "format": "int32"
+        },
+        "supersedes": {
+          "description": "Rule ids this rule beats where both match. Declared, so a genuine overlap is owned rather than\nresolved by a number.\n\nIt **orders**, ahead of `legacy_rank`, which is what that field's own doc says the accepted design is. It\nused to waive only the overlap *report* while rank decided the winner regardless - so the field documented\nan ordering it took no part in, and every shipped edge could have been deleted without changing a single\nattribution. Transitive, since it is a DAG; a cycle is refused.\n\nThis is what lets a rule beat one ranked ahead of it **without** moving its own weaker signals up too -\nthe same problem `alternatives` solves within a rule, here between two.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "match": {
+          "$ref": "#/$defs/DetectMatch"
+        },
+        "all_of": {
+          "description": "Further signal sets that must each match.\n\nA `DetectMatch` is deliberately disjunctive: every signal inside it is independently\nsufficient. Some producer identities need a conjunction instead, such as a shared cloud\nprovider together with the model API used through it. Keeping those as separate sets\npreserves the useful disjunction within each set without hard-coding a producer\ncombination in the engine.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DetectMatch"
+          }
+        },
+        "alternatives": {
+          "description": "Further evidence for the same label, each at its **own** rank.\n\nThe predicates inside one `match` are independently sufficient, so a rule whose signals differ in\n*strength* cannot be ordered by one number. Strands states `gen_ai.system: \"strands-agents\"` - a producer\nnaming itself, the strongest evidence there is - beside a `service.name` the SDK defaults and a phrase in\na span name. One rank for all three has to be placed for the weakest, which put the self-identification\nbehind `openinference.`: a Strands span carrying any OpenInference attribute was labelled OpenInference,\nand moving the whole rule earlier would instead let its defaulted service name claim every framework using\nthe SDK.\n\nEach alternative is compiled into its own ordered rule with the same label, so resolution is unchanged -\nwhat changes is that a rule can place its strong evidence and its weak evidence separately. An explicit\n`id` per alternative rather than one synthesized from the rule's, for the reason every other clause here\nhas one: a synthesized id is not an identity a declaration can be held to.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DetectAlternative"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "legacy_rank",
+        "match"
+      ]
+    },
+    "DetectMatch": {
+      "description": "The signals a detection rule may use. **Any** satisfied signal matches the rule.\n\nDisjunctive, which is the existing behaviour and worth naming: each dimension is independently\nsufficient. That is why a rule listing a broad `service_name` beside a narrow `attr_prefix` is not\n\"narrow\" at all, and why rank matters.",
+      "type": "object",
+      "properties": {
+        "span_name": {
+          "description": "Span name **starts with** any of these.\n\nPrefix only. It used to mean \"equals *or* starts with\", which is not two operators - a prefix subsumes its\nown equality, so the equality arm could never be the reason a rule matched, and a literal that only differs\nby a separator was dead beside the bare one. Every asset already spells the separator it means\n(`autogen.`, `claude_code.`, `vertexai.`), which is what says this dimension is a prefix; the one that did\nnot is the one whose second literal was dead.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "span_name_exact": {
+          "description": "Span name **is** any of these, exactly.\n\nIts own dimension, because a prefix cannot express it: a producer that names one span for its whole graph\nand its steps `Graph.step` needs \"exactly `Graph`\" and \"under `Graph.`\" as two statements. Folded into the\nprefix list, the bare name subsumed the separator form *and* claimed every unrelated span that merely\nstarts with those letters.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "scope_name": {
+          "description": "Instrumentation scope name **is** any of these, exactly.\n\nOpenInference instrumentors expose the concrete framework through the scope while their span\nattributes intentionally stay in the shared `openinference.*` vocabulary. Exact matching keeps\nthat producer signal from turning a shared namespace fragment into a substring heuristic.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "attr_prefix": {
+          "description": "Any span attribute key starts with any of these.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "attr_equals": {
+          "description": "A span attribute equals this value exactly.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeyValue"
+          }
+        },
+        "attr_equals_ignore_case": {
+          "description": "A span attribute equals this value, whatever its case.\n\nIts own dimension rather than a flag on `attr_equals`, because a flag that changes another field's\nmeaning is dead where that field is absent - and this engine refuses dead declarations. One producer\nwrites its span kind in capitals and another in mixed case, and both mean the same kind.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeyValue"
+          }
+        },
+        "attr_exists": {
+          "description": "Any of these span attribute keys exists.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "service_name": {
+          "description": "The resource's `service.name` **contains** any of these.\n\nA substring test, which is why no rule may identify a framework by a short common word: `agno` would also\nmatch a service called `diagnostics`.\n\nIt read `equals || contains`, and the equality arm was dead - a substring match subsumes its own equality.\nNarrowing the whole dimension to equality was tried and is **wrong**: the breadth is deliberate. A user\nnames their own service, and `my-app-openai-agents-v1` identifies the SDK inside it\n(`test_openai_agents_framework_detection_from_service_name_contains`). Every `service.name` in the captured\ncorpus that matches a declared literal happens to match it exactly, so the corpus cannot see this - which\nis what makes those two unit tests the evidence.\n\nThe cost is real and accepted: a service called `my-strands-agents-proxy` is attributed to Strands. Telling\nthat from `my-app-openai-agents-v1` needs evidence a resource attribute does not carry.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "span_attr_contains": {
+          "description": "A *span* attribute contains this substring.\n\nGeneric on purpose. This replaced a `metadata_contains` dimension whose key the engine supplied,\nwhich made one framework's attribute name look like part of OpenTelemetry: only one rule ever used\nit. `service.name` stays a structural dimension because it really is OTel's own resource\nattribute; `metadata` is a framework's, so the key belongs in the asset beside the value.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeyValue"
+          }
+        },
+        "resource_attr_contains": {
+          "description": "A resource attribute contains this substring - how an instrumentation library identifies itself\nthrough `telemetry.sdk.name`.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/KeyValue"
+          }
+        },
+        "text_contains": {
+          "description": "A case-insensitive phrase search over the span name or a named attribute.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TextContains"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "KeyValue": {
+      "description": "A pair of strings - an attribute key and the value or substring it must hold.\n\nStrict, like every other type here. It was the one predicate type without it, so\n`{\"key\": …, \"value\": …, \"ignore_case\": true}` parsed and the flag was **discarded** - a comparison an\nauthor had asked to be case-insensitive stayed case-sensitive, silently. Case folding is a *separate\ndimension* (`attr_equals_ignore_case`), which is exactly the mistake this made easy to write.",
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "value"
+      ]
+    },
+    "TextContains": {
+      "description": "A case-insensitive text search over named sources.\n\nThe one signal that is neither a prefix nor an equality: a framework whose spans are identified by a\nphrase appearing somewhere in a name, in any of several spellings.",
+      "type": "object",
+      "properties": {
+        "sources": {
+          "description": "`span_name`, or `attr:<key>`.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "needles": {
+          "description": "Any of these, matched case-insensitively.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "first_present_source": {
+          "description": "Search only the **first source that has a value**, rather than all of them.\n\nThe difference is a decision, not a nicety. Two attributes may hold two answers to one question - a\nrequest model and a response model - and searching both asks \"does *either* say so\" where the question\nwas \"does the one that applies say so\". A request for `gpt-4o` answered by `text-embedding-3-small` is\na chat completion whose response model is mislabelled, not an embedding call.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "sources",
+        "needles"
+      ]
+    },
+    "DetectAlternative": {
+      "description": "One further body of evidence for a rule's label, at its own rank.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "legacy_rank": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "match": {
+          "$ref": "#/$defs/DetectMatch"
+        },
+        "all_of": {
+          "description": "Further signal sets that must each match.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DetectMatch"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "legacy_rank",
+        "match"
+      ]
+    },
+    "MessageRule": {
+      "description": "One message-extraction rule: a carrier to read, how to parse it, and what to emit.\n\n**No longer small, and that is the finding.** It began as \"read a carrier, parse it, emit it\" and each\ndialect added a generic field that prevented a measured defect. Every one is still declarative and\nnon-Turing-complete, but selection, projection, predicates and object construction have been built by\nhand here - which is what an expression language already standardises, and a hand-built path resolver\nis where a real bug lived (a literal dotted key read as a nested path).\n\nSo the shaping half of this type moved to a published selection language with a parser and quoted\nidentifiers. **RFC 9535 JSONPath**, not JMESPath: JMESPath was implemented first and reverted, because\nevery result comes back through its crate's sorted-map value tree, which alphabetises a selected payload's\nmembers - and this repository treats serialised member order as observable. `message_rules.rs` records the\nmeasurement. What stays here is the structural half - which carrier, who claims it, in what order, what it\nemits - because that is ownership and policy rather than a transform.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "source": {
+          "description": "The *events* this rule applies to. Non-empty makes it an event rule: its reads resolve against the\nevent's own attributes rather than the span's, and its observations are tagged as events.\n\n**Where** this rule reads: a span's attributes at some stage, or a named event's.\n\nOne discriminated member, because `when_event` and `stage` were an *implicit sum* and an unsound one.\nThe two entry points disagreed about which fields they honour: `from_event` selects on the event name\nand ignores `stage` entirely, while the span path selects on `stage` and requires no event. So two\nevent rules declaring different stages were treated by the compiler as separate ordering arenas -\nwhere a shared rank is legal - and then both run by the event path, with ownership decided by\ncomparing their *ids*. And `when_event: []` silently became an ordinary span rule.\n\nAbsent means `{\"span\": {}}`, the ordinary case: read with the dialects on a span's attributes.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MessageSource"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "read": {
+          "description": "The carrier to read. Absent for a `compose` rule, which has many sources rather than one.",
+          "$ref": "#/$defs/ReadSpec"
+        },
+        "compose": {
+          "description": "Assemble one message from several attributes, rather than wrapping one read value.\n\nThe dual of `wrap`, and needed because a dialect writes one response across many keys - the text\nhere, the tool calls there, a structured object beside them, and any other member of the same\nfamily swept up. There is no single carrier to read, so there is no single value to wrap.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComposeSpec"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tool_repr": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolReprSpec"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "parse": {
+          "description": "How to turn its raw string into a value. Absent for an indexed family, which has no single\nstring to parse - each member is read on its own.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ParseMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "wrap": {
+          "description": "Wrap the parsed value in a message envelope with this role.\n\nSome carriers hold a bare payload rather than a message - a tool's arguments, say - and the role\nthat payload represents is a fact about the carrier, so it is declared beside it.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WrapSpec"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "emit": {
+          "description": "Whether the observation is a message or a tool definition.\n\nDefaults to a message, and a branch set's parent declares none: its sub-readings each say what they\nemit, so a value here would be unused.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EmitTarget"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "aggregate_into_array": {
+          "description": "Emit one observation whose value is the array of everything read, rather than one per reading.\n\nTool definitions arrive as a set rather than a sequence of messages, so a dialect's whole tool list\nis one observation - emitting one per tool would make each look like a separate declaration.",
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
+        },
+        "when": {
+          "description": "A gate on the span, in the detection vocabulary: the rule is consulted only where this holds.\n\nSeveral extractors refuse to read a carrier whose name they share with other dialects unless the\nspan also carries their own marker - `gen_ai.prompt` is the generic conventions' key and also\nwhere one exporter writes a whole request, so reading it unconditionally would claim another\ndialect's payload.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DetectMatch"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "instrumentation_scope": {
+          "description": "Restrict this reading to one OpenTelemetry instrumentation scope.\n\nThis is producer evidence carried by the telemetry itself, not a framework label inferred by\nSideSeat. Exact scope names keep a carrier shared by several OpenInference integrations from being\ninterpreted as though every integration emitted the same payload shape.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InstrumentationScopeMatch"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "alternatives": {
+          "description": "Ordered readings of the parsed value, tried until one yields an observation.\n\nAn ordered coalesce, not a program: a payload has more than one documented shape and the rule\nsays which to try first. Empty means \"emit the parsed value as it stands\", which is what the\nthree dialects migrated first needed.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Alternative"
+          }
+        },
+        "also": {
+          "description": "Readings that all contribute, rather than the first that yields.\n\nA different relation from `alternatives`, and mixing them up loses messages: one dialect writes a\nturn's history under one member and *the answer itself* under another, so reading them as\nalternatives dropped the assistant output of every run that carried history.\n\n**May be declared beside `alternatives`**, and one dialect does. They were refused together at first,\non the reading that \"first wins\" and \"all contribute\" cannot both be true of one list - but they are\ntwo lists, and a carrier can hold both a shape to choose among *and* a member to read as well. The\nrefusal pushed that carrier into two rules, which the ownership check then rejected for contending over\none attribute.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Alternative"
+          }
+        },
+        "fallback": {
+          "description": "A reading used only when nothing else in this rule emitted anything.\n\nKeeps a span from being silently empty: where a payload matches no documented shape, it is better\nto keep it whole than to return nothing and leave no trace that it arrived.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Alternative"
+          }
+        },
+        "tag_as": {
+          "description": "Tag the observation with this carrier, whatever alternative was read.\n\nNormally the key found is the tag, so two spellings of a payload stay distinguishable. One dialect\ndeliberately does the opposite: it reads a renamed key but reports the canonical one, so every\nspan's prompt is tagged alike whichever spelling it used. Declared, because it is the *reverse* of\nthe default and a reader would otherwise assume the default.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "reads_tool_spans": {
+          "description": "May this rule read a *tool execution* span?\n\nA tool span reads the conventions and nothing else. The reason is that a tool span carries the\ncall and its result under the conventions' own keys, while a dialect's broader carriers on the same\nspan hold the enclosing agent's state - read there they duplicate the turn. That was a hardcoded\nexemption for one extractor by name; it is a property of a rule now.",
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
+        },
+        "branch_set": {
+          "description": "Several carrier readings with a *local* order between them.\n\nOne dialect reads a carrier only when nothing else supplied the conversation - a condition about\nwhat *else* was found. Expressing that with rule ids would make ids into control-flow targets and\nthe interpreter's execution history into something a rule can observe; keeping the readings inside\none rule keeps it a pure function of the span, with no global state and no cycles to worry about.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BranchSet"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "elements": {
+          "description": "Read an array-valued carrier element by element, in declared passes.\n\nPasses rather than per-element routing, because the order is observable: one dialect emits every\nrecognised event *before* any grouped block, so a single interleaved scan would return a different\nconversation. Declaring passes makes that ordering a statement rather than an artefact of how the\ncode happened to loop.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ElementsSpec"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "walk": {
+          "description": "Apply this rule's readings at every node of a bounded tree walk.\n\nOne dialect's carrier is a *state object* its nodes write into, so a conversation can sit at the top\nlevel, under one member, or nested a level or two down. Bounded on purpose - an explicit depth, and\nmembers already read at each node are pruned - because the point is to find a state member, not to\ntrawl a payload for anything message-shaped.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WalkSpec"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sections": {
+          "description": "Split a text carrier into tagged sections and route each by its tag.\n\nA general text-carrier capability, and one dialect needs it: a single attribute holds either side\nof a conversation, distinguished by a bracketed tag, and several sections joined by a separator -\none per parallel tool call. Each is read on its own so every result keeps its own id.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SectionsSpec"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "require_non_blank": {
+          "description": "Reject a carrier whose value is blank once trimmed.\n\nDistinct from `require_non_empty`, which rejects only the empty string: one dialect treats\nwhitespace as absence and another does not, and collapsing the two would change both.",
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
+        },
+        "require_non_empty": {
+          "description": "Skip a carrier whose value is empty.\n\nAn attribute present and empty is not evidence of a message, and wrapping it produces a turn with\nnothing in it - which the no-empty-content invariant then rejects downstream.",
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
+        },
+        "unless": {
+          "description": "A negative gate: the rule is skipped where this holds.\n\nSymmetric to `when`, and needed for a genuine either/or - a response is read from its text when it\nhas text, and from its tool calls only when it does not, or one response would be emitted twice.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DetectMatch"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "require_members": {
+          "description": "What an indexed entry must carry to count as one.\n\nAn index exists as soon as *any* key mentions it, and a family legitimately holds keys that are not\nmessages - so without this a request's settings each become a turn.\n\nEach member declares how its presence is decided, because the dialects genuinely differ and the\ndifference is observable: one writes `content` directly *and* `content.0.text`, so either proves it,\nwhile another writes `contents.0.type` and never a bare `contents`, so only a nested key does. A\nsingle rule for all of them would either miss entries or invent them.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MemberRequirements"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "legacy_rank": {
+          "description": "Position in the consulted order. See `MessagePlan` for why it is `legacy_`.\n\nRequired at the top level and **forbidden** inside a branch set: there the local order decides, so a\nrank would be a number that looks like it means something and does not.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int32",
+          "default": null
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ]
+    },
+    "MessageSource": {
+      "description": "Where a message rule reads from.\n\nExactly one variant, so a rule cannot half-declare both: an event rule has no stage (the event path runs\nevery rule that names the event, in rank order) and a span rule has no event names.",
+      "oneOf": [
+        {
+          "description": "A span's attributes, at the named stage.",
+          "type": "object",
+          "properties": {
+            "span": {
+              "$ref": "#/$defs/SpanSource"
+            }
+          },
+          "required": [
+            "span"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "description": "The attributes of any of the named events.",
+          "type": "object",
+          "properties": {
+            "event": {
+              "$ref": "#/$defs/EventSource"
+            }
+          },
+          "required": [
+            "event"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "SpanSource": {
+      "type": "object",
+      "properties": {
+        "stage": {
+          "description": "With the dialects, or only if none of them produced anything.",
+          "$ref": "#/$defs/MessageStage"
+        }
+      },
+      "additionalProperties": false
+    },
+    "MessageStage": {
+      "oneOf": [
+        {
+          "description": "With the dialects, in rank order. The ordinary case.",
+          "type": "string",
+          "const": "dialect"
+        },
+        {
+          "description": "Only if no dialect-stage rule produced a message or a claim.",
+          "type": "string",
+          "const": "fallback"
+        }
+      ]
+    },
+    "EventSource": {
+      "type": "object",
+      "properties": {
+        "names": {
+          "description": "The events this rule reads. An empty list is refused: it names nothing, and under the previous\nspelling it silently made the rule an ordinary span rule instead.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "names"
+      ]
+    },
+    "ReadSpec": {
+      "description": "The carrier a message rule reads: exactly one form, checked at compile time.\n\nOptional fields rather than a tagged enum, for the same reason the carrier match spec uses them: an\nexternally-tagged enum needs `{\"attribute\": {\"attribute\": \"k\"}}` in JSON, which is the shape nobody writes\nand serde rejects silently at the file level. Requiring exactly one is the check that makes this equivalent\nwhile staying readable.\n\nThere is deliberately **no `event` form**. One existed, was accepted by this schema, and was refused\nunconditionally by the compiler as unimplemented - so the format advertised four read forms and could\nexecute three. An author reading the schema as the format's reference was being told something untrue,\nwhich is worse than the missing capability: a span's *events* are routed to `MessagePlan::from_event`,\nwhere `when_event` selects the rule and the event's attributes are read exactly as a span's are. If a rule\never needs to read one event while running over a span, that is a new construct to design rather than a\nfield to un-refuse.",
+      "type": "object",
+      "properties": {
+        "attribute": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "first_present": {
+          "description": "Ordered carrier alternatives: **the first** of these the span carries is read, and the observation\nis tagged with that key.\n\nA dialect that renamed a key keeps accepting the old one, and the tag has to be the key actually\nfound or two spans carrying different spellings would be indistinguishable downstream.\n\nSpelled `first_present` rather than `attribute_any_of` because that name did not say **how many** of\nthe listed keys are read, and the answer depended on a *sibling* member: with `tool_repr` beside it,\nevery present key was read; without, only the first. So one syntax meant two things - for CrewAI's\n`[\"crew_agents\", \"crew_tasks\"]`, both or just the first - and which was decided somewhere else in the\nrule.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "each": {
+          "description": "**Every** one of these keys the span carries is read, each as its own observation.\n\nThe other half of the split above. A framework may write the same tools under several keys at\ndifferent richness, and each is its own observation - so all are read and the best copy per name wins\ndownstream, rather than the richest hiding behind whichever key was declared first.\n\nHonoured by `tool_repr` alone today, and a rule declaring it with any other body is **refused**\nrather than silently read as `first_present`. Generalising it - every body iterating its carriers -\nis the natural extension and is not what the corpus needs yet.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "indexed_family": {
+          "description": "An *indexed attribute family*: `<prefix>.0.role`, `<prefix>.0.content`, `<prefix>.1.role`, ...\n\nOne entry per index, each assembled from every key under it with the prefix stripped. This is an\nOpenTelemetry encoding - a list of objects flattened into dotted keys because attributes are a\nflat map - so reading it is a generic capability, not a producer's policy. The carrier each entry\nis tagged with is `<prefix>.<index>`, which is what makes two turns of one family distinguishable\ndownstream.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "entry_require": {
+          "description": "A predicate applied to each fully assembled indexed entry.\n\n`require_members` decides whether the flattened carrier contains enough physical members to form an\nentry. This is the semantic counterpart: it sees the resulting object and can keep only entries whose\nvalues mean something to this reading. One OpenInference integration, for example, writes framework\nbookkeeping beside actual conversation roles in the same family.\n\nOptional rather than an empty default so an explicitly empty predicate can be refused as a dead\ndeclaration. Absent means every entry that satisfies `require_members` is read.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PredicateSet"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "attribute_family": {
+          "description": "A **named** attribute family: every key under a root, each key's value one observation.\n\n`indexed_family`'s counterpart for a family whose members are *names* rather than indices -\n`acme.messages.a`, `acme.messages.b`. That was inexpressible: `indexed_family` requires a numeric\ncomponent and skips anything else, while `carriers` has had `attribute_family` all along, so the two\nhalves of the format disagreed about whether such a family exists.\n\nThe **order is declared**, and required, because there is no order to discover: extraction puts a\nspan's attributes in a `HashMap`, so producer order is gone by the time a rule reads them. An\nundeclared order would be the iteration order of a hash map - different per run, and the one thing a\nmessage sequence must not be.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttributeFamilySource"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "entry_member": {
+          "description": "A sub-level of each indexed entry whose members are read at the top of the object.\n\nOne dialect nests the message inside the entry - `<prefix>.0.message.role` - while also putting\nentry-level members beside it. Both are collected, the sub-level's names unprefixed and the rest as\nthey stand, and the observation is tagged with `<prefix>.<index>.<member>` because that is the\npayload it came from.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "numeric_members": {
+          "description": "Entry members to read as a number where the text is one.\n\nOTel attributes are strings, so a relevance score arrives as `\"0.9\"` - and a score is a number.\nNamed rather than sniffed, because a version, an id or a postcode is text that happens to parse.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "entry_value": {
+          "description": "Read one *value* out of each indexed entry, rather than the entry's assembled members.\n\nA family whose entries each hold a single serialised payload - one tool's JSON schema at\n`<prefix>.<n>.tool.json_schema` - is a list of those payloads, not a list of objects with a member\ncalled `tool`. The projection says which leaf is the datum.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "entry_value_parse": {
+          "description": "How the projected value is read. `json` **drops** an entry whose payload does not parse, which is\nwhat a schema that failed to parse always meant - an indexed member is otherwise sniffed, and a\nmalformed schema would be emitted as the string it is, reported as a tool definition.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ParseMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "overlay": {
+          "description": "A richer copy of these same messages, held by another carrier and matched by position.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OverlaySpec"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "PredicateSet": {
+      "description": "A set of value predicates, combined.\n\n`all` and `any` both, because the dialects need both and the difference is real: a request's message\nneeds a role *and* content, while a response may carry either a structured message *or* streamed text.",
+      "type": "object",
+      "properties": {
+        "all": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ValuePredicate"
+          }
+        },
+        "any": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ValuePredicate"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ValuePredicate": {
+      "description": "A condition on a JSON value, or on a member of it.\n\nOne vocabulary for every question the rules ask *about a value*: whether an alternative's shape holds,\nwhether a source is eligible, whether a section is dropped. Before this there were three bespoke\nspellings - a member-name list, an `is_object` flag, and a fused \"capture lacks prefix and body starts\nwith\" pair - and a fourth was about to be added for a dialect that needs \"this member is an object, or\nthat one is a non-empty string\". Three narrow predicates are harder to reason about than one, and the\nfused pair was producer policy wearing a generic name.\n\nDeliberately *not* used for attribute-key presence (`MemberRequirements`): that asks about a flat map of\ndotted keys, where \"nested\" means \"some other key starts with this one\". Same word, different domain -\nand one type spanning both would have to mean different things depending on where it was used.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "description": "Why this condition is the right one, where that is not obvious from the condition. A field rather\nthan a comment, as everywhere else here, because the explain trace surfaces it.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "path": {
+          "description": "A JSONPath to the value under test. Absent means the value itself.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "exists": {
+          "description": "The member must be present. Implied when the predicate names nothing else.",
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
+        },
+        "kind": {
+          "description": "The value's JSON kind.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ValueKind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "non_empty": {
+          "description": "A string, array or object must not be empty. Meaningless for other kinds, and refused there.",
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
+        },
+        "identifier_like": {
+          "description": "The value begins like an identifier - a letter, a digit or an underscore.\n\nGeneric in form, and declared per rule rather than folded into the tool-definition constructor: one\ndialect reports a synthetic aggregate under a name in parentheses, which is not a tool anyone can\ncall, while another dialect's carriers have never needed the test. Making it canonical would change\nwhat every other carrier accepts, silently.",
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
+        },
+        "not_null": {
+          "description": "The value is not JSON null. Distinct from `exists`, which a null member satisfies, and from\n`non_empty`, which is about a string, array or object having contents.",
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
+        },
+        "starts_with": {
+          "description": "A string must start with this.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "lacks_prefix": {
+          "description": "A string must *not* start with this.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "one_of": {
+          "description": "The value must be one of these strings. An absent member satisfies nothing.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "none_of": {
+          "description": "The value must not be any of these strings.\n\nAn **absent** member satisfies this: \"its value is not one of these\" is true when there is no value,\nwhich is how a dialect's unnamed events fall through to the reading that handles them.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "ValueKind": {
+      "description": "A JSON kind, for `ValuePredicate::kind`.",
+      "type": "string",
+      "enum": [
+        "object",
+        "array",
+        "string",
+        "number",
+        "bool",
+        "null"
+      ]
+    },
+    "AttributeFamilySource": {
+      "description": "A family of attributes under one root, read as one observation per member.",
+      "type": "object",
+      "properties": {
+        "root": {
+          "description": "The root. A key belongs to the family when it is `root` followed by `.` and a member name - the same\nrule `carriers`' `attribute_family` uses, so `acme.messages` does not claim `acme.messages_extra`.",
+          "type": "string"
+        },
+        "order": {
+          "description": "The order the members are read in.",
+          "$ref": "#/$defs/AttributeFamilyOrder"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "root",
+        "order"
+      ]
+    },
+    "AttributeFamilyOrder": {
+      "description": "The order a named family's members are read in.\n\nOne variant, and required rather than defaulted: the point of the member is that the order is a *statement*.\nA default would be the thing a reader assumes and the format would say nothing about it, which is how the\nanswer becomes a hash map's iteration order.",
+      "oneOf": [
+        {
+          "description": "Lexicographic by the member name. Deterministic, and the only order available - producer order is lost\nwhen the attributes become a map.",
+          "type": "string",
+          "const": "member_name"
+        }
+      ]
+    },
+    "ParseMode": {
+      "description": "How a raw attribute string becomes a value.",
+      "oneOf": [
+        {
+          "description": "Parse as JSON; skip the carrier entirely if it does not parse.",
+          "type": "string",
+          "const": "json"
+        },
+        {
+          "description": "Parse as JSON, keeping the raw text as a string if it does not parse.",
+          "type": "string",
+          "const": "json_or_string"
+        },
+        {
+          "description": "Parse as JSON, then parse any *string* member of the resulting array as JSON too.\n\nAn OTLP array attribute whose elements are each a serialised object arrives as an array of strings,\nbecause the attribute type has no nesting. Generic: the encoding is OTLP's, not a producer's.",
+          "type": "string",
+          "const": "stringified_array"
+        },
+        {
+          "description": "Parse a Python constructor `repr` into a JSON tree.\n\nThe accepted grammar is deliberately smaller than Python: constructor calls, JSON-shaped\ncontainers and scalars, and enum reprs. Constructor names and positional arguments remain explicit,\nso producer rules can select their own fields without putting class names in Rust.",
+          "type": "string",
+          "const": "python_constructor_repr"
+        },
+        {
+          "description": "Parse a JSON array whose every element is a Python constructor `repr`, each into a JSON tree.\n\nA serialised list of framework objects. All or nothing: an element that is not such a repr means the\ncarrier is some other shape, and it is left to the rules that read that shape.",
+          "type": "string",
+          "const": "python_constructor_repr_array"
+        },
+        {
+          "description": "Keep the raw text. Some carriers hold prose, and parsing it would turn a bare word into a\nnon-string or an accidental number into a number.",
+          "type": "string",
+          "const": "text"
+        }
+      ]
+    },
+    "OverlaySpec": {
+      "description": "Another carrier of the same span describing the same messages at higher fidelity.\n\nNot an enrichment of what some other reader produced - both carriers are attributes of one span, and\nthe join is positional: entry *n* of the family and member *n* of the other carrier's list are the\nsame message. A flattened family loses whole content blocks and redacts urls, while the serialised copy\nbeside it keeps them, so where both describe one message the richer one is preferred.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "from": {
+          "description": "The attribute holding the richer copy.",
+          "type": "string"
+        },
+        "parse": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ParseMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "select_any_of": {
+          "description": "Ordered paths to the counterpart list; the first that resolves to an array is used.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "unwrap_single_element_list": {
+          "description": "Unwrap a list of exactly one list. A serialiser that accepts a batch of conversations writes one\nconversation as a batch of one, and the members of *that* are the messages.\n\nExactly one, deliberately: a batch of two is two conversations, and joining a family by position\nagainst the first of them would attribute one conversation's content to another's messages.",
+          "type": "boolean",
+          "default": false
+        },
+        "witness": {
+          "description": "What the list must look like to be this dialect's own serialisation. Without it, any array of\nobjects at that path would be treated as the same messages.",
+          "$ref": "#/$defs/PredicateSet"
+        },
+        "when_member_prefix": {
+          "description": "Only entries carrying members under this prefix are overlaid - the flattened form of the content\nthat is known to be lossy.",
+          "type": "string"
+        },
+        "content_any_of": {
+          "description": "Ordered paths to the counterpart's content.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "require": {
+          "description": "What that content must be for the overlay to be an improvement.",
+          "$ref": "#/$defs/PredicateSet"
+        },
+        "as_member": {
+          "description": "The member the content becomes, replacing every member under `when_member_prefix`.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "select_any_of",
+        "when_member_prefix",
+        "content_any_of",
+        "as_member"
+      ]
+    },
+    "ComposeSpec": {
+      "description": "A message assembled from several attributes of one span.",
+      "type": "object",
+      "properties": {
+        "tag": {
+          "description": "The carrier the assembled message is tagged with.",
+          "type": "string"
+        },
+        "members": {
+          "description": "The members, in the order they are inserted - which is observable, since content identity is\nhashed from the payload.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComposeMember"
+          }
+        },
+        "require": {
+          "description": "A condition on the **assembled** object, checked before it is emitted.\n\nThe mirror of `require_after` on an envelope, and needed for the same reason: some shapes can only be\njudged once the members are together - whether the name a dialect reported is a tool anyone could\ncall, for instance.",
+          "$ref": "#/$defs/PredicateSet"
+        },
+        "as_tool_definition": {
+          "description": "Emit the assembled object as a canonical **tool definition** rather than as a message.\n\nA dialect that reports one tool per span writes its name, documentation and parameter schema as\nthree separate attributes. Assembling them is what `compose` does; the shape they become -\n`[{type: \"function\", function: {…}}]` - is a canonical target, so it lives here and only the sources\nare rule data.",
+          "type": "boolean",
+          "default": false
+        },
+        "trailing": {
+          "description": "Literal members added *after* every source member.\n\nPosition matters and this is why it is a separate field: the code being replaced inserts the role\nlast, after everything it collected, so a payload built role-first would be stored with different\nbytes - which changes the reconstruction cache digest, though not the normalised content hash.",
+          "type": "object",
+          "additionalProperties": true,
+          "default": {}
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "tag",
+        "members"
+      ]
+    },
+    "ComposeMember": {
+      "description": "One member of a composed message: a named source, or a sweep of a prefix.",
+      "type": "object",
+      "properties": {
+        "as": {
+          "description": "The member's name. Absent for a sweep, which takes its names from the keys it finds.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "from_any_of": {
+          "description": "Ordered sources; the first the span carries wins.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "parse": {
+          "description": "How to read it. Defaults to text.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ParseMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fallback": {
+          "description": "A last-resort source, used only where the gate holds.\n\nSeparate from `from_any_of` because it is *conditional*: this key is not the dialect's own, so\nreading it unguarded would claim a generic carrier that belongs to whatever wrote it.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComposeFallback"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sweep_prefix": {
+          "description": "Collect every attribute under this prefix, keyed by the remainder.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "except": {
+          "description": "Names the sweep skips, because a named member above already read them.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "ComposeFallback": {
+      "description": "A conditional last-resort source.",
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "when": {
+          "description": "The evidence required before the fallback is read.",
+          "$ref": "#/$defs/DetectMatch"
+        },
+        "parse": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ParseMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "when"
+      ]
+    },
+    "ToolReprSpec": {
+      "description": "Tool definitions a carrier holds as a language's `repr` rather than as JSON.\n\nThe grammar is sealed in `rules::tool_repr` because it is a property of the *language*. Everything a\nparticular framework calls its own - which member holds the tools, which repr fields name them, which\nlabels its embedded documentation uses, how its type names map to JSON Schema's - is here, because\nthat is its vocabulary and not a fact about Python.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "entries": {
+          "description": "The carrier's entries. One entry at a time, so two entries each holding a list interleave as the\npayload has them rather than by path - which is what keeps the reported order the framework's own.",
+          "type": "string"
+        },
+        "candidates": {
+          "description": "Where an entry holds tools, in order. Each resolved value is tried as a tool definition.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "name_field": {
+          "description": "The repr fields naming a tool and its documentation - `name='search'`.",
+          "type": "string"
+        },
+        "description_field": {
+          "type": "string"
+        },
+        "name_label": {
+          "description": "The labels the embedded documentation uses.",
+          "type": "string"
+        },
+        "description_label": {
+          "type": "string"
+        },
+        "arguments_label": {
+          "type": "string"
+        },
+        "repr_markers": {
+          "description": "What makes a string a `repr` rather than a bare tool name. Without these a name containing a space\nwould be parsed as a repr and yield nothing.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "parameter_members": {
+          "description": "Where a tool object states its parameters, in order.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "field_terminators": {
+          "description": "The repr fields that may follow a loosely-quoted one. Their appearance is where that value ends.\n\nA single-quoted value holding a dict repr contains unescaped single quotes, so its closing quote\ncannot be found by scanning - the value runs either to the `')` that closes the constructor or to\nthe next field. Which fields those are is the framework's vocabulary, not the language's.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "type_map": {
+          "description": "The language's type names, mapped to JSON Schema's. Compared case-insensitively, and ordered\nbecause the first match wins.",
+          "type": "array",
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "minItems": 2,
+            "maxItems": 2
+          }
+        },
+        "type_default": {
+          "description": "What an argument whose type name the map does not hold becomes.\n\nA tool whose argument type is unrecognised is still a tool, so the definition is reported rather than\ndropped - but *how* it is reported was described as \"the widest type\" and was `\"string\"`, which is the\nopposite: a schema saying `type: string` **rejects** a number. An unconstrained schema has no `type` at\nall, and `Unconstrained` is that.",
+          "$ref": "#/$defs/UnknownType"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "entries",
+        "candidates",
+        "name_field",
+        "description_field",
+        "name_label",
+        "description_label",
+        "arguments_label",
+        "repr_markers",
+        "parameter_members",
+        "type_map",
+        "type_default"
+      ]
+    },
+    "UnknownType": {
+      "description": "What an argument type the map does not name becomes.",
+      "oneOf": [
+        {
+          "description": "No `type` member at all, which is what \"the widest type\" means in JSON Schema - it constrains nothing.",
+          "type": "string",
+          "const": "unconstrained"
+        },
+        {
+          "description": "A named JSON Schema primitive, for a producer whose unrecognised names really are one kind of thing.\nValidated against the primitives, so a typo is not a schema every reader ignores.",
+          "type": "object",
+          "properties": {
+            "map_to": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "map_to"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "WrapSpec": {
+      "description": "The envelope a bare payload is wrapped in.\n\nSome carriers hold a payload rather than a message - a tool's arguments, an instruction, a response's\ntext - and what that payload *is* is a fact about the carrier, so the envelope is declared beside it.",
+      "type": "object",
+      "properties": {
+        "role": {
+          "description": "A literal role. One of this and `role_from` is required.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "role_from": {
+          "description": "A JSONPath whose value is the role, relative to the reading being wrapped.\n\nSeveral dialects put the role *in* the payload - Gemini's `{parts, role}` is the clearest case - so\na literal here would either be wrong or need one rule per role.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "role_map": {
+          "description": "Rename a role the payload supplied.\n\nA provider's own vocabulary: one calls the assistant `model`, and normalising that here keeps the\nalias beside the dialect that uses it rather than in a shared table nothing points at.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {}
+        },
+        "role_map_is_closed": {
+          "description": "Treat `role_map` as the complete list: a value not in it falls back to `role` rather than being used\nas a role itself.\n\nOne dialect names the *speaker* where another names the role - `source: \"planner\"` means an\nassistant, not a role called `planner` - so which of the two a member is has to be declared.",
+          "type": "boolean",
+          "default": false
+        },
+        "content_from_any_of": {
+          "description": "Ordered paths for the content; the first that resolves wins.\n\nOne dialect serialises a message three ways depending on how it was constructed, and the content sits\nin a different member each time - so a single path reads two of the three as empty.\n\n**One list, not a singular member beside it.** `content_from` was a second spelling of exactly this\nquestion - the runtime simply prepended it to this list - so a rule could state its content source\ntwice, in two members, with the ordering between them implicit in the code rather than in the\ndeclaration. The 16 singular uses are now one-element lists.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "content_default": {
+          "description": "The content when none of the paths above resolve. Absent means the reading is not this shape.\n\nAn explicit `null` is a default of JSON null, not the absence of one: a dialect reports a tool that\nreturned nothing that way, and the two readings differ.",
+          "default": null
+        },
+        "content_as": {
+          "description": "The member the read value becomes. Defaults to `content`.\n\nNot always content: a response carrying only tool calls has no content, and putting the calls\nunder `content` would render them as the assistant's prose.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "members": {
+          "description": "Literal members added to the envelope.",
+          "type": "object",
+          "additionalProperties": true,
+          "default": {}
+        },
+        "attach": {
+          "description": "Members taken from *other* attributes of the same span.\n\nA dialect writes one logical message across several attributes - the arguments here, the tool's\nname and call id there - and which attribute holds which part is exactly the knowledge that\nbelongs in an asset.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AttachSpec"
+          }
+        },
+        "prepend_block": {
+          "description": "Build a block from another member and put it **before** the content.\n\nOne dialect reports a model's reasoning in a sibling member of its reply, and the canonical form is a\nthinking block ahead of the text - so the two become one content list rather than two messages.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrependSpec"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tool_calls_from": {
+          "description": "Build the canonical tool-call list from an array of the dialect's own calls.\n\nA *typed* constructor for a canonical target, not a general object builder: the shape is\n`{id, type: \"function\", function: {name, arguments}}` and only the sources are rule data. Arguments\narrive as a serialised JSON string as often as an object, so parsing them is declared here rather\nthan left to whoever reads the payload later.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolCallsSpec"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tool_call_from": {
+          "description": "Build a **single** tool call at a named member, as `{name, arguments}`.\n\nThe normaliser already unwraps a `tool_call` member (`sideml/tools.rs`), so this is a canonical\ntarget like the list above rather than a general object builder.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SingleToolCallSpec"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "require_after": {
+          "description": "A condition on the **constructed** message, checked after the envelope is built.\n\nSome shapes can only be judged once assembled: one dialect's tool result is worth keeping if it\nended up with a name, a call id or content, and the call id may have come from the element or from\nits parent - so the question cannot be asked of either alone.",
+          "$ref": "#/$defs/PredicateSet"
+        },
+        "only_plain_data": {
+          "description": "Wrap only where the value is not already message-shaped.\n\nA generic carrier holds either a message or bare data: `output.value = \"the answer\"` is the answer,\nand `output.value = {\"role\": …}` is already a message. Wrapping the second buries the conversation a\nlevel down; not wrapping the first loses it entirely, because normalisation looks for `role` on a\nstring and finds nothing.",
+          "type": "boolean",
+          "default": false
+        },
+        "block": {
+          "description": "Wrap the value in a *content block* first, and make that block the message's only content.\n\nA tool call is not a bare object under a role: it is a `tool_use` block, and the block shape is\nwhat carries the name and the id through normalisation. Emitting the arguments without them\nproduced a nameless call the pipeline then discarded - extracted and *then* dropped, which is\nworse than not reading it, because every layer looked fine.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BlockSpec"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "AttachSpec": {
+      "description": "One member taken from a sibling attribute.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "description": "Why this member is taken from where it is, where that is not obvious. A field rather than a comment,\nas everywhere else here, because the explain trace surfaces it.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "from": {
+          "description": "The attribute to read. One of this and `from_path` is required.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "from_value_any_of": {
+          "description": "Ordered paths into the value being wrapped; the first that resolves wins.\n\nThe same serialisation variance as the content: a member may sit at the top level or under the\nwrapper a serialiser added.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "require": {
+          "description": "The attached value must satisfy this, or the member is left off.\n\nAn empty list is not a set of tool calls, and attaching one makes a plain reply look like a call.",
+          "$ref": "#/$defs/PredicateSet"
+        },
+        "from_path": {
+          "description": "A path into the rule's *own parsed payload*, rather than a sibling attribute.\n\nRelative to the whole payload, deliberately: a dialect reports why a turn stopped beside the\ncontent rather than inside it, so the member being attached sits outside the part being wrapped.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "lowercase": {
+          "description": "Lower-case the attached string.\n\nA provider writes finish reasons in upper case and the canonical form is lower; declared because\nlower-casing a payload that is meant to be verbatim would change it.",
+          "type": "boolean",
+          "default": false
+        },
+        "as": {
+          "description": "The member it becomes.",
+          "type": "string"
+        },
+        "parse": {
+          "description": "How to read it. Defaults to text.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ParseMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "select": {
+          "description": "The member of the parsed `from` attribute to attach, rather than the whole value.\n\nAn attribute may hold a structure of which one member is the fact: one tracer writes a span's\nancestry as an array of ids, ending with the span's own, and that last id is what tells two\nidentical tool executions apart. Requires `from` and a JSON parse; a path that resolves nothing\nfalls through to the span name and the default, like an absent attribute.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "when_equals": {
+          "description": "Attach only when the source attribute equals this exactly.\n\nHow a boolean flag arrives: an attribute whose string is `\"true\"`. Without the comparison the\nliteral `\"false\"` would attach as a truthy value.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "value": {
+          "description": "The literal to attach instead of the source's value, for a flag - or on its own, for a member that\nis part of the shape rather than something read.\n\nAn explicit `null` is a value: a content block declares an unsigned signature that way, and the\nmember has to be present rather than omitted.",
+          "default": null
+        },
+        "blank_is_absent": {
+          "description": "Treat a blank value as absent, so the fallbacks below apply.",
+          "type": "boolean",
+          "default": false
+        },
+        "strip_bracket_tag": {
+          "description": "Remove a leading `[TAG]\\n` marker before parsing.\n\nOne dialect tags a structured payload with the tool it belongs to and then writes the JSON beneath\nit; parsing without stripping fails, and the member would silently fall back to its default.",
+          "type": "boolean",
+          "default": false
+        },
+        "or_span_name_after": {
+          "description": "Fall back to the span name with this prefix removed, trimmed, when the other sources are absent.\n\nThe conventions prescribe `execute_tool {name}` as a tool span's name, so a producer that omits\nthe attribute still names the tool - and an unnamed call is unusable downstream. An empty prefix\ndeliberately uses the complete span name for exporters that name a tool span exactly after the tool.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "default": {
+          "description": "Attach this literal when nothing else supplied a value.\n\nDistinct from omitting the member: a block whose shape *requires* a name carries an empty one\nrather than none, and the two are different values to anything hashing the payload.",
+          "default": null
+        },
+        "after_content": {
+          "description": "Place this member *after* the content member rather than before it.\n\nMember order is declared because it is *observable*: this map preserves insertion order and the\nmessage is stored as serialised JSON, so moving a member changes the persisted bytes and with them\nthe reconstruction cache digest. It does **not** change the normalised content hash - the feed sorts\nobject keys before hashing - so this is about reproducing what was stored, not about identity. The\norders here are what the extractors emitted, which is why they are stated rather than chosen.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "as"
+      ]
+    },
+    "PrependSpec": {
+      "description": "A block built from another member of the same value, placed before the content.",
+      "type": "object",
+      "properties": {
+        "from": {
+          "description": "Where the block's content is, relative to the value being wrapped. Absent means no block is added,\nwhich is the ordinary case for a dialect that reports reasoning only sometimes.",
+          "type": "string"
+        },
+        "require": {
+          "description": "A condition on the value found there. A dialect writes this member as `null` when there was no\nreasoning, and a null is not a thought.",
+          "$ref": "#/$defs/PredicateSet"
+        },
+        "block": {
+          "description": "The block to build. Nested rather than flattened into this object: serde does not support `flatten`\nbeside `deny_unknown_fields`, so a flattened block made key refusal depend on serde's buffering.",
+          "$ref": "#/$defs/BlockSpec"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "block"
+      ]
+    },
+    "BlockSpec": {
+      "description": "A content block built around the read value.",
+      "type": "object",
+      "properties": {
+        "type": {
+          "description": "The block's `type` member - `tool_use`, `tool_result`.",
+          "type": "string"
+        },
+        "content_as": {
+          "description": "The member the read value becomes inside the block. Defaults to `content`.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "attach": {
+          "description": "Members taken from sibling attributes, as on the envelope.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AttachSpec"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ]
+    },
+    "ToolCallsSpec": {
+      "description": "The canonical tool-call list, built from a dialect's own array of calls.",
+      "type": "object",
+      "properties": {
+        "select": {
+          "description": "The array of calls, relative to the value being wrapped.",
+          "type": "string"
+        },
+        "id": {
+          "description": "Where each call's id, name and arguments are.",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "arguments": {
+          "type": "string"
+        },
+        "on_invalid_item": {
+          "description": "What to do with a call that has no id or no name.\n\n**Required**, because it was hardcoded twice over - \"an id is mandatory\" and \"skip the invalid item\" -\nand neither is right for every producer. AutoGen's rule admits a list where *at least one* member has an\nid and a name; the constructor then dropped the others silently, so a response that called two tools\nshowed one. Skipping may be right for a producer that logs partial calls; failing the message is right\nfor one where a dropped call means the answer is not what the model did.",
+          "$ref": "#/$defs/InvalidItem"
+        },
+        "as_member": {
+          "description": "The member the list becomes. Defaults to `tool_calls`.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "select",
+        "id",
+        "name",
+        "arguments",
+        "on_invalid_item"
+      ]
+    },
+    "InvalidItem": {
+      "description": "What a tool-call list does with a member it cannot build.",
+      "oneOf": [
+        {
+          "description": "Leave it out and keep the rest. Reported either way - a dropped call is a producer defect, not a\ndetail of the loop that read it.",
+          "type": "string",
+          "const": "skip"
+        },
+        {
+          "description": "The whole construction is malformed, so the coalesce moves on to the next shape and the rule's\n`fallback` gets its turn. Right where a missing call means the message misdescribes what happened.",
+          "type": "string",
+          "const": "fail_message"
+        }
+      ]
+    },
+    "SingleToolCallSpec": {
+      "description": "One tool call at a named member, as the normaliser's `{name, arguments}` convention.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "name_default": {
+          "description": "The name used when the path resolves to nothing. A call this dialect logged without one still\nhappened, so it is reported rather than dropped.",
+          "default": null
+        },
+        "arguments": {
+          "type": "string"
+        },
+        "as_member": {
+          "description": "The member the call becomes. Defaults to `tool_call`.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "arguments_default": {
+          "description": "The value used when `arguments` resolves to nothing.",
+          "default": null
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "arguments"
+      ]
+    },
+    "EmitTarget": {
+      "description": "What an emitted observation is.",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "message",
+            "tool_definitions"
+          ]
+        },
+        {
+          "description": "A list of tool *names*, as opposed to their definitions. A framework that reports only the names\nhas said which tools were available, not what they take.",
+          "type": "string",
+          "const": "tool_names"
+        },
+        {
+          "description": "The carrier is claimed and nothing is read from it.\n\nA real shape, not a loophole: one dialect's agent spans aggregate what their children already\nreported, and their `input.value` is a Python `repr` of framework internals. Claiming says \"this is\nmine and holds no message\", which stops a generic reader from presenting that text as a\nconversation - and saying it in a rule is what keeps the decision out of the code.",
+          "type": "string",
+          "const": "claim"
+        }
+      ]
+    },
+    "InstrumentationScopeMatch": {
+      "description": "One OpenTelemetry instrumentation scope accepted by a message rule.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Exact scope name. Empty names are refused when the rule is compiled.",
+          "type": "string"
+        },
+        "version_prefix": {
+          "description": "Optional version prefix for producer changes that preserve the scope name.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "Alternative": {
+      "description": "One documented shape of a payload: where to look, what to require, and what to carry down.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "This clause's own name, unique within the rule or fragment that holds it.\n\nRequired, because an emission has to be able to say **which** clause answered. Before this, a rule with\nfour readings reported only the rule's id: a direct shape and a shape reached through a fragment were\nindistinguishable in a diagnostic, and `doc` was being used as a stand-in for an identity.\n\nRequired rather than optional-with-a-derived-fallback, which was considered and is the worst of the\nthree: adding an id later would *change* the clause's identity, a positional edit would change every\nidentity after it, and nothing could safely reference one.",
+          "type": "string"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "select": {
+          "description": "An RFC 9535 JSONPath into the parsed value. Absent means the value itself.\n\nA standard query rather than a hand-rolled path syntax - `$.tasks_output[*].messages[*]` reads every\nturn of every task, and `$['event.name']` reads a member whose name contains a dot, which is where\nthe hand-built resolver had a bug. Compiled when the asset loads, so a malformed path is a startup\nerror naming its file rather than a query that silently finds nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "each": {
+          "description": "Treat the selected value as a list and read each element.",
+          "type": "boolean",
+          "default": false
+        },
+        "descend": {
+          "description": "After selecting an element, descend to this member - `choices[].message`.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "lift": {
+          "description": "Members copied into the value being emitted, from the element or from the value it was selected out of.\n\n**One primitive with a declared conflict policy**, where there were two members with opposite and\nunstated ones: `lift` overwrote the target's member and `lift_from_parent` preserved it, and neither the\nnames nor `lift`'s own documentation said so. A payload carrying `finish_reason` outside a message *and*\ninside it therefore got the outer value under one member name and the inner under the other, decided by\nwhich member an asset happened to use.\n\nThe source is a real distinction and stays: `element` is the value the selection landed on, `parent` the\nvalue it came out of. The policy is now a statement rather than a consequence of that choice.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LiftSpec"
+          }
+        },
+        "require_parent": {
+          "description": "A condition on the value this selection came from, rather than on the selected element.\n\nWhat a batch of tool results *is* is stated on the message enclosing them - its type - while the\nreading is one message per element, so the discriminator and the selection sit at different levels.",
+          "$ref": "#/$defs/PredicateSet"
+        },
+        "require": {
+          "description": "The shape an observation must have to be emitted.\n\nA predicate set, so \"has a role and content\", \"is an object\" and \"is a non-empty string\" are one\nvocabulary rather than three fields that grew one at a time.",
+          "$ref": "#/$defs/PredicateSet"
+        },
+        "wrap": {
+          "description": "An envelope for *this* reading only.\n\nOne reading of a payload may be a bare value needing a role while its siblings are already\nmessages - a dialect's answer sits in a string member beside a list of turns. Overrides the rule's\nown `wrap` where present.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WrapSpec"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "trim": {
+          "description": "Trim a string before testing and emitting it.\n\nDeclared rather than always-on: trimming a payload that is meant to be verbatim would change it.",
+          "type": "boolean",
+          "default": false
+        },
+        "then_fragment": {
+          "description": "Apply this named fragment's cases to each selected element.\n\nThe fragment decides what the element *is*; this reading decides *where to look*. Splitting them is\nthe point: one dialect's state object holds its messages in four places and recognises them one way.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "emit": {
+          "description": "What this reading is, where it differs from the rule's own target.\n\nA logged model call carries its conversation and the tools it was offered in one carrier, and they\nare not the same kind of thing - so the target belongs to the reading, not only to the rule.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EmitTarget"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "extra_cases": {
+          "description": "Shapes recognised at *this* selection point only, tried after the shared fragment's own cases.\n\nA shared table says what a message looks like in a dialect; a particular place that dialect writes\nmessages may accept one shape more loosely than the rest - a bare `{content}` passed through where\nthe table would refuse it. Putting that in the table would loosen every other point that reads it.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Alternative"
+          }
+        },
+        "then_any_of": {
+          "description": "For each selected element, the first of these paths that resolves.\n\nPer *element*, which is the point: one dialect's tool groups each either wrap their declarations\nunder one of two spellings or are a declaration themselves, and deciding once for the whole array\nwould drop the odd group out.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "then_present_any_of": {
+          "description": "Like `then_any_of`, but chosen by the member being **present** rather than by its yielding anything.\n\nThe difference is load-bearing where a wrapper may legitimately be empty: a dialect that writes\n`function_declarations: []` has declared no tools, and picking \"the first path that yielded\nsomething\" skips the present-but-empty member and falls through to emitting the wrapper itself as a\ntool. Presence also settles which of two spellings wins when both appear.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "else_element": {
+          "description": "Fall back to the element itself when none of `then_any_of` resolved.\n\nOne answer for two different situations, which is what `on_absent` / `on_malformed` replace for the\n*presence* coalesce: a member that is absent and a member that is present and wrong-typed both fell here.\nKept for `then_any_of`, whose coalesce is by yielding and has no third state to tell apart.",
+          "type": "boolean",
+          "default": false
+        },
+        "on_absent": {
+          "description": "What a **presence** coalesce does when none of its paths named anything.\n\nOnly meaningful beside `then_present_any_of`, and refused elsewhere: a yielding coalesce has one\nnot-found state, so `else_element` says everything there is to say about it.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PresenceFallback"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "on_malformed": {
+          "description": "What it does when a path named something **present and of the wrong shape**.\n\nThe case `else_element` could not express. A wrapper member is a list of declarations, so\n`{\"function_declarations\": {\"name\": \"weather\"}}` has not declared its contents - and treating that as the\nmember being *absent* sent it to the element fallback, which emits the whole wrapper as a tool\ndefinition. Keep the recovery because the enclosing object independently describes a valid bare tool,\nand **report** the malformed member rather than pretending nobody wrote it.\n\nAlso: once presence has selected a representation, a *later* spelling is not tried. Presence chose;\nfalling through to the next path would answer from a representation the producer did not use.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PresenceFallback"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "collect_members": {
+          "description": "Rebuild the candidate object from its members named `prefix` + *name* + `suffix`, as `{name: value}`.\n\nAn object's member names can encode a structure the way an indexed attribute family encodes a\nlist: one instrumentation writes a call's arguments as `<prefix><name>.value` beside\n`<prefix><name>.type`, so the arguments are the members a pattern picks out, not the object.\nA candidate with no matching member is not this shape, and the reading moves on.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CollectMembers"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ]
+    },
+    "LiftSpec": {
+      "description": "Members copied into an emitted value, and what happens where the target already has one.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "from": {
+          "description": "Where the members are read from.",
+          "$ref": "#/$defs/LiftSource"
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "on_conflict": {
+          "description": "What to do where the target already carries the member. Required: this was the difference between the\ntwo members that preceded it, and it was stated nowhere.",
+          "$ref": "#/$defs/LiftConflict"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "members",
+        "on_conflict"
+      ]
+    },
+    "LiftSource": {
+      "description": "Which value a lift reads from.",
+      "oneOf": [
+        {
+          "description": "The value the selection landed on - used with `descend`, where the members sit beside the message.",
+          "type": "string",
+          "const": "element"
+        },
+        {
+          "description": "The value the selection came out of, for a fact stated once for a batch.",
+          "type": "string",
+          "const": "parent"
+        }
+      ]
+    },
+    "LiftConflict": {
+      "description": "What a lift does where the target already carries the member.",
+      "oneOf": [
+        {
+          "description": "The target's own value wins: the lifted one is a fallback.",
+          "type": "string",
+          "const": "keep_target"
+        },
+        {
+          "description": "The lifted value wins.",
+          "type": "string",
+          "const": "replace_target"
+        }
+      ]
+    },
+    "PresenceFallback": {
+      "description": "What a presence coalesce falls back to.",
+      "oneOf": [
+        {
+          "description": "The element itself is the contents.",
+          "type": "string",
+          "const": "element"
+        },
+        {
+          "description": "Nothing: this element is not the shape, and the reading moves on.",
+          "type": "string",
+          "const": "nothing"
+        }
+      ]
+    },
+    "CollectMembers": {
+      "description": "The member-name pattern of [`Alternative::collect_members`].",
+      "type": "object",
+      "properties": {
+        "prefix": {
+          "type": "string"
+        },
+        "suffix": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "prefix",
+        "suffix"
+      ]
+    },
+    "BranchSet": {
+      "description": "Several readings of one span with a local order between them.\n\nEvaluated as: every `primary`; then, only if those produced nothing, every\n`fallback_if_primary_empty`; then every `always`, whatever happened. Nesting is refused - a branch set\ninside a branch set would be a control structure rather than a declaration.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "primary": {
+          "description": "The readings that normally supply the conversation.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MessageRule"
+          }
+        },
+        "fallback_if_primary_empty": {
+          "description": "Read only when every `primary` reading came up empty.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MessageRule"
+          }
+        },
+        "always": {
+          "description": "Read whatever the others did.\n\nThe asymmetry is deliberate for at least one dialect: its *answer* must be read even when the\nrequest side was already found, because one gate covering both is what dropped the answer.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MessageRule"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "primary"
+      ]
+    },
+    "ElementsSpec": {
+      "description": "An array-valued carrier read element by element.",
+      "type": "object",
+      "properties": {
+        "tags_are_events": {
+          "description": "The emitted carriers are *events*, not attributes.\n\nA real distinction, not bookkeeping: carrier semantics are declared per carrier and looked up by\nwhich kind it is, so an event reported as an attribute gets a different reading of what it is\nevidence of. These elements *are* events - the dialect packs them into one attribute because\nattributes are all it has.",
+          "type": "boolean",
+          "default": false
+        },
+        "select": {
+          "description": "A JSONPath to the array. Absent means the parsed value itself.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "passes": {
+          "description": "Passes over the elements, in order. Each scans every element.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ElementPass"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "passes"
+      ]
+    },
+    "ElementPass": {
+      "description": "One pass over the elements.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "This clause's own name, unique within the rule or fragment that holds it.\n\nRequired, because an emission has to be able to say **which** clause answered. Before this, a rule with\nfour readings reported only the rule's id: a direct shape and a shape reached through a fragment were\nindistinguishable in a diagnostic, and `doc` was being used as a stand-in for an identity.\n\nRequired rather than optional-with-a-derived-fallback, which was considered and is the worst of the\nthree: adding an id later would *change* the clause's identity, a positional edit would change every\nidentity after it, and nothing could safely reference one.",
+          "type": "string"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "when": {
+          "description": "Which elements this pass reads.",
+          "$ref": "#/$defs/PredicateSet"
+        },
+        "tag_from": {
+          "description": "Emit the element itself, tagged with the value at this path.\n\nA carrier named by the *data* rather than by the rule: these elements are events, and an event's\nname is what downstream keys role derivation and ordering on, so tagging them all alike would erase\nthe distinction the payload carries.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "group": {
+          "description": "Instead of emitting each element, group runs of them and emit one message per run.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GroupSpec"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ]
+    },
+    "GroupSpec": {
+      "description": "Runs of consecutive elements collapsed into one message.\n\nBounded: one pass, no recursion, and a run ends as soon as the derived key changes.",
+      "type": "object",
+      "properties": {
+        "by": {
+          "description": "A decision table deriving the run key from an element - the first matching case wins, and an element\nmatching none is skipped.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DerivedCase"
+          }
+        },
+        "collect": {
+          "description": "The part of each element collected into the message's content.\n\nOne dialect's blocks carry the real content in a member and a human-readable summary beside it, so\nwhich part is collected is a fact about the payload rather than a default.",
+          "type": "string"
+        },
+        "key_as": {
+          "description": "The member the derived key becomes on the emitted message.",
+          "type": "string"
+        },
+        "tag_by_key": {
+          "description": "The carrier each derived key is tagged with.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "by",
+        "collect",
+        "key_as",
+        "tag_by_key"
+      ]
+    },
+    "DerivedCase": {
+      "description": "One case of a decision table: a condition, and the value it yields.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "This clause's own name, unique within the rule or fragment that holds it.\n\nRequired, because an emission has to be able to say **which** clause answered. Before this, a rule with\nfour readings reported only the rule's id: a direct shape and a shape reached through a fragment were\nindistinguishable in a diagnostic, and `doc` was being used as a stand-in for an identity.\n\nRequired rather than optional-with-a-derived-fallback, which was considered and is the worst of the\nthree: adding an id later would *change* the clause's identity, a positional edit would change every\nidentity after it, and nothing could safely reference one.",
+          "type": "string"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "when": {
+          "$ref": "#/$defs/PredicateSet"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "when",
+        "value"
+      ]
+    },
+    "WalkSpec": {
+      "description": "A bounded walk over a state object.",
+      "type": "object",
+      "properties": {
+        "max_depth": {
+          "description": "How many levels below the carrier to descend. Zero means the carrier itself only.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "prune": {
+          "description": "Members not descended into, **because a named clause took them here**.\n\nThis was a list of member *names*, pruned globally and unconditionally - and the justification for that\n(the readings already took the member) is a statement about a node where a reading actually fired. Where\nnone did, the name alone stopped the traversal: `{\"messages\": {\"nested\": {\"deeper\": <a message>}}}` lost\nthe nested message because the key is called `messages`, not because anything read it.\n\nSo each entry names the clause whose recognition justifies the prune. Conditional rather than an honest\nunconditional `skip_members`, because for the shipped walks the condition is the true statement: descend\nunless the member was consumed.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PruneSpec"
+          }
+        },
+        "stop_on": {
+          "description": "Stop descending below a node **one of these clauses recognised**, naming them by id.\n\nA message's own members are its content, not more state, so descending into one would read its parts as\nthough they were turns. But \"was this node a message\" is a question about *which* clause answered, and\nthe boolean this replaces asked a wider one: \"did anything get selected here\". LangGraph's `also_3`\nselects every state member, so at a node holding `{\"direct\": <a message>, \"nested\": {\"messages\": […]}}`\nthe root counted as matched and the walk stopped - losing `nested`'s messages. The root was not a\nmessage; one of its children was.\n\nIds rather than a predicate, deliberately: a predicate here would restate the clause's own recognition\nlogic, and then two declarations would decide one question.\n\n**The shipped LangGraph walks name every clause**, which is what the boolean meant, and narrowing them to\nthe one clause that reads a node as a single message is the semantic fix - deferred, and this is why: it\nmakes the walk descend where it used to stop, and the blocks it then finds trip the carrier-subsequence\ninvariant on `langgraph/image_gen`. Traversal positions are assigned *after* extraction, in emission\norder, so a walk's discovery order and the payload's member order are reconciled nowhere. Naming the\nclauses is worth landing on its own: the format now states what the walk stops on rather than implying\n\"anything\", which is what made the wider reading invisible.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "max_depth"
+      ]
+    },
+    "PruneSpec": {
+      "description": "A member the walk does not descend into, and the clause whose reading justifies that.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "member": {
+          "description": "The member name.",
+          "type": "string"
+        },
+        "taken_by": {
+          "description": "The clause that consumes it. The member is skipped only at a node where that clause recognised\nsomething - elsewhere its contents have been read by nothing and are still worth visiting.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "member",
+        "taken_by"
+      ]
+    },
+    "SectionsSpec": {
+      "description": "A text carrier read as tagged sections.",
+      "type": "object",
+      "properties": {
+        "split_on": {
+          "description": "The separator between sections.",
+          "type": "string"
+        },
+        "routes": {
+          "description": "Routes, tried in order; the first whose tag matches wins, and a route with no `tag_prefix` is the\ndefault.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SectionRoute"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "split_on",
+        "routes"
+      ]
+    },
+    "SectionRoute": {
+      "description": "What to do with a section whose tag matches.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "This clause's own name, unique within the rule or fragment that holds it.\n\nRequired, because an emission has to be able to say **which** clause answered. Before this, a rule with\nfour readings reported only the rule's id: a direct shape and a shape reached through a fragment were\nindistinguishable in a diagnostic, and `doc` was being used as a stand-in for an identity.\n\nRequired rather than optional-with-a-derived-fallback, which was considered and is the worst of the\nthree: adding an id later would *change* the clause's identity, a positional edit would change every\nidentity after it, and nothing could safely reference one.",
+          "type": "string"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "tag_prefix": {
+          "description": "The tag prefix this route claims. Absent means \"any section not claimed above\".",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "role": {
+          "description": "The role the emitted message carries.",
+          "type": "string"
+        },
+        "block": {
+          "description": "Build a content block instead of putting the body under `content`.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SectionBlock"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "skip_when": {
+          "description": "Drop the section entirely when every one of these holds, tested against\n`{\"capture\": <tag remainder>, \"body\": <section body>}`.\n\nPredicates rather than a fused pair. It was `capture_lacks_prefix` **and** `body_starts_with`,\nwhich is one producer's policy in the shape of a field - the weakest feature in the vocabulary by\nits own test. What it expresses is unchanged and still narrow on purpose: a dialect writes each\ntool result twice, once as the text the model saw tagged with the call id and once as raw\nstructured telemetry tagged with the tool's name, and emitting both shows every result twice. The\nconditions stay conjunctive so that if the id prefix ever changes, an unrecognised section reaches\nthe feed unlinked rather than vanishing from it.",
+          "$ref": "#/$defs/PredicateSet"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "role"
+      ]
+    },
+    "SectionBlock": {
+      "description": "A block built from a section, carrying what the tag captured.",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "capture_as": {
+          "description": "The member the tag's remainder becomes - an id that pairs this section with a call.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "content_as": {
+          "description": "The member the body becomes. Defaults to `content`.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ]
+    },
+    "MemberRequirements": {
+      "description": "Which members an indexed entry must carry.",
+      "type": "object",
+      "properties": {
+        "all_of": {
+          "description": "Every one of these must be present.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MemberRequirement"
+          }
+        },
+        "any_of": {
+          "description": "At least one of these must be present.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MemberRequirement"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "MemberRequirement": {
+      "description": "One member, and how its presence is decided.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "presence": {
+          "$ref": "#/$defs/MemberPresence"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "MemberPresence": {
+      "description": "How a member's presence is established.",
+      "oneOf": [
+        {
+          "description": "The member's own key exists.",
+          "type": "string",
+          "const": "exact"
+        },
+        {
+          "description": "Some key nested under it exists - the member is an array or object flattened into dotted keys.",
+          "type": "string",
+          "const": "nested"
+        },
+        {
+          "description": "Either.",
+          "type": "string",
+          "const": "either"
+        }
+      ]
+    },
+    "MessageProjectionRule": {
+      "description": "A read-time projection decision for one producer-owned span shape.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Stable clause id, reported by diagnostics.",
+          "type": "string"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "match": {
+          "$ref": "#/$defs/MessageProjectionMatch"
+        },
+        "action": {
+          "$ref": "#/$defs/MessageProjectionAction"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "match",
+        "action"
+      ]
+    },
+    "MessageProjectionMatch": {
+      "description": "The stored row and extracted-message shape a projection rule recognises.\n\nAll dimensions are required so a producer rule cannot accidentally suppress a broad class of\nordinary input-only spans. The source condition means every extracted message must come from the\nnamed attribute; an empty message list never matches.",
+      "type": "object",
+      "properties": {
+        "scope_name": {
+          "type": "string"
+        },
+        "scope_version_major_at_least": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "span_name_prefix": {
+          "type": "string"
+        },
+        "only_attribute_source": {
+          "type": "string"
+        },
+        "successful_only": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "scope_name",
+        "scope_version_major_at_least",
+        "span_name_prefix",
+        "only_attribute_source",
+        "successful_only"
+      ]
+    },
+    "MessageProjectionAction": {
+      "description": "What a matching read-time projection rule does.",
+      "type": "string",
+      "enum": [
+        "suppress_messages"
+      ]
+    },
+    "MessageEvent": {
+      "description": "One event that carries messages.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "This declaration's identity, required like every other clause's.\n\nIt had none, and the entries were collapsed into a `HashSet<String>` of names - so \"which asset says\nthis event carries messages\" had no answer, and two assets declaring the same event left one witness\nsilently discarded. Both agreeing witnesses are kept now, because the point of provenance is that an\nanswer names the declarations that produced it.",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "raw": {
+          "description": "What the event's **raw form** is: an ordinary message, or a container its readings replace.\n\nA fact about the *event*, which is why it lives here rather than on each reading. It was\n`replaces_raw_event` on a `MessageRule`, repeated on both readings of the one container event, ORed at\nruntime - so a `true` beside a `false` compiled and `true` silently won, and the policy was stated\ntwice with nothing keeping the two statements consistent.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RawEventForm"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "RawEventForm": {
+      "description": "What an event's own attributes are, once its readings have run.",
+      "oneOf": [
+        {
+          "description": "The event body is itself a message. The default, and the case for all but one declared event.",
+          "type": "string",
+          "const": "message"
+        },
+        {
+          "description": "The event is a *container*: its own attributes are the messages, so emitting the container as well\nwould report the conversation twice.",
+          "type": "string",
+          "const": "replace"
+        }
+      ]
+    },
+    "LogEvent": {
+      "description": "One OTLP **log record** shape that carries a message event.\n\nSeveral instrumentations emit the conversation as log records linked to a span instead of as span\nevents: the record names a `message_events` entry and carries what a span event would carry in its\nattributes, either as the members of its body or as its own attributes. A declaration says which, and\nwhere the record states its event name; the event is then read exactly as the span event of that name\nis. Every `name` must also be a `message_events` entry, because the readings and the raw form are\ndeclared there - a log event no reading recognises would be stored and never answer.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "This declaration's identity, required like every other clause's.",
+          "type": "string"
+        },
+        "name": {
+          "description": "The event name, which must also be declared in `message_events`.",
+          "type": "string"
+        },
+        "name_from": {
+          "description": "Where a record states its event name, tried in order: the first present source decides.\n\n`event_name` is the log record's own field; `attributes:<key>` is a record attribute, which is how\nproducers that predate the field wrote it.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "payload": {
+          "description": "Where the event's attributes are on the record.",
+          "$ref": "#/$defs/LogEventPayload"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "name_from",
+        "payload"
+      ]
+    },
+    "LogEventPayload": {
+      "description": "Where a log event keeps what a span event of the same name keeps in its attributes.",
+      "oneOf": [
+        {
+          "description": "The record's body is a map, and its members are the event's attributes.",
+          "type": "string",
+          "const": "body_members"
+        },
+        {
+          "description": "The record's own attributes are the event's attributes.",
+          "type": "string",
+          "const": "attributes"
+        }
+      ]
+    },
+    "ToolShapeRule": {
+      "description": "One shape a provider writes a tool definition in, and how to read it as the canonical one.\n\nThe canonical form - `{\"type\":\"function\",\"function\":{\"name\",\"description\",\"parameters\"}}` - is **ours**, and\nstays in Rust. Every path into a producer's own shape is the asset's, which is the split `as_tool_definition`\nalready follows. Before this, five readers named `openai`, `anthropic`, `bedrock`, `gemini` and `cohere` in\nproduction Rust and an unrecognised shape was passed through unchanged, then discarded because no name could\nbe extracted from it - so a producer's shape was not addable as data.\n\nWorth stating why the framework sweep never caught them: markers are derived from *asset ids*, and those five\nare **providers**, which the sweep excludes by design because the pricing catalogue is entitled to their\nnames. A fourth blind spot beside the three its own doc records.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "legacy_rank": {
+          "description": "Ordered, first match wins, and a shared rank is refused - two shapes that both recognise a payload must\nnot be separated by which asset loaded first.",
+          "type": "integer",
+          "format": "int32"
+        },
+        "require": {
+          "description": "What makes a payload this shape. Read on the tool value itself.",
+          "$ref": "#/$defs/PredicateSet"
+        },
+        "each": {
+          "description": "Where the definitions are, when one payload holds several. Empty means the payload is one definition.\n\nOrdered, and the first path that **resolves** supplies them - the same rule as `ParametersSpec::from`,\nfor the same reason: one producer writes `functionDeclarations` and another writes\n`function_declarations`, and those are two spellings of one shape rather than two shapes. Spelling them\nas two clauses would duplicate every other member of the rule and give the pair a rank order that means\nnothing.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "function": {
+          "description": "The whole canonical `function` object, for a producer that already writes it.\n\nExclusive with the three members below: a shape either hands over a canonical object or states where each\npart is, and declaring both would be two answers about one output.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "carry": {
+          "description": "Members of the payload copied onto the canonical wrapper beside `function` - one producer carries\n`strict` there, and dropping it changes what the tool permits.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "parameters": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ParametersSpec"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "legacy_rank"
+      ]
+    },
+    "ParametersSpec": {
+      "description": "Where a tool's parameters are and how they are encoded.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "from": {
+          "description": "Ordered: the first path that resolves is the parameters. One producer writes\n`inputSchema.json` and the same producer sometimes writes `inputSchema` directly.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "encoding": {
+          "description": "**Declared**, not guessed from the content. It was guessed: a member named `type` inside an argument map\nmade the map look like a finished JSON Schema, so `{\"type\":\"str\",\"query\":\"str\"}` was emitted as a schema\nwhose type is `str`. The argument named `type` decided how the whole representation was read.",
+          "$ref": "#/$defs/ParametersEncoding"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "encoding"
+      ]
+    },
+    "ParametersEncoding": {
+      "description": "How a producer encodes a tool's parameters.",
+      "oneOf": [
+        {
+          "description": "Already a JSON Schema object: taken as it stands.",
+          "type": "string",
+          "const": "json_schema"
+        },
+        {
+          "description": "A map from argument name to its facts - `{\"city\": {\"type\": \"string\", \"required\": true}}` - which becomes\na JSON Schema object. Every supported constraint is kept: a converter that dropped `required` said an\nargument was optional when the producer said it was not.",
+          "type": "string",
+          "const": "argument_map"
+        }
+      ]
+    },
+    "EventRole": {
+      "description": "What role a message's **source name** implies, where the name itself decides it.\n\nIts own section rather than a member of `message_events`, because the two lists are not the same\nvocabulary. `message_events` says which *OTLP events* carry messages; this says what a **source name**\nmeans, and a source name may also be one a rule assigned with `tag_as` - `gen_ai.tool.result` is exactly\nthat, a tag no producer emits. Putting the role on the event entry would have made declaring the role of\na tag impossible without also claiming a producer emits it.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "This declaration's identity, required like every other clause's. The compiled form used to\n*synthesize* one from the asset and the event name, which is not an identity a declaration can be\nheld to: two assets agreeing about a role produced one witness and the other's provenance was lost.",
+          "type": "string"
+        },
+        "name": {
+          "description": "The source name: an event a producer emits, or a name a rule assigns with `tag_as`.",
+          "type": "string"
+        },
+        "role": {
+          "description": "The role on an ordinary span. Absent leaves the role to the content, which is a statement rather\nthan an omission - most events say nothing about the role.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "role_in_tool_span": {
+          "description": "The role instead, on a **tool execution** span.\n\nTwo names mean the opposite thing there. On a chat span `gen_ai.tool.message` is a tool's *output*\nand `gen_ai.choice` is the assistant's reply; on a tool span the first is the arguments the\nassistant passed and the second is what the tool returned. So the span's kind is part of the\nquestion, and one role per name could not express it.\n\n**Absent means \"the same as `role`\"**, and that is now the only way to say it: a value *equal* to `role`\nis refused. It used to be legal, so one shipped declaration spelled it out while seven omitted it for the\nidentical fact - two spellings of one statement, in a section whose whole purpose is that a name's role is\ndeclared rather than inferred.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "silent_in_tool_span": {
+          "description": "This name says **nothing** about the role on a tool execution span, so it is derived from the content\nthere - even though it does declare one elsewhere.\n\nThe third state, which absence could not express: absence is read as \"the same as `role`\", so a name that\nspeaks only for ordinary spans had no spelling at all. A separate flag rather than a sentinel string,\nbecause `role_in_tool_span` holds a role from a closed vocabulary and a magic value in it would be exactly\nthe guessing this section exists to remove. Refused beside a `role_in_tool_span`, which would be two\nanswers.",
+          "type": "boolean",
+          "default": false
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "RoleAuthority": {
+      "description": "What authority a **stated role** carries, as two independent facts.\n\nThey were fused, differently on each path: whether a stated role survives event-name derivation was a\nhardcoded Rust list, and whether it outranks a *tagged attribute name* was that list **or** whatever the role\nalias table happened to fold. The alias table's job is folding spellings onto four canonical roles, which is\nnot a statement about authority - so adding an alias silently granted it authority over a declared tag.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "role": {
+          "description": "The spelling, as a payload states it. Matched case-insensitively, so it is declared in lower case.",
+          "type": "string"
+        },
+        "survives_event_derivation": {
+          "description": "A stated role of this spelling is **not** replaced by the role an event name declares.\n\nFor roles nothing derives from a name: a tool invocation, a tool-definitions message, framework state.\nDeriving would overwrite the more specific fact with a guess.",
+          "type": "boolean",
+          "default": false
+        },
+        "outranks_a_tag": {
+          "description": "A stated role of this spelling outranks the name a *tagged attribute* reading was found under.\n\nSeparate from the above because the questions differ: `tool` is authoritative over a tag and must **not**\nsurvive event derivation, since an event name is real evidence of it.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "role"
+      ]
+    },
+    "ContentBlockRule": {
+      "description": "One content-block shape, and the canonical block it becomes.\n\nExactly one target form per rule, checked at compile time. The forms are the canonical SideML blocks,\nso this is not a general object builder: a rule says *where* a call's name is, never what a tool_use\nblock looks like.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "at": {
+          "description": "Where in the normalisation chain this case is tried. Declared, because the chain's order decides\nwhich dialect answers for a shape more than one of them recognises.",
+          "$ref": "#/$defs/ChainPosition"
+        },
+        "legacy_rank": {
+          "description": "Position among the cases at that point.",
+          "type": "integer",
+          "format": "int32"
+        },
+        "require": {
+          "description": "The shape this case recognises.",
+          "$ref": "#/$defs/PredicateSet"
+        },
+        "tool_use": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolUseBlock"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tool_result": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolResultBlock"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "json": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonDataBlock"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TextBlock"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "media": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MediaBlock"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "thinking": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ThinkingBlock"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unwrap": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UnwrapSpec"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "at",
+        "legacy_rank"
+      ]
+    },
+    "ChainPosition": {
+      "description": "Where a content-block case sits relative to the provider wire formats.",
+      "oneOf": [
+        {
+          "description": "Before any provider format, and **only when normalising a message's own content block**.\n\nThe nested chain - a tool's returned value - deliberately does not consult this position. An envelope\naround a message's content is not something a tool's *result* carries, and reading it there changes what\na result means: one dialect writes `{\"type\": \"json\", \"value\": …}` for structured output, and a wrapper\ncase looking at `value` would unwrap it instead of letting the dialect's own case read it.",
+          "type": "string",
+          "const": "message_envelope"
+        },
+        {
+          "description": "Tried before any provider format. For a dialect whose own spelling a provider format would\notherwise claim.",
+          "type": "string",
+          "const": "before_provider_formats"
+        },
+        {
+          "description": "Tried after them, which is where a dialect's additions to a provider's vocabulary belong.",
+          "type": "string",
+          "const": "after_provider_formats"
+        }
+      ]
+    },
+    "ToolUseBlock": {
+      "description": "A model asking for a tool to be run.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Ordered; absent is reported as null, because a provider that omits an id has still made the call.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "name": {
+          "description": "Required: a nameless call names nothing to run, so the case does not recognise the block.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "input": {
+          "description": "Ordered, and an **empty object counts as absent** - a dialect that renamed this member leaves the\nunused one present as `{}`, so \"the first that resolves\" would always pick the empty one.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "ToolResultBlock": {
+      "description": "What a tool returned.",
+      "type": "object",
+      "properties": {
+        "tool_use_id": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "name": {
+          "description": "Ordered; omitted when no path resolves. A result may carry both the id that pairs it exactly and the\nhuman-readable tool name, and keeping the latter can make an aggregate snapshot at least as rich as a\nduplicate tool-span observation.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "content": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "is_error": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "JsonDataBlock": {
+      "description": "Structured data that is not prose.",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "TextBlock": {
+      "description": "Prose. Only a string is text.",
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "text"
+      ]
+    },
+    "MediaBlock": {
+      "description": "Bytes, or a reference to them. The block's kind and whether it is a reference are both *derived*.",
+      "type": "object",
+      "properties": {
+        "media_type": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "name": {
+          "description": "Optional display name, such as the filename a framework retained beside the bytes.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "media_type",
+        "data"
+      ]
+    },
+    "ThinkingBlock": {
+      "description": "A model's own reasoning.\n\n`text` is **not** required: a producer that wraps its reasoning in a member holding no text has still said\nthe block is reasoning, and the retired reader emitted an empty one rather than falling through - which is\nwhat stops a signature-only block from being read as something else.",
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "signature": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "UnwrapSpec": {
+      "description": "A wrapper: the block's content is *inside* a member, and the member is normalised in its place.\n\nThe one form that does not build a block. Several dialects wrap a content block in a member of their own -\na serialisation envelope, a constructor's keyword arguments - and what is inside is an ordinary block of\nwhatever shape. So the case selects it and the chain starts again from the top with that value.\n\nA case whose member does not normalise answers nothing, which leaves the **original** block to the rest of\nthe chain: that is what the retired readers did, and it is why an unwrap is not a claim.",
+      "type": "object",
+      "properties": {
+        "from": {
+          "description": "Ordered; the first member that is present is unwrapped, whether or not it normalises.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "parse_json": {
+          "description": "The member is a block serialised as JSON text, decoded before it is normalised. A member that does\nnot decode leaves the original block to the rest of the chain, as one that does not normalise does.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "from"
+      ]
+    },
+    "ProviderAlias": {
+      "description": "One `gen_ai.system` value, and the catalogue provider it means.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "system": {
+          "description": "The value as the producer writes it, **after** separator and case normalisation - which stays in Rust,\nsince it is about spelling rather than about who wrote it.",
+          "type": "string"
+        },
+        "provider": {
+          "description": "The provider in the catalogue's own vocabulary.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "system",
+        "provider"
+      ]
+    },
+    "MessageMemberRule": {
+      "description": "One member name, and what its presence means.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "members": {
+          "description": "The member, in every spelling producers write it - **one declaration, one flag vector**.\n\nA list rather than one name because a spelling is not a fact about meaning, and as separate declarations\nthe aliases drifted despite being colocated: `functionCall` was message-shaped *and* a content block while\n`function_call` was a content block only, which is a difference nothing recorded and nothing could\nenforce. Two spellings that genuinely mean different things stay separate declarations, where the\ndifference is at least visible.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rank": {
+          "description": "Where this sits among the members that hold content. Required when `holds_content` is set, and refused\notherwise: a rank that orders nothing is a statement the engine does not read.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int32",
+          "default": null
+        },
+        "holds_content": {
+          "description": "This member holds a message's content, at the rank above.",
+          "type": "boolean",
+          "default": false
+        },
+        "means_message_shaped": {
+          "description": "Its presence means the value is message-shaped, so it is not bare structured output to be wrapped.",
+          "type": "boolean",
+          "default": false
+        },
+        "means_content_block": {
+          "description": "Its presence means the value is a content **block** - so a block carrying it that no case recognised is\na *malformed* block rather than plain data, and is reported as unknown instead of as JSON.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "members"
+      ]
+    },
+    "ClassifyRule": {
+      "description": "One classification rule: the conditions a span must satisfy, and what it is then.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "rank": {
+          "description": "Where this sits in the ordered sweep. The first rule that holds answers.",
+          "type": "integer",
+          "format": "int32"
+        },
+        "all_of": {
+          "description": "**Every** one of these must hold, while each is internally a disjunction of signals.\n\nConjunction is what a single signal set cannot express, and three of these rules need it: an operation\nname *and* a model whose name says it is an embedding, an operation name *and* the system that gives it\na different meaning, a dialect's model attribute *and* an operation id that says which call it was.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DetectMatch"
+          }
+        },
+        "result": {
+          "description": "What the span is, in the stored vocabulary. Mapped to the enum by the caller, which is the one thing\nabout this that is not a producer's business.",
+          "type": "string"
+        },
+        "replaces_legacy_result": {
+          "description": "The retired heuristic sweep's answer when this rule intentionally corrects it.\n\nThis keeps a reviewed migration delta beside the producer fact that justifies it, instead of\nteaching the framework-blind sweep or its corpus test about producer-specific span names.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "rank",
+        "all_of",
+        "result"
+      ]
+    },
+    "SpanFactRule": {
+      "description": "One dialect's evidence for a fact about a span.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fact": {
+          "description": "The fact this is evidence of.",
+          "$ref": "#/$defs/SpanFact"
+        },
+        "signals": {
+          "description": "Any one of these establishes it.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SpanSignal"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "fact",
+        "signals"
+      ]
+    },
+    "SpanFact": {
+      "description": "A fact about a span that rules and readers ask about by name.",
+      "oneOf": [
+        {
+          "description": "The span *is a tool running*, so its messages are that tool's input and result rather than a\nmodel's turn. Rules that must not read such a span are gated on it (`reads_tool_spans`).",
+          "type": "string",
+          "const": "tool_execution"
+        }
+      ]
+    },
+    "SpanSignal": {
+      "description": "One piece of evidence. At least one form, and both together read as a conjunction.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "This clause's own name, unique within the rule or fragment that holds it.\n\nRequired, because an emission has to be able to say **which** clause answered. Before this, a rule with\nfour readings reported only the rule's id: a direct shape and a shape reached through a fragment were\nindistinguishable in a diagnostic, and `doc` was being used as a stand-in for an identity.\n\nRequired rather than optional-with-a-derived-fallback, which was considered and is the worst of the\nthree: adding an id later would *change* the clause's identity, a positional edit would change every\nidentity after it, and nothing could safely reference one.",
+          "type": "string"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "attr_equals": {
+          "description": "An attribute with this value.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/KeyValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ignore_case": {
+          "description": "Compare that value case-insensitively. One convention writes its span kind in capitals.",
+          "type": "boolean",
+          "default": false
+        },
+        "attrs_present": {
+          "description": "**Every** one of these attributes is present. A conjunction, not a choice: a tool name alone sits on\na model span that merely mentions a tool, while the name *and* a call id together are a call\nbeing run.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ]
+    },
+    "Fragment": {
+      "description": "A named table of readings, applied wherever a rule references it.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "cases": {
+          "description": "The cases, tried in order; the first that yields wins.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Alternative"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "cases"
+      ]
+    },
+    "SdkSlug": {
+      "description": "One SDK-declared slug and the label it resolves to.",
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "slug",
+        "label"
+      ]
+    },
+    "SpanFieldRule": {
+      "description": "One stored field, and every key a producer might carry it under.\n\nOrdered: the **first source that yields a value of the target's type** wins, which is what a fallback\nchain means. Not claimed, unlike a message carrier - a key naming a model is evidence about the model\nwhoever else reads it, and two fields legitimately read one key (`gen_ai.request.model` answers both the\nrequest model and, for a provider that never states a response model, nothing else).",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "target": {
+          "description": "The stored field this resolves. This engine's own vocabulary, not any producer's.",
+          "$ref": "#/$defs/FieldTarget"
+        },
+        "combine": {
+          "description": "How several yielding sources combine.",
+          "$ref": "#/$defs/FieldCombine"
+        },
+        "sources": {
+          "description": "The sources, in the order they are consulted.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FieldSource"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "target",
+        "sources"
+      ]
+    },
+    "FieldTarget": {
+      "description": "A stored field a rule may resolve.\n\nAn enum rather than a free string: a typo in an asset would otherwise be a field that is silently never\nfilled, and the sink has to know each field's *type* - the outcome of reading `http.status_code` is an\ninteger or a malformed value, and \"the string 200\" is not an answer this can store.",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "usage_candidate_output",
+            "usage_candidate_cache_read",
+            "usage_candidate_total",
+            "usage_summed_output",
+            "usage_output_tokens",
+            "usage_total_tokens_reported",
+            "usage_cache_read_tokens",
+            "usage_cache_write_tokens",
+            "usage_reasoning_tokens",
+            "reported_cost_input",
+            "reported_cost_output",
+            "session_id",
+            "gen_ai_system",
+            "gen_ai_operation_name",
+            "gen_ai_request_model",
+            "gen_ai_response_model",
+            "gen_ai_response_id",
+            "gen_ai_temperature",
+            "gen_ai_top_p",
+            "gen_ai_top_k",
+            "gen_ai_max_tokens",
+            "gen_ai_frequency_penalty",
+            "gen_ai_presence_penalty",
+            "gen_ai_stop_sequences",
+            "gen_ai_finish_reasons",
+            "gen_ai_agent_id",
+            "gen_ai_agent_name",
+            "gen_ai_tool_name",
+            "gen_ai_tool_call_id",
+            "gen_ai_server_ttft_ms",
+            "gen_ai_server_request_duration_ms",
+            "user_id",
+            "http_method",
+            "http_url",
+            "http_status_code",
+            "db_system",
+            "db_name",
+            "db_operation",
+            "db_statement",
+            "storage_system",
+            "storage_bucket",
+            "storage_object",
+            "messaging_system",
+            "messaging_destination",
+            "tags"
+          ]
+        },
+        {
+          "description": "Usage **candidates**: what one dialect's embedded object states, resolved whatever the counter chains\nanswered.\n\nSeparate targets rather than further sources on the counters, because the decision that reads them is\nnot \"which source wins\": that dialect's embedded *total* is usable only when the parts actually stored\nare the parts it describes, so the test needs its candidate values even where a flat attribute won.\nOrdinary resolution would have hidden them. The paths and the gate are data; the agreement test is\narithmetic about our own accounting and stays code.",
+          "type": "string",
+          "const": "usage_candidate_input"
+        },
+        {
+          "description": "Usage a dialect records **per message**, summed. Candidates rather than counter sources, because the\ndecision reading them is a *pair*: that dialect fills both sides together when either summed to\nanything, so one side's silence is not the same fact as the pair being absent. The paths are data; the\npairing is arithmetic and stays code.",
+          "type": "string",
+          "const": "usage_summed_input"
+        },
+        {
+          "description": "Token counters. These do **not** reach the stored span through `apply_field`: the columns are `i64` and\nnever null, so writing one there would lose the difference between a counter nothing carried and a\ngenuine `0` - which every framework fallback downstream needs, and which no arithmetic can recover.",
+          "type": "string",
+          "const": "usage_input_tokens"
+        },
+        {
+          "description": "A cost the producer priced itself and stated on the span. The fallback when our own pricing knows\nnothing about the model; which of the two a reader sees is enrichment's decision, not the asset's.",
+          "type": "string",
+          "const": "reported_cost_total"
+        },
+        {
+          "description": "The name a reader sees. **Not** the raw span name, which everything behavioural keys on: detection,\ntoken scoping, classification and every rule are given the producer's own name, and this is a\npresentation value stored beside it.",
+          "type": "string",
+          "const": "display_span_name"
+        }
+      ]
+    },
+    "FieldCombine": {
+      "description": "What happens when more than one source yields.",
+      "oneOf": [
+        {
+          "description": "The first yielding source answers and the rest are not consulted.",
+          "type": "string",
+          "const": "first_wins"
+        },
+        {
+          "description": "Every source contributes, in order, duplicates dropped. Only a list field may say this.",
+          "type": "string",
+          "const": "merge_all"
+        }
+      ]
+    },
+    "FieldSource": {
+      "description": "One place a field's value may be written.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "This clause's own name, unique within the rule or fragment that holds it.\n\nRequired, because an emission has to be able to say **which** clause answered. Before this, a rule with\nfour readings reported only the rule's id: a direct shape and a shape reached through a fragment were\nindistinguishable in a diagnostic, and `doc` was being used as a stand-in for an identity.\n\nRequired rather than optional-with-a-derived-fallback, which was considered and is the worst of the\nthree: adding an id later would *change* the clause's identity, a positional edit would change every\nidentity after it, and nothing could safely reference one.",
+          "type": "string"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "on_malformed": {
+          "description": "What a **present but unreadable** value means for the rest of the chain.",
+          "$ref": "#/$defs/MalformedPolicy"
+        },
+        "accept_empty": {
+          "description": "Whether an **empty** value from this source is an answer rather than something to step over.\n\nA chain steps over an empty value, which is what a chain is for. A field with one source is not a\nchain: `db.system = \"\"` is what the producer wrote, and reporting it absent is a different statement\nabout the span.",
+          "type": "boolean",
+          "default": false
+        },
+        "attribute": {
+          "description": "A flat span attribute holding the value directly.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "attribute_first_present_of": {
+          "description": "Several attribute spellings of one value, where the **first present** one is the answer.\n\nThe flat counterpart of `JsonFieldSource::first_present_of`, and needed for the same reason: as separate\nsources an empty primary would be stepped over and a later alias would answer, while the retired chain\nselected the primary by presence and then converted - so an empty one ended the flat chain and an\n*embedded* carrier answered instead. Which is a different producer's statement, not a later spelling of\nthe same one.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "json": {
+          "description": "A member of a JSON-valued attribute, reached by RFC 9535 JSONPath.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonFieldSource"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "event_attribute": {
+          "description": "An attribute of one of the span's **events**.\n\nThe primitive `FieldSource` was missing, and its absence is why one reader stayed in Rust: field\nresolution was handed a span's attributes and not its events, so `gen_ai.choice`'s `finish_reason` -\nthe conventions' own spelling, not any dialect's - was scanned for by hand in `extract/mod.rs` *after*\nevery declared source, a precedence no producer states.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EventAttributeSource"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "raw_span_name": {
+          "description": "The span's own name, exactly as the producer wrote it.\n\nA source rather than an implicit default, so a display name states where it comes from - and the\nresolver has the raw name whatever the target is.",
+          "type": "boolean",
+          "default": false
+        },
+        "lowercase": {
+          "description": "Fold the answer to lower case.\n\nFor a field whose values are a **case-insensitive enum** and are stored lower case. One dialect writes\n`STOP` where the conventions write `stop`, and both mean the same thing - so the alternative is a\nstored value whose case depends on which producer wrote the span, which every reader then has to fold\nagain. Generic: it says the producer's casing is not information, and any source may say so.",
+          "type": "boolean",
+          "default": false
+        },
+        "span_name_strip_prefix": {
+          "description": "The span's own name, with this prefix stripped.\n\nA name rather than an attribute, because the conventions prescribe `execute_tool {name}` - the tool's\nname is stated *in* the span rather than beside it. Generic: the prefix is the asset's.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "when_json": {
+          "description": "A JSON member whose *presence* admits this source, whatever it holds.\n\nDistinct from `when`, which asks about the span. A substring search over a serialised payload is not a\ntest for a **top-level member**: a request naming a tool `system` contains `\"system\"` and has no\n`system` member, and the retired code asked `req.get(\"system\").is_some()`. Read through the same parse\ncache as a `json` source, so witnessing a payload costs nothing extra.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonFieldSource"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "value": {
+          "description": "A literal this engine states because a *shape* implies it.\n\nThe one thing a key cannot carry: a dialect that names no provider still says which one it is by the\nshape of its request. The literal and the shape that identifies it are both the asset's; the engine\nknows only \"this typed literal, where the gate holds\".",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "when": {
+          "description": "Consulted only when this holds of the span. Signals are ORed, as everywhere else.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DetectMatch"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unless": {
+          "description": "Skipped when this holds of the span.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DetectMatch"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ]
+    },
+    "MalformedPolicy": {
+      "description": "What a source does when the value it names is present and cannot be read as the field's type.\n\nDeclared per source because the retired chains disagreed, and each disagreement was deliberate. A status\ncode written as a phrase means the producer's own status attribute is wrong, and answering from a *second*\nkey reports another attribute's number as this call's. A request parameter written badly is different: the\nflat attribute is one of several places a framework may state it, and the retired code fell through to the\nserialised parameter object - which is the same value from the same producer, not a different call's.",
+      "oneOf": [
+        {
+          "description": "The field is not filled, and the source that stopped it is named in the diagnosis.",
+          "type": "string",
+          "const": "stop"
+        },
+        {
+          "description": "Step over it and keep looking, as a chain does for an empty value.",
+          "type": "string",
+          "const": "continue"
+        }
+      ]
+    },
+    "JsonFieldSource": {
+      "description": "A value inside a JSON-valued attribute.",
+      "type": "object",
+      "properties": {
+        "attribute": {
+          "description": "The attribute whose text is parsed. Parsed once per span however many sources name it.",
+          "type": "string"
+        },
+        "path": {
+          "description": "Where in it the value sits.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "reduce": {
+          "description": "Combine every match of a plural path into one value, rather than taking one of them.\n\nA generic reduction, and the only one: a dialect that records usage per message states the call's usage\nas the total across them, which is a statement no single match carries. Yields nothing where the path\nmatches nothing, so \"no such shape\" stays distinguishable from a genuine zero.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Reduction"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scalar_only": {
+          "description": "Each match must be a **scalar string**; an array at the match is malformed here.\n\nFor a list-valued field whose *sources* are single values. `gen_ai.response.finish_reasons` genuinely\nholds a list, so the field's type has to accept one - but a producer writing one reason per message\nwrites a string, and the retired readers took `as_str()`, so a member holding `[\"stop\"]` was **ignored**\nand the chain moved to the next producer. Read as a list it answered instead, with a different\nproducer's value: not a formatting difference but a different statement about why the model stopped.",
+          "type": "boolean",
+          "default": false
+        },
+        "first_present_of": {
+          "description": "Several spellings of one member, where the **first present** one is the answer.\n\nNot the same as listing them as separate sources, and the difference is load-bearing: separate sources\nselect the first that *converts*, so a badly written `max_tokens` beside a good `max_completion_tokens`\nwould answer from the second - while the retired `or_else` selected by presence and then converted, so\nthe badly written one ended this carrier's contribution and the *next carrier* answered. Two aliases in\none object are one statement by one producer; two carriers are two.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "attribute"
+      ]
+    },
+    "Reduction": {
+      "description": "How several matches of one path become one value.",
+      "oneOf": [
+        {
+          "description": "Add them. A non-numeric match contributes nothing, as the retired reduction's `unwrap_or(0)` did.",
+          "type": "string",
+          "const": "sum"
+        },
+        {
+          "description": "Keep every match, in the order the path found them.\n\nFor a list-valued field only. Without it a plural path takes the *first match that yields*, which is\nright for \"the model sits on whichever agent declared it\" and wrong for a field that genuinely is a\nlist: a completion with two choices has two finish reasons, and reporting one of them is a statement\nthe producer did not make. Duplicates are kept, because two choices that ended the same way are two.",
+          "type": "string",
+          "const": "collect_all"
+        }
+      ]
+    },
+    "EventAttributeSource": {
+      "description": "An attribute of one of a span's events.",
+      "type": "object",
+      "properties": {
+        "event": {
+          "description": "The event whose attributes are read.",
+          "type": "string"
+        },
+        "attribute": {
+          "description": "The attribute on that event.",
+          "type": "string"
+        },
+        "occurrence": {
+          "description": "Which occurrence answers, when a span carries the event more than once.\n\nExplicit because there is no defensible default: a span with two `gen_ai.choice` events has two\nanswers, and taking the first silently is what the retired hand-written loop did with a `break`.",
+          "$ref": "#/$defs/EventOccurrence"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "event",
+        "attribute"
+      ]
+    },
+    "EventOccurrence": {
+      "description": "Which occurrence of a repeated event supplies the value.",
+      "oneOf": [
+        {
+          "description": "The first occurrence that holds the attribute at all. What the retired reader did.",
+          "type": "string",
+          "const": "first_yielding"
+        },
+        {
+          "description": "Every occurrence that holds it, in the order the span carries them. For a list-valued target, where\ntwo events genuinely mean two values.",
+          "type": "string",
+          "const": "every"
+        }
+      ]
+    }
+  }
+}

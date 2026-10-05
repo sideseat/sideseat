@@ -17,6 +17,7 @@ use super::*;
 /// dotted keys, where "nested" means "some other key starts with this one". Same word, different domain -
 /// and one type spanning both would have to mean different things depending on where it was used.
 #[derive(Debug, Deserialize, Clone, Default)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ValuePredicate {
     /// Why this condition is the right one, where that is not obvious from the condition. A field rather
@@ -25,6 +26,7 @@ pub struct ValuePredicate {
     pub doc: Option<String>,
     /// A JSONPath to the value under test. Absent means the value itself.
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Option<String>"))]
     pub path: Option<JsonPath>,
     /// The member must be present. Implied when the predicate names nothing else.
     #[serde(default)]
@@ -66,6 +68,7 @@ pub struct ValuePredicate {
 
 /// A JSON kind, for `ValuePredicate::kind`.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ValueKind {
     Object,
@@ -81,6 +84,7 @@ pub enum ValueKind {
 /// `all` and `any` both, because the dialects need both and the difference is real: a request's message
 /// needs a role *and* content, while a response may carry either a structured message *or* streamed text.
 #[derive(Debug, Deserialize, Default)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct PredicateSet {
     #[serde(default)]
@@ -138,6 +142,7 @@ impl PredicateSet {
 
 /// An array-valued carrier read element by element.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ElementsSpec {
     /// The emitted carriers are *events*, not attributes.
@@ -150,6 +155,7 @@ pub struct ElementsSpec {
     pub tags_are_events: bool,
     /// A JSONPath to the array. Absent means the parsed value itself.
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Option<String>"))]
     pub select: Option<JsonPath>,
     /// Passes over the elements, in order. Each scans every element.
     pub passes: Vec<ElementPass>,
@@ -157,6 +163,7 @@ pub struct ElementsSpec {
 
 /// One pass over the elements.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ElementPass {
     /// This clause's own name, unique within the rule or fragment that holds it.
@@ -180,6 +187,7 @@ pub struct ElementPass {
     /// name is what downstream keys role derivation and ordering on, so tagging them all alike would erase
     /// the distinction the payload carries.
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Option<String>"))]
     pub tag_from: Option<JsonPath>,
     /// Instead of emitting each element, group runs of them and emit one message per run.
     #[serde(default)]
@@ -190,6 +198,7 @@ pub struct ElementPass {
 ///
 /// Bounded: one pass, no recursion, and a run ends as soon as the derived key changes.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct GroupSpec {
     /// A decision table deriving the run key from an element - the first matching case wins, and an element
@@ -199,6 +208,7 @@ pub struct GroupSpec {
     ///
     /// One dialect's blocks carry the real content in a member and a human-readable summary beside it, so
     /// which part is collected is a fact about the payload rather than a default.
+    #[cfg_attr(test, schemars(with = "String"))]
     pub collect: JsonPath,
     /// The member the derived key becomes on the emitted message.
     pub key_as: String,
@@ -208,6 +218,7 @@ pub struct GroupSpec {
 
 /// One case of a decision table: a condition, and the value it yields.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct DerivedCase {
     /// This clause's own name, unique within the rule or fragment that holds it.
@@ -232,6 +243,7 @@ pub struct DerivedCase {
 /// `fallback_if_primary_empty`; then every `always`, whatever happened. Nesting is refused - a branch set
 /// inside a branch set would be a control structure rather than a declaration.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct BranchSet {
     #[serde(default)]
@@ -251,6 +263,7 @@ pub struct BranchSet {
 
 /// A named table of readings, applied wherever a rule references it.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct Fragment {
     #[serde(default)]
@@ -261,6 +274,7 @@ pub struct Fragment {
 
 /// A bounded walk over a state object.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct WalkSpec {
     /// How many levels below the carrier to descend. Zero means the carrier itself only.
@@ -302,6 +316,7 @@ pub struct WalkSpec {
 
 /// Members copied into an emitted value, and what happens where the target already has one.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct LiftSpec {
     pub doc: Option<String>,
@@ -315,6 +330,7 @@ pub struct LiftSpec {
 
 /// Which value a lift reads from.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum LiftSource {
     /// The value the selection landed on - used with `descend`, where the members sit beside the message.
@@ -325,6 +341,7 @@ pub enum LiftSource {
 
 /// What a lift does where the target already carries the member.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum LiftConflict {
     /// The target's own value wins: the lifted one is a fallback.
@@ -335,6 +352,7 @@ pub enum LiftConflict {
 
 /// A member the walk does not descend into, and the clause whose reading justifies that.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct PruneSpec {
     pub doc: Option<String>,
@@ -347,13 +365,16 @@ pub struct PruneSpec {
 
 /// One tool call at a named member, as the normaliser's `{name, arguments}` convention.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct SingleToolCallSpec {
+    #[cfg_attr(test, schemars(with = "String"))]
     pub name: JsonPath,
     /// The name used when the path resolves to nothing. A call this dialect logged without one still
     /// happened, so it is reported rather than dropped.
     #[serde(default)]
     pub name_default: Option<JsonValue>,
+    #[cfg_attr(test, schemars(with = "String"))]
     pub arguments: JsonPath,
     /// The member the call becomes. Defaults to `tool_call`.
     #[serde(default)]
@@ -365,10 +386,12 @@ pub struct SingleToolCallSpec {
 
 /// A block built from another member of the same value, placed before the content.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct PrependSpec {
     /// Where the block's content is, relative to the value being wrapped. Absent means no block is added,
     /// which is the ordinary case for a dialect that reports reasoning only sometimes.
+    #[cfg_attr(test, schemars(with = "String"))]
     pub from: JsonPath,
     /// A condition on the value found there. A dialect writes this member as `null` when there was no
     /// reasoning, and a null is not a thought.
@@ -381,13 +404,18 @@ pub struct PrependSpec {
 
 /// The canonical tool-call list, built from a dialect's own array of calls.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ToolCallsSpec {
     /// The array of calls, relative to the value being wrapped.
+    #[cfg_attr(test, schemars(with = "String"))]
     pub select: JsonPath,
     /// Where each call's id, name and arguments are.
+    #[cfg_attr(test, schemars(with = "String"))]
     pub id: JsonPath,
+    #[cfg_attr(test, schemars(with = "String"))]
     pub name: JsonPath,
+    #[cfg_attr(test, schemars(with = "String"))]
     pub arguments: JsonPath,
     /// What to do with a call that has no id or no name.
     ///
@@ -404,6 +432,7 @@ pub struct ToolCallsSpec {
 
 /// What a tool-call list does with a member it cannot build.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum InvalidItem {
     /// Leave it out and keep the rest. Reported either way - a dropped call is a producer defect, not a
@@ -420,6 +449,7 @@ pub enum InvalidItem {
 /// so this is not a general object builder: a rule says *where* a call's name is, never what a tool_use
 /// block looks like.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ContentBlockRule {
     pub id: String,
@@ -450,6 +480,7 @@ pub struct ContentBlockRule {
 
 /// Where a content-block case sits relative to the provider wire formats.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ChainPosition {
     /// Before any provider format, and **only when normalising a message's own content block**.
@@ -468,48 +499,61 @@ pub enum ChainPosition {
 
 /// A model asking for a tool to be run.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ToolUseBlock {
     /// Ordered; absent is reported as null, because a provider that omits an id has still made the call.
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub id: Vec<JsonPath>,
     /// Required: a nameless call names nothing to run, so the case does not recognise the block.
+    #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub name: Vec<JsonPath>,
     /// Ordered, and an **empty object counts as absent** - a dialect that renamed this member leaves the
     /// unused one present as `{}`, so "the first that resolves" would always pick the empty one.
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub input: Vec<JsonPath>,
 }
 
 /// What a tool returned.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ToolResultBlock {
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub tool_use_id: Vec<JsonPath>,
     /// Ordered; omitted when no path resolves. A result may carry both the id that pairs it exactly and the
     /// human-readable tool name, and keeping the latter can make an aggregate snapshot at least as rich as a
     /// duplicate tool-span observation.
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub name: Vec<JsonPath>,
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub content: Vec<JsonPath>,
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub is_error: Vec<JsonPath>,
 }
 
 /// Structured data that is not prose.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct JsonDataBlock {
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub data: Vec<JsonPath>,
 }
 
 /// Prose. Only a string is text.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct TextBlock {
+    #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub text: Vec<JsonPath>,
 }
 
@@ -519,16 +563,20 @@ pub struct TextBlock {
 /// the block is reasoning, and the retired reader emitted an empty one rather than falling through - which is
 /// what stops a signature-only block from being read as something else.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ThinkingBlock {
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub text: Vec<JsonPath>,
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub signature: Vec<JsonPath>,
 }
 
 /// One OpenTelemetry instrumentation scope accepted by a message rule.
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct InstrumentationScopeMatch {
     /// Exact scope name. Empty names are refused when the rule is compiled.
@@ -547,9 +595,11 @@ pub struct InstrumentationScopeMatch {
 /// A case whose member does not normalise answers nothing, which leaves the **original** block to the rest of
 /// the chain: that is what the retired readers did, and it is why an unwrap is not a claim.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct UnwrapSpec {
     /// Ordered; the first member that is present is unwrapped, whether or not it normalises.
+    #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub from: Vec<JsonPath>,
     /// The member is a block serialised as JSON text, decoded before it is normalised. A member that does
     /// not decode leaves the original block to the rest of the chain, as one that does not normalise does.
@@ -559,12 +609,16 @@ pub struct UnwrapSpec {
 
 /// Bytes, or a reference to them. The block's kind and whether it is a reference are both *derived*.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct MediaBlock {
+    #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub media_type: Vec<JsonPath>,
+    #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub data: Vec<JsonPath>,
     /// Optional display name, such as the filename a framework retained beside the bytes.
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub name: Vec<JsonPath>,
 }
 
@@ -573,6 +627,7 @@ pub struct MediaBlock {
 /// Exactly one variant, so a rule cannot half-declare both: an event rule has no stage (the event path runs
 /// every rule that names the event, in rank order) and a span rule has no event names.
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields, rename_all = "snake_case")]
 pub enum MessageSource {
     /// A span's attributes, at the named stage.
@@ -582,6 +637,7 @@ pub enum MessageSource {
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct SpanSource {
     /// With the dialects, or only if none of them produced anything.
@@ -590,6 +646,7 @@ pub struct SpanSource {
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct EventSource {
     /// The events this rule reads. An empty list is refused: it names nothing, and under the previous
@@ -598,6 +655,7 @@ pub struct EventSource {
 }
 
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum MessageStage {
     /// With the dialects, in rank order. The ordinary case.
@@ -609,6 +667,7 @@ pub enum MessageStage {
 
 /// One event that carries messages.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct MessageEvent {
     /// This declaration's identity, required like every other clause's.
@@ -639,6 +698,7 @@ pub struct MessageEvent {
 /// is. Every `name` must also be a `message_events` entry, because the readings and the raw form are
 /// declared there - a log event no reading recognises would be stored and never answer.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct LogEvent {
     /// This declaration's identity, required like every other clause's.
@@ -657,6 +717,7 @@ pub struct LogEvent {
 
 /// Where a log event keeps what a span event of the same name keeps in its attributes.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum LogEventPayload {
     /// The record's body is a map, and its members are the event's attributes.
@@ -667,6 +728,7 @@ pub enum LogEventPayload {
 
 /// What an event's own attributes are, once its readings have run.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum RawEventForm {
     /// The event body is itself a message. The default, and the case for all but one declared event.
@@ -685,6 +747,7 @@ pub enum RawEventForm {
 /// that, a tag no producer emits. Putting the role on the event entry would have made declaring the role of
 /// a tag impossible without also claiming a producer emits it.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct EventRole {
     /// This declaration's identity, required like every other clause's. The compiled form used to

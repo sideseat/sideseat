@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "pydantic-ai",
   "doc": "The pydantic-ai dialect.",
   "carriers": [

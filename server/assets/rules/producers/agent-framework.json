@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "agent-framework",
   "doc": "The AgentFramework dialect.",
   "carriers": [],

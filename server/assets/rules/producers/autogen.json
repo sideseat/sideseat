@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "autogen",
   "doc": "The AutoGen dialect. Its messages arrive as typed objects - a type name per shape - which is why the table below is a fragment: the same vocabulary is written at five different selection points.",
   "carriers": [

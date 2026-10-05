@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "langsmith",
   "doc": "The LangSmith exporter's dialect.",
   "carriers": [],

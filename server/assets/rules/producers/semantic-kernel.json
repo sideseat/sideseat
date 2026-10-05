@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "semantic-kernel",
   "doc": "The SemanticKernel dialect.",
   "carriers": [],

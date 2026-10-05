@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "semconv",
   "doc": "OpenTelemetry GenAI semantic conventions. The dialect every other rule file may import: it is what a framework emits when it emits nothing of its own.",
   "carriers": [

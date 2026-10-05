@@ -2,6 +2,7 @@ use super::*;
 
 /// One `gen_ai.system` value, and the catalogue provider it means.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ProviderAlias {
     #[serde(default)]
@@ -15,6 +16,7 @@ pub struct ProviderAlias {
 
 /// One member name, and what its presence means.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct MessageMemberRule {
     pub id: String,
@@ -51,6 +53,7 @@ pub struct MessageMemberRule {
 /// alias table happened to fold. The alias table's job is folding spellings onto four canonical roles, which is
 /// not a statement about authority - so adding an alias silently granted it authority over a declared tag.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct RoleAuthority {
     pub id: String,
@@ -74,6 +77,7 @@ pub struct RoleAuthority {
 
 /// One classification rule: the conditions a span must satisfy, and what it is then.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ClassifyRule {
     pub id: String,
@@ -100,6 +104,7 @@ pub struct ClassifyRule {
 
 /// One detection rule: signals that identify a producer, and the label they yield.
 #[derive(Debug, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct DetectRule {
     pub id: String,
@@ -164,6 +169,7 @@ pub struct DetectRule {
 
 /// One further body of evidence for a rule's label, at its own rank.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct DetectAlternative {
     pub id: String,
@@ -180,6 +186,7 @@ pub struct DetectAlternative {
 
 /// One SDK-declared slug and the label it resolves to.
 #[derive(Debug, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct SdkSlug {
     pub slug: String,
@@ -193,6 +200,7 @@ pub struct SdkSlug {
 /// author had asked to be case-insensitive stayed case-sensitive, silently. Case folding is a *separate
 /// dimension* (`attr_equals_ignore_case`), which is exactly the mistake this made easy to write.
 #[derive(PartialEq, Eq, Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct KeyValue {
     pub key: String,
@@ -204,6 +212,7 @@ pub struct KeyValue {
 /// The one signal that is neither a prefix nor an equality: a framework whose spans are identified by a
 /// phrase appearing somewhere in a name, in any of several spellings.
 #[derive(PartialEq, Eq, Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct TextContains {
     /// `span_name`, or `attr:<key>`.
@@ -226,6 +235,7 @@ pub struct TextContains {
 /// sufficient. That is why a rule listing a broad `service_name` beside a narrow `attr_prefix` is not
 /// "narrow" at all, and why rank matters.
 #[derive(PartialEq, Eq, Debug, Default, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct DetectMatch {
     /// Span name **starts with** any of these.
@@ -303,6 +313,7 @@ pub struct DetectMatch {
 
 /// One carrier declaration: what to match, and what the matched carrier is evidence of.
 #[derive(Debug, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct CarrierRule {
     /// Stable clause id, reported by the explain trace.
@@ -325,6 +336,7 @@ pub struct CarrierRule {
 
 /// A read-time projection decision for one producer-owned span shape.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct MessageProjectionRule {
     /// Stable clause id, reported by diagnostics.
@@ -342,6 +354,7 @@ pub struct MessageProjectionRule {
 /// ordinary input-only spans. The source condition means every extracted message must come from the
 /// named attribute; an empty message list never matches.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct MessageProjectionMatch {
     pub scope_name: String,
@@ -353,6 +366,7 @@ pub struct MessageProjectionMatch {
 
 /// What a matching read-time projection rule does.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum MessageProjectionAction {
     SuppressMessages,
@@ -365,6 +379,7 @@ pub enum MessageProjectionAction {
 /// specificity well-defined here, unlike the tree-shape predicates of the content chain, where
 /// ordering has to be declared by name instead.
 #[derive(Debug, Default, Deserialize, PartialEq, Eq, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct MatchSpec {
     /// Exact OTel event name the observation was read from.
@@ -553,6 +568,7 @@ pub fn in_family(key: &str, root: &str) -> bool {
 /// are **providers**, which the sweep excludes by design because the pricing catalogue is entitled to their
 /// names. A fourth blind spot beside the three its own doc records.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ToolShapeRule {
     pub id: String,
@@ -571,20 +587,24 @@ pub struct ToolShapeRule {
     /// as two clauses would duplicate every other member of the rule and give the pair a rank order that means
     /// nothing.
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub each: Vec<JsonPath>,
     /// The whole canonical `function` object, for a producer that already writes it.
     ///
     /// Exclusive with the three members below: a shape either hands over a canonical object or states where each
     /// part is, and declaring both would be two answers about one output.
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Option<String>"))]
     pub function: Option<JsonPath>,
     /// Members of the payload copied onto the canonical wrapper beside `function` - one producer carries
     /// `strict` there, and dropping it changes what the tool permits.
     #[serde(default)]
     pub carry: Vec<String>,
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Option<String>"))]
     pub name: Option<JsonPath>,
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Option<String>"))]
     pub description: Option<JsonPath>,
     #[serde(default)]
     pub parameters: Option<ParametersSpec>,
@@ -592,11 +612,13 @@ pub struct ToolShapeRule {
 
 /// Where a tool's parameters are and how they are encoded.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ParametersSpec {
     pub doc: Option<String>,
     /// Ordered: the first path that resolves is the parameters. One producer writes
     /// `inputSchema.json` and the same producer sometimes writes `inputSchema` directly.
+    #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub from: Vec<JsonPath>,
     /// **Declared**, not guessed from the content. It was guessed: a member named `type` inside an argument map
     /// made the map look like a finished JSON Schema, so `{"type":"str","query":"str"}` was emitted as a schema
@@ -606,6 +628,7 @@ pub struct ParametersSpec {
 
 /// How a producer encodes a tool's parameters.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ParametersEncoding {
     /// Already a JSON Schema object: taken as it stands.
@@ -627,6 +650,7 @@ pub enum ParametersEncoding {
 /// vocabulary the model is stated in, and a clause that writes them all out invites one being wrong in
 /// a way no reader notices.
 #[derive(Debug, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct Facts {
     /// `emission`, `snapshot` or `accumulated_state`.

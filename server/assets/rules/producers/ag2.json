@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "ag2",
   "doc": "The AG2 dialect.",
   "carriers": [],

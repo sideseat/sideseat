@@ -41,5 +41,6 @@ sideseat-adapter-cache = { path = "../adapter-cache" }
 sideseat-adapter-duckdb = { path = "../adapter-duckdb" }
 sideseat-adapter-sqlite = { path = "../adapter-sqlite" }
 proptest = "1"
+schemars = { workspace = true }
 proc-macro2 = { version = "1", features = ["span-locations"] }
 tempfile = "3"

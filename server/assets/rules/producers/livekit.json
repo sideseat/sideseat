@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "livekit",
   "doc": "The LiveKit dialect.",
   "carriers": [

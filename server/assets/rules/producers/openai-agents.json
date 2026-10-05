@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "openai-agents",
   "doc": "The OpenAIAgents dialect.",
   "carriers": [],

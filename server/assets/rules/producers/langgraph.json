@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "langgraph",
   "doc": "LangGraph. Its carrier is a *state object* its nodes write into, so a conversation can sit at the top level, under `messages`, under a member the node named itself, or nested a level or two down - which is why the readings are applied at every node of a bounded walk rather than at fixed paths. Bounded on purpose: an explicit depth, `messages` and `raw` pruned because the node-level readings already took them, and no descent below a node that was itself a message, since a message's members are its content.",
   "carriers": [],

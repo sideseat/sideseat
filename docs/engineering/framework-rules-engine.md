@@ -107,10 +107,17 @@ Each asset has a stable `id`, optional prose documentation, and any subset of th
 `RuleFile` uses `deny_unknown_fields`, and compilation rejects malformed or ambiguous declarations. A typo
 cannot silently create a new section or field.
 
+Every asset names the editor schema in its `$schema` member, as a path relative to the asset. That schema,
+`server/assets/rules.schema.json`, is generated from the serde types (regenerate with `UPDATE_GOLDENS=1 cargo
+test --locked -q -p sideseat-domain --lib schema_census`), lives outside the embedded directory, and a test
+validates every asset against it, so the schema and the parser cannot disagree. The same walk records which
+schema options the shipped assets use; an optional property or enum value none uses must be listed with a
+reason in `rules/schema_census.rs`.
+
 ## Compilation model
 
-Asset bytes are read in deterministic path order and compiled into `Ruleset`. Compilation performs the work
-that must not be repeated for every span:
+Asset bytes are parsed once, in deterministic path order, into `ParsedAssets`; every section compiles from
+that one parse into `Ruleset`. Compilation performs the work that must not be repeated for every span:
 
 - parse and type-check JSON assets;
 - reject duplicate asset, rule, and clause identities;
@@ -216,6 +223,11 @@ An absent answer and an unusable declared source are different outcomes.
 
 This separation keeps diagnostics orthogonal to the optional result. A malformed optional wrapper, for
 example, can be reported while a valid enclosing value still produces an answer.
+
+A defective ruleset is refused with `RulesetDiagnostics`: one entry per failing section, naming the section,
+the asset path, id and clause of every clause the defect involves, and the reason. Sections are compiled
+even after one fails, so one run reports every broken section; within a section the first defect is
+reported, because later checks there assume the earlier ones held.
 
 Every compiled clause retains its asset id, rule id, clause path, and documentation. Compile-time and
 runtime diagnostics can therefore name the declaration responsible for a decision. A complete rendered

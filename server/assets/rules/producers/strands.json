@@ -1,4 +1,5 @@
 {
+  "$schema": "../../rules.schema.json",
   "id": "strands",
   "doc": "Strands Agents' own name for the system prompt.",
   "carriers": [

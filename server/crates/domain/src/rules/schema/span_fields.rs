@@ -7,6 +7,7 @@ use super::*;
 /// whoever else reads it, and two fields legitimately read one key (`gen_ai.request.model` answers both the
 /// request model and, for a provider that never states a response model, nothing else).
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct SpanFieldRule {
     pub id: String,
@@ -27,6 +28,7 @@ pub struct SpanFieldRule {
 /// filled, and the sink has to know each field's *type* - the outcome of reading `http.status_code` is an
 /// integer or a malformed value, and "the string 200" is not an answer this can store.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum FieldTarget {
     /// Usage **candidates**: what one dialect's embedded object states, resolved whatever the counter chains
@@ -307,6 +309,7 @@ pub enum FieldType {
 
 /// What happens when more than one source yields.
 #[derive(Debug, Deserialize, Clone, Copy, Default, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum FieldCombine {
     /// The first yielding source answers and the rest are not consulted.
@@ -318,6 +321,7 @@ pub enum FieldCombine {
 
 /// One place a field's value may be written.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct FieldSource {
     /// This clause's own name, unique within the rule or fragment that holds it.
@@ -410,6 +414,7 @@ pub struct FieldSource {
 
 /// How several matches of one path become one value.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum Reduction {
     /// Add them. A non-numeric match contributes nothing, as the retired reduction's `unwrap_or(0)` did.
@@ -431,6 +436,7 @@ pub enum Reduction {
 /// flat attribute is one of several places a framework may state it, and the retired code fell through to the
 /// serialised parameter object - which is the same value from the same producer, not a different call's.
 #[derive(Debug, Deserialize, Clone, Copy, Default, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum MalformedPolicy {
     /// The field is not filled, and the source that stopped it is named in the diagnosis.
@@ -442,12 +448,14 @@ pub enum MalformedPolicy {
 
 /// A value inside a JSON-valued attribute.
 #[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct JsonFieldSource {
     /// The attribute whose text is parsed. Parsed once per span however many sources name it.
     pub attribute: String,
     /// Where in it the value sits.
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Option<String>"))]
     pub path: Option<JsonPath>,
     /// Combine every match of a plural path into one value, rather than taking one of them.
     ///
@@ -473,5 +481,6 @@ pub struct JsonFieldSource {
     /// the badly written one ended this carrier's contribution and the *next carrier* answered. Two aliases in
     /// one object are one statement by one producer; two carriers are two.
     #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub first_present_of: Vec<JsonPath>,
 }
