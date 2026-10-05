@@ -18,9 +18,10 @@
       },
       "tool_use": {
         "id": [
+          "$.functionCall.id",
           {
             "template": "gemini_{name}_call_{stable_hash(input)}",
-            "doc": "Gemini states no call id, so one is built from the call: two calls of one function with different arguments get different ids, and the same call re-sent gets the same one."
+            "doc": "Gemini's own API states no call id, so where the part carries none one is built from the call: two calls of one function with different arguments get different ids, and the same call re-sent gets the same one. A part that does carry one - ADK fills it with the provider's id - keeps it."
           }
         ],
         "name": [
@@ -50,9 +51,10 @@
       },
       "tool_use": {
         "id": [
+          "$.function_call.id",
           {
             "template": "gemini_{name}_call_{stable_hash(input)}",
-            "doc": "Gemini states no call id, so one is built from the call: two calls of one function with different arguments get different ids, and the same call re-sent gets the same one."
+            "doc": "Gemini's own API states no call id, so where the part carries none one is built from the call: two calls of one function with different arguments get different ids, and the same call re-sent gets the same one. A part that does carry one - ADK fills it with the provider's id - keeps it."
           }
         ],
         "name": [
@@ -77,12 +79,15 @@
         ]
       },
       "tool_result": {
-        "doc": "No call id: the feed's correlation pairs the result with its call by name, the only place both halves are visible at once.",
+        "doc": "The call id where the part states one, as ADK does; otherwise none, and the feed's correlation pairs the result with its call by name, the only place both halves are visible at once.",
         "name": [
           "$.functionResponse.name"
         ],
         "content": [
           "$.functionResponse.response"
+        ],
+        "tool_use_id": [
+          "$.functionResponse.id"
         ]
       }
     },
@@ -104,12 +109,15 @@
         ]
       },
       "tool_result": {
-        "doc": "No call id: the feed's correlation pairs the result with its call by name, the only place both halves are visible at once.",
+        "doc": "The call id where the part states one, as ADK does; otherwise none, and the feed's correlation pairs the result with its call by name, the only place both halves are visible at once.",
         "name": [
           "$.function_response.name"
         ],
         "content": [
           "$.function_response.response"
+        ],
+        "tool_use_id": [
+          "$.function_response.id"
         ]
       }
     }

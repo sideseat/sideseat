@@ -35,8 +35,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_get_weather_call_df9eed0b\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
-          "content_digest": "500525f81914805d",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_xy2rgAvsDJyieSjl4FbFNw\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+          "content_digest": "ac6bf8c8799d77f1",
           "tool_name": "get_weather",
           "observation_type": "generation"
         }
@@ -74,8 +74,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_get_weather_call_df9eed0b\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
-          "content_digest": "500525f81914805d",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_xy2rgAvsDJyieSjl4FbFNw\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+          "content_digest": "ac6bf8c8799d77f1",
           "tool_name": "get_weather",
           "observation_type": "generation"
         },
@@ -83,8 +83,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_get_weather_call_df9eed0b\",\"name\":\"get_weather\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
-          "content_digest": "e63a11a5388e638e",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_xy2rgAvsDJyieSjl4FbFNw\",\"name\":\"get_weather\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "cdb7e17c6b04715a",
           "tool_name": "get_weather",
           "observation_type": "generation"
         },
@@ -160,8 +160,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_get_weather_call_df9eed0b\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
-          "content_digest": "500525f81914805d",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_xy2rgAvsDJyieSjl4FbFNw\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+          "content_digest": "ac6bf8c8799d77f1",
           "tool_name": "get_weather",
           "observation_type": "generation"
         },
@@ -169,8 +169,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_get_weather_call_df9eed0b\",\"name\":\"get_weather\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
-          "content_digest": "e63a11a5388e638e",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_xy2rgAvsDJyieSjl4FbFNw\",\"name\":\"get_weather\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "cdb7e17c6b04715a",
           "tool_name": "get_weather",
           "observation_type": "generation"
         },
@@ -218,8 +218,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_get_weather_call_df9eed0b\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
-          "content_digest": "500525f81914805d",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_xy2rgAvsDJyieSjl4FbFNw\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+          "content_digest": "ac6bf8c8799d77f1",
           "tool_name": "get_weather",
           "observation_type": "generation"
         },
@@ -227,8 +227,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_get_weather_call_df9eed0b\",\"name\":\"get_weather\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
-          "content_digest": "e63a11a5388e638e",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_xy2rgAvsDJyieSjl4FbFNw\",\"name\":\"get_weather\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "cdb7e17c6b04715a",
           "tool_name": "get_weather",
           "observation_type": "generation"
         },
@@ -259,8 +259,8 @@
         "index": 0,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_get_weather_call_df9eed0b\",\"name\":\"get_weather\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
-        "content_digest": "e63a11a5388e638e",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_xy2rgAvsDJyieSjl4FbFNw\",\"name\":\"get_weather\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+        "content_digest": "cdb7e17c6b04715a",
         "tool_name": "get_weather",
         "observation_type": "generation"
       },
@@ -292,8 +292,8 @@
         "index": 4,
         "role": "assistant",
         "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"gemini_get_weather_call_df9eed0b\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
-        "content_digest": "500525f81914805d",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_xy2rgAvsDJyieSjl4FbFNw\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+        "content_digest": "ac6bf8c8799d77f1",
         "tool_name": "get_weather",
         "observation_type": "generation"
       }
