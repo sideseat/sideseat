@@ -356,7 +356,7 @@ fn claude_configuration_agrees_everywhere_it_is_duplicated() {
         "docs/src/content/docs/docs/integrations/frameworks/claude-agent-sdk.mdx",
         "docs/src/content/docs/docs/index.mdx",
         "web/src/pages/configuration/telemetry-frameworks.ts",
-        "examples/python/claude-agent-sdk/telemetry_setup.py",
+        "examples/python/claude-agent-sdk/native.py",
         "examples/javascript/src/shared/telemetry.ts",
         "scripts/run-claude.sh",
     ];
