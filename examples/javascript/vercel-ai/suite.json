@@ -1,0 +1,4 @@
+{
+  "producer": "vercel-ai-js",
+  "integrations": ["vercel-ai"]
+}

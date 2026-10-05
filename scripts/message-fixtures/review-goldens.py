@@ -294,12 +294,6 @@ INTENTIONAL_WARNINGS: dict[str, dict[str, tuple[int, str]]] = {
             "structured assistant output is canonically represented as JSON",
         ),
     },
-    "vercel-ai-js/structured-output": {
-        "json_block": (
-            1,
-            "structured assistant output is canonically represented as JSON",
-        ),
-    },
 }
 
 

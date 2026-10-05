@@ -122,7 +122,9 @@ program (`python`, `javascript`, `dotnet`, `rust`). The mode says who configured
 | `tool_use/legacy` | a Strands call/result pair | the baseline hand-written case |
 | `traceloop/native` | TraceLoop SDK 0.62.4 / Bedrock instrumentation 0.62.4 / boto3 1.43.108 Converse / OpenTelemetry Python 1.45.0, native OTLP setup; image and document bytes are exported empty | 12 | 18 |
 | `traceloop/sdk` | SideSeat Python 2.0.0 / TraceLoop SDK 0.62.4 / Bedrock instrumentation 0.62.4 / boto3 1.43.108 Converse / OpenTelemetry Python 1.45.0 | 12 | 13 |
-| `vercel-ai-js/legacy` | ai ^7.0.79 | 6 | 13 |
+| `vercel-ai-js/legacy` | ai ^7.0.79; only `tool-use` remains, the sole capture of the `ai.*` attributes the `vercel-ai.prompt`, `prompt_tools`, `response`, `toolcall_args` and `toolcall_result` rules read, which current releases no longer write | 1 | 2 |
+| `vercel-ai-js/native` | AI SDK 7.0.127 / @ai-sdk/otel 1.0.127 / @ai-sdk/amazon-bedrock 5.0.105 / OpenTelemetry JS 2.11.0 on Node.js 25.2.1, `registerTelemetry(new OpenTelemetry())`; `structured_output` offers the schema as a `trip_plan` tool, and `mcp_tools` takes its tools from the official MCP client, because `@ai-sdk/mcp` 2.0 opens a handshake current MCP servers refuse | 11 | 12 |
+| `vercel-ai-js/sdk` | SideSeat JavaScript 3.0.0 / AI SDK 7.0.127 / @ai-sdk/otel 1.0.127 / @ai-sdk/amazon-bedrock 5.0.105 / OpenTelemetry JS 2.11.0 on Node.js 25.2.1 | 11 | 11 |
 | `vertex-ai/native` | Google GenAI 2.28.0 / Logfire 5.1.1 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.13.7, native Logfire setup with the current `enterprise=True` Vertex mode, against the harness's fake Gemini server; reasoning thoughts arrive as text parts (the instrumentation drops Gemini's `thought` flag) and a failed tool call as an error message rather than a tool result | 9 | 9 |
 | `vertex-ai/sdk` | SideSeat Python 2.0.0 / Google GenAI 2.28.0 / Logfire 5.1.1 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.13.7, current `enterprise=True` Vertex mode, against the harness's fake Gemini server | 9 | 9 |
 

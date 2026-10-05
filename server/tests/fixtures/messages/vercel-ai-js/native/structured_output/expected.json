@@ -1,0 +1,383 @@
+{
+  "label": "vercel-ai-js/native/structured_output",
+  "request_count": 1,
+  "span_count": 7,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/chat global.anthropic.claude-sonnet-5-5/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Hand the finished plan to trip_plan.",
+          "content_digest": "40260238991d627a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_4yA0LToOJ1kFY33SGUgosm\",\"name\":\"trip_plan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a stroll along the Ringstrasse, with Sachertorte at…[391 chars]",
+          "content_digest": "bc17819aaa23f8d0",
+          "tool_name": "trip_plan",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat global.anthropic.claude-sonnet-5-5/span-6": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Hand the finished plan to trip_plan.",
+          "content_digest": "40260238991d627a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_4yA0LToOJ1kFY33SGUgosm\",\"name\":\"trip_plan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a stroll along the Ringstrasse, with Sachertorte at…[391 chars]",
+          "content_digest": "bc17819aaa23f8d0",
+          "tool_name": "trip_plan",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_4yA0LToOJ1kFY33SGUgosm\",\"content\":[{\"type\":\"text\",\"text\":\"Plan recorded.\"}]}",
+          "content_digest": "938413a7e0cd11ce",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I've recorded a two-day Vienna plan with an estimated budget of about €450. I didn't check weather or bookings because I only have the trip-plan tool here, so the plan and budget are general estimates. - **Day 1:** Explore the Innere Stadt.…[470 chars]",
+          "content_digest": "bcd3766ef374a7b5",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/execute_tool trip_plan/span-5": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_4yA0LToOJ1kFY33SGUgosm\",\"name\":\"trip_plan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a stroll along the Ringstrasse, with Sachertorte at…[391 chars]",
+          "content_digest": "bc17819aaa23f8d0",
+          "tool_name": "trip_plan",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Plan recorded.",
+          "content_digest": "baf3667f2a5bbbdd",
+          "tool_name": "trip_plan",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/invoke_agent global.anthropic.claude-sonnet-5-5/span-2": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Hand the finished plan to trip_plan.",
+          "content_digest": "40260238991d627a",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I've recorded a two-day Vienna plan with an estimated budget of about €450. I didn't check weather or bookings because I only have the trip-plan tool here, so the plan and budget are general estimates. - **Day 1:** Explore the Innere Stadt.…[470 chars]",
+          "content_digest": "bcd3766ef374a7b5",
+          "finish_reason": "Stop",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_4yA0LToOJ1kFY33SGUgosm\",\"name\":\"trip_plan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a stroll along the Ringstrasse, with Sachertorte at…[391 chars]",
+          "content_digest": "bc17819aaa23f8d0",
+          "tool_name": "trip_plan",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_4yA0LToOJ1kFY33SGUgosm\",\"content\":[{\"type\":\"text\",\"text\":\"Plan recorded.\"}]}",
+          "content_digest": "938413a7e0cd11ce",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/step 1/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/step 2/span-7": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/structured-output/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Hand the finished plan to trip_plan.",
+          "content_digest": "40260238991d627a",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_4yA0LToOJ1kFY33SGUgosm\",\"name\":\"trip_plan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a stroll along the Ringstrasse, with Sachertorte at…[391 chars]",
+          "content_digest": "bc17819aaa23f8d0",
+          "tool_name": "trip_plan",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Plan recorded.",
+          "content_digest": "baf3667f2a5bbbdd",
+          "tool_name": "trip_plan",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I've recorded a two-day Vienna plan with an estimated budget of about €450. I didn't check weather or bookings because I only have the trip-plan tool here, so the plan and budget are general estimates. - **Day 1:** Explore the Innere Stadt.…[470 chars]",
+          "content_digest": "bcd3766ef374a7b5",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "vercel-ai-js-structured_output": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Hand the finished plan to trip_plan.",
+          "content_digest": "40260238991d627a",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_4yA0LToOJ1kFY33SGUgosm\",\"name\":\"trip_plan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a stroll along the Ringstrasse, with Sachertorte at…[391 chars]",
+          "content_digest": "bc17819aaa23f8d0",
+          "tool_name": "trip_plan",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Plan recorded.",
+          "content_digest": "baf3667f2a5bbbdd",
+          "tool_name": "trip_plan",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I've recorded a two-day Vienna plan with an estimated budget of about €450. I didn't check weather or bookings because I only have the trip-plan tool here, so the plan and budget are general estimates. - **Day 1:** Explore the Innere Stadt.…[470 chars]",
+          "content_digest": "bcd3766ef374a7b5",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 5,
+    "role_sequence": [
+      "assistant",
+      "tool",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "I've recorded a two-day Vienna plan with an estimated budget of about €450. I didn't check weather or bookings because I only have the trip-plan tool here, so the plan and budget are general estimates. - **Day 1:** Explore the Innere Stadt.…[470 chars]",
+        "content_digest": "bcd3766ef374a7b5",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Plan recorded.",
+        "content_digest": "baf3667f2a5bbbdd",
+        "tool_name": "trip_plan",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Hand the finished plan to trip_plan.",
+        "content_digest": "40260238991d627a",
+        "observation_type": "agent"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Plan a two-day trip to Vienna.",
+        "content_digest": "5f56235d64bfe00d",
+        "observation_type": "agent"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_4yA0LToOJ1kFY33SGUgosm\",\"name\":\"trip_plan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a stroll along the Ringstrasse, with Sachertorte at…[391 chars]",
+        "content_digest": "bc17819aaa23f8d0",
+        "tool_name": "trip_plan",
+        "observation_type": "agent"
+      }
+    ]
+  }
+}
