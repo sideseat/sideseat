@@ -1,0 +1,333 @@
+{
+  "label": "claude-code/logs/tool_use",
+  "request_count": 1,
+  "span_count": 9,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/claude_code.interaction/span-1": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Read forecast.json in this directory, then run the shell command `wc -l forecast.json`. Using what the file says, tell me in two sentences how many lines it has and whether I should pack an umbrella for Paris or for Tokyo.",
+          "content_digest": "707ef9329b4ea2b3",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "`forecast.json` has 32 lines according to `wc -l`. Pack the umbrella for Tokyo, because the file shows rain there on day 1, while Paris is sunny on both days.",
+          "content_digest": "08dcc7e92aaa64df",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/claude_code.llm_request/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.llm_request/span-9": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.blocked_on_user/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.blocked_on_user/span-6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.execution/span-7": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.execution/span-8": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool/span-3": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01WiVW8ZGCtkTJ5bJpG5JSFH\",\"name\":\"Read\",\"input\":{}}",
+          "content_digest": "707d707df89402ea",
+          "tool_name": "Read",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{ \"Paris\": { \"city\": \"Paris\", \"forecast\": [ { \"day\": 1, \"condition\": \"sunny\", \"high_c\": 21 }, { \"day\": 2, \"condition\": \"sunny\", \"high_c\": 22 } ] }, \"Tokyo\": { \"city\": \"Tokyo\", \"forecast\": [ { \"day\": 1, \"condition\": \"rain\", \"high_c\": 21 }, {…[293 chars]",
+          "content_digest": "a04e5387f0e5df3e",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/claude_code.tool/span-5": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01TPdMyvarDc22DmjhwywXGr\",\"name\":\"Bash\",\"input\":{}}",
+          "content_digest": "247cb6c5b9b870b6",
+          "tool_name": "Bash",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "32 forecast.json",
+          "content_digest": "9a7f11f2169934b4",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 6,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Read forecast.json in this directory, then run the shell command `wc -l forecast.json`. Using what the file says, tell me in two sentences how many lines it has and whether I should pack an umbrella for Paris or for Tokyo.",
+          "content_digest": "707ef9329b4ea2b3",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01WiVW8ZGCtkTJ5bJpG5JSFH\",\"name\":\"Read\",\"input\":{}}",
+          "content_digest": "707d707df89402ea",
+          "tool_name": "Read",
+          "observation_type": "tool"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01TPdMyvarDc22DmjhwywXGr\",\"name\":\"Bash\",\"input\":{}}",
+          "content_digest": "247cb6c5b9b870b6",
+          "tool_name": "Bash",
+          "observation_type": "tool"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{ \"Paris\": { \"city\": \"Paris\", \"forecast\": [ { \"day\": 1, \"condition\": \"sunny\", \"high_c\": 21 }, { \"day\": 2, \"condition\": \"sunny\", \"high_c\": 22 } ] }, \"Tokyo\": { \"city\": \"Tokyo\", \"forecast\": [ { \"day\": 1, \"condition\": \"rain\", \"high_c\": 21 }, {…[293 chars]",
+          "content_digest": "a04e5387f0e5df3e",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "32 forecast.json",
+          "content_digest": "9a7f11f2169934b4",
+          "observation_type": "tool"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "`forecast.json` has 32 lines according to `wc -l`. Pack the umbrella for Tokyo, because the file shows rain there on day 1, while Paris is sunny on both days.",
+          "content_digest": "08dcc7e92aaa64df",
+          "observation_type": "span"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "47e392d9-c0e9-567a-9cec-57f2dda66be0": {
+      "message_count": 6,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Read forecast.json in this directory, then run the shell command `wc -l forecast.json`. Using what the file says, tell me in two sentences how many lines it has and whether I should pack an umbrella for Paris or for Tokyo.",
+          "content_digest": "707ef9329b4ea2b3",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01WiVW8ZGCtkTJ5bJpG5JSFH\",\"name\":\"Read\",\"input\":{}}",
+          "content_digest": "707d707df89402ea",
+          "tool_name": "Read",
+          "observation_type": "tool"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01TPdMyvarDc22DmjhwywXGr\",\"name\":\"Bash\",\"input\":{}}",
+          "content_digest": "247cb6c5b9b870b6",
+          "tool_name": "Bash",
+          "observation_type": "tool"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{ \"Paris\": { \"city\": \"Paris\", \"forecast\": [ { \"day\": 1, \"condition\": \"sunny\", \"high_c\": 21 }, { \"day\": 2, \"condition\": \"sunny\", \"high_c\": 22 } ] }, \"Tokyo\": { \"city\": \"Tokyo\", \"forecast\": [ { \"day\": 1, \"condition\": \"rain\", \"high_c\": 21 }, {…[293 chars]",
+          "content_digest": "a04e5387f0e5df3e",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "32 forecast.json",
+          "content_digest": "9a7f11f2169934b4",
+          "observation_type": "tool"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "`forecast.json` has 32 lines according to `wc -l`. Pack the umbrella for Tokyo, because the file shows rain there on day 1, while Paris is sunny on both days.",
+          "content_digest": "08dcc7e92aaa64df",
+          "observation_type": "span"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 6,
+    "role_sequence": [
+      "assistant",
+      "tool",
+      "tool",
+      "assistant",
+      "assistant",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "`forecast.json` has 32 lines according to `wc -l`. Pack the umbrella for Tokyo, because the file shows rain there on day 1, while Paris is sunny on both days.",
+        "content_digest": "08dcc7e92aaa64df",
+        "observation_type": "span"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "32 forecast.json",
+        "content_digest": "9a7f11f2169934b4",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{ \"Paris\": { \"city\": \"Paris\", \"forecast\": [ { \"day\": 1, \"condition\": \"sunny\", \"high_c\": 21 }, { \"day\": 2, \"condition\": \"sunny\", \"high_c\": 22 } ] }, \"Tokyo\": { \"city\": \"Tokyo\", \"forecast\": [ { \"day\": 1, \"condition\": \"rain\", \"high_c\": 21 }, {…[293 chars]",
+        "content_digest": "a04e5387f0e5df3e",
+        "observation_type": "tool"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01TPdMyvarDc22DmjhwywXGr\",\"name\":\"Bash\",\"input\":{}}",
+        "content_digest": "247cb6c5b9b870b6",
+        "tool_name": "Bash",
+        "observation_type": "tool"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01WiVW8ZGCtkTJ5bJpG5JSFH\",\"name\":\"Read\",\"input\":{}}",
+        "content_digest": "707d707df89402ea",
+        "tool_name": "Read",
+        "observation_type": "tool"
+      },
+      {
+        "index": 5,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Read forecast.json in this directory, then run the shell command `wc -l forecast.json`. Using what the file says, tell me in two sentences how many lines it has and whether I should pack an umbrella for Paris or for Tokyo.",
+        "content_digest": "707ef9329b4ea2b3",
+        "observation_type": "span"
+      }
+    ]
+  }
+}

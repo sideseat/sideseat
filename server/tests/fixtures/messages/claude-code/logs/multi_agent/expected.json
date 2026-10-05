@@ -1,0 +1,374 @@
+{
+  "label": "claude-code/logs/multi_agent",
+  "request_count": 1,
+  "span_count": 14,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/claude_code.interaction/span-1": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Delegate to a sub-agent: have it read forecast.json and report the Tokyo forecast. Then, using its report, write a one-sentence packing tip for Tokyo.",
+          "content_digest": "93bc1b6ffe5f088a",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Tokyo's forecast from the sub-agent's report: rain on day 1 with a high of 21°C, then sunny on day 2 with a high of 22°C. The file has no other Tokyo details, such as precipitation amounts or lows. **Packing tip:** Bring a compact umbrella …[351 chars]",
+          "content_digest": "132a5f59246f1e2f",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/claude_code.llm_request/span-10": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.llm_request/span-14": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.llm_request/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.llm_request/span-6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.blocked_on_user/span-12": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.blocked_on_user/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.blocked_on_user/span-8": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.execution/span-13": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.execution/span-5": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.execution/span-9": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool/span-11": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01Actd8P914qhntktFGvCfLp\",\"name\":\"SubagentHandback\",\"input\":{}}",
+          "content_digest": "74a5dfab9514554f",
+          "tool_name": "SubagentHandback",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/claude_code.tool/span-3": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_013wGao9fDW45J9rtnVPsUop\",\"name\":\"Agent\",\"input\":{}}",
+          "content_digest": "4a94d77c0514778a",
+          "tool_name": "Agent",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/claude_code.tool/span-7": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01EUGFfEAoEfxe7ADQGo3pHS\",\"name\":\"Read\",\"input\":{}}",
+          "content_digest": "ccc020fb8bc66b3e",
+          "tool_name": "Read",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{ \"Paris\": { \"city\": \"Paris\", \"forecast\": [ { \"day\": 1, \"condition\": \"sunny\", \"high_c\": 21 }, { \"day\": 2, \"condition\": \"sunny\", \"high_c\": 22 } ] }, \"Tokyo\": { \"city\": \"Tokyo\", \"forecast\": [ { \"day\": 1, \"condition\": \"rain\", \"high_c\": 21 }, {…[293 chars]",
+          "content_digest": "a04e5387f0e5df3e",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 6,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Delegate to a sub-agent: have it read forecast.json and report the Tokyo forecast. Then, using its report, write a one-sentence packing tip for Tokyo.",
+          "content_digest": "93bc1b6ffe5f088a",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_013wGao9fDW45J9rtnVPsUop\",\"name\":\"Agent\",\"input\":{}}",
+          "content_digest": "4a94d77c0514778a",
+          "tool_name": "Agent",
+          "observation_type": "tool"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01EUGFfEAoEfxe7ADQGo3pHS\",\"name\":\"Read\",\"input\":{}}",
+          "content_digest": "ccc020fb8bc66b3e",
+          "tool_name": "Read",
+          "observation_type": "tool"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{ \"Paris\": { \"city\": \"Paris\", \"forecast\": [ { \"day\": 1, \"condition\": \"sunny\", \"high_c\": 21 }, { \"day\": 2, \"condition\": \"sunny\", \"high_c\": 22 } ] }, \"Tokyo\": { \"city\": \"Tokyo\", \"forecast\": [ { \"day\": 1, \"condition\": \"rain\", \"high_c\": 21 }, {…[293 chars]",
+          "content_digest": "a04e5387f0e5df3e",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01Actd8P914qhntktFGvCfLp\",\"name\":\"SubagentHandback\",\"input\":{}}",
+          "content_digest": "74a5dfab9514554f",
+          "tool_name": "SubagentHandback",
+          "observation_type": "tool"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Tokyo's forecast from the sub-agent's report: rain on day 1 with a high of 21°C, then sunny on day 2 with a high of 22°C. The file has no other Tokyo details, such as precipitation amounts or lows. **Packing tip:** Bring a compact umbrella …[351 chars]",
+          "content_digest": "132a5f59246f1e2f",
+          "observation_type": "span"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "d236aea0-c5b4-5c44-9d87-27b78c968964": {
+      "message_count": 6,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Delegate to a sub-agent: have it read forecast.json and report the Tokyo forecast. Then, using its report, write a one-sentence packing tip for Tokyo.",
+          "content_digest": "93bc1b6ffe5f088a",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_013wGao9fDW45J9rtnVPsUop\",\"name\":\"Agent\",\"input\":{}}",
+          "content_digest": "4a94d77c0514778a",
+          "tool_name": "Agent",
+          "observation_type": "tool"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01EUGFfEAoEfxe7ADQGo3pHS\",\"name\":\"Read\",\"input\":{}}",
+          "content_digest": "ccc020fb8bc66b3e",
+          "tool_name": "Read",
+          "observation_type": "tool"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{ \"Paris\": { \"city\": \"Paris\", \"forecast\": [ { \"day\": 1, \"condition\": \"sunny\", \"high_c\": 21 }, { \"day\": 2, \"condition\": \"sunny\", \"high_c\": 22 } ] }, \"Tokyo\": { \"city\": \"Tokyo\", \"forecast\": [ { \"day\": 1, \"condition\": \"rain\", \"high_c\": 21 }, {…[293 chars]",
+          "content_digest": "a04e5387f0e5df3e",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01Actd8P914qhntktFGvCfLp\",\"name\":\"SubagentHandback\",\"input\":{}}",
+          "content_digest": "74a5dfab9514554f",
+          "tool_name": "SubagentHandback",
+          "observation_type": "tool"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Tokyo's forecast from the sub-agent's report: rain on day 1 with a high of 21°C, then sunny on day 2 with a high of 22°C. The file has no other Tokyo details, such as precipitation amounts or lows. **Packing tip:** Bring a compact umbrella …[351 chars]",
+          "content_digest": "132a5f59246f1e2f",
+          "observation_type": "span"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 6,
+    "role_sequence": [
+      "assistant",
+      "assistant",
+      "tool",
+      "assistant",
+      "assistant",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Tokyo's forecast from the sub-agent's report: rain on day 1 with a high of 21°C, then sunny on day 2 with a high of 22°C. The file has no other Tokyo details, such as precipitation amounts or lows. **Packing tip:** Bring a compact umbrella …[351 chars]",
+        "content_digest": "132a5f59246f1e2f",
+        "observation_type": "span"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01Actd8P914qhntktFGvCfLp\",\"name\":\"SubagentHandback\",\"input\":{}}",
+        "content_digest": "74a5dfab9514554f",
+        "tool_name": "SubagentHandback",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{ \"Paris\": { \"city\": \"Paris\", \"forecast\": [ { \"day\": 1, \"condition\": \"sunny\", \"high_c\": 21 }, { \"day\": 2, \"condition\": \"sunny\", \"high_c\": 22 } ] }, \"Tokyo\": { \"city\": \"Tokyo\", \"forecast\": [ { \"day\": 1, \"condition\": \"rain\", \"high_c\": 21 }, {…[293 chars]",
+        "content_digest": "a04e5387f0e5df3e",
+        "observation_type": "tool"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01EUGFfEAoEfxe7ADQGo3pHS\",\"name\":\"Read\",\"input\":{}}",
+        "content_digest": "ccc020fb8bc66b3e",
+        "tool_name": "Read",
+        "observation_type": "tool"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_013wGao9fDW45J9rtnVPsUop\",\"name\":\"Agent\",\"input\":{}}",
+        "content_digest": "4a94d77c0514778a",
+        "tool_name": "Agent",
+        "observation_type": "tool"
+      },
+      {
+        "index": 5,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Delegate to a sub-agent: have it read forecast.json and report the Tokyo forecast. Then, using its report, write a one-sentence packing tip for Tokyo.",
+        "content_digest": "93bc1b6ffe5f088a",
+        "observation_type": "span"
+      }
+    ]
+  }
+}

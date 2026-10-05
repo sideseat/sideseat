@@ -1,0 +1,234 @@
+{
+  "label": "claude-code/logs/error",
+  "request_count": 1,
+  "span_count": 6,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/claude_code.interaction/span-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Run the shell command `cat bookings/london-oslo.txt` to read my flight booking, then tell me in one sentence what happened.",
+          "content_digest": "84cb0e4fa0e9c7dd",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Shell command failed",
+          "content_digest": "648fb76950fb6c78",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The command failed because `bookings/london-oslo.txt` doesn't exist in `/private/tmp/sideseat-cli/claude-code/error`, so I couldn't read your booking.",
+          "content_digest": "bedae02b25090599",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/claude_code.llm_request/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.llm_request/span-6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.blocked_on_user/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.execution/span-5": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool/span-3": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_014fyFv8gXzVWKaftQ16z3he\",\"name\":\"Bash\",\"input\":{}}",
+          "content_digest": "d904c5db773dd0cb",
+          "tool_name": "Bash",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 4,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Run the shell command `cat bookings/london-oslo.txt` to read my flight booking, then tell me in one sentence what happened.",
+          "content_digest": "84cb0e4fa0e9c7dd",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_014fyFv8gXzVWKaftQ16z3he\",\"name\":\"Bash\",\"input\":{}}",
+          "content_digest": "d904c5db773dd0cb",
+          "tool_name": "Bash",
+          "observation_type": "tool"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Shell command failed",
+          "content_digest": "648fb76950fb6c78",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The command failed because `bookings/london-oslo.txt` doesn't exist in `/private/tmp/sideseat-cli/claude-code/error`, so I couldn't read your booking.",
+          "content_digest": "bedae02b25090599",
+          "observation_type": "span"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "32aaf93a-bb02-5608-92e9-4b13c763eee6": {
+      "message_count": 4,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Run the shell command `cat bookings/london-oslo.txt` to read my flight booking, then tell me in one sentence what happened.",
+          "content_digest": "84cb0e4fa0e9c7dd",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_014fyFv8gXzVWKaftQ16z3he\",\"name\":\"Bash\",\"input\":{}}",
+          "content_digest": "d904c5db773dd0cb",
+          "tool_name": "Bash",
+          "observation_type": "tool"
+        },
+        {
+          "index": 2,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Shell command failed",
+          "content_digest": "648fb76950fb6c78",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The command failed because `bookings/london-oslo.txt` doesn't exist in `/private/tmp/sideseat-cli/claude-code/error`, so I couldn't read your booking.",
+          "content_digest": "bedae02b25090599",
+          "observation_type": "span"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 4,
+    "role_sequence": [
+      "assistant",
+      "tool",
+      "assistant",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The command failed because `bookings/london-oslo.txt` doesn't exist in `/private/tmp/sideseat-cli/claude-code/error`, so I couldn't read your booking.",
+        "content_digest": "bedae02b25090599",
+        "observation_type": "span"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Shell command failed",
+        "content_digest": "648fb76950fb6c78",
+        "observation_type": "span"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_014fyFv8gXzVWKaftQ16z3he\",\"name\":\"Bash\",\"input\":{}}",
+        "content_digest": "d904c5db773dd0cb",
+        "tool_name": "Bash",
+        "observation_type": "tool"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Run the shell command `cat bookings/london-oslo.txt` to read my flight booking, then tell me in one sentence what happened.",
+        "content_digest": "84cb0e4fa0e9c7dd",
+        "observation_type": "span"
+      }
+    ]
+  }
+}

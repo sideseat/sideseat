@@ -1,0 +1,230 @@
+{
+  "$schema": "../../rules.schema.json",
+  "id": "codex",
+  "doc": "The OpenAI Codex CLI's `[otel]` telemetry. Its spans are its own `tracing` instrumentation - hundreds per turn, none in the GenAI conventions, none carrying text - so the conversation is entirely in its log events: the prompt (`log_user_prompt`), each tool call with its arguments and output, and the reply (`log_agent_responses`). A record names a span only while the trace exporter runs; that is what joins it to a turn, and with logs alone nothing can. The model's reasoning is never exported, and nor is the system prompt.",
+  "carriers": [
+    {
+      "id": "codex.user_prompt.carrier",
+      "doc": "The user's turn, or a sub-agent's task, once per turn. A snapshot, the cautious reading the resolver gives a carrier nobody classified: one record per turn or call, so it can neither invent a duplicate nor need the stronger guarantees of an emission.",
+      "match": {
+        "event": "codex.user_prompt.prompt"
+      },
+      "facts": {
+        "preset": "snapshot"
+      }
+    },
+    {
+      "id": "codex.tool_call.carrier",
+      "doc": "The call, rebuilt from the record of its result. A snapshot, the cautious reading the resolver gives a carrier nobody classified: one record per turn or call, so it can neither invent a duplicate nor need the stronger guarantees of an emission.",
+      "match": {
+        "event": "codex.tool_result.call"
+      },
+      "facts": {
+        "preset": "snapshot"
+      }
+    },
+    {
+      "id": "codex.tool_output.carrier",
+      "doc": "What the tool returned. A snapshot, the cautious reading the resolver gives a carrier nobody classified: one record per turn or call, so it can neither invent a duplicate nor need the stronger guarantees of an emission.",
+      "match": {
+        "event": "codex.tool_result.output"
+      },
+      "facts": {
+        "preset": "snapshot"
+      }
+    },
+    {
+      "id": "codex.agent_response.carrier",
+      "doc": "A turn's final reply. A snapshot, the cautious reading the resolver gives a carrier nobody classified: one record per turn or call, so it can neither invent a duplicate nor need the stronger guarantees of an emission.",
+      "match": {
+        "event": "codex.agent_response.response"
+      },
+      "facts": {
+        "preset": "snapshot"
+      }
+    }
+  ],
+  "detect": [
+    {
+      "id": "codex.detect",
+      "doc": "Codex names its service after the client that runs it: `codex_exec` for `codex exec`, `codex_cli_rs` for the interactive CLI, `codex_vscode` for the editor extension.",
+      "label": "Codex",
+      "match": {
+        "service_name": [
+          "codex_exec",
+          "codex_cli_rs",
+          "codex_vscode"
+        ]
+      },
+      "legacy_rank": 285
+    }
+  ],
+  "message_events": [
+    {
+      "id": "codex.message_event.user_prompt",
+      "name": "codex.user_prompt",
+      "raw": "replace",
+      "doc": "The user's prompt, or a sub-agent's task. A container: `prompt` is the turn."
+    },
+    {
+      "id": "codex.message_event.agent_response",
+      "name": "codex.agent_response",
+      "raw": "replace",
+      "doc": "The agent's reply at the end of a turn; `agent.type` says whether the main agent or a sub-agent gave it."
+    },
+    {
+      "id": "codex.message_event.tool_result",
+      "name": "codex.tool_result",
+      "raw": "replace",
+      "doc": "One finished tool call: its name, call id, arguments and output on one record."
+    }
+  ],
+  "log_events": [
+    {
+      "id": "codex.log_event.user_prompt",
+      "name": "codex.user_prompt",
+      "name_from": [
+        "attributes:event.name"
+      ],
+      "payload": "attributes",
+      "doc": "Named by the `event.name` attribute only: the record's own event name is the `tracing` call site (`event otel/src/events/session_telemetry.rs:1150`), which the OpenTelemetry bridge writes there."
+    },
+    {
+      "id": "codex.log_event.agent_response",
+      "name": "codex.agent_response",
+      "name_from": [
+        "attributes:event.name"
+      ],
+      "payload": "attributes"
+    },
+    {
+      "id": "codex.log_event.tool_result",
+      "name": "codex.tool_result",
+      "name_from": [
+        "attributes:event.name"
+      ],
+      "payload": "attributes"
+    }
+  ],
+  "messages": [
+    {
+      "id": "codex.user_prompt",
+      "doc": "The user's turn. Without `log_user_prompt` the record carries a redaction marker, which is read as what it says.",
+      "source": {
+        "event": {
+          "names": [
+            "codex.user_prompt"
+          ]
+        }
+      },
+      "read": {
+        "attribute": "prompt"
+      },
+      "parse": "text",
+      "require_non_blank": true,
+      "wrap": {
+        "role": "user"
+      },
+      "emit": "message",
+      "legacy_rank": 1950,
+      "tag_as": "codex.user_prompt.prompt"
+    },
+    {
+      "id": "codex.tool_call",
+      "doc": "The call, from the record of its result: the model's arguments are kept verbatim there.",
+      "source": {
+        "event": {
+          "names": [
+            "codex.tool_result"
+          ]
+        }
+      },
+      "read": {
+        "attribute": "tool_name"
+      },
+      "parse": "text",
+      "require_non_blank": true,
+      "wrap": {
+        "role": "assistant",
+        "block": {
+          "type": "tool_use",
+          "content_as": "name",
+          "attach": [
+            {
+              "from": "arguments",
+              "as": "input",
+              "parse": "json",
+              "blank_is_absent": true,
+              "default": {},
+              "after_content": true
+            },
+            {
+              "from": "call_id",
+              "as": "id",
+              "blank_is_absent": true,
+              "after_content": true
+            }
+          ]
+        }
+      },
+      "emit": "message",
+      "legacy_rank": 1955,
+      "tag_as": "codex.tool_result.call"
+    },
+    {
+      "id": "codex.tool_output",
+      "doc": "What the tool returned, answering its call. A shell command's output includes Codex's own header (chunk id, wall time, exit code), which is what the model read.",
+      "source": {
+        "event": {
+          "names": [
+            "codex.tool_result"
+          ]
+        }
+      },
+      "read": {
+        "attribute": "output"
+      },
+      "parse": "text",
+      "require_non_blank": true,
+      "wrap": {
+        "role": "tool",
+        "block": {
+          "type": "tool_result",
+          "attach": [
+            {
+              "from": "call_id",
+              "as": "tool_use_id",
+              "blank_is_absent": true,
+              "after_content": true
+            }
+          ]
+        }
+      },
+      "emit": "message",
+      "legacy_rank": 1960,
+      "tag_as": "codex.tool_result.output"
+    },
+    {
+      "id": "codex.agent_response",
+      "doc": "The agent's reply.",
+      "source": {
+        "event": {
+          "names": [
+            "codex.agent_response"
+          ]
+        }
+      },
+      "read": {
+        "attribute": "response"
+      },
+      "parse": "text",
+      "require_non_blank": true,
+      "wrap": {
+        "role": "assistant"
+      },
+      "emit": "message",
+      "legacy_rank": 1965,
+      "tag_as": "codex.agent_response.response"
+    }
+  ]
+}

@@ -1,0 +1,472 @@
+{
+  "label": "claude-code/native/multi_agent",
+  "request_count": 1,
+  "span_count": 14,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/claude_code.interaction/span-1": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Delegate to a sub-agent: have it read forecast.json and report the Tokyo forecast. Then, using its report, write a one-sentence packing tip for Tokyo.",
+          "content_digest": "93bc1b6ffe5f088a",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Tokyo's forecast from the sub-agent's report: rain on day 1 with a high of 21°C, then sunny on day 2 with a high of 22°C. The file has no other Tokyo details, such as precipitation amounts or lows. **Packing tip:** Bring a compact umbrella …[351 chars]",
+          "content_digest": "132a5f59246f1e2f",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/claude_code.llm_request/span-10": {
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "1 { 2 \"Paris\": { 3 \"city\": \"Paris\", 4 \"forecast\": [ 5 { 6 \"day\": 1, 7 \"condition\": \"sunny\", 8 \"high_c\": 21 9 }, 10 { 11 \"day\": 2, 12 \"condition\": \"sunny\", 13 \"high_c\": 22 14 } 15 ] 16 }, 17 \"Tokyo\": { 18 \"city\": \"Tokyo\", 19 \"forecast\": [ 20…[383 chars]",
+          "content_digest": "9366ecc734e64540",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/claude_code.llm_request/span-14": {
+      "message_count": 2,
+      "role_sequence": [
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[{\"type\":\"text\",\"text\":\" This agent's report was delivered to you as a message from \\\"a0000000000000001\\\" (its SubagentHandback call). Read it there; it is not repeated here.\\n \\nagentId: a0000000000000001 (use SendMessage with to: 'a000000…[378 chars]",
+          "content_digest": "029146f90dc836c6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Tokyo's forecast from the sub-agent's report: rain on day 1 with a high of 21°C, then sunny on day 2 with a high of 22°C. The file has no other Tokyo details, such as precipitation amounts or lows. **Packing tip:** Bring a compact umbrella …[351 chars]",
+          "content_digest": "132a5f59246f1e2f",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/claude_code.llm_request/span-2": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Delegate to a sub-agent: have it read forecast.json and report the Tokyo forecast. Then, using its report, write a one-sentence packing tip for Tokyo.",
+          "content_digest": "93bc1b6ffe5f088a",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/claude_code.llm_request/span-6": {
+      "message_count": 1,
+      "role_sequence": [
+        "user"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Read forecast.json in /private/tmp/sideseat-cli/claude-code/multi_agent and report the Tokyo forecast (conditions, temperatures, precipitation, and anything else relevant). Be concise and report only what the file says.",
+          "content_digest": "605eaaa51b162695",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/claude_code.tool.blocked_on_user/span-12": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.blocked_on_user/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.blocked_on_user/span-8": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.execution/span-13": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.execution/span-5": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool.execution/span-9": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.tool/span-11": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01Actd8P914qhntktFGvCfLp\",\"name\":\"SubagentHandback\",\"input\":{\"message\":\"Tokyo forecast in forecast.json (2 days):\\n- Day 1: rain, high 21°C\\n- Day 2: sunny, high 22°C\\n\\nThe file has no precipitation amou…[390 chars]",
+          "content_digest": "821415263fc0cc49",
+          "tool_name": "SubagentHandback",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/claude_code.tool/span-3": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_013wGao9fDW45J9rtnVPsUop\",\"name\":\"Agent\",\"input\":{\"description\":\"Read Tokyo forecast\",\"prompt\":\"Read forecast.json in /private/tmp/sideseat-cli/claude-code/multi_agent and report the Tokyo forecast (condi…[414 chars]",
+          "content_digest": "fc999eed8f1fa7f2",
+          "tool_name": "Agent",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/claude_code.tool/span-7": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01EUGFfEAoEfxe7ADQGo3pHS\",\"name\":\"Read\",\"input\":{\"file_path\":\"/private/tmp/sideseat-cli/claude-code/multi_agent/forecast.json\"}}",
+          "content_digest": "43ee6794e7755dbe",
+          "tool_name": "Read",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 8,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Delegate to a sub-agent: have it read forecast.json and report the Tokyo forecast. Then, using its report, write a one-sentence packing tip for Tokyo.",
+          "content_digest": "93bc1b6ffe5f088a",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_013wGao9fDW45J9rtnVPsUop\",\"name\":\"Agent\",\"input\":{\"description\":\"Read Tokyo forecast\",\"prompt\":\"Read forecast.json in /private/tmp/sideseat-cli/claude-code/multi_agent and report the Tokyo forecast (condi…[414 chars]",
+          "content_digest": "fc999eed8f1fa7f2",
+          "tool_name": "Agent",
+          "observation_type": "tool"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Read forecast.json in /private/tmp/sideseat-cli/claude-code/multi_agent and report the Tokyo forecast (conditions, temperatures, precipitation, and anything else relevant). Be concise and report only what the file says.",
+          "content_digest": "605eaaa51b162695",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01EUGFfEAoEfxe7ADQGo3pHS\",\"name\":\"Read\",\"input\":{\"file_path\":\"/private/tmp/sideseat-cli/claude-code/multi_agent/forecast.json\"}}",
+          "content_digest": "43ee6794e7755dbe",
+          "tool_name": "Read",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "1 { 2 \"Paris\": { 3 \"city\": \"Paris\", 4 \"forecast\": [ 5 { 6 \"day\": 1, 7 \"condition\": \"sunny\", 8 \"high_c\": 21 9 }, 10 { 11 \"day\": 2, 12 \"condition\": \"sunny\", 13 \"high_c\": 22 14 } 15 ] 16 }, 17 \"Tokyo\": { 18 \"city\": \"Tokyo\", 19 \"forecast\": [ 20…[383 chars]",
+          "content_digest": "9366ecc734e64540",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01Actd8P914qhntktFGvCfLp\",\"name\":\"SubagentHandback\",\"input\":{\"message\":\"Tokyo forecast in forecast.json (2 days):\\n- Day 1: rain, high 21°C\\n- Day 2: sunny, high 22°C\\n\\nThe file has no precipitation amou…[390 chars]",
+          "content_digest": "821415263fc0cc49",
+          "tool_name": "SubagentHandback",
+          "observation_type": "tool"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[{\"type\":\"text\",\"text\":\" This agent's report was delivered to you as a message from \\\"a0000000000000001\\\" (its SubagentHandback call). Read it there; it is not repeated here.\\n \\nagentId: a0000000000000001 (use SendMessage with to: 'a000000…[378 chars]",
+          "content_digest": "029146f90dc836c6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Tokyo's forecast from the sub-agent's report: rain on day 1 with a high of 21°C, then sunny on day 2 with a high of 22°C. The file has no other Tokyo details, such as precipitation amounts or lows. **Packing tip:** Bring a compact umbrella …[351 chars]",
+          "content_digest": "132a5f59246f1e2f",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "d236aea0-c5b4-5c44-9d87-27b78c968964": {
+      "message_count": 8,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Delegate to a sub-agent: have it read forecast.json and report the Tokyo forecast. Then, using its report, write a one-sentence packing tip for Tokyo.",
+          "content_digest": "93bc1b6ffe5f088a",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_013wGao9fDW45J9rtnVPsUop\",\"name\":\"Agent\",\"input\":{\"description\":\"Read Tokyo forecast\",\"prompt\":\"Read forecast.json in /private/tmp/sideseat-cli/claude-code/multi_agent and report the Tokyo forecast (condi…[414 chars]",
+          "content_digest": "fc999eed8f1fa7f2",
+          "tool_name": "Agent",
+          "observation_type": "tool"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Read forecast.json in /private/tmp/sideseat-cli/claude-code/multi_agent and report the Tokyo forecast (conditions, temperatures, precipitation, and anything else relevant). Be concise and report only what the file says.",
+          "content_digest": "605eaaa51b162695",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01EUGFfEAoEfxe7ADQGo3pHS\",\"name\":\"Read\",\"input\":{\"file_path\":\"/private/tmp/sideseat-cli/claude-code/multi_agent/forecast.json\"}}",
+          "content_digest": "43ee6794e7755dbe",
+          "tool_name": "Read",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "1 { 2 \"Paris\": { 3 \"city\": \"Paris\", 4 \"forecast\": [ 5 { 6 \"day\": 1, 7 \"condition\": \"sunny\", 8 \"high_c\": 21 9 }, 10 { 11 \"day\": 2, 12 \"condition\": \"sunny\", 13 \"high_c\": 22 14 } 15 ] 16 }, 17 \"Tokyo\": { 18 \"city\": \"Tokyo\", 19 \"forecast\": [ 20…[383 chars]",
+          "content_digest": "9366ecc734e64540",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01Actd8P914qhntktFGvCfLp\",\"name\":\"SubagentHandback\",\"input\":{\"message\":\"Tokyo forecast in forecast.json (2 days):\\n- Day 1: rain, high 21°C\\n- Day 2: sunny, high 22°C\\n\\nThe file has no precipitation amou…[390 chars]",
+          "content_digest": "821415263fc0cc49",
+          "tool_name": "SubagentHandback",
+          "observation_type": "tool"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "[{\"type\":\"text\",\"text\":\" This agent's report was delivered to you as a message from \\\"a0000000000000001\\\" (its SubagentHandback call). Read it there; it is not repeated here.\\n \\nagentId: a0000000000000001 (use SendMessage with to: 'a000000…[378 chars]",
+          "content_digest": "029146f90dc836c6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Tokyo's forecast from the sub-agent's report: rain on day 1 with a high of 21°C, then sunny on day 2 with a high of 22°C. The file has no other Tokyo details, such as precipitation amounts or lows. **Packing tip:** Bring a compact umbrella …[351 chars]",
+          "content_digest": "132a5f59246f1e2f",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 8,
+    "role_sequence": [
+      "tool",
+      "assistant",
+      "assistant",
+      "tool",
+      "assistant",
+      "user",
+      "assistant",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "[{\"type\":\"text\",\"text\":\" This agent's report was delivered to you as a message from \\\"a0000000000000001\\\" (its SubagentHandback call). Read it there; it is not repeated here.\\n \\nagentId: a0000000000000001 (use SendMessage with to: 'a000000…[378 chars]",
+        "content_digest": "029146f90dc836c6",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Tokyo's forecast from the sub-agent's report: rain on day 1 with a high of 21°C, then sunny on day 2 with a high of 22°C. The file has no other Tokyo details, such as precipitation amounts or lows. **Packing tip:** Bring a compact umbrella …[351 chars]",
+        "content_digest": "132a5f59246f1e2f",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01Actd8P914qhntktFGvCfLp\",\"name\":\"SubagentHandback\",\"input\":{\"message\":\"Tokyo forecast in forecast.json (2 days):\\n- Day 1: rain, high 21°C\\n- Day 2: sunny, high 22°C\\n\\nThe file has no precipitation amou…[390 chars]",
+        "content_digest": "821415263fc0cc49",
+        "tool_name": "SubagentHandback",
+        "observation_type": "tool"
+      },
+      {
+        "index": 3,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "1 { 2 \"Paris\": { 3 \"city\": \"Paris\", 4 \"forecast\": [ 5 { 6 \"day\": 1, 7 \"condition\": \"sunny\", 8 \"high_c\": 21 9 }, 10 { 11 \"day\": 2, 12 \"condition\": \"sunny\", 13 \"high_c\": 22 14 } 15 ] 16 }, 17 \"Tokyo\": { 18 \"city\": \"Tokyo\", 19 \"forecast\": [ 20…[383 chars]",
+        "content_digest": "9366ecc734e64540",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01EUGFfEAoEfxe7ADQGo3pHS\",\"name\":\"Read\",\"input\":{\"file_path\":\"/private/tmp/sideseat-cli/claude-code/multi_agent/forecast.json\"}}",
+        "content_digest": "43ee6794e7755dbe",
+        "tool_name": "Read",
+        "observation_type": "tool"
+      },
+      {
+        "index": 5,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Read forecast.json in /private/tmp/sideseat-cli/claude-code/multi_agent and report the Tokyo forecast (conditions, temperatures, precipitation, and anything else relevant). Be concise and report only what the file says.",
+        "content_digest": "605eaaa51b162695",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_013wGao9fDW45J9rtnVPsUop\",\"name\":\"Agent\",\"input\":{\"description\":\"Read Tokyo forecast\",\"prompt\":\"Read forecast.json in /private/tmp/sideseat-cli/claude-code/multi_agent and report the Tokyo forecast (condi…[414 chars]",
+        "content_digest": "fc999eed8f1fa7f2",
+        "tool_name": "Agent",
+        "observation_type": "tool"
+      },
+      {
+        "index": 7,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Delegate to a sub-agent: have it read forecast.json and report the Tokyo forecast. Then, using its report, write a one-sentence packing tip for Tokyo.",
+        "content_digest": "93bc1b6ffe5f088a",
+        "observation_type": "span"
+      }
+    ]
+  }
+}

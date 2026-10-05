@@ -1,0 +1,490 @@
+{
+  "label": "claude-code/native/multi_turn",
+  "request_count": 3,
+  "span_count": 6,
+  "trace_count": 3,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/claude_code.interaction/span-1": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Alfama** is my pick for a weekend. It's Lisbon's oldest neighbourhood, with winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol. You can walk to the Sé Cathedral, the Castelo de São Jorge, and the riverfront. The h…[309 chars]",
+          "content_digest": "fb8377ce702ed73a",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/claude_code.llm_request/span-2": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Alfama** is my pick for a weekend. It's Lisbon's oldest neighbourhood, with winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol. You can walk to the Sé Cathedral, the Castelo de São Jorge, and the riverfront. The h…[309 chars]",
+          "content_digest": "fb8377ce702ed73a",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/claude_code.interaction/span-1": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Sardinhas assadas** (grilled sardines) are the dish to try in Alfama. They're served whole, usually on a slice of bread that soaks up the juices, with a side of roasted peppers or salad. They're a Lisbon staple, especially in summer and a…[376 chars]",
+          "content_digest": "6c6a7f4d32a23537",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-2/claude_code.llm_request/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Sardinhas assadas** (grilled sardines) are the dish to try in Alfama. They're served whole, usually on a slice of bread that soaks up the juices, with a side of roasted peppers or salad. They're a Lisbon staple, especially in summer and a…[376 chars]",
+          "content_digest": "6c6a7f4d32a23537",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-3/claude_code.interaction/span-1": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarise your two suggestions in one sentence.",
+          "content_digest": "3a58af4870fae288",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in Alfama, Lisbon's oldest neighbourhood, and try the grilled sardines (sardinhas assadas) served on bread at one of its local taverns.",
+          "content_digest": "8ead38f23928057c",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-3/claude_code.llm_request/span-2": {
+      "message_count": 4,
+      "role_sequence": [
+        "user",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarise your two suggestions in one sentence.",
+          "content_digest": "3a58af4870fae288",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in Alfama, Lisbon's oldest neighbourhood, and try the grilled sardines (sardinhas assadas) served on bread at one of its local taverns.",
+          "content_digest": "8ead38f23928057c",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Alfama** is my pick for a weekend. It's Lisbon's oldest neighbourhood, with winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol. You can walk to the Sé Cathedral, the Castelo de São Jorge, and the riverfront. The h…[309 chars]",
+          "content_digest": "fb8377ce702ed73a",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Sardinhas assadas** (grilled sardines) are the dish to try in Alfama. They're served whole, usually on a slice of bread that soaks up the juices, with a side of roasted peppers or salad. They're a Lisbon staple, especially in summer and a…[376 chars]",
+          "content_digest": "6c6a7f4d32a23537",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-3": {
+      "message_count": 4,
+      "role_sequence": [
+        "user",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarise your two suggestions in one sentence.",
+          "content_digest": "3a58af4870fae288",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in Alfama, Lisbon's oldest neighbourhood, and try the grilled sardines (sardinhas assadas) served on bread at one of its local taverns.",
+          "content_digest": "8ead38f23928057c",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "14b8b15a-3d2d-5c34-87cd-0570bf17d42a": {
+      "message_count": 9,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "user",
+        "user",
+        "assistant",
+        "user",
+        "user",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Alfama** is my pick for a weekend. It's Lisbon's oldest neighbourhood, with winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol. You can walk to the Sé Cathedral, the Castelo de São Jorge, and the riverfront. The h…[309 chars]",
+          "content_digest": "fb8377ce702ed73a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Sardinhas assadas** (grilled sardines) are the dish to try in Alfama. They're served whole, usually on a slice of bread that soaks up the juices, with a side of roasted peppers or salad. They're a Lisbon staple, especially in summer and a…[376 chars]",
+          "content_digest": "6c6a7f4d32a23537",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarise your two suggestions in one sentence.",
+          "content_digest": "3a58af4870fae288",
+          "observation_type": "span"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in Alfama, Lisbon's oldest neighbourhood, and try the grilled sardines (sardinhas assadas) served on bread at one of its local taverns.",
+          "content_digest": "8ead38f23928057c",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 9,
+    "role_sequence": [
+      "user",
+      "user",
+      "assistant",
+      "user",
+      "user",
+      "assistant",
+      "user",
+      "assistant",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "user",
+        "entry_type": "text",
+        "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+        "content_digest": "c366c7539466c187",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is one dish I should try there?",
+        "content_digest": "fa205a3ea90d1fdf",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Stay in Alfama, Lisbon's oldest neighbourhood, and try the grilled sardines (sardinhas assadas) served on bread at one of its local taverns.",
+        "content_digest": "8ead38f23928057c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Summarise your two suggestions in one sentence.",
+        "content_digest": "3a58af4870fae288",
+        "observation_type": "span"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "entry_type": "text",
+        "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+        "content_digest": "c366c7539466c187",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "**Sardinhas assadas** (grilled sardines) are the dish to try in Alfama. They're served whole, usually on a slice of bread that soaks up the juices, with a side of roasted peppers or salad. They're a Lisbon staple, especially in summer and a…[376 chars]",
+        "content_digest": "6c6a7f4d32a23537",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is one dish I should try there?",
+        "content_digest": "fa205a3ea90d1fdf",
+        "observation_type": "span"
+      },
+      {
+        "index": 7,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "**Alfama** is my pick for a weekend. It's Lisbon's oldest neighbourhood, with winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol. You can walk to the Sé Cathedral, the Castelo de São Jorge, and the riverfront. The h…[309 chars]",
+        "content_digest": "fb8377ce702ed73a",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "user",
+        "entry_type": "text",
+        "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+        "content_digest": "c366c7539466c187",
+        "observation_type": "span"
+      }
+    ]
+  }
+}

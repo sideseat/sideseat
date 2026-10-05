@@ -6,14 +6,19 @@
   response builders, with the request a framework would send modelled from the scenario, and the
   responses are decoded through the same decoders as a cassette's.
 * The SDK conformance programs emit one fixed conversation, read from the Python program.
+* A coding-agent CLI (``examples/cli``) has a cassette per scenario like a live suite, and its prompts
+  are the CLI driver's own, since a CLI scenario reads files and runs commands rather than calling the
+  shared tools.
 """
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import importlib.util
 import json
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -32,6 +37,7 @@ TRUTH = REPO / "server" / "tests" / "fixtures" / "truth"
 CONFORMANCE_PROGRAM = (
     REPO / "examples" / "python" / "sdk-conformance" / "conformance.py"
 )
+CLI_DRIVER = REPO / "examples" / "cli" / "capture.py"
 #: Producers whose fixtures come from the conformance programs, one per SDK language.
 CONFORMANCE_PRODUCERS = ("python", "javascript", "dotnet", "rust")
 CONFORMANCE_SOURCES = {
@@ -78,7 +84,67 @@ def targets() -> list[Target]:
         for scenario in suite_scenarios(suite):
             found.append(Target(producer, scenario))
     found += [Target(producer, "canonical") for producer in CONFORMANCE_PRODUCERS]
+    found += [
+        Target(producer, scenario)
+        for producer in sorted(_cli_driver().CLIS)
+        for scenario in _cli_driver().SCENARIOS
+    ]
     return found
+
+
+def _unexported(builder: Builder, unexported: dict[str, str]) -> None:
+    """Withdraw the assertions a CLI's telemetry cannot satisfy, each with the CLI's own reason."""
+    finals = {
+        fact
+        for conversation in builder.conversations
+        for fact in conversation["final_answers"]
+    }
+    for fact in builder.facts:
+        kind = fact["kind"]
+        if kind not in unexported or (kind == "text" and fact["id"] in finals):
+            continue
+        fact["require"] = None
+        builder.gap(kind, "not_exported", unexported[kind], subject=fact["id"])
+
+
+@functools.cache
+def _cli_driver() -> Any:
+    """The CLI capture driver, which declares the CLIs and the prompts of each scenario."""
+    spec = importlib.util.spec_from_file_location("cli_capture", CLI_DRIVER)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    # Registered before it runs: its dataclasses resolve their module through `sys.modules`.
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def cli(target: Target) -> dict[str, Any]:
+    """A CLI scenario's truth: its cassette, laid out against the prompts the driver sent."""
+    driver = _cli_driver()
+    cassette = (
+        CLI_DRIVER.parent / target.producer / "cassettes" / f"{target.scenario}.json"
+    )
+    if not cassette.exists():
+        raise Underivable(f"no cassette at {_relative(cassette)}")
+    calls, ignored = decode_cassette(cassette)
+    if not calls:
+        raise Underivable(f"{_relative(cassette)} records no model call")
+    turns = driver.SCENARIOS[target.scenario].turns
+    builder = assemble(target.producer, target.scenario, calls, prompts=[tuple(turns)])
+    _unexported(builder, driver.CLIS[target.producer].unexported)
+    source = {
+        "kind": "cassette",
+        "path": _relative(cassette),
+        "sha256": _sha256(cassette),
+        "non_model_requests": ignored,
+    }
+    return document(
+        builder,
+        fixtures=fixtures_of(target.producer, target.scenario),
+        source=source,
+        request_bodies="unrecorded",
+    )
 
 
 def suite_scenarios(suite: capture.Suite) -> list[str]:
@@ -93,6 +159,8 @@ def suite_scenarios(suite: capture.Suite) -> list[str]:
 def build(target: Target) -> dict[str, Any]:
     if target.scenario == "canonical" and target.producer in CONFORMANCE_PRODUCERS:
         return conformance(target.producer)
+    if target.producer in _cli_driver().CLIS:
+        return cli(target)
     suite = capture.suites().get(target.producer)
     if suite is None:
         raise Underivable(f"no suite produces {target.producer!r}")

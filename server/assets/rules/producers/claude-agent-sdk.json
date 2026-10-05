@@ -201,7 +201,8 @@
     {
       "id": "claude-agent-sdk.message_event.tool_output",
       "name": "tool.output",
-      "doc": "The CLI's tool result body, emitted only with tool-content logging enabled - which is why no captured fixture exercises it, and why a unit test is what holds it."
+      "doc": "The CLI's tool result body, emitted only with tool-content logging enabled. A container: `claude-code.tool_output` reads the member that holds the output, so the event's other members (the path, the command) are not reported as a message too.",
+      "raw": "replace"
     }
   ],
   "event_roles": [

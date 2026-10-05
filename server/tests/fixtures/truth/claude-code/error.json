@@ -1,0 +1,180 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "claude-code",
+ "scenario": "error",
+ "fixtures": [
+  "claude-code/logs/error",
+  "claude-code/native/error"
+ ],
+ "source": {
+  "kind": "cassette",
+  "path": "examples/cli/claude-code/cassettes/error.json",
+  "sha256": "8c4393cba63a4a701581c89048b579ada5e6c448c5b1d96b4557fb84b877cf31",
+  "non_model_requests": 0
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "linear",
+ "request_bodies": "unrecorded",
+ "model_calls": 2,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": true,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_earfvhl732bpmaxcxgyrz3nrsdwpuvwqxhpzzobhe5qhwejpe5ha",
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 2,
+    "output": 88,
+    "cache_read": 2994,
+    "cache_write": 316,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-002"
+   ]
+  },
+  {
+   "id": "call-002",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": true,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": "claude-sonnet-5-5",
+   "response_id": "msg_bdrk_pat5ti5cyziy2zia4osdhoikv7j54kyngk6dsb4t2mumnsin4dua",
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 2,
+    "output": 63,
+    "cache_read": 3310,
+    "cache_write": 152,
+    "reasoning": 0,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-003"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002",
+    "fact-003"
+   ],
+   "final_answers": [
+    "fact-003"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Run the shell command `cat bookings/london-oslo.txt` to read my flight booking, then tell me in one sentence what happened."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": "toolu_bdrk_014fyFv8gXzVWKaftQ16z3he",
+    "name": "Bash",
+    "arguments": {
+     "command": "cat bookings/london-oslo.txt",
+     "description": "Read the flight booking file"
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "The command failed because `bookings/london-oslo.txt` doesn't exist in `/private/tmp/sideseat-cli/claude-code/error`, so I couldn't read your booking."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-002"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  },
+  {
+   "kind": "call_order",
+   "before": "call-001",
+   "after": "call-002"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "tool_result",
+   "reason": "tool_not_deterministic",
+   "detail": "Bash is not one of the shared deterministic tools",
+   "subject": "fact-002"
+  }
+ ]
+}

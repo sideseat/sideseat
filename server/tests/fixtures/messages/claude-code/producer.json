@@ -1,0 +1,4 @@
+{
+  "sdk_mode": false,
+  "reason": "Claude Code is a separate process configured only by its own environment variables; the SideSeat SDK's claude-agent-sdk integration sets the same variables, and claude-agent-sdk/{native,sdk} are that pair."
+}

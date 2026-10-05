@@ -18,15 +18,15 @@ fn attrs(pairs: &[(&str, &str)]) -> HashMap<String, String> {
 #[test]
 fn the_detection_plan_holds_every_rule() {
     let plan = &ruleset().detect;
-    // 29 producers, 33 compiled rules: one alternative separates strong self-identification from a weak
+    // 30 producers, 34 compiled rules: one alternative separates strong self-identification from a weak
     // service name, one combines the independently insufficient Azure OpenAI signals, one preserves
     // historical Vertex AI telemetry alongside the current Google Gen AI SDK signal, and one recognises
     // Browser Use by the Laminar span path its current releases trace through.
     assert_eq!(
         plan.rule_count(),
-        33,
-        "the assets declare {} detection rules; the table they replaced had 28, Langfuse added one, plus four \
-         ranked alternatives",
+        34,
+        "the assets declare {} detection rules; the table they replaced had 28, Langfuse and Codex added one \
+         each, plus four ranked alternatives",
         plan.rule_count()
     );
     assert_eq!(
@@ -34,7 +34,7 @@ fn the_detection_plan_holds_every_rule() {
             .map(|rule| rule.label.as_str())
             .collect::<std::collections::BTreeSet<_>>()
             .len(),
-        29,
+        30,
         "an alternative is further evidence for a label, not a label of its own"
     );
     assert_eq!(

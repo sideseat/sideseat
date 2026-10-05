@@ -1,0 +1,4 @@
+{
+  "sdk_mode": false,
+  "reason": "The Codex CLI is a separate process configured only by the [otel] table of its own config.toml; no SideSeat SDK runs in it."
+}

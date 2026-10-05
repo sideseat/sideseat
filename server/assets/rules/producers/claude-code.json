@@ -1,0 +1,205 @@
+{
+  "$schema": "../../rules.schema.json",
+  "id": "claude-code",
+  "doc": "The Claude Code CLI's log events. Its spans are read by `claude-agent-sdk.json`, because the Agent SDK runs this CLI and the spans are the same; the events are its other half. Without the detailed tracing tier, which interactive sessions get only by org allowlisting, they are where the conversation's text is: the prompt, the reply, and a failed call's error; each tool's output is a `tool.output` event on its span. A record states its event name twice - as the body `claude_code.<name>` and as the `event.name` attribute without the prefix - and only the attribute can be read here. Every record emitted during a turn names the turn's `claude_code.interaction` span, so it joins the turn whether or not the detailed tier also put the same text on the spans.",
+  "carriers": [
+    {
+      "id": "claude-code.user_prompt.carrier",
+      "doc": "The user's turn, as the CLI reports it once per turn. A snapshot, the cautious reading the resolver gives a carrier nobody classified: one record per turn or call, so it can neither invent a duplicate nor need the stronger guarantees of an emission.",
+      "match": {
+        "event": "claude_code.user_prompt"
+      },
+      "facts": {
+        "preset": "snapshot"
+      }
+    },
+    {
+      "id": "claude-code.tool_error.carrier",
+      "doc": "A failed call's error, which answers the call. A snapshot, the cautious reading the resolver gives a carrier nobody classified: one record per turn or call, so it can neither invent a duplicate nor need the stronger guarantees of an emission.",
+      "match": {
+        "event": "claude_code.tool_result.error"
+      },
+      "facts": {
+        "preset": "snapshot"
+      }
+    },
+    {
+      "id": "claude-code.assistant_response.carrier",
+      "doc": "One model response's text. A snapshot, the cautious reading the resolver gives a carrier nobody classified: one record per turn or call, so it can neither invent a duplicate nor need the stronger guarantees of an emission.",
+      "match": {
+        "event": "claude_code.assistant_response"
+      },
+      "facts": {
+        "preset": "snapshot"
+      }
+    },
+    {
+      "id": "claude-code.tool_output.carrier",
+      "doc": "A tool's output, recorded on the tool's own span. A snapshot, the cautious reading the resolver gives a carrier nobody classified: one record per turn or call, so it can neither invent a duplicate nor need the stronger guarantees of an emission.",
+      "match": {
+        "event": "claude_code.tool.output"
+      },
+      "facts": {
+        "preset": "snapshot"
+      }
+    }
+  ],
+  "message_events": [
+    {
+      "id": "claude-code.message_event.user_prompt",
+      "name": "user_prompt",
+      "raw": "replace",
+      "doc": "The user's prompt. A container: its `prompt` attribute is the turn, and the other attributes are bookkeeping."
+    },
+    {
+      "id": "claude-code.message_event.assistant_response",
+      "name": "assistant_response",
+      "raw": "replace",
+      "doc": "The text of one model response, since 2.1.193."
+    },
+    {
+      "id": "claude-code.message_event.tool_result",
+      "name": "tool_result",
+      "raw": "replace",
+      "doc": "One finished tool call: which tool, its input and call id, and the error when it failed. Only the error is read. The call itself comes from the tool's span, which is where it belongs in the order: this record is written after the tool ran, so a call rebuilt from it would sort after its own result, and as a second copy of the span's call - whose input this record has and the span, without the detailed tier, does not - it would not collapse into it, because a call's identity is its name and input."
+    }
+  ],
+  "log_events": [
+    {
+      "id": "claude-code.log_event.user_prompt",
+      "name": "user_prompt",
+      "name_from": [
+        "attributes:event.name"
+      ],
+      "payload": "attributes",
+      "doc": "`claude_code.user_prompt`."
+    },
+    {
+      "id": "claude-code.log_event.assistant_response",
+      "name": "assistant_response",
+      "name_from": [
+        "attributes:event.name"
+      ],
+      "payload": "attributes",
+      "doc": "`claude_code.assistant_response`."
+    },
+    {
+      "id": "claude-code.log_event.tool_result",
+      "name": "tool_result",
+      "name_from": [
+        "attributes:event.name"
+      ],
+      "payload": "attributes",
+      "doc": "`claude_code.tool_result`."
+    }
+  ],
+  "messages": [
+    {
+      "id": "claude-code.user_prompt",
+      "doc": "The user's turn. Redacted to a placeholder unless `OTEL_LOG_USER_PROMPTS` is set, and the placeholder is read as what the record says.",
+      "source": {
+        "event": {
+          "names": [
+            "user_prompt"
+          ]
+        }
+      },
+      "read": {
+        "attribute": "prompt"
+      },
+      "parse": "text",
+      "require_non_blank": true,
+      "wrap": {
+        "role": "user"
+      },
+      "emit": "message",
+      "legacy_rank": 1445,
+      "tag_as": "claude_code.user_prompt"
+    },
+    {
+      "id": "claude-code.tool_error",
+      "doc": "A failed call's error, answering the call it belongs to. Written only on failure, which is what makes it safe to read unconditionally: a successful call's output is never on this record.",
+      "source": {
+        "event": {
+          "names": [
+            "tool_result"
+          ]
+        }
+      },
+      "read": {
+        "attribute": "error"
+      },
+      "parse": "text",
+      "require_non_blank": true,
+      "wrap": {
+        "role": "tool",
+        "block": {
+          "type": "tool_result",
+          "attach": [
+            {
+              "from": "tool_use_id",
+              "as": "tool_use_id",
+              "blank_is_absent": true,
+              "after_content": true
+            }
+          ]
+        }
+      },
+      "emit": "message",
+      "legacy_rank": 1455,
+      "tag_as": "claude_code.tool_result.error"
+    },
+    {
+      "id": "claude-code.assistant_response",
+      "doc": "The assistant's reply.",
+      "source": {
+        "event": {
+          "names": [
+            "assistant_response"
+          ]
+        }
+      },
+      "read": {
+        "attribute": "response"
+      },
+      "parse": "text",
+      "require_non_blank": true,
+      "wrap": {
+        "role": "assistant"
+      },
+      "emit": "message",
+      "legacy_rank": 1460,
+      "tag_as": "claude_code.assistant_response"
+    },
+    {
+      "id": "claude-code.tool_output",
+      "doc": "What a tool returned, from the `tool.output` event on its span (`OTEL_LOG_TOOL_CONTENT`): `content` for a read, `output` for a shell command, `diff` for an edit. Read verbatim as text - a file's text is what the tool returned even when it happens to be JSON. The event names no call, so the result is paired with its call by name and position, not by id.",
+      "source": {
+        "event": {
+          "names": [
+            "tool.output"
+          ]
+        }
+      },
+      "read": {
+        "first_present": [
+          "content",
+          "output",
+          "diff"
+        ]
+      },
+      "parse": "text",
+      "require_non_empty": true,
+      "wrap": {
+        "role": "tool",
+        "block": {
+          "type": "tool_result"
+        }
+      },
+      "emit": "message",
+      "reads_tool_spans": true,
+      "legacy_rank": 1465,
+      "tag_as": "claude_code.tool.output"
+    }
+  ]
+}
