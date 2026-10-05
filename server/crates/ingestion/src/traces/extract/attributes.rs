@@ -109,6 +109,7 @@ pub(super) fn get_first(attrs: &HashMap<String, String>, keys: &[&str]) -> Optio
 }
 
 /// Parse a value from attributes.
+#[cfg(test)]
 pub(super) fn parse_opt<T: std::str::FromStr>(
     attrs: &HashMap<String, String>,
     key: &str,
@@ -474,6 +475,9 @@ fn apply_field(
         T::UsageCandidateTotal => tokens.candidate_total = integer(),
         T::UsageSummedInput => tokens.summed_input = integer(),
         T::UsageSummedOutput => tokens.summed_output = integer(),
+        T::ReportedCostTotal => span.extracted_cost_total = float(),
+        T::ReportedCostInput => span.extracted_cost_input = float(),
+        T::ReportedCostOutput => span.extracted_cost_output = float(),
         T::SessionId => span.session_id = text(),
         T::UserId => span.user_id = text(),
         T::HttpMethod => span.http_method = text(),
@@ -718,11 +722,6 @@ pub(crate) fn extract_genai(
     } else {
         JsonValue::Object(details)
     };
-
-    // Pre-calculated costs (OpenInference llm.cost.* attributes)
-    span.extracted_cost_total = parse_opt(attrs, keys::LLM_COST_TOTAL);
-    span.extracted_cost_input = parse_opt(attrs, keys::LLM_COST_PROMPT);
-    span.extracted_cost_output = parse_opt(attrs, keys::LLM_COST_COMPLETION);
 }
 
 #[cfg(test)]

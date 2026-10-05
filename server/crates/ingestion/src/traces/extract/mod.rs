@@ -192,11 +192,6 @@ pub(super) mod keys {
 
     // OpenInference Tool attributes (single tool per span)
 
-    // OpenInference Cost Tracking
-    pub const LLM_COST_TOTAL: &str = "llm.cost.total";
-    pub const LLM_COST_PROMPT: &str = "llm.cost.prompt";
-    pub const LLM_COST_COMPLETION: &str = "llm.cost.completion";
-
     // OpenInference Embedding attributes
     /// Named by the OpenInference asset now; kept for the equivalence oracle's reference.
     #[cfg(any(test, feature = "test-support"))]

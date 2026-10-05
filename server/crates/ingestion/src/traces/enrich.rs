@@ -191,7 +191,7 @@ fn calculate_span_cost(span: &SpanData, pricing: &PricingService) -> CostResult 
         }
     }
 
-    // Fallback to pre-calculated costs (OpenInference llm.cost.* attributes)
+    // Fallback to the cost the producer priced itself, where an asset declares where it says so.
     if let Some(total) = span.extracted_cost_total {
         return CostResult {
             input_cost: span.extracted_cost_input.unwrap_or(0.0),

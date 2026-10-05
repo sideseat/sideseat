@@ -484,14 +484,22 @@ pub(in crate::sideml::feed) fn flatten_to_blocks(
             continue;
         }
 
-        // Skip spurious tool input JSON blocks from tool spans
-        // These are tool invocation parameters that shouldn't appear as messages.
-        // Exception: output.value attributes may contain legitimate structured output.
+        // A tool span's lone JSON block is its invocation parameters, not a message - unless the carrier
+        // it came from is declared to hold what the span produced, where it is structured output.
         let is_tool_span = msg.observation_type.as_deref() == Some(obs_type::TOOL);
-        let is_output_attr = matches!(
-            &msg.source,
-            MessageSource::Attribute { key, .. } if key == "output.value" || key.starts_with("output.")
-        );
+        let is_output_attr = match &msg.source {
+            MessageSource::Attribute { key, .. } => {
+                crate::sideml::carrier::declared_semantics_for_context(
+                    &crate::rules::CarrierContext {
+                        attribute: Some(key),
+                        observation_type: msg.observation_type.as_deref(),
+                        ..crate::rules::CarrierContext::default()
+                    },
+                )
+                .is_some_and(|declared| declared.carrier_holds_span_output)
+            }
+            MessageSource::Event { .. } => false,
+        };
         if is_tool_span
             && !is_output_attr
             && msg.message.content.len() == 1

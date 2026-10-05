@@ -376,6 +376,42 @@
           "on_malformed": "continue"
         }
       ]
+    },
+    {
+      "id": "span-fields.reported_cost_total",
+      "target": "reported_cost_total",
+      "doc": "The cost one dialect prices itself and states on the span. Read only as a fallback: enrichment prefers our own pricing whenever it knows the model, so this answers for models it does not.",
+      "sources": [
+        {
+          "id": "llm_cost_total",
+          "attribute": "llm.cost.total",
+          "on_malformed": "continue"
+        }
+      ]
+    },
+    {
+      "id": "span-fields.reported_cost_input",
+      "target": "reported_cost_input",
+      "doc": "The cost one dialect prices itself and states on the span. Read only as a fallback: enrichment prefers our own pricing whenever it knows the model, so this answers for models it does not.",
+      "sources": [
+        {
+          "id": "llm_cost_prompt",
+          "attribute": "llm.cost.prompt",
+          "on_malformed": "continue"
+        }
+      ]
+    },
+    {
+      "id": "span-fields.reported_cost_output",
+      "target": "reported_cost_output",
+      "doc": "The cost one dialect prices itself and states on the span. Read only as a fallback: enrichment prefers our own pricing whenever it knows the model, so this answers for models it does not.",
+      "sources": [
+        {
+          "id": "llm_cost_completion",
+          "attribute": "llm.cost.completion",
+          "on_malformed": "continue"
+        }
+      ]
     }
   ]
 }

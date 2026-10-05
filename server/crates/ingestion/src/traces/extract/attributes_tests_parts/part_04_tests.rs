@@ -434,3 +434,19 @@ fn an_error_type_makes_the_status_message_the_spans_own_error() {
         "a status that repeats the class explains no more than the class alone"
     );
 }
+
+/// A producer's own price reaches the span through the declared fields, and a negative one is refused rather
+/// than cancelling real spend in a total.
+#[test]
+fn a_reported_cost_is_read_from_the_declared_fields() {
+    let mut span = SpanData::default();
+    let attrs = make_attrs(&[
+        ("llm.cost.total", "0.0125"),
+        ("llm.cost.prompt", "0.01"),
+        ("llm.cost.completion", "-0.0025"),
+    ]);
+    extract_genai_as_production_does(&mut span, &attrs, "ChatCompletion");
+    assert_eq!(span.extracted_cost_total, Some(0.0125));
+    assert_eq!(span.extracted_cost_input, Some(0.01));
+    assert_eq!(span.extracted_cost_output, None);
+}

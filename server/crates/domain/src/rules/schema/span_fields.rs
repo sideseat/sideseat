@@ -56,6 +56,11 @@ pub enum FieldTarget {
     UsageCacheReadTokens,
     UsageCacheWriteTokens,
     UsageReasoningTokens,
+    /// A cost the producer priced itself and stated on the span. The fallback when our own pricing knows
+    /// nothing about the model; which of the two a reader sees is enrichment's decision, not the asset's.
+    ReportedCostTotal,
+    ReportedCostInput,
+    ReportedCostOutput,
     /// The name a reader sees. **Not** the raw span name, which everything behavioural keys on: detection,
     /// token scoping, classification and every rule are given the producer's own name, and this is a
     /// presentation value stored beside it.
@@ -115,6 +120,9 @@ impl FieldTarget {
         Self::UsageCacheReadTokens,
         Self::UsageCacheWriteTokens,
         Self::UsageReasoningTokens,
+        Self::ReportedCostTotal,
+        Self::ReportedCostInput,
+        Self::ReportedCostOutput,
         Self::DisplaySpanName,
         Self::SessionId,
         Self::GenAiSystem,
@@ -175,7 +183,10 @@ impl FieldTarget {
             Self::GenAiTemperature
             | Self::GenAiTopP
             | Self::GenAiFrequencyPenalty
-            | Self::GenAiPresencePenalty => FieldType::Float,
+            | Self::GenAiPresencePenalty
+            | Self::ReportedCostTotal
+            | Self::ReportedCostInput
+            | Self::ReportedCostOutput => FieldType::Float,
             Self::Tags | Self::GenAiStopSequences | Self::GenAiFinishReasons => {
                 FieldType::StringList
             }
@@ -240,6 +251,10 @@ impl FieldTarget {
             | Self::UsageSummedInput
             | Self::UsageSummedOutput => Some((0.0, f64::INFINITY)),
             Self::GenAiTemperature => Some((0.0, f64::INFINITY)),
+            // A price is never negative; a negative one would cancel real spend in every total it joins.
+            Self::ReportedCostTotal | Self::ReportedCostInput | Self::ReportedCostOutput => {
+                Some((0.0, f64::INFINITY))
+            }
             Self::GenAiTopP => Some((0.0, 1.0)),
             // **Exhaustive, with no catch-all**, and that is the point rather than verbosity. Written as
             // `_ => None` this compiled for every future target and left each one silently unbounded - the same
