@@ -33,32 +33,8 @@ const ASSET_SCHEMA_REF: &str = "../../rules.schema.json";
 /// and an entry that has become used, so the list cannot rot in either direction.
 const UNUSED: &[(&str, &str)] = &[
     (
-        "Alternative.on_absent",
-        "unassessed: implemented and probed by unit tests, unused by every shipped asset - resolve (remove, or use with a fixture) under backlog 10",
-    ),
-    (
-        "Alternative.on_malformed",
-        "unassessed: implemented and probed by unit tests, unused by every shipped asset - resolve (remove, or use with a fixture) under backlog 145",
-    ),
-    (
-        "Alternative.then_any_of",
-        "unassessed: implemented and probed by unit tests, unused by every shipped asset - resolve (remove, or use with a fixture) under backlog 8",
-    ),
-    (
-        "AttributeFamilyOrder=member_name",
-        "unassessed: implemented and probed by unit tests, unused by every shipped asset - resolve (remove, or use with a fixture) under backlog 14",
-    ),
-    (
         "ElementsSpec.select",
         "unassessed: implemented and probed by unit tests, unused by every shipped asset - resolve (remove, or use with a fixture) under backlog 145",
-    ),
-    (
-        "EventOccurrence=every",
-        "unassessed: implemented and probed by unit tests, unused by every shipped asset - resolve (remove, or use with a fixture) under backlog 11",
-    ),
-    (
-        "EventRole.silent_in_tool_span",
-        "unassessed: implemented and probed by unit tests, unused by every shipped asset - resolve (remove, or use with a fixture) under backlog 13",
     ),
     (
         "Facts.carrier_is_atomic_emission",
@@ -101,20 +77,8 @@ const UNUSED: &[(&str, &str)] = &[
         "`doc` is meant to be accepted on every clause object (backlog 16)",
     ),
     (
-        "PresenceFallback=element",
-        "unassessed: implemented and probed by unit tests, unused by every shipped asset - resolve (remove, or use with a fixture) under backlog 10",
-    ),
-    (
-        "PresenceFallback=nothing",
-        "unassessed: implemented and probed by unit tests, unused by every shipped asset - resolve (remove, or use with a fixture) under backlog 10",
-    ),
-    (
         "RawEventForm=message",
         "the default raw form: an asset states it by omission, so naming it explicitly would be redundant",
-    ),
-    (
-        "ReadSpec.attribute_family",
-        "unassessed: implemented and probed by unit tests, unused by every shipped asset - resolve (remove, or use with a fixture) under backlog 14",
     ),
     (
         "SectionBlock.content_as",
@@ -135,10 +99,6 @@ const UNUSED: &[(&str, &str)] = &[
     (
         "ValueKind=number",
         "part of the closed JSON kind vocabulary, as `null`",
-    ),
-    (
-        "WrapSpec.require_after",
-        "unassessed: implemented and probed by unit tests, unused by every shipped asset - resolve (remove, or use with a fixture) under backlog 9",
     ),
 ];
 

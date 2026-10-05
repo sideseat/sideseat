@@ -290,10 +290,8 @@ pub(super) fn compile_rule(
     //
     // Corpus-neutral: every shipped reading that parses a scalar already declares it, which is what makes this
     // a gate rather than a migration.
-    let parses_a_scalar = read.attribute.is_some()
-        || !read.first_present.is_empty()
-        || !read.each.is_empty()
-        || read.attribute_family.is_some();
+    let parses_a_scalar =
+        read.attribute.is_some() || !read.first_present.is_empty() || !read.each.is_empty();
     if parse.is_none() && compose.is_none() && parses_a_scalar {
         return Err(inexpressible(
             "reads a raw attribute and does not declare `parse`, which means text, JSON or JSON-or-string \
@@ -578,21 +576,6 @@ pub(super) fn compile_rule(
         return Err(inexpressible(
             "an indexed family assembles each entry itself, so a `fallback`, a walk or `sections` would be \
                  ignored",
-        ));
-    }
-    // And a named family, which is the newest of the three and returns at the same point.
-    if read.attribute_family.is_some()
-        && (!alternatives.is_empty()
-            || !also.is_empty()
-            || !fallback.is_empty()
-            || walk.is_some()
-            || sections.is_some()
-            || elements.is_some()
-            || aggregate_into_array.is_some())
-    {
-        return Err(inexpressible(
-            "a named family emits one observation per member, so `alternatives`, a `fallback`, a walk, \
-                 `sections`, `elements` or an aggregate would be ignored",
         ));
     }
     if read.entry_member.is_some() && read.indexed_family.is_none() {

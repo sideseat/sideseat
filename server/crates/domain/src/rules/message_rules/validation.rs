@@ -373,8 +373,7 @@ pub(super) fn wrap_attachments(wrap: &WrapSpec) -> impl Iterator<Item = &AttachS
 
 /// Every predicate set an envelope holds.
 pub(super) fn wrap_predicate_sets(wrap: &WrapSpec) -> Vec<&PredicateSet> {
-    let mut out = vec![&wrap.require_after];
-    out.extend(wrap.attach.iter().map(|attach| &attach.require));
+    let mut out: Vec<&PredicateSet> = wrap.attach.iter().map(|attach| &attach.require).collect();
     if let Some(block) = &wrap.prepend_block {
         out.push(&block.require);
     }
@@ -510,7 +509,7 @@ pub(super) fn necessarily_owned(rule: &CompiledMessageRule) -> Option<&str> {
     if rule.compose.is_some() {
         return None;
     }
-    if rule.read.indexed_family.is_some() || rule.read.attribute_family.is_some() {
+    if rule.read.indexed_family.is_some() {
         return None;
     }
     // `each` names several carriers that are all read, so there is no single one to answer with - unlike
@@ -790,11 +789,6 @@ pub(super) fn consumed_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
     for key in &rule.read.each {
         out.push(always(CarrierPattern::Exact(key.clone())));
     }
-    // A named family reads every key under its root, unconditionally - a member's value *is* the payload, so
-    // there is nothing per-member that could make the read conditional.
-    if let Some(family) = &rule.read.attribute_family {
-        out.push(always(CarrierPattern::Prefix(format!("{}.", family.root))));
-    }
     if let Some(family) = rule.read.indexed_family.as_deref() {
         // Every key beneath the family, since each index's members are read.
         //
@@ -921,10 +915,6 @@ pub(super) fn emitted_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
                 },
             }
         });
-    }
-    // A named family tags each member with the member's own key, so the emitted set is the same prefix.
-    if let Some(family) = &rule.read.attribute_family {
-        out.push(always(CarrierPattern::Prefix(format!("{}.", family.root))));
     }
     if let Some(family) = rule.read.indexed_family.as_deref() {
         // One tag per index, and per sub-level where there is one - a prefix covers them all. Emitted only

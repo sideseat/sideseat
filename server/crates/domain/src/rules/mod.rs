@@ -429,10 +429,8 @@ pub struct DeclaredEventRole {
     /// On an ordinary span. `None` leaves the role to the content.
     pub role: Option<crate::sideml::ChatRole>,
     /// On a tool execution span, where two names mean the opposite of what they mean elsewhere. `None` means
-    /// the same as `role`; `silent_in_tool_span` is the separate statement that there is no role there.
+    /// the same as `role`.
     pub in_tool_span: Option<crate::sideml::ChatRole>,
-    /// This name says nothing about the role on a tool execution span, so it is derived from the content there.
-    pub silent_in_tool_span: bool,
     /// The asset that declared it.
     pub asset: String,
     /// The declared clause id, so a diagnostic can name the declaration rather than only the name it
@@ -448,17 +446,14 @@ pub struct DeclaredEventRole {
 impl DeclaredEventRole {
     /// The role this name carries on a span of the given kind, or `None` where it says nothing there.
     ///
-    /// The three states resolve here rather than at the call site, so the resolution sits beside the fields that
-    /// encode it and a test can put a declaration to it directly - the caller reads a global registry, which no
-    /// probe can substitute.
+    /// Resolved here rather than at the call site, so the resolution sits beside the fields that encode it and
+    /// a test can put a declaration to it directly - the caller reads a global registry, which no probe can
+    /// substitute.
     pub fn role_on(&self, is_tool_span: bool) -> Option<crate::sideml::ChatRole> {
         if !is_tool_span {
             return self.role;
         }
-        if self.silent_in_tool_span {
-            return None;
-        }
-        // Absence means the same role as elsewhere, which is why silence needs a flag of its own.
+        // Absence means the same role as elsewhere.
         self.in_tool_span.or(self.role)
     }
 }
@@ -563,7 +558,7 @@ pub(super) fn compile_event_roles(
             }
             let resolve =
                 |named: &Option<String>| named.as_deref().and_then(ChatRole::try_from_str);
-            // The three states have one spelling each. A `role_in_tool_span` equal to `role` says what absence
+            // One spelling per statement. A `role_in_tool_span` equal to `role` says what absence
             // already says, and it was legal: one shipped declaration spelled it while seven omitted it for the
             // same fact.
             if event.role_in_tool_span.is_some() && event.role_in_tool_span == event.role {
@@ -572,22 +567,9 @@ pub(super) fn compile_event_roles(
                     event.name, file.id
                 ));
             }
-            if event.silent_in_tool_span && event.role_in_tool_span.is_some() {
-                return Err(format!(
-                    "event role `{}` in `{}` declares both `silent_in_tool_span` and a `role_in_tool_span`,                      which are two answers about one span kind",
-                    event.name, file.id
-                ));
-            }
-            if event.silent_in_tool_span && event.role.is_none() {
-                return Err(format!(
-                    "event role `{}` in `{}` is silent on tool spans and declares no other role, so it states                      nothing - leave the entry out",
-                    event.name, file.id
-                ));
-            }
             let declared = DeclaredEventRole {
                 role: resolve(&event.role),
                 in_tool_span: resolve(&event.role_in_tool_span),
-                silent_in_tool_span: event.silent_in_tool_span,
                 asset: file.id.clone(),
                 rule_id: event.id.clone(),
                 witnesses: expr::EvidenceSet::one(expr::ClausePath::root(event.id.clone())),
@@ -610,8 +592,7 @@ pub(super) fn compile_event_roles(
                 // allowed - the provenance differs by definition and says nothing about the answer.
                 Some(existing)
                     if existing.role == declared.role
-                        && existing.in_tool_span == declared.in_tool_span
-                        && existing.silent_in_tool_span == declared.silent_in_tool_span =>
+                        && existing.in_tool_span == declared.in_tool_span =>
                 {
                     // Agreement keeps *both* witnesses. The previous form discarded the later one, so an
                     // asset that re-stated a convention had no provenance for a fact it declared.

@@ -933,17 +933,6 @@
             }
           ]
         },
-        "attribute_family": {
-          "description": "A **named** attribute family: every key under a root, each key's value one observation.\n\n`indexed_family`'s counterpart for a family whose members are *names* rather than indices -\n`acme.messages.a`, `acme.messages.b`. That was inexpressible: `indexed_family` requires a numeric\ncomponent and skips anything else, while `carriers` has had `attribute_family` all along, so the two\nhalves of the format disagreed about whether such a family exists.\n\nThe **order is declared**, and required, because there is no order to discover: extraction puts a\nspan's attributes in a `HashMap`, so producer order is gone by the time a rule reads them. An\nundeclared order would be the iteration order of a hash map - different per run, and the one thing a\nmessage sequence must not be.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/AttributeFamilySource"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "entry_member": {
           "description": "A sub-level of each indexed entry whose members are read at the top of the object.\n\nOne dialect nests the message inside the entry - `<prefix>.0.message.role` - while also putting\nentry-level members beside it. Both are collected, the sub-level's names unprefixed and the rest as\nthey stand, and the observation is tagged with `<prefix>.<index>.<member>` because that is the\npayload it came from.",
           "type": [
@@ -1122,35 +1111,6 @@
         "null"
       ]
     },
-    "AttributeFamilySource": {
-      "description": "A family of attributes under one root, read as one observation per member.",
-      "type": "object",
-      "properties": {
-        "root": {
-          "description": "The root. A key belongs to the family when it is `root` followed by `.` and a member name - the same\nrule `carriers`' `attribute_family` uses, so `acme.messages` does not claim `acme.messages_extra`.",
-          "type": "string"
-        },
-        "order": {
-          "description": "The order the members are read in.",
-          "$ref": "#/$defs/AttributeFamilyOrder"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "root",
-        "order"
-      ]
-    },
-    "AttributeFamilyOrder": {
-      "description": "The order a named family's members are read in.\n\nOne variant, and required rather than defaulted: the point of the member is that the order is a *statement*.\nA default would be the thing a reader assumes and the format would say nothing about it, which is how the\nanswer becomes a hash map's iteration order.",
-      "oneOf": [
-        {
-          "description": "Lexicographic by the member name. Deterministic, and the only order available - producer order is lost\nwhen the attributes become a map.",
-          "type": "string",
-          "const": "member_name"
-        }
-      ]
-    },
     "ParseMode": {
       "description": "How a raw attribute string becomes a value.",
       "oneOf": [
@@ -1271,7 +1231,7 @@
           }
         },
         "require": {
-          "description": "A condition on the **assembled** object, checked before it is emitted.\n\nThe mirror of `require_after` on an envelope, and needed for the same reason: some shapes can only be\njudged once the members are together - whether the name a dialect reported is a tool anyone could\ncall, for instance.",
+          "description": "A condition on the **assembled** object, checked before it is emitted.\n\nSome shapes can only be judged once the members are together - whether the name a dialect reported is a tool anyone could\ncall, for instance.",
           "$ref": "#/$defs/PredicateSet"
         },
         "as_tool_definition": {
@@ -1599,10 +1559,6 @@
               "type": "null"
             }
           ]
-        },
-        "require_after": {
-          "description": "A condition on the **constructed** message, checked after the envelope is built.\n\nSome shapes can only be judged once assembled: one dialect's tool result is worth keeping if it\nended up with a name, a call id or content, and the call id may have come from the element or from\nits parent - so the question cannot be asked of either alone.",
-          "$ref": "#/$defs/PredicateSet"
         },
         "only_plain_data": {
           "description": "Wrap only where the value is not already message-shaped.\n\nA generic carrier holds either a message or bare data: `output.value = \"the answer\"` is the answer,\nand `output.value = {\"role\": …}` is already a message. Wrapping the second buries the conversation a\nlevel down; not wrapping the first loses it entirely, because normalisation looks for `role` on a\nstring and finds nothing.",
@@ -2013,16 +1969,8 @@
             "$ref": "#/$defs/Alternative"
           }
         },
-        "then_any_of": {
-          "description": "For each selected element, the first of these paths that resolves.\n\nPer *element*, which is the point: one dialect's tool groups each either wrap their declarations\nunder one of two spellings or are a declaration themselves, and deciding once for the whole array\nwould drop the odd group out.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": []
-        },
         "then_present_any_of": {
-          "description": "Like `then_any_of`, but chosen by the member being **present** rather than by its yielding anything.\n\nThe difference is load-bearing where a wrapper may legitimately be empty: a dialect that writes\n`function_declarations: []` has declared no tools, and picking \"the first path that yielded\nsomething\" skips the present-but-empty member and falls through to emitting the wrapper itself as a\ntool. Presence also settles which of two spellings wins when both appear.",
+          "description": "For each selected element, the first of these paths that names a member, chosen by **presence**.\n\nPer *element*, which is the point: one dialect's tool groups each either wrap their declarations\nunder one of two spellings or are a declaration themselves, and deciding once for the whole array\nwould drop the odd group out.\n\nPresence rather than yielding is load-bearing where a wrapper may legitimately be empty: a dialect that writes\n`function_declarations: []` has declared no tools, and picking \"the first path that yielded\nsomething\" skips the present-but-empty member and falls through to emitting the wrapper itself as a\ntool. Presence also settles which of two spellings wins when both appear.",
           "type": "array",
           "items": {
             "type": "string"
@@ -2030,31 +1978,9 @@
           "default": []
         },
         "else_element": {
-          "description": "Fall back to the element itself when none of `then_any_of` resolved.\n\nOne answer for two different situations, which is what `on_absent` / `on_malformed` replace for the\n*presence* coalesce: a member that is absent and a member that is present and wrong-typed both fell here.\nKept for `then_any_of`, whose coalesce is by yielding and has no third state to tell apart.",
+          "description": "Fall back to the element itself when `then_present_any_of` named nothing, or named a member of the wrong\nshape.\n\nOne answer for both situations. A wrapper member is a list of declarations, so\n`{\"function_declarations\": {\"name\": \"weather\"}}` has not declared its contents; the wrong-shaped member is\n**reported** either way, and recovered from the element only where the enclosing object independently\ndescribes a valid reading. Once presence has selected a representation, a later spelling is not tried:\nfalling through would answer from a representation the producer did not use.",
           "type": "boolean",
           "default": false
-        },
-        "on_absent": {
-          "description": "What a **presence** coalesce does when none of its paths named anything.\n\nOnly meaningful beside `then_present_any_of`, and refused elsewhere: a yielding coalesce has one\nnot-found state, so `else_element` says everything there is to say about it.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/PresenceFallback"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "on_malformed": {
-          "description": "What it does when a path named something **present and of the wrong shape**.\n\nThe case `else_element` could not express. A wrapper member is a list of declarations, so\n`{\"function_declarations\": {\"name\": \"weather\"}}` has not declared its contents - and treating that as the\nmember being *absent* sent it to the element fallback, which emits the whole wrapper as a tool\ndefinition. Keep the recovery because the enclosing object independently describes a valid bare tool,\nand **report** the malformed member rather than pretending nobody wrote it.\n\nAlso: once presence has selected a representation, a *later* spelling is not tried. Presence chose;\nfalling through to the next path would answer from a representation the producer did not use.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/PresenceFallback"
-            },
-            {
-              "type": "null"
-            }
-          ]
         },
         "collect_members": {
           "description": "Rebuild the candidate object from its members named `prefix` + *name* + `suffix`, as `{name: value}`.\n\nAn object's member names can encode a structure the way an indexed attribute family encodes a\nlist: one instrumentation writes a call's arguments as `<prefix><name>.value` beside\n`<prefix><name>.type`, so the arguments are the members a pattern picks out, not the object.\nA candidate with no matching member is not this shape, and the reading moves on.",
@@ -2132,21 +2058,6 @@
           "description": "The lifted value wins.",
           "type": "string",
           "const": "replace_target"
-        }
-      ]
-    },
-    "PresenceFallback": {
-      "description": "What a presence coalesce falls back to.",
-      "oneOf": [
-        {
-          "description": "The element itself is the contents.",
-          "type": "string",
-          "const": "element"
-        },
-        {
-          "description": "Nothing: this element is not the shape, and the reading moves on.",
-          "type": "string",
-          "const": "nothing"
         }
       ]
     },
@@ -2873,11 +2784,6 @@
             "null"
           ],
           "default": null
-        },
-        "silent_in_tool_span": {
-          "description": "This name says **nothing** about the role on a tool execution span, so it is derived from the content\nthere - even though it does declare one elsewhere.\n\nThe third state, which absence could not express: absence is read as \"the same as `role`\", so a name that\nspeaks only for ordinary spans had no spelling at all. A separate flag rather than a sentinel string,\nbecause `role_in_tool_span` holds a role from a closed vocabulary and a magic value in it would be exactly\nthe guessing this section exists to remove. Refused beside a `role_in_tool_span`, which would be two\nanswers.",
-          "type": "boolean",
-          "default": false
         },
         "doc": {
           "type": [
@@ -3841,11 +3747,6 @@
           "description": "The first occurrence that holds the attribute at all. What the retired reader did.",
           "type": "string",
           "const": "first_yielding"
-        },
-        {
-          "description": "Every occurrence that holds it, in the order the span carries them. For a list-valued target, where\ntwo events genuinely mean two values.",
-          "type": "string",
-          "const": "every"
         }
       ]
     }

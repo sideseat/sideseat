@@ -94,8 +94,8 @@ fn an_unreadable_witness_is_unanswerable_rather_than_false() {
 
 /// `parse` is required wherever a reading parses a raw scalar, because omitted it meant three things.
 ///
-/// Without it: text for a compose, JSON for an ordinary read or a `tool_repr`, JSON-or-string for a named
-/// family. So one absent declaration was three different decisions, and which one applied was a property of a
+/// Without it: text for a compose, JSON for an ordinary read or a `tool_repr`, JSON-or-string for a (since
+/// removed) named family. So one absent declaration was three different decisions, and which one applied was a property of a
 /// **sibling** member - the same defect `attribute_any_of` had, where the multiplicity of a carrier list
 /// depended on whether `tool_repr` sat beside it.
 #[test]
@@ -117,10 +117,6 @@ fn a_reading_that_parses_a_scalar_declares_how() {
     for (what, read) in [
         ("an exact attribute", r#"{"attribute":"x"}"#),
         ("ordered alternatives", r#"{"first_present":["x","y"]}"#),
-        (
-            "a named family",
-            r#"{"attribute_family":{"root":"x","order":"member_name"}}"#,
-        ),
     ] {
         let rule = format!(r#"{{"id":"t.r","read":{read},"emit":"message","legacy_rank":1}}"#);
         assert!(
@@ -327,8 +323,7 @@ fn two_declarations_must_not_write_one_output_member() {
 ///
 /// The refusals existed and were **incomplete**, which is the harder kind to notice: `sections` refused `wrap`
 /// and `alternatives` and accepted a walk, an aggregate, a `fallback` and a `tag_as` - each of which it returns
-/// before. An indexed family accepted a `fallback`, a walk and `sections`; the named family
-/// accepted all of them.
+/// before. An indexed family accepted a `fallback`, a walk and `sections`.
 ///
 /// And an element pass could state something other than what it did five different ways, the worst being a
 /// decision table that answers for an element and has no tag for the answer - discarding a run the rule matched
@@ -374,25 +369,6 @@ fn a_construction_branch_refuses_the_siblings_it_would_skip() {
         "sections alone: {:?}",
         asset(&plain).err()
     );
-
-    // A named family, which returns at the same point.
-    for (what, extra) in [
-        ("a fallback", r#""fallback":[{"id":"raw"}]"#),
-        (
-            "elements",
-            r#""elements":{"passes":[{"id":"p","tag_from":"$.n"}]}"#,
-        ),
-        ("an aggregate", r#""aggregate_into_array":true"#),
-    ] {
-        let rule = format!(
-            r#"{{"id":"t.f","read":{{"attribute_family":{{"root":"fam","order":"member_name"}}}},
-                 "parse":"json",{extra},"emit":"message","legacy_rank":1}}"#
-        );
-        assert!(
-            asset(&rule).is_err(),
-            "a named family emits one observation per member, so {what} is dead"
-        );
-    }
 
     // The five element-pass shapes.
     let elements = |passes: &str| {

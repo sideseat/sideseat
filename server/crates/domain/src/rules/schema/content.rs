@@ -773,16 +773,6 @@ pub struct EventRole {
     /// declared rather than inferred.
     #[serde(default)]
     pub role_in_tool_span: Option<String>,
-    /// This name says **nothing** about the role on a tool execution span, so it is derived from the content
-    /// there - even though it does declare one elsewhere.
-    ///
-    /// The third state, which absence could not express: absence is read as "the same as `role`", so a name that
-    /// speaks only for ordinary spans had no spelling at all. A separate flag rather than a sentinel string,
-    /// because `role_in_tool_span` holds a role from a closed vocabulary and a magic value in it would be exactly
-    /// the guessing this section exists to remove. Refused beside a `role_in_tool_span`, which would be two
-    /// answers.
-    #[serde(default)]
-    pub silent_in_tool_span: bool,
     pub doc: Option<String>,
 }
 

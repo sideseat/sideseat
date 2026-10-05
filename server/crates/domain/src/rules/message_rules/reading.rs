@@ -210,15 +210,8 @@ pub(super) fn readings(
                     .then_present_any_of
                     .iter()
                     .find_map(|path| singular(element, path, "then_present_any_of"));
-                let fallback = |which: Option<super::schema::PresenceFallback>| match which
-                    .unwrap_or(if alternative.else_element {
-                        super::schema::PresenceFallback::Element
-                    } else {
-                        super::schema::PresenceFallback::Nothing
-                    }) {
-                    super::schema::PresenceFallback::Element => Some(vec![element]),
-                    super::schema::PresenceFallback::Nothing => None,
-                };
+                // Absent and malformed share one declared fallback: the element itself, or nothing.
+                let fallback = || alternative.else_element.then(|| vec![element]);
                 match found {
                     // Present and a list: its members are the contents, an empty one included - a producer
                     // writing `[]` has declared no tools, which is a statement.
@@ -253,30 +246,19 @@ pub(super) fn readings(
                             cause = %refusal.cause,
                             "a presence coalesce named a member of the wrong shape"
                         );
-                        match fallback(alternative.on_malformed) {
+                        match fallback() {
                             Some(recovered) => recovered,
                             None => continue,
                         }
                     }
                     // Absent: nothing named anything, which is what a fallback is for.
-                    None => match fallback(alternative.on_absent) {
+                    None => match fallback() {
                         Some(recovered) => recovered,
                         None => continue,
                     },
                 }
-            } else if alternative.then_any_of.is_empty() {
-                vec![element]
             } else {
-                let found = alternative
-                    .then_any_of
-                    .iter()
-                    .map(|path| query(element, path))
-                    .find(|found| !found.is_empty());
-                match found {
-                    Some(found) => found,
-                    None if alternative.else_element => vec![element],
-                    None => continue,
-                }
+                vec![element]
             };
             for element in element {
                 // Descend where declared, then lift - **one** copy step whose conflict policy is declared,
@@ -558,7 +540,7 @@ pub(super) fn indexed_entries(
         match entry_value {
             Some(path) => {
                 let assembled = JsonValue::Object(object);
-                if let Some(found) = singular(&assembled, path, "compose require_after") {
+                if let Some(found) = singular(&assembled, path, "entry_value") {
                     // A declared parse mode decides what a malformed payload means. Without it the member
                     // has already been sniffed to a string, and emitting that string as a tool definition
                     // reports junk where the retired code reported nothing.

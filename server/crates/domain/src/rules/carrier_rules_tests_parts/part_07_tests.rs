@@ -157,71 +157,21 @@ fn a_field_source_can_read_an_event_and_says_which_occurrence_answers() {
         "`first_yielding` takes the first occurrence that holds the attribute"
     );
 
-    // `every` over the same two: both, because two events carrying it state two reasons.
-    let plan = asset(
-        r#"[{"id":"t.s","event_attribute":{"event":"acme.choice","attribute":"finish_reason",
-             "occurrence":"every"}}]"#,
-        "gen_ai_finish_reasons",
-    )
-    .expect("an every-occurrence source compiles for a list-valued field");
-    let resolved = plan.resolve("span", &attrs, &[event("stop"), event("length")]);
-    assert_eq!(
-        resolved
-            .iter()
-            .filter_map(|r| match &r.reading {
-                Reading::StringList(items) => Some(items.clone()),
-                _ => None,
-            })
-            .collect::<Vec<_>>(),
-        vec![vec!["stop".to_string(), "length".to_string()]],
-        "`every` reports one value per occurrence, in the order the span carries them"
-    );
-
-    // And `every` into a field that holds one value is refused rather than silently keeping one of them.
-    let refused = asset(
-        r#"[{"id":"t.s","event_attribute":{"event":"acme.choice","attribute":"finish_reason",
-             "occurrence":"every"}}]"#,
-        "gen_ai_response_model",
-    )
-    .err()
-    .expect("`every` into a scalar field must be refused");
+    // `first_yielding` is the only policy: an every-occurrence policy existed, no asset used it, and naming it
+    // is now a parse refusal.
     assert!(
-        refused.to_string().contains("two answers"),
-        "the refusal must say why: {refused}"
-    );
-
-    // Two occurrences that carry the attribute **empty** are `Empty`, not `Absent`. Dropping them and
-    // answering `Absent` said "no event carried this" about two events that carried it, and took the decision
-    // away from `accept_empty`, whose whole purpose is to say that an empty value a producer wrote is an
-    // answer. `first_yielding` answers `Empty` there, so the two policies disagreed about one span.
-    let plan = asset(
-        r#"[{"id":"t.s","accept_empty":true,"event_attribute":{"event":"acme.choice",
-             "attribute":"finish_reason","occurrence":"every"}}]"#,
-        "gen_ai_finish_reasons",
-    )
-    .expect("compiles");
-    let answered: Vec<Reading> = plan
-        .resolve("span", &attrs, &[event(""), event("")])
-        .into_iter()
-        .filter(|r| r.evidence.is_some())
-        .map(|r| r.reading)
-        .collect();
-    assert_eq!(
-        answered.len(),
-        1,
-        "the source answered, because `accept_empty` says an empty value a producer wrote is an answer - \
-         with the occurrences dropped it answered nothing at all"
-    );
-    assert!(
-        matches!(answered[0], Reading::Empty),
-        "and the answer is *empty*, not a shorter list: {:?}",
-        answered[0]
+        ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","span_fields":[{"id":"t.rule","target":"gen_ai_finish_reasons","sources":[
+                {"id":"t.s","event_attribute":{"event":"acme.choice","attribute":"finish_reason",
+                 "occurrence":"every"}}]}]}"#
+                .to_vec(),
+        )]))
+        .is_err()
     );
 
     // A malformed value on a scalar field is recorded as malformed rather than read as absent - the
-    // distinction `on_malformed` acts on. (For `every` the case is unreachable: it is refused on anything but a
-    // list-valued target, and a `StringList` reading cannot be malformed while `parse_string_array` splits on
-    // commas, which is its own cycle-10 finding.)
+    // distinction `on_malformed` acts on.
     let plan = asset(
         r#"[{"id":"t.s","event_attribute":{"event":"acme.tokens","attribute":"count",
              "occurrence":"first_yielding"}}]"#,
@@ -408,170 +358,6 @@ fn an_all_or_nothing_reading_cannot_be_starved_by_an_earlier_rank() {
              "emit":"message","legacy_rank":2}]"#,
     )
     .expect("one member reading two spellings takes exactly one of them, so nothing is starved");
-}
-
-/// A family whose members are **names** is readable, and its order is declared rather than discovered.
-///
-/// `indexed_family` requires a numeric component and skips anything else, so `acme.messages.a` /
-/// `acme.messages.b` - one message per named member - could not be read at all, while `carriers` has had
-/// `attribute_family` all along. The two halves of the format disagreed about whether such a family exists.
-///
-/// The order is a **required** declaration because there is nothing to discover: extraction puts a span's
-/// attributes in a `HashMap`, so producer order is gone before a rule sees them. Undeclared, the answer would
-/// be a hash map's iteration order - which is exactly what a message sequence must not be, and would differ
-/// per process.
-#[test]
-fn a_named_attribute_family_is_readable_in_a_declared_order() {
-    use crate::rules::message_rules::{MessageContext, compile};
-
-    let plan = compile(
-        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            br#"{"id":"t","messages":[{"id":"t.family",
-             "read":{"attribute_family":{"root":"acme.messages","order":"member_name"}},
-             "parse":"json","emit":"message","legacy_rank":1}]}"#
-                .to_vec(),
-        )]))
-        .expect("the probe assets parse"),
-    )
-    .expect("a named family compiles");
-
-    let attrs = std::collections::HashMap::from([
-        (
-            "acme.messages.c".to_string(),
-            r#"{"role":"assistant","content":"third"}"#.to_string(),
-        ),
-        (
-            "acme.messages.a".to_string(),
-            r#"{"role":"user","content":"first"}"#.to_string(),
-        ),
-        (
-            "acme.messages.b".to_string(),
-            r#"{"role":"user","content":"second"}"#.to_string(),
-        ),
-        // Not a member: the family root is followed by a separator, so a key that merely starts with the
-        // root's text is a different attribute - the same rule carrier matching follows.
-        (
-            "acme.messages_extra".to_string(),
-            r#"{"role":"user","content":"not mine"}"#.to_string(),
-        ),
-    ]);
-    let ctx = MessageContext::for_span("span", &attrs, false);
-    let read: Vec<(String, String)> = plan
-        .run(&ctx)
-        .iter()
-        .map(|e| {
-            (
-                e.carrier.name().to_string(),
-                e.value["content"].as_str().unwrap_or_default().to_string(),
-            )
-        })
-        .collect();
-    assert_eq!(
-        read,
-        [
-            ("acme.messages.a".to_string(), "first".to_string()),
-            ("acme.messages.b".to_string(), "second".to_string()),
-            ("acme.messages.c".to_string(), "third".to_string()),
-        ],
-        "the members are read in the declared order, each tagged with its own key - one tag for the family \
-         would make two members indistinguishable to carrier semantics and to identity"
-    );
-
-    // Deterministic across runs, which is the whole reason the order is declared. A hash map's iteration
-    // order varies per process, so this asserts over repeated resolutions of the same span.
-    for _ in 0..8 {
-        let again: Vec<String> = plan
-            .run(&ctx)
-            .iter()
-            .map(|e| e.carrier.name().to_string())
-            .collect();
-        assert_eq!(
-            again,
-            [
-                "acme.messages.a".to_string(),
-                "acme.messages.b".to_string(),
-                "acme.messages.c".to_string()
-            ],
-            "the order must not depend on hash iteration"
-        );
-    }
-
-    // A blank member is filtered when the rule says so. The family branch returns **before** the rule-wide
-    // emptiness checks, so without applying them per member a `require_non_blank` on a named family was a
-    // declaration read from nowhere: the asset stated a filter the engine did not have.
-    let plan = compile(
-        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            br#"{"id":"t","messages":[{"id":"t.family","require_non_blank":true,
-             "read":{"attribute_family":{"root":"acme.messages","order":"member_name"}},
-             "parse":"json_or_string","emit":"message","legacy_rank":1}]}"#
-                .to_vec(),
-        )]))
-        .expect("the probe assets parse"),
-    )
-    .expect("a named family with an emptiness requirement compiles");
-    let blank = std::collections::HashMap::from([
-        ("acme.messages.a".to_string(), "   ".to_string()),
-        ("acme.messages.b".to_string(), "real".to_string()),
-    ]);
-    let ctx = MessageContext::for_span("span", &blank, false);
-    assert_eq!(
-        plan.run(&ctx)
-            .iter()
-            .map(|e| e.carrier.name().to_string())
-            .collect::<Vec<_>>(),
-        ["acme.messages.b".to_string()],
-        "the requirement applies per member, because a member is the observation - the family as a whole is \
-         not one payload"
-    );
-
-    // And it is **refused** on an indexed family, where it is equally unreachable and has no meaning to give:
-    // entries are assembled from many keys, so there is no raw string for the check to ask about.
-    let refused = compile(
-        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            br#"{"id":"t","messages":[{"id":"t.indexed","require_non_blank":true,
-             "read":{"indexed_family":"fam"},"emit":"message","legacy_rank":1}]}"#
-                .to_vec(),
-        )]))
-        .expect("the probe assets parse"),
-    )
-    .expect_err("an emptiness requirement on an indexed family must be refused, not ignored");
-    assert!(
-        refused.to_string().contains("require_members"),
-        "the refusal must name the entry-level filter that family reads do honour: {refused}"
-    );
-
-    // The order is not optional: without it the format would say nothing about a sequence it produces.
-    assert!(
-        ParsedAssets::parse(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            br#"{"id":"t","messages":[{"id":"t.family",
-                 "read":{"attribute_family":{"root":"acme.messages"}},
-                 "parse":"json","emit":"message","legacy_rank":1}]}"#
-                .to_vec(),
-        )]))
-        .is_err(),
-        "a named family with no declared order must be refused"
-    );
-
-    // And it is one source form among several, so naming it beside another is refused like any other pair.
-    assert!(
-        compile(
-            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
-                "t.json".to_string(),
-                br#"{"id":"t","messages":[{"id":"t.family",
-                 "read":{"attribute":"acme.other",
-                   "attribute_family":{"root":"acme.messages","order":"member_name"}},
-                 "parse":"json","emit":"message","legacy_rank":1}]}"#
-                    .to_vec(),
-            )]))
-            .expect("the probe assets parse")
-        )
-        .is_err(),
-        "exactly one source form, as every other combination is"
-    );
 }
 
 /// An emission names the clause **inside** its rule that produced it, not only the rule.

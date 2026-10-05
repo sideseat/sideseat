@@ -194,10 +194,6 @@ fn a_lift_states_its_source_and_its_conflict_policy() {
                  "lift":[{"from":"element","members":["finish_reason"],"on_conflict":"keep_target"}]}"#,
         ),
         (
-            "both coalesce forms, where presence wins and the yielding one is dead",
-            r#"{"id":"c","then_any_of":["$.a"],"then_present_any_of":["$.b"]}"#,
-        ),
-        (
             "`else_element` naming the fallback for a coalesce that is not there",
             r#"{"id":"c","else_element":true}"#,
         ),

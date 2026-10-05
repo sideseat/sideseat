@@ -96,13 +96,6 @@ pub struct WrapSpec {
     /// target like the list above rather than a general object builder.
     #[serde(default)]
     pub tool_call_from: Option<SingleToolCallSpec>,
-    /// A condition on the **constructed** message, checked after the envelope is built.
-    ///
-    /// Some shapes can only be judged once assembled: one dialect's tool result is worth keeping if it
-    /// ended up with a name, a call id or content, and the call id may have come from the element or from
-    /// its parent - so the question cannot be asked of either alone.
-    #[serde(default)]
-    pub require_after: PredicateSet,
     /// Wrap only where the value is not already message-shaped.
     ///
     /// A generic carrier holds either a message or bare data: `output.value = "the answer"` is the answer,
@@ -342,48 +335,29 @@ pub struct Alternative {
     /// the table would refuse it. Putting that in the table would loosen every other point that reads it.
     #[serde(default)]
     pub extra_cases: Vec<Alternative>,
-    /// For each selected element, the first of these paths that resolves.
+    /// For each selected element, the first of these paths that names a member, chosen by **presence**.
     ///
     /// Per *element*, which is the point: one dialect's tool groups each either wrap their declarations
     /// under one of two spellings or are a declaration themselves, and deciding once for the whole array
     /// would drop the odd group out.
-    #[serde(default)]
-    #[cfg_attr(test, schemars(with = "Vec<String>"))]
-    pub then_any_of: Vec<JsonPath>,
-    /// Like `then_any_of`, but chosen by the member being **present** rather than by its yielding anything.
     ///
-    /// The difference is load-bearing where a wrapper may legitimately be empty: a dialect that writes
+    /// Presence rather than yielding is load-bearing where a wrapper may legitimately be empty: a dialect that writes
     /// `function_declarations: []` has declared no tools, and picking "the first path that yielded
     /// something" skips the present-but-empty member and falls through to emitting the wrapper itself as a
     /// tool. Presence also settles which of two spellings wins when both appear.
     #[serde(default)]
     #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub then_present_any_of: Vec<JsonPath>,
-    /// Fall back to the element itself when none of `then_any_of` resolved.
+    /// Fall back to the element itself when `then_present_any_of` named nothing, or named a member of the wrong
+    /// shape.
     ///
-    /// One answer for two different situations, which is what `on_absent` / `on_malformed` replace for the
-    /// *presence* coalesce: a member that is absent and a member that is present and wrong-typed both fell here.
-    /// Kept for `then_any_of`, whose coalesce is by yielding and has no third state to tell apart.
+    /// One answer for both situations. A wrapper member is a list of declarations, so
+    /// `{"function_declarations": {"name": "weather"}}` has not declared its contents; the wrong-shaped member is
+    /// **reported** either way, and recovered from the element only where the enclosing object independently
+    /// describes a valid reading. Once presence has selected a representation, a later spelling is not tried:
+    /// falling through would answer from a representation the producer did not use.
     #[serde(default)]
     pub else_element: bool,
-    /// What a **presence** coalesce does when none of its paths named anything.
-    ///
-    /// Only meaningful beside `then_present_any_of`, and refused elsewhere: a yielding coalesce has one
-    /// not-found state, so `else_element` says everything there is to say about it.
-    #[serde(default)]
-    pub on_absent: Option<PresenceFallback>,
-    /// What it does when a path named something **present and of the wrong shape**.
-    ///
-    /// The case `else_element` could not express. A wrapper member is a list of declarations, so
-    /// `{"function_declarations": {"name": "weather"}}` has not declared its contents - and treating that as the
-    /// member being *absent* sent it to the element fallback, which emits the whole wrapper as a tool
-    /// definition. Keep the recovery because the enclosing object independently describes a valid bare tool,
-    /// and **report** the malformed member rather than pretending nobody wrote it.
-    ///
-    /// Also: once presence has selected a representation, a *later* spelling is not tried. Presence chose;
-    /// falling through to the next path would answer from a representation the producer did not use.
-    #[serde(default)]
-    pub on_malformed: Option<PresenceFallback>,
     /// Rebuild the candidate object from its members named `prefix` + *name* + `suffix`, as `{name: value}`.
     ///
     /// An object's member names can encode a structure the way an indexed attribute family encodes a
@@ -419,17 +393,6 @@ impl CollectMembers {
             .collect();
         (!collected.is_empty()).then_some(serde_json::Value::Object(collected))
     }
-}
-
-/// What a presence coalesce falls back to.
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
-#[serde(rename_all = "snake_case")]
-pub enum PresenceFallback {
-    /// The element itself is the contents.
-    Element,
-    /// Nothing: this element is not the shape, and the reading moves on.
-    Nothing,
 }
 
 /// Which members an indexed entry must carry.
@@ -481,8 +444,7 @@ pub struct ComposeSpec {
     pub members: Vec<ComposeMember>,
     /// A condition on the **assembled** object, checked before it is emitted.
     ///
-    /// The mirror of `require_after` on an envelope, and needed for the same reason: some shapes can only be
-    /// judged once the members are together - whether the name a dialect reported is a tool anyone could
+    /// Some shapes can only be judged once the members are together - whether the name a dialect reported is a tool anyone could
     /// call, for instance.
     #[serde(default)]
     pub require: PredicateSet,

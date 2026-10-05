@@ -240,18 +240,17 @@ fn the_predicate_semantics_have_not_migrated_and_here_is_what_still_answers_the_
     );
 }
 
-/// A presence coalesce tells **absent** from **present and the wrong shape**, which `else_element` could not.
+/// A presence coalesce answers an absent member and a wrong-shaped one through `else_element`.
 ///
 /// A wrapper member is a list of declarations, so `{"function_declarations": {"name": "weather"}}` has not
-/// declared its contents - and treating that as the member being *absent* sent it to the element fallback, which
-/// emits the whole wrapper as a tool definition. Keep the recovery because the enclosing object
-/// independently describes a valid bare tool, and **report** the malformed member rather than pretending nobody
-/// wrote it. So the two situations get separate answers.
+/// declared its contents. With `else_element` the reading recovers from the enclosing object, which
+/// independently describes a valid bare tool; without it the element is not this shape. Separate answers for
+/// the two situations (`on_absent` / `on_malformed`) existed and no asset used them.
 ///
 /// Also pinned: once presence has selected a representation, a later spelling is not tried. Presence chose;
 /// falling through would answer from a representation the producer did not use.
 #[test]
-fn a_presence_coalesce_tells_absent_from_the_wrong_shape() {
+fn a_presence_coalesce_falls_back_to_the_element_only_where_declared() {
     use crate::rules::message_rules::{MessageContext, compile};
 
     let asset = |fallbacks: &str| {
@@ -284,8 +283,8 @@ fn a_presence_coalesce_tells_absent_from_the_wrong_shape() {
             .collect::<Vec<_>>()
     };
 
-    // The two answers, declared separately: recover from a wrong-shaped member, and refuse an absent one.
-    let plan = asset(r#","on_malformed":"element","on_absent":"nothing""#).expect("compiles");
+    // Declared: both an absent member and a wrong-shaped one fall back to the element.
+    let plan = asset(r#","else_element":true"#).expect("compiles");
     let recovered = read(
         &plan,
         serde_json::json!([{"name": "bare", "function_declarations": {"name": "weather"}}]),
@@ -296,14 +295,10 @@ fn a_presence_coalesce_tells_absent_from_the_wrong_shape() {
         "the enclosing object independently describes a valid bare tool, so the reading recovers"
     );
     assert_eq!(recovered[0]["name"].as_str(), Some("bare"));
-    assert!(
-        read(&plan, serde_json::json!([{"name": "bare"}])).is_empty(),
-        "and an *absent* member is a different situation, answered separately - which `else_element` could not \
-         express, since both fell to it"
-    );
+    assert_eq!(read(&plan, serde_json::json!([{"name": "bare"}])).len(), 1);
 
-    // Reversed, to show the two are independent rather than one dial.
-    let plan = asset(r#","on_malformed":"nothing","on_absent":"element""#).expect("compiles");
+    // Undeclared: neither falls back.
+    let plan = asset("").expect("compiles");
     assert!(
         read(
             &plan,
@@ -311,10 +306,10 @@ fn a_presence_coalesce_tells_absent_from_the_wrong_shape() {
         )
         .is_empty()
     );
-    assert_eq!(read(&plan, serde_json::json!([{"name": "bare"}])).len(), 1);
+    assert!(read(&plan, serde_json::json!([{"name": "bare"}])).is_empty());
 
     // A present list is still the contents, empty included: a producer writing `[]` has declared no tools.
-    let plan = asset(r#","on_malformed":"element","on_absent":"element""#).expect("compiles");
+    let plan = asset(r#","else_element":true"#).expect("compiles");
     assert_eq!(
         read(
             &plan,
@@ -342,20 +337,20 @@ fn a_presence_coalesce_tells_absent_from_the_wrong_shape() {
         "falling through to a later spelling would answer from a representation the producer did not use"
     );
 
-    // And the members are refused where the coalesce cannot make the distinction they express.
+    // And the fallback is refused where there is no coalesce for it to answer.
     assert!(
         compile(
             &ParsedAssets::parse(&std::collections::BTreeMap::from([(
                 "t.json".to_string(),
                 br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json",
                  "emit":"message","legacy_rank":1,
-                 "alternatives":[{"id":"a","then_any_of":["$.a"],"on_absent":"element"}]}]}"#
+                 "alternatives":[{"id":"a","else_element":true}]}]}"#
                     .to_vec(),
             )]))
             .expect("the probe assets parse")
         )
         .is_err(),
-        "a yielding coalesce has one not-found state, so `on_absent` states a distinction it cannot make"
+        "`else_element` with no `then_present_any_of` names the fallback for a coalesce that is not there"
     );
 }
 

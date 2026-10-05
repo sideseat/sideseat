@@ -117,57 +117,6 @@ pub(super) fn emit_rule<'p>(
         }
         return out;
     }
-    // A **named** family: every member under the root is its own observation, in the declared order. Unlike an
-    // indexed family there are no sub-members to assemble - a member's value *is* the payload - so this is one
-    // read per key rather than an entry built from several.
-    if let Some(family) = &rule.read.attribute_family {
-        let root_dot = format!("{}.", family.root);
-        let mut members: Vec<(&String, &String)> = ctx
-            .span_attrs
-            .iter()
-            .filter(|(key, _)| key.starts_with(&root_dot))
-            .collect();
-        match family.order {
-            super::schema::AttributeFamilyOrder::MemberName => members.sort_by(|a, b| a.0.cmp(b.0)),
-        }
-        for (key, raw) in members {
-            // **Per member**, because a member is the observation here - the family as a whole is not one
-            // payload. This branch returns before the rule-wide checks further down, so without this a
-            // `require_non_blank` on a named family was a declaration read from nowhere: a blank member was
-            // emitted and the asset said it would not be.
-            if rule.require_non_empty && raw.is_empty() {
-                continue;
-            }
-            if rule.require_non_blank && raw.trim().is_empty() {
-                continue;
-            }
-            let Some(value) = parse_value(raw, rule.parse.unwrap_or(ParseMode::JsonOrString))
-            else {
-                continue;
-            };
-            let value = match &rule.wrap {
-                Some(wrap) => match wrapped(value, wrap, ctx, None) {
-                    Some(built) => built,
-                    // An envelope that cannot be built is not an observation: the same rule the other
-                    // readings follow, rather than emitting a bare payload under a message tag.
-                    None => continue,
-                },
-                None => value,
-            };
-            out.push(Emission {
-                rule_id: &rule.rule_id,
-                evidence: rule_evidence(rule, &[]),
-                // Tagged with the **member's own key**, not the root: two members are two carriers, and one
-                // tag for the family would make them indistinguishable to carrier semantics and identity.
-                // `Owned`, because the key comes from the span rather than from the rule.
-                carrier: EmittedCarrier::Owned(key.clone()),
-                owns: OwnedCarrier::just(key),
-                target: rule.target,
-                value,
-            });
-        }
-        return out;
-    }
     if let Some(family) = rule.read.indexed_family.as_deref() {
         let entries = indexed_entries(
             ctx.span_attrs,

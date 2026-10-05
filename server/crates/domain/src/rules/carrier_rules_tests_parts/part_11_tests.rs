@@ -169,7 +169,7 @@ fn every_declared_refusal_is_exercised_by_a_test() {
     }
 
     assert!(
-        counted > 60,
+        counted > 50,
         "only {counted} refusals were found, so the parse is not reading the enums"
     );
     assert!(

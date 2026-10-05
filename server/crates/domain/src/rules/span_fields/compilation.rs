@@ -86,17 +86,6 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
                 rule: rule.id.clone(),
             });
         }
-        // `occurrence: every` collects one value per event, which a scalar field has no room for: it would
-        // silently keep one of them and the choice would be the iterator's. Refused rather than resolved.
-        if let Some(event) = &spec.event_attribute
-            && event.occurrence == super::super::schema::EventOccurrence::Every
-            && rule.target.field_type() != FieldType::StringList
-        {
-            return Err(FieldCompileError::EveryOccurrenceIntoOneValue {
-                file: file_id.to_string(),
-                rule: rule.id.clone(),
-            });
-        }
         // Both the read and the **witness**, which had no such check: a witness naming no member always
         // answers false, so its source is permanently dead, and one naming both silently ignores the second.
         for json in [&spec.json, &spec.when_json].into_iter().flatten() {

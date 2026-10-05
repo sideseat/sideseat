@@ -89,8 +89,7 @@ pub(super) fn wrapped(
             object.insert(attach.as_member.clone(), attached);
         }
     }
-    // The canonical tool-call list replaces the content: a message that carries calls carries no text, and
-    // an empty list means the reading found nothing usable, which `require_after` is what refuses.
+    // The canonical tool-call list replaces the content: a message that carries calls carries no text.
     match &wrap.tool_calls_from {
         Some(spec) => {
             let member = spec.as_member.as_deref().unwrap_or("tool_calls");
@@ -116,13 +115,7 @@ pub(super) fn wrapped(
             object.insert(attach.as_member.clone(), attached);
         }
     }
-    let message = JsonValue::Object(object);
-    // Some shapes can only be judged once assembled - a tool result is worth keeping if it ended up with a
-    // name, a call id or content, and the call id may have come from the element or from its parent.
-    if !predicates_hold(&message, &wrap.require_after) {
-        return None;
-    }
-    Some(message)
+    Some(JsonValue::Object(object))
 }
 
 /// One tool call as `{name, arguments}`, the convention `sideml/tools.rs` unwraps.

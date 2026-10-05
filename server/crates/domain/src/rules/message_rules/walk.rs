@@ -48,12 +48,7 @@ pub(super) fn inline_fragments(
             // | Declared | What happens |
             // | --- | --- |
             // | a lift `from: element` with no `descend` | the element *is* the candidate, so every member is already there |
-            // | `then_any_of` beside `then_present_any_of` | presence wins and the yielding form is dead |
-            // | `else_element` with neither | it names the fallback for a coalesce that is not there |
-            //
-            // The third is where the two forms differ: one coalesces by *yielding*, the other by *presence*.
-            // They remain one member with two silently ordered halves; this refuses the combination that
-            // cannot mean anything.
+            // | `else_element` with no `then_present_any_of` | it names the fallback for a coalesce that is not there |
             // A lift **from the element** copies members that sit beside the value being emitted, which is
             // only a different value when something was descended into: without `descend` the element *is* the
             // candidate, so every member is already there and the lift is a no-op.
@@ -69,33 +64,11 @@ pub(super) fn inline_fragments(
                              being emitted - so every member is there and the lift copies nothing",
                 });
             }
-            if !spec.then_any_of.is_empty() && !spec.then_present_any_of.is_empty() {
+            if spec.else_element && spec.then_present_any_of.is_empty() {
                 return Err(MessageCompileError::Inexpressible {
                     rule: spec.id.clone(),
-                    detail: "declares both `then_any_of` and `then_present_any_of`; presence wins, so the \
-                             yielding form would be ignored - they coalesce by different questions",
-                });
-            }
-            // `on_absent` / `on_malformed` are the *presence* coalesce's answers. A yielding coalesce has one
-            // not-found state, so `else_element` says everything there is to say about it - and a rule declaring
-            // these beside `then_any_of` would be stating a distinction that coalesce cannot make.
-            if (spec.on_absent.is_some() || spec.on_malformed.is_some())
-                && spec.then_present_any_of.is_empty()
-            {
-                return Err(MessageCompileError::Inexpressible {
-                    rule: spec.id.clone(),
-                    detail: "declares `on_absent` or `on_malformed` with no `then_present_any_of` - they are \
-                             the presence coalesce's answers, and a yielding coalesce has one not-found state",
-                });
-            }
-            if spec.else_element
-                && spec.then_any_of.is_empty()
-                && spec.then_present_any_of.is_empty()
-            {
-                return Err(MessageCompileError::Inexpressible {
-                    rule: spec.id.clone(),
-                    detail: "declares `else_element` with no `then_any_of` or `then_present_any_of` - it \
-                             names the fallback for a coalesce that is not there",
+                    detail: "declares `else_element` with no `then_present_any_of` - it names the fallback \
+                             for a coalesce that is not there",
                 });
             }
             Ok(CompiledReading {

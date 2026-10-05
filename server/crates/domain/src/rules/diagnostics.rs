@@ -340,7 +340,6 @@ impl SectionDefect for super::span_fields::FieldCompileError {
             | E::FoldWithoutText { rule, .. }
             | E::ScalarOnlyWithoutAPath { rule, .. }
             | E::EmptyAttribute { rule, .. }
-            | E::EveryOccurrenceIntoOneValue { rule, .. }
             | E::MergeIntoScalar { rule, .. }
             | E::DeadGate { rule, .. }
             | E::UnavailableGate { rule, .. }
@@ -362,7 +361,6 @@ impl SectionDefect for super::span_fields::FieldCompileError {
             | E::FoldWithoutText { file, .. }
             | E::ScalarOnlyWithoutAPath { file, .. }
             | E::EmptyAttribute { file, .. }
-            | E::EveryOccurrenceIntoOneValue { file, .. }
             | E::MergeIntoScalar { file, .. }
             | E::DeadGate { file, .. }
             | E::UnavailableGate { file, .. } => vec![file],

@@ -277,12 +277,6 @@ fn every_span_field_refusal_fires() {
             |e| matches!(e, E::EmptyAttribute { .. }),
         ),
         (
-            "every occurrence of an event attribute into a field holding one value",
-            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
-               "sources":[{"id":"s","event_attribute":{"event":"e","attribute":"a","occurrence":"every"}}]}]}"#,
-            |e| matches!(e, E::EveryOccurrenceIntoOneValue { .. }),
-        ),
-        (
             "a merge into a field that holds one value",
             r#"{"id":"t","span_fields":[{"id":"f","target":"user_id","combine":"merge_all",
                "sources":[{"id":"s","attribute":"k"}]}]}"#,
