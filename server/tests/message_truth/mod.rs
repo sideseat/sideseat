@@ -158,6 +158,7 @@ pub(crate) const DELIVERY_FAMILIES: &[&str] = &[
     "invariance.re_delivery",
     "invariance.batch_splitting",
     "invariance.clock_offset",
+    "invariance.framework_version",
 ];
 
 /// The family an assertion belongs to: a per-kind check reads as `*.<check>`.

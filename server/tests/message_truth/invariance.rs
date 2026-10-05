@@ -12,6 +12,11 @@
 //!   clock reports it. Fixtures with log exports are excluded, because their log records keep their own
 //!   clock and a skew between the two is a different scenario.
 //!
+//! - **framework release**: a fixture captured on another release of its framework
+//!   (`<producer>/<mode>@<version>/<scenario>`, replayed from the same recorded responses) holds the same
+//!   conversation as the current release's - every trace view, session view and the feed, block by block.
+//!   Span names may differ; what the model said did not.
+//!
 //! A sub-millisecond jitter is not asserted: the pipeline's stated tolerance (`SPAN_CLOCK_SKEW`, 1 ms)
 //! decides ties between spans, so moving a span across it legitimately changes what it decides. Log
 //! exports arriving late or twice are covered by `a_resent_log_export_attaches_once`: logs join at read
@@ -90,8 +95,40 @@ fn has_logs(paths: &[PathBuf]) -> bool {
         .any(|e| e.file_name().to_string_lossy().starts_with("logs-"))
 }
 
-/// The ways one fixture's views changed under a different delivery.
-fn differences(label: &str, paths: &[PathBuf]) -> Vec<Violation> {
+/// What a conversation is, independent of how a framework version names its spans: every trace
+/// view, session view and the feed, as role, block type and full-content digest.
+fn conversation(golden: &crate::Golden) -> Vec<Vec<(String, String, String)>> {
+    let project = |view: &crate::GoldenView| {
+        view.messages
+            .iter()
+            .map(|m| {
+                (
+                    m.role.clone(),
+                    m.entry_type.clone(),
+                    m.content_digest.clone(),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    let mut sessions: Vec<_> = golden.session_views.values().map(project).collect();
+    sessions.sort();
+    let mut out: Vec<_> = golden.trace_views.values().map(project).collect();
+    out.extend(sessions);
+    out.push(project(&golden.feed_view));
+    out
+}
+
+/// A fixture captured on another release of its framework: `<producer>/<mode>@<version>/<scenario>`,
+/// with the current release's `<producer>/<mode>/<scenario>`.
+fn current_release_of(label: &str) -> Option<String> {
+    let mut parts = label.splitn(3, '/');
+    let (producer, mode, scenario) = (parts.next()?, parts.next()?, parts.next()?);
+    let (mode, _version) = mode.split_once('@')?;
+    Some(format!("{producer}/{mode}/{scenario}"))
+}
+
+/// The ways one fixture's views changed under a different delivery, and its views as delivered.
+fn differences(label: &str, paths: &[PathBuf]) -> (Vec<Violation>, crate::Golden) {
     let requests: Vec<ExportTraceServiceRequest> =
         paths.iter().map(|p| decode_request(p)).collect();
     let rows = rows_of(&requests, paths);
@@ -118,7 +155,7 @@ fn differences(label: &str, paths: &[PathBuf]) -> Vec<Violation> {
             rows_of(&offset(&requests, skew), paths),
         ));
     }
-    variants
+    let found = variants
         .into_iter()
         .filter_map(|(name, rows)| {
             assert!(
@@ -144,14 +181,16 @@ fn differences(label: &str, paths: &[PathBuf]) -> Vec<Violation> {
                 violation
             })
         })
-        .collect()
+        .collect();
+    (found, baseline)
 }
 
 #[test]
-fn delivery_does_not_change_any_fixture_s_views() {
+fn no_delivery_or_framework_release_changes_a_conversation() {
     let fixtures = crate::discover_fixtures();
     let next = AtomicUsize::new(0);
     let failures = Mutex::new(Vec::new());
+    let goldens = Mutex::new(std::collections::BTreeMap::new());
     let workers = std::thread::available_parallelism()
         .map_or(4, |n| n.get())
         .min(8);
@@ -163,13 +202,50 @@ fn delivery_does_not_change_any_fixture_s_views() {
                     let Some((label, paths)) = fixtures.get(index) else {
                         break;
                     };
-                    let found = differences(label, paths);
+                    let (found, golden) = differences(label, paths);
                     failures.lock().expect("no worker panicked").extend(found);
+                    goldens
+                        .lock()
+                        .expect("no worker panicked")
+                        .insert(label.clone(), golden);
                 }
             });
         }
     });
     let mut observed = failures.into_inner().expect("no worker panicked");
+    // The same scenario, replayed from the same recorded responses on another release of the
+    // framework, is the same conversation: what the model said did not change.
+    let goldens = goldens.into_inner().expect("no worker panicked");
+    for (label, golden) in &goldens {
+        let Some(current) = current_release_of(label).and_then(|c| goldens.get(&c)) else {
+            continue;
+        };
+        if conversation(golden) != conversation(current) {
+            let diff = describe_diff(label, current, golden);
+            let summary: Vec<&str> = diff
+                .lines()
+                .skip(1)
+                .map(str::trim)
+                .filter(|l| !l.contains("span view"))
+                .collect();
+            let mut violation = Violation::new(
+                ViolationView::Delivery,
+                "invariance.framework_version",
+                "conversation",
+                format!(
+                    "differs from {} ({}): {}",
+                    current.label,
+                    crate::content_digest(&serde_json::Value::String(format!(
+                        "{:?}",
+                        conversation(golden)
+                    ))),
+                    summary.join(" | ").chars().take(200).collect::<String>()
+                ),
+            );
+            violation.fixture = label.clone();
+            observed.push(violation);
+        }
+    }
     observed.sort();
     let problems = super::ledger_problems(&observed, true);
     assert!(
