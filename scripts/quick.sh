@@ -129,11 +129,28 @@ if [ -n "$rust_files" ]; then
         units=()
         if ((${#unit[@]})); then units+=("${unit[@]}"); fi
         if ((server)); then units+=(-p sideseat-server); fi
-        if ((${#units[@]})); then
-            cargo test --locked -q --lib --bins "${units[@]}"
-        fi
+        # The golden comparison and the unit tests each keep about one core busy, so with every
+        # target built they run side by side; the comparison's output is held back until it ends.
+        golden=""
         if ((server)); then
-            cargo test --locked -q -p sideseat-server --test message_goldens -- --exact message_goldens
+            golden_log="$(mktemp)"
+            cargo test --locked -q -p sideseat-server --test message_goldens -- --exact message_goldens \
+                >"$golden_log" 2>&1 &
+            golden=$!
+        fi
+        if ((${#units[@]})); then
+            cargo test --locked -q --lib --bins "${units[@]}" || {
+                status=$?
+                if [ -n "$golden" ]; then kill "$golden" 2>/dev/null || true; rm -f "$golden_log"; fi
+                exit "$status"
+            }
+        fi
+        if [ -n "$golden" ]; then
+            golden_status=0
+            wait "$golden" || golden_status=$?
+            if ((golden_status)); then cat "$golden_log" >&2; fi
+            rm -f "$golden_log"
+            ((golden_status == 0)) || exit "$golden_status"
             if grep -qvE '\.rs$' <<<"$changed"; then
                 cargo test --locked -q -p sideseat-server --test repository
             fi
