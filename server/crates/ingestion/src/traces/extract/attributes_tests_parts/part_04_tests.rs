@@ -428,4 +428,9 @@ fn an_error_type_makes_the_status_message_the_spans_own_error() {
         (None, None),
         "a class with no message says less than the tool result beside it"
     );
+    assert_eq!(
+        failed_with(vec![kv("error.type", "TOOL_ERROR")], "TOOL_ERROR"),
+        (None, None),
+        "a status that repeats the class explains no more than the class alone"
+    );
 }
