@@ -14,7 +14,7 @@ use super::*;
 ///
 /// Only attempts conversion for strings starting with `{` or `[`.
 /// Returns `None` if conversion produces invalid JSON (graceful fallback to text).
-pub(super) fn try_parse_python_repr(s: &str) -> Option<JsonValue> {
+pub(crate) fn try_parse_python_repr(s: &str) -> Option<JsonValue> {
     if !s.starts_with('{') && !s.starts_with('[') {
         return None;
     }

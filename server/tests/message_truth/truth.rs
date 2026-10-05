@@ -160,6 +160,57 @@ impl Gap {
     }
 }
 
+/// What a gap names: one fact, one call, or nothing (a gap about the whole scenario).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum GapSubject {
+    Fact,
+    Call,
+    None,
+}
+
+/// What a gap reason does. Each effect is separate because the reasons combine them differently: an
+/// unknowable answer withdraws its fact and may explain the block a reconstruction shows in its place,
+/// while a fact the telemetry never carried is withdrawn but explains nothing - and is accepted only with
+/// an absence proof (`absence`).
+#[derive(Debug, Clone, Copy)]
+pub(super) struct GapEffects {
+    pub subject: GapSubject,
+    /// The named fact is unasserted (`require: null`) because of this gap.
+    pub withdraws: bool,
+    /// The gap may account for a reconstructed block no fact claims (`explain`).
+    pub explains_extra: bool,
+    /// The fact's content must be shown absent from every captured payload of every fixture.
+    pub needs_absence_proof: bool,
+}
+
+/// The closed vocabulary of gap reasons and their effects; an unknown reason is a document defect.
+pub(super) fn gap_effects(reason: &str) -> Option<GapEffects> {
+    let effects = |subject, withdraws, explains_extra, needs_absence_proof| GapEffects {
+        subject,
+        withdraws,
+        explains_extra,
+        needs_absence_proof,
+    };
+    Some(match reason {
+        // The oracle cannot know the value; whatever the reconstruction shows there is unchecked.
+        "reasoning_text_omitted" | "answer_quotes_framework_rendering" => {
+            effects(GapSubject::Fact, true, true, false)
+        }
+        // Names the call whose result the oracle cannot compute; no result fact exists.
+        "tool_not_deterministic" => effects(GapSubject::Fact, false, true, false),
+        // A failed attempt owes no output.
+        "no_output_obligation" => effects(GapSubject::Call, false, false, false),
+        // The telemetry does not carry the fact: proven, never assumed.
+        "not_exported" => effects(GapSubject::Fact, true, false, true),
+        "request_body_unrecorded"
+        | "request_modelled"
+        | "fake_model_echoes_request"
+        | "multi_agent_routing"
+        | "prompt_without_model_call" => effects(GapSubject::None, false, true, false),
+        _ => return None,
+    })
+}
+
 pub(super) fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -346,11 +397,6 @@ pub(super) fn document_defects(key: &str, truth: &Truth) -> Vec<String> {
             }
         }
     }
-    let gap_subjects: BTreeSet<&str> = truth
-        .gaps
-        .iter()
-        .filter_map(|g| g.subject.as_deref())
-        .collect();
     for fact in &truth.facts {
         if sequenced.get(fact.id.as_str()) != Some(&1) {
             bad(format!("{} is not sequenced exactly once", fact.id));
@@ -387,11 +433,7 @@ pub(super) fn document_defects(key: &str, truth: &Truth) -> Vec<String> {
             }
         }
         match &fact.require {
-            None => {
-                if !gap_subjects.contains(fact.id.as_str()) {
-                    bad(format!("{} is unasserted but no gap names it", fact.id));
-                }
-            }
+            None => {}
             Some(require) => {
                 let known_anchor = match require.anchor.as_str() {
                     "model_call" => fact.call.is_some(),
@@ -429,6 +471,7 @@ pub(super) fn document_defects(key: &str, truth: &Truth) -> Vec<String> {
             }
         }
     }
+    let mut withdrawn: BTreeMap<&str, usize> = BTreeMap::new();
     for gap in &truth.gaps {
         if gap.detail.trim().is_empty() || gap.fact.trim().is_empty() {
             bad(format!(
@@ -438,34 +481,51 @@ pub(super) fn document_defects(key: &str, truth: &Truth) -> Vec<String> {
         }
         // A closed vocabulary: the checks give each reason a meaning, and a gap about one fact or
         // call names it, so one gap cannot excuse many.
-        let per_subject = match gap.reason.as_str() {
-            "reasoning_text_omitted"
-            | "answer_quotes_framework_rendering"
-            | "tool_not_deterministic"
-            | "no_output_obligation"
-            | "not_exported" => true,
-            "request_body_unrecorded"
-            | "request_modelled"
-            | "fake_model_echoes_request"
-            | "multi_agent_routing"
-            | "prompt_without_model_call" => false,
-            other => {
-                bad(format!("unknown gap reason {other}"));
-                continue;
-            }
+        let Some(effects) = gap_effects(&gap.reason) else {
+            bad(format!("unknown gap reason {}", gap.reason));
+            continue;
         };
-        if per_subject != gap.subject.is_some() {
+        let names = |subject: &str| match effects.subject {
+            GapSubject::Fact => facts.contains_key(subject),
+            GapSubject::Call => calls.contains_key(subject),
+            GapSubject::None => false,
+        };
+        match (&gap.subject, effects.subject) {
+            (None, GapSubject::None) => {}
+            (Some(subject), GapSubject::Fact | GapSubject::Call) if names(subject) => {}
+            (Some(subject), GapSubject::Fact | GapSubject::Call) => {
+                bad(format!("gap {} names unknown {subject}", gap.reason))
+            }
+            (None, _) => bad(format!("gap {} must name a subject", gap.reason)),
+            (Some(_), GapSubject::None) => {
+                bad(format!("gap {} must not name a subject", gap.reason))
+            }
+        }
+        let Some(fact) = gap.subject.as_deref().and_then(|s| facts.get(s)) else {
+            continue;
+        };
+        if effects.withdraws {
+            *withdrawn.entry(fact.id.as_str()).or_default() += 1;
+            if fact.require.is_some() {
+                bad(format!(
+                    "gap {} withdraws {}, which is still asserted",
+                    gap.reason, fact.id
+                ));
+            }
+        }
+        // An absence is proven by searching for the fact's content, so the fact keeps all of it.
+        if effects.needs_absence_proof && gap.fact != fact.kind {
             bad(format!(
-                "gap {} must {}name a subject",
-                gap.reason,
-                if per_subject { "" } else { "not " }
+                "gap {} on {} names category {}, not its kind {}",
+                gap.reason, fact.id, gap.fact, fact.kind
             ));
         }
-        if let Some(subject) = &gap.subject
-            && !facts.contains_key(subject.as_str())
-            && !calls.contains_key(subject.as_str())
-        {
-            bad(format!("gap {} names unknown {subject}", gap.reason));
+    }
+    for fact in truth.facts.iter().filter(|f| f.require.is_none()) {
+        match withdrawn.get(fact.id.as_str()) {
+            Some(1) => {}
+            None => bad(format!("{} is unasserted but no gap withdraws it", fact.id)),
+            Some(n) => bad(format!("{} is withdrawn by {n} gaps", fact.id)),
         }
     }
 

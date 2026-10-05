@@ -20,6 +20,7 @@
 //! The comparison runs inside `message_goldens`, on the views that test already built, so the inner
 //! loop pays for one ingestion pass rather than two.
 
+mod absence;
 mod adversarial;
 mod checks;
 mod explain;

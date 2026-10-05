@@ -18,7 +18,8 @@ use provider_formats::{
 };
 #[cfg(test)]
 use provider_formats::{try_gemini_function_format, try_vercel_format};
-use python_repr::{try_normalize_python_constructor_content, try_parse_python_repr};
+use python_repr::try_normalize_python_constructor_content;
+pub(crate) use python_repr::try_parse_python_repr;
 pub(crate) use python_repr::{try_parse_python_constructor_repr, try_parse_python_literal};
 pub use tool_result::convert_to_tool_result;
 

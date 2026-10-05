@@ -131,6 +131,24 @@ not every past or future release carrying the same product name. Framework and S
 locks are refreshed before recapture.
 </Aside>
 
+## Framework limitations
+
+Some frameworks never export part of what their model calls produced. Such content cannot be
+reconstructed, and the rubric withdraws it only with a proof: every captured trace request and log
+export of the affected samples - every attribute, name, body and status, decoded through JSON,
+Python renderings, base64 and data URIs - is searched for it, and the claim is refused if it is
+found anywhere. The table lists each proven omission and the captures it was proven absent from; it
+describes those captures, not every release of the framework.
+
+{/* BEGIN framework-limitations */}
+
+| Framework | Missing | Why | Proven absent from |
+| --- | --- | --- | --- |
+| codex | assistant text (4 in 3 captures) | Codex exports a turn's final reply (codex.agent_response) and nothing the model wrote between tool calls | `native`: error, multi_agent, tool_use |
+| codex | system prompt (4 in 4 captures) | Codex exports no system prompt or instructions, in any signal | `native`: error, multi_agent, multi_turn, tool_use |
+
+{/* END framework-limitations */}
+
 ## What SDK parity proves
 
 Each language pair emits the same canonical conversation:

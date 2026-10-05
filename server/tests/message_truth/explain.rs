@@ -64,10 +64,21 @@ impl Allowance {
                 Some(id)
             })
             .collect();
+        // Only a fact the oracle cannot know leaves a slot; one the telemetry never carried cannot be
+        // what an unclaimed block shows.
+        let unknowable: BTreeSet<&str> = truth
+            .gaps
+            .iter()
+            .filter(|g| {
+                super::truth::gap_effects(&g.reason)
+                    .is_some_and(|e| e.withdraws && e.explains_extra)
+            })
+            .filter_map(|g| g.subject.as_deref())
+            .collect();
         let slots = truth
             .facts
             .iter()
-            .filter(|f| f.require.is_none())
+            .filter(|f| f.require.is_none() && unknowable.contains(f.id.as_str()))
             .filter_map(|f| {
                 let class = match f.kind.as_str() {
                     "reasoning" => "reasoning",

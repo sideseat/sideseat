@@ -102,6 +102,14 @@ pub mod test_support {
     pub fn normalize_content_block(block: &serde_json::Value) -> Option<serde_json::Value> {
         super::content::normalize_content_block(block)
     }
+
+    /// The Python-literal and constructor-repr readers the content chain applies, so a test oracle that
+    /// searches raw telemetry decodes every rendering the engine can read.
+    pub fn parse_python_rendering(text: &str) -> Option<serde_json::Value> {
+        super::content::try_parse_python_repr(text)
+            .or_else(|| super::content::try_parse_python_literal(text))
+            .or_else(|| super::content::try_parse_python_constructor_repr(text))
+    }
 }
 
 // ============================================================================
