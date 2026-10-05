@@ -340,8 +340,16 @@ fn native_gap_declarations_hold(
 /// `MESSAGE_FIXTURES=tracked` keeps only the samples git tracks, so a change can be verified against the
 /// committed corpus while captures still being recorded sit untracked in the same tree.
 fn retain_requested_fixtures(root: &Path, fixtures: &mut BTreeMap<String, Vec<PathBuf>>) {
+    if let Some(tracked) = requested_tracked_samples(root) {
+        fixtures.retain(|label, _| tracked.contains(label));
+    }
+}
+
+/// Under `MESSAGE_FIXTURES=tracked`, the sample directories (relative to `root`) holding a file git
+/// tracks; `None` when every sample on disk is requested.
+fn requested_tracked_samples(root: &Path) -> Option<std::collections::BTreeSet<String>> {
     if std::env::var("MESSAGE_FIXTURES").as_deref() != Ok("tracked") {
-        return;
+        return None;
     }
     let output = std::process::Command::new("git")
         .args(["ls-files", "-z", "--", "."])
@@ -352,11 +360,12 @@ fn retain_requested_fixtures(root: &Path, fixtures: &mut BTreeMap<String, Vec<Pa
         output.status.success(),
         "MESSAGE_FIXTURES=tracked needs a git checkout"
     );
-    let tracked: std::collections::BTreeSet<String> = output
-        .stdout
-        .split(|&b| b == 0)
-        .filter_map(|path| std::str::from_utf8(path).ok())
-        .filter_map(|path| path.rsplit_once('/').map(|(dir, _)| dir.to_string()))
-        .collect();
-    fixtures.retain(|label, _| tracked.contains(label));
+    Some(
+        output
+            .stdout
+            .split(|&b| b == 0)
+            .filter_map(|path| std::str::from_utf8(path).ok())
+            .filter_map(|path| path.rsplit_once('/').map(|(dir, _)| dir.to_string()))
+            .collect(),
+    )
 }

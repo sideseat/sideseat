@@ -252,6 +252,7 @@ fn the_corpus_matches_the_support_matrix() {
     const LOCAL_ONLY_SAMPLES: [(&str, &str); 2] =
         [("strands-js/legacy", "image-gen"), ("vercel-ai-js/legacy", "image-gen")];
 
+    let tracked = requested_tracked_samples(&root);
     // A suite is `_synthetic`, or `<producer>/<mode>` for captured telemetry.
     let mut suites: Vec<(String, std::path::PathBuf)> = Vec::new();
     for entry in std::fs::read_dir(&root).expect("fixture root") {
@@ -287,6 +288,13 @@ fn the_corpus_matches_the_support_matrix() {
             if LOCAL_ONLY_SAMPLES.contains(&(suite.as_str(), sample_name.as_str())) {
                 continue;
             }
+            // The same restriction discovery applies, so `MESSAGE_FIXTURES=tracked` counts what it runs.
+            if tracked
+                .as_ref()
+                .is_some_and(|t| !t.contains(&format!("{suite}/{sample_name}")))
+            {
+                continue;
+            }
             samples += 1;
             requests += std::fs::read_dir(&sample)
                 .expect("sample dir")
@@ -302,8 +310,11 @@ fn the_corpus_matches_the_support_matrix() {
     }
     found.sort();
 
+    // Restricted to the tracked corpus, a row may describe a suite still being recorded; the default run
+    // is the one that holds every row to a fixture.
     let documented_counts: Vec<(String, usize, usize)> = documented
         .iter()
+        .filter(|(s, ..)| tracked.is_none() || found.iter().any(|(f, ..)| f == s))
         .map(|(s, a, b, _)| (s.clone(), *a, *b))
         .collect();
     assert_eq!(
