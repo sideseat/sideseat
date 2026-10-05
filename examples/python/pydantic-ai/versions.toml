@@ -1,0 +1,135 @@
+# The historical Pydantic AI releases this suite is replayed against; see `python -m harness matrix --help`.
+# Each variant is the newest release of one telemetry class in `versions.census.json`.
+# Pydantic AI ships 1.x and 2.x side by side; `Agent.instrument_all()` uses each release's default
+# instrumentation version.
+[matrix]
+package = "pydantic-ai-slim"
+pin = "pydantic-ai-slim[bedrock,mcp]=={version}"
+since = "2025-10-05"
+resolved-before = "2026-10-05T00:00:00Z"
+probes = ["tool_use", "streaming"]
+scenarios = ["tool_use", "streaming"]
+# Early 1.x releases import `opentelemetry._events`, which OpenTelemetry 1.45 removed while their bound
+# stayed open: OpenTelemetry resolves as of each release's own day, as it did for its users.
+era = [
+    "opentelemetry-api",
+    "opentelemetry-sdk",
+    "opentelemetry-proto",
+    "opentelemetry-semantic-conventions",
+    "opentelemetry-exporter-otlp-proto-common",
+    "opentelemetry-exporter-otlp-proto-http",
+]
+
+[[variant]]
+version = "1.1.0"
+doc = "1.0.16-1.1.0: message, schema or request-parameter JSON changes inside the carriers."
+
+[[variant]]
+version = "1.11.0"
+doc = "1.2.0-1.11.0: agent spans gain final_result."
+
+[[variant]]
+version = "1.31.0"
+doc = "1.11.1-1.31.0: message, schema or request-parameter JSON changes inside the carriers."
+
+[[variant]]
+version = "1.41.0"
+doc = "1.32.0-1.41.0: message, schema or request-parameter JSON changes inside the carriers."
+
+[[variant]]
+version = "1.67.0"
+doc = "1.42.0-1.67.0: gen_ai.provider.name and gen_ai.tool.definitions."
+
+[[variant]]
+version = "1.70.0"
+doc = "1.68.0-1.70.0: the `running tools` span is gone."
+
+[[variant]]
+version = "1.73.0"
+doc = "1.71.0-1.73.0: message, schema or request-parameter JSON changes inside the carriers."
+
+[[variant]]
+version = "1.74.0"
+doc = "1.74.0: pydantic_ai.run_id."
+
+[[variant]]
+version = "1.75.0"
+doc = "1.75.0: gen_ai.agent.call.id replaces pydantic_ai.run_id."
+
+[[variant]]
+version = "1.76.0"
+doc = "1.76.0: agent spans carry gen_ai.operation.name `invoke_agent`."
+
+[[variant]]
+version = "1.77.0"
+doc = "1.77.0: message, schema or request-parameter JSON changes inside the carriers."
+
+[[variant]]
+version = "1.81.0"
+doc = "1.78.0-1.81.0: message, schema or request-parameter JSON changes inside the carriers."
+
+[[variant]]
+version = "1.86.0"
+doc = "1.82.0-1.86.0: message, schema or request-parameter JSON changes inside the carriers."
+
+[[variant]]
+version = "1.88.0"
+doc = "1.86.1-1.88.0: tool spans carry gen_ai.operation.name `execute_tool`."
+
+[[variant]]
+version = "1.94.0"
+doc = "1.89.0-1.94.0: gen_ai.conversation.id."
+
+[[variant]]
+version = "1.99.0"
+doc = "1.95.0-1.99.0: message, schema or request-parameter JSON changes inside the carriers."
+
+[[variant]]
+version = "1.104.0"
+doc = "1.100.0-1.104.0: message, schema or request-parameter JSON changes inside the carriers."
+
+[[variant]]
+version = "1.107.0"
+doc = "1.105.0-1.107.0: message, schema or request-parameter JSON changes inside the carriers."
+
+[[variant]]
+version = "1.107.7"
+doc = "1.107.1-1.107.7: the resource gains service.instance.id."
+
+[[variant]]
+version = "2.0.0"
+doc = "2.0.0: the 2.x line: span names `invoke_agent agent` / `execute_tool <name>`, gen_ai.tool.call.arguments / .result, gen_ai.aggregated_usage.*."
+
+[[variant]]
+version = "2.5.1"
+doc = "2.1.0-2.5.1: message, schema or request-parameter JSON changes inside the carriers."
+
+[[variant]]
+version = "2.13.0"
+doc = "2.6.0-2.13.0: gen_ai.client.operation.time_to_first_chunk."
+
+[[variant]]
+version = "2.21.0"
+doc = "2.14.0-2.21.0: message, schema or request-parameter JSON changes inside the carriers."
+
+[[variant]]
+version = "2.25.0"
+doc = "2.22.0-2.25.0: message, schema or request-parameter JSON changes inside the carriers."
+
+[[variant]]
+version = "2.29.0"
+doc = "2.26.0-2.29.0: message, schema or request-parameter JSON changes inside the carriers."
+
+[[variant]]
+version = "2.35.3"
+doc = "2.30.0-2.35.3: message, schema or request-parameter JSON changes inside the carriers."
+
+[[variant]]
+version = "2.53.0"
+current = true
+doc = "2.36.0-2.54.0: message, schema or request-parameter JSON changes inside the carriers. The suite's locked release; its fixtures are the ordinary capture."
+
+[[exempt]]
+version = "1.28.0"
+reason = "A release defect: Bedrock Claude tool schemas import the optional anthropic package, which the bedrock extra does not install, so every tool call fails."
+revisit = "2027-01-05"

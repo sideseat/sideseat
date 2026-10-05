@@ -35,7 +35,7 @@ of the surviving messages rather than silently inventing or dropping content.
 
 ## Current checked-in boundary
 
-The current tracked corpus contains **120 suites, 758 samples, and 1053 captured OTLP requests**:
+The current tracked corpus contains **146 suites, 810 samples, and 1105 captured OTLP requests**:
 
 - SideSeat SDK versus plain OpenTelemetry pairs for Python, TypeScript/Node.js, .NET, and Rust;
 - a credential-free OpenAI 3.19.2 / Logfire 6.0.0b7 pair captured both natively and through
@@ -66,6 +66,8 @@ The current tracked corpus contains **120 suites, 758 samples, and 1053 captured
   across its 1.x and 2.x lines, with and without the `gen_ai_latest_experimental` opt-in, and
   Logfire 4.12 to 4.41, replayed offline from the suites' cassettes, one variant per telemetry
   class of a census over every release since 2025-10-05;
+- the Pydantic AI version matrix: 26 historical releases across its 1.x and 2.x lines,
+  OpenTelemetry resolved as of each release's day, replayed offline from the suite's cassettes;
 - a credential-free TraceLoop SDK 0.62.4 / OpenAI 3.22.1 pair covering retained history,
   streaming, decorator workflow/task/agent/tool spans, a complete tool roundtrip, two traces,
   one shared session, and exact native/SideSeat parity. Arbitrary decorator entity inputs and

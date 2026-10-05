@@ -110,13 +110,23 @@ provider-valued `gen_ai.system`, both reverted in 2.7.1), 2.8 - 2.9 (cache creat
 attributes; 5.0 replaces `events` with `gen_ai.input.messages`, `gen_ai.output.messages` and
 `gen_ai.system_instructions`.
 
+**Pydantic AI** (192 releases since 2025-10-05 across 1.x and 2.x, probes `tool_use`, `streaming`; 27
+classes). Early 1.x releases import `opentelemetry._events`, which OpenTelemetry 1.45 removed while their
+bound stayed open, so OpenTelemetry resolves as of each release's day (`era` in `versions.toml`). Notable
+boundaries: 1.42 `gen_ai.provider.name` and `gen_ai.tool.definitions`; 1.68 the `running tools` span goes;
+1.74 - 1.75 run ids; 1.76 and 1.86.1 `invoke_agent` / `execute_tool` operation names; 1.89
+`gen_ai.conversation.id`; 2.0 span names `invoke_agent agent` / `execute_tool <name>`,
+`gen_ai.tool.call.arguments` / `.result` and aggregated usage; most other classes change only the JSON inside
+the carriers. 1.28.0 fails every tool call on Bedrock (it imports the optional `anthropic` package) and is
+exempt.
+
 ### Not yet covered by the matrix
 
 - **Live captures needed:** Strands 1.38.0 and 1.39.0 (Bedrock CountTokens before each call); any release
   whose model traffic differs from the committed cassettes in call count or API.
 - **No matrix yet:** the JavaScript suites (`ai` 5.x / 6.x / 7.x with `@ai-sdk/otel`, `@strands-agents/sdk`,
   the Claude Agent SDK, whose format is the bundled Claude Code CLI's) need an npm variant of the environment
-  builder; Agent Framework (weekly pre-1.0 betas whose APIs the scenarios do not run), the OpenInference
+  builder; Agent Framework (its fixtures are recorded but wait for an engine batch), the OpenInference
   instrumentors and the remaining Python suites need only a `versions.toml` and a census.
 
 ## Version variants in the rule language

@@ -251,6 +251,32 @@ program (`python`, `javascript`, `dotnet`, `rust`). The mode says who configured
 | `openinference/sdk` | SideSeat Python 2.0.0 / OpenInference Bedrock instrumentor 0.1.56 / boto3 1.43.108 Converse / OpenTelemetry Python 1.45.0 | 12 | 12 |
 | `parallel_tool_calls/legacy` | two distinct calls in one response, then both results | causality *without* adjacency: `call, call, result, result` must be allowed |
 | `pydantic-ai/native` | Pydantic AI 2.53.0 / OpenTelemetry Python 1.44.0 on CPython 3.14.7, `Agent.instrument_all()` on a plain provider | 11 | 17 |
+| `pydantic-ai/native@1.1.0` | pydantic-ai-slim 1.1.0 / opentelemetry-sdk 1.37.0, released 2025-10-15; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
+| `pydantic-ai/native@1.104.0` | pydantic-ai-slim 1.104.0 / opentelemetry-sdk 1.42.1, released 2026-05-29; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
+| `pydantic-ai/native@1.107.0` | pydantic-ai-slim 1.107.0 / opentelemetry-sdk 1.42.1, released 2026-06-10; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
+| `pydantic-ai/native@1.107.7` | pydantic-ai-slim 1.107.7 / opentelemetry-sdk 1.44.0, released 2026-09-30; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
+| `pydantic-ai/native@1.11.0` | pydantic-ai-slim 1.11.0 / opentelemetry-sdk 1.38.0, released 2025-11-05; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
+| `pydantic-ai/native@1.31.0` | pydantic-ai-slim 1.31.0 / opentelemetry-sdk 1.39.1, released 2025-12-12; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
+| `pydantic-ai/native@1.41.0` | pydantic-ai-slim 1.41.0 / opentelemetry-sdk 1.39.1, released 2026-01-10; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
+| `pydantic-ai/native@1.67.0` | pydantic-ai-slim 1.67.0 / opentelemetry-sdk 1.40.0, released 2026-03-06; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
+| `pydantic-ai/native@1.70.0` | pydantic-ai-slim 1.70.0 / opentelemetry-sdk 1.40.0, released 2026-03-18; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
+| `pydantic-ai/native@1.73.0` | pydantic-ai-slim 1.73.0 / opentelemetry-sdk 1.40.0, released 2026-03-27; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
+| `pydantic-ai/native@1.74.0` | pydantic-ai-slim 1.74.0 / opentelemetry-sdk 1.40.0, released 2026-03-31; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
+| `pydantic-ai/native@1.75.0` | pydantic-ai-slim 1.75.0 / opentelemetry-sdk 1.40.0, released 2026-04-01; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
+| `pydantic-ai/native@1.76.0` | pydantic-ai-slim 1.76.0 / opentelemetry-sdk 1.40.0, released 2026-04-02; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
+| `pydantic-ai/native@1.77.0` | pydantic-ai-slim 1.77.0 / opentelemetry-sdk 1.40.0, released 2026-04-03; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
+| `pydantic-ai/native@1.81.0` | pydantic-ai-slim 1.81.0 / opentelemetry-sdk 1.41.0, released 2026-04-14; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
+| `pydantic-ai/native@1.86.0` | pydantic-ai-slim 1.86.0 / opentelemetry-sdk 1.41.0, released 2026-04-23; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
+| `pydantic-ai/native@1.88.0` | pydantic-ai-slim 1.88.0 / opentelemetry-sdk 1.41.1, released 2026-04-29; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
+| `pydantic-ai/native@1.94.0` | pydantic-ai-slim 1.94.0 / opentelemetry-sdk 1.41.1, released 2026-05-12; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
+| `pydantic-ai/native@1.99.0` | pydantic-ai-slim 1.99.0 / opentelemetry-sdk 1.42.0, released 2026-05-20; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
+| `pydantic-ai/native@2.0.0` | pydantic-ai-slim 2.0.0 / opentelemetry-sdk 1.42.1, released 2026-06-23; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
+| `pydantic-ai/native@2.13.0` | pydantic-ai-slim 2.13.0 / opentelemetry-sdk 1.44.0, released 2026-07-18; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
+| `pydantic-ai/native@2.21.0` | pydantic-ai-slim 2.21.0 / opentelemetry-sdk 1.44.0, released 2026-07-30; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
+| `pydantic-ai/native@2.25.0` | pydantic-ai-slim 2.25.0 / opentelemetry-sdk 1.44.0, released 2026-08-06; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
+| `pydantic-ai/native@2.29.0` | pydantic-ai-slim 2.29.0 / opentelemetry-sdk 1.44.0, released 2026-08-13; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
+| `pydantic-ai/native@2.35.3` | pydantic-ai-slim 2.35.3 / opentelemetry-sdk 1.44.0, released 2026-08-28; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
+| `pydantic-ai/native@2.5.1` | pydantic-ai-slim 2.5.1 / opentelemetry-sdk 1.43.0, released 2026-07-07; version matrix variant, replayed offline from the suite's cassettes | 2 | 2 |
 | `pydantic-ai/sdk` | SideSeat Python 2.0.0 / Pydantic AI 2.53.0 / Logfire 5.1.1 / OpenTelemetry Python 1.44.0 on CPython 3.14.7 | 11 | 11 |
 | `python/native` | OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
 | `python/sdk` | SideSeat Python 2.0.0 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 1 | 1 |
