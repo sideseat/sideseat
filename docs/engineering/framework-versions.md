@@ -95,6 +95,30 @@ are the Python `str()` of the result, not JSON) reconstructs the same conversati
 results; the `semconv-latest` profile is not yet read correctly in any release (user and assistant messages
 arrive as raw `unknown` blocks, reasoning is lost), which the truth ledger records under backlog item 156.
 
+**Google ADK** (59 releases since 2025-10-05 across the 1.x and 2.x lines, probes `tool_use`, `streaming`;
+23 classes, no failures). 1.16 - 1.17 and 1.18 - 1.22 differ in `gen_ai.response.finish_reasons` and request
+JSON; 1.24 turns model calls into `generate_content <model>` spans; 1.25 - 1.39 is the stable 1.x format,
+except 1.27.2, which alone writes `gen_ai.agent.version`. The opt-in takes effect from 1.27.1, first with
+`gen_ai.tool_definitions` (underscore), renamed `gen_ai.tool.definitions` in 1.32. The 2.x line changes
+almost every minor: 2.0, 2.1 - 2.2, 2.3 - 2.6 (cache read tokens), 2.7.0 (a resource `service.instance.id` and a
+provider-valued `gen_ai.system`, both reverted in 2.7.1), 2.8 - 2.9 (cache creation tokens), and 2.10 onwards.
+
+**Logfire** behind the OpenAI suite (10 releases since 2025-10-05 without the 6.0 betas, probes `tool_use`,
+`streaming`; 10 classes). 4.12 writes Logfire's own `request_data` / `response_data` and an `events` list;
+4.13 drops `response_data`; 4.19 adds semconv `gen_ai.operation.name`, `gen_ai.provider.name` and
+`gen_ai.tool.definitions`; 4.21 `gen_ai.response.id`; 4.29 `gen_ai.usage.raw`; 4.33 and 4.37 resource
+attributes; 5.0 replaces `events` with `gen_ai.input.messages`, `gen_ai.output.messages` and
+`gen_ai.system_instructions`.
+
+### Not yet covered by the matrix
+
+- **Live captures needed:** Strands 1.38.0 and 1.39.0 (Bedrock CountTokens before each call); any release
+  whose model traffic differs from the committed cassettes in call count or API.
+- **No matrix yet:** the JavaScript suites (`ai` 5.x / 6.x / 7.x with `@ai-sdk/otel`, `@strands-agents/sdk`,
+  the Claude Agent SDK, whose format is the bundled Claude Code CLI's) need an npm variant of the environment
+  builder; Agent Framework (weekly pre-1.0 betas whose APIs the scenarios do not run), the OpenInference
+  instrumentors and the remaining Python suites need only a `versions.toml` and a census.
+
 ## Version variants in the rule language
 
 The rule language keeps one principle from the engine design: behaviour is selected by observable evidence,
