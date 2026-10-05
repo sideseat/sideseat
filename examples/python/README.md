@@ -30,7 +30,7 @@ Current lockfile baselines:
 | Microsoft Agent Framework | `agent-framework-core 1.19.0` |
 | Claude Agent SDK | `claude-agent-sdk 0.2.159` |
 | Anthropic provider | `anthropic 1.8.0` |
-| OpenAI provider | `openai 3.19.2` |
+| OpenAI provider | `openai 3.24.0` |
 
 ### Strands
 
@@ -190,19 +190,13 @@ Anthropic-compatible endpoint. Direct `anthropic-*` aliases require `ANTHROPIC_A
 ### OpenAI Provider (raw SDK)
 
 ```bash
-uv run --locked --directory openai openai-provider                   # List samples and models
-uv run --locked --directory openai openai-provider chat_completions  # Sync, streaming, tool use
-uv run --locked --directory openai openai-provider responses         # Responses API (sync, streaming, tool use)
-uv run --locked --directory openai openai-provider multi_turn        # Multi-turn conversation (trace grouping)
-uv run --locked --directory openai openai-provider vision            # Image analysis (base64 vision)
-uv run --locked --directory openai openai-provider session           # Session with multiple traces
-uv run --locked --directory openai openai-provider error             # Error handling
-uv run --locked --directory openai openai-provider all               # Run all samples
-uv run --locked --directory openai openai-provider responses --sideseat  # SideSeat SDK mode
+uv run --locked --directory openai sample --list              # List scenarios and models
+uv run --locked --directory openai sample tool_use            # Responses API tool loop, native Logfire telemetry
+uv run --locked --directory openai sample tool_use --sideseat # The same scenario through sideseat.init
 ```
 
-Default model: `bedrock-openai-luna`, using AWS credentials through Bedrock's
-OpenAI-compatible endpoint. Direct `openai-*` aliases require `OPENAI_API_KEY`.
+Default model: `gpt` (GPT-6.1-sol on Bedrock's OpenAI-compatible endpoint), using AWS credentials.
+See `openai/README.md` for which API each scenario uses.
 
 ### Bedrock (raw boto3 API)
 

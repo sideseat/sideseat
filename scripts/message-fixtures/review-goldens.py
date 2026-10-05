@@ -195,6 +195,15 @@ INTENTIONAL_WARNINGS: dict[str, dict[str, tuple[int, str]]] = {
         }
         for mode in ("native", "sdk")
     },
+    **{
+        f"openai/{mode}/structured_output": {
+            "raw_json_text": (
+                2,
+                "Chat Completions returns schema-constrained JSON as assistant text",
+            ),
+        }
+        for mode in ("native", "sdk")
+    },
     "anthropic/sdk/structured_output": {
         "unbalanced_tools": (2, "trip_plan is a terminal schema pseudo-tool"),
     },

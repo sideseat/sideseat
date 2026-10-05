@@ -88,9 +88,8 @@ program (`python`, `javascript`, `dotnet`, `rust`). The mode says who configured
 | `multi_turn_one_carrier/legacy` | nine turns in **one** carrier, in conversation order | carrier subsequence across many siblings - the ADK shape, where one span holds a whole conversation |
 | `native` | the framework's own documented OpenTelemetry setup, or plain OpenTelemetry for a conformance program |
 | `openai-agents/legacy` | openai-agents >=0.12.1 | 10 | 37 |
-| `openai/legacy` | openai >=1.80.0 | 6 | 8 |
-| `openai/native` | OpenAI 3.19.2 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.13.7 | 1 | 1 |
-| `openai/sdk` | SideSeat Python 1.0.8 / OpenAI 3.19.2 / Logfire 6.0.0b7 / OpenTelemetry Python 1.44.0 on CPython 3.13.7 | 1 | 1 |
+| `openai/native` | OpenAI 3.24.0 (Chat Completions, and the Responses API wherever tools are declared, on GPT-6.1-sol) / Logfire 5.1.1 / OpenTelemetry Python 1.44.0 on CPython 3.14.7, Logfire's documented `instrument_openai` setup with a scrubbing callback that keeps `session.id`; no `reasoning`, because Bedrock's GPT-6.1-sol rejects `reasoning.summary` and returns its reasoning only encrypted | 8 | 13 |
+| `openai/sdk` | SideSeat Python 2.0.0 / OpenAI 3.24.0 (Chat Completions and Responses on GPT-6.1-sol) / Logfire 5.1.1 / OpenTelemetry Python 1.44.0 on CPython 3.14.7 | 8 | 8 |
 | `openinference/native` | OpenInference Bedrock instrumentor 0.1.56 / boto3 1.43.108 Converse / OpenTelemetry Python 1.45.0, native OTLP setup; the instrumentor keeps only the last of a turn's parallel tool results, redacts images by default and drops documents | 12 | 17 |
 | `openinference/sdk` | SideSeat Python 2.0.0 / OpenInference Bedrock instrumentor 0.1.56 / boto3 1.43.108 Converse / OpenTelemetry Python 1.45.0 | 12 | 12 |
 | `parallel_tool_calls/legacy` | two distinct calls in one response, then both results | causality *without* adjacency: `call, call, result, result` must be allowed |

@@ -276,7 +276,6 @@ fn the_member_vocabulary_answers_as_it_did_across_the_corpus() {
     // has captured, exactly as the unreached message rules are - and naming them means a member that starts
     // being carried, or one that stops, fails with a name instead of moving a proportion.
     const UNOBSERVED: &[&str] = &[
-        "file_data",
         "finishReason",
         "functionCall",
         "functionResponse",
