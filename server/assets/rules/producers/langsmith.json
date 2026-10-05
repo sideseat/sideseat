@@ -2,11 +2,35 @@
   "$schema": "../../rules.schema.json",
   "id": "langsmith",
   "doc": "The LangSmith exporter's dialect.",
-  "carriers": [],
+  "carriers": [
+    {
+      "id": "langsmith.prompt",
+      "doc": "What a run received, serialised whole under the conventions' old prompt key: for a chat model run, the conversation as the model was sent it, which re-states earlier turns.",
+      "match": {
+        "attribute": "gen_ai.prompt"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true,
+        "carrier_holds_expandable_message_array": true
+      }
+    },
+    {
+      "id": "langsmith.completion",
+      "doc": "What a run produced, serialised whole: for a chat model run, the generation the model answered with - one response, ordered, its own.",
+      "match": {
+        "attribute": "gen_ai.completion"
+      },
+      "facts": {
+        "preset": "emission",
+        "carrier_holds_expandable_message_array": true
+      }
+    }
+  ],
   "messages": [
     {
       "id": "langsmith.prompt",
-      "doc": "The whole request, under the conventions' own prompt key. Gated on a langsmith marker because that key is not this dialect's alone - read unconditionally it would claim another dialect's request. Two documented shapes: a messages array, or a single message.",
+      "doc": "The whole request, under the conventions' own prompt key. Gated on a langsmith marker because that key is not this dialect's alone - read unconditionally it would claim another dialect's request. A model run records LangChain's serialised messages, one list per prompt; older exporters wrote a messages array or a single message.",
       "when": {
         "attr_prefix": [
           "langsmith."
@@ -24,6 +48,20 @@
       "emit": "message",
       "legacy_rank": 1200,
       "alternatives": [
+        {
+          "id": "chat_model_prompts",
+          "doc": "A chat model run: `messages` holds one list of LangChain-serialised messages per prompt. Graph and chain runs write a flat list of state messages here instead, which is what the array test on the first element tells apart - their state re-states the conversation and is not read.",
+          "select": "$.messages[*][*]",
+          "then_fragment": "langchain.message",
+          "require_parent": {
+            "all": [
+              {
+                "path": "$.messages[0]",
+                "kind": "array"
+              }
+            ]
+          }
+        },
         {
           "id": "messages",
           "doc": "A messages array. Each element must be a message - role and content both - so a request's other members are not mistaken for turns.",
@@ -58,7 +96,7 @@
     },
     {
       "id": "langsmith.completion",
-      "doc": "The whole response. The provider's choices array carries the reason a turn stopped *beside* each message rather than inside it, so it is lifted onto the message - dropping it loses the only record that a response was truncated.",
+      "doc": "The whole response. A chat model run records LangChain's generations, each holding the serialised message it produced; older exporters wrote the provider's choices array, whose finish reason sits beside each message and is lifted onto it.",
       "when": {
         "attr_prefix": [
           "langsmith."
@@ -76,6 +114,12 @@
       "emit": "message",
       "legacy_rank": 1210,
       "alternatives": [
+        {
+          "id": "generations",
+          "doc": "A chat model run's generations, one list per prompt, each with the message it produced.",
+          "select": "$.generations[*][*].message",
+          "then_fragment": "langchain.message"
+        },
         {
           "id": "choices",
           "doc": "The choices array, descending to each choice's message and carrying its finish reason down.",

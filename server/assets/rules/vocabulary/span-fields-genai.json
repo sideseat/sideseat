@@ -436,6 +436,24 @@
           },
           "on_malformed": "continue",
           "doc": "A serialised generation result whose messages keep the provider's response metadata - Bedrock Converse's `stopReason` there. Every generation, because each states its own."
+        },
+        {
+          "id": "completion_generation_stop_reason",
+          "json": {
+            "attribute": "gen_ai.completion",
+            "path": "$.generations[0:][0:].message.kwargs.response_metadata.stopReason",
+            "reduce": "collect_all"
+          },
+          "when": {
+            "attr_equals_ignore_case": [
+              {
+                "key": "langsmith.span.kind",
+                "value": "llm"
+              }
+            ]
+          },
+          "on_malformed": "continue",
+          "doc": "The same generation result under the conventions' old completion key, which is where LangSmith's OpenTelemetry mode writes a chat model run: each generation keeps the provider's response metadata, Bedrock Converse's `stopReason` there."
         }
       ]
     },

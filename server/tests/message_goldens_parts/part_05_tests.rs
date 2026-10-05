@@ -780,8 +780,6 @@ fn no_declared_rule_is_dead_across_the_corpus() {
             "langgraph.message",
             "the suite is captured; no fixture writes a single message under a bare `message` key",
         ),
-        ("langsmith.completion", "no captured fixture for the suite"),
-        ("langsmith.prompt", "no captured fixture for the suite"),
         ("livekit.chat_ctx", "no captured fixture for the suite"),
         (
             "livekit.function_tools",

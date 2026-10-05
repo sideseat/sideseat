@@ -23,6 +23,7 @@ SUITES=(
   "anthropic|3.13"
   "openai|3.13"
   "langfuse|3.13"
+  "langsmith|3.13"
   "google-genai|3.13"
   "vertex-ai|3.13"
   "pydantic-ai|3.13"

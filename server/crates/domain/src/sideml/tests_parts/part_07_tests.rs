@@ -887,3 +887,26 @@ fn a_converse_tool_result_takes_the_canonical_content_form() {
         );
     }
 }
+
+/// A call stated as a content block and again in the message's call list is one call: one id within one
+/// message names one call. A second call with its own id is still a second call.
+#[test]
+fn a_call_listed_beside_its_own_content_block_is_one_call() {
+    let message = normalize(&json!({
+        "role": "assistant",
+        "content": [{"type": "tool_use", "id": "call-1", "name": "book_flight", "input": {"origin": "London"}}],
+        "tool_calls": [
+            {"id": "call-1", "name": "book_flight", "args": {"origin": "London"}},
+            {"id": "call-2", "name": "book_flight", "args": {"origin": "London"}}
+        ]
+    }));
+    let ids: Vec<_> = message
+        .content
+        .iter()
+        .filter_map(|block| match block {
+            ContentBlock::ToolUse { id, .. } => id.clone(),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(ids, vec!["call-1".to_string(), "call-2".to_string()]);
+}

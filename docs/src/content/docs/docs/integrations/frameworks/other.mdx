@@ -446,6 +446,26 @@ agent, chain, retriever, embedding, evaluator and guardrail observations from La
 inputs and outputs of other observations describe your functions rather than the conversation, so they
 stay span attributes.
 
+## LangSmith (OpenTelemetry mode)
+
+```bash
+pip install langgraph "sideseat[langsmith]"
+```
+
+```python
+import sideseat
+
+sideseat.init(integrations=["langsmith"])
+# Build and run your LangChain or LangGraph application as usual.
+```
+
+The integration switches LangSmith to its OpenTelemetry mode (`LANGSMITH_TRACING=true`,
+`LANGSMITH_TRACING_MODE=otel`), in which every LangChain and LangGraph run becomes a span on SideSeat's
+tracer provider and nothing is sent to LangSmith's API. SideSeat reads each chat model run's prompts and
+generations, which LangSmith records as LangChain's serialised messages; graph and chain runs restate
+the state and are kept as span attributes. The `langgraph` integration, through OpenInference, is the
+alternative when you do not use LangSmith.
+
 ## OpenInference
 
 For spans you write by hand with OpenInference's conventions, wrap SideSeat's tracer in `OITracer`:

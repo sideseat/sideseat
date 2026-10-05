@@ -1,0 +1,25 @@
+[project]
+name = "example-langsmith"
+version = "0.0.0"
+description = "LangGraph scenarios traced by LangSmith's OpenTelemetry mode, for SideSeat"
+requires-python = ">=3.11"
+dependencies = [
+    "langgraph>=1.2.12",
+    "langchain-aws>=1.8.0",
+    "langchain-mcp-adapters>=0.3.2",
+    "langsmith[otel]>=0.14.4",
+    "sideseat[langsmith]",
+    "sideseat-example-harness[bedrock]",
+]
+
+[tool.sideseat-example]
+producer = "langsmith"
+integrations = ["langsmith"]
+
+[tool.uv]
+required-version = "==0.12.13"
+package = false
+
+[tool.uv.sources]
+sideseat-example-harness = { path = "../harness", editable = true }
+sideseat = { path = "../../../sdk/python", editable = true }

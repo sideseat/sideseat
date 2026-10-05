@@ -32,6 +32,7 @@ Current lockfile baselines:
 | Anthropic provider | `anthropic 1.8.0` |
 | OpenAI provider | `openai 3.24.0` |
 | Langfuse | `langfuse 4.16.0` |
+| LangSmith (OpenTelemetry mode) | `langsmith 0.14.4` |
 
 ### Strands
 

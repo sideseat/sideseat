@@ -1,0 +1,33 @@
+"""Maps a harness model alias to a LangChain chat model on Bedrock Converse."""
+
+from botocore.config import Config
+from langchain_aws import ChatBedrockConverse
+
+from harness import Model
+from harness.models import region
+
+
+def build(model: Model, *, reasoning: bool = False) -> ChatBedrockConverse:
+    if model.surface != "bedrock":
+        raise SystemExit(
+            f"the LangGraph suite runs Bedrock Converse models; {model.alias} is {model.surface}"
+        )
+    # Current Claude models think by default and omit the reasoning text; the reasoning scenario asks for a
+    # summary so the telemetry carries visible reasoning.
+    fields = (
+        {
+            "thinking": {"type": "adaptive", "display": "summarized"},
+            "output_config": {"effort": "max"},
+        }
+        if reasoning
+        else None
+    )
+    return ChatBedrockConverse(
+        model=model.id,
+        region_name=region(),
+        max_tokens=16_000,
+        additional_model_request_fields=fields,
+        # Reasoning at maximum effort can take minutes; botocore's 60-second read timeout would
+        # retry a request the model is still answering.
+        config=Config(read_timeout=600),
+    )

@@ -342,12 +342,22 @@ pub fn normalize(raw: &JsonValue) -> ChatMessage {
         });
     }
 
-    // Convert tool_calls to ContentBlock::ToolUse
+    // Convert tool_calls to ContentBlock::ToolUse. A message may state one call twice - as a content
+    // block and again in its call list, which is how a LangChain message serialises a provider's
+    // `tool_use` content - and one call id within one message is one call, so a listed call whose id
+    // the content already holds is not a second.
     if let Some(tc_array) = tools::normalize_tool_calls(&raw).and_then(|tc| tc.as_array().cloned())
     {
         for tc in tc_array {
             if let Some(name) = tc.get("name").and_then(|n| n.as_str()) {
                 let id = tc.get("id").and_then(|i| i.as_str()).map(String::from);
+                if id.as_deref().is_some_and(|id| {
+                    content_vec.iter().any(|block| {
+                        matches!(block, ContentBlock::ToolUse { id: Some(existing), .. } if existing == id)
+                    })
+                }) {
+                    continue;
+                }
                 let input = tc
                     .get("arguments")
                     .map(|a| {

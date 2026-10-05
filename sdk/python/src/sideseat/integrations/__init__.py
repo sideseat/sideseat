@@ -49,6 +49,7 @@ _REGISTRY: dict[str, tuple[str, str]] = {
     "langchain": ("langchain", "LangChain"),
     "traceloop": ("traceloop", "TraceLoop"),
     "langfuse": ("langfuse", "Langfuse"),
+    "langsmith": ("langsmith", "LangSmith"),
     "logfire": ("logfire", "Logfire"),
     "openinference": ("passthrough", "OpenInference"),
     # Providers: explicit only.
