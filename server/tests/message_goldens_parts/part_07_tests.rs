@@ -345,14 +345,15 @@ fn retain_requested_fixtures(root: &Path, fixtures: &mut BTreeMap<String, Vec<Pa
     }
 }
 
-/// Under `MESSAGE_FIXTURES=tracked`, the sample directories (relative to `root`) holding a file git
-/// tracks; `None` when every sample on disk is requested.
+/// Under `MESSAGE_FIXTURES=tracked`, the sample directories (relative to `root`) holding a file committed
+/// at `HEAD`; `None` when every sample on disk is requested.
 fn requested_tracked_samples(root: &Path) -> Option<std::collections::BTreeSet<String>> {
     if std::env::var("MESSAGE_FIXTURES").as_deref() != Ok("tracked") {
         return None;
     }
     let output = std::process::Command::new("git")
-        .args(["ls-files", "-z", "--", "."])
+        // HEAD's tree, not the index: work staged but not committed is not the committed corpus.
+        .args(["ls-tree", "-r", "-z", "--name-only", "HEAD", "--", "."])
         .current_dir(root)
         .output()
         .expect("MESSAGE_FIXTURES=tracked needs git");

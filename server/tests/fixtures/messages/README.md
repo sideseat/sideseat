@@ -132,7 +132,7 @@ end to end on a committed fixture: `truth_adversarial_fixtures_fire_their_checks
 truth patched one way per case) through ingestion, the views and the rubric, and each case records
 exactly which checks fire.
 
-`MESSAGE_FIXTURES=tracked` restricts every test in `message_goldens` to the samples git tracks, so a change
+`MESSAGE_FIXTURES=tracked` restricts every test in `message_goldens` to the samples committed at `HEAD`, so a change
 can be verified (and `UPDATE_GOLDENS=1` or `UPDATE_TRUTH_LEDGER=1` run) against the committed corpus while
 captures still being recorded sit untracked in the same tree; a prefix in `TRUTH_FIXTURE` (`haystack/`)
 makes `truth_explain` print the violations of every fixture under it.
