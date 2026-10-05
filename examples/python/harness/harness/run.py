@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
@@ -63,13 +64,22 @@ class Run:
 TOOLS = EXAMPLES.parent / "scripts" / "tools"
 
 
-def mcp_calculator_command() -> list[str]:
-    """The stdio command that starts the example MCP calculator server."""
-    return [
-        "uv",
-        "run",
-        "--locked",
-        "--directory",
-        str(TOOLS / "mcp-calculator"),
-        "mcp-calculator",
-    ]
+def mcp_calculator_command(*, relative: bool = False) -> list[str]:
+    """The stdio command that starts the example MCP calculator server.
+
+    ``relative=True`` names the server directory relative to the working directory, with forward
+    slashes, for a framework that derives model-visible names from the command line: CrewAI names a
+    stdio server's tools after ``command`` and ``args``, so an absolute path would put the capturing
+    account's home directory into the conversation and make the recorded requests differ between
+    machines. It is not the default because a framework may start the server in another directory
+    (the Claude Agent SDK runs its CLI in a temporary workspace), where a relative path resolves
+    elsewhere. Without a relative form (another Windows drive) the path stays absolute.
+    """
+    directory = TOOLS / "mcp-calculator"
+    location = str(directory)
+    if relative:
+        try:
+            location = Path(os.path.relpath(directory)).as_posix()
+        except ValueError:
+            location = directory.as_posix()
+    return ["uv", "run", "--locked", "--directory", location, "mcp-calculator"]

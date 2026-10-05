@@ -8,11 +8,19 @@ from harness.run import mcp_calculator_command
 
 
 def run(run: Run) -> None:
-    command, *args = mcp_calculator_command()
-    # CrewAI installs its own, older uv into the environment, which comes first on PATH and refuses
-    # the repository's required version; `UV` is the uv running this program.
-    command = os.environ.get("UV", command)
-    agent = travel_agent(run.llm, mcps=[MCPServerStdio(command=command, args=args)])
+    command, *args = mcp_calculator_command(relative=True)
+    # CrewAI names the server's tools after `command` and `args`, and the model sees those names, so
+    # neither may hold a path of this machine. CrewAI also installs its own, older uv into the
+    # environment, first on PATH, which refuses the repository's required version: the directory of
+    # `UV`, the uv running this program, goes first on the server's PATH instead of into `command`.
+    env = None
+    if uv := os.environ.get("UV"):
+        env = {
+            "PATH": os.pathsep.join([os.path.dirname(uv), os.environ.get("PATH", "")])
+        }
+    agent = travel_agent(
+        run.llm, mcps=[MCPServerStdio(command=command, args=args, env=env)]
+    )
     crew = one_task_crew(agent, content.MCP)
     with run.trace():
         print(kickoff(crew).raw)
