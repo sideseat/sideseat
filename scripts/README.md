@@ -8,7 +8,7 @@ its own location, so it works from any directory.
 | ----------- | ----------------------------------------------------------- | --------------------------------------------- |
 | `check/`    | The inner loop and static gates                             | `make quick`, `make file-length-check`, `make deps-check`, `make node-floor` |
 | `test/`     | Suites that need containers, SDK toolchains or sample envs  | `make test-postgres` and the other `test-*` targets |
-| `perf/`     | Latency benchmarks and resource-footprint ceilings          | `make bench-http`, `make footprint`           |
+| `perf/`     | Latency benchmarks, footprint ceilings, storage entropy     | `make bench-http`, `make footprint`, `storage-entropy.py` |
 | `fixtures/` | Capturing and reviewing the message golden fixtures         | `make capture`, `make capture-sdk-*`          |
 | `dev/`      | Running SideSeat locally, and keeping the build cache sane  | `make dev`, `make dev-server`, `make clean-stale` |
 | `release/`  | Versioning, release cutting, packaging metadata             | `make release`, `make version`                |

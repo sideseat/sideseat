@@ -1,0 +1,265 @@
+# Compact telemetry storage
+
+What it would take for one machine with 2 GB of memory and 50 GB of disk to serve 10,000 users at the
+Langfuse Hobby tier, and how close a storage format can get to the information-theoretic limit. This is a
+design with measurements, not a description of the current backends.
+
+## The target, in numbers
+
+Langfuse Hobby allows 50,000 units a month per user, where a unit is a trace, an observation or a score,
+and keeps 30 days of history. Ten thousand users at the cap are 500 million units a month. Retention is a
+rolling 30 days while the quota resets monthly, so a user who spends a whole month's quota at the end of one
+month and again at the start of the next has up to **1 billion** units live at once; 500 M is the steady
+state, not the worst case.
+
+| Budget                          | Value                                   |
+| ------------------------------- | --------------------------------------- |
+| Disk usable for data            | ~42 GB (WAL, compaction headroom, OS)   |
+| Live units at the cap           | 500 M steady state, up to 1 B worst case |
+| Bytes per unit at the cap       | **~84 B** steady, ~42 B worst case, content included |
+| Average ingest                  | ~193 units/s                            |
+| Burst ingest                    | unbounded by the quota: one user may spend a month's cap in an hour (14k/s); the ingest rate limit, 1,000 requests a minute per user on Hobby, is the real bound |
+| Memory                          | 2 GB for process, buffers, page cache   |
+
+A unit bounds neither bytes nor log records nor metric points: one observation may carry a 1 MB tool
+output or an image. So no lossless format can promise a fixed number of units per disk without a **byte
+quota** as well, and the plan below assumes one. Ingest throughput is not the hard part - a columnar
+encoder in Rust handles hundreds of thousands of spans a second per core. **Bytes per unit is**, so the
+measurements below are all about it.
+
+## What the corpus says
+
+`scripts/perf/storage-entropy.py` measures the committed capture corpus (`server/tests/fixtures/messages`,
+native mode, one framework's captures as one tenant: an application run many times, which is what a hosted
+user is), excluding the coding-agent CLIs, which are measured separately below. Numbers are bytes per span, averaged over every span, generations and tool spans alike.
+
+| Layer                                                     | B/span |
+| --------------------------------------------------------- | -----: |
+| Raw OTLP protobuf as received                             |  5,592 |
+| Text leaves, all occurrences                              |  1,343 |
+| Text leaves, deduplicated within the tenant               |    726 |
+| Text leaves, deduplicated, zstd-19                        |    215 |
+| JSON skeletons, deduplicated, zstd-19                     |     16 |
+| Content references                                        |     28 |
+| Scalar attribute values                                   |     17 |
+| span id (random, incompressible)                          |      8 |
+| trace id (16 B once per trace)                            |    2.6 |
+| start and duration, delta-coded microseconds              |    6.2 |
+| Span shape id and shape dictionaries                      |     11 |
+| **Total without media**                                   | **303** |
+| Media (images, PDFs), decoded binary                      |  2,375 |
+
+That is about 20x below raw OTLP, losslessly, before media. Per unit (spans plus traces) it is about **250-260 B**
+for framework applications.
+
+The table is the framework applications (every native suite except the coding-agent CLIs), whose
+generations carry whole conversations. The workloads differ by an order of magnitude, so the script reports
+them separately (`--only`, `--exclude`):
+
+| Workload (native captures)                 | Raw OTLP | Stored | Per unit (spans + traces) |
+| ------------------------------------------ | -------: | -----: | ------------------------: |
+| Framework applications, spans              | 5,592 B  | 303 B  | ~260 B                    |
+| Codex CLI, spans (many small spans)        |   376 B  |  18 B  | ~18 B                     |
+| GenAI log events with content (Bedrock, SK) | 1,776 B | 174 B  | per record                |
+| Codex CLI log events                       |   444 B  |   7 B  | per record                |
+| Metric points                              |      -   | ~1.4 B | estimate; no metric corpus yet |
+
+Media is extra in every row: 2,375 B per framework span on average, all of it from the `files` scenarios.
+The metric figure is Gorilla's published 1.37 B per point for regular series, not a measurement here; a
+metrics capture should replace it. Claude Code's log exports are JSON rather than protobuf in the corpus and
+are not yet measured.
+
+Two findings shape the design:
+
+- **Media dominates when present and does not compress.** Base64 attachments are 90% of the bytes of a
+  `files` scenario. They belong in a content-addressed blob store with its own quota, decoded to binary
+  (25% smaller than base64), and never in the column store. Langfuse also stores media separately.
+- **General-purpose compressors have converged.** On the deduplicated text, zstd-19, zstd-22 with long
+  range, xz -9e and brotli-11 land between 1.27 and 1.36 bits per byte. The remaining gains are
+  structural, not a better entropy coder: deduplicating the conversation every call re-sends, separating
+  JSON structure from text, and dictionaries for small tenants.
+
+A shared zstd dictionary trained on *other* frameworks' captures cut small tenants' content by 31%
+(1,414 to 974 B/span on held-out frameworks), which matters because most Hobby tenants are small and have
+no history of their own to compress against. A dictionary must be trained on public or synthetic data,
+never on another tenant's telemetry.
+
+## How far from the limit
+
+| Component            | Now (measured) | Floor and why                                                   |
+| -------------------- | -------------: | --------------------------------------------------------------- |
+| Identifiers          |      10.6 B/span | ~10.4: client-chosen random 64/128-bit ids cannot be compressed |
+| Timing               |       6.1 B/span | ~4: entropy of microsecond offsets and durations               |
+| Structure and scalars |       44 B/span | ~15: local leaf ids instead of 5-byte references; shapes       |
+| Novel text           |      215 B/span | ~140 at ~0.9 bits/byte with context mixing on cold data; the   |
+|                      |                | Shannon estimate for English is 0.6-1.3 bits per character      |
+
+The lossless floor for this corpus is therefore about **170-200 B/span, ~150-170 B/unit**. The current
+design reaches ~250 B/unit, and a cold tier with context-mixing compression plus local references would
+reach ~200.
+
+**The honest conclusion:** lossless storage of full content cannot fit 500 M units in 42 GB, let alone the
+1 B worst case. The design as
+measured (~250 B/unit) holds ~168 M live units, 34% of the aggregate cap; with the cold-tier coder and local
+references (~200 B/unit) it holds ~210 M live units, which serves 10,000 Hobby users at an average of **42% of their cap**
+with full fidelity and 30-day retention, before the operational indexes below (another 20-40 B/unit) and
+before the measurement corrections in [Measurement limits](#measurement-limits). An adversarial review put
+the realistic floor at 130-190 B/unit before indexes. The bound depends on the workload: a tenant whose units are coding-agent CLI spans (~18 B/unit) fits 100%
+of its cap with room to spare, while a tenant of framework applications re-sending long conversations does
+not. Free tiers are also heavy-tailed - most users are far below the cap - so
+that is very likely enough in practice, but it is a statement about the user distribution, not a
+guarantee. Serving every user at 100% of the cap needs one of:
+
+1. A cold tier on object storage (S3-class storage costs about a tenth of block storage per GB), with
+   the local 50 GB holding recent days and indexes.
+2. A per-tenant byte quota alongside the unit quota, which is what the physics actually limits.
+3. A lossy policy for oversized payloads (for example, tool outputs beyond 64 KB kept as a prefix plus a
+   digest). This conflicts with the invariant that raw telemetry is preserved, so it would have to be an
+   explicit, visible per-tenant setting, never a default.
+
+## The format
+
+A single-node log-structured store, partitioned by tenant inside shared files.
+
+**Durability and ingest.** One shared write-ahead log with group commit; an ingest request is acknowledged
+after its WAL frame is fsynced, which keeps the durability-boundary invariant. A bounded shared memtable
+(128 MB) is flushed as segments sorted by `(tenant, trace start, trace id, span start)`. Per-tenant files
+would be 10,000 open handles and millions of small segments, so a segment holds many tenants, each as one
+contiguous run with a directory entry.
+
+**Span columns**, per tenant run:
+
+- span id raw (8 B); trace id once per trace; parent as an index into the trace's span list;
+- start as a delta from the trace start and duration, both microsecond varints;
+- one **shape id** per span: name, kind, status, scope and the attribute key set, from a per-tenant shape
+  dictionary. An application emits a few dozen shapes, so keys cost almost nothing;
+- typed scalar columns: integers zigzag-delta, floats Gorilla-XOR, low-cardinality strings dictionary-coded;
+- large values in the content store.
+
+**Content store**, per tenant. JSON nested in strings is parsed recursively into a skeleton and its string
+leaves. Leaves of 24 bytes or more are content-addressed (BLAKE3, 64-bit key, collision-checked) and stored
+once; skeletons are deduplicated the same way; base64 media is extracted into the blob store. A value is
+reconstructed byte-exactly: if re-serialising the parsed form does not reproduce the original string, the
+value is stored verbatim instead, so the store stays lossless and raw telemetry is preserved. Content
+blocks are ~64 KB for random access, compressed with the tenant's dictionary or, for small tenants, a public
+dictionary.
+
+**Tiers.** Hot segments are zstd-3, written in minutes. A daily compaction rewrites each shard's day at
+zstd-19 with the tenant dictionary and a larger window; an optional cold pass recompresses older days with
+a context-mixing coder. Each tenant's day is an independently reclaimable extent inside the shared segment, tracked by a
+copy-on-write manifest, so retention, deletion and legal hold act on one tenant without rewriting the
+others; the space is reused, and a segment file is unlinked once all its extents are free. Compaction
+rewrites one shard's day at a time (a few hundred MB), never a whole day of every tenant, so its temporary
+space stays inside the headroom.
+
+**Logs.** Structured GenAI log events go through the same skeleton and leaf store. Free-text log bodies use
+template extraction in the style of CLP: the template is stored once, the variables in typed columns,
+searchable without decompressing.
+
+**Metrics.** Gorilla-style series: delta-of-delta timestamps and XOR-coded values, about 1-2 bytes per
+sample, with a series dictionary per tenant.
+
+**Indexes live on disk, not in memory.** Per segment: the tenant directory, time zone maps, and binary fuse
+filters (~9 bits per key) for trace, session and user ids, memory-mapped. A trace-to-offset index for ~70 M
+live traces is ~840 MB on disk; per-tenant hourly rollups (counts, tokens, cost, a DDSketch of latency) are
+~720 MB at 100 B per tenant-hour. Both are paged in on demand, never resident, and both are counted in the
+20-40 B/unit index budget. Filtered, sorted pagination - Langfuse's trace list - needs sorted per-tenant
+secondary columns (timestamp, name, user, session, cost, latency) per day, not only rollups.
+
+| Memory                         | Budget  |
+| ------------------------------ | ------- |
+| Kernel, OS and page tables     | 250 MB  |
+| Process, runtime, connections  | 150 MB  |
+| Memtable, double-buffered      | 192 MB  |
+| Compaction and query buffers   | 192 MB  |
+| Dictionary and directory cache (LRU; dictionaries are not all resident) | 128 MB |
+| Page cache for hot segments and indexes | ~1 GB |
+
+Ten thousand 64-112 KB dictionaries would be 0.6-1.1 GB if all were resident, so dictionaries are loaded on
+demand into a bounded cache; most Hobby tenants use the shared public dictionary.
+
+At the cap a day is about 4 GB compressed, so the page cache holds roughly the last six hours; older
+data is read from disk, which an SSD serves in single-digit milliseconds per run.
+
+**Search.** Langfuse-style filters (time, name, user, session, tags, model, status, cost and latency
+ranges) are served from the span columns and rollups. Full-text search over content uses a per-tenant,
+per-day token posting list over the deduplicated leaves (each leaf is indexed once, however often it was
+re-sent). A useful text index costs 10-25% of the compressed text for token postings and 20-50% for exact
+substring search; a 2-byte-per-leaf filter cannot work (50 trigrams at a 1% false-positive rate need
+~60 B per leaf). Full-text search is therefore a per-tenant option with its own byte cost, not free.
+
+**Query path.** Listing a tenant's traces reads the directory, then only that tenant's runs in the day
+segments the time range covers, decoding only the requested columns. A trace detail decodes one run of a
+few kilobytes. Daily recompaction at the cap is about 10 GB of deduplicated text, which zstd-19 handles in about 40
+minutes of one core in isolation; under concurrent ingest and queries it must be rate-limited, and that
+interaction is unmeasured.
+
+## Measurement limits
+
+`storage-entropy.py` estimates, it does not implement the format, and it errs in both directions:
+
+- **Omitted**, so it understates: resource and scope attributes, schema URLs, parent ids, links, event
+  timestamps, flags, trace state, status messages, dropped counts, frame headers, hashes, reference counts,
+  manifests and the WAL. Scalars are written as untyped text, and parsed JSON is not charged for the
+  byte-exact fallback.
+- **Flattering**: span metadata is compressed across tenants and trace ids deduplicated globally, though
+  identity is per project; text is compressed as one stream per tenant rather than in 64 KB random-access
+  blocks; the fixtures re-use canned prompts and responses, which helps deduplication more than real
+  traffic would.
+- **The media regex** neither validates base64 nor charges blob references.
+
+The corrected numbers belong to the implementation, measured by `make footprint` on the real engine; this
+script only shows which layers matter.
+
+## How it would enter SideSeat
+
+It is an adapter behind the existing storage ports, next to DuckDB and ClickHouse, and must give the same
+public answers - the parity suites decide that. The current embedded schema stores `messages` and the
+whole `raw_span` as JSON beside each other and hex identifiers as strings, so the content store pays off
+even before a new engine exists. In order:
+
+1. Make `scripts/perf/storage-entropy.py` and `make footprint` report bytes per span for the real
+   backends, so every step is measured.
+2. Content store and media extraction inside the current embedded backend: leaves and skeletons by
+   reference, media as blobs, identifiers as binary.
+3. The segment engine as a new embedded adapter, behind the same ports, with parity coverage.
+4. Daily compaction with tenant and public dictionaries; then the optional cold tier.
+5. Logs with template extraction, metrics with Gorilla coding.
+6. Structural gains the review identified, each measured before it is kept: trace-local span ordinals and
+   resource/scope dictionaries with bit-packing (~20-35 B/unit); a persistent per-session conversation DAG
+   or FastCDC chunking of re-sent histories (could remove 20-60% of the text); context-mixing on the cold
+   tier (25-35% of the remaining text, at 10-100x the CPU).
+7. A latency benchmark against Langfuse's own queries - trace list with filters, trace detail, session
+   view, dashboard - under concurrent ingest, which is the only evidence for "equal or faster".
+
+## Verdict
+
+| Question                                              | Answer |
+| ----------------------------------------------------- | ------ |
+| 10,000 Hobby users at their full 50k-unit cap, lossless, on 50 GB | **No.** It needs ~84 B/unit steady (42 B worst case); the design measures ~250 and can plausibly reach 130-190, plus 20-40 for indexes. |
+| The same users at a realistic Hobby distribution      | **Likely**, at ~35-45% of the aggregate cap, but it rests on the distribution; it must be measured on real traffic. |
+| 100% of cap guaranteed                                | Needs a per-tenant byte quota, plus either an object-storage cold tier (local disk for recent days and indexes) or an explicit, visible lossy policy for oversized payloads. |
+| 2 GB of memory                                        | Fits with on-disk indexes, an LRU dictionary cache and a bounded memtable; tight, and to be proven under load. |
+| Equal or faster than Langfuse                         | Plausible for trace detail and filtered lists (one tenant run per day, columns only); unproven until step 7. |
+| Coding-agent CLI tenants (many small spans)           | Fit with room to spare at ~18 B/unit. |
+
+## Risks
+
+- **Byte-exactness.** Re-serialisation must round-trip or fall back to verbatim; a property test over the
+  corpus guards it.
+- **Deduplication across tenants** would save more and is ruled out: it leaks whether another tenant sent
+  a text, and complicates deletion.
+- **Hash collisions** at 64 bits are checked against stored bytes, never assumed away.
+- **Deletion and legal hold** need reference counts on leaves and blobs, the same ownership model the
+  current file store uses.
+- **Small corpus.** The fixtures are short scenarios. Real tenants re-send longer histories and repeat
+  their system prompts thousands of times, which helps deduplication; they also produce longer model
+  outputs, which is novel text and does not. The measurement should be repeated on a real tenant's export.
+
+## References
+
+Gorilla (Pelkonen et al., VLDB 2015); BtrBlocks (Kuschewski et al., SIGMOD 2023); FSST (Boncz et al., VLDB
+2020); CLP (Rodrigues et al., OSDI 2021); FastCDC (Xia et al., USENIX ATC 2016); binary fuse filters (Graf
+and Lemire, 2022); DDSketch (Masson et al., VLDB 2019); Grafana Tempo's Parquet block format; Loki's
+label-only index; VictoriaMetrics' storage format; zstd dictionary training; Shannon, "Prediction and
+Entropy of Printed English" (1951); LLM-based compressors (LLMZip, ts_zip) as the practical lower bound.
