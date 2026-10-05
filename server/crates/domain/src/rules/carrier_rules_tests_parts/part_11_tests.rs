@@ -1,4 +1,3 @@
-
 /// Every detection refusal fires.
 ///
 /// Three of the ten were exercised by nothing, `UselessSupersedes` among them - and that one changed meaning when
@@ -236,7 +235,8 @@ fn a_scoped_constructor_repr_decoder_yields_to_the_general_carrier_reader() {
         )
         .expect("the OTLP string layer serialises"),
     )]);
-    let scoped = MessageContext::for_scoped_span("tool", Some("specific"), Some("1.0"), &attrs, true);
+    let scoped =
+        MessageContext::for_scoped_span("tool", Some("specific"), Some("1.0"), &attrs, true);
     let read = plan.run(&scoped);
     assert_eq!(read.len(), 1);
     assert_eq!(read[0].rule_id, "t.constructor");
@@ -289,7 +289,10 @@ fn a_list_of_constructor_reprs_is_read_as_blocks_and_only_whole() {
     assert_eq!(read[0].rule_id, "t.blocks");
     assert_eq!(read[0].value["content"][0]["content"][0]["text"], "Sunny");
 
-    let read = run(serde_json::json!(["TextBlock(type='text', text='Sunny')", "plain"]));
+    let read = run(serde_json::json!([
+        "TextBlock(type='text', text='Sunny')",
+        "plain"
+    ]));
     assert_eq!(read.len(), 1);
     assert_eq!(
         read[0].rule_id, "t.general",
@@ -364,8 +367,7 @@ fn a_chat_completions_request_restores_the_file_part_the_family_dropped() {
         "the user turn must carry the file part: {messages:?}"
     );
 
-    let mut converse =
-        family("llm.input_messages.0.message.contents.0.message_content.text");
+    let mut converse = family("llm.input_messages.0.message.contents.0.message_content.text");
     converse.insert(
         "input.value".to_string(),
         serde_json::json!({"system": [{"text": "be brief"}], "messages": [
@@ -382,5 +384,110 @@ fn a_chat_completions_request_restores_the_file_part_the_family_dropped() {
             .iter()
             .any(|(role, value)| role == "system" && value.contains("task.pdf")),
         "a list without its system turn is one position off the family: {messages:?}"
+    );
+}
+
+/// No production Rust spells an attribute key that only a framework's own asset declares.
+///
+/// `no_production_module_names_a_framework` catches a framework's *name*; this catches its *vocabulary*. The two
+/// leaks it was written for named no framework at all - a constant `"llm.cost.total"` read beside the declared
+/// fields, and a filter keyed on one dialect's output attribute - and the name sweep passed over both. A key that
+/// a convention asset also declares is a published convention, which code may name; a key that a provider asset
+/// declares is the provider's identity, which the pricing catalogue may name.
+#[test]
+fn no_production_module_spells_a_framework_attribute_key() {
+    fn strings<'a>(value: &'a serde_json::Value, out: &mut Vec<&'a str>) {
+        match value {
+            serde_json::Value::String(s) => out.push(s),
+            serde_json::Value::Array(items) => items.iter().for_each(|v| strings(v, out)),
+            serde_json::Value::Object(map) => map.iter().for_each(|(k, v)| {
+                out.push(k);
+                strings(v, out);
+            }),
+            _ => {}
+        }
+    }
+    let is_key = |s: &str| {
+        let mut parts = s.split('.');
+        parts.next().is_some_and(|head| {
+            !head.is_empty()
+                && head
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+        }) && s.contains('.')
+            && s.split('.').all(|part| {
+                !part.is_empty()
+                    && part
+                        .chars()
+                        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+            })
+    };
+    let sources = crate::rules::schema::embedded_sources();
+    let mut framework_keys: std::collections::BTreeMap<String, String> = Default::default();
+    let mut shared: std::collections::BTreeSet<String> = Default::default();
+    for (path, bytes) in &sources {
+        let id = path
+            .rsplit('/')
+            .next()
+            .unwrap_or(path)
+            .trim_end_matches(".json");
+        let value: serde_json::Value = serde_json::from_slice(bytes).expect("the asset parses");
+        let mut found = Vec::new();
+        strings(&value, &mut found);
+        let keys = found.into_iter().filter(|s| is_key(s)).map(str::to_string);
+        // Shared means a published convention. The vocabulary assets are cross-framework *tables*, but each
+        // entry in them is still one framework's spelling - `llm.token_count.prompt` is not semconv because
+        // the usage table lists it beside `gen_ai.usage.input_tokens`.
+        if path.starts_with("conventions/") || PROVIDERS.contains(&id) {
+            shared.extend(keys);
+        } else {
+            for key in keys {
+                framework_keys.entry(key).or_insert_with(|| id.to_string());
+            }
+        }
+    }
+    // Published OpenTelemetry attributes that no convention asset happens to list, because the reading of them
+    // is a span field rather than a carrier: the session, user and conversation identity conventions.
+    const PUBLISHED: &[&str] = &[
+        "session.id",
+        "user.id",
+        "enduser.id",
+        "gen_ai.conversation.id",
+    ];
+    shared.extend(PUBLISHED.iter().map(|key| key.to_string()));
+    framework_keys.retain(|key, _| !shared.contains(key));
+    assert!(
+        framework_keys.len() > 100,
+        "only {} framework-specific keys were derived from the assets, so the derivation is wrong",
+        framework_keys.len()
+    );
+
+    let repository = repository_root();
+    let mut offenders = Vec::new();
+    let mut checked = 0_usize;
+    walk_production_rust_sources(&mut |path, source| {
+        let relative = path
+            .strip_prefix(&repository)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        if relative.contains("_tests.rs") || relative.ends_with("/tests.rs") {
+            return;
+        }
+        checked += 1;
+        for (line, text) in production_names(source, &relative) {
+            if let Some(asset) = framework_keys.get(literal_text(&text)) {
+                offenders.push(format!(
+                    "  {relative}:{line}: {text} <- declared by `{asset}`"
+                ));
+            }
+        }
+    });
+    assert!(checked > 50, "the sweep checked only {checked} files");
+    assert!(
+        offenders.is_empty(),
+        "production Rust spells attribute keys that only a framework's asset declares. Move the reading into \
+         the asset, or into a shared vocabulary asset if it is not one framework's:\n{}",
+        offenders.join("\n")
     );
 }
