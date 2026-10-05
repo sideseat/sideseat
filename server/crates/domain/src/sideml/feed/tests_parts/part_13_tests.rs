@@ -787,3 +787,65 @@ fn a_tool_result_sits_between_the_rounds_of_one_generation_span() {
 
     assert_eq!(kinds, ["text", "tool_use", "tool_result", "text"]);
 }
+
+/// A choiceless generation re-lists earlier replies as `gen_ai.assistant.message` history, the same
+/// event its own reply uses. A reply an earlier generation already stated is that history, so the
+/// second turn shows it once - it used to be promoted to the second span's output and shown again.
+#[test]
+fn a_choiceless_generation_does_not_promote_a_reply_an_earlier_generation_stated() {
+    let t0 = fixed_time();
+    let t1 = t0 + chrono::Duration::seconds(2);
+    let event = |name: &str, role: &str, text: &str, at: DateTime<Utc>| {
+        json!({
+            "source": {"event": {"name": name, "time": at.to_rfc3339()}},
+            "content": {"role": role, "content": text}
+        })
+    };
+    let first = json!([
+        event("gen_ai.user.message", "user", "Name a neighbourhood.", t0),
+        event("gen_ai.assistant.message", "assistant", "Stay in Chiado.", t0),
+    ]);
+    let second = json!([
+        event("gen_ai.user.message", "user", "Name a neighbourhood.", t1),
+        event("gen_ai.assistant.message", "assistant", "Stay in Chiado.", t1),
+        event("gen_ai.user.message", "user", "And a dish?", t1),
+        event("gen_ai.assistant.message", "assistant", "Try bacalhau.", t1),
+    ]);
+    let rows = vec![
+        make_span_row_with_timestamps(
+            "trace1",
+            "generation-1",
+            Some("agent"),
+            &first.to_string(),
+            t0,
+            Some(t0 + chrono::Duration::seconds(1)),
+        ),
+        make_span_row_with_timestamps(
+            "trace1",
+            "generation-2",
+            Some("agent"),
+            &second.to_string(),
+            t1,
+            Some(t1 + chrono::Duration::seconds(1)),
+        ),
+    ];
+
+    let texts: Vec<(ChatRole, String)> = process_spans(rows, &FeedOptions::default())
+        .messages
+        .iter()
+        .map(|block| match &block.content {
+            ContentBlock::Text { text } => (block.role, text.clone()),
+            other => panic!("unexpected block {other:?}"),
+        })
+        .collect();
+    assert_eq!(
+        texts,
+        vec![
+            (ChatRole::User, "Name a neighbourhood.".to_string()),
+            (ChatRole::Assistant, "Stay in Chiado.".to_string()),
+            (ChatRole::User, "And a dish?".to_string()),
+            (ChatRole::Assistant, "Try bacalhau.".to_string()),
+        ],
+        "each reply once, in the order the conversation happened"
+    );
+}

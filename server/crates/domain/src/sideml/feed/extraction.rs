@@ -729,22 +729,42 @@ fn classify_blocks_with_history(
         }
     }
 
+    // When each assistant reply was first stated, per trace. A choiceless snapshot re-lists the replies
+    // of earlier generations as history, and a reply stated by a generation that started before this
+    // one is that history - not this span's output - unless it closes this span's snapshot.
+    let span_start_of = |block: &BlockEntry| {
+        span_timestamps
+            .get(&block.span_id)
+            .map_or(block.timestamp, |timestamps| timestamps.span_start)
+    };
+    let mut first_stated_at: HashMap<(String, String), DateTime<Utc>> = HashMap::new();
+    for block in blocks.iter() {
+        if block.is_generation_span()
+            && block.event_name.as_deref() == Some("gen_ai.assistant.message")
+            && !block.is_tool_use()
+        {
+            let start = span_start_of(block);
+            first_stated_at
+                .entry((block.trace_id.clone(), block.content_hash.clone()))
+                .and_modify(|first| *first = (*first).min(start))
+                .or_insert(start);
+        }
+    }
+
     let mut promoted = 0;
     for block in blocks.iter_mut() {
-        let tool_call_is_current = match &block.content {
+        let root = event_root(block);
+        let terminal = root.is_some_and(|root| {
+            terminal_assistant_roots.contains(&(
+                block.trace_id.clone(),
+                block.span_id.clone(),
+                root,
+            ))
+        });
+        let is_current = match &block.content {
             ContentBlock::ToolUse { id, name, input } => {
-                let root = event_root(block);
-                let terminal = root.is_some_and(|root| {
-                    terminal_assistant_roots.contains(&(
-                        block.trace_id.clone(),
-                        block.span_id.clone(),
-                        root,
-                    ))
-                });
                 let shape = super::dedup::compute_tool_call_hash(name, input);
-                let generation_start = span_timestamps
-                    .get(&block.span_id)
-                    .map_or(block.timestamp, |timestamps| timestamps.span_start);
+                let generation_start = span_start_of(block);
                 let completed_before = id
                     .as_deref()
                     .filter(|id| !id.is_empty())
@@ -770,12 +790,17 @@ fn classify_blocks_with_history(
                 });
                 terminal || !(completed_before || completed_later_in_snapshot)
             }
-            _ => true,
+            _ => {
+                let replayed = first_stated_at
+                    .get(&(block.trace_id.clone(), block.content_hash.clone()))
+                    .is_some_and(|first| *first < span_start_of(block));
+                terminal || !replayed
+            }
         };
         if block.is_generation_span()
             && !traces_with_choice.contains(&block.trace_id)
             && block.event_name.as_deref() == Some("gen_ai.assistant.message")
-            && tool_call_is_current
+            && is_current
         {
             // Effective direction, in one place: the order resolver reads this to know the span
             // produced the block, which its carrier does not say.
