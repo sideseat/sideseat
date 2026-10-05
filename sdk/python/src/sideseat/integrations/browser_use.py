@@ -46,7 +46,7 @@ class BrowserUse(Integration):
             }
         ):
             Laminar.initialize(
-                instruments={Instruments.OPENAI, Instruments.BUBUS},
+                instruments=_instruments(Instruments),
                 force_http=True,
                 set_global_tracer_provider=True,
             )
@@ -76,6 +76,25 @@ class BrowserUse(Integration):
         from lmnr import Laminar
 
         Laminar.shutdown()
+
+
+def _instruments(instruments: Any) -> set[Any]:
+    """Bubus for Browser Use's event structure, and the client library of every model it wraps.
+
+    Browser Use's own spans hold no model messages; those come from the instrumented client its chat
+    model calls, which may be any of these. Laminar skips an instrument whose library is absent.
+    """
+    return {
+        instruments.BUBUS,
+        instruments.ANTHROPIC,
+        instruments.BEDROCK,
+        instruments.GOOGLE_GENAI,
+        instruments.GROQ,
+        instruments.LITELLM,
+        instruments.MISTRAL,
+        instruments.OLLAMA,
+        instruments.OPENAI,
+    }
 
 
 def _laminar_provider() -> Any:
