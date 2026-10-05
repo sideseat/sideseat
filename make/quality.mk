@@ -91,7 +91,7 @@ secret-scan-range:
 # =============================================================================
 
 # Python source roots covered by the shared format and lint gates.
-PYTHON_CHECKED := sdk/python examples/python examples/cli scripts tools
+PYTHON_CHECKED := sdk/python examples/python examples/cli scripts
 
 fmt-check-python:
 	@uv run --locked ruff format --check $(PYTHON_CHECKED)

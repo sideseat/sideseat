@@ -306,16 +306,26 @@ fn test_python_snippets_define_every_name_they_use() {
 /// omitting any one of these yields either no spans or spans with no message content. The
 /// list is asserted against every place we hand a user this configuration - see
 /// [`claude_configuration_agrees_everywhere_it_is_duplicated`].
-const CLAUDE_REQUIRED_ENV: [&str; 9] = [
-    "CLAUDE_CODE_ENABLE_TELEMETRY",
-    "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA",
-    "ENABLE_BETA_TRACING_DETAILED",
-    "BETA_TRACING_ENDPOINT",
-    "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
-    "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL",
-    "OTEL_TRACES_EXPORTER",
-    "OTEL_LOG_USER_PROMPTS",
-    "OTEL_LOG_TOOL_DETAILS",
+///
+/// Each entry is satisfied by any one of its spellings: the trace exporter honours the general
+/// `OTEL_EXPORTER_OTLP_*` settings as well as the trace-specific ones, and a copy that exports all three
+/// signals to SideSeat rightly uses the general form.
+const CLAUDE_REQUIRED_ENV: [&[&str]; 9] = [
+    &["CLAUDE_CODE_ENABLE_TELEMETRY"],
+    &["CLAUDE_CODE_ENHANCED_TELEMETRY_BETA"],
+    &["ENABLE_BETA_TRACING_DETAILED"],
+    &["BETA_TRACING_ENDPOINT"],
+    &[
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+        "OTEL_EXPORTER_OTLP_ENDPOINT",
+    ],
+    &[
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL",
+        "OTEL_EXPORTER_OTLP_PROTOCOL",
+    ],
+    &["OTEL_TRACES_EXPORTER"],
+    &["OTEL_LOG_USER_PROMPTS"],
+    &["OTEL_LOG_TOOL_DETAILS"],
 ];
 
 /// Every placeholder must be substituted, and the Claude Agent SDK guides must carry the
@@ -331,10 +341,11 @@ fn test_claude_guides_carry_the_exporter_configuration() {
             !guide.contains("__OTLP_"),
             "{name}: an OTLP placeholder was not substituted:\n{guide}"
         );
-        for required in CLAUDE_REQUIRED_ENV {
+        for spellings in CLAUDE_REQUIRED_ENV {
             assert!(
-                guide.contains(required),
-                "{name}: guide omits {required}, so the CLI would emit nothing useful"
+                spellings.iter().any(|required| guide.contains(required)),
+                "{name}: guide omits {}, so the CLI would emit nothing useful",
+                spellings.join(" or ")
             );
         }
     }
@@ -365,11 +376,12 @@ fn claude_configuration_agrees_everywhere_it_is_duplicated() {
         let path = repo.join(relative);
         let text = std::fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("{relative}: {e} - was this copy moved or deleted?"));
-        for required in CLAUDE_REQUIRED_ENV {
+        for spellings in CLAUDE_REQUIRED_ENV {
             assert!(
-                text.contains(required),
-                "{relative} omits {required}, so it disagrees with the MCP setup guide - \
-                     the CLI would emit nothing useful for anyone following it"
+                spellings.iter().any(|required| text.contains(required)),
+                "{relative} omits {}, so it disagrees with the MCP setup guide - \
+                     the CLI would emit nothing useful for anyone following it",
+                spellings.join(" or ")
             );
         }
     }
