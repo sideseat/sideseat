@@ -4,7 +4,7 @@
 use std::borrow::Cow;
 use std::fmt;
 use std::future::Future;
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError, Weak, mpsc};
 use std::time::Duration;
 
 use opentelemetry::trace::{FutureExt as _, SpanKind, Status, TraceContextExt as _, Tracer as _};
@@ -20,7 +20,6 @@ use crate::correlation::{Correlation, CorrelationProcessor};
 use crate::{Error, Options, Session};
 
 const TRACER_NAME: &str = "sideseat";
-const METRICS_INTERVAL: Duration = Duration::from_secs(30);
 
 /// Options for a span started by [`SideSeat::trace`] or [`SideSeat::span`].
 #[derive(Debug, Clone, Default)]
@@ -58,8 +57,12 @@ impl SpanOptions {
     }
 }
 
-/// A configured pipeline. Clones share it.
+/// A configured pipeline. Clones share it, and compare equal.
+///
+/// The pipeline shuts down when [`shutdown`](Self::shutdown) is called or when the last clone
+/// drops, so keep the client for as long as the program records telemetry.
 #[derive(Clone)]
+#[must_use = "the pipeline shuts down when the last clone of the client drops"]
 pub struct SideSeat {
     inner: Arc<Inner>,
 }
@@ -71,11 +74,20 @@ struct Inner {
     shutdown: Mutex<Option<bool>>,
 }
 
+#[derive(Clone)]
 struct Providers {
     tracer: SdkTracerProvider,
     logger: Option<SdkLoggerProvider>,
     meter: Option<SdkMeterProvider>,
 }
+
+impl PartialEq for SideSeat {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.inner, &other.inner)
+    }
+}
+
+impl Eq for SideSeat {}
 
 impl fmt::Debug for SideSeat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -85,35 +97,41 @@ impl fmt::Debug for SideSeat {
     }
 }
 
-static CLIENT: Mutex<Option<SideSeat>> = Mutex::new(None);
+/// The running pipeline, held weakly: a strong reference here would outlive every clone the
+/// application holds - statics are never dropped - so the pipeline would never shut down on drop.
+static CLIENT: Mutex<Weak<Inner>> = Mutex::new(Weak::new());
 
 /// Configures telemetry for this process and returns the client.
 ///
 /// Calling it again with the same settings returns the same client. Calling it with different
-/// settings is [`Error::AlreadyInitialized`]: the providers are global, so a silent second
-/// configuration would leave the process exporting with whichever won. After
-/// [`shutdown`](SideSeat::shutdown), `init` configures a new pipeline.
+/// settings, or with span processors while a client runs, is [`Error::AlreadyInitialized`]: the
+/// providers are global, so a silent second configuration would leave the process exporting with
+/// whichever won. After [`shutdown`](SideSeat::shutdown), or once every clone of the client has
+/// dropped, `init` configures a new pipeline.
 pub fn init(options: Options) -> Result<SideSeat, Error> {
     let (settings, processors) = options.resolve()?;
     let mut current = CLIENT.lock().unwrap_or_else(PoisonError::into_inner);
-    if let Some(client) = current.as_ref().filter(|client| !client.is_shut_down()) {
+    if let Some(client) = running(&current) {
         return if client.inner.settings == settings && processors.is_empty() {
-            Ok(client.clone())
+            Ok(client)
         } else {
             Err(Error::AlreadyInitialized)
         };
     }
     let client = SideSeat::start(settings, processors)?;
-    *current = Some(client.clone());
+    *current = Arc::downgrade(&client.inner);
     Ok(client)
 }
 
 /// The client [`init`] created, if it is still running.
 pub fn client() -> Option<SideSeat> {
-    CLIENT
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .clone()
+    running(&CLIENT.lock().unwrap_or_else(PoisonError::into_inner))
+}
+
+fn running(current: &Weak<Inner>) -> Option<SideSeat> {
+    current
+        .upgrade()
+        .map(|inner| SideSeat { inner })
         .filter(|client| !client.is_shut_down())
 }
 
@@ -135,46 +153,44 @@ impl SideSeat {
         }
         let mut logger = None;
         let mut meter = None;
+        let headers = settings.export_headers();
         if settings.export {
             let traces = opentelemetry_otlp::SpanExporter::builder()
                 .with_http()
                 .with_endpoint(settings.signal_endpoint("traces"))
-                .with_headers(settings.export_headers())
+                .with_headers(headers.clone())
                 .build()
                 .map_err(|e| exporter_error("trace", &e))?;
             tracer_builder =
                 tracer_builder.with_span_processor(BatchSpanProcessor::builder(traces).build());
-
+        }
+        if settings.export && settings.metrics {
             let metrics = opentelemetry_otlp::MetricExporter::builder()
                 .with_http()
                 .with_endpoint(settings.signal_endpoint("metrics"))
-                .with_headers(settings.export_headers())
+                .with_headers(headers.clone())
                 .build()
                 .map_err(|e| exporter_error("metric", &e))?;
-            let reader = PeriodicReader::builder(metrics)
-                .with_interval(METRICS_INTERVAL)
-                .build();
             meter = Some(
                 SdkMeterProvider::builder()
                     .with_resource(resource.clone())
-                    .with_reader(reader)
+                    .with_reader(PeriodicReader::builder(metrics).build())
                     .build(),
             );
-
-            if settings.logs {
+        }
+        if settings.logs {
+            // Built even without export, as in every SDK, so an appender can be attached in tests.
+            let mut builder = SdkLoggerProvider::builder().with_resource(resource);
+            if settings.export {
                 let logs = opentelemetry_otlp::LogExporter::builder()
                     .with_http()
                     .with_endpoint(settings.signal_endpoint("logs"))
-                    .with_headers(settings.export_headers())
+                    .with_headers(headers)
                     .build()
                     .map_err(|e| exporter_error("log", &e))?;
-                logger = Some(
-                    SdkLoggerProvider::builder()
-                        .with_resource(resource)
-                        .with_batch_exporter(logs)
-                        .build(),
-                );
+                builder = builder.with_batch_exporter(logs);
             }
+            logger = Some(builder.build());
         }
 
         let tracer = tracer_builder.build();
@@ -211,11 +227,6 @@ impl SideSeat {
         }
     }
 
-    /// The resolved settings.
-    pub fn settings(&self) -> &Settings {
-        &self.inner.settings
-    }
-
     /// Whether prompts, responses, and tool payloads should be recorded. Instrumentation written
     /// against this crate reads it.
     pub fn captures_content(&self) -> bool {
@@ -229,7 +240,8 @@ impl SideSeat {
 
     /// The logger provider, for a log appender such as `opentelemetry-appender-tracing`. OpenTelemetry
     /// Rust has no global logger provider, so log records reach SideSeat only through an appender
-    /// built on this one. `None` when disabled or when logs are off.
+    /// built on this one. `None` when disabled or when logs are off; without export it records
+    /// nothing.
     pub fn logger_provider(&self) -> Option<&SdkLoggerProvider> {
         self.inner.providers.as_ref()?.logger.as_ref()
     }
@@ -316,21 +328,30 @@ impl SideSeat {
         result
     }
 
-    /// Exports everything pending. Returns whether all of it was exported.
-    pub fn flush(&self) -> bool {
-        let Some(providers) = &self.inner.providers else {
+    /// Exports everything pending. Returns whether all of it was exported within `timeout`.
+    pub fn flush(&self, timeout: Duration) -> bool {
+        let Some(providers) = self.inner.providers.clone() else {
             return true;
         };
-        let traces = report("trace flush", providers.tracer.force_flush());
-        let logs = providers
-            .logger
-            .as_ref()
-            .is_none_or(|logger| report("log flush", logger.force_flush()));
-        let metrics = providers
-            .meter
-            .as_ref()
-            .is_none_or(|meter| report("metric flush", meter.force_flush()));
-        traces && logs && metrics
+        // OpenTelemetry Rust's force_flush takes no deadline, so the wait is bounded here. A flush
+        // that overruns keeps going on its thread and its result is dropped.
+        let (done, result) = mpsc::channel();
+        std::thread::spawn(move || {
+            let traces = report("trace flush", providers.tracer.force_flush());
+            let logs = providers
+                .logger
+                .as_ref()
+                .is_none_or(|logger| report("log flush", logger.force_flush()));
+            let metrics = providers
+                .meter
+                .as_ref()
+                .is_none_or(|meter| report("metric flush", meter.force_flush()));
+            let _ = done.send(traces && logs && metrics);
+        });
+        result.recv_timeout(timeout).unwrap_or_else(|_| {
+            eprintln!("[sideseat] flush did not complete within {timeout:?}");
+            false
+        })
     }
 
     /// Flushes and stops every exporter. Returns whether everything was exported. Calling it

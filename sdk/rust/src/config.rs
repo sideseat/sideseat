@@ -41,6 +41,7 @@ pub struct Options {
     disabled: Option<bool>,
     debug: Option<bool>,
     export: Option<bool>,
+    metrics: Option<bool>,
     logs: Option<bool>,
     resource_attributes: Vec<KeyValue>,
     span_processors: Vec<Box<dyn SpanProcessor>>,
@@ -108,6 +109,12 @@ impl Options {
         self
     }
 
+    /// Export OpenTelemetry metrics through the global meter provider. On by default.
+    pub fn metrics(mut self, metrics: bool) -> Self {
+        self.metrics = Some(metrics);
+        self
+    }
+
     /// Export OpenTelemetry log records. On by default.
     pub fn logs(mut self, logs: bool) -> Self {
         self.logs = Some(logs);
@@ -134,8 +141,13 @@ impl Options {
         self,
         env: impl Fn(&str) -> Option<String>,
     ) -> Result<(Settings, Vec<Box<dyn SpanProcessor>>), Error> {
+        // A blank option or variable counts as unset, so an empty value never reaches the URL.
         let text = |explicit: Option<String>, name: &str| {
-            explicit.or_else(|| env(name).filter(|value| !value.trim().is_empty()))
+            explicit
+                .into_iter()
+                .chain(env(name))
+                .map(|value| value.trim().to_string())
+                .find(|value| !value.is_empty())
         };
         let flag = |explicit: Option<bool>, name: &str, default: bool| match explicit {
             Some(value) => Ok(value),
@@ -146,7 +158,6 @@ impl Options {
             .or_else(|| text(None, "OTEL_EXPORTER_OTLP_ENDPOINT"))
             .unwrap_or_else(|| DEFAULT_ENDPOINT.to_string());
         let project = text(self.project, "SIDESEAT_PROJECT_ID")
-            .map(|project| project.trim().to_string())
             .unwrap_or_else(|| DEFAULT_PROJECT.to_string());
         let mut resource_attributes = BTreeMap::new();
         for attribute in self.resource_attributes {
@@ -167,6 +178,7 @@ impl Options {
             disabled: flag(self.disabled, "SIDESEAT_DISABLED", false)?,
             debug: flag(self.debug, "SIDESEAT_DEBUG", false)?,
             export: self.export.unwrap_or(true),
+            metrics: self.metrics.unwrap_or(true),
             logs: self.logs.unwrap_or(true),
             resource_attributes: resource_attributes.into_values().collect(),
         };
@@ -186,9 +198,9 @@ impl fmt::Debug for Options {
     }
 }
 
-/// Resolved, immutable settings.
+/// Resolved, immutable settings: what a second [`init`](crate::init) must match.
 #[derive(Clone, PartialEq, Eq)]
-pub struct Settings {
+pub(crate) struct Settings {
     pub endpoint: String,
     pub project: String,
     pub api_key: Option<String>,
@@ -198,6 +210,7 @@ pub struct Settings {
     pub disabled: bool,
     pub debug: bool,
     pub export: bool,
+    pub metrics: bool,
     pub logs: bool,
     pub resource_attributes: Vec<KeyValue>,
     otlp_base: String,
@@ -238,6 +251,7 @@ impl fmt::Debug for Settings {
             .field("capture_content", &self.capture_content)
             .field("disabled", &self.disabled)
             .field("export", &self.export)
+            .field("metrics", &self.metrics)
             .field("logs", &self.logs)
             .field("traces", &self.signal_endpoint("traces"))
             .finish_non_exhaustive()
@@ -437,6 +451,40 @@ mod tests {
             without_key.get("Authorization").map(String::as_str),
             Some("Basic abc")
         );
+    }
+
+    #[test]
+    fn blank_options_and_variables_count_as_unset() {
+        let env = [
+            ("SIDESEAT_ENDPOINT", " "),
+            ("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector:4318"),
+            ("SIDESEAT_PROJECT_ID", ""),
+            ("SIDESEAT_API_KEY", "from-env"),
+        ];
+
+        let settings = resolve(Options::new().api_key("").service_name(" "), &env).unwrap();
+
+        assert_eq!(
+            settings.signal_endpoint("traces"),
+            "http://collector:4318/otel/default/v1/traces"
+        );
+        assert_eq!(settings.api_key.as_deref(), Some("from-env"));
+        assert_eq!(settings.service_name, "sideseat-app");
+    }
+
+    #[test]
+    fn service_identity_comes_from_the_environment() {
+        let env = [
+            ("OTEL_SERVICE_NAME", "travel-agent"),
+            ("OTEL_SERVICE_VERSION", "2.1.0"),
+            ("SIDESEAT_CAPTURE_CONTENT", "no"),
+        ];
+
+        let settings = resolve(Options::new(), &env).unwrap();
+
+        assert_eq!(settings.service_name, "travel-agent");
+        assert_eq!(settings.service_version, "2.1.0");
+        assert!(!settings.capture_content);
     }
 
     #[test]

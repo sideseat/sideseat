@@ -37,7 +37,7 @@ async fn run_with_sideseat() -> Result<(), Box<dyn Error>> {
             .resource_attribute(KeyValue::new("sideseat.framework", "rust-conformance"))
             .logs(false),
     )?;
-    let conversation = Session::new(SESSION_ID).user(USER_ID);
+    let conversation = Session::new(SESSION_ID)?.user(USER_ID)?;
     let chat = || SpanOptions::new().kind(SpanKind::Client);
 
     telemetry

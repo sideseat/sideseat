@@ -3,7 +3,7 @@
 
 use std::io::{Read as _, Write as _};
 use std::net::TcpListener;
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{Arc, Mutex, PoisonError, mpsc};
 use std::time::Duration;
 
 use opentelemetry::trace::{Span as _, SpanKind, Status, TraceContextExt as _, Tracer as _};
@@ -53,7 +53,9 @@ async fn a_session_reaches_spans_a_framework_creates() {
     let (_client, exporter) = recording();
 
     Session::new("conversation-42")
+        .unwrap()
         .user("user-7")
+        .unwrap()
         .scope(framework_call("chat model"))
         .await;
     framework_call("outside").await;
@@ -71,12 +73,15 @@ async fn a_session_reaches_spans_a_framework_creates() {
 #[tokio::test]
 async fn a_nested_session_overrides_and_restores_the_outer_one() {
     let (_client, exporter) = recording();
-    let outer = Session::new("outer").user("user-1");
+    let outer = Session::new("outer").unwrap().user("user-1").unwrap();
 
     outer
         .scope(async {
             framework_call("before").await;
-            Session::new("inner").scope(framework_call("nested")).await;
+            Session::new("inner")
+                .unwrap()
+                .scope(framework_call("nested"))
+                .await;
             framework_call("after").await;
         })
         .await;
@@ -103,7 +108,7 @@ fn an_entered_session_holds_for_synchronous_code_until_the_guard_drops() {
     let (_client, exporter) = recording();
 
     {
-        let _entered = Session::new("sync").enter();
+        let _entered = Session::new("sync").unwrap().enter();
         global::tracer("lib").start("inside").end();
     }
     global::tracer("lib").start("outside").end();
@@ -119,7 +124,7 @@ fn an_entered_session_holds_for_synchronous_code_until_the_guard_drops() {
 #[tokio::test]
 async fn trace_starts_a_new_root_and_span_nests_under_the_active_one() {
     let (client, exporter) = recording();
-    let options = SpanOptions::new().session(Session::new("s-1"));
+    let options = SpanOptions::new().session(Session::new("s-1").unwrap());
 
     let outer = global::tracer("app").start("ambient");
     let ambient = Context::current_with_span(outer);
@@ -174,6 +179,7 @@ async fn trace_keeps_the_current_session_when_it_names_none() {
     let (client, exporter) = recording();
 
     Session::new("ambient-session")
+        .unwrap()
         .scope(client.trace("run", SpanOptions::new(), || async {
             Ok::<_, std::io::Error>(())
         }))
@@ -210,7 +216,7 @@ fn init_is_idempotent_for_equal_settings_and_refuses_different_ones() {
     let again = sideseat::init(Options::new().export(false).service_name("a")).unwrap();
     let different = sideseat::init(Options::new().export(false).service_name("b"));
 
-    assert_eq!(again.settings(), first.settings());
+    assert_eq!(again, first);
     assert!(matches!(different, Err(Error::AlreadyInitialized)));
     assert!(sideseat::client().is_some());
 
@@ -233,7 +239,7 @@ async fn when_disabled_work_still_runs_and_nothing_is_recorded() {
 
     assert_eq!(value, 3);
     assert!(client.tracer_provider().is_none());
-    assert!(client.flush());
+    assert!(client.flush(TIMEOUT));
     assert!(client.shutdown(TIMEOUT));
 }
 
@@ -310,16 +316,120 @@ fn spans_are_exported_over_otlp_http_with_the_api_key() {
     )
     .unwrap();
     global::tracer("lib").start("work").end();
+    global::meter("lib")
+        .u64_counter("requests")
+        .build()
+        .add(1, &[]);
     assert!(client.shutdown(TIMEOUT));
 
-    let head = received.recv_timeout(TIMEOUT).unwrap();
-    let request_line = head.lines().next().unwrap();
-    assert_eq!(request_line, "POST /otel/team%20a/v1/traces HTTP/1.1");
-    assert!(
-        head.lines()
-            .any(|line| line.eq_ignore_ascii_case("authorization: Bearer k-1")),
-        "{head}"
+    let heads: Vec<String> = (0..2)
+        .map(|_| received.recv_timeout(TIMEOUT).unwrap())
+        .collect();
+    let mut request_lines: Vec<&str> = heads
+        .iter()
+        .map(|head| head.lines().next().unwrap())
+        .collect();
+    request_lines.sort_unstable();
+    assert_eq!(
+        request_lines,
+        [
+            "POST /otel/team%20a/v1/metrics HTTP/1.1",
+            "POST /otel/team%20a/v1/traces HTTP/1.1"
+        ]
     );
+    for head in &heads {
+        assert!(
+            head.lines()
+                .any(|line| line.eq_ignore_ascii_case("authorization: Bearer k-1")),
+            "{head}"
+        );
+    }
+}
+
+/// Records which lifecycle calls a provider made, and can make flushing slow.
+#[derive(Debug, Clone, Default)]
+struct LifecycleProbe {
+    calls: Arc<Mutex<Vec<&'static str>>>,
+    slow_flush: Option<Duration>,
+}
+
+impl SpanProcessor for LifecycleProbe {
+    fn on_start(&self, _span: &mut opentelemetry_sdk::trace::Span, _cx: &Context) {}
+    fn on_end(&self, _span: SpanData) {}
+    fn force_flush(&self) -> OTelSdkResult {
+        if let Some(delay) = self.slow_flush {
+            std::thread::sleep(delay);
+        }
+        self.calls
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push("flush");
+        Ok(())
+    }
+    fn shutdown_with_timeout(&self, _timeout: Duration) -> OTelSdkResult {
+        self.calls
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push("shutdown");
+        Ok(())
+    }
+}
+
+#[test]
+fn dropping_the_last_clone_shuts_the_pipeline_down() {
+    let probe = LifecycleProbe::default();
+    let client = sideseat::init(
+        Options::new()
+            .export(false)
+            .service_name("a")
+            .span_processor(probe.clone()),
+    )
+    .unwrap();
+    let clone = client.clone();
+
+    drop(client);
+    assert!(probe.calls.lock().unwrap().is_empty(), "a clone is alive");
+    assert_eq!(sideseat::client().as_ref(), Some(&clone));
+    drop(clone);
+
+    assert!(probe.calls.lock().unwrap().contains(&"shutdown"));
+    assert!(sideseat::client().is_none());
+    assert!(sideseat::init(Options::new().export(false).service_name("b")).is_ok());
+}
+
+#[test]
+fn flush_reports_false_when_it_overruns_its_timeout() {
+    let probe = LifecycleProbe {
+        slow_flush: Some(Duration::from_secs(2)),
+        ..LifecycleProbe::default()
+    };
+    let client = sideseat::init(Options::new().export(false).span_processor(probe)).unwrap();
+
+    let started = std::time::Instant::now();
+    assert!(!client.flush(Duration::from_millis(50)));
+    assert!(started.elapsed() < Duration::from_secs(1));
+}
+
+#[test]
+fn empty_session_and_user_ids_are_errors() {
+    assert!(matches!(
+        Session::new(""),
+        Err(Error::EmptyId("session id"))
+    ));
+    assert!(matches!(
+        Session::new("s").unwrap().user(""),
+        Err(Error::EmptyId("user id"))
+    ));
+}
+
+#[test]
+fn signals_can_be_switched_off_and_logs_need_no_export() {
+    let with_logs = sideseat::init(Options::new().export(false).metrics(false)).unwrap();
+    assert!(with_logs.logger_provider().is_some());
+    assert!(with_logs.shutdown(TIMEOUT));
+
+    let without_logs = sideseat::init(Options::new().export(false).logs(false)).unwrap();
+    assert!(without_logs.logger_provider().is_none());
 }
 
 trait WithContextOf: Sized {

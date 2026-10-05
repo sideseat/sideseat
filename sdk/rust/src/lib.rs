@@ -16,7 +16,7 @@
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     let telemetry = sideseat::init(Options::new().service_name("travel-agent"))?;
 //!
-//!     let conversation = Session::new("conversation-42").user("user-7");
+//!     let conversation = Session::new("conversation-42")?.user("user-7")?;
 //!     let answer = conversation
 //!         .scope(telemetry.trace("plan-trip", SpanOptions::new(), run_agent))
 //!         .await?;
@@ -39,7 +39,7 @@ mod correlation;
 mod error;
 
 pub use client::{SideSeat, SpanOptions, client, init};
-pub use config::{DEFAULT_ENDPOINT, DEFAULT_PROJECT, Options, Settings};
+pub use config::{DEFAULT_ENDPOINT, DEFAULT_PROJECT, Options};
 pub use correlation::Session;
 pub use error::Error;
 pub use opentelemetry::KeyValue;

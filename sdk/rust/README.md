@@ -20,8 +20,8 @@ use sideseat::{Options, Session, SpanOptions};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let telemetry = sideseat::init(Options::new().service_name("travel-agent"))?;
 
-    Session::new("conversation-42")
-        .user("user-7")
+    Session::new("conversation-42")?
+        .user("user-7")?
         .scope(telemetry.trace("plan-trip", SpanOptions::new(), || async {
             Ok::<_, std::io::Error>(())
         }))
@@ -37,7 +37,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - A `Session` attributes every span started inside it - including spans libraries create through the
   global tracer - to a session and user. The values never leave the process as W3C baggage.
 - `trace` starts a root span, `span` a child of the active one.
-- `flush` and `shutdown` return whether everything was exported.
+- `flush` and `shutdown` take a timeout and return whether everything was exported. The pipeline also
+  shuts down when the last clone of the client drops.
 
 The crate implements the
 [SideSeat SDK contract](https://github.com/sideseat/sideseat/blob/main/docs/engineering/sdk-contract.md);

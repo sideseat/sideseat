@@ -13,6 +13,8 @@ use opentelemetry::{Context, ContextGuard, KeyValue};
 use opentelemetry_sdk::error::OTelSdkResult;
 use opentelemetry_sdk::trace::{Span, SpanData, SpanProcessor};
 
+use crate::Error;
+
 /// The session and user a span belongs to.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct Correlation {
@@ -40,11 +42,12 @@ impl Correlation {
 ///
 /// ```no_run
 /// # async fn agent_turn() {}
-/// # async fn example() {
-/// let conversation = sideseat::Session::new("conversation-42").user("user-7");
+/// # async fn example() -> Result<(), sideseat::Error> {
+/// let conversation = sideseat::Session::new("conversation-42")?.user("user-7")?;
 /// conversation.scope(agent_turn()).await;
 ///
 /// let _entered = conversation.enter(); // synchronous code on this thread
+/// # Ok(())
 /// # }
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56,26 +59,27 @@ pub struct Session {
 impl Session {
     /// A session with this id.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// If `id` is empty: an empty session id would silently merge unrelated conversations.
-    pub fn new(id: impl Into<String>) -> Self {
-        Self {
+    /// [`Error::EmptyId`] if `id` is empty: an empty session id would silently merge unrelated
+    /// conversations.
+    pub fn new(id: impl Into<String>) -> Result<Self, Error> {
+        Ok(Self {
             correlation: Correlation {
-                session_id: Some(non_empty("session id", id.into())),
+                session_id: Some(non_empty("session id", id.into())?),
                 user_id: None,
             },
-        }
+        })
     }
 
     /// The user the session belongs to.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// If `id` is empty.
-    pub fn user(mut self, id: impl Into<String>) -> Self {
-        self.correlation.user_id = Some(non_empty("user id", id.into()));
-        self
+    /// [`Error::EmptyId`] if `id` is empty.
+    pub fn user(mut self, id: impl Into<String>) -> Result<Self, Error> {
+        self.correlation.user_id = Some(non_empty("user id", id.into())?);
+        Ok(self)
     }
 
     /// Runs `future` inside the session. The context travels with the future, so the session
@@ -99,9 +103,12 @@ impl Session {
     }
 }
 
-fn non_empty(what: &str, value: String) -> String {
-    assert!(!value.is_empty(), "{what} must not be empty");
-    value
+fn non_empty(what: &'static str, value: String) -> Result<String, Error> {
+    if value.is_empty() {
+        Err(Error::EmptyId(what))
+    } else {
+        Ok(value)
+    }
 }
 
 /// Stamps `session.id` and `user.id` on every span started inside a session. It is registered

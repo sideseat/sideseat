@@ -27,7 +27,7 @@ use sideseat::{Options, Session, SpanOptions};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let telemetry = sideseat::init(Options::new().service_name("travel-agent"))?;
 
-    let conversation = Session::new("conversation-42").user("user-7");
+    let conversation = Session::new("conversation-42")?.user("user-7")?;
     conversation
         .scope(telemetry.trace("plan-trip", SpanOptions::new(), || async {
             run_agent("Plan a weekend in Lisbon.").await
@@ -40,7 +40,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 `init` points OpenTelemetry at `http://127.0.0.1:5388` and the `default` project, and installs the
-global tracer and meter providers. Call it before any library creates its first span.
+global tracer and meter providers, replacing any installed before. Call it before any library creates
+its first span, and keep the client: the pipeline shuts down when its last clone drops.
 
 ## Sessions and users
 
@@ -48,7 +49,7 @@ A `Session` is a scope, not a span. Every span started inside it - by your code 
 uses the global tracer - gets `session.id` and `user.id`:
 
 ```rust
-let conversation = Session::new("conversation-42").user("user-7");
+let conversation = Session::new("conversation-42")?.user("user-7")?;
 
 conversation.scope(agent.turn("What should I eat there?")).await;   // async code
 let _entered = conversation.enter();                                // synchronous code on this thread
@@ -57,7 +58,7 @@ let _entered = conversation.enter();                                // synchrono
 The values travel in the OpenTelemetry context, so they follow a future across `.await` points. A task
 started with `tokio::spawn` does not inherit the context; scope the spawned future too. They are never
 sent as W3C baggage, which HTTP instrumentation would forward to model providers. A nested session
-overrides the outer one for its duration.
+overrides the outer one for its duration. An empty session or user id is `Error::EmptyId`.
 
 ## Traces and spans
 
@@ -65,7 +66,7 @@ overrides the outer one for its duration.
 use sideseat::{KeyValue, SpanKind, SpanOptions};
 
 telemetry
-    .trace("plan-trip", SpanOptions::new().session(Session::new("s-1")), || async {
+    .trace("plan-trip", SpanOptions::new().session(Session::new("s-1")?), || async {
         let documents = telemetry
             .span(
                 "retrieve-context",
@@ -86,9 +87,10 @@ failed and records the error message.
 
 ## Recording model calls
 
-Rust has no framework integrations. Record a model call as a span that follows the
-[OpenTelemetry GenAI conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/), and SideSeat
-reads the conversation from it:
+Rust has no framework integrations, so the resource carries no `sideseat.framework`; set one with
+`resource_attribute` if your spans come from a framework the server knows. Record a model call as a span
+that follows the [OpenTelemetry GenAI conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/),
+and SideSeat reads the conversation from it:
 
 ```rust
 telemetry
@@ -107,7 +109,9 @@ telemetry
 ```
 
 `telemetry.captures_content()` reports the content-capture setting; check it before recording prompts
-and responses.
+and responses. Unlike the other SDKs, the Rust SDK does not set
+`OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT`: changing the process environment is unsound once
+other threads may read it.
 
 ## Configuration
 
@@ -123,13 +127,19 @@ Explicit options win over environment variables, which win over defaults.
 | `capture_content` | `SIDESEAT_CAPTURE_CONTENT` | on |
 | `disabled` | `SIDESEAT_DISABLED` | off |
 | `debug` | `SIDESEAT_DEBUG` | off |
-| `resource_attribute` | `OTEL_RESOURCE_ATTRIBUTES` | none |
+| `export` | | on |
+| `metrics` | | on |
+| `logs` | | on |
+| `resource_attribute` | `OTEL_RESOURCE_ATTRIBUTES` (merged underneath) | none |
+| `span_processor` | | none |
 
-Booleans accept `1/0`, `true/false`, and `yes/no` in any case; anything else is an error at `init`.
+Booleans accept `1/0`, `true/false`, and `yes/no` in any case; anything else is an error at `init`. An
+empty or blank option or variable counts as unset. Metrics are exported every minute.
 
 An endpoint without a path is a SideSeat server: signals go to `{endpoint}/otel/{project}/v1/{signal}`.
 An endpoint with a path is already an OTLP base: signals go to `{endpoint}/v1/{signal}`. Headers from
-`OTEL_EXPORTER_OTLP_HEADERS` are kept, and the API key is sent as `Authorization: Bearer <key>`.
+`OTEL_EXPORTER_OTLP_HEADERS` are kept, and the API key is sent as `Authorization: Bearer <key>`,
+replacing an `Authorization` header from the environment.
 
 ## Logs
 
@@ -138,10 +148,14 @@ on `telemetry.logger_provider()`, for example `opentelemetry-appender-tracing`.
 
 ## Lifecycle
 
-- Calling `init` again with the same settings returns the same client; different settings return
-  `Error::AlreadyInitialized`. After `shutdown`, `init` configures a new pipeline.
-- `flush()` and `shutdown(timeout)` return whether everything was exported. `shutdown` is idempotent,
-  and the pipeline also shuts down when the last clone of the client drops.
+- Calling `init` again with the same settings returns the same client; different settings, or span
+  processors while a client runs, return `Error::AlreadyInitialized`. `sideseat::client()` returns the
+  running client.
+- `flush(timeout)` and `shutdown(timeout)` return whether everything was exported in time; export
+  failures never panic or return an error. `shutdown` is idempotent and returns its first result.
+- The pipeline also shuts down when the last clone of the client drops, so a program that forgets
+  `shutdown` still exports what it recorded. Rust runs no code at `std::process::exit`, so call
+  `shutdown` before exiting that way. After shutdown, `init` configures a new pipeline.
 - When disabled, closures still run, spans are non-recording, and nothing is exported.
 
 ## Testing your application
