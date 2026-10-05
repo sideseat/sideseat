@@ -22,6 +22,7 @@
 
 mod checks;
 mod explain;
+mod invariance;
 mod ledger;
 mod matching;
 mod mutate;
@@ -45,6 +46,8 @@ pub(crate) enum ViolationView {
     Session,
     Feed,
     Call,
+    /// A delivery variation changed a fixture's views (`invariance`).
+    Delivery,
 }
 
 impl ViolationView {
@@ -55,6 +58,7 @@ impl ViolationView {
             ViolationView::Session => "session",
             ViolationView::Feed => "feed",
             ViolationView::Call => "call",
+            ViolationView::Delivery => "delivery",
         }
     }
 }
@@ -147,6 +151,14 @@ pub(crate) const ASSERTION_FAMILIES: &[&str] = &[
     "attribution.call_order",
 ];
 
+/// The delivery variations `invariance` checks, by assertion.
+pub(crate) const DELIVERY_FAMILIES: &[&str] = &[
+    "invariance.arrival_order",
+    "invariance.re_delivery",
+    "invariance.batch_splitting",
+    "invariance.clock_offset",
+];
+
 /// The family an assertion belongs to: a per-kind check reads as `*.<check>`.
 fn family(assertion: &str) -> String {
     const KINDS: &[&str] = &[
@@ -232,7 +244,10 @@ impl Truths {
 
 /// Compares a full run's violations with the ledger, or rewrites the ledger under
 /// `UPDATE_TRUTH_LEDGER=1`. Returns what is wrong, for `message_goldens` to report beside its diffs.
-pub(crate) fn ledger_problems(observed: &[Violation]) -> Vec<String> {
+///
+/// `delivery` selects which part of the ledger the run owns: the truth comparison's, or the delivery
+/// invariance test's (`view: delivery`). Each run compares and rewrites only its own part.
+pub(crate) fn ledger_problems(observed: &[Violation], delivery: bool) -> Vec<String> {
     let mut ids = std::collections::BTreeSet::new();
     let duplicates: Vec<String> = observed
         .iter()
@@ -244,9 +259,17 @@ pub(crate) fn ledger_problems(observed: &[Violation]) -> Vec<String> {
         "the rubric produced one id for two violations, so the ledger could not tell them apart: \
          {duplicates:?}"
     );
-    let current = ledger::load();
+    let whole = ledger::load();
+    let owned = |e: &ledger::Entry| (e.view == ViolationView::Delivery.name()) == delivery;
+    let current = ledger::Ledger {
+        entries: whole.entries.iter().filter(|e| owned(e)).cloned().collect(),
+        ..whole.clone()
+    };
     if std::env::var("UPDATE_TRUTH_LEDGER").is_ok() {
-        let next = ledger::rewritten(observed, &current);
+        let mut next = ledger::rewritten(observed, &current);
+        next.entries
+            .extend(whole.entries.iter().filter(|e| !owned(e)).cloned());
+        next.entries.sort_by(|a, b| a.id.cmp(&b.id));
         std::fs::write(ledger::path(), ledger::render(&next)).expect("write the ledger");
         eprintln!(
             "message_truth: wrote {} entries to {}; triage every {} entry",
@@ -335,9 +358,18 @@ fn truth_violation_ledger_only_shrinks_against_main() {
         .into_iter()
         .map(|e| e.id)
         .collect();
+    // A check introduced since the base brings its own baseline: its entries describe defects the
+    // rubric could not see before, not regressions. A check is known at the base when the base's
+    // registry names it.
+    let registry = git(&[
+        "show",
+        &format!("{}:server/tests/message_truth/mod.rs", base.trim()),
+    ])
+    .unwrap_or_default();
     let added: Vec<String> = ledger::load()
         .entries
         .into_iter()
+        .filter(|e| registry.contains(&format!("\"{}\"", family(&e.assertion))))
         .map(|e| e.id)
         .filter(|id| !before.contains(id))
         .collect();

@@ -516,7 +516,7 @@ fn message_goldens() {
         return;
     }
 
-    let truth_problems = message_truth::ledger_problems(&truth_violations);
+    let truth_problems = message_truth::ledger_problems(&truth_violations, false);
     assert!(
         failures.is_empty() && truth_problems.is_empty(),
         "message parsing changed for {} of {} fixture(s):\n\n{}\n\n\
