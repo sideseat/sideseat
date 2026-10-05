@@ -209,16 +209,21 @@ rmcp = { version = "3.1", features = ["server", "client", "macros", "transport-s
 schemars = "1.0"
 tokio-util = { version = "0.7", features = ["rt"] }
 
-# Keep source line tables for application backtraces while omitting dependency
-# DWARF to bound local build size.
 [profile.dev]
-debug = "line-tables-only"
+# No debug info in the inner loop. On macOS the default `split-debuginfo = "unpacked"` leaves every
+# codegen unit's object file beside the binary for the debugger, and incremental rebuilds never delete
+# the superseded ones, so the target grows without bound. A panic still reports its file and line.
+# Debug with `--profile debugging`.
+debug = false
 # The test suites replay a large captured telemetry corpus. Unoptimized code made them about ten times
 # slower while an incremental rebuild costs about the same at this level.
 opt-level = 2
 
-[profile.dev.package."*"]
-debug = false
+# Full debug info for a debugger session: `cargo build --profile debugging`. Cargo builds it into
+# its own `target/debugging`, so it never invalidates the inner loop's artifacts.
+[profile.debugging]
+inherits = "dev"
+debug = true
 
 [profile.release]
 opt-level = 3
