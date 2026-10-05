@@ -334,6 +334,26 @@ fn truth_violation_ledger_is_well_formed() {
     );
 }
 
+/// The entries added since the base that are regressions: an entry for a fixture that existed at the
+/// base, about a check that existed at the base, that the base did not record.
+///
+/// Two kinds of addition are baselines instead. A check introduced since the base describes defects
+/// the rubric could not see before; a fixture introduced since the base had no entries to keep. Both
+/// still need a triaged backlog issue, which `truth_violation_ledger_is_well_formed` enforces.
+fn regressions(
+    entries: &[ledger::Entry],
+    recorded_at_base: &std::collections::BTreeSet<String>,
+    check_existed: impl Fn(&str) -> bool,
+    fixture_existed: impl Fn(&str) -> bool,
+) -> Vec<String> {
+    entries
+        .iter()
+        .filter(|e| !recorded_at_base.contains(&e.id))
+        .filter(|e| check_existed(&family(&e.assertion)) && fixture_existed(&e.fixture))
+        .map(|e| e.id.clone())
+        .collect()
+}
+
 /// The reviewed baseline is the ledger's only expansion: an entry added after it is a regression
 /// being recorded instead of fixed.
 #[test]
@@ -351,7 +371,8 @@ fn truth_violation_ledger_only_shrinks_against_main() {
         eprintln!("message_truth: no merge base with main; the shrink check needs git history");
         return;
     };
-    let Some(before) = git(&["show", &format!("{}:{}", base.trim(), ledger::PATH)]) else {
+    let base = base.trim().to_string();
+    let Some(before) = git(&["show", &format!("{base}:{}", ledger::PATH)]) else {
         // The commit that introduces the ledger is its reviewed baseline.
         return;
     };
@@ -360,27 +381,70 @@ fn truth_violation_ledger_only_shrinks_against_main() {
         .into_iter()
         .map(|e| e.id)
         .collect();
-    // A check introduced since the base brings its own baseline: its entries describe defects the
-    // rubric could not see before, not regressions. A check is known at the base when the base's
-    // registry names it.
-    let registry = git(&[
-        "show",
-        &format!("{}:server/tests/message_truth/mod.rs", base.trim()),
+    let registry =
+        git(&["show", &format!("{base}:server/tests/message_truth/mod.rs")]).unwrap_or_default();
+    let fixtures_at_base: std::collections::BTreeSet<String> = git(&[
+        "ls-tree",
+        "-r",
+        "--name-only",
+        &base,
+        "--",
+        "server/tests/fixtures/messages",
     ])
-    .unwrap_or_default();
-    let added: Vec<String> = ledger::load()
-        .entries
-        .into_iter()
-        .filter(|e| registry.contains(&format!("\"{}\"", family(&e.assertion))))
-        .map(|e| e.id)
-        .filter(|id| !before.contains(id))
-        .collect();
+    .unwrap_or_default()
+    .lines()
+    .filter_map(|path| path.strip_prefix("server/tests/fixtures/messages/"))
+    .filter_map(|path| path.rsplit_once('/').map(|(dir, _)| dir.to_string()))
+    .collect();
+    let added = regressions(
+        &ledger::load().entries,
+        &before,
+        |family| registry.contains(&format!("\"{family}\"")),
+        |fixture| fixtures_at_base.contains(fixture),
+    );
     assert!(
         added.is_empty(),
         "{} gained entries since {}; fix the violation instead:\n  {}",
         ledger::PATH,
-        &base.trim()[..base.trim().len().min(10)],
+        &base[..base.len().min(10)],
         added.join("\n  ")
+    );
+}
+
+#[test]
+fn only_a_new_check_or_a_new_fixture_may_add_ledger_entries() {
+    let entry = |fixture: &str, assertion: &str| ledger::Entry {
+        id: format!("{fixture}:trace:{assertion}:fact-001"),
+        fixture: fixture.to_string(),
+        view: "trace".to_string(),
+        assertion: assertion.to_string(),
+        subject: "fact-001".to_string(),
+        fingerprint: String::new(),
+        reason: "a test entry".to_string(),
+        issue: "rule-language-program#rv2/text.missing/p".to_string(),
+        introduced: String::new(),
+    };
+    let entries = [
+        entry("p/native/old", "text.missing"),
+        entry("p/native/new", "text.missing"),
+        entry("p/native/old", "order.new_check"),
+        entry("p/native/kept", "text.missing"),
+    ];
+    let base: std::collections::BTreeSet<String> = [entries[3].id.clone()].into();
+    let refused = regressions(
+        &entries,
+        &base,
+        |family| family != "order.new_check",
+        |fixture| fixture != "p/native/new",
+    );
+    // An existing fixture under an existing check gains nothing; a new fixture or a new check brings
+    // its own baseline; what the base recorded stays allowed.
+    assert_eq!(refused, vec![entries[0].id.clone()]);
+    let none_new = regressions(&entries, &base, |_| true, |_| true);
+    assert_eq!(
+        none_new.len(),
+        3,
+        "with nothing new, every addition is a regression"
     );
 }
 

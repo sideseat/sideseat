@@ -16,6 +16,8 @@ use super::truth::Truth;
 pub(super) const FORMAT: &str = "sideseat.truth-ledger/1";
 /// The issue a freshly written entry carries until someone triages it; the ledger refuses it.
 pub(super) const UNTRIAGED: &str = "UNTRIAGED";
+/// Every issue names an item of the rule-language program's backlog: `<section>/<assertion>/<producer>`.
+pub(super) const ISSUE_PREFIX: &str = "rule-language-program#";
 pub(super) const PATH: &str = "server/tests/fixtures/truth/known-violations.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -121,8 +123,15 @@ pub(super) fn hygiene(ledger: &Ledger, truths: &BTreeMap<String, Truth>) -> Vec<
                 entry.id
             ));
         }
-        if entry.issue.trim().is_empty() || entry.issue == UNTRIAGED {
-            problems.push(format!("{}: no backlog issue", entry.id));
+        let item = entry
+            .issue
+            .strip_prefix(ISSUE_PREFIX)
+            .map(|i| i.split('/').collect::<Vec<_>>());
+        if !item.is_some_and(|parts| parts.len() == 3 && parts.iter().all(|p| !p.is_empty())) {
+            problems.push(format!(
+                "{}: the issue must name a backlog item, `{ISSUE_PREFIX}<section>/<assertion>/<producer>`",
+                entry.id
+            ));
         }
         if entry.reason.trim().is_empty() || entry.reason.contains('\n') {
             problems.push(format!("{}: the reason must be one line", entry.id));
