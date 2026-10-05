@@ -180,6 +180,16 @@ def test_fake_openai_serves_chat_completions_on_azure_deployment_routes() -> Non
     assert reply["choices"][0]["message"]["content"] == script.ANSWERS[content.CHAT]
 
 
+def test_fake_openai_serves_responses_on_the_azure_client_route() -> None:
+    # AzureOpenAI posts the Responses API to /openai/responses?api-version=..., which answered 404.
+    base = clients.fake_url("fake-openai").removesuffix("/v1")
+    body = {"model": "m", "input": content.CHAT}
+    reply = json.loads(
+        post(f"{base}/openai/responses?api-version=2025-04-01-preview", body)
+    )
+    assert reply["output"][0]["content"][0]["text"] == script.ANSWERS[content.CHAT]
+
+
 def test_capture_needs_no_cassette_for_a_fake_model(tmp_path: Path) -> None:
     # A fake-model suite failed its SDK run with "no cassette to replay": the fake records nothing.
     (tmp_path / "pyproject.toml").write_text(

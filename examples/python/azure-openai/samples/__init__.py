@@ -1,1 +1,0 @@
-"""Azure OpenAI conformance samples."""

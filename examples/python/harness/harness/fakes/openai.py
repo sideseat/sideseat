@@ -1,7 +1,8 @@
 """A local OpenAI endpoint: Chat Completions and Responses, streamed or not, on OpenAI and Azure routes.
 
-Answers come from :mod:`harness.fakes.script`. Azure OpenAI's v1 routes (``/openai/v1/...``) and
-deployment routes (``/openai/deployments/<name>/chat/completions``) map onto the same handlers.
+Answers come from :mod:`harness.fakes.script`. Azure OpenAI's v1 routes (``/openai/v1/...``),
+deployment routes (``/openai/deployments/<name>/chat/completions``), and the ``AzureOpenAI``
+client's Responses route (``/openai/responses``) map onto the same handlers.
 
     uv run --locked --directory examples/python/harness python -m harness.fakes.openai
 """
@@ -27,6 +28,9 @@ def canonical_path(raw: str) -> str:
         return "/v1/" + path.removeprefix("/openai/v1/")
     if re.fullmatch(r"/openai/deployments/[^/]+/chat/completions", path):
         return "/v1/chat/completions"
+    # The AzureOpenAI client names the deployment in the body for the Responses API, not the path.
+    if path == "/openai/responses":
+        return "/v1/responses"
     return path
 
 
