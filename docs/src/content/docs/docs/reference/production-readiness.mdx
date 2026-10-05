@@ -35,7 +35,7 @@ of the surviving messages rather than silently inventing or dropping content.
 
 ## Current checked-in boundary
 
-The current tracked corpus contains **63 suites, 499 samples, and 675 captured OTLP requests**:
+The current tracked corpus contains **63 suites, 515 samples, and 691 captured OTLP requests**:
 
 - SideSeat SDK versus plain OpenTelemetry pairs for Python, TypeScript/Node.js, .NET, and Rust;
 - a credential-free OpenAI 3.19.2 / Logfire 6.0.0b7 pair captured both natively and through
@@ -158,10 +158,7 @@ harness suites replay their committed model cassettes with `make capture-offline
 
 ```bash
 make capture-offline P=openai
-
-scripts/message-fixtures/fake-openai.py --port 5401
-CAPTURE_MODEL=gpt-5-nano-2025-08-07 \
-  scripts/message-fixtures/capture.sh azure-openai canonical both
+make capture-offline P=azure-openai
 
 scripts/message-fixtures/fake-openai.py --port 5401
 OPENAI_API_KEY=x OPENAI_BASE_URL=http://127.0.0.1:5401/v1 \

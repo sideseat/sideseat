@@ -204,6 +204,15 @@ INTENTIONAL_WARNINGS: dict[str, dict[str, tuple[int, str]]] = {
         }
         for mode in ("native", "sdk")
     },
+    **{
+        f"azure-openai/{mode}/structured_output": {
+            "json_block": (
+                2,
+                "structured assistant output is canonically represented as JSON",
+            ),
+        }
+        for mode in ("native", "sdk")
+    },
     "anthropic/sdk/structured_output": {
         "unbalanced_tools": (2, "trip_plan is a terminal schema pseudo-tool"),
     },

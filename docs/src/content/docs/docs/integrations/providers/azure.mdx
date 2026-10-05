@@ -132,6 +132,32 @@ azure = OpenAI(
 )
 ```
 
+## The `AzureOpenAI` client
+
+The deployment-based client is traced the same way, including its Responses API calls:
+
+```python
+import os
+
+from openai import AzureOpenAI
+
+azure = AzureOpenAI(
+    azure_endpoint="https://YOUR-RESOURCE.openai.azure.com",
+    api_version="2025-04-01-preview",
+    api_key=os.environ["AZURE_OPENAI_API_KEY"],
+)
+azure.chat.completions.create(
+    model="YOUR-DEPLOYMENT",
+    messages=[{"role": "user", "content": "What is the speed of light?"}],
+)
+```
+
+## Images and documents
+
+OpenInference replaces a base64 image longer than 32,000 characters with `__REDACTED__`. Set
+`OPENINFERENCE_BASE64_IMAGE_MAX_LENGTH` to a larger value before the instrumentor starts to keep
+larger images. PDFs sent as `file` parts are shown as documents.
+
 ## Without the SideSeat SDK
 
 ```bash
