@@ -296,13 +296,14 @@ pip install browser-use "sideseat[browser-use]"
 import asyncio
 
 import sideseat
-from browser_use import Agent, ChatOpenAI
+from browser_use import Agent, ChatAnthropic
 
 sideseat.init(integrations=["browser-use"])
 
 
 async def main() -> None:
-    agent = Agent(task="Find the SideSeat documentation", llm=ChatOpenAI(model="gpt-6.1-sol"))
+    llm = ChatAnthropic(model="claude-sonnet-5-5", thinking={"type": "adaptive"})
+    agent = Agent(task="Find the SideSeat documentation", llm=llm)
     with sideseat.trace("find-docs", session_id="conversation-42", user_id="user-7"):
         history = await agent.run()
     print(history.final_result())
@@ -317,8 +318,24 @@ provider, and SideSeat configures it to export to your project and nowhere else:
 - Call `sideseat.init` before anything calls `Laminar.initialize`.
 - Unset `LMNR_PROJECT_API_KEY` and `LMNR_BASE_URL`; `init` refuses to run with either set, because they
   would send the telemetry to Laminar.
-- Model calls are recorded through Laminar's OpenAI instrumentation, so use an OpenAI-client chat model
-  such as `ChatOpenAI`.
+- Model calls are recorded by Laminar's instrumentation of the client library the chat model uses:
+  OpenAI, Anthropic, Google Gen AI, Groq, Mistral, Ollama, or LiteLLM. `ChatAWSBedrock` calls
+  boto3, which Laminar records only when `opentelemetry-instrumentation-bedrock` is installed.
+
+Each agent step is one model call whose reply is a single `AgentOutput` tool call listing the
+browser actions to take. Browser Use then runs every action, built-in or custom, under a tool span
+of its own, and SideSeat shows each one as a call and its result; the `done` action's result is the
+agent's answer. `AgentOutput` itself has no result, because the actions it lists are the executions.
+
+Without the SDK, set `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` to
+`http://localhost:5388/otel/default/v1/traces` and `OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf`,
+then call `Laminar.initialize(force_http=True)` without a project key, and open conversations with
+`Laminar.start_as_current_span(name, session_id=..., user_id=...)`. Laminar names the service after
+the running program rather than `OTEL_SERVICE_NAME`.
+
+Current Claude models on Bedrock accept only automatic tool choice. `ChatAnthropicBedrock` forces the
+`AgentOutput` tool and is rejected; `ChatAnthropic` with adaptive thinking chooses it automatically,
+and can be given an `AsyncAnthropicBedrock` client by overriding `get_client`.
 
 ## Langflow
 
