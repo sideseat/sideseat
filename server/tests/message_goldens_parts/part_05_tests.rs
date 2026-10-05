@@ -680,6 +680,38 @@ fn rules_that_emit() -> BTreeSet<String> {
                 }
             }
         }
+        // Log records are read by the same event plan, with no span to gate on, as ingestion reads them
+        // (`ingestion::logs::messages`): a rule only a log record reaches is exercised, not dead.
+        for export in log_exports_beside(&paths) {
+            for resource in &decode_logs(&export).resource_logs {
+                for scope in &resource.scope_logs {
+                    for record in &scope.log_records {
+                        let attrs = extract_attributes(&record.attributes);
+                        let event_name =
+                            (!record.event_name.is_empty()).then_some(record.event_name.as_str());
+                        let Some(declared) = sideseat_domain::rules::ruleset()
+                            .log_events
+                            .recognise(event_name, |key| attrs.get(key).map(String::as_str))
+                        else {
+                            continue;
+                        };
+                        if declared.payload
+                            != sideseat_domain::rules::schema::LogEventPayload::Attributes
+                        {
+                            // A body-members payload needs the body decoded the way ingestion decodes it;
+                            // no rule reads one yet, so there is nothing to credit.
+                            continue;
+                        }
+                        let empty = HashMap::new();
+                        let reading = plan.from_event(&declared.name, &attrs, "", &empty, false);
+                        for emission in reading.emissions {
+                            fired.insert(emission.rule_id.to_string());
+                            fired.extend(clause_paths(&emission));
+                        }
+                    }
+                }
+            }
+        }
     }
     fired
 }

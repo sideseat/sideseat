@@ -654,6 +654,37 @@ const VARIABLE_STEP_SPANS: &[(&str, &str)] = &[(
      finish, so the number of those message-less step spans follows completion timing",
 )];
 
+/// Producers no SideSeat SDK can configure, so their native captures have no SDK half to pair with.
+///
+/// Declared beside the fixtures, as `<producer>/producer.json` with `"sdk_mode": false` and a reason,
+/// rather than listed here: a coding-agent CLI is a separate process whose telemetry only its own
+/// settings configure, which is a fact about the producer and belongs with its captures.
+fn producers_without_sdk_mode() -> BTreeSet<String> {
+    let mut found = BTreeSet::new();
+    for entry in std::fs::read_dir(fixture_root())
+        .expect("fixture root")
+        .flatten()
+    {
+        let declaration = entry.path().join("producer.json");
+        let Ok(text) = std::fs::read_to_string(&declaration) else {
+            continue;
+        };
+        let value: serde_json::Value = serde_json::from_str(&text)
+            .unwrap_or_else(|error| panic!("{}: {error}", declaration.display()));
+        assert!(
+            value["reason"]
+                .as_str()
+                .is_some_and(|reason| !reason.trim().is_empty()),
+            "{} must say why the producer has no SDK mode",
+            declaration.display()
+        );
+        if value["sdk_mode"] == serde_json::Value::Bool(false) {
+            found.insert(entry.file_name().to_string_lossy().into_owned());
+        }
+    }
+    found
+}
+
 #[test]
 fn framework_sdk_and_native_conversations_are_identical() {
     let fixtures: BTreeMap<String, Vec<PathBuf>> = discover_fixtures().into_iter().collect();
@@ -706,12 +737,21 @@ fn framework_sdk_and_native_conversations_are_identical() {
         comparable
     };
 
+    let without_sdk = producers_without_sdk_mode();
+    for producer in &without_sdk {
+        assert!(
+            !fixture_root().join(producer).join("sdk").exists(),
+            "{producer} declares it has no SDK mode, yet {producer}/sdk exists"
+        );
+    }
     let native_labels: Vec<String> = fixtures
         .keys()
         .filter(|label| {
             let mut parts = label.split('/');
             let producer = parts.next().unwrap_or_default();
-            parts.next() == Some("native") && !CONFORMANCE_LANGUAGES.contains(&producer)
+            parts.next() == Some("native")
+                && !CONFORMANCE_LANGUAGES.contains(&producer)
+                && !without_sdk.contains(producer)
         })
         .cloned()
         .collect();
