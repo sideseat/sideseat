@@ -62,9 +62,11 @@ def capture(**init_kwargs: Any) -> Iterator[CapturedSpans]:
 
 
 def reset_global_providers() -> None:
-    """Forget OpenTelemetry's global tracer, logger, and meter providers. For tests only."""
+    """Forget OpenTelemetry's global providers, and that SideSeat shut down. For tests only."""
     from opentelemetry import _logs, metrics, trace
     from opentelemetry.util._once import Once
+
+    sideseat._shut_down = False
 
     trace._TRACER_PROVIDER = None
     trace._TRACER_PROVIDER_SET_ONCE = Once()

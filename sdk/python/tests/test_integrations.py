@@ -187,6 +187,11 @@ def test_semantic_kernel_exports_the_log_records_its_diagnostics_write(
         )
         monkeypatch.setitem(sys.modules, module_name, module)
 
+    from sideseat.integrations.semantic_kernel import SemanticKernel
+
+    monkeypatch.setattr(
+        SemanticKernel, "installed_package", classmethod(lambda cls: ("semantic-kernel", "1.0"))
+    )
     sideseat.init(integrations=["semantic-kernel"], export=False, metrics=False)
     exporter = InMemoryLogRecordExporter()
     _logs.get_logger_provider().add_log_record_processor(  # type: ignore[attr-defined]
@@ -198,5 +203,80 @@ def test_semantic_kernel_exports_the_log_records_its_diagnostics_write(
 
     records = [data.log_record for data in exporter.get_finished_logs()]
     assert [record.body for record in records] == ['{"role": "user", "content": "Hello"}']
+
+    sideseat.shutdown()
+    for module_name in (
+        "semantic_kernel.utils.telemetry.agent_diagnostics.decorators",
+        "semantic_kernel.utils.telemetry.model_diagnostics.decorators",
+    ):
+        settings = sys.modules[module_name].MODEL_DIAGNOSTICS_SETTINGS
+        assert not settings.enable_otel_diagnostics, module_name
+        assert not settings.enable_otel_diagnostics_sensitive, module_name
     assert records[0].attributes is not None
     assert records[0].attributes["event.name"] == "gen_ai.user.message"
+
+
+def test_langsmith_switches_hold_while_tracing_and_are_restored_at_shutdown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sideseat.integrations.langsmith import LangSmith
+
+    monkeypatch.setenv("LANGSMITH_TRACING", "false")
+    monkeypatch.delenv("LANGSMITH_TRACING_MODE", raising=False)
+    integration = LangSmith()
+    integration.prepare(None)  # type: ignore[arg-type]
+    assert os.environ["LANGSMITH_TRACING"] == "true"
+    assert os.environ["LANGSMITH_TRACING_MODE"] == "otel"
+    integration.shutdown()
+    assert os.environ["LANGSMITH_TRACING"] == "false"
+    assert "LANGSMITH_TRACING_MODE" not in os.environ
+
+
+def _fake_module(monkeypatch: pytest.MonkeyPatch, name: str, **attributes: Any) -> Any:
+    import sys
+    import types
+
+    module = types.ModuleType(name)
+    module.__dict__.update(attributes)
+    monkeypatch.setitem(sys.modules, name, module)
+    return module
+
+
+def _pretend_installed(monkeypatch: pytest.MonkeyPatch, cls: type[Integration]) -> None:
+    monkeypatch.setattr(cls, "installed_package", classmethod(lambda c: (c.packages[0], "1.0")))
+
+
+def test_agent_framework_settings_are_restored_at_shutdown(monkeypatch: pytest.MonkeyPatch) -> None:
+    import types
+
+    from sideseat.integrations.agent_framework import AgentFramework
+
+    settings = types.SimpleNamespace(enable_instrumentation=False, enable_sensitive_data=False)
+    _fake_module(monkeypatch, "agent_framework")
+    _fake_module(monkeypatch, "agent_framework.observability", OBSERVABILITY_SETTINGS=settings)
+    _pretend_installed(monkeypatch, AgentFramework)
+
+    sideseat.init(integrations=["agent-framework"], export=False)
+    assert (settings.enable_instrumentation, settings.enable_sensitive_data) == (True, True)
+    sideseat.shutdown()
+    assert (settings.enable_instrumentation, settings.enable_sensitive_data) == (False, False)
+
+
+def test_the_strands_encoder_patch_is_removed_at_shutdown(monkeypatch: pytest.MonkeyPatch) -> None:
+    import types
+
+    from sideseat.integrations.strands import Strands
+
+    def original(self: Any, value: Any) -> Any:
+        return "<replaced>"
+
+    encoder = type("JSONEncoder", (), {"_process_value": original})
+    _fake_module(monkeypatch, "strands")
+    tracer = types.SimpleNamespace(JSONEncoder=encoder)
+    _fake_module(monkeypatch, "strands.telemetry", tracer=tracer)
+    _pretend_installed(monkeypatch, Strands)
+
+    sideseat.init(integrations=["strands"], export=False)
+    assert encoder()._process_value(b"\x00") == "AA=="  # type: ignore[attr-defined]
+    sideseat.shutdown()
+    assert encoder._process_value is original  # type: ignore[attr-defined]

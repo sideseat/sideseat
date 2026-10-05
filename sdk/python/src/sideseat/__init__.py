@@ -31,6 +31,9 @@ F = TypeVar("F", bound=Callable[..., Any])
 
 _lock = threading.Lock()
 _client: SideSeat | None = None
+# OpenTelemetry's global providers can be set once per process, so a pipeline started after
+# shutdown would silently export nothing. ``sideseat.testing`` resets this with the providers.
+_shut_down = False
 
 
 def init(
@@ -72,7 +75,8 @@ def init(
         span_processors: Extra processors, run after correlation and before export.
 
     Calling ``init`` again with the same arguments returns the same client. Different arguments
-    raise :class:`ConfigurationError`: telemetry configuration is process-wide.
+    raise :class:`ConfigurationError`: telemetry configuration is process-wide, and so does calling
+    it after :func:`shutdown`.
     """
     global _client
     settings = _config.resolve(
@@ -93,6 +97,11 @@ def init(
         span_processors=span_processors,
     )
     with _lock:
+        if _shut_down:
+            raise ConfigurationError(
+                "sideseat.init was called after sideseat.shutdown(); telemetry can be configured "
+                "once per process"
+            )
         if _client is not None:
             if _client.settings.identity() != settings.identity():
                 raise ConfigurationError(
@@ -118,10 +127,14 @@ def flush(timeout_millis: int = 30_000) -> bool:
 
 
 def shutdown(timeout_millis: int = 30_000) -> bool:
-    """Flush and stop the pipeline. Runs automatically at exit; safe to call more than once."""
-    global _client
+    """Flush and stop the pipeline. Runs automatically at exit; safe to call more than once.
+
+    Returns whether everything was exported and stopped within the timeout.
+    """
+    global _client, _shut_down
     with _lock:
         client, _client = _client, None
+        _shut_down = _shut_down or client is not None
     return True if client is None else client.shutdown(timeout_millis)
 
 

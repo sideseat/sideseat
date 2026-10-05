@@ -42,9 +42,9 @@ def with_correlation(
     """``ctx`` with the given values layered over the correlation it already carries."""
     merged = current(ctx)
     if session_id is not None:
-        merged = replace(merged, session_id=_require_text("session_id", session_id))
+        merged = replace(merged, session_id=require_text("session_id", session_id))
     if user_id is not None:
-        merged = replace(merged, user_id=_require_text("user_id", user_id))
+        merged = replace(merged, user_id=require_text("user_id", user_id))
     return otel_context.set_value(_KEY, merged, ctx)
 
 
@@ -84,7 +84,8 @@ class CorrelationProcessor(SpanProcessor):
         return True
 
 
-def _require_text(name: str, value: Any) -> str:
+def require_text(name: str, value: Any) -> str:
+    """``value`` if it is a non-empty string; an empty id would merge unrelated conversations."""
     if not isinstance(value, str) or not value:
         raise ValueError(f"{name} must be a non-empty string, got {value!r}")
     return value

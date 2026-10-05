@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any, cast
@@ -36,9 +37,11 @@ class BrowserUse(Integration):
             for k, v in ctx.settings.headers().items()
         )
         # Laminar builds its exporter from these variables during initialize and never reads them
-        # again, so they are scoped to the call.
+        # again, so they are scoped to the call. It also raises the attribute count limit for the
+        # provider it builds; listing the variable restores the application's value afterwards.
         with temporary_env(
             {
+                "OTEL_ATTRIBUTE_COUNT_LIMIT": os.environ.get("OTEL_ATTRIBUTE_COUNT_LIMIT"),
                 "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": ctx.settings.signal_endpoint("traces"),
                 "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/protobuf",
                 "OTEL_EXPORTER_OTLP_TRACES_HEADERS": headers or None,

@@ -11,16 +11,14 @@ import hashlib
 import logging
 import threading
 import time
-from typing import Any, ClassVar
-from urllib.parse import quote
+from typing import Any, ClassVar, cast
 
-from opentelemetry import trace as otel_trace
 from opentelemetry.sdk.trace import SpanProcessor, TracerProvider
 from opentelemetry.trace import SpanContext
 
 from sideseat.integrations._base import Integration, SetupContext
 from sideseat.integrations._logfire_compat import apply_after, apply_before
-from sideseat.integrations._util import temporary_env, without_otlp_exporter_env
+from sideseat.integrations._util import without_otlp_exporter_env
 
 logger = logging.getLogger("sideseat")
 
@@ -36,23 +34,36 @@ class LogfireIntegration(Integration):
     def create_tracer_provider(self, ctx: SetupContext) -> TracerProvider:
         import logfire
 
-        resource = ",".join(
-            f"{quote(str(key), safe='')}={quote(str(value), safe='')}"
-            for key, value in ctx.resource.attributes.items()
-        )
-        # Logfire reads OTLP variables at configure time and would add exporters of its own; the
-        # resource travels in OTEL_RESOURCE_ATTRIBUTES because configure takes no resource argument.
-        with without_otlp_exporter_env(), temporary_env({"OTEL_RESOURCE_ATTRIBUTES": resource}):
-            logfire.configure(
+        # Logfire also builds the logger and meter providers its instrumentation writes to, so
+        # SideSeat's log processor and metric reader go into them.
+        log_processor = ctx.log_record_processor()
+        metric_reader = ctx.metric_reader()
+        # Logfire reads OTLP variables at configure time and would add exporters of its own.
+        with without_otlp_exporter_env():
+            instance = logfire.configure(
                 service_name=ctx.service_name,
                 service_version=ctx.service_version,
+                resource_attributes=dict(ctx.resource.attributes),
                 send_to_logfire=False,
                 console=False,
+                metrics=(
+                    logfire.MetricsOptions(additional_readers=[metric_reader])
+                    if metric_reader is not None
+                    else False
+                ),
+                advanced=logfire.AdvancedOptions(
+                    log_record_processors=[log_processor] if log_processor is not None else []
+                ),
             )
-        provider = otel_trace.get_tracer_provider()
+        # Logfire's own providers, not the globals: an application that set those first keeps
+        # them, and Logfire's instrumentation writes to its providers either way.
+        config = instance.config
+        provider = config.get_tracer_provider()
         if not hasattr(provider, "add_span_processor"):
-            raise RuntimeError("Logfire did not install an SDK tracer provider")
-        return provider  # type: ignore[return-value]
+            raise RuntimeError("Logfire did not build an SDK tracer provider")
+        ctx.logger_provider = config.get_logger_provider() if ctx.settings.logs else None
+        ctx.meter_provider = config.get_meter_provider() if metric_reader is not None else None
+        return cast(TracerProvider, provider)
 
     def span_processors(self, ctx: SetupContext) -> tuple[SpanProcessor, ...]:
         return (StreamingResponseReparenter(),)

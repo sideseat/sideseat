@@ -30,6 +30,7 @@ class SemanticKernel(Integration):
     def __init__(self) -> None:
         self._handler: Any = None
         self._previous_level: int | None = None
+        self._previous_settings: list[tuple[Any, bool, bool]] = []
 
     def prepare(self, ctx: SetupContext) -> None:
         default_env("SEMANTICKERNEL_EXPERIMENTAL_GENAI_ENABLE_OTEL_DIAGNOSTICS", "true")
@@ -41,6 +42,13 @@ class SemanticKernel(Integration):
     def instrument(self, ctx: SetupContext) -> None:
         for module_name in _DIAGNOSTICS_MODULES:
             settings = importlib.import_module(module_name).MODEL_DIAGNOSTICS_SETTINGS
+            self._previous_settings.append(
+                (
+                    settings,
+                    settings.enable_otel_diagnostics,
+                    settings.enable_otel_diagnostics_sensitive,
+                )
+            )
             settings.enable_otel_diagnostics = True
             settings.enable_otel_diagnostics_sensitive = ctx.capture_content
         if ctx.logger_provider is None or not ctx.capture_content:
@@ -55,6 +63,10 @@ class SemanticKernel(Integration):
             logger.setLevel(logging.INFO)
 
     def shutdown(self) -> None:
+        for settings, enabled, sensitive in self._previous_settings:
+            settings.enable_otel_diagnostics = enabled
+            settings.enable_otel_diagnostics_sensitive = sensitive
+        self._previous_settings = []
         if self._handler is None:
             return
         logger = logging.getLogger(_MODEL_DIAGNOSTICS_LOGGER)

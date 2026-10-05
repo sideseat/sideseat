@@ -22,7 +22,10 @@ class SetupContext:
     """What an integration can see and use while it is installed.
 
     The providers are ``None`` during :meth:`Integration.prepare` and set before
-    :meth:`Integration.instrument` runs.
+    :meth:`Integration.instrument` runs. An integration that owns the tracer provider and also
+    builds the logger or meter provider sets :attr:`logger_provider` or :attr:`meter_provider` in
+    :meth:`Integration.create_tracer_provider`, wired with :meth:`log_record_processor` and
+    :meth:`metric_reader`; SideSeat then uses it instead of building its own.
     """
 
     settings: Settings
@@ -37,6 +40,38 @@ class SetupContext:
     @property
     def capture_content(self) -> bool:
         return self.settings.capture_content
+
+    def log_record_processor(self) -> Any | None:
+        """The processor that exports log records to SideSeat, or ``None`` when logs are off.
+
+        For an integration that owns a provider and builds the logger provider with it.
+        """
+        settings = self.settings
+        if not (settings.logs and settings.export):
+            return None
+        from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+        from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+
+        return BatchLogRecordProcessor(
+            OTLPLogExporter(endpoint=settings.signal_endpoint("logs"), headers=settings.headers())
+        )
+
+    def metric_reader(self) -> Any | None:
+        """The reader exporting metrics to SideSeat every minute, or ``None`` when metrics are off.
+
+        For an integration that owns a provider and builds the meter provider with it.
+        """
+        settings = self.settings
+        if not (settings.metrics and settings.export):
+            return None
+        from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
+        from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+
+        return PeriodicExportingMetricReader(
+            OTLPMetricExporter(
+                endpoint=settings.signal_endpoint("metrics"), headers=settings.headers()
+            )
+        )
 
 
 class Integration:

@@ -113,16 +113,20 @@ def test_observe_wraps_sync_and_async_functions() -> None:
 
 
 def test_the_resource_names_the_sdk_and_the_integrations() -> None:
-    from sideseat.integrations.passthrough import Langflow
+    from sideseat.integrations import Integration
 
-    with capture(integrations=[Langflow()], service_name="travel-agent") as spans:
+    class Framework(Integration):
+        name = "framework"
+        packages = ("opentelemetry-sdk",)
+
+    with capture(integrations=[Framework()], service_name="travel-agent") as spans:
         with sideseat.span("work"):
             pass
     resource = spans.finished()[0].resource.attributes
     assert resource["service.name"] == "travel-agent"
     assert resource["telemetry.sdk.name"] == "sideseat"
-    assert resource["sideseat.framework"] == "langflow"
-    assert tuple(resource["sideseat.integrations"]) == ("langflow",)
+    assert resource["sideseat.framework"] == "framework"
+    assert tuple(resource["sideseat.integrations"]) == ("framework",)
 
 
 def test_init_twice_with_the_same_settings_returns_the_same_client() -> None:
