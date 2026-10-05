@@ -1,17 +1,10 @@
 {
   "label": "adk/sdk/files",
   "request_count": 1,
-  "span_count": 8,
+  "span_count": 5,
   "trace_count": 1,
   "session_count": 1,
   "span_views": {
-    "trace-1/adk.session/span-1": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
     "trace-1/call_llm/span-4": {
       "message_count": 5,
       "role_sequence": [
@@ -22,22 +15,22 @@
         "assistant"
       ],
       "tool_names": [],
-      "tool_definition_count": 2,
+      "tool_definition_count": 0,
       "messages": [
         {
           "index": 0,
           "role": "system",
           "entry_type": "text",
-          "content": "You are a file analysis AI that can read images and documents. You are an agent. Your internal name is \"file_analyzer\".",
-          "content_digest": "46a159d54ec88ba2",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
           "observation_type": "generation"
         },
         {
           "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "Describe the contents of this image in detail using instructions from the PDF document.",
-          "content_digest": "8c75c636689055d9",
+          "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+          "content_digest": "66bed9fc16754ebe",
           "observation_type": "generation"
         },
         {
@@ -59,105 +52,22 @@
         {
           "index": 4,
           "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_read_file_metadata_call_ba335c37\",\"name\":\"read_file_metadata\",\"input\":{\"file_path\":\"examples/assets/img.jpg\"}}",
-          "content_digest": "ddcf2b99532cf0e6",
-          "tool_name": "read_file_metadata",
+          "entry_type": "text",
+          "content": "**Image:** A curved paved path winds through a sunny park with green lawns, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings under a clear blue sky. **Document:** The five-page PDF is almost blank: page 1 …[418 chars]",
+          "content_digest": "c5552196bdb1bce6",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
     },
-    "trace-1/call_llm/span-7": {
-      "message_count": 7,
-      "role_sequence": [
-        "system",
-        "user",
-        "user",
-        "user",
-        "assistant",
-        "tool",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 2,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a file analysis AI that can read images and documents. You are an agent. Your internal name is \"file_analyzer\".",
-          "content_digest": "46a159d54ec88ba2",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Describe the contents of this image in detail using instructions from the PDF document.",
-          "content_digest": "8c75c636689055d9",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "user",
-          "entry_type": "image",
-          "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
-          "content_digest": "f66271bc4504cd52",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "user",
-          "entry_type": "document",
-          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXyvUKoKSIZfkct/d…[17690 chars]",
-          "content_digest": "e69c476dd545eb4b",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_read_file_metadata_call_ba335c37\",\"name\":\"read_file_metadata\",\"input\":{\"file_path\":\"examples/assets/img.jpg\"}}",
-          "content_digest": "ddcf2b99532cf0e6",
-          "tool_name": "read_file_metadata",
-          "observation_type": "generation"
-        },
-        {
-          "index": 5,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_read_file_metadata_call_ba335c37\",\"name\":\"read_file_metadata\",\"content\":{\"result\":\"File not found: examples/assets/img.jpg\"}}",
-          "content_digest": "f91c7413452b7567",
-          "tool_name": "read_file_metadata",
-          "observation_type": "generation"
-        },
-        {
-          "index": 6,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The tool completed successfully.",
-          "content_digest": "66bcb0fcdca80511",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "trace-1/execute_tool read_file_metadata/span-6": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 1,
-      "messages": []
-    },
-    "trace-1/generate_content openai/gpt-5-nano-2025-08-07/span-5": {
+    "trace-1/files/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "trace-1/generate_content openai/gpt-5-nano-2025-08-07/span-8": {
+    "trace-1/generate_content bedrock/global.anthropic.claude-sonnet-5-5/span-5": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
@@ -171,7 +81,7 @@
       "tool_definition_count": 0,
       "messages": []
     },
-    "trace-1/invoke_agent file_analyzer/span-3": {
+    "trace-1/invoke_agent assistant/span-3": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
@@ -181,33 +91,31 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 7,
+      "message_count": 5,
       "role_sequence": [
         "system",
         "user",
         "user",
         "user",
-        "assistant",
-        "tool",
         "assistant"
       ],
       "tool_names": [],
-      "tool_definition_count": 2,
+      "tool_definition_count": 0,
       "messages": [
         {
           "index": 0,
           "role": "system",
           "entry_type": "text",
-          "content": "You are a file analysis AI that can read images and documents. You are an agent. Your internal name is \"file_analyzer\".",
-          "content_digest": "46a159d54ec88ba2",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
           "observation_type": "generation"
         },
         {
           "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "Describe the contents of this image in detail using instructions from the PDF document.",
-          "content_digest": "8c75c636689055d9",
+          "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+          "content_digest": "66bed9fc16754ebe",
           "observation_type": "generation"
         },
         {
@@ -229,28 +137,9 @@
         {
           "index": 4,
           "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_read_file_metadata_call_ba335c37\",\"name\":\"read_file_metadata\",\"input\":{\"file_path\":\"examples/assets/img.jpg\"}}",
-          "content_digest": "ddcf2b99532cf0e6",
-          "tool_name": "read_file_metadata",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 5,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_read_file_metadata_call_ba335c37\",\"name\":\"read_file_metadata\",\"content\":{\"result\":\"File not found: examples/assets/img.jpg\"}}",
-          "content_digest": "f91c7413452b7567",
-          "tool_name": "read_file_metadata",
-          "observation_type": "generation"
-        },
-        {
-          "index": 6,
-          "role": "assistant",
           "entry_type": "text",
-          "content": "The tool completed successfully.",
-          "content_digest": "66bcb0fcdca80511",
+          "content": "**Image:** A curved paved path winds through a sunny park with green lawns, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings under a clear blue sky. **Document:** The five-page PDF is almost blank: page 1 …[418 chars]",
+          "content_digest": "c5552196bdb1bce6",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -258,34 +147,32 @@
     }
   },
   "session_views": {
-    "adk-files-46be3417": {
-      "message_count": 7,
+    "adk-files": {
+      "message_count": 5,
       "role_sequence": [
         "system",
         "user",
         "user",
         "user",
-        "assistant",
-        "tool",
         "assistant"
       ],
       "tool_names": [],
-      "tool_definition_count": 2,
+      "tool_definition_count": 0,
       "messages": [
         {
           "index": 0,
           "role": "system",
           "entry_type": "text",
-          "content": "You are a file analysis AI that can read images and documents. You are an agent. Your internal name is \"file_analyzer\".",
-          "content_digest": "46a159d54ec88ba2",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
           "observation_type": "generation"
         },
         {
           "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "Describe the contents of this image in detail using instructions from the PDF document.",
-          "content_digest": "8c75c636689055d9",
+          "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+          "content_digest": "66bed9fc16754ebe",
           "observation_type": "generation"
         },
         {
@@ -307,28 +194,9 @@
         {
           "index": 4,
           "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_read_file_metadata_call_ba335c37\",\"name\":\"read_file_metadata\",\"input\":{\"file_path\":\"examples/assets/img.jpg\"}}",
-          "content_digest": "ddcf2b99532cf0e6",
-          "tool_name": "read_file_metadata",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 5,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_read_file_metadata_call_ba335c37\",\"name\":\"read_file_metadata\",\"content\":{\"result\":\"File not found: examples/assets/img.jpg\"}}",
-          "content_digest": "f91c7413452b7567",
-          "tool_name": "read_file_metadata",
-          "observation_type": "generation"
-        },
-        {
-          "index": 6,
-          "role": "assistant",
           "entry_type": "text",
-          "content": "The tool completed successfully.",
-          "content_digest": "66bcb0fcdca80511",
+          "content": "**Image:** A curved paved path winds through a sunny park with green lawns, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings under a clear blue sky. **Document:** The five-page PDF is almost blank: page 1 …[418 chars]",
+          "content_digest": "c5552196bdb1bce6",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -336,55 +204,44 @@
     }
   },
   "feed_view": {
-    "message_count": 7,
+    "message_count": 5,
     "role_sequence": [
       "assistant",
-      "tool",
       "system",
       "user",
       "user",
-      "user",
-      "assistant"
+      "user"
     ],
     "tool_names": [],
-    "tool_definition_count": 2,
+    "tool_definition_count": 0,
     "messages": [
       {
         "index": 0,
         "role": "assistant",
         "entry_type": "text",
-        "content": "The tool completed successfully.",
-        "content_digest": "66bcb0fcdca80511",
+        "content": "**Image:** A curved paved path winds through a sunny park with green lawns, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings under a clear blue sky. **Document:** The five-page PDF is almost blank: page 1 …[418 chars]",
+        "content_digest": "c5552196bdb1bce6",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {
         "index": 1,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_read_file_metadata_call_ba335c37\",\"name\":\"read_file_metadata\",\"content\":{\"result\":\"File not found: examples/assets/img.jpg\"}}",
-        "content_digest": "f91c7413452b7567",
-        "tool_name": "read_file_metadata",
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+        "content_digest": "f4fcdd0112621c7c",
         "observation_type": "generation"
       },
       {
         "index": 2,
-        "role": "system",
+        "role": "user",
         "entry_type": "text",
-        "content": "You are a file analysis AI that can read images and documents. You are an agent. Your internal name is \"file_analyzer\".",
-        "content_digest": "46a159d54ec88ba2",
+        "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+        "content_digest": "66bed9fc16754ebe",
         "observation_type": "generation"
       },
       {
         "index": 3,
-        "role": "user",
-        "entry_type": "text",
-        "content": "Describe the contents of this image in detail using instructions from the PDF document.",
-        "content_digest": "8c75c636689055d9",
-        "observation_type": "generation"
-      },
-      {
-        "index": 4,
         "role": "user",
         "entry_type": "image",
         "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
@@ -392,21 +249,11 @@
         "observation_type": "generation"
       },
       {
-        "index": 5,
+        "index": 4,
         "role": "user",
         "entry_type": "document",
         "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXyvUKoKSIZfkct/d…[17690 chars]",
         "content_digest": "e69c476dd545eb4b",
-        "observation_type": "generation"
-      },
-      {
-        "index": 6,
-        "role": "assistant",
-        "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"gemini_read_file_metadata_call_ba335c37\",\"name\":\"read_file_metadata\",\"input\":{\"file_path\":\"examples/assets/img.jpg\"}}",
-        "content_digest": "ddcf2b99532cf0e6",
-        "tool_name": "read_file_metadata",
-        "finish_reason": "Stop",
         "observation_type": "generation"
       }
     ]

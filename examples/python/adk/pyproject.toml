@@ -1,39 +1,22 @@
 [project]
-name = "adk-sample"
-version = "0.1.0"
-description = "SideSeat telemetry sample for Google ADK"
-requires-python = ">=3.12,<3.14"
+name = "example-adk"
+version = "0.0.0"
+description = "Google Agent Development Kit scenarios for SideSeat"
+requires-python = ">=3.11"
 dependencies = [
-    "numpy>=1.26",
-    "telemetry-common",
-    "sideseat",
-    # google-adk requires opentelemetry-sdk<1.39.0,>=1.36.0
-    "google-adk[mcp]>=1.27.0",
-    "litellm>=1.82.1",
-    "boto3>=1.42.22",
-    "pymupdf>=1.25.0",
-    "python-dotenv>=1.2.0",
+    "google-adk[mcp]>=2.11.0",
+    "litellm>=1.104.0",
+    "sideseat-example-harness[bedrock]",
 ]
 
-[project.scripts]
-# Note: google-adk also installs an `adk` CLI; use telemetry-adk to avoid conflict
-telemetry-adk = "cli:main"
+[tool.sideseat-example]
+producer = "adk"
+integrations = ["google-adk"]
 
 [tool.uv]
-# The resolver version this repository declares. Restated here because a project's own `[tool.uv]`
-# **replaces** the `uv.toml` found above it rather than merging with it, so without this line these
-# projects were the ones a differently-versioned uv could still write lockfiles for. Held equal to the
-# root by `every_uv_project_requires_the_same_resolver`.
 required-version = "==0.12.13"
-prerelease = "allow"
+package = false
 
 [tool.uv.sources]
-telemetry-common = { path = "../common", editable = true }
+sideseat-example-harness = { path = "../harness", editable = true }
 sideseat = { path = "../../../sdk/python", editable = true }
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-include = ["*.py", "samples/"]

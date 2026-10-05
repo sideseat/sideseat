@@ -1,145 +1,323 @@
 {
   "label": "adk/native/error",
-  "request_count": 1,
-  "span_count": 4,
+  "request_count": 2,
+  "span_count": 8,
   "trace_count": 1,
   "session_count": 1,
   "span_views": {
-    "trace-1/call_llm/span-3": {
-      "message_count": 1,
+    "trace-1/call_llm/span-4": {
+      "message_count": 3,
       "role_sequence": [
+        "system",
+        "user",
         "assistant"
       ],
       "tool_names": [],
-      "tool_definition_count": 0,
+      "tool_definition_count": 1,
       "messages": [
         {
           "index": 0,
-          "role": "assistant",
+          "role": "system",
           "entry_type": "text",
-          "content": "litellm.exceptions.BadRequestError: litellm.BadRequestError: OpenAIException - model not found",
-          "content_digest": "cd8ff8c41a34743c",
-          "finish_reason": "Error",
-          "observation_type": "span"
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Book me a flight from London to Oslo on 2026-11-14.",
+          "content_digest": "1b969baf99595bc8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_book_flight_call_f4326d57\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
+          "content_digest": "a7e1ee4e43142a22",
+          "tool_name": "book_flight",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
         }
       ]
     },
-    "trace-1/generate_content openai/nonexistent-model-id-12345/span-4": {
-      "message_count": 1,
+    "trace-1/call_llm/span-7": {
+      "message_count": 5,
       "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
         "assistant"
       ],
       "tool_names": [],
-      "tool_definition_count": 0,
+      "tool_definition_count": 1,
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Book me a flight from London to Oslo on 2026-11-14.",
+          "content_digest": "1b969baf99595bc8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_book_flight_call_f4326d57\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
+          "content_digest": "a7e1ee4e43142a22",
+          "tool_name": "book_flight",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_book_flight_call_f4326d57\",\"name\":\"book_flight\",\"content\":{\"error\":\"BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.\"}}",
+          "content_digest": "c5d25fb5166abcfc",
+          "tool_name": "book_flight",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
-          "content": "litellm.exceptions.BadRequestError: litellm.BadRequestError: OpenAIException - model not found",
-          "content_digest": "cd8ff8c41a34743c",
-          "finish_reason": "Error",
-          "observation_type": "agent"
+          "content": "I couldn't book the flight from London to Oslo on 2026-11-14 because the booking system is offline and reported no available seats. Please try again later, or I can try a different date if you'd like.",
+          "content_digest": "d229bce0917e355a",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
         }
       ]
     },
-    "trace-1/invocation/span-1": {
-      "message_count": 1,
-      "role_sequence": [
-        "assistant"
-      ],
+    "trace-1/error/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "litellm.exceptions.BadRequestError: litellm.BadRequestError: OpenAIException - model not found",
-          "content_digest": "cd8ff8c41a34743c",
-          "finish_reason": "Error",
-          "observation_type": "span"
-        }
-      ]
+      "messages": []
     },
-    "trace-1/invoke_agent assistant/span-2": {
-      "message_count": 1,
-      "role_sequence": [
-        "assistant"
-      ],
+    "trace-1/execute_tool book_flight/span-6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-1/generate_content bedrock/global.anthropic.claude-sonnet-5-5/span-5": {
+      "message_count": 0,
+      "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "litellm.exceptions.BadRequestError: litellm.BadRequestError: OpenAIException - model not found",
-          "content_digest": "cd8ff8c41a34743c",
-          "finish_reason": "Error",
-          "observation_type": "agent"
-        }
-      ]
+      "messages": []
+    },
+    "trace-1/generate_content bedrock/global.anthropic.claude-sonnet-5-5/span-8": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/invocation/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/invoke_agent assistant/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
     }
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 1,
+      "message_count": 5,
       "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
         "assistant"
       ],
       "tool_names": [],
-      "tool_definition_count": 0,
+      "tool_definition_count": 1,
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Book me a flight from London to Oslo on 2026-11-14.",
+          "content_digest": "1b969baf99595bc8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_book_flight_call_f4326d57\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
+          "content_digest": "a7e1ee4e43142a22",
+          "tool_name": "book_flight",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_book_flight_call_f4326d57\",\"name\":\"book_flight\",\"content\":{\"error\":\"BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.\"}}",
+          "content_digest": "c5d25fb5166abcfc",
+          "tool_name": "book_flight",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
-          "content": "litellm.exceptions.BadRequestError: litellm.BadRequestError: OpenAIException - model not found",
-          "content_digest": "cd8ff8c41a34743c",
-          "finish_reason": "Error",
-          "observation_type": "agent"
+          "content": "I couldn't book the flight from London to Oslo on 2026-11-14 because the booking system is offline and reported no available seats. Please try again later, or I can try a different date if you'd like.",
+          "content_digest": "d229bce0917e355a",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
         }
       ]
     }
   },
   "session_views": {
-    "adk-error-b56644ab": {
-      "message_count": 1,
+    "adk-error": {
+      "message_count": 5,
       "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
         "assistant"
       ],
       "tool_names": [],
-      "tool_definition_count": 0,
+      "tool_definition_count": 1,
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Book me a flight from London to Oslo on 2026-11-14.",
+          "content_digest": "1b969baf99595bc8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_book_flight_call_f4326d57\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
+          "content_digest": "a7e1ee4e43142a22",
+          "tool_name": "book_flight",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_book_flight_call_f4326d57\",\"name\":\"book_flight\",\"content\":{\"error\":\"BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.\"}}",
+          "content_digest": "c5d25fb5166abcfc",
+          "tool_name": "book_flight",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
-          "content": "litellm.exceptions.BadRequestError: litellm.BadRequestError: OpenAIException - model not found",
-          "content_digest": "cd8ff8c41a34743c",
-          "finish_reason": "Error",
-          "observation_type": "agent"
+          "content": "I couldn't book the flight from London to Oslo on 2026-11-14 because the booking system is offline and reported no available seats. Please try again later, or I can try a different date if you'd like.",
+          "content_digest": "d229bce0917e355a",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
         }
       ]
     }
   },
   "feed_view": {
-    "message_count": 1,
+    "message_count": 5,
     "role_sequence": [
+      "assistant",
+      "tool",
+      "system",
+      "user",
       "assistant"
     ],
     "tool_names": [],
-    "tool_definition_count": 0,
+    "tool_definition_count": 1,
     "messages": [
       {
         "index": 0,
         "role": "assistant",
         "entry_type": "text",
-        "content": "litellm.exceptions.BadRequestError: litellm.BadRequestError: OpenAIException - model not found",
-        "content_digest": "cd8ff8c41a34743c",
-        "finish_reason": "Error",
-        "observation_type": "agent"
+        "content": "I couldn't book the flight from London to Oslo on 2026-11-14 because the booking system is offline and reported no available seats. Please try again later, or I can try a different date if you'd like.",
+        "content_digest": "d229bce0917e355a",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_book_flight_call_f4326d57\",\"name\":\"book_flight\",\"content\":{\"error\":\"BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.\"}}",
+        "content_digest": "c5d25fb5166abcfc",
+        "tool_name": "book_flight",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+        "content_digest": "f4fcdd0112621c7c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Book me a flight from London to Oslo on 2026-11-14.",
+        "content_digest": "1b969baf99595bc8",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"gemini_book_flight_call_f4326d57\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
+        "content_digest": "a7e1ee4e43142a22",
+        "tool_name": "book_flight",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
       }
     ]
   }

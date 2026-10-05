@@ -82,34 +82,16 @@ INTENTIONAL_WARNINGS: dict[str, dict[str, tuple[int, str]]] = {
             "synthetic response intentionally contains calls but no executions",
         ),
     },
-    "adk/structured_output": {
-        "raw_json_text": (
-            2,
-            "provider returns schema-constrained JSON as assistant text",
-        ),
-    },
-    "adk-native/structured_output": {
-        "raw_json_text": (
-            2,
-            "provider returns schema-constrained JSON as assistant text",
-        ),
-    },
-    "adk-sdk/structured_output": {
-        "raw_json_text": (
-            2,
-            "provider returns schema-constrained JSON as assistant text",
-        ),
-    },
-    "adk-native/swarm": {
+    "adk/native/multi_agent": {
         "unbalanced_tools": (
             2,
-            "ADK represents transfer completion as quoted handoff context in the next agent",
+            "ADK hands transfer_to_agent's result to the next agent only as quoted context, never as a result",
         ),
     },
-    "adk-sdk/swarm": {
+    "adk/sdk/multi_agent": {
         "unbalanced_tools": (
             2,
-            "ADK represents transfer completion as quoted handoff context in the next agent",
+            "ADK hands transfer_to_agent's result to the next agent only as quoted context, never as a result",
         ),
     },
     "agent-framework/native/structured_output": {

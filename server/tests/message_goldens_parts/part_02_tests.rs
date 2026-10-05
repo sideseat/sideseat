@@ -798,6 +798,22 @@ fn with_restored_media_aligned(label: &str, native: Golden, sdk: Golden) -> (Gol
         !sdk_json.contains(MEDIA_OMITTED),
         "{label}: SDK telemetry lost a media payload the integration should restore"
     );
+    if MEDIA_DROPPED_NATIVELY.iter().any(|(declared, _)| *declared == label) {
+        let count = |golden: &Golden| {
+            golden
+                .trace_views
+                .values()
+                .flat_map(|view| &view.messages)
+                .filter(|message| is_media(&message.entry_type))
+                .count()
+        };
+        assert!(
+            count(&native) == 0 && count(&sdk) > 0,
+            "{label}: declared as media the native telemetry drops and the SDK restores, which no \
+             longer holds - remove the declaration"
+        );
+        return (native, without_media(sdk));
+    }
     if !serde_json::to_string(&native).expect("golden is serializable").contains(MEDIA_OMITTED) {
         return (native, sdk);
     }

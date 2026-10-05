@@ -1,350 +1,23 @@
 {
   "label": "adk/native/tool_use",
-  "request_count": 1,
-  "span_count": 28,
-  "trace_count": 4,
+  "request_count": 2,
+  "span_count": 12,
+  "trace_count": 1,
   "session_count": 1,
   "span_views": {
-    "trace-1/call_llm/span-3": {
-      "message_count": 3,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 2,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "27b8c64de4dd8167",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "75e9643b50cb90f4",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "trace-1/call_llm/span-6": {
-      "message_count": 5,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant",
-        "tool",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 2,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "27b8c64de4dd8167",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "75e9643b50cb90f4",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-          "content_digest": "d6ad67957bf12aea",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The tool completed successfully.",
-          "content_digest": "66bcb0fcdca80511",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "trace-1/execute_tool temperature_forecast/span-5": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 1,
-      "messages": []
-    },
-    "trace-1/generate_content openai/gpt-5-nano-2025-08-07/span-4": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "trace-1/generate_content openai/gpt-5-nano-2025-08-07/span-7": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "trace-1/invocation/span-1": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "trace-1/invoke_agent weather_assistant/span-2": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "trace-2/call_llm/span-3": {
-      "message_count": 7,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant",
-        "tool",
-        "assistant",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 2,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "27b8c64de4dd8167",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "75e9643b50cb90f4",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-          "content_digest": "d6ad67957bf12aea",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The tool completed successfully.",
-          "content_digest": "66bcb0fcdca80511",
-          "observation_type": "generation"
-        },
-        {
-          "index": 5,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "75e9643b50cb90f4",
-          "observation_type": "generation"
-        },
-        {
-          "index": 6,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "trace-2/call_llm/span-6": {
-      "message_count": 8,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant",
-        "tool",
-        "assistant",
-        "user",
-        "assistant",
-        "tool"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 2,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "27b8c64de4dd8167",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "75e9643b50cb90f4",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-          "content_digest": "d6ad67957bf12aea",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The tool completed successfully.",
-          "content_digest": "66bcb0fcdca80511",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 5,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "75e9643b50cb90f4",
-          "observation_type": "generation"
-        },
-        {
-          "index": 6,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 7,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-          "content_digest": "d6ad67957bf12aea",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "trace-2/execute_tool temperature_forecast/span-5": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 1,
-      "messages": []
-    },
-    "trace-2/generate_content openai/gpt-5-nano-2025-08-07/span-4": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "trace-2/generate_content openai/gpt-5-nano-2025-08-07/span-7": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "trace-2/invocation/span-1": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "trace-2/invoke_agent weather_assistant/span-2": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "trace-3/call_llm/span-3": {
+    "trace-1/call_llm/span-11": {
       "message_count": 11,
       "role_sequence": [
         "system",
         "user",
         "assistant",
+        "assistant",
+        "assistant",
+        "assistant",
         "tool",
-        "assistant",
-        "user",
-        "assistant",
         "tool",
-        "assistant",
-        "user",
+        "tool",
+        "tool",
         "assistant"
       ],
       "tool_names": [],
@@ -354,274 +27,109 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
-          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "27b8c64de4dd8167",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
           "observation_type": "generation"
         },
         {
           "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "75e9643b50cb90f4",
+          "content": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?",
+          "content_digest": "12fbb235830ec0c9",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_get_weather_call_43dfd068\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
+          "content_digest": "f1e4d38b12debfe9",
+          "tool_name": "get_weather",
           "observation_type": "generation"
         },
         {
           "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-          "content_digest": "d6ad67957bf12aea",
-          "tool_name": "temperature_forecast",
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_get_weather_call_8e9292c3\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
+          "content_digest": "2cfbdb415d149bea",
+          "tool_name": "get_weather",
           "observation_type": "generation"
         },
         {
           "index": 4,
           "role": "assistant",
-          "entry_type": "text",
-          "content": "The tool completed successfully.",
-          "content_digest": "66bcb0fcdca80511",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_get_precipitation_call_cb69f91b\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "1d0d4fb89a429e14",
+          "tool_name": "get_precipitation",
           "observation_type": "generation"
         },
         {
           "index": 5,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "75e9643b50cb90f4",
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_get_precipitation_call_24345252\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
+          "content_digest": "0d228fbe13796942",
+          "tool_name": "get_precipitation",
           "observation_type": "generation"
         },
         {
           "index": 6,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_get_weather_call_43dfd068\",\"name\":\"get_weather\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "bab4ca44bed921ec",
+          "tool_name": "get_weather",
           "observation_type": "generation"
         },
         {
           "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-          "content_digest": "d6ad67957bf12aea",
-          "tool_name": "temperature_forecast",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_get_weather_call_8e9292c3\",\"name\":\"get_weather\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "e401b6c589f97c95",
+          "tool_name": "get_weather",
           "observation_type": "generation"
         },
         {
           "index": 8,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The tool completed successfully.",
-          "content_digest": "66bcb0fcdca80511",
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_get_precipitation_call_cb69f91b\",\"name\":\"get_precipitation\",\"content\":{\"result\":\"10% chance of rain in Paris tomorrow.\"}}",
+          "content_digest": "14142ab475b861b0",
+          "tool_name": "get_precipitation",
           "observation_type": "generation"
         },
         {
           "index": 9,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 7-day weather forecast for Los Angeles.",
-          "content_digest": "984bf68a8a35a65a",
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_get_precipitation_call_24345252\",\"name\":\"get_precipitation\",\"content\":{\"result\":\"80% chance of rain in Tokyo tomorrow.\"}}",
+          "content_digest": "81e6ad706c117623",
+          "tool_name": "get_precipitation",
           "observation_type": "generation"
         },
         {
           "index": 10,
           "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
+          "entry_type": "text",
+          "content": "Paris will be sunny both days, with highs of 21°C and 22°C. Tokyo will have rain on day 1 (21°C) and sun on day 2 (22°C). You don't need an umbrella for Paris, where tomorrow's rain chance is only 10%. Pack one for Tokyo, where the rain cha…[251 chars]",
+          "content_digest": "bafac1f8a1e43c93",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
     },
-    "trace-3/call_llm/span-6": {
-      "message_count": 12,
+    "trace-1/call_llm/span-4": {
+      "message_count": 6,
       "role_sequence": [
         "system",
         "user",
         "assistant",
-        "tool",
         "assistant",
-        "user",
         "assistant",
-        "tool",
-        "assistant",
-        "user",
-        "assistant",
-        "tool"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 2,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "27b8c64de4dd8167",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "75e9643b50cb90f4",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-          "content_digest": "d6ad67957bf12aea",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The tool completed successfully.",
-          "content_digest": "66bcb0fcdca80511",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 5,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "75e9643b50cb90f4",
-          "observation_type": "generation"
-        },
-        {
-          "index": 6,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 7,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-          "content_digest": "d6ad67957bf12aea",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 8,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The tool completed successfully.",
-          "content_digest": "66bcb0fcdca80511",
-          "observation_type": "generation"
-        },
-        {
-          "index": 9,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 7-day weather forecast for Los Angeles.",
-          "content_digest": "984bf68a8a35a65a",
-          "observation_type": "generation"
-        },
-        {
-          "index": 10,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 11,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-          "content_digest": "d6ad67957bf12aea",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "trace-3/execute_tool temperature_forecast/span-5": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 1,
-      "messages": []
-    },
-    "trace-3/generate_content openai/gpt-5-nano-2025-08-07/span-4": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "trace-3/generate_content openai/gpt-5-nano-2025-08-07/span-7": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "trace-3/invocation/span-1": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "trace-3/invoke_agent weather_assistant/span-2": {
-      "message_count": 0,
-      "role_sequence": [],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": []
-    },
-    "trace-4/call_llm/span-3": {
-      "message_count": 15,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant",
-        "tool",
-        "assistant",
-        "user",
-        "assistant",
-        "tool",
-        "assistant",
-        "user",
-        "assistant",
-        "tool",
-        "assistant",
-        "user",
         "assistant"
       ],
       "tool_names": [],
@@ -631,323 +139,120 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
-          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "27b8c64de4dd8167",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
           "observation_type": "generation"
         },
         {
           "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "75e9643b50cb90f4",
+          "content": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?",
+          "content_digest": "12fbb235830ec0c9",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_get_weather_call_43dfd068\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
+          "content_digest": "f1e4d38b12debfe9",
+          "tool_name": "get_weather",
           "observation_type": "generation"
         },
         {
           "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-          "content_digest": "d6ad67957bf12aea",
-          "tool_name": "temperature_forecast",
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_get_weather_call_8e9292c3\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
+          "content_digest": "2cfbdb415d149bea",
+          "tool_name": "get_weather",
           "observation_type": "generation"
         },
         {
           "index": 4,
           "role": "assistant",
-          "entry_type": "text",
-          "content": "The tool completed successfully.",
-          "content_digest": "66bcb0fcdca80511",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_get_precipitation_call_cb69f91b\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "1d0d4fb89a429e14",
+          "tool_name": "get_precipitation",
           "observation_type": "generation"
         },
         {
           "index": 5,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "75e9643b50cb90f4",
-          "observation_type": "generation"
-        },
-        {
-          "index": 6,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 7,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-          "content_digest": "d6ad67957bf12aea",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 8,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The tool completed successfully.",
-          "content_digest": "66bcb0fcdca80511",
-          "observation_type": "generation"
-        },
-        {
-          "index": 9,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 7-day weather forecast for Los Angeles.",
-          "content_digest": "984bf68a8a35a65a",
-          "observation_type": "generation"
-        },
-        {
-          "index": 10,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 11,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-          "content_digest": "d6ad67957bf12aea",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 12,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The tool completed successfully.",
-          "content_digest": "66bcb0fcdca80511",
-          "observation_type": "generation"
-        },
-        {
-          "index": 13,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 14-day weather forecast for London.",
-          "content_digest": "7426414dbeed41d0",
-          "observation_type": "generation"
-        },
-        {
-          "index": 14,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
-          "finish_reason": "Stop",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_get_precipitation_call_24345252\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
+          "content_digest": "0d228fbe13796942",
+          "tool_name": "get_precipitation",
           "observation_type": "generation"
         }
       ]
     },
-    "trace-4/call_llm/span-6": {
-      "message_count": 16,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant",
-        "tool",
-        "assistant",
-        "user",
-        "assistant",
-        "tool",
-        "assistant",
-        "user",
-        "assistant",
-        "tool",
-        "assistant",
-        "user",
-        "assistant",
-        "tool"
-      ],
+    "trace-1/execute_tool (merged)/span-10": {
+      "message_count": 0,
+      "role_sequence": [],
       "tool_names": [],
-      "tool_definition_count": 2,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "27b8c64de4dd8167",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "75e9643b50cb90f4",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-          "content_digest": "d6ad67957bf12aea",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The tool completed successfully.",
-          "content_digest": "66bcb0fcdca80511",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 5,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "75e9643b50cb90f4",
-          "observation_type": "generation"
-        },
-        {
-          "index": 6,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 7,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-          "content_digest": "d6ad67957bf12aea",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 8,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The tool completed successfully.",
-          "content_digest": "66bcb0fcdca80511",
-          "observation_type": "generation"
-        },
-        {
-          "index": 9,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 7-day weather forecast for Los Angeles.",
-          "content_digest": "984bf68a8a35a65a",
-          "observation_type": "generation"
-        },
-        {
-          "index": 10,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 11,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-          "content_digest": "d6ad67957bf12aea",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 12,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The tool completed successfully.",
-          "content_digest": "66bcb0fcdca80511",
-          "observation_type": "generation"
-        },
-        {
-          "index": 13,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 14-day weather forecast for London.",
-          "content_digest": "7426414dbeed41d0",
-          "observation_type": "generation"
-        },
-        {
-          "index": 14,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 15,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-          "content_digest": "d6ad67957bf12aea",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        }
-      ]
+      "tool_definition_count": 0,
+      "messages": []
     },
-    "trace-4/execute_tool temperature_forecast/span-5": {
+    "trace-1/execute_tool get_precipitation/span-8": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 1,
       "messages": []
     },
-    "trace-4/generate_content openai/gpt-5-nano-2025-08-07/span-4": {
+    "trace-1/execute_tool get_precipitation/span-9": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-1/execute_tool get_weather/span-6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-1/execute_tool get_weather/span-7": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-1/generate_content bedrock/global.anthropic.claude-sonnet-5-5/span-12": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "trace-4/generate_content openai/gpt-5-nano-2025-08-07/span-7": {
+    "trace-1/generate_content bedrock/global.anthropic.claude-sonnet-5-5/span-5": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "trace-4/invocation/span-1": {
+    "trace-1/invocation/span-2": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "trace-4/invoke_agent weather_assistant/span-2": {
+    "trace-1/invoke_agent assistant/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/tool-use/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
@@ -957,11 +262,17 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 5,
+      "message_count": 11,
       "role_sequence": [
         "system",
         "user",
         "assistant",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "tool",
+        "tool",
         "tool",
         "assistant"
       ],
@@ -972,217 +283,96 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
-          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "27b8c64de4dd8167",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
           "observation_type": "generation"
         },
         {
           "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "75e9643b50cb90f4",
+          "content": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?",
+          "content_digest": "12fbb235830ec0c9",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
-          "finish_reason": "Stop",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_get_weather_call_43dfd068\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
+          "content_digest": "f1e4d38b12debfe9",
+          "tool_name": "get_weather",
           "observation_type": "generation"
         },
         {
           "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-          "content_digest": "d6ad67957bf12aea",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The tool completed successfully.",
-          "content_digest": "66bcb0fcdca80511",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "trace-2": {
-      "message_count": 5,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant",
-        "tool",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 2,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "27b8c64de4dd8167",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "75e9643b50cb90f4",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-          "content_digest": "d6ad67957bf12aea",
-          "tool_name": "temperature_forecast",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_get_weather_call_8e9292c3\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
+          "content_digest": "2cfbdb415d149bea",
+          "tool_name": "get_weather",
           "observation_type": "generation"
         },
         {
           "index": 4,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The tool completed successfully.",
-          "content_digest": "66bcb0fcdca80511",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "trace-3": {
-      "message_count": 5,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant",
-        "tool",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 2,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "27b8c64de4dd8167",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 7-day weather forecast for Los Angeles.",
-          "content_digest": "984bf68a8a35a65a",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
-          "finish_reason": "Stop",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_get_precipitation_call_cb69f91b\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "1d0d4fb89a429e14",
+          "tool_name": "get_precipitation",
           "observation_type": "generation"
         },
         {
-          "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-          "content_digest": "d6ad67957bf12aea",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The tool completed successfully.",
-          "content_digest": "66bcb0fcdca80511",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "trace-4": {
-      "message_count": 5,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant",
-        "tool",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 2,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "27b8c64de4dd8167",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 14-day weather forecast for London.",
-          "content_digest": "7426414dbeed41d0",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
+          "index": 5,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
-          "finish_reason": "Stop",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_get_precipitation_call_24345252\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
+          "content_digest": "0d228fbe13796942",
+          "tool_name": "get_precipitation",
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-          "content_digest": "d6ad67957bf12aea",
-          "tool_name": "temperature_forecast",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_get_weather_call_43dfd068\",\"name\":\"get_weather\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "bab4ca44bed921ec",
+          "tool_name": "get_weather",
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 7,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_get_weather_call_8e9292c3\",\"name\":\"get_weather\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "e401b6c589f97c95",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_get_precipitation_call_cb69f91b\",\"name\":\"get_precipitation\",\"content\":{\"result\":\"10% chance of rain in Paris tomorrow.\"}}",
+          "content_digest": "14142ab475b861b0",
+          "tool_name": "get_precipitation",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_get_precipitation_call_24345252\",\"name\":\"get_precipitation\",\"content\":{\"result\":\"80% chance of rain in Tokyo tomorrow.\"}}",
+          "content_digest": "81e6ad706c117623",
+          "tool_name": "get_precipitation",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
           "role": "assistant",
           "entry_type": "text",
-          "content": "The tool completed successfully.",
-          "content_digest": "66bcb0fcdca80511",
+          "content": "Paris will be sunny both days, with highs of 21°C and 22°C. Tokyo will have rain on day 1 (21°C) and sun on day 2 (22°C). You don't need an umbrella for Paris, where tomorrow's rain chance is only 10%. Pack one for Tokyo, where the rain cha…[251 chars]",
+          "content_digest": "bafac1f8a1e43c93",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -1190,27 +380,18 @@
     }
   },
   "session_views": {
-    "adk-tool_use-7419f493": {
-      "message_count": 20,
+    "adk-tool_use": {
+      "message_count": 11,
       "role_sequence": [
         "system",
         "user",
         "assistant",
-        "tool",
         "assistant",
-        "system",
-        "user",
+        "assistant",
         "assistant",
         "tool",
-        "assistant",
-        "system",
-        "user",
-        "assistant",
         "tool",
-        "assistant",
-        "system",
-        "user",
-        "assistant",
+        "tool",
         "tool",
         "assistant"
       ],
@@ -1221,175 +402,96 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
-          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "27b8c64de4dd8167",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+          "content_digest": "f4fcdd0112621c7c",
           "observation_type": "generation"
         },
         {
           "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "75e9643b50cb90f4",
+          "content": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?",
+          "content_digest": "12fbb235830ec0c9",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
-          "finish_reason": "Stop",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_get_weather_call_43dfd068\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
+          "content_digest": "f1e4d38b12debfe9",
+          "tool_name": "get_weather",
           "observation_type": "generation"
         },
         {
           "index": 3,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-          "content_digest": "d6ad67957bf12aea",
-          "tool_name": "temperature_forecast",
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_get_weather_call_8e9292c3\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
+          "content_digest": "2cfbdb415d149bea",
+          "tool_name": "get_weather",
           "observation_type": "generation"
         },
         {
           "index": 4,
           "role": "assistant",
-          "entry_type": "text",
-          "content": "The tool completed successfully.",
-          "content_digest": "66bcb0fcdca80511",
-          "finish_reason": "Stop",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_get_precipitation_call_cb69f91b\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "1d0d4fb89a429e14",
+          "tool_name": "get_precipitation",
           "observation_type": "generation"
         },
         {
           "index": 5,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "27b8c64de4dd8167",
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_get_precipitation_call_24345252\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
+          "content_digest": "0d228fbe13796942",
+          "tool_name": "get_precipitation",
           "observation_type": "generation"
         },
         {
           "index": 6,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 3-day weather forecast for New York City.",
-          "content_digest": "75e9643b50cb90f4",
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_get_weather_call_43dfd068\",\"name\":\"get_weather\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "bab4ca44bed921ec",
+          "tool_name": "get_weather",
           "observation_type": "generation"
         },
         {
           "index": 7,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
-          "finish_reason": "Stop",
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_get_weather_call_8e9292c3\",\"name\":\"get_weather\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "e401b6c589f97c95",
+          "tool_name": "get_weather",
           "observation_type": "generation"
         },
         {
           "index": 8,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-          "content_digest": "d6ad67957bf12aea",
-          "tool_name": "temperature_forecast",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_get_precipitation_call_cb69f91b\",\"name\":\"get_precipitation\",\"content\":{\"result\":\"10% chance of rain in Paris tomorrow.\"}}",
+          "content_digest": "14142ab475b861b0",
+          "tool_name": "get_precipitation",
           "observation_type": "generation"
         },
         {
           "index": 9,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The tool completed successfully.",
-          "content_digest": "66bcb0fcdca80511",
-          "finish_reason": "Stop",
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_get_precipitation_call_24345252\",\"name\":\"get_precipitation\",\"content\":{\"result\":\"80% chance of rain in Tokyo tomorrow.\"}}",
+          "content_digest": "81e6ad706c117623",
+          "tool_name": "get_precipitation",
           "observation_type": "generation"
         },
         {
           "index": 10,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "27b8c64de4dd8167",
-          "observation_type": "generation"
-        },
-        {
-          "index": 11,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 7-day weather forecast for Los Angeles.",
-          "content_digest": "984bf68a8a35a65a",
-          "observation_type": "generation"
-        },
-        {
-          "index": 12,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 13,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-          "content_digest": "d6ad67957bf12aea",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 14,
           "role": "assistant",
           "entry_type": "text",
-          "content": "The tool completed successfully.",
-          "content_digest": "66bcb0fcdca80511",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 15,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-          "content_digest": "27b8c64de4dd8167",
-          "observation_type": "generation"
-        },
-        {
-          "index": 16,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Provide a 14-day weather forecast for London.",
-          "content_digest": "7426414dbeed41d0",
-          "observation_type": "generation"
-        },
-        {
-          "index": 17,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "fcb15e32b65b9699",
-          "tool_name": "temperature_forecast",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 18,
-          "role": "tool",
-          "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-          "content_digest": "d6ad67957bf12aea",
-          "tool_name": "temperature_forecast",
-          "observation_type": "generation"
-        },
-        {
-          "index": 19,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "The tool completed successfully.",
-          "content_digest": "66bcb0fcdca80511",
+          "content": "Paris will be sunny both days, with highs of 21°C and 22°C. Tokyo will have rain on day 1 (21°C) and sun on day 2 (22°C). You don't need an umbrella for Paris, where tomorrow's rain chance is only 10%. Pack one for Tokyo, where the rain cha…[251 chars]",
+          "content_digest": "bafac1f8a1e43c93",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -1397,27 +499,18 @@
     }
   },
   "feed_view": {
-    "message_count": 20,
+    "message_count": 11,
     "role_sequence": [
       "assistant",
       "tool",
-      "system",
-      "user",
-      "assistant",
-      "assistant",
+      "tool",
+      "tool",
       "tool",
       "system",
       "user",
       "assistant",
       "assistant",
-      "tool",
-      "system",
-      "user",
       "assistant",
-      "assistant",
-      "tool",
-      "system",
-      "user",
       "assistant"
     ],
     "tool_names": [],
@@ -1427,8 +520,8 @@
         "index": 0,
         "role": "assistant",
         "entry_type": "text",
-        "content": "The tool completed successfully.",
-        "content_digest": "66bcb0fcdca80511",
+        "content": "Paris will be sunny both days, with highs of 21°C and 22°C. Tokyo will have rain on day 1 (21°C) and sun on day 2 (22°C). You don't need an umbrella for Paris, where tomorrow's rain chance is only 10%. Pack one for Tokyo, where the rain cha…[251 chars]",
+        "content_digest": "bafac1f8a1e43c93",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },
@@ -1436,167 +529,88 @@
         "index": 1,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-        "content_digest": "d6ad67957bf12aea",
-        "tool_name": "temperature_forecast",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_get_weather_call_43dfd068\",\"name\":\"get_weather\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+        "content_digest": "bab4ca44bed921ec",
+        "tool_name": "get_weather",
         "observation_type": "generation"
       },
       {
         "index": 2,
-        "role": "system",
-        "entry_type": "text",
-        "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-        "content_digest": "27b8c64de4dd8167",
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_get_weather_call_8e9292c3\",\"name\":\"get_weather\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+        "content_digest": "e401b6c589f97c95",
+        "tool_name": "get_weather",
         "observation_type": "generation"
       },
       {
         "index": 3,
-        "role": "user",
-        "entry_type": "text",
-        "content": "Provide a 14-day weather forecast for London.",
-        "content_digest": "7426414dbeed41d0",
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_get_precipitation_call_cb69f91b\",\"name\":\"get_precipitation\",\"content\":{\"result\":\"10% chance of rain in Paris tomorrow.\"}}",
+        "content_digest": "14142ab475b861b0",
+        "tool_name": "get_precipitation",
         "observation_type": "generation"
       },
       {
         "index": 4,
-        "role": "assistant",
-        "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-        "content_digest": "fcb15e32b65b9699",
-        "tool_name": "temperature_forecast",
-        "finish_reason": "Stop",
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_get_precipitation_call_24345252\",\"name\":\"get_precipitation\",\"content\":{\"result\":\"80% chance of rain in Tokyo tomorrow.\"}}",
+        "content_digest": "81e6ad706c117623",
+        "tool_name": "get_precipitation",
         "observation_type": "generation"
       },
       {
         "index": 5,
-        "role": "assistant",
+        "role": "system",
         "entry_type": "text",
-        "content": "The tool completed successfully.",
-        "content_digest": "66bcb0fcdca80511",
-        "finish_reason": "Stop",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
+        "content_digest": "f4fcdd0112621c7c",
         "observation_type": "generation"
       },
       {
         "index": 6,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-        "content_digest": "d6ad67957bf12aea",
-        "tool_name": "temperature_forecast",
+        "role": "user",
+        "entry_type": "text",
+        "content": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?",
+        "content_digest": "12fbb235830ec0c9",
         "observation_type": "generation"
       },
       {
         "index": 7,
-        "role": "system",
-        "entry_type": "text",
-        "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-        "content_digest": "27b8c64de4dd8167",
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"gemini_get_weather_call_43dfd068\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
+        "content_digest": "f1e4d38b12debfe9",
+        "tool_name": "get_weather",
         "observation_type": "generation"
       },
       {
         "index": 8,
-        "role": "user",
-        "entry_type": "text",
-        "content": "Provide a 7-day weather forecast for Los Angeles.",
-        "content_digest": "984bf68a8a35a65a",
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"gemini_get_weather_call_8e9292c3\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
+        "content_digest": "2cfbdb415d149bea",
+        "tool_name": "get_weather",
         "observation_type": "generation"
       },
       {
         "index": 9,
         "role": "assistant",
         "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-        "content_digest": "fcb15e32b65b9699",
-        "tool_name": "temperature_forecast",
-        "finish_reason": "Stop",
+        "content": "{\"type\":\"tool_use\",\"id\":\"gemini_get_precipitation_call_cb69f91b\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
+        "content_digest": "1d0d4fb89a429e14",
+        "tool_name": "get_precipitation",
         "observation_type": "generation"
       },
       {
         "index": 10,
         "role": "assistant",
-        "entry_type": "text",
-        "content": "The tool completed successfully.",
-        "content_digest": "66bcb0fcdca80511",
-        "finish_reason": "Stop",
-        "observation_type": "generation"
-      },
-      {
-        "index": 11,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-        "content_digest": "d6ad67957bf12aea",
-        "tool_name": "temperature_forecast",
-        "observation_type": "generation"
-      },
-      {
-        "index": 12,
-        "role": "system",
-        "entry_type": "text",
-        "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-        "content_digest": "27b8c64de4dd8167",
-        "observation_type": "generation"
-      },
-      {
-        "index": 13,
-        "role": "user",
-        "entry_type": "text",
-        "content": "Provide a 3-day weather forecast for New York City.",
-        "content_digest": "75e9643b50cb90f4",
-        "observation_type": "generation"
-      },
-      {
-        "index": 14,
-        "role": "assistant",
         "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-        "content_digest": "fcb15e32b65b9699",
-        "tool_name": "temperature_forecast",
-        "finish_reason": "Stop",
-        "observation_type": "generation"
-      },
-      {
-        "index": 15,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "The tool completed successfully.",
-        "content_digest": "66bcb0fcdca80511",
-        "finish_reason": "Stop",
-        "observation_type": "generation"
-      },
-      {
-        "index": 16,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"content\":{\"status\":\"success\",\"content\":[{\"json\":{\"city\":\"Paris\",\"days\":3,\"forecast\":[{\"day\":1,\"condition\":\"Sunny\",\"high\":25,\"low\"…[348 chars]",
-        "content_digest": "d6ad67957bf12aea",
-        "tool_name": "temperature_forecast",
-        "observation_type": "generation"
-      },
-      {
-        "index": 17,
-        "role": "system",
-        "entry_type": "text",
-        "content": "You're a helpful weather assistant. Use the weather_forecast tool to get weather data. Guidelines (Important!!!): 1. Always use the weather_forecast tool for weather information. 2. Keep responses concise and friendly. 3. Default to New Yor…[4391 chars]",
-        "content_digest": "27b8c64de4dd8167",
-        "observation_type": "generation"
-      },
-      {
-        "index": 18,
-        "role": "user",
-        "entry_type": "text",
-        "content": "Provide a 3-day weather forecast for New York City.",
-        "content_digest": "75e9643b50cb90f4",
-        "observation_type": "generation"
-      },
-      {
-        "index": 19,
-        "role": "assistant",
-        "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"gemini_temperature_forecast_call_cb69f91b\",\"name\":\"temperature_forecast\",\"input\":{\"city\":\"Paris\"}}",
-        "content_digest": "fcb15e32b65b9699",
-        "tool_name": "temperature_forecast",
-        "finish_reason": "Stop",
+        "content": "{\"type\":\"tool_use\",\"id\":\"gemini_get_precipitation_call_24345252\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
+        "content_digest": "0d228fbe13796942",
+        "tool_name": "get_precipitation",
         "observation_type": "generation"
       }
     ]

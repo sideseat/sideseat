@@ -43,9 +43,8 @@ program (`python`, `javascript`, `dotnet`, `rust`). The mode says who configured
 | Mode | Telemetry configured by |
 | --- | --- |
 | `_synthetic` | hand-written shapes, no SDK | 17 | 17 |
-| `adk/legacy` | google-adk >=1.27.0 | 8 | 18 |
-| `adk/native` | google-adk >=1.27.0, native OTLP setup | 10 | 11 |
-| `adk/sdk` | SideSeat Python 1.0.8 / google-adk >=1.27.0 | 10 | 11 |
+| `adk/native` | Google ADK 2.11.0 / LiteLLM 1.104.0 (Bedrock Converse) / OpenTelemetry Python 1.42.1 on CPython 3.14.7, ADK's own tracing on a global provider; ADK's trace copy of a request leaves out inline parts, so `files` holds the request text only, and `transfer_to_agent`'s result reaches the next agent only as quoted context | 11 | 18 |
+| `adk/sdk` | SideSeat Python 2.0.0 / Google ADK 2.11.0 / LiteLLM 1.104.0 (Bedrock Converse) / OpenTelemetry Python 1.42.1 on CPython 3.14.7; the integration restores the image and PDF ADK leaves out | 11 | 12 |
 | `ag2/native` | AG2 1.1.1 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native TelemetryMiddleware; AG2's telemetry records no system prompt, binary input, or reasoning, so `files` and `reasoning` carry their text only | 11 | 17 |
 | `ag2/sdk` | SideSeat Python 2.0.0 / AG2 1.1.1 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 11 | 11 |
 | `agent-framework/native` | Agent Framework 1.19.0 (core) / agent-framework-anthropic 1.0.0b260918 / Anthropic 0.116.0 (Bedrock) / OpenTelemetry Python 1.45.0 on CPython 3.14.7, `enable_sensitive_telemetry()` on a plain provider; no `files` (neither Bedrock client sends documents) | 10 | 13 |

@@ -1,11 +1,11 @@
 {
   "label": "adk/sdk/structured_output",
   "request_count": 1,
-  "span_count": 4,
+  "span_count": 8,
   "trace_count": 1,
   "session_count": 1,
   "span_views": {
-    "trace-1/call_llm/span-3": {
+    "trace-1/call_llm/span-4": {
       "message_count": 3,
       "role_sequence": [
         "system",
@@ -13,50 +13,129 @@
         "assistant"
       ],
       "tool_names": [],
-      "tool_definition_count": 0,
+      "tool_definition_count": 1,
       "messages": [
         {
           "index": 0,
           "role": "system",
           "entry_type": "text",
-          "content": "You are a helpful assistant that extracts structured information from text. Extract all relevant details including name, age, address, contact information, and skills. Return the information in the exact format specified by the output schem…[306 chars]",
-          "content_digest": "c55cc928d0aa28d9",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Hand the finished plan to trip_plan. You are an agent. Your internal name is \"planner\".",
+          "content_digest": "ba614e498d3b9f89",
           "observation_type": "generation"
         },
         {
           "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
-          "content_digest": "6a08cceee02e13c8",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "text",
-          "content": "{\"name\":\"deterministic-name\",\"age\":1,\"address\":{\"street\":\"deterministic-street\",\"city\":\"Paris\",\"country\":\"deterministic-country\",\"postal_code\":\"deterministic-postal-code\"},\"contacts\":[{\"email\":\"deterministic-email\",\"phone\":\"deterministic-ph…[281 chars]",
-          "content_digest": "eacd2aec1a5c11a0",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_trip_plan_call_d15ef0f5\",\"name\":\"trip_plan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and Graben; coffee and Sachertorte at a classic café; e…[471 chars]",
+          "content_digest": "c0fd669a3afa735d",
+          "tool_name": "trip_plan",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
     },
-    "trace-1/generate_content openai/gpt-5-nano-2025-08-07/span-4": {
+    "trace-1/call_llm/span-7": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Hand the finished plan to trip_plan. You are an agent. Your internal name is \"planner\".",
+          "content_digest": "ba614e498d3b9f89",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_trip_plan_call_d15ef0f5\",\"name\":\"trip_plan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and Graben; coffee and Sachertorte at a classic café; e…[471 chars]",
+          "content_digest": "c0fd669a3afa735d",
+          "tool_name": "trip_plan",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_trip_plan_call_d15ef0f5\",\"name\":\"trip_plan\",\"content\":{\"result\":\"Plan recorded.\"}}",
+          "content_digest": "bd49ab43b15b210c",
+          "tool_name": "trip_plan",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I've recorded a two-day Vienna plan with an estimated budget of €450. That figure is my own rough estimate. I didn't call any weather or booking tools, because none were available here. - **Day 1:** Explore the Innere Stadt, including St. S…[583 chars]",
+          "content_digest": "a43a8c0d87e3b3f6",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/execute_tool trip_plan/span-6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": []
+    },
+    "trace-1/generate_content bedrock/global.anthropic.claude-sonnet-5-5/span-5": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "trace-1/invocation/span-1": {
+    "trace-1/generate_content bedrock/global.anthropic.claude-sonnet-5-5/span-8": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": []
     },
-    "trace-1/invoke_agent extraction_assistant/span-2": {
+    "trace-1/invocation/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/invoke_agent planner/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/structured-output/span-1": {
       "message_count": 0,
       "role_sequence": [],
       "tool_names": [],
@@ -66,37 +145,58 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 3,
+      "message_count": 5,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
+        "tool",
         "assistant"
       ],
       "tool_names": [],
-      "tool_definition_count": 0,
+      "tool_definition_count": 1,
       "messages": [
         {
           "index": 0,
           "role": "system",
           "entry_type": "text",
-          "content": "You are a helpful assistant that extracts structured information from text. Extract all relevant details including name, age, address, contact information, and skills. Return the information in the exact format specified by the output schem…[306 chars]",
-          "content_digest": "c55cc928d0aa28d9",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Hand the finished plan to trip_plan. You are an agent. Your internal name is \"planner\".",
+          "content_digest": "ba614e498d3b9f89",
           "observation_type": "generation"
         },
         {
           "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
-          "content_digest": "6a08cceee02e13c8",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_trip_plan_call_d15ef0f5\",\"name\":\"trip_plan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and Graben; coffee and Sachertorte at a classic café; e…[471 chars]",
+          "content_digest": "c0fd669a3afa735d",
+          "tool_name": "trip_plan",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_trip_plan_call_d15ef0f5\",\"name\":\"trip_plan\",\"content\":{\"result\":\"Plan recorded.\"}}",
+          "content_digest": "bd49ab43b15b210c",
+          "tool_name": "trip_plan",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
           "entry_type": "text",
-          "content": "{\"name\":\"deterministic-name\",\"age\":1,\"address\":{\"street\":\"deterministic-street\",\"city\":\"Paris\",\"country\":\"deterministic-country\",\"postal_code\":\"deterministic-postal-code\"},\"contacts\":[{\"email\":\"deterministic-email\",\"phone\":\"deterministic-ph…[281 chars]",
-          "content_digest": "eacd2aec1a5c11a0",
+          "content": "I've recorded a two-day Vienna plan with an estimated budget of €450. That figure is my own rough estimate. I didn't call any weather or booking tools, because none were available here. - **Day 1:** Explore the Innere Stadt, including St. S…[583 chars]",
+          "content_digest": "a43a8c0d87e3b3f6",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -104,38 +204,59 @@
     }
   },
   "session_views": {
-    "adk-structured_output-196c0e8d": {
-      "message_count": 3,
+    "adk-structured_output": {
+      "message_count": 5,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
+        "tool",
         "assistant"
       ],
       "tool_names": [],
-      "tool_definition_count": 0,
+      "tool_definition_count": 1,
       "messages": [
         {
           "index": 0,
           "role": "system",
           "entry_type": "text",
-          "content": "You are a helpful assistant that extracts structured information from text. Extract all relevant details including name, age, address, contact information, and skills. Return the information in the exact format specified by the output schem…[306 chars]",
-          "content_digest": "c55cc928d0aa28d9",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Hand the finished plan to trip_plan. You are an agent. Your internal name is \"planner\".",
+          "content_digest": "ba614e498d3b9f89",
           "observation_type": "generation"
         },
         {
           "index": 1,
           "role": "user",
           "entry_type": "text",
-          "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
-          "content_digest": "6a08cceee02e13c8",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"gemini_trip_plan_call_d15ef0f5\",\"name\":\"trip_plan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and Graben; coffee and Sachertorte at a classic café; e…[471 chars]",
+          "content_digest": "c0fd669a3afa735d",
+          "tool_name": "trip_plan",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_trip_plan_call_d15ef0f5\",\"name\":\"trip_plan\",\"content\":{\"result\":\"Plan recorded.\"}}",
+          "content_digest": "bd49ab43b15b210c",
+          "tool_name": "trip_plan",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
           "entry_type": "text",
-          "content": "{\"name\":\"deterministic-name\",\"age\":1,\"address\":{\"street\":\"deterministic-street\",\"city\":\"Paris\",\"country\":\"deterministic-country\",\"postal_code\":\"deterministic-postal-code\"},\"contacts\":[{\"email\":\"deterministic-email\",\"phone\":\"deterministic-ph…[281 chars]",
-          "content_digest": "eacd2aec1a5c11a0",
+          "content": "I've recorded a two-day Vienna plan with an estimated budget of €450. That figure is my own rough estimate. I didn't call any weather or booking tools, because none were available here. - **Day 1:** Explore the Innere Stadt, including St. S…[583 chars]",
+          "content_digest": "a43a8c0d87e3b3f6",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -143,38 +264,59 @@
     }
   },
   "feed_view": {
-    "message_count": 3,
+    "message_count": 5,
     "role_sequence": [
       "assistant",
+      "tool",
       "system",
-      "user"
+      "user",
+      "assistant"
     ],
     "tool_names": [],
-    "tool_definition_count": 0,
+    "tool_definition_count": 1,
     "messages": [
       {
         "index": 0,
         "role": "assistant",
         "entry_type": "text",
-        "content": "{\"name\":\"deterministic-name\",\"age\":1,\"address\":{\"street\":\"deterministic-street\",\"city\":\"Paris\",\"country\":\"deterministic-country\",\"postal_code\":\"deterministic-postal-code\"},\"contacts\":[{\"email\":\"deterministic-email\",\"phone\":\"deterministic-ph…[281 chars]",
-        "content_digest": "eacd2aec1a5c11a0",
+        "content": "I've recorded a two-day Vienna plan with an estimated budget of €450. That figure is my own rough estimate. I didn't call any weather or booking tools, because none were available here. - **Day 1:** Explore the Innere Stadt, including St. S…[583 chars]",
+        "content_digest": "a43a8c0d87e3b3f6",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {
         "index": 1,
-        "role": "system",
-        "entry_type": "text",
-        "content": "You are a helpful assistant that extracts structured information from text. Extract all relevant details including name, age, address, contact information, and skills. Return the information in the exact format specified by the output schem…[306 chars]",
-        "content_digest": "c55cc928d0aa28d9",
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"gemini_trip_plan_call_d15ef0f5\",\"name\":\"trip_plan\",\"content\":{\"result\":\"Plan recorded.\"}}",
+        "content_digest": "bd49ab43b15b210c",
+        "tool_name": "trip_plan",
         "observation_type": "generation"
       },
       {
         "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Hand the finished plan to trip_plan. You are an agent. Your internal name is \"planner\".",
+        "content_digest": "ba614e498d3b9f89",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
         "role": "user",
         "entry_type": "text",
-        "content": "Extract info: Jane Doe, a systems admin, 28, lives at 123 Main St, New York, USA. Email: jane@example.com",
-        "content_digest": "6a08cceee02e13c8",
+        "content": "Plan a two-day trip to Vienna.",
+        "content_digest": "5f56235d64bfe00d",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"gemini_trip_plan_call_d15ef0f5\",\"name\":\"trip_plan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and Graben; coffee and Sachertorte at a classic café; e…[471 chars]",
+        "content_digest": "c0fd669a3afa735d",
+        "tool_name": "trip_plan",
+        "finish_reason": "Stop",
         "observation_type": "generation"
       }
     ]
