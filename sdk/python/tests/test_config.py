@@ -88,3 +88,53 @@ def test_integrations_come_from_the_environment_as_a_list(monkeypatch: pytest.Mo
     monkeypatch.setenv("SIDESEAT_INTEGRATIONS", "strands, bedrock,")
     assert settings().integrations == ("strands", "bedrock")
     assert settings(integrations="openai").integrations == ("openai",)
+
+
+def test_the_api_key_replaces_an_authorization_header_of_any_spelling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_HEADERS", "authorization=old,AUTHORIZATION=older,x-a=1")
+    assert settings(api_key="k").headers() == {"x-a": "1", "Authorization": "Bearer k"}
+    # Without a key the application's own credential is kept as written.
+    assert settings().headers()["authorization"] == "old"
+
+
+def test_blank_arguments_and_variables_count_as_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SIDESEAT_ENDPOINT", "  ")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://otel:2")
+    monkeypatch.setenv("SIDESEAT_PROJECT_ID", " ")
+    monkeypatch.setenv("SIDESEAT_API_KEY", "\t")
+    monkeypatch.setenv("OTEL_SERVICE_NAME", " ")
+    monkeypatch.setenv("OTEL_SERVICE_VERSION", " ")
+    monkeypatch.setenv("SIDESEAT_INTEGRATIONS", " ")
+    s = settings(endpoint=" ", project=" ", api_key=" ", service_name=" ", integrations=" ")
+    assert s.endpoint == "http://otel:2"
+    assert s.project == "default"
+    assert s.api_key is None
+    assert s.service_name is None
+    assert s.service_version is None
+    assert s.integrations is None
+    assert "Authorization" not in s.headers()
+
+
+def test_a_blank_argument_falls_back_to_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SIDESEAT_PROJECT_ID", " team-a ")
+    monkeypatch.setenv("SIDESEAT_API_KEY", "env-key")
+    monkeypatch.setenv("SIDESEAT_INTEGRATIONS", "strands")
+    s = settings(project="  ", api_key="", integrations="")
+    assert (s.project, s.api_key, s.integrations) == ("team-a", "env-key", ("strands",))
+    # An empty sequence is not blank: it asks for no integrations at all.
+    assert settings(integrations=[]).integrations == ()
+
+
+def test_the_project_is_one_url_path_segment() -> None:
+    s = settings(project="team a/b")
+    assert s.signal_endpoint("traces") == "http://127.0.0.1:5388/otel/team%20a%2Fb/v1/traces"
+
+
+def test_debug_and_span_processors_are_part_of_the_init_identity() -> None:
+    processor = object()
+    base = settings(span_processors=[processor])
+    assert base.identity() == settings(span_processors=[processor]).identity()
+    assert base.identity() != settings(span_processors=[object()]).identity()
+    assert base.identity() != settings(span_processors=[processor], debug=True).identity()

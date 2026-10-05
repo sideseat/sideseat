@@ -7,7 +7,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import quote, unquote, urlsplit
 
 from sideseat.errors import ConfigurationError
 
@@ -44,7 +44,7 @@ class Settings:
         path = urlsplit(self.endpoint).path
         if path and path != "/":
             return self.endpoint
-        return f"{self.endpoint}/otel/{self.project}"
+        return f"{self.endpoint}/otel/{quote(self.project, safe='')}"
 
     def signal_endpoint(self, signal: str) -> str:
         return f"{self.otlp_base}/v1/{signal}"
@@ -53,6 +53,8 @@ class Settings:
         """OTLP request headers: ``OTEL_EXPORTER_OTLP_HEADERS`` plus the API key, which wins."""
         headers = _parse_headers(os.getenv("OTEL_EXPORTER_OTLP_HEADERS", ""))
         if self.api_key:
+            # Header names are case-insensitive; two spellings would send two credentials.
+            headers = {k: v for k, v in headers.items() if k.lower() != "authorization"}
             headers["Authorization"] = f"Bearer {self.api_key}"
         return headers
 
@@ -68,11 +70,14 @@ class Settings:
             self.integrations is None,
             self.capture_content,
             self.disabled,
+            self.debug,
             self.export,
             self.metrics,
             self.logs,
             self.capture_python_logs,
             tuple(sorted(self.resource_attributes.items())),
+            # Processors are objects without a value; the same configuration passes the same ones.
+            tuple(id(processor) for processor in self.span_processors),
         )
 
 
@@ -95,22 +100,21 @@ def resolve(
     span_processors: Sequence[Any] | None,
 ) -> Settings:
     resolved_integrations: tuple[Any, ...] | None
-    if integrations is None:
-        env = os.getenv("SIDESEAT_INTEGRATIONS", "").strip()
-        resolved_integrations = _split_names(env) if env else None
-    elif isinstance(integrations, str):
-        resolved_integrations = _split_names(integrations)
+    if integrations is None or isinstance(integrations, str):
+        # A blank string is unset like any other setting; an empty sequence means "none".
+        names = _text(integrations, "SIDESEAT_INTEGRATIONS")
+        resolved_integrations = _split_names(names) if names else None
     else:
         resolved_integrations = tuple(integrations)
 
     return Settings(
         endpoint=_endpoint(
-            endpoint or os.getenv("SIDESEAT_ENDPOINT") or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+            _text(endpoint, "SIDESEAT_ENDPOINT") or _text(None, "OTEL_EXPORTER_OTLP_ENDPOINT")
         ),
-        project=(project or os.getenv("SIDESEAT_PROJECT_ID") or DEFAULT_PROJECT).strip(),
-        api_key=api_key or os.getenv("SIDESEAT_API_KEY") or None,
-        service_name=service_name or os.getenv("OTEL_SERVICE_NAME") or None,
-        service_version=service_version or os.getenv("OTEL_SERVICE_VERSION") or None,
+        project=_text(project, "SIDESEAT_PROJECT_ID") or DEFAULT_PROJECT,
+        api_key=_text(api_key, "SIDESEAT_API_KEY"),
+        service_name=_text(service_name, "OTEL_SERVICE_NAME"),
+        service_version=_text(service_version, "OTEL_SERVICE_VERSION"),
         integrations=resolved_integrations,
         capture_content=_flag(capture_content, "SIDESEAT_CAPTURE_CONTENT", True),
         disabled=_flag(disabled, "SIDESEAT_DISABLED", False),
@@ -122,6 +126,15 @@ def resolve(
         resource_attributes=MappingProxyType(dict(resource_attributes or {})),
         span_processors=tuple(span_processors or ()),
     )
+
+
+def _text(explicit: str | None, env: str) -> str | None:
+    """The explicit value, else the variable, trimmed; a blank one counts as unset."""
+    for raw in (explicit, os.getenv(env)):
+        value = raw.strip() if raw is not None else ""
+        if value:
+            return value
+    return None
 
 
 def _endpoint(raw: str | None) -> str:
@@ -151,8 +164,6 @@ def _split_names(raw: str) -> tuple[str, ...]:
 
 
 def _parse_headers(raw: str) -> dict[str, str]:
-    from urllib.parse import unquote
-
     headers: dict[str, str] = {}
     for pair in raw.split(","):
         key, sep, value = pair.partition("=")
