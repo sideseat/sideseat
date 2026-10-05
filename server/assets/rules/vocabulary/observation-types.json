@@ -118,6 +118,25 @@
       "result": "agent"
     },
     {
+      "id": "observation.tool_call_execution",
+      "doc": "A span that names both the tool and the tool call it carries out is that execution, whatever else it names. The rule for producers that do not state the operation: Pydantic AI 1.74 to 1.86 (the version matrix's `pydantic-ai/native@1.74.0` to `@1.86.0`) write `running tool` spans with `gen_ai.tool.name`, `gen_ai.tool.call.id` and the owning agent's `gen_ai.agent.name` but no `gen_ai.operation.name`, so `observation.named_agent` (rank 100) classified 30 of them `agent` against their `tool` category - the defect `observation.execute_tool` fixed for releases that name the operation. Both members, not either: `observation.named_tool` (110) stays the weaker reading of one of them. Ranked immediately before `observation.named_agent`, so every rule that states more - an operation name, a producer's own marker - still answers first.",
+      "rank": 99,
+      "all_of": [
+        {
+          "attr_exists": [
+            "gen_ai.tool.name"
+          ]
+        },
+        {
+          "attr_exists": [
+            "gen_ai.tool.call.id"
+          ]
+        }
+      ],
+      "result": "tool",
+      "replaces_legacy_result": "agent"
+    },
+    {
       "id": "observation.mcp_tool_call",
       "doc": "The MCP conventions' name for calling a tool on a server. An MCP client span inherits whatever its caller propagates, and one SDK copies baggage onto every span, so the client span of an agent's tool call also carries `gen_ai.agent.name` - which `observation.named_agent` (rank 100) would read as an agent, against its `tool` category. The method the span names is what it did.",
       "rank": 44,
