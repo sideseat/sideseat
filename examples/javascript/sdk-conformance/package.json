@@ -21,8 +21,8 @@
     "@sideseat/sdk": "file:../../../sdk/js"
   },
   "devDependencies": {
-    "@types/node": "26.6.2",
-    "node": "26.9.0",
+    "@types/node": "26.6.4",
+    "node": "26.10.0",
     "prettier": "3.9.9",
     "tsx": "4.23.15",
     "typescript": "5.9.3"
