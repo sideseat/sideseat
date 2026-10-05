@@ -15,8 +15,8 @@ OpenTelemetry export for an application; they carry no parsing logic of their ow
 This is what distinguishes SideSeat. Every change is judged on all three, and none is traded for another.
 
 - **Bytes.** Storage, memory, and wire formats are optimised at the byte level. The targets are at least 25x
-  smaller than raw OTLP protobuf per signal, and sustained ingest of at least 25,000 spans per second with the
-  server and its embedded backend inside 2 GB of RAM. Redundancy is a defect: repeated attributes, re-sent
+  smaller than raw OTLP protobuf per signal, and sustained ingest of at least 25,000 spans per second on an
+  Ampere A1 instance (aarch64, Neoverse N1) with the server and its embedded backend inside 2 GB of RAM. Redundancy is a defect: repeated attributes, re-sent
   message history, JSON text, and inline media are encoded once, by reference, with dictionaries and compact
   binary encodings.
 - **Correctness.** 100 %, proven rather than assumed. Raw telemetry round-trips byte for byte, every
