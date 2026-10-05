@@ -710,6 +710,8 @@ fn framework_sdk_and_native_conversations_are_identical() {
     );
 
     let mut compared = 0usize;
+    let mut definitions_only_in_sdk: std::collections::BTreeSet<String> = Default::default();
+    let mut generations_only_in_sdk: std::collections::BTreeSet<String> = Default::default();
     for native_label in native_labels {
         let sdk_label = native_label.replacen("/native/", "/sdk/", 1);
         let native_paths = &fixtures[&native_label];
@@ -722,6 +724,17 @@ fn framework_sdk_and_native_conversations_are_identical() {
         let native = build_golden(&native_label, native_paths, &native_rows).golden;
         let sdk = build_golden(&sdk_label, sdk_paths, &sdk_rows).golden;
         let (native, sdk) = with_restored_media_aligned(&sdk_label, native, sdk);
+        let producer = sdk_label.split('/').next().unwrap_or_default();
+        let (native, sdk, had_definitions) =
+            with_native_tool_definitions_aligned(producer, native, sdk);
+        if had_definitions {
+            definitions_only_in_sdk.insert(producer.to_string());
+        }
+        let (native, sdk, had_generations) =
+            with_native_model_calls_as_transport(producer, native, sdk);
+        if had_generations {
+            generations_only_in_sdk.insert(producer.to_string());
+        }
 
         if !VARIABLE_STEP_SPANS.iter().any(|(label, _)| *label == sdk_label) {
             assert_eq!(
@@ -783,6 +796,7 @@ fn framework_sdk_and_native_conversations_are_identical() {
         compared > 0,
         "no framework native/SDK fixture pairs were compared"
     );
+    native_gap_declarations_hold(&definitions_only_in_sdk, &generations_only_in_sdk);
 }
 
 /// The payload a framework writes in place of binary content it does not export.

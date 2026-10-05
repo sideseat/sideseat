@@ -207,3 +207,128 @@ fn a_pinned_duration_compares_by_presence_alone() {
         "only the duration may differ"
     );
 }
+
+/// Producers whose native instrumentation records no tool definitions while their SideSeat integration
+/// records them, with the reason.
+///
+/// Parity then compares the SDK side without its tool definitions. It requires that the native side has none
+/// and that some SDK fixture of the producer has some, so the declaration cannot outlive the behaviour it
+/// describes.
+const TOOL_DEFINITIONS_DROPPED_NATIVELY: &[(&str, &str)] = &[(
+    "bedrock",
+    "OpenTelemetry's botocore instrumentation records the messages of a Converse call and not its tool \
+     configuration; the bedrock integration records the tools offered",
+)];
+
+fn tool_definitions(golden: &Golden) -> usize {
+    golden
+        .span_views
+        .values()
+        .chain(golden.trace_views.values())
+        .map(|view| view.tool_definition_count)
+        .sum()
+}
+
+/// Aligns a pair whose native instrumentation is declared to drop tool definitions the SDK records.
+///
+/// Returns whether the SDK side had any, for the producer-wide check that the declaration still holds.
+fn with_native_tool_definitions_aligned(
+    producer: &str,
+    native: Golden,
+    mut sdk: Golden,
+) -> (Golden, Golden, bool) {
+    if !TOOL_DEFINITIONS_DROPPED_NATIVELY
+        .iter()
+        .any(|(declared, _)| *declared == producer)
+    {
+        return (native, sdk, false);
+    }
+    assert_eq!(
+        tool_definitions(&native),
+        0,
+        "{producer}: declared as recording no tool definitions natively, which no longer holds - remove \
+         the declaration"
+    );
+    let had = tool_definitions(&sdk) > 0;
+    sdk.span_views
+        .values_mut()
+        .chain(sdk.trace_views.values_mut())
+        .chain(sdk.session_views.values_mut())
+        .chain(std::iter::once(&mut sdk.feed_view))
+        .for_each(|view| view.tool_definition_count = 0);
+    (native, sdk, had)
+}
+
+/// Producers whose native model calls are transport spans - classified as plain spans, so a framework's own
+/// generation span is not counted twice - while their SideSeat integration records the call as a
+/// generation, with the reason.
+///
+/// Parity then compares the SDK side with its generations read as plain spans. It requires that the native
+/// side has no generation and that some SDK fixture of the producer has one, so the declaration cannot
+/// outlive the behaviour it describes.
+const MODEL_CALLS_ARE_TRANSPORT_NATIVELY: &[(&str, &str)] = &[(
+    "bedrock",
+    "OpenTelemetry's botocore instrumentation names the chat operation on the RPC span itself, and an RPC \
+     span is never a generation; the bedrock integration emits a generation span",
+)];
+
+fn generations(golden: &Golden) -> usize {
+    golden
+        .span_views
+        .values()
+        .chain(golden.trace_views.values())
+        .flat_map(|view| &view.messages)
+        .filter(|message| message.observation_type.as_deref() == Some("generation"))
+        .count()
+}
+
+/// Aligns a pair whose native model calls are declared transport spans.
+///
+/// Returns whether the SDK side had a generation, for the producer-wide check that the declaration holds.
+fn with_native_model_calls_as_transport(
+    producer: &str,
+    native: Golden,
+    mut sdk: Golden,
+) -> (Golden, Golden, bool) {
+    if !MODEL_CALLS_ARE_TRANSPORT_NATIVELY
+        .iter()
+        .any(|(declared, _)| *declared == producer)
+    {
+        return (native, sdk, false);
+    }
+    assert_eq!(
+        generations(&native),
+        0,
+        "{producer}: declared as having no generation spans natively, which no longer holds - remove the \
+         declaration"
+    );
+    let had = generations(&sdk) > 0;
+    sdk.span_views
+        .values_mut()
+        .chain(sdk.trace_views.values_mut())
+        .chain(sdk.session_views.values_mut())
+        .chain(std::iter::once(&mut sdk.feed_view))
+        .flat_map(|view| view.messages.iter_mut())
+        .filter(|message| message.observation_type.as_deref() == Some("generation"))
+        .for_each(|message| message.observation_type = Some("span".to_string()));
+    (native, sdk, had)
+}
+
+/// Each declared native gap was seen: some SDK fixture of the producer had what its native side lacks.
+fn native_gap_declarations_hold(
+    definitions: &std::collections::BTreeSet<String>,
+    generations: &std::collections::BTreeSet<String>,
+) {
+    for (declarations, seen, what) in [
+        (TOOL_DEFINITIONS_DROPPED_NATIVELY, definitions, "tool definitions"),
+        (MODEL_CALLS_ARE_TRANSPORT_NATIVELY, generations, "generations"),
+    ] {
+        for (producer, _) in declarations {
+            assert!(
+                seen.contains(*producer),
+                "{producer}: declared as having {what} only the SDK records, and no SDK fixture has any - \
+                 remove the declaration"
+            );
+        }
+    }
+}

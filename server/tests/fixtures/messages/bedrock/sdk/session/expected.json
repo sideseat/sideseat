@@ -35,8 +35,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "text",
-          "content": "Visit the Museo del Prado, Madrid's premier art museum, home to masterpieces by Velázquez (Las Meninas), Goya, and El Greco. Plan for 2–3 hours, and consider going in the evening when free-entry hours are typically offered (check current ti…[284 chars]",
-          "content_digest": "23777dd19c076b00",
+          "content": "Visit the Museo del Prado, Madrid's premier art museum, home to masterpieces by Velázquez (*Las Meninas*), Goya, and El Greco. Plan for about 2–3 hours, and consider going in the late afternoon when entry is often free or discounted (check …[346 chars]",
+          "content_digest": "4d4b4550002d35e9",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -80,8 +80,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSuQUKEggSEAEYAjgBQgh0aGlua2luZxIMJWhBxYcIpEmB6KjeGgwI8Ah/hkPH8Ep+Os8iMDjdwKoGvhIO0QDcDLz80osqUSpZZ1aKFp7cl+jjd37ru8NvpbkisaDJ1tBYyBkFiyrUBMtKHno/bvAg0vxK7MXRZxPzTBKE8ii5LhAOtsxujLD1zoH4gUavVL2z7MCMeqBT…[978 chars]",
-          "content_digest": "fafcfd600b6ebc89",
+          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSvwUKEggSEAEYAjgBQgh0aGlua2luZxIMlSU+QdYfIoI1zlyVGgx/HfU3Xz1jVRQ3ne4iMER4ZzZR4SJZxjYrHOg3aQnWq6Gn+OMRY5olCe10VUKypTKsYA4u2HlLtXKZVEVR2SraBHoPWiDr+Wzh+tJ3KsNahkzbmchS1hwLFX+XxJKgXKzOqS1rQE51+A/x0aQBzott…[986 chars]",
+          "content_digest": "386c26f5f017cf49",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -89,8 +89,8 @@
           "index": 3,
           "role": "assistant",
           "entry_type": "text",
-          "content": "I suggest **Retiro Park (Parque del Buen Retiro)**. It's Madrid's most famous green space, with a boating lake, the glass Crystal Palace, and shaded gardens that are ideal for a relaxed stroll. It's also close to the Prado Museum, so it pai…[270 chars]",
-          "content_digest": "6bfabe180cae18e7",
+          "content": "I'd suggest **Retiro Park (Parque del Buen Retiro)**, Madrid's most iconic green space. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll through the Rose Garden. It's free to enter and close to the Prado Museum, …[277 chars]",
+          "content_digest": "776cc9490b63fa92",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -135,8 +135,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "text",
-          "content": "Visit the Museo del Prado, Madrid's premier art museum, home to masterpieces by Velázquez (Las Meninas), Goya, and El Greco. Plan for 2–3 hours, and consider going in the evening when free-entry hours are typically offered (check current ti…[284 chars]",
-          "content_digest": "23777dd19c076b00",
+          "content": "Visit the Museo del Prado, Madrid's premier art museum, home to masterpieces by Velázquez (*Las Meninas*), Goya, and El Greco. Plan for about 2–3 hours, and consider going in the late afternoon when entry is often free or discounted (check …[346 chars]",
+          "content_digest": "4d4b4550002d35e9",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -173,8 +173,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSuQUKEggSEAEYAjgBQgh0aGlua2luZxIMJWhBxYcIpEmB6KjeGgwI8Ah/hkPH8Ep+Os8iMDjdwKoGvhIO0QDcDLz80osqUSpZZ1aKFp7cl+jjd37ru8NvpbkisaDJ1tBYyBkFiyrUBMtKHno/bvAg0vxK7MXRZxPzTBKE8ii5LhAOtsxujLD1zoH4gUavVL2z7MCMeqBT…[978 chars]",
-          "content_digest": "fafcfd600b6ebc89",
+          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSvwUKEggSEAEYAjgBQgh0aGlua2luZxIMlSU+QdYfIoI1zlyVGgx/HfU3Xz1jVRQ3ne4iMER4ZzZR4SJZxjYrHOg3aQnWq6Gn+OMRY5olCe10VUKypTKsYA4u2HlLtXKZVEVR2SraBHoPWiDr+Wzh+tJ3KsNahkzbmchS1hwLFX+XxJKgXKzOqS1rQE51+A/x0aQBzott…[986 chars]",
+          "content_digest": "386c26f5f017cf49",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -182,8 +182,8 @@
           "index": 3,
           "role": "assistant",
           "entry_type": "text",
-          "content": "I suggest **Retiro Park (Parque del Buen Retiro)**. It's Madrid's most famous green space, with a boating lake, the glass Crystal Palace, and shaded gardens that are ideal for a relaxed stroll. It's also close to the Prado Museum, so it pai…[270 chars]",
-          "content_digest": "6bfabe180cae18e7",
+          "content": "I'd suggest **Retiro Park (Parque del Buen Retiro)**, Madrid's most iconic green space. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll through the Rose Garden. It's free to enter and close to the Prado Museum, …[277 chars]",
+          "content_digest": "776cc9490b63fa92",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -225,8 +225,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "text",
-          "content": "Visit the Museo del Prado, Madrid's premier art museum, home to masterpieces by Velázquez (Las Meninas), Goya, and El Greco. Plan for 2–3 hours, and consider going in the evening when free-entry hours are typically offered (check current ti…[284 chars]",
-          "content_digest": "23777dd19c076b00",
+          "content": "Visit the Museo del Prado, Madrid's premier art museum, home to masterpieces by Velázquez (*Las Meninas*), Goya, and El Greco. Plan for about 2–3 hours, and consider going in the late afternoon when entry is often free or discounted (check …[346 chars]",
+          "content_digest": "4d4b4550002d35e9",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -250,8 +250,8 @@
           "index": 5,
           "role": "assistant",
           "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSuQUKEggSEAEYAjgBQgh0aGlua2luZxIMJWhBxYcIpEmB6KjeGgwI8Ah/hkPH8Ep+Os8iMDjdwKoGvhIO0QDcDLz80osqUSpZZ1aKFp7cl+jjd37ru8NvpbkisaDJ1tBYyBkFiyrUBMtKHno/bvAg0vxK7MXRZxPzTBKE8ii5LhAOtsxujLD1zoH4gUavVL2z7MCMeqBT…[978 chars]",
-          "content_digest": "fafcfd600b6ebc89",
+          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSvwUKEggSEAEYAjgBQgh0aGlua2luZxIMlSU+QdYfIoI1zlyVGgx/HfU3Xz1jVRQ3ne4iMER4ZzZR4SJZxjYrHOg3aQnWq6Gn+OMRY5olCe10VUKypTKsYA4u2HlLtXKZVEVR2SraBHoPWiDr+Wzh+tJ3KsNahkzbmchS1hwLFX+XxJKgXKzOqS1rQE51+A/x0aQBzott…[986 chars]",
+          "content_digest": "386c26f5f017cf49",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -259,8 +259,8 @@
           "index": 6,
           "role": "assistant",
           "entry_type": "text",
-          "content": "I suggest **Retiro Park (Parque del Buen Retiro)**. It's Madrid's most famous green space, with a boating lake, the glass Crystal Palace, and shaded gardens that are ideal for a relaxed stroll. It's also close to the Prado Museum, so it pai…[270 chars]",
-          "content_digest": "6bfabe180cae18e7",
+          "content": "I'd suggest **Retiro Park (Parque del Buen Retiro)**, Madrid's most iconic green space. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll through the Rose Garden. It's free to enter and close to the Prado Museum, …[277 chars]",
+          "content_digest": "776cc9490b63fa92",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -285,8 +285,8 @@
         "index": 0,
         "role": "assistant",
         "entry_type": "redacted_thinking",
-        "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSuQUKEggSEAEYAjgBQgh0aGlua2luZxIMJWhBxYcIpEmB6KjeGgwI8Ah/hkPH8Ep+Os8iMDjdwKoGvhIO0QDcDLz80osqUSpZZ1aKFp7cl+jjd37ru8NvpbkisaDJ1tBYyBkFiyrUBMtKHno/bvAg0vxK7MXRZxPzTBKE8ii5LhAOtsxujLD1zoH4gUavVL2z7MCMeqBT…[978 chars]",
-        "content_digest": "fafcfd600b6ebc89",
+        "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSvwUKEggSEAEYAjgBQgh0aGlua2luZxIMlSU+QdYfIoI1zlyVGgx/HfU3Xz1jVRQ3ne4iMER4ZzZR4SJZxjYrHOg3aQnWq6Gn+OMRY5olCe10VUKypTKsYA4u2HlLtXKZVEVR2SraBHoPWiDr+Wzh+tJ3KsNahkzbmchS1hwLFX+XxJKgXKzOqS1rQE51+A/x0aQBzott…[986 chars]",
+        "content_digest": "386c26f5f017cf49",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },
@@ -294,8 +294,8 @@
         "index": 1,
         "role": "assistant",
         "entry_type": "text",
-        "content": "I suggest **Retiro Park (Parque del Buen Retiro)**. It's Madrid's most famous green space, with a boating lake, the glass Crystal Palace, and shaded gardens that are ideal for a relaxed stroll. It's also close to the Prado Museum, so it pai…[270 chars]",
-        "content_digest": "6bfabe180cae18e7",
+        "content": "I'd suggest **Retiro Park (Parque del Buen Retiro)**, Madrid's most iconic green space. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll through the Rose Garden. It's free to enter and close to the Prado Museum, …[277 chars]",
+        "content_digest": "776cc9490b63fa92",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },
@@ -319,8 +319,8 @@
         "index": 4,
         "role": "assistant",
         "entry_type": "text",
-        "content": "Visit the Museo del Prado, Madrid's premier art museum, home to masterpieces by Velázquez (Las Meninas), Goya, and El Greco. Plan for 2–3 hours, and consider going in the evening when free-entry hours are typically offered (check current ti…[284 chars]",
-        "content_digest": "23777dd19c076b00",
+        "content": "Visit the Museo del Prado, Madrid's premier art museum, home to masterpieces by Velázquez (*Las Meninas*), Goya, and El Greco. Plan for about 2–3 hours, and consider going in the late afternoon when entry is often free or discounted (check …[346 chars]",
+        "content_digest": "4d4b4550002d35e9",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },

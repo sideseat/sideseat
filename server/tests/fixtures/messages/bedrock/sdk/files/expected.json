@@ -54,8 +54,8 @@
           "index": 4,
           "role": "assistant",
           "entry_type": "text",
-          "content": "**Image:** A curving black path winds through a sunny park with green lawns, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The five-page document …[333 chars]",
-          "content_digest": "d9f62384049e6353",
+          "content": "**Image:** A curving black path winds through a sunny, grassy park with a low stone retaining wall, bare and evergreen trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The five-page document is al…[337 chars]",
+          "content_digest": "f42c813be435fa39",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -119,8 +119,8 @@
           "index": 4,
           "role": "assistant",
           "entry_type": "text",
-          "content": "**Image:** A curving black path winds through a sunny park with green lawns, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The five-page document …[333 chars]",
-          "content_digest": "d9f62384049e6353",
+          "content": "**Image:** A curving black path winds through a sunny, grassy park with a low stone retaining wall, bare and evergreen trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The five-page document is al…[337 chars]",
+          "content_digest": "f42c813be435fa39",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -177,8 +177,8 @@
           "index": 4,
           "role": "assistant",
           "entry_type": "text",
-          "content": "**Image:** A curving black path winds through a sunny park with green lawns, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The five-page document …[333 chars]",
-          "content_digest": "d9f62384049e6353",
+          "content": "**Image:** A curving black path winds through a sunny, grassy park with a low stone retaining wall, bare and evergreen trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The five-page document is al…[337 chars]",
+          "content_digest": "f42c813be435fa39",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -201,8 +201,8 @@
         "index": 0,
         "role": "assistant",
         "entry_type": "text",
-        "content": "**Image:** A curving black path winds through a sunny park with green lawns, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The five-page document …[333 chars]",
-        "content_digest": "d9f62384049e6353",
+        "content": "**Image:** A curving black path winds through a sunny, grassy park with a low stone retaining wall, bare and evergreen trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The five-page document is al…[337 chars]",
+        "content_digest": "f42c813be435fa39",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },

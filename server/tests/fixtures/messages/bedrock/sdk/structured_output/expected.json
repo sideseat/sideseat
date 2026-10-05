@@ -35,8 +35,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_FmjQalmrWtZizGKLz2eLmi\",\"name\":\"TripPlan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a coffeehouse stop for Sachertorte\",\"Day 2: Visit Sc…[359 chars]",
-          "content_digest": "dc5ac970245dfdaf",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LIRNm3DH30VGbs6hWoWtGY\",\"name\":\"TripPlan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a classic Viennese coffeehouse stop, then an evening…[435 chars]",
+          "content_digest": "0f43cdb006be5098",
           "tool_name": "TripPlan",
           "finish_reason": "ToolUse",
           "observation_type": "generation"
@@ -82,8 +82,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_FmjQalmrWtZizGKLz2eLmi\",\"name\":\"TripPlan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a coffeehouse stop for Sachertorte\",\"Day 2: Visit Sc…[359 chars]",
-          "content_digest": "dc5ac970245dfdaf",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LIRNm3DH30VGbs6hWoWtGY\",\"name\":\"TripPlan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a classic Viennese coffeehouse stop, then an evening…[435 chars]",
+          "content_digest": "0f43cdb006be5098",
           "tool_name": "TripPlan",
           "finish_reason": "ToolUse",
           "observation_type": "generation"
@@ -122,8 +122,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_FmjQalmrWtZizGKLz2eLmi\",\"name\":\"TripPlan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a coffeehouse stop for Sachertorte\",\"Day 2: Visit Sc…[359 chars]",
-          "content_digest": "dc5ac970245dfdaf",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LIRNm3DH30VGbs6hWoWtGY\",\"name\":\"TripPlan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a classic Viennese coffeehouse stop, then an evening…[435 chars]",
+          "content_digest": "0f43cdb006be5098",
           "tool_name": "TripPlan",
           "finish_reason": "ToolUse",
           "observation_type": "generation"
@@ -145,8 +145,8 @@
         "index": 0,
         "role": "assistant",
         "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_FmjQalmrWtZizGKLz2eLmi\",\"name\":\"TripPlan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a coffeehouse stop for Sachertorte\",\"Day 2: Visit Sc…[359 chars]",
-        "content_digest": "dc5ac970245dfdaf",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_LIRNm3DH30VGbs6hWoWtGY\",\"name\":\"TripPlan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a classic Viennese coffeehouse stop, then an evening…[435 chars]",
+        "content_digest": "0f43cdb006be5098",
         "tool_name": "TripPlan",
         "finish_reason": "ToolUse",
         "observation_type": "generation"

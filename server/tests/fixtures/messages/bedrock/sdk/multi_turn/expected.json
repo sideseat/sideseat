@@ -1,6 +1,6 @@
 {
   "label": "bedrock/sdk/multi_turn",
-  "request_count": 2,
+  "request_count": 1,
   "span_count": 4,
   "trace_count": 1,
   "session_count": 1,
@@ -36,8 +36,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQS+wQKEggSEAEYAjgBQgh0aGlua2luZxIMtNjjrXb+AWHq2bqFGgz4lr0ZcCIi0Bj3/ekiMFsYi9fuvCbSaI8TSxxDLV3RYylICX255LGjw5++ueYJt0WH87e0Qr0L6r19tCW8RSqWBG5poIhIZ4dWyq3bC7HP0WSB1bJ8vTPuIGHBYifsbU9UECWS8PpkFw0aH3zf1iol…[894 chars]",
-          "content_digest": "526a48b67620de94",
+          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSvgQKEggSEAEYAjgBQgh0aGlua2luZxIMRJlwge4G9fYGI5DcGgxlB3NSMI7HVtZRDJIiMNHNRrj//iE1Fre69CzzF0hLX+MQ1oeOtU/49kRa4vI/gdhdRR66WObzKrhvl7YfeCrZA3NDtEDRxzDouzplyJ/4vt9C6XAjqvRewZ3YS1wPmmH0NmJzetubTpcDR4Q1e1Dj…[814 chars]",
+          "content_digest": "8cbd97831f84ef8e",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -45,8 +45,8 @@
           "index": 3,
           "role": "assistant",
           "entry_type": "text",
-          "content": "I'd suggest **Alfama**, Lisbon's oldest neighborhood. It has winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to the Sé Cathedral and São Jorge Castle. If you'd like, I can check the weekend wea…[265 chars]",
-          "content_digest": "246cf0d2f7680472",
+          "content": "Stay in **Chiado**. It's central, walkable, and well connected by metro and tram to major sights like Alfama, Baixa, and Bairro Alto. I can check the weather forecast or look at hotel bookings for your dates if you'd like.",
+          "content_digest": "bdb4ba87922702b6",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -85,16 +85,16 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQS+wQKEggSEAEYAjgBQgh0aGlua2luZxIMtNjjrXb+AWHq2bqFGgz4lr0ZcCIi0Bj3/ekiMFsYi9fuvCbSaI8TSxxDLV3RYylICX255LGjw5++ueYJt0WH87e0Qr0L6r19tCW8RSqWBG5poIhIZ4dWyq3bC7HP0WSB1bJ8vTPuIGHBYifsbU9UECWS8PpkFw0aH3zf1iol…[894 chars]",
-          "content_digest": "526a48b67620de94",
+          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSvgQKEggSEAEYAjgBQgh0aGlua2luZxIMRJlwge4G9fYGI5DcGgxlB3NSMI7HVtZRDJIiMNHNRrj//iE1Fre69CzzF0hLX+MQ1oeOtU/49kRa4vI/gdhdRR66WObzKrhvl7YfeCrZA3NDtEDRxzDouzplyJ/4vt9C6XAjqvRewZ3YS1wPmmH0NmJzetubTpcDR4Q1e1Dj…[814 chars]",
+          "content_digest": "8cbd97831f84ef8e",
           "observation_type": "generation"
         },
         {
           "index": 3,
           "role": "assistant",
           "entry_type": "text",
-          "content": "I'd suggest **Alfama**, Lisbon's oldest neighborhood. It has winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to the Sé Cathedral and São Jorge Castle. If you'd like, I can check the weekend wea…[265 chars]",
-          "content_digest": "246cf0d2f7680472",
+          "content": "Stay in **Chiado**. It's central, walkable, and well connected by metro and tram to major sights like Alfama, Baixa, and Bairro Alto. I can check the weather forecast or look at hotel bookings for your dates if you'd like.",
+          "content_digest": "bdb4ba87922702b6",
           "observation_type": "generation"
         },
         {
@@ -109,15 +109,15 @@
           "index": 5,
           "role": "assistant",
           "entry_type": "text",
-          "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod, thin fried potatoes, eggs, and onions. For a sweet finish, pair it with a *pastel de nata* from a local bakery.",
-          "content_digest": "0e9236d7ed0809ad",
+          "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, best eaten warm with a dusting of cinnamon. Pastéis de Belém is the classic spot, though many cafés in Chiado serve excellent ones too.",
+          "content_digest": "0401f16a8cfe642d",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
     },
     "trace-1/chat global.anthropic.claude-sonnet-5-5/span-4": {
-      "message_count": 9,
+      "message_count": 8,
       "role_sequence": [
         "system",
         "user",
@@ -126,7 +126,6 @@
         "user",
         "assistant",
         "user",
-        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -152,16 +151,16 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQS+wQKEggSEAEYAjgBQgh0aGlua2luZxIMtNjjrXb+AWHq2bqFGgz4lr0ZcCIi0Bj3/ekiMFsYi9fuvCbSaI8TSxxDLV3RYylICX255LGjw5++ueYJt0WH87e0Qr0L6r19tCW8RSqWBG5poIhIZ4dWyq3bC7HP0WSB1bJ8vTPuIGHBYifsbU9UECWS8PpkFw0aH3zf1iol…[894 chars]",
-          "content_digest": "526a48b67620de94",
+          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSvgQKEggSEAEYAjgBQgh0aGlua2luZxIMRJlwge4G9fYGI5DcGgxlB3NSMI7HVtZRDJIiMNHNRrj//iE1Fre69CzzF0hLX+MQ1oeOtU/49kRa4vI/gdhdRR66WObzKrhvl7YfeCrZA3NDtEDRxzDouzplyJ/4vt9C6XAjqvRewZ3YS1wPmmH0NmJzetubTpcDR4Q1e1Dj…[814 chars]",
+          "content_digest": "8cbd97831f84ef8e",
           "observation_type": "generation"
         },
         {
           "index": 3,
           "role": "assistant",
           "entry_type": "text",
-          "content": "I'd suggest **Alfama**, Lisbon's oldest neighborhood. It has winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to the Sé Cathedral and São Jorge Castle. If you'd like, I can check the weekend wea…[265 chars]",
-          "content_digest": "246cf0d2f7680472",
+          "content": "Stay in **Chiado**. It's central, walkable, and well connected by metro and tram to major sights like Alfama, Baixa, and Bairro Alto. I can check the weather forecast or look at hotel bookings for your dates if you'd like.",
+          "content_digest": "bdb4ba87922702b6",
           "observation_type": "generation"
         },
         {
@@ -176,8 +175,8 @@
           "index": 5,
           "role": "assistant",
           "entry_type": "text",
-          "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod, thin fried potatoes, eggs, and onions. For a sweet finish, pair it with a *pastel de nata* from a local bakery.",
-          "content_digest": "0e9236d7ed0809ad",
+          "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, best eaten warm with a dusting of cinnamon. Pastéis de Belém is the classic spot, though many cafés in Chiado serve excellent ones too.",
+          "content_digest": "0401f16a8cfe642d",
           "observation_type": "generation"
         },
         {
@@ -191,18 +190,9 @@
         {
           "index": 7,
           "role": "assistant",
-          "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSiAUKEggSEAEYAjgBQgh0aGlua2luZxIMIz6Ct6OMPEt97BNFGgxCWbslkfJdDcBFYX4iMIXbjoswuok+0REvh4hiF+1oGAQ3wYF5dA9a0/85+bsM2inNrnN63qi0N48XLRW6HSqjBMPAgrLs3l8+d+iJJbw8Cjdo8CNYzQRe/PUdRHs/ac06AmiF9HRRt8aJr79m1yNP…[914 chars]",
-          "content_digest": "71620c584be7a39b",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 8,
-          "role": "assistant",
           "entry_type": "text",
-          "content": "Stay in Alfama for its historic charm and viewpoints, and try bacalhau à Brás, a comforting dish of salt cod, potatoes, and eggs.",
-          "content_digest": "a755c74103b6247b",
+          "content": "Stay in central Chiado and try warm pastéis de nata, the city's iconic custard tarts.",
+          "content_digest": "4e783f057fbffc45",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -218,7 +208,7 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 9,
+      "message_count": 8,
       "role_sequence": [
         "system",
         "user",
@@ -227,7 +217,6 @@
         "user",
         "assistant",
         "user",
-        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -253,8 +242,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQS+wQKEggSEAEYAjgBQgh0aGlua2luZxIMtNjjrXb+AWHq2bqFGgz4lr0ZcCIi0Bj3/ekiMFsYi9fuvCbSaI8TSxxDLV3RYylICX255LGjw5++ueYJt0WH87e0Qr0L6r19tCW8RSqWBG5poIhIZ4dWyq3bC7HP0WSB1bJ8vTPuIGHBYifsbU9UECWS8PpkFw0aH3zf1iol…[894 chars]",
-          "content_digest": "526a48b67620de94",
+          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSvgQKEggSEAEYAjgBQgh0aGlua2luZxIMRJlwge4G9fYGI5DcGgxlB3NSMI7HVtZRDJIiMNHNRrj//iE1Fre69CzzF0hLX+MQ1oeOtU/49kRa4vI/gdhdRR66WObzKrhvl7YfeCrZA3NDtEDRxzDouzplyJ/4vt9C6XAjqvRewZ3YS1wPmmH0NmJzetubTpcDR4Q1e1Dj…[814 chars]",
+          "content_digest": "8cbd97831f84ef8e",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -262,8 +251,8 @@
           "index": 3,
           "role": "assistant",
           "entry_type": "text",
-          "content": "I'd suggest **Alfama**, Lisbon's oldest neighborhood. It has winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to the Sé Cathedral and São Jorge Castle. If you'd like, I can check the weekend wea…[265 chars]",
-          "content_digest": "246cf0d2f7680472",
+          "content": "Stay in **Chiado**. It's central, walkable, and well connected by metro and tram to major sights like Alfama, Baixa, and Bairro Alto. I can check the weather forecast or look at hotel bookings for your dates if you'd like.",
+          "content_digest": "bdb4ba87922702b6",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -279,8 +268,8 @@
           "index": 5,
           "role": "assistant",
           "entry_type": "text",
-          "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod, thin fried potatoes, eggs, and onions. For a sweet finish, pair it with a *pastel de nata* from a local bakery.",
-          "content_digest": "0e9236d7ed0809ad",
+          "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, best eaten warm with a dusting of cinnamon. Pastéis de Belém is the classic spot, though many cafés in Chiado serve excellent ones too.",
+          "content_digest": "0401f16a8cfe642d",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -295,18 +284,9 @@
         {
           "index": 7,
           "role": "assistant",
-          "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSiAUKEggSEAEYAjgBQgh0aGlua2luZxIMIz6Ct6OMPEt97BNFGgxCWbslkfJdDcBFYX4iMIXbjoswuok+0REvh4hiF+1oGAQ3wYF5dA9a0/85+bsM2inNrnN63qi0N48XLRW6HSqjBMPAgrLs3l8+d+iJJbw8Cjdo8CNYzQRe/PUdRHs/ac06AmiF9HRRt8aJr79m1yNP…[914 chars]",
-          "content_digest": "71620c584be7a39b",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 8,
-          "role": "assistant",
           "entry_type": "text",
-          "content": "Stay in Alfama for its historic charm and viewpoints, and try bacalhau à Brás, a comforting dish of salt cod, potatoes, and eggs.",
-          "content_digest": "a755c74103b6247b",
+          "content": "Stay in central Chiado and try warm pastéis de nata, the city's iconic custard tarts.",
+          "content_digest": "4e783f057fbffc45",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -315,7 +295,7 @@
   },
   "session_views": {
     "bedrock-multi_turn": {
-      "message_count": 9,
+      "message_count": 8,
       "role_sequence": [
         "system",
         "user",
@@ -324,7 +304,6 @@
         "user",
         "assistant",
         "user",
-        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -350,8 +329,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQS+wQKEggSEAEYAjgBQgh0aGlua2luZxIMtNjjrXb+AWHq2bqFGgz4lr0ZcCIi0Bj3/ekiMFsYi9fuvCbSaI8TSxxDLV3RYylICX255LGjw5++ueYJt0WH87e0Qr0L6r19tCW8RSqWBG5poIhIZ4dWyq3bC7HP0WSB1bJ8vTPuIGHBYifsbU9UECWS8PpkFw0aH3zf1iol…[894 chars]",
-          "content_digest": "526a48b67620de94",
+          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSvgQKEggSEAEYAjgBQgh0aGlua2luZxIMRJlwge4G9fYGI5DcGgxlB3NSMI7HVtZRDJIiMNHNRrj//iE1Fre69CzzF0hLX+MQ1oeOtU/49kRa4vI/gdhdRR66WObzKrhvl7YfeCrZA3NDtEDRxzDouzplyJ/4vt9C6XAjqvRewZ3YS1wPmmH0NmJzetubTpcDR4Q1e1Dj…[814 chars]",
+          "content_digest": "8cbd97831f84ef8e",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -359,8 +338,8 @@
           "index": 3,
           "role": "assistant",
           "entry_type": "text",
-          "content": "I'd suggest **Alfama**, Lisbon's oldest neighborhood. It has winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to the Sé Cathedral and São Jorge Castle. If you'd like, I can check the weekend wea…[265 chars]",
-          "content_digest": "246cf0d2f7680472",
+          "content": "Stay in **Chiado**. It's central, walkable, and well connected by metro and tram to major sights like Alfama, Baixa, and Bairro Alto. I can check the weather forecast or look at hotel bookings for your dates if you'd like.",
+          "content_digest": "bdb4ba87922702b6",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -376,8 +355,8 @@
           "index": 5,
           "role": "assistant",
           "entry_type": "text",
-          "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod, thin fried potatoes, eggs, and onions. For a sweet finish, pair it with a *pastel de nata* from a local bakery.",
-          "content_digest": "0e9236d7ed0809ad",
+          "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, best eaten warm with a dusting of cinnamon. Pastéis de Belém is the classic spot, though many cafés in Chiado serve excellent ones too.",
+          "content_digest": "0401f16a8cfe642d",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -392,18 +371,9 @@
         {
           "index": 7,
           "role": "assistant",
-          "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSiAUKEggSEAEYAjgBQgh0aGlua2luZxIMIz6Ct6OMPEt97BNFGgxCWbslkfJdDcBFYX4iMIXbjoswuok+0REvh4hiF+1oGAQ3wYF5dA9a0/85+bsM2inNrnN63qi0N48XLRW6HSqjBMPAgrLs3l8+d+iJJbw8Cjdo8CNYzQRe/PUdRHs/ac06AmiF9HRRt8aJr79m1yNP…[914 chars]",
-          "content_digest": "71620c584be7a39b",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 8,
-          "role": "assistant",
           "entry_type": "text",
-          "content": "Stay in Alfama for its historic charm and viewpoints, and try bacalhau à Brás, a comforting dish of salt cod, potatoes, and eggs.",
-          "content_digest": "a755c74103b6247b",
+          "content": "Stay in central Chiado and try warm pastéis de nata, the city's iconic custard tarts.",
+          "content_digest": "4e783f057fbffc45",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -411,9 +381,8 @@
     }
   },
   "feed_view": {
-    "message_count": 9,
+    "message_count": 8,
     "role_sequence": [
-      "assistant",
       "assistant",
       "user",
       "assistant",
@@ -429,23 +398,14 @@
       {
         "index": 0,
         "role": "assistant",
-        "entry_type": "redacted_thinking",
-        "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSiAUKEggSEAEYAjgBQgh0aGlua2luZxIMIz6Ct6OMPEt97BNFGgxCWbslkfJdDcBFYX4iMIXbjoswuok+0REvh4hiF+1oGAQ3wYF5dA9a0/85+bsM2inNrnN63qi0N48XLRW6HSqjBMPAgrLs3l8+d+iJJbw8Cjdo8CNYzQRe/PUdRHs/ac06AmiF9HRRt8aJr79m1yNP…[914 chars]",
-        "content_digest": "71620c584be7a39b",
+        "entry_type": "text",
+        "content": "Stay in central Chiado and try warm pastéis de nata, the city's iconic custard tarts.",
+        "content_digest": "4e783f057fbffc45",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {
         "index": 1,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "Stay in Alfama for its historic charm and viewpoints, and try bacalhau à Brás, a comforting dish of salt cod, potatoes, and eggs.",
-        "content_digest": "a755c74103b6247b",
-        "finish_reason": "Stop",
-        "observation_type": "generation"
-      },
-      {
-        "index": 2,
         "role": "user",
         "entry_type": "text",
         "content": "Summarise your two suggestions in one sentence.",
@@ -453,16 +413,16 @@
         "observation_type": "generation"
       },
       {
-        "index": 3,
+        "index": 2,
         "role": "assistant",
         "entry_type": "text",
-        "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod, thin fried potatoes, eggs, and onions. For a sweet finish, pair it with a *pastel de nata* from a local bakery.",
-        "content_digest": "0e9236d7ed0809ad",
+        "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, best eaten warm with a dusting of cinnamon. Pastéis de Belém is the classic spot, though many cafés in Chiado serve excellent ones too.",
+        "content_digest": "0401f16a8cfe642d",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {
-        "index": 4,
+        "index": 3,
         "role": "user",
         "entry_type": "text",
         "content": "What is one dish I should try there?",
@@ -470,25 +430,25 @@
         "observation_type": "generation"
       },
       {
-        "index": 5,
+        "index": 4,
         "role": "assistant",
         "entry_type": "redacted_thinking",
-        "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQS+wQKEggSEAEYAjgBQgh0aGlua2luZxIMtNjjrXb+AWHq2bqFGgz4lr0ZcCIi0Bj3/ekiMFsYi9fuvCbSaI8TSxxDLV3RYylICX255LGjw5++ueYJt0WH87e0Qr0L6r19tCW8RSqWBG5poIhIZ4dWyq3bC7HP0WSB1bJ8vTPuIGHBYifsbU9UECWS8PpkFw0aH3zf1iol…[894 chars]",
-        "content_digest": "526a48b67620de94",
+        "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSvgQKEggSEAEYAjgBQgh0aGlua2luZxIMRJlwge4G9fYGI5DcGgxlB3NSMI7HVtZRDJIiMNHNRrj//iE1Fre69CzzF0hLX+MQ1oeOtU/49kRa4vI/gdhdRR66WObzKrhvl7YfeCrZA3NDtEDRxzDouzplyJ/4vt9C6XAjqvRewZ3YS1wPmmH0NmJzetubTpcDR4Q1e1Dj…[814 chars]",
+        "content_digest": "8cbd97831f84ef8e",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Stay in **Chiado**. It's central, walkable, and well connected by metro and tram to major sights like Alfama, Baixa, and Bairro Alto. I can check the weather forecast or look at hotel bookings for your dates if you'd like.",
+        "content_digest": "bdb4ba87922702b6",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {
         "index": 6,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "I'd suggest **Alfama**, Lisbon's oldest neighborhood. It has winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to the Sé Cathedral and São Jorge Castle. If you'd like, I can check the weekend wea…[265 chars]",
-        "content_digest": "246cf0d2f7680472",
-        "finish_reason": "Stop",
-        "observation_type": "generation"
-      },
-      {
-        "index": 7,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -496,7 +456,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 8,
+        "index": 7,
         "role": "user",
         "entry_type": "text",
         "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",

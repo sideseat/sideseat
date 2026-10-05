@@ -35,8 +35,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_1AESV2rtpr1i44F8ykUuRZ\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
-          "content_digest": "444f7003c3d3f2a3",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_PAG9fz4W4RFquTdtjV1oKC\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+          "content_digest": "d8e07a898ee4c90e",
           "tool_name": "get_weather",
           "finish_reason": "ToolUse",
           "observation_type": "generation"
@@ -75,8 +75,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_1AESV2rtpr1i44F8ykUuRZ\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
-          "content_digest": "444f7003c3d3f2a3",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_PAG9fz4W4RFquTdtjV1oKC\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+          "content_digest": "d8e07a898ee4c90e",
           "tool_name": "get_weather",
           "observation_type": "generation"
         },
@@ -84,16 +84,16 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_1AESV2rtpr1i44F8ykUuRZ\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
-          "content_digest": "88da4a44f6f1d6a3",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_PAG9fz4W4RFquTdtjV1oKC\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "a18a5a13b1c536f4",
           "observation_type": "generation"
         },
         {
           "index": 4,
           "role": "assistant",
           "entry_type": "text",
-          "content": "Rome will be sunny tomorrow with a high of 21°C (about 70°F). Wear light, breathable layers like a t-shirt or light shirt with trousers or a skirt. Bring a light jacket for the evening, plus sunglasses and sunscreen.",
-          "content_digest": "17811c6a9095b91e",
+          "content": "Rome should be sunny tomorrow with a high of 21°C. Wear a light shirt or T-shirt with light trousers or a skirt. Bring a light layer for the cooler morning and evening, and take sunglasses and sunscreen.",
+          "content_digest": "0e236bddae4d041d",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -140,8 +140,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_1AESV2rtpr1i44F8ykUuRZ\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
-          "content_digest": "444f7003c3d3f2a3",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_PAG9fz4W4RFquTdtjV1oKC\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+          "content_digest": "d8e07a898ee4c90e",
           "tool_name": "get_weather",
           "finish_reason": "ToolUse",
           "observation_type": "generation"
@@ -150,16 +150,16 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_1AESV2rtpr1i44F8ykUuRZ\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
-          "content_digest": "88da4a44f6f1d6a3",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_PAG9fz4W4RFquTdtjV1oKC\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "a18a5a13b1c536f4",
           "observation_type": "generation"
         },
         {
           "index": 4,
           "role": "assistant",
           "entry_type": "text",
-          "content": "Rome will be sunny tomorrow with a high of 21°C (about 70°F). Wear light, breathable layers like a t-shirt or light shirt with trousers or a skirt. Bring a light jacket for the evening, plus sunglasses and sunscreen.",
-          "content_digest": "17811c6a9095b91e",
+          "content": "Rome should be sunny tomorrow with a high of 21°C. Wear a light shirt or T-shirt with light trousers or a skirt. Bring a light layer for the cooler morning and evening, and take sunglasses and sunscreen.",
+          "content_digest": "0e236bddae4d041d",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -199,8 +199,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_1AESV2rtpr1i44F8ykUuRZ\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
-          "content_digest": "444f7003c3d3f2a3",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_PAG9fz4W4RFquTdtjV1oKC\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+          "content_digest": "d8e07a898ee4c90e",
           "tool_name": "get_weather",
           "finish_reason": "ToolUse",
           "observation_type": "generation"
@@ -209,16 +209,16 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_1AESV2rtpr1i44F8ykUuRZ\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
-          "content_digest": "88da4a44f6f1d6a3",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_PAG9fz4W4RFquTdtjV1oKC\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "a18a5a13b1c536f4",
           "observation_type": "generation"
         },
         {
           "index": 4,
           "role": "assistant",
           "entry_type": "text",
-          "content": "Rome will be sunny tomorrow with a high of 21°C (about 70°F). Wear light, breathable layers like a t-shirt or light shirt with trousers or a skirt. Bring a light jacket for the evening, plus sunglasses and sunscreen.",
-          "content_digest": "17811c6a9095b91e",
+          "content": "Rome should be sunny tomorrow with a high of 21°C. Wear a light shirt or T-shirt with light trousers or a skirt. Bring a light layer for the cooler morning and evening, and take sunglasses and sunscreen.",
+          "content_digest": "0e236bddae4d041d",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -241,8 +241,8 @@
         "index": 0,
         "role": "assistant",
         "entry_type": "text",
-        "content": "Rome will be sunny tomorrow with a high of 21°C (about 70°F). Wear light, breathable layers like a t-shirt or light shirt with trousers or a skirt. Bring a light jacket for the evening, plus sunglasses and sunscreen.",
-        "content_digest": "17811c6a9095b91e",
+        "content": "Rome should be sunny tomorrow with a high of 21°C. Wear a light shirt or T-shirt with light trousers or a skirt. Bring a light layer for the cooler morning and evening, and take sunglasses and sunscreen.",
+        "content_digest": "0e236bddae4d041d",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },
@@ -250,16 +250,16 @@
         "index": 1,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_1AESV2rtpr1i44F8ykUuRZ\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
-        "content_digest": "88da4a44f6f1d6a3",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_PAG9fz4W4RFquTdtjV1oKC\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+        "content_digest": "a18a5a13b1c536f4",
         "observation_type": "generation"
       },
       {
         "index": 2,
         "role": "assistant",
         "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_1AESV2rtpr1i44F8ykUuRZ\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
-        "content_digest": "444f7003c3d3f2a3",
+        "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_PAG9fz4W4RFquTdtjV1oKC\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+        "content_digest": "d8e07a898ee4c90e",
         "tool_name": "get_weather",
         "finish_reason": "ToolUse",
         "observation_type": "generation"

@@ -27,8 +27,8 @@
           "index": 1,
           "role": "assistant",
           "entry_type": "thinking",
-          "content": "This is the classic bridge and torch puzzle with people taking 1, 2, 5, and 10 minutes to cross. The optimal strategy gets everyone across in 17 minutes: send 1 and 2 over, send 1 back, send 5 and 10 over together, send 2 back, then send 1 …[1821 chars]",
-          "content_digest": "20e2fb6c1d8293f2",
+          "content": "This is the classic bridge and torch puzzle with crossing times of 1, 2, 5, and 10 minutes, and I recall the optimal solution takes 17 minutes. I'm working out the sequence: send 1 and 2 across together, have 1 return, send 5 and 10 across …[5648 chars]",
+          "content_digest": "334ebe853a23fb62",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -36,8 +36,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "text",
-          "content": "**The fastest total time is 17 minutes.** ## Schedule | Step | Move | Time | Elapsed | |---|---|---|---| | 1 | 1 and 2 cross | 2 | 2 | | 2 | 1 returns with the torch | 1 | 3 | | 3 | 5 and 10 cross | 10 | 13 | | 4 | 2 returns with the torch …[1242 chars]",
-          "content_digest": "324a86d6311053c2",
+          "content": "**The fastest total time is 17 minutes.** **Schedule** | Step | Action | Time | Running total | |---|---|---|---| | 1 | 1 and 2 cross together | 2 | 2 | | 2 | 1 walks back with the torch | 1 | 3 | | 3 | 5 and 10 cross together | 10 | 13 | |…[1057 chars]",
+          "content_digest": "b27de2579a91d02b",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -74,8 +74,8 @@
           "index": 1,
           "role": "assistant",
           "entry_type": "thinking",
-          "content": "This is the classic bridge and torch puzzle with people taking 1, 2, 5, and 10 minutes to cross. The optimal strategy gets everyone across in 17 minutes: send 1 and 2 over, send 1 back, send 5 and 10 over together, send 2 back, then send 1 …[1821 chars]",
-          "content_digest": "20e2fb6c1d8293f2",
+          "content": "This is the classic bridge and torch puzzle with crossing times of 1, 2, 5, and 10 minutes, and I recall the optimal solution takes 17 minutes. I'm working out the sequence: send 1 and 2 across together, have 1 return, send 5 and 10 across …[5648 chars]",
+          "content_digest": "334ebe853a23fb62",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -83,8 +83,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "text",
-          "content": "**The fastest total time is 17 minutes.** ## Schedule | Step | Move | Time | Elapsed | |---|---|---|---| | 1 | 1 and 2 cross | 2 | 2 | | 2 | 1 returns with the torch | 1 | 3 | | 3 | 5 and 10 cross | 10 | 13 | | 4 | 2 returns with the torch …[1242 chars]",
-          "content_digest": "324a86d6311053c2",
+          "content": "**The fastest total time is 17 minutes.** **Schedule** | Step | Action | Time | Running total | |---|---|---|---| | 1 | 1 and 2 cross together | 2 | 2 | | 2 | 1 walks back with the torch | 1 | 3 | | 3 | 5 and 10 cross together | 10 | 13 | |…[1057 chars]",
+          "content_digest": "b27de2579a91d02b",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -114,8 +114,8 @@
           "index": 1,
           "role": "assistant",
           "entry_type": "thinking",
-          "content": "This is the classic bridge and torch puzzle with people taking 1, 2, 5, and 10 minutes to cross. The optimal strategy gets everyone across in 17 minutes: send 1 and 2 over, send 1 back, send 5 and 10 over together, send 2 back, then send 1 …[1821 chars]",
-          "content_digest": "20e2fb6c1d8293f2",
+          "content": "This is the classic bridge and torch puzzle with crossing times of 1, 2, 5, and 10 minutes, and I recall the optimal solution takes 17 minutes. I'm working out the sequence: send 1 and 2 across together, have 1 return, send 5 and 10 across …[5648 chars]",
+          "content_digest": "334ebe853a23fb62",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -123,8 +123,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "text",
-          "content": "**The fastest total time is 17 minutes.** ## Schedule | Step | Move | Time | Elapsed | |---|---|---|---| | 1 | 1 and 2 cross | 2 | 2 | | 2 | 1 returns with the torch | 1 | 3 | | 3 | 5 and 10 cross | 10 | 13 | | 4 | 2 returns with the torch …[1242 chars]",
-          "content_digest": "324a86d6311053c2",
+          "content": "**The fastest total time is 17 minutes.** **Schedule** | Step | Action | Time | Running total | |---|---|---|---| | 1 | 1 and 2 cross together | 2 | 2 | | 2 | 1 walks back with the torch | 1 | 3 | | 3 | 5 and 10 cross together | 10 | 13 | |…[1057 chars]",
+          "content_digest": "b27de2579a91d02b",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -145,8 +145,8 @@
         "index": 0,
         "role": "assistant",
         "entry_type": "thinking",
-        "content": "This is the classic bridge and torch puzzle with people taking 1, 2, 5, and 10 minutes to cross. The optimal strategy gets everyone across in 17 minutes: send 1 and 2 over, send 1 back, send 5 and 10 over together, send 2 back, then send 1 …[1821 chars]",
-        "content_digest": "20e2fb6c1d8293f2",
+        "content": "This is the classic bridge and torch puzzle with crossing times of 1, 2, 5, and 10 minutes, and I recall the optimal solution takes 17 minutes. I'm working out the sequence: send 1 and 2 across together, have 1 return, send 5 and 10 across …[5648 chars]",
+        "content_digest": "334ebe853a23fb62",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },
@@ -154,8 +154,8 @@
         "index": 1,
         "role": "assistant",
         "entry_type": "text",
-        "content": "**The fastest total time is 17 minutes.** ## Schedule | Step | Move | Time | Elapsed | |---|---|---|---| | 1 | 1 and 2 cross | 2 | 2 | | 2 | 1 returns with the torch | 1 | 3 | | 3 | 5 and 10 cross | 10 | 13 | | 4 | 2 returns with the torch …[1242 chars]",
-        "content_digest": "324a86d6311053c2",
+        "content": "**The fastest total time is 17 minutes.** **Schedule** | Step | Action | Time | Running total | |---|---|---|---| | 1 | 1 and 2 cross together | 2 | 2 | | 2 | 1 walks back with the torch | 1 | 3 | | 3 | 5 and 10 cross together | 10 | 13 | |…[1057 chars]",
+        "content_digest": "b27de2579a91d02b",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },

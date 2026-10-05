@@ -186,6 +186,11 @@ set_logger_provider(logs)
 BotocoreInstrumentor().instrument(tracer_provider=provider, logger_provider=logs)
 ```
 
+That instrumentation does not record the tools a request offered, and it puts the call on an RPC span,
+which SideSeat shows as a plain span rather than a generation; the SideSeat SDK records both. The
+compatibility corpus exercises boto3 1.43.107 and botocore instrumentation 0.66b0 natively and through the
+SDK in nine example scenarios, with the same conversations either way.
+
 ## Next steps
 
 - [Strands Agents](/docs/integrations/frameworks/strands/) on Bedrock

@@ -1,0 +1,468 @@
+{
+  "label": "bedrock/native/multi_turn",
+  "request_count": 2,
+  "span_count": 4,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/chat global.anthropic.claude-sonnet-5-5/span-2": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "redacted_thinking",
+          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSvgQKEggSEAEYAjgBQgh0aGlua2luZxIMRJlwge4G9fYGI5DcGgxlB3NSMI7HVtZRDJIiMNHNRrj//iE1Fre69CzzF0hLX+MQ1oeOtU/49kRa4vI/gdhdRR66WObzKrhvl7YfeCrZA3NDtEDRxzDouzplyJ/4vt9C6XAjqvRewZ3YS1wPmmH0NmJzetubTpcDR4Q1e1Dj…[814 chars]",
+          "content_digest": "8cbd97831f84ef8e",
+          "finish_reason": "Stop",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Chiado**. It's central, walkable, and well connected by metro and tram to major sights like Alfama, Baixa, and Bairro Alto. I can check the weather forecast or look at hotel bookings for your dates if you'd like.",
+          "content_digest": "bdb4ba87922702b6",
+          "finish_reason": "Stop",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/chat global.anthropic.claude-sonnet-5-5/span-3": {
+      "message_count": 6,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "redacted_thinking",
+          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSvgQKEggSEAEYAjgBQgh0aGlua2luZxIMRJlwge4G9fYGI5DcGgxlB3NSMI7HVtZRDJIiMNHNRrj//iE1Fre69CzzF0hLX+MQ1oeOtU/49kRa4vI/gdhdRR66WObzKrhvl7YfeCrZA3NDtEDRxzDouzplyJ/4vt9C6XAjqvRewZ3YS1wPmmH0NmJzetubTpcDR4Q1e1Dj…[814 chars]",
+          "content_digest": "8cbd97831f84ef8e",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Chiado**. It's central, walkable, and well connected by metro and tram to major sights like Alfama, Baixa, and Bairro Alto. I can check the weather forecast or look at hotel bookings for your dates if you'd like.",
+          "content_digest": "bdb4ba87922702b6",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "span"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, best eaten warm with a dusting of cinnamon. Pastéis de Belém is the classic spot, though many cafés in Chiado serve excellent ones too.",
+          "content_digest": "0401f16a8cfe642d",
+          "finish_reason": "Stop",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/chat global.anthropic.claude-sonnet-5-5/span-4": {
+      "message_count": 8,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "redacted_thinking",
+          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSvgQKEggSEAEYAjgBQgh0aGlua2luZxIMRJlwge4G9fYGI5DcGgxlB3NSMI7HVtZRDJIiMNHNRrj//iE1Fre69CzzF0hLX+MQ1oeOtU/49kRa4vI/gdhdRR66WObzKrhvl7YfeCrZA3NDtEDRxzDouzplyJ/4vt9C6XAjqvRewZ3YS1wPmmH0NmJzetubTpcDR4Q1e1Dj…[814 chars]",
+          "content_digest": "8cbd97831f84ef8e",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Chiado**. It's central, walkable, and well connected by metro and tram to major sights like Alfama, Baixa, and Bairro Alto. I can check the weather forecast or look at hotel bookings for your dates if you'd like.",
+          "content_digest": "bdb4ba87922702b6",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "span"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, best eaten warm with a dusting of cinnamon. Pastéis de Belém is the classic spot, though many cafés in Chiado serve excellent ones too.",
+          "content_digest": "0401f16a8cfe642d",
+          "observation_type": "span"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarise your two suggestions in one sentence.",
+          "content_digest": "3a58af4870fae288",
+          "observation_type": "span"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in central Chiado and try warm pastéis de nata, the city's iconic custard tarts.",
+          "content_digest": "4e783f057fbffc45",
+          "finish_reason": "Stop",
+          "observation_type": "span"
+        }
+      ]
+    },
+    "trace-1/multi-turn/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 8,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "redacted_thinking",
+          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSvgQKEggSEAEYAjgBQgh0aGlua2luZxIMRJlwge4G9fYGI5DcGgxlB3NSMI7HVtZRDJIiMNHNRrj//iE1Fre69CzzF0hLX+MQ1oeOtU/49kRa4vI/gdhdRR66WObzKrhvl7YfeCrZA3NDtEDRxzDouzplyJ/4vt9C6XAjqvRewZ3YS1wPmmH0NmJzetubTpcDR4Q1e1Dj…[814 chars]",
+          "content_digest": "8cbd97831f84ef8e",
+          "finish_reason": "Stop",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Chiado**. It's central, walkable, and well connected by metro and tram to major sights like Alfama, Baixa, and Bairro Alto. I can check the weather forecast or look at hotel bookings for your dates if you'd like.",
+          "content_digest": "bdb4ba87922702b6",
+          "finish_reason": "Stop",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "span"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, best eaten warm with a dusting of cinnamon. Pastéis de Belém is the classic spot, though many cafés in Chiado serve excellent ones too.",
+          "content_digest": "0401f16a8cfe642d",
+          "finish_reason": "Stop",
+          "observation_type": "span"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarise your two suggestions in one sentence.",
+          "content_digest": "3a58af4870fae288",
+          "observation_type": "span"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in central Chiado and try warm pastéis de nata, the city's iconic custard tarts.",
+          "content_digest": "4e783f057fbffc45",
+          "finish_reason": "Stop",
+          "observation_type": "span"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "bedrock-multi_turn": {
+      "message_count": 8,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "redacted_thinking",
+          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSvgQKEggSEAEYAjgBQgh0aGlua2luZxIMRJlwge4G9fYGI5DcGgxlB3NSMI7HVtZRDJIiMNHNRrj//iE1Fre69CzzF0hLX+MQ1oeOtU/49kRa4vI/gdhdRR66WObzKrhvl7YfeCrZA3NDtEDRxzDouzplyJ/4vt9C6XAjqvRewZ3YS1wPmmH0NmJzetubTpcDR4Q1e1Dj…[814 chars]",
+          "content_digest": "8cbd97831f84ef8e",
+          "finish_reason": "Stop",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Chiado**. It's central, walkable, and well connected by metro and tram to major sights like Alfama, Baixa, and Bairro Alto. I can check the weather forecast or look at hotel bookings for your dates if you'd like.",
+          "content_digest": "bdb4ba87922702b6",
+          "finish_reason": "Stop",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "span"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, best eaten warm with a dusting of cinnamon. Pastéis de Belém is the classic spot, though many cafés in Chiado serve excellent ones too.",
+          "content_digest": "0401f16a8cfe642d",
+          "finish_reason": "Stop",
+          "observation_type": "span"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarise your two suggestions in one sentence.",
+          "content_digest": "3a58af4870fae288",
+          "observation_type": "span"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in central Chiado and try warm pastéis de nata, the city's iconic custard tarts.",
+          "content_digest": "4e783f057fbffc45",
+          "finish_reason": "Stop",
+          "observation_type": "span"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 8,
+    "role_sequence": [
+      "assistant",
+      "user",
+      "assistant",
+      "user",
+      "assistant",
+      "assistant",
+      "user",
+      "system"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Stay in central Chiado and try warm pastéis de nata, the city's iconic custard tarts.",
+        "content_digest": "4e783f057fbffc45",
+        "finish_reason": "Stop",
+        "observation_type": "span"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Summarise your two suggestions in one sentence.",
+        "content_digest": "3a58af4870fae288",
+        "observation_type": "span"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, best eaten warm with a dusting of cinnamon. Pastéis de Belém is the classic spot, though many cafés in Chiado serve excellent ones too.",
+        "content_digest": "0401f16a8cfe642d",
+        "finish_reason": "Stop",
+        "observation_type": "span"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is one dish I should try there?",
+        "content_digest": "fa205a3ea90d1fdf",
+        "observation_type": "span"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "redacted_thinking",
+        "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSvgQKEggSEAEYAjgBQgh0aGlua2luZxIMRJlwge4G9fYGI5DcGgxlB3NSMI7HVtZRDJIiMNHNRrj//iE1Fre69CzzF0hLX+MQ1oeOtU/49kRa4vI/gdhdRR66WObzKrhvl7YfeCrZA3NDtEDRxzDouzplyJ/4vt9C6XAjqvRewZ3YS1wPmmH0NmJzetubTpcDR4Q1e1Dj…[814 chars]",
+        "content_digest": "8cbd97831f84ef8e",
+        "finish_reason": "Stop",
+        "observation_type": "span"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Stay in **Chiado**. It's central, walkable, and well connected by metro and tram to major sights like Alfama, Baixa, and Bairro Alto. I can check the weather forecast or look at hotel bookings for your dates if you'd like.",
+        "content_digest": "bdb4ba87922702b6",
+        "finish_reason": "Stop",
+        "observation_type": "span"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "entry_type": "text",
+        "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+        "content_digest": "c366c7539466c187",
+        "observation_type": "span"
+      },
+      {
+        "index": 7,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "span"
+      }
+    ]
+  }
+}

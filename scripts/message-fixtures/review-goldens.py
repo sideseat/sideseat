@@ -118,6 +118,9 @@ INTENTIONAL_WARNINGS: dict[str, dict[str, tuple[int, str]]] = {
             "structured assistant output is canonically represented as JSON",
         ),
     },
+    "bedrock/native/structured_output": {
+        "unbalanced_tools": (2, "TripPlan is a terminal schema pseudo-tool"),
+    },
     "bedrock/sdk/structured_output": {
         "unbalanced_tools": (2, "TripPlan is a terminal schema pseudo-tool"),
     },
