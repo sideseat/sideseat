@@ -26,7 +26,7 @@ The engine covers telemetry interpretation:
 - content-block and tool-definition shapes;
 - observation and span classification;
 - stored span-field resolution;
-- provider aliases needed by telemetry interpretation.
+- framework-owned provider aliases needed by telemetry interpretation.
 
 It does not cover executable provider connectors, authentication flows, the provider catalogue, or MCP
 client setup. Those are separate adapter and product-metadata concerns.
@@ -88,6 +88,7 @@ Each asset has a stable `id`, optional prose documentation, and any subset of th
 | `sdk_slugs` | Explicit SDK declarations used after telemetry detection fails |
 | `carriers` | Carrier semantics and ordering-family membership |
 | `messages` | How carriers and events produce canonical readings |
+| `message_projections` | Stored message rows hidden from the read-time SideML projection |
 | `fragments` | One-level reusable message-shape tables |
 | `message_events` | Events that may contain messages |
 | `log_events` | Log-record shapes that carry one of the `message_events`, and where their attributes are |
@@ -256,6 +257,12 @@ The guarantees above have explicit boundaries:
   iterations, or emitted values.
 - Some ordered rule families are scanned linearly.
 - The per-message explain trace is incomplete.
+- The boundary invariant is not yet fully met. Content-block normalisation still runs four hardcoded
+  provider-format handlers between the `before_provider_formats` and `after_provider_formats` chain
+  positions, and SideML normalisation still holds role and finish-reason alias tables and several
+  payload-shape special cases in Rust. Provider spellings, model-name normalisation, and cache and
+  reasoning counter policy used for pricing also remain in Rust; `provider_aliases` covers only a
+  framework that names itself where a provider is expected.
 
 These are design boundaries, not implied guarantees. New work should either preserve them explicitly or
 change the architecture and its verification together.
