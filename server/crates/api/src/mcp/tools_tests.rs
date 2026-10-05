@@ -429,10 +429,15 @@ fn test_typescript_snippets_declare_every_identifier() {
         // access, which nothing looked at.
         const RUNTIME_GLOBALS: &[&str] = &["process", "console", "JSON", "Math"];
         // Declared by the guide template that wraps every snippet, not by the snippet:
-        // `import { init, Frameworks } from '@sideseat/sdk'` on the SDK path and the NodeSDK
+        // `import * as sideseat from '@sideseat/sdk'` on the SDK path and the NodeSDK
         // block on the direct-OTLP path. A snippet using these is correct.
-        const TEMPLATE_PROVIDED: &[&str] =
-            &["init", "sdk", "query", "generateText", "registerTelemetry"];
+        const TEMPLATE_PROVIDED: &[&str] = &[
+            "sideseat",
+            "sdk",
+            "query",
+            "generateText",
+            "registerTelemetry",
+        ];
         const KEYWORDS: &[&str] = &[
             "const",
             "let",
@@ -617,7 +622,7 @@ fn test_setup_guide_carries_required_sdk_extra() {
         ("langgraph", "langgraph"),
         ("crewai", "crewai"),
         ("autogen", "autogen"),
-        ("bedrock", "aws"),
+        ("bedrock", "bedrock"),
         ("anthropic", "anthropic"),
         ("vertex-ai", "vertex-ai"),
         ("azure-openai", "azure-openai"),
@@ -644,7 +649,7 @@ fn test_setup_guide_uses_current_vertex_ai_google_genai_client() {
     let guide = build_setup_guide_template("http://localhost:5388/otel/default", Some("vertex-ai"));
 
     assert!(guide.contains("pip install \"sideseat[vertex-ai]\" google-genai"));
-    assert!(guide.contains("Frameworks.VertexAI"));
+    assert!(guide.contains("integrations=[\"vertex-ai\"]"));
     assert!(guide.contains("genai.Client(enterprise=True"));
     assert!(!guide.contains("genai.Client(vertexai=True"));
     assert!(guide.contains("logfire.instrument_google_genai()"));
@@ -655,17 +660,17 @@ fn test_setup_guide_uses_current_vertex_ai_google_genai_client() {
 #[test]
 fn test_setup_guide_uses_current_azure_openai_v1_instrumentation() {
     let guide = build_setup_guide("demo", Some("azure-openai"));
-    assert!(guide.contains("Frameworks.AzureOpenAI"));
+    assert!(guide.contains("integrations=[\"azure-openai\"]"));
     assert!(guide.contains("openai.azure.com/openai/v1/"));
     assert!(guide.contains("OpenAIInstrumentor().instrument(tracer_provider=provider)"));
     assert!(!guide.contains("from openai import AzureOpenAI"));
-    assert!(!guide.contains("Frameworks.OpenAI"));
+    assert!(!guide.contains("integrations=[\"openai\"]"));
 }
 
 #[test]
 fn test_setup_guide_resolves_claude_agent_sdk() {
     let guide = build_setup_guide("demo", Some("claude-agent-sdk"));
-    assert!(guide.contains("Frameworks.ClaudeAgentSDK"));
+    assert!(guide.contains("integrations=[\"claude-agent-sdk\"]"));
     assert!(guide.contains("CLAUDE_CODE_ENHANCED_TELEMETRY_BETA"));
     // Snippets are inserted as values, so the endpoint placeholder must be
     // substituted after formatting or it leaks into the output verbatim.
@@ -686,7 +691,7 @@ fn test_setup_guide_uses_current_agentscope_api_and_middleware() {
 #[test]
 fn test_setup_guide_matches_framework_aliases() {
     // get_framework() matches on the kebab-cased display name, the lowercased
-    // sdk_variant (with and without hyphens), and the pip package.
+    // integration name (with and without hyphens), and the pip package.
     for name in [
         "claude-agent-sdk",
         "claudeagentsdk",
@@ -695,7 +700,7 @@ fn test_setup_guide_matches_framework_aliases() {
     ] {
         let guide = build_setup_guide("demo", Some(name));
         assert!(
-            guide.contains("Frameworks.ClaudeAgentSDK"),
+            guide.contains("integrations=[\"claude-agent-sdk\"]"),
             "'{name}' should resolve to the Claude Agent SDK entry"
         );
     }
@@ -772,4 +777,38 @@ fn test_clamp_limit() {
     assert_eq!(clamp_limit(Some(1)), 1);
     assert_eq!(clamp_limit(Some(50)), 50);
     assert_eq!(clamp_limit(Some(1000)), MAX_PAGE_LIMIT);
+}
+
+/// Every integration the guide tells a coding agent to pass exists in that language's SDK.
+///
+/// The guide is generated from this table, not from the SDKs, so a renamed or removed integration
+/// would otherwise keep being recommended - the guide once emitted an SDK API that no longer existed.
+#[test]
+fn every_guide_integration_is_one_the_sdk_registers() {
+    let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(std::path::Path::parent)
+        .and_then(std::path::Path::parent)
+        .expect("repo root");
+    let python =
+        std::fs::read_to_string(repo.join("sdk/python/src/sideseat/integrations/__init__.py"))
+            .expect("Python integration registry");
+    let js_dir = repo.join("sdk/js/src/integrations");
+    let js: String = std::fs::read_dir(&js_dir)
+        .expect("JS integrations")
+        .filter_map(Result::ok)
+        .filter_map(|entry| std::fs::read_to_string(entry.path()).ok())
+        .collect();
+
+    for fw in FRAMEWORKS {
+        let registered = match fw.lang {
+            Lang::Python => python.contains(&format!("\"{}\": (", fw.integration)),
+            Lang::TypeScript => js.contains(&format!("name: \"{}\"", fw.integration)),
+        };
+        assert!(
+            registered,
+            "{} recommends integration {:?}, which the SDK does not register",
+            fw.display, fw.integration
+        );
+    }
 }

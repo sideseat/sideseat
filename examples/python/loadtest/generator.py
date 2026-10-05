@@ -41,7 +41,7 @@ TOOL_NAMES = [
     "database_query",
     "api_call",
 ]
-MODEL_IDS = ["claude-3-haiku", "claude-3-sonnet", "gpt-4-turbo", "gemini-pro"]
+MODEL_IDS = ["claude-sonnet-5-5", "claude-haiku-4-5", "gpt-6.1-sol", "gemini-2.5-flash"]
 OPERATIONS = [
     "agent_invoke",
     "tool_call",

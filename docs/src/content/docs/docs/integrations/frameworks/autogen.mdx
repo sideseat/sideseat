@@ -45,7 +45,7 @@ def get_weather(city: str) -> str:
 
 
 async def main() -> None:
-    model_client = OpenAIChatCompletionClient(model="gpt-5-mini")
+    model_client = OpenAIChatCompletionClient(model="gpt-6.1-sol")
     assistant = AssistantAgent(
         "assistant",
         model_client=model_client,

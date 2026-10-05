@@ -443,7 +443,8 @@ struct FrameworkSetup {
     /// Without it the import fails, `instrument()` logs a warning and returns false, and
     /// the app runs with no spans at all - so the SDK install line must carry it.
     sdk_extra: &'static str,
-    sdk_variant: &'static str,
+    /// The SDK integration name, as `sideseat.init(integrations=[...])` takes it.
+    integration: &'static str,
     sdk_snippet: &'static str,
     no_sdk_extra_pkgs: &'static str,
     no_sdk_extra_setup: &'static str,
@@ -456,7 +457,7 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         lang: Lang::Python,
         pip_pkg: "strands-agents",
         sdk_extra: "",
-        sdk_variant: "Strands",
+        integration: "strands",
         sdk_snippet: "from strands import Agent\n\nagent = Agent()\nprint(agent(\"Hello\"))",
         no_sdk_extra_pkgs: "",
         no_sdk_extra_setup: "",
@@ -466,8 +467,8 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         lang: Lang::Python,
         pip_pkg: "langchain-openai",
         sdk_extra: "langchain",
-        sdk_variant: "LangChain",
-        sdk_snippet: "from langchain_openai import ChatOpenAI\nllm = ChatOpenAI(model=\"gpt-4o-mini\")\nprint(llm.invoke(\"Hello\").content)",
+        integration: "langchain",
+        sdk_snippet: "from langchain_openai import ChatOpenAI\nllm = ChatOpenAI(model=\"gpt-6.1-sol\")\nprint(llm.invoke(\"Hello\").content)",
         no_sdk_extra_pkgs: "openinference-instrumentation-langchain",
         no_sdk_extra_setup: "from openinference.instrumentation.langchain import LangChainInstrumentor\nLangChainInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)",
     },
@@ -476,8 +477,8 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         lang: Lang::Python,
         pip_pkg: "langgraph langchain-openai",
         sdk_extra: "langgraph",
-        sdk_variant: "LangGraph",
-        sdk_snippet: "from langgraph.prebuilt import create_react_agent\nfrom langchain_openai import ChatOpenAI\nagent = create_react_agent(ChatOpenAI(model=\"gpt-4o-mini\"), [])\nprint(agent.invoke({\"messages\": [(\"user\", \"Hello\")]}))",
+        integration: "langgraph",
+        sdk_snippet: "from langgraph.prebuilt import create_react_agent\nfrom langchain_openai import ChatOpenAI\nagent = create_react_agent(ChatOpenAI(model=\"gpt-6.1-sol\"), [])\nprint(agent.invoke({\"messages\": [(\"user\", \"Hello\")]}))",
         no_sdk_extra_pkgs: "openinference-instrumentation-langchain",
         no_sdk_extra_setup: "from openinference.instrumentation.langchain import LangChainInstrumentor\nLangChainInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)",
     },
@@ -486,7 +487,7 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         lang: Lang::Python,
         pip_pkg: "crewai",
         sdk_extra: "crewai",
-        sdk_variant: "CrewAI",
+        integration: "crewai",
         sdk_snippet: "from crewai import Agent, Task, Crew\na = Agent(role=\"R\", goal=\"G\", backstory=\"B\")\nt = Task(description=\"D\", expected_output=\"O\", agent=a)\nprint(Crew(agents=[a], tasks=[t]).kickoff())",
         no_sdk_extra_pkgs: "openinference-instrumentation-crewai",
         no_sdk_extra_setup: "from openinference.instrumentation.crewai import CrewAIInstrumentor\nCrewAIInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)",
@@ -498,8 +499,8 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         // pulls its OpenAI client dependencies.
         pip_pkg: "autogen-agentchat \"autogen-ext[openai]\"",
         sdk_extra: "autogen",
-        sdk_variant: "AutoGen",
-        sdk_snippet: "import asyncio\nfrom autogen_agentchat.agents import AssistantAgent\nfrom autogen_ext.models.openai import OpenAIChatCompletionClient\nagent = AssistantAgent(\"a\", model_client=OpenAIChatCompletionClient(model=\"gpt-4o-mini\"))\nasyncio.run(agent.run(task=\"Hello\"))",
+        integration: "autogen",
+        sdk_snippet: "import asyncio\nfrom autogen_agentchat.agents import AssistantAgent\nfrom autogen_ext.models.openai import OpenAIChatCompletionClient\nagent = AssistantAgent(\"a\", model_client=OpenAIChatCompletionClient(model=\"gpt-6.1-sol\"))\nasyncio.run(agent.run(task=\"Hello\"))",
         no_sdk_extra_pkgs: "openinference-instrumentation-autogen-agentchat",
         no_sdk_extra_setup: "from openinference.instrumentation.autogen_agentchat import AutogenAgentChatInstrumentor\nAutogenAgentChatInstrumentor().instrument(tracer_provider=provider, skip_dep_check=True)",
     },
@@ -508,9 +509,9 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         lang: Lang::Python,
         pip_pkg: "openai-agents",
         sdk_extra: "openai-agents",
-        sdk_variant: "OpenAIAgents",
+        integration: "openai-agents",
         sdk_snippet: "from agents import Agent, Runner\nprint(Runner.run_sync(Agent(name=\"A\", instructions=\"Helpful.\"), \"Hello\").final_output)",
-        no_sdk_extra_pkgs: "\"logfire>=4.29.0\"",
+        no_sdk_extra_pkgs: "logfire",
         no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_openai_agents()",
     },
     FrameworkSetup {
@@ -518,8 +519,8 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         lang: Lang::Python,
         pip_pkg: "pydantic-ai",
         sdk_extra: "pydantic-ai",
-        sdk_variant: "PydanticAI",
-        sdk_snippet: "from pydantic_ai import Agent\nprint(Agent(\"openai:gpt-4o-mini\").run_sync(\"Hello\").output)",
+        integration: "pydantic-ai",
+        sdk_snippet: "from pydantic_ai import Agent\nprint(Agent(\"openai:gpt-6.1-sol\").run_sync(\"Hello\").output)",
         no_sdk_extra_pkgs: "logfire[pydantic-ai]",
         no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_pydantic_ai()",
     },
@@ -528,8 +529,8 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         lang: Lang::Python,
         pip_pkg: "google-adk",
         sdk_extra: "",
-        sdk_variant: "GoogleADK",
-        sdk_snippet: "import asyncio\n\nfrom google.adk.agents import LlmAgent\nfrom google.adk.runners import Runner\nfrom google.adk.sessions import InMemorySessionService\nfrom google.genai import types\n\nagent = LlmAgent(model=\"gemini-2.0-flash\", name=\"assistant\", instruction=\"Be helpful.\")\n\nasync def main():\n    sessions = InMemorySessionService()\n    await sessions.create_session(app_name=\"demo\", user_id=\"u1\", session_id=\"s1\")\n    runner = Runner(agent=agent, app_name=\"demo\", session_service=sessions)\n    async for event in runner.run_async(\n        session_id=\"s1\",\n        user_id=\"u1\",\n        new_message=types.Content(role=\"user\", parts=[types.Part(text=\"Hello\")]),\n    ):\n        if event.content and event.content.parts:\n            for part in event.content.parts:\n                if getattr(part, \"text\", None):\n                    print(part.text)\n\nasyncio.run(main())",
+        integration: "google-adk",
+        sdk_snippet: "import asyncio\n\nfrom google.adk.agents import LlmAgent\nfrom google.adk.runners import Runner\nfrom google.adk.sessions import InMemorySessionService\nfrom google.genai import types\n\nagent = LlmAgent(model=\"gemini-2.5-flash\", name=\"assistant\", instruction=\"Be helpful.\")\n\nasync def main():\n    sessions = InMemorySessionService()\n    await sessions.create_session(app_name=\"demo\", user_id=\"u1\", session_id=\"s1\")\n    runner = Runner(agent=agent, app_name=\"demo\", session_service=sessions)\n    async for event in runner.run_async(\n        session_id=\"s1\",\n        user_id=\"u1\",\n        new_message=types.Content(role=\"user\", parts=[types.Part(text=\"Hello\")]),\n    ):\n        if event.content and event.content.parts:\n            for part in event.content.parts:\n                if getattr(part, \"text\", None):\n                    print(part.text)\n\nasyncio.run(main())",
         no_sdk_extra_pkgs: "",
         no_sdk_extra_setup: "",
     },
@@ -538,8 +539,8 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         lang: Lang::Python,
         pip_pkg: "agent-framework",
         sdk_extra: "",
-        sdk_variant: "AgentFramework",
-        sdk_snippet: "import asyncio\nfrom agent_framework import Agent\nfrom agent_framework.openai import OpenAIChatClient\nprint(asyncio.run(Agent(client=OpenAIChatClient(model=\"gpt-5-nano-2025-08-07\"), instructions=\"Helpful.\").run(\"Hello\")).text)",
+        integration: "agent-framework",
+        sdk_snippet: "import asyncio\nfrom agent_framework import Agent\nfrom agent_framework.openai import OpenAIChatClient\nprint(asyncio.run(Agent(client=OpenAIChatClient(model=\"gpt-6.1-sol\"), instructions=\"Helpful.\").run(\"Hello\")).text)",
         no_sdk_extra_pkgs: "",
         no_sdk_extra_setup: "from agent_framework.observability import OBSERVABILITY_SETTINGS\nOBSERVABILITY_SETTINGS.enable_instrumentation = True\nOBSERVABILITY_SETTINGS.enable_sensitive_data = True",
     },
@@ -547,9 +548,9 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         display: "Amazon Bedrock",
         lang: Lang::Python,
         pip_pkg: "boto3",
-        sdk_extra: "aws",
-        sdk_variant: "Bedrock",
-        sdk_snippet: "import boto3\nr = boto3.client(\"bedrock-runtime\", region_name=\"us-east-1\").converse(modelId=\"anthropic.claude-haiku-4-5-20251001-v1:0\", messages=[{\"role\": \"user\", \"content\": [{\"text\": \"Hello\"}]}])\nprint(r[\"output\"][\"message\"][\"content\"][0][\"text\"])",
+        sdk_extra: "bedrock",
+        integration: "bedrock",
+        sdk_snippet: "import boto3\nr = boto3.client(\"bedrock-runtime\", region_name=\"us-east-1\").converse(modelId=\"global.anthropic.claude-sonnet-5-5\", messages=[{\"role\": \"user\", \"content\": [{\"text\": \"Hello\"}]}])\nprint(r[\"output\"][\"message\"][\"content\"][0][\"text\"])",
         no_sdk_extra_pkgs: "opentelemetry-instrumentation-botocore",
         no_sdk_extra_setup: "from opentelemetry.instrumentation.botocore import BotocoreInstrumentor\nBotocoreInstrumentor().instrument(tracer_provider=provider)",
     },
@@ -558,7 +559,7 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         lang: Lang::Python,
         pip_pkg: "claude-agent-sdk",
         sdk_extra: "",
-        sdk_variant: "ClaudeAgentSDK",
+        integration: "claude-agent-sdk",
         sdk_snippet: "import asyncio\nfrom claude_agent_sdk import query, ClaudeAgentOptions\n\n# The Agent SDK emits no telemetry itself: it spawns the Claude Code CLI, which\n# carries the OTel instrumentation and is configured via these env vars.\nOTEL_ENV = {\n    \"CLAUDE_CODE_ENABLE_TELEMETRY\": \"1\",\n    # Span tracing is beta and off without this flag.\n    \"CLAUDE_CODE_ENHANCED_TELEMETRY_BETA\": \"1\",\n    # Second beta tier. Without these two the message feed stays empty:\n    # assistant reply text exists nowhere else on the trace.\n    \"ENABLE_BETA_TRACING_DETAILED\": \"1\",\n    \"BETA_TRACING_ENDPOINT\": \"__OTLP_BASE__\",\n    # Never \"console\": the CLI writes telemetry to stdout, which is the SDK's\n    # message channel, and would corrupt the stream.\n    \"OTEL_TRACES_EXPORTER\": \"otlp\",\n    \"OTEL_EXPORTER_OTLP_TRACES_PROTOCOL\": \"http/protobuf\",\n    \"OTEL_EXPORTER_OTLP_TRACES_ENDPOINT\": \"__OTLP_ENDPOINT__\",\n    # Content is redacted by default, leaving the message feed empty.\n    \"OTEL_LOG_USER_PROMPTS\": \"1\",\n    \"OTEL_LOG_TOOL_DETAILS\": \"1\",\n}\n\nasync def main():\n    options = ClaudeAgentOptions(env=OTEL_ENV, allowed_tools=[\"Read\", \"Glob\"])\n    async for message in query(prompt=\"What is 2+2?\", options=options):\n        print(message)\n\nasyncio.run(main())",
         no_sdk_extra_pkgs: "",
         no_sdk_extra_setup: "",
@@ -568,8 +569,8 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         lang: Lang::Python,
         pip_pkg: "anthropic",
         sdk_extra: "anthropic",
-        sdk_variant: "Anthropic",
-        sdk_snippet: "import anthropic\nprint(anthropic.Anthropic().messages.create(model=\"claude-haiku-4-5-20251001\", max_tokens=256, messages=[{\"role\": \"user\", \"content\": \"Hello\"}]).content[0].text)",
+        integration: "anthropic",
+        sdk_snippet: "import anthropic\nprint(anthropic.Anthropic().messages.create(model=\"claude-sonnet-5-5\", max_tokens=256, messages=[{\"role\": \"user\", \"content\": \"Hello\"}]).content[0].text)",
         no_sdk_extra_pkgs: "logfire[anthropic]",
         no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_anthropic()",
     },
@@ -578,8 +579,8 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         lang: Lang::Python,
         pip_pkg: "openai",
         sdk_extra: "openai",
-        sdk_variant: "OpenAI",
-        sdk_snippet: "from openai import OpenAI\nprint(OpenAI().chat.completions.create(model=\"gpt-4o-mini\", messages=[{\"role\": \"user\", \"content\": \"Hello\"}]).choices[0].message.content)",
+        integration: "openai",
+        sdk_snippet: "from openai import OpenAI\nprint(OpenAI().chat.completions.create(model=\"gpt-6.1-sol\", messages=[{\"role\": \"user\", \"content\": \"Hello\"}]).choices[0].message.content)",
         no_sdk_extra_pkgs: "logfire[openai]",
         no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_openai()",
     },
@@ -588,7 +589,7 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         lang: Lang::Python,
         pip_pkg: "google-genai",
         sdk_extra: "google-genai",
-        sdk_variant: "GoogleGenAI",
+        integration: "google-genai",
         sdk_snippet: "from google import genai\nprint(genai.Client(api_key=\"YOUR_KEY\").models.generate_content(model=\"gemini-2.5-flash\", contents=\"Hello\").text)",
         no_sdk_extra_pkgs: "logfire[google-genai]",
         no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_google_genai()",
@@ -598,7 +599,7 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         lang: Lang::Python,
         pip_pkg: "google-genai",
         sdk_extra: "vertex-ai",
-        sdk_variant: "VertexAI",
+        integration: "vertex-ai",
         sdk_snippet: "from google import genai\nclient = genai.Client(enterprise=True, project=\"PROJECT_ID\", location=\"us-central1\")\nprint(client.models.generate_content(model=\"gemini-2.5-flash\", contents=\"Hello\").text)",
         no_sdk_extra_pkgs: "logfire[google-genai]",
         no_sdk_extra_setup: "import logfire\nlogfire.configure(send_to_logfire=False, console=False)\nlogfire.instrument_google_genai()",
@@ -608,7 +609,7 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         lang: Lang::Python,
         pip_pkg: "openai",
         sdk_extra: "azure-openai",
-        sdk_variant: "AzureOpenAI",
+        integration: "azure-openai",
         sdk_snippet: "import os\nfrom openai import OpenAI\n\nazure = OpenAI(\n    api_key=os.environ[\"AZURE_OPENAI_API_KEY\"],\n    base_url=\"https://YOUR-RESOURCE.openai.azure.com/openai/v1/\",\n)\nresponse = azure.chat.completions.create(\n    model=\"YOUR-DEPLOYMENT\",\n    messages=[{\"role\": \"user\", \"content\": \"Hello\"}],\n)\nprint(response.choices[0].message.content)",
         no_sdk_extra_pkgs: "openinference-instrumentation-openai",
         no_sdk_extra_setup: "from openinference.instrumentation.openai import OpenAIInstrumentor\nOpenAIInstrumentor().instrument(tracer_provider=provider)",
@@ -618,8 +619,8 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         lang: Lang::Python,
         pip_pkg: "agno openai",
         sdk_extra: "agno",
-        sdk_variant: "Agno",
-        sdk_snippet: "from agno.agent import Agent\nfrom agno.models.openai import OpenAIChat\n\nagent = Agent(model=OpenAIChat(id=\"gpt-5-mini\"))\nagent.print_response(\"Hello\")",
+        integration: "agno",
+        sdk_snippet: "from agno.agent import Agent\nfrom agno.models.openai import OpenAIChat\n\nagent = Agent(model=OpenAIChat(id=\"gpt-6.1-sol\"))\nagent.print_response(\"Hello\")",
         no_sdk_extra_pkgs: "openinference-instrumentation-agno",
         no_sdk_extra_setup: "from openinference.instrumentation.agno import AgnoInstrumentor\nAgnoInstrumentor().instrument(tracer_provider=provider)",
     },
@@ -628,7 +629,7 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         lang: Lang::Python,
         pip_pkg: "smolagents",
         sdk_extra: "smolagents",
-        sdk_variant: "Smolagents",
+        integration: "smolagents",
         sdk_snippet: "from smolagents import CodeAgent, InferenceClientModel\n\nagent = CodeAgent(tools=[], model=InferenceClientModel())\nprint(agent.run(\"What is 2+2?\"))",
         no_sdk_extra_pkgs: "openinference-instrumentation-smolagents",
         no_sdk_extra_setup: "from openinference.instrumentation.smolagents import SmolagentsInstrumentor\nSmolagentsInstrumentor().instrument(tracer_provider=provider)",
@@ -636,10 +637,10 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
     FrameworkSetup {
         display: "AG2",
         lang: Lang::Python,
-        pip_pkg: "\"ag2[openai]<1.0\"",
+        pip_pkg: "\"ag2[openai]\"",
         sdk_extra: "ag2",
-        sdk_variant: "AG2",
-        sdk_snippet: "from autogen import ConversableAgent\n\nassistant = ConversableAgent(\n    name=\"assistant\",\n    llm_config={\"model\": \"gpt-5-mini\"},\n)\nprint(assistant.generate_reply(messages=[{\"role\": \"user\", \"content\": \"Hello\"}]))",
+        integration: "ag2",
+        sdk_snippet: "from autogen import ConversableAgent\n\nassistant = ConversableAgent(\n    name=\"assistant\",\n    llm_config={\"model\": \"gpt-6.1-sol\"},\n)\nprint(assistant.generate_reply(messages=[{\"role\": \"user\", \"content\": \"Hello\"}]))",
         no_sdk_extra_pkgs: "openinference-instrumentation-autogen",
         no_sdk_extra_setup: "from openinference.instrumentation.autogen import AutogenInstrumentor\nAutogenInstrumentor().instrument(tracer_provider=provider)",
     },
@@ -648,10 +649,10 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         lang: Lang::Python,
         pip_pkg: "agentscope",
         sdk_extra: "agentscope",
-        sdk_variant: "AgentScope",
+        integration: "agentscope",
         // Runnable as a script: AgentScope's agent call is async, so it needs an
         // asyncio entry point rather than a bare top-level await.
-        sdk_snippet: "import asyncio\nimport os\nfrom agentscope.agent import Agent\nfrom agentscope.credential import OpenAICredential\nfrom agentscope.message import UserMsg\nfrom agentscope.middleware import TracingMiddleware\nfrom agentscope.model import OpenAIChatModel\n\nasync def main():\n    model = OpenAIChatModel(\n        credential=OpenAICredential(api_key=os.environ[\"OPENAI_API_KEY\"]),\n        model=\"gpt-5-mini\",\n    )\n    # Explicit middleware keeps the same runnable body valid in the direct-OTLP\n    # guide. SideSeat recognises it and does not inject a duplicate.\n    agent = Agent(\n        name=\"assistant\",\n        system_prompt=\"Answer briefly.\",\n        model=model,\n        middlewares=[TracingMiddleware()],\n    )\n    reply = await agent.reply(UserMsg(\"user\", \"Hello!\"))\n    print(reply.get_text_content())\n\nasyncio.run(main())",
+        sdk_snippet: "import asyncio\nimport os\nfrom agentscope.agent import Agent\nfrom agentscope.credential import OpenAICredential\nfrom agentscope.message import UserMsg\nfrom agentscope.middleware import TracingMiddleware\nfrom agentscope.model import OpenAIChatModel\n\nasync def main():\n    model = OpenAIChatModel(\n        credential=OpenAICredential(api_key=os.environ[\"OPENAI_API_KEY\"]),\n        model=\"gpt-6.1-sol\",\n    )\n    # Explicit middleware keeps the same runnable body valid in the direct-OTLP\n    # guide. SideSeat recognises it and does not inject a duplicate.\n    agent = Agent(\n        name=\"assistant\",\n        system_prompt=\"Answer briefly.\",\n        model=model,\n        middlewares=[TracingMiddleware()],\n    )\n    reply = await agent.reply(UserMsg(\"user\", \"Hello!\"))\n    print(reply.get_text_content())\n\nasyncio.run(main())",
         no_sdk_extra_pkgs: "",
         no_sdk_extra_setup: "",
     },
@@ -660,7 +661,7 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         lang: Lang::Python,
         pip_pkg: "langflow",
         sdk_extra: "",
-        sdk_variant: "Langflow",
+        integration: "langflow",
         sdk_snippet: "# Langflow emits OpenTelemetry itself; run it with the provider configured\n# in the same process, or point its OTLP exporter at SideSeat.",
         no_sdk_extra_pkgs: "",
         no_sdk_extra_setup: "",
@@ -670,8 +671,8 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         lang: Lang::Python,
         pip_pkg: "haystack-ai",
         sdk_extra: "haystack",
-        sdk_variant: "Haystack",
-        sdk_snippet: "from haystack import Pipeline\nfrom haystack.components.generators.chat import OpenAIChatGenerator\nfrom haystack.dataclasses import ChatMessage\n\npipeline = Pipeline()\npipeline.add_component(\"llm\", OpenAIChatGenerator(model=\"gpt-5-mini\"))\nresult = pipeline.run({\"llm\": {\"messages\": [ChatMessage.from_user(\"Hello\")]}})\nprint(result[\"llm\"][\"replies\"][0].text)",
+        integration: "haystack",
+        sdk_snippet: "from haystack import Pipeline\nfrom haystack.components.generators.chat import OpenAIChatGenerator\nfrom haystack.dataclasses import ChatMessage\n\npipeline = Pipeline()\npipeline.add_component(\"llm\", OpenAIChatGenerator(model=\"gpt-6.1-sol\"))\nresult = pipeline.run({\"llm\": {\"messages\": [ChatMessage.from_user(\"Hello\")]}})\nprint(result[\"llm\"][\"replies\"][0].text)",
         no_sdk_extra_pkgs: "openinference-instrumentation-haystack",
         no_sdk_extra_setup: "from openinference.instrumentation.haystack import HaystackInstrumentor\nHaystackInstrumentor().instrument(tracer_provider=provider)",
     },
@@ -680,8 +681,8 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         lang: Lang::Python,
         pip_pkg: "browser-use",
         sdk_extra: "",
-        sdk_variant: "BrowserUse",
-        sdk_snippet: "import asyncio\nfrom browser_use import Agent, ChatOpenAI\n\n# browser-use emits OpenTelemetry itself and uses the global provider.\nasync def main():\n    agent = Agent(task=\"Find the docs\", llm=ChatOpenAI(model=\"gpt-5-mini\"))\n    print(await agent.run())\n\nasyncio.run(main())",
+        integration: "browser-use",
+        sdk_snippet: "import asyncio\nfrom browser_use import Agent, ChatOpenAI\n\n# browser-use emits OpenTelemetry itself and uses the global provider.\nasync def main():\n    agent = Agent(task=\"Find the docs\", llm=ChatOpenAI(model=\"gpt-6.1-sol\"))\n    print(await agent.run())\n\nasyncio.run(main())",
         no_sdk_extra_pkgs: "",
         no_sdk_extra_setup: "",
     },
@@ -690,35 +691,25 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         lang: Lang::TypeScript,
         pip_pkg: "ai @ai-sdk/otel @ai-sdk/amazon-bedrock",
         sdk_extra: "",
-        sdk_variant: "VercelAI",
-        sdk_snippet: "import { generateText, registerTelemetry } from 'ai';\n\
-                          import { LegacyOpenTelemetry } from '@ai-sdk/otel';\n\
+        integration: "vercel-ai",
+        sdk_snippet: "import { generateText } from 'ai';\n\
                           import { bedrock } from '@ai-sdk/amazon-bedrock';\n\n\
-                          // AI SDK 7 delivers telemetry only to registered integrations.\n\
-                          // Register after init(): the integration captures a tracer in its constructor.\n\
-                          registerTelemetry(new LegacyOpenTelemetry());\n\n\
                           const { text } = await generateText({\n\
-                          \u{20}\u{20}model: bedrock('us.anthropic.claude-sonnet-4-5-20250929-v1:0'),\n\
-                          \u{20}\u{20}prompt: 'What is 2+2?',\n\
-                          \u{20}\u{20}experimental_telemetry: { isEnabled: true },\n});\nconsole.log(text);",
+                          \u{20}\u{20}model: bedrock('global.anthropic.claude-sonnet-5-5'),\n\
+                          \u{20}\u{20}prompt: 'What is 2+2?',\n});\nconsole.log(text);",
         no_sdk_extra_pkgs: "",
-        // Empty on purpose: the snippet above already imports `registerTelemetry` and
-        // `LegacyOpenTelemetry` and calls them, and the no-SDK template emits
-        // `{extra_setup}{snippet}` - so repeating them here produced a module that declares each
-        // import twice and registers telemetry twice, which does not compile. The snippet's own
-        // registration is correctly placed for both paths: after `init()` in one and after
-        // `sdk.start()` in the other, because the template puts the snippet after both.
-        no_sdk_extra_setup: "",
+        // Without the SDK, AI SDK 7 delivers telemetry only to a registered integration.
+        no_sdk_extra_setup: "import { registerTelemetry } from 'ai';\nimport { LegacyOpenTelemetry } from '@ai-sdk/otel';\n\nregisterTelemetry(new LegacyOpenTelemetry());",
     },
     FrameworkSetup {
         display: "Strands TypeScript",
         lang: Lang::TypeScript,
         pip_pkg: "@strands-agents/sdk",
         sdk_extra: "",
-        sdk_variant: "Strands",
+        integration: "strands",
         sdk_snippet: "import { Agent } from '@strands-agents/sdk';\n\n\
                           const agent = new Agent({\n\
-                          \u{20}\u{20}model: 'global.anthropic.claude-haiku-4-5-20251001-v1:0',\n\
+                          \u{20}\u{20}model: 'global.anthropic.claude-sonnet-5-5',\n\
                           });\n\
                           const result = await agent.invoke('Hello');\n\
                           console.log(result.toString());",
@@ -732,7 +723,7 @@ const FRAMEWORKS: &[FrameworkSetup] = &[
         lang: Lang::TypeScript,
         pip_pkg: "@anthropic-ai/claude-agent-sdk",
         sdk_extra: "",
-        sdk_variant: "ClaudeAgentSDK",
+        integration: "claude-agent-sdk",
         sdk_snippet: "import { query } from '@anthropic-ai/claude-agent-sdk';\n\n\
                           // The Agent SDK emits no telemetry itself: the Claude Code CLI it spawns\n\
                           // self-instruments and is configured through CLAUDE_CODE_* / OTEL_* env vars\n\
@@ -780,8 +771,8 @@ fn get_framework(name: &str) -> Option<FrameworkSetup> {
         .iter()
         .find(|f| {
             f.display.to_lowercase().replace(' ', "-") == name
-                || f.sdk_variant.to_lowercase() == name
-                || f.sdk_variant.to_lowercase() == name.replace('-', "")
+                || f.integration == name
+                || f.integration.replace('-', "") == name.replace('-', "")
                 || f.pip_pkg.split_whitespace().any(|p| p == name)
         })
         .copied()
@@ -811,8 +802,8 @@ fn build_setup_guide_template(otlp_url: &str, framework: Option<&str>) -> String
             format!(
                 "## With SideSeat SDK (recommended)\n\n\
                  ```bash\nnpm install @sideseat/sdk {npm}\n```\n\n\
-                 ```typescript\nimport {{ init, Frameworks }} from '@sideseat/sdk';\n\n\
-                 init({{ framework: Frameworks.{variant} }});\n\n{snippet}\n```\n\n\
+                 ```typescript\nimport * as sideseat from '@sideseat/sdk';\n\n\
+                 await sideseat.init({{ integrations: ['{integration}'] }});\n\n{snippet}\n```\n\n\
                  ## Without SDK (direct OTLP)\n\n\
                  ```bash\nnpm install {npm} @opentelemetry/sdk-node @opentelemetry/exporter-trace-otlp-http\n```\n\n\
                  ```typescript\nimport {{ NodeSDK }} from '@opentelemetry/sdk-node';\n\
@@ -821,7 +812,7 @@ fn build_setup_guide_template(otlp_url: &str, framework: Option<&str>) -> String
                  \u{20}\u{20}traceExporter: new OTLPTraceExporter({{ url: '{otlp}' }}),\n}});\n\
                  sdk.start();\n\n{extra_setup}{snippet}\n```",
                 npm = fw.pip_pkg,
-                variant = fw.sdk_variant,
+                integration = fw.integration,
                 snippet = fw.sdk_snippet,
                 extra_setup = extra_setup,
                 otlp = otlp_url,
@@ -842,8 +833,8 @@ fn build_setup_guide_template(otlp_url: &str, framework: Option<&str>) -> String
             format!(
                 "## With SideSeat SDK (recommended)\n\n\
                  ```bash\npip install {sdk_pkg} {pip}\n```\n\n\
-                 ```python\nfrom sideseat import SideSeat, Frameworks\n\
-                 SideSeat(framework=Frameworks.{variant})\n\n{snippet}\n```\n\n\
+                 ```python\nimport sideseat\n\
+                 sideseat.init(integrations=[\"{integration}\"])\n\n{snippet}\n```\n\n\
                  ## Without SDK (direct OTLP)\n\n\
                  ```bash\npip install {pip} opentelemetry-sdk opentelemetry-exporter-otlp-proto-http{extra_pkgs}\n```\n\n\
                  ```python\nfrom opentelemetry import trace\n\
@@ -856,7 +847,7 @@ fn build_setup_guide_template(otlp_url: &str, framework: Option<&str>) -> String
                  trace.set_tracer_provider(provider)\n\n\
                  {extra_setup}\n\n{snippet}\n```",
                 pip = fw.pip_pkg,
-                variant = fw.sdk_variant,
+                integration = fw.integration,
                 snippet = fw.sdk_snippet,
                 extra_pkgs = extra_pkgs,
                 extra_setup = fw.no_sdk_extra_setup,
