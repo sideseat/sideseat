@@ -29,7 +29,7 @@ lint: ## Run all linters
 	@cd examples/javascript && npm run lint
 	@cd examples/javascript && npm run typecheck
 	@$(MAKE) --no-print-directory lint-python
-	@# The dev extra owns mypy.
+	@# The dev group owns mypy.
 	@cd sdk/python && uv run --locked mypy src
 
 # Advisory clippy lints, kept out of `lint` because that gate runs -D warnings and these

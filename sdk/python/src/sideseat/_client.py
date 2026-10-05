@@ -367,7 +367,8 @@ class SideSeat:
     def runtime(self) -> RuntimeClient:
         """The runtime channel client: agent presence, introspection, and invocation.
 
-        Created on first use and disconnected at shutdown. Requires ``pip install "sideseat[runtime]"``.
+        Created on first use and disconnected at shutdown. Requires the ``runtime`` extra:
+        ``pip install "sideseat[runtime]"``.
         """
         if self._runtime is None:
             from sideseat.runtime import RuntimeClient
