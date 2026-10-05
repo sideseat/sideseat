@@ -21,6 +21,7 @@ from typing import Any
 from harness import capture, catalog, content, models, tooling
 from harness.fakes import google_genai as fake_gemini
 from harness.fakes import openai as fake_openai
+from harness.scrub import PLACEHOLDER_USER
 from harness.truth import derive
 from harness.truth.derive import Builder, Options, assemble, document
 from harness.truth.wire import ModelCall, decode, decode_cassette
@@ -601,12 +602,13 @@ _IDENTIFIER = re.compile(r"(_users_)([A-Za-z0-9.-]+)(?=_)")
 def anonymise(text: str) -> str:
     """Replaces an account name with the placeholder the fixtures use, whoever regenerates the truth.
 
-    Cassettes are not anonymised, so a model's echo of the capturing user's path reaches the truth.
+    The proxy scrubs a cassette only of the account that recorded it, so a model's echo of a path in
+    a cassette recorded elsewhere can still name another account.
     A path gets the placeholder itself, which the repository's home-directory sweep accepts. An
     identifier gets it cut or padded to the name's length, as the fixture capture does - its payloads
     are length-prefixed protobuf - so the truth names a tool exactly as the fixture does.
     """
-    placeholder = capture.PLACEHOLDER_USER.decode()
+    placeholder = PLACEHOLDER_USER.decode()
     text = _HOME.sub(lambda found: found[1] + placeholder, text)
     return _IDENTIFIER.sub(
         lambda found: found[1] + placeholder[: len(found[2])].ljust(len(found[2]), "_"),

@@ -11,7 +11,7 @@ from __future__ import annotations
 import struct
 import zlib
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 class FramingError(ValueError):
@@ -22,6 +22,8 @@ class FramingError(ValueError):
 class Frame:
     headers: dict[str, object]
     payload: bytes
+    #: The headers as they were encoded, so a frame can be rebuilt byte for byte around a new payload.
+    encoded_headers: bytes = field(default=b"", repr=False)
 
     @property
     def message_type(self) -> str:
@@ -58,10 +60,21 @@ def eventstream_frames(body: bytes) -> Iterator[Frame]:
                 f"eventstream message checksum mismatch at byte {offset}"
             )
         headers_start = offset + 12
-        headers = _headers(body[headers_start : headers_start + header_length])
+        encoded_headers = body[headers_start : headers_start + header_length]
         payload = body[headers_start + header_length : end - 4]
-        yield Frame(headers, payload)
+        yield Frame(_headers(encoded_headers), payload, encoded_headers)
         offset = end
+
+
+def encode_frame(encoded_headers: bytes, payload: bytes) -> bytes:
+    """One eventstream message around already-encoded headers, with its prelude and message CRCs."""
+    prelude = struct.pack(
+        ">II", 16 + len(encoded_headers) + len(payload), len(encoded_headers)
+    )
+    message = (
+        prelude + struct.pack(">I", zlib.crc32(prelude)) + encoded_headers + payload
+    )
+    return message + struct.pack(">I", zlib.crc32(message))
 
 
 def _headers(raw: bytes) -> dict[str, object]:

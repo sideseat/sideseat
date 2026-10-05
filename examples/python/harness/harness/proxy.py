@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any
 
 from harness.models import region
+from harness.scrub import scrub_body
 
 # Headers that describe the payload rather than the transport; everything a client needs to parse
 # the body. Content-Length is recomputed.
@@ -71,7 +72,10 @@ class ModelProxy:
         if self.record and self._recorded:
             self.cassette.parent.mkdir(parents=True, exist_ok=True)
             self.cassette.write_text(
-                json.dumps({"interactions": self._recorded}, indent=1) + "\n"
+                json.dumps(
+                    {"interactions": [_scrubbed(i) for i in self._recorded]}, indent=1
+                )
+                + "\n"
             )
 
     def _respond(
@@ -180,6 +184,17 @@ class ModelProxy:
             do_GET = _serve  # noqa: N815
 
         return Handler
+
+
+def _scrubbed(item: dict[str, Any]) -> dict[str, Any]:
+    """A recorded interaction with the capturing account's name removed from its decoded body.
+
+    Scrubbed only as the cassette is written: the live run must see what the model said, or a tool
+    whose name the model echoes would no longer match. A replay then answers with the placeholder.
+    """
+    body = base64.b64decode(item["body"])
+    clean = scrub_body(body, item.get("headers", {}).get("content-type", ""))
+    return item if clean == body else {**item, "body": _b64(clean)}
 
 
 def _b64(raw: bytes) -> str:

@@ -9,7 +9,7 @@
  "source": {
   "kind": "cassette",
   "path": "examples/python/crewai/cassettes/mcp_tools.json",
-  "sha256": "0b8076295a2ecfcbbfcd8856f5167003091dc22dcd4918c7b4c7b177ed36b127",
+  "sha256": "617daaeaeedcc03bad3a73e4ce9037e28a4e548969729674bb3983a5d59a6c0b",
   "non_model_requests": 0
  },
  "generator": "examples/python/harness: python -m harness truth",

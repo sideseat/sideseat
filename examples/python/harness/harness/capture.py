@@ -32,7 +32,6 @@ read them before committing::
 from __future__ import annotations
 
 import argparse
-import getpass
 import gzip
 import json
 import os
@@ -50,13 +49,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+from harness.scrub import scrub_account
+
 REPO = Path(__file__).resolve().parents[4]
 FIXTURES = REPO / "server" / "tests" / "fixtures" / "messages"
 PYTHON_SUITES = REPO / "examples" / "python"
 JAVASCRIPT_EXAMPLES = REPO / "examples" / "javascript"
 #: The prompts, tools, scenarios and models of this harness, as the JavaScript harness reads them.
 JAVASCRIPT_CONTENT = JAVASCRIPT_EXAMPLES / "harness" / "content.json"
-PLACEHOLDER_USER = b"sideseat"
 
 
 #: The Claude Code CLI stores a user's attachments under a directory named for its session, a fresh
@@ -140,10 +140,7 @@ def anonymise(raw: bytes, pins: Pins | None = None) -> bytes:
             ),
             raw,
         )
-    user = getpass.getuser().encode()
-    if not user or user == PLACEHOLDER_USER:
-        return raw
-    return raw.replace(user, PLACEHOLDER_USER[: len(user)].ljust(len(user), b"_"))
+    return scrub_account(raw)
 
 
 #: The OTLP/HTTP paths that are recorded, and the file prefix each export is written under.
