@@ -1,7 +1,9 @@
 use super::*;
 
 /// Compile every asset's message rules into one plan.
-pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, MessageCompileError> {
+pub fn compile(
+    assets: &super::super::assets::ParsedAssets,
+) -> Result<MessagePlan, MessageCompileError> {
     let mut rules: Vec<CompiledMessageRule> = Vec::new();
     let mut seen_ids: HashMap<String, ()> = HashMap::new();
 
@@ -12,12 +14,7 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
     let mut recognised_events: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut raw_forms: std::collections::BTreeMap<String, super::schema::RawEventForm> =
         std::collections::BTreeMap::new();
-    for (path, bytes) in sources {
-        let file: RuleFile =
-            serde_json::from_slice(bytes).map_err(|e| MessageCompileError::Parse {
-                path: path.clone(),
-                message: e.to_string(),
-            })?;
+    for file in assets.files() {
         if file.message_events.iter().any(|e| e.name.is_empty()) {
             return Err(MessageCompileError::Inexpressible {
                 rule: format!("{}.message_events", file.id),
@@ -65,16 +62,7 @@ pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<MessagePlan, Messa
         }
     }
 
-    for (path, bytes) in sources {
-        // Parsed, not skipped. Skipping is what hid a schema mistake that made *every* message rule
-        // silently vanish: the assets were well-formed JSON that did not match the type, the file was
-        // discarded, and the plan compiled clean with nothing in it. A ruleset that cannot be read is an
-        // error, never an empty answer.
-        let file: RuleFile =
-            serde_json::from_slice(bytes).map_err(|e| MessageCompileError::Parse {
-                path: path.clone(),
-                message: e.to_string(),
-            })?;
+    for file in assets.files() {
         for rule in &file.messages {
             // Branch leaves too, not only top-level rules. A leaf's id is what `keep_unclaimed` uses to
             // tell "this rule reading its own carrier again" from "a second rule reading it", so two leaves

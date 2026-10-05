@@ -1,4 +1,3 @@
-
 /// A rule's work is bounded by this server, not only by what an asset declares.
 ///
 /// A rule states how *deep* to descend, which is semantics - the shape of the state object a framework writes.
@@ -15,14 +14,17 @@ fn a_rules_work_is_bounded_by_the_server() {
 
     // A wide payload inside a shallow declared depth: 20,000 sibling objects at depth 1, well past the node
     // ceiling, with a walk that would otherwise visit every one.
-    let plan = compile(&std::collections::BTreeMap::from([(
-        "t.json".to_string(),
-        br#"{"id":"t","messages":[{"id":"t.w","read":{"attribute":"state"},"parse":"json",
+    let plan = compile(
+        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","messages":[{"id":"t.w","read":{"attribute":"state"},"parse":"json",
              "emit":"message","legacy_rank":1,"walk":{"max_depth":3,"stop_on":["as_message"]},
              "also":[{"id":"as_message","require":{"all":[{"path":"$.role"},{"path":"$.content"}]},
                "wrap":{"role_from":"$.role","content_from_any_of":["$.content"]}}]}]}"#
-            .to_vec(),
-    )]))
+                .to_vec(),
+        )]))
+        .expect("the probe assets parse"),
+    )
     .expect("the probe compiles");
     // **Message-shaped members**, so the number of nodes visited is observable in the answer. With members
     // that match nothing, "no more emissions than the ceiling" holds at zero and the assertion cannot tell a
@@ -60,14 +62,17 @@ fn a_rules_work_is_bounded_by_the_server() {
     );
 
     // An array of one carrier: one observation per element, capped and reported.
-    let plan = compile(&std::collections::BTreeMap::from([(
-        "t.json".to_string(),
-        br#"{"id":"t","messages":[{"id":"t.each","read":{"attribute":"turns"},"parse":"json",
+    let plan = compile(
+        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","messages":[{"id":"t.each","read":{"attribute":"turns"},"parse":"json",
              "emit":"message","legacy_rank":1,
              "alternatives":[{"id":"every","select":"$[*]",
                "wrap":{"role":"user","content_from_any_of":["$.text"]}}]}]}"#
-            .to_vec(),
-    )]))
+                .to_vec(),
+        )]))
+        .expect("the probe assets parse"),
+    )
     .expect("the probe compiles");
     let many: Vec<serde_json::Value> = (0..RULE_MAX_EMISSIONS_PER_CARRIER + 500)
         .map(|i| serde_json::json!({"text": format!("turn {i}")}))
@@ -110,13 +115,13 @@ fn a_rules_work_is_bounded_by_the_server() {
 fn a_singular_path_takes_the_first_match_and_says_when_there_were_more() {
     use crate::rules::message_rules::{MessageContext, compile};
 
-    let plan = compile(&std::collections::BTreeMap::from([(
+    let plan = compile(&ParsedAssets::parse(&std::collections::BTreeMap::from([(
         "t.json".to_string(),
         br#"{"id":"t","messages":[{"id":"t.e","read":{"attribute":"x"},"parse":"json",
              "emit":"message","legacy_rank":1,
              "elements":{"select":"$.*","passes":[{"id":"named","tag_from":"$['event.name']"}]}}]}"#
             .to_vec(),
-    )]))
+    )])).expect("the probe assets parse"))
     .expect("the probe compiles");
 
     // Two arrays sit under one object, and `$.*` matches both.
@@ -256,10 +261,13 @@ fn a_presence_coalesce_tells_absent_from_the_wrong_shape() {
                  "alternatives":[{{"id":"decls","select":"$[*]",
                    "then_present_any_of":["$.function_declarations","$.functionDeclarations"]{fallbacks}}}]}}]}}"#
         );
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            body.into_bytes(),
-        )]))
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                body.into_bytes(),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
     let read = |plan: &crate::rules::message_rules::MessagePlan, payload: serde_json::Value| {
         let attrs = std::collections::HashMap::from([("tools".to_string(), payload.to_string())]);
@@ -336,13 +344,16 @@ fn a_presence_coalesce_tells_absent_from_the_wrong_shape() {
 
     // And the members are refused where the coalesce cannot make the distinction they express.
     assert!(
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json",
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json",
                  "emit":"message","legacy_rank":1,
                  "alternatives":[{"id":"a","then_any_of":["$.a"],"on_absent":"element"}]}]}"#
-                .to_vec(),
-        )]))
+                    .to_vec(),
+            )]))
+            .expect("the probe assets parse")
+        )
         .is_err(),
         "a yielding coalesce has one not-found state, so `on_absent` states a distinction it cannot make"
     );
@@ -368,10 +379,13 @@ fn a_role_a_rule_states_must_be_a_role() {
             r#"{{"id":"t","messages":[{{"id":"t.r","read":{{"attribute":"x"}},"parse":"json",
                  "emit":"message","legacy_rank":1,"wrap":{wrap}}}]}}"#
         );
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            body.into_bytes(),
-        )]))
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                body.into_bytes(),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
 
     // Preserve the misspelling found in the captured corpus.
@@ -424,13 +438,16 @@ fn a_role_a_rule_states_must_be_a_role() {
         "a mapping to a real role is fine - the map's *keys* are the producer's vocabulary, not ours"
     );
     assert!(
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            br#"{"id":"t","messages":[{"id":"t.c","emit":"message","legacy_rank":1,
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                br#"{"id":"t","messages":[{"id":"t.c","emit":"message","legacy_rank":1,
                  "compose":{"tag":"joined","trailing":{"role":"assisstant"},"members":[
                    {"as":"content","from_any_of":["x"],"parse":"text"}]}}]}"#
-                .to_vec(),
-        )]))
+                    .to_vec(),
+            )]))
+            .expect("the probe assets parse")
+        )
         .is_err(),
         "a compose's trailing role folds the same way"
     );
@@ -453,10 +470,13 @@ fn a_closed_role_map_says_what_an_unmapped_value_means() {
             r#"{{"id":"t","messages":[{{"id":"t.r","read":{{"attribute":"x"}},"parse":"json",
                  "emit":"message","legacy_rank":1,"wrap":{wrap}}}]}}"#
         );
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            body.into_bytes(),
-        )]))
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                body.into_bytes(),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
 
     assert!(
@@ -550,14 +570,22 @@ fn a_shared_answer_is_declared_only_by_the_asset_that_owns_it() {
     );
 
     // Two assets declaring one id, which `declaration_defect` cannot see because it is per file.
-    let two = vec![parse(r#"{"id":"acme"}"#), parse(r#"{"id":"acme"}"#)];
-    assert_eq!(
-        crate::rules::repeated_asset_id(&two),
-        Some("acme"),
-        "two assets sharing an id share a provenance path"
-    );
-    let distinct = vec![parse(r#"{"id":"acme"}"#), parse(r#"{"id":"other"}"#)];
-    assert_eq!(crate::rules::repeated_asset_id(&distinct), None);
+    let corpus = |ids: [&str; 2]| {
+        ParsedAssets::parse(&std::collections::BTreeMap::from([
+            (
+                "a.json".to_string(),
+                format!(r#"{{"id":"{}"}}"#, ids[0]).into_bytes(),
+            ),
+            (
+                "b.json".to_string(),
+                format!(r#"{{"id":"{}"}}"#, ids[1]).into_bytes(),
+            ),
+        ]))
+    };
+    let refused =
+        corpus(["acme", "acme"]).expect_err("two assets sharing an id share a provenance path");
+    assert!(refused.to_string().contains("`acme`"), "{refused}");
+    assert!(corpus(["acme", "other"]).is_ok());
 
     // And the shipped assets satisfy all of it, which is what makes these rules statements about them rather than
     // only about future edits.
@@ -579,14 +607,16 @@ fn a_shared_answer_is_declared_only_by_the_asset_that_owns_it() {
 fn every_classification_refusal_fires() {
     use crate::rules::classify::{ClassifyCompileError as E, compile};
     let compiled = |asset: &str| {
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            asset.as_bytes().to_vec(),
-        )]))
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                asset.as_bytes().to_vec(),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
     type Case = (&'static str, &'static str, fn(&E) -> bool);
     let cases: Vec<Case> = vec![
-        ("not JSON at all", "{", |e| matches!(e, E::Parse { .. })),
         (
             "a rule with no condition, which would answer for every span",
             r#"{"id":"t","observation_types":[{"id":"r","rank":1,"all_of":[],"result":"tool"}]}"#,
@@ -719,10 +749,13 @@ fn every_tool_shape_refusal_fires() {
 fn every_carrier_refusal_fires() {
     let compiled = |carriers: serde_json::Value| {
         let asset = serde_json::json!({"id": "probe", "doc": "d", "carriers": carriers});
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            serde_json::to_vec(&asset).expect("serialises"),
-        )]))
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                serde_json::to_vec(&asset).expect("serialises"),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
     let clause = |id: &str, extra: serde_json::Value, facts: serde_json::Value| {
         let mut entry = serde_json::json!({
@@ -799,14 +832,7 @@ fn every_carrier_refusal_fires() {
             .unwrap_or_else(|| panic!("should have been refused: {what}"));
         assert!(expected(&error), "wrong refusal for {what}: {error}");
     }
-    // Malformed input, and an ordinary pair that must compile.
-    assert!(matches!(
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            b"{".to_vec()
-        )])),
-        Err(CompileError::Parse { .. })
-    ));
+    // An ordinary pair that must compile. Malformed input is refused by `ParsedAssets::parse`, before any section.
     assert!(
         compiled(serde_json::json!([
             clause(
@@ -833,14 +859,16 @@ fn every_carrier_refusal_fires() {
 fn every_message_rule_refusal_fires() {
     use crate::rules::message_rules::{MessageCompileError as E, compile};
     let compiled = |asset: &str| {
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            asset.as_bytes().to_vec(),
-        )]))
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                asset.as_bytes().to_vec(),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
     type Case = (&'static str, &'static str, fn(&E) -> bool);
     let cases: Vec<Case> = vec![
-        ("not JSON at all", "{", |e| matches!(e, E::Parse { .. })),
         (
             "a rule naming no carrier",
             r#"{"id":"t","messages":[{"id":"r","read":{},"parse":"json","emit":"message","legacy_rank":1}]}"#,

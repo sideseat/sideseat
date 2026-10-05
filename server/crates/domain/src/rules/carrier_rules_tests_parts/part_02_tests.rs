@@ -1,4 +1,3 @@
-
 /// The *extraction* layer names no framework either.
 ///
 /// `the_engine_names_no_framework` reads the rules engine; this reads the code that calls it. That was the
@@ -632,7 +631,7 @@ fn a_classification_rule_answers_in_its_own_vocabulary() {
     for (what, asset) in refused {
         let sources = std::collections::BTreeMap::from([("t.json".to_string(), asset)]);
         assert!(
-            compile(&sources).is_err(),
+            compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).is_err(),
             "should have been refused: {what}"
         );
     }
@@ -644,9 +643,9 @@ fn a_classification_rule_answers_in_its_own_vocabulary() {
         "span_categories":[{"id":"c","rank":1,"all_of":[{"attr_exists":["b"]}],"result":"other"}]}"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), across.to_vec())]);
     assert!(
-        compile(&sources).is_ok(),
+        compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).is_ok(),
         "a rank means nothing across classifications: {:?}",
-        compile(&sources).err()
+        compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).err()
     );
 
     // And the error names what was expected, so a typo is fixable from the message alone.
@@ -655,7 +654,7 @@ fn a_classification_rule_answers_in_its_own_vocabulary() {
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), typo.to_vec())]);
     assert!(
         matches!(
-            compile(&sources),
+            compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")),
             Err(ClassifyCompileError::UnknownResult { .. })
         ),
         "the refusal says the answer is unknown, and lists the ones that are not"

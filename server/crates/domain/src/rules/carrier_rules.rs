@@ -15,12 +15,11 @@
 //! type, so "the same carrier name means different things on different spans" becomes something a rule
 //! file can state.
 
-use std::collections::BTreeMap;
 use std::collections::HashMap;
 
 use crate::sideml::carrier::CarrierSemantics;
 
-use super::schema::{CarrierRule, Facts, MatchSpec, PrimaryKey, RuleFile};
+use super::schema::{CarrierRule, Facts, MatchSpec, PrimaryKey};
 
 /// What the pipeline knows about an observation when it asks what its carrier means.
 ///
@@ -105,10 +104,6 @@ pub enum CompileError {
         clause: String,
         dimension: &'static str,
     },
-    Parse {
-        path: String,
-        message: String,
-    },
     UnknownPreset {
         clause: String,
         preset: String,
@@ -149,7 +144,6 @@ impl std::fmt::Display for CompileError {
                  given only as the *display* span name - so the clause would hold during ingestion and fail \
                  on the same span when read"
             ),
-            Self::Parse { path, message } => write!(f, "{path}: {message}"),
             Self::UnknownPreset { clause, preset } => write!(
                 f,
                 "clause `{clause}` names preset `{preset}`, which the engine does not define"
@@ -314,15 +308,11 @@ fn incoherent(
 }
 
 /// Compile every asset into one plan.
-pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<CarrierPlan, CompileError> {
+pub fn compile(assets: &super::assets::ParsedAssets) -> Result<CarrierPlan, CompileError> {
     let mut clauses: Vec<CompiledClause> = Vec::new();
     let mut seen_ids: HashMap<String, ()> = HashMap::new();
 
-    for (path, bytes) in sources {
-        let file: RuleFile = serde_json::from_slice(bytes).map_err(|e| CompileError::Parse {
-            path: path.clone(),
-            message: e.to_string(),
-        })?;
+    for file in assets.files() {
         for rule in &file.carriers {
             let CarrierRule {
                 id,

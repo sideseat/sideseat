@@ -11,12 +11,10 @@
 use std::collections::HashMap;
 
 use super::detect_rules::{CompiledDetect, compile_signals, gate_defect};
-use super::schema::{ClassifyRule, RuleFile};
+use super::schema::ClassifyRule;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClassifyCompileError {
-    #[error("classification rules in `{path}` are malformed: {message}")]
-    Parse { path: String, message: String },
     #[error(
         "classification rule `{rule}` in `{file}` states no condition, so it answers every span"
     )]
@@ -162,21 +160,15 @@ fn replaces_legacy(
 }
 
 /// Compile every asset's classification rules into one ordered plan.
-pub fn compile(
-    sources: &std::collections::BTreeMap<String, Vec<u8>>,
-) -> Result<ClassifyPlan, ClassifyCompileError> {
+pub fn compile(assets: &super::assets::ParsedAssets) -> Result<ClassifyPlan, ClassifyCompileError> {
     let mut observation_types: Vec<(i32, CompiledRule)> = Vec::new();
     let mut span_categories: Vec<(i32, CompiledRule)> = Vec::new();
     // One id space across both classifications: an id names a rule, and the same name meaning two rules would
     // make a diagnostic ambiguous.
     let mut by_id: HashMap<String, String> = HashMap::new();
 
-    for (file_id, bytes) in sources {
-        let file: RuleFile =
-            serde_json::from_slice(bytes).map_err(|error| ClassifyCompileError::Parse {
-                path: file_id.clone(),
-                message: error.to_string(),
-            })?;
+    for (file_id, file) in assets.iter() {
+        let file_id = &file_id.to_owned();
         for (rules, into, allowed) in [
             (
                 &file.observation_types,

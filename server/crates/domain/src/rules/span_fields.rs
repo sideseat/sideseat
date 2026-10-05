@@ -115,8 +115,6 @@ pub struct Resolved {
 
 #[derive(Debug, thiserror::Error)]
 pub enum FieldCompileError {
-    #[error("span field rules in `{path}` are malformed: {message}")]
-    Parse { path: String, message: String },
     #[error("span field rule `{rule}` in `{file}` declares no source")]
     NoSources { file: String, rule: String },
     #[error(

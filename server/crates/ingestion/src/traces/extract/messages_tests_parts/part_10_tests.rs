@@ -1,4 +1,3 @@
-
 /// A branch leaf keeps its own gate, and one runtime signal can imply another across dimensions.
 ///
 /// Two shapes flattening got wrong. A leaf's condition was replaced by its parent's, so an **ungated** parent
@@ -40,9 +39,9 @@ fn a_branch_leaf_keeps_its_own_gate() {
         let sources =
             std::collections::BTreeMap::from([("t.json".to_string(), asset.as_bytes().to_vec())]);
         assert!(
-            compile(&sources).is_ok(),
+            compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).is_ok(),
             "should have been accepted: {what} - {:?}",
-            compile(&sources).err()
+            compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).err()
         );
     }
 
@@ -79,7 +78,7 @@ fn a_branch_leaf_keeps_its_own_gate() {
         let sources =
             std::collections::BTreeMap::from([("t.json".to_string(), asset.as_bytes().to_vec())]);
         assert!(
-            compile(&sources).is_err(),
+            compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).is_err(),
             "should have been refused: {what}"
         );
     }
@@ -143,14 +142,14 @@ fn a_wider_gate_suppresses_a_narrower_one() {
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
                  "aggregate_into_array":false,"legacy_rank":1,
-                 "elements":{"passes":[{"tag_from":"$.name"}]}}]}"#,
+                 "elements":{"passes":[{"id":"probe.pass","tag_from":"$.name"}]}}]}"#,
         ),
     ];
     for (what, asset) in refused {
         let sources =
             std::collections::BTreeMap::from([("t.json".to_string(), asset.as_bytes().to_vec())]);
         assert!(
-            compile(&sources).is_err(),
+            compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).is_err(),
             "should have been refused: {what}"
         );
     }
@@ -197,9 +196,9 @@ fn a_wider_gate_suppresses_a_narrower_one() {
         let sources =
             std::collections::BTreeMap::from([("t.json".to_string(), asset.as_bytes().to_vec())]);
         assert!(
-            compile(&sources).is_ok(),
+            compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).is_ok(),
             "should have been accepted: {what} - {:?}",
-            compile(&sources).err()
+            compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).err()
         );
     }
 }
@@ -248,7 +247,7 @@ fn conditionality_is_a_property_of_the_carrier_not_of_the_rule() {
         {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1,
          "alternatives":[{"id":"probe.alt","require":{"any":[{"path":"$.marker","exists":true}]},
                           "wrap":{"role":"user","content_from_any_of":["$.content"]}}],
-         "fallback":[{"wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
+         "fallback":[{"id":"probe.fallback","wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
         {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
          "legacy_rank":2}]}"#;
     // The same rule with no unconditional path: every reading is required, so it yields on a payload none
@@ -273,7 +272,7 @@ fn conditionality_is_a_property_of_the_carrier_not_of_the_rule() {
         let sources =
             std::collections::BTreeMap::from([("t.json".to_string(), asset.as_bytes().to_vec())]);
         assert!(
-            compile(&sources).is_err(),
+            compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).is_err(),
             "the second rule is permanently dead and should have been refused: {what}"
         );
     }
@@ -290,9 +289,9 @@ fn conditionality_is_a_property_of_the_carrier_not_of_the_rule() {
         let sources =
             std::collections::BTreeMap::from([("t.json".to_string(), asset.as_bytes().to_vec())]);
         assert!(
-            compile(&sources).is_ok(),
+            compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).is_ok(),
             "this claim really is conditional and must be permitted: {what} - {:?}",
-            compile(&sources).err()
+            compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).err()
         );
     }
 }
@@ -318,7 +317,8 @@ fn an_event_rules_gate_asks_about_its_span_not_about_the_event() {
          "when":{"attr_exists":["framework.marker"]},
          "read":{"attribute":"other"},"parse":"json","emit":"message","legacy_rank":2}]}"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), asset.to_vec())]);
-    let plan = compile(&sources).expect("an event rule may be gated on the span that carries it");
+    let plan = compile(&ParsedAssets::parse(&sources).expect("the probe assets parse"))
+        .expect("an event rule may be gated on the span that carries it");
 
     let event_attrs = rule_attrs(&[
         ("payload", r#"{"role":"user","content":"q"}"#),
@@ -600,10 +600,16 @@ fn google_genai_flattened_tool_arguments_are_the_arguments_the_model_sent() {
     let call = extract("opentelemetry.instrumentation.google_genai", flattened);
     assert_eq!(call["type"].as_str(), Some("tool_use"));
     assert_eq!(call["name"].as_str(), Some("get_weather"));
-    assert_eq!(call["input"], serde_json::json!({"city": "Rome", "days": 1}));
+    assert_eq!(
+        call["input"],
+        serde_json::json!({"city": "Rome", "days": 1})
+    );
 
     // Arguments in the conventions' own shape fall through to the generic rule unchanged.
-    let plain = extract("opentelemetry.instrumentation.google_genai", r#"{"city": "Rome"}"#);
+    let plain = extract(
+        "opentelemetry.instrumentation.google_genai",
+        r#"{"city": "Rome"}"#,
+    );
     assert_eq!(plain["input"], serde_json::json!({"city": "Rome"}));
     // Another instrumentation's flattened-looking keys are its own business.
     let other = extract("another.instrumentation", flattened);

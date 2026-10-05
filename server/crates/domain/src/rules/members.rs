@@ -14,8 +14,6 @@ use std::collections::BTreeSet;
 
 #[derive(Debug, thiserror::Error)]
 pub enum MemberCompileError {
-    #[error("member rules in `{path}` are malformed: {message}")]
-    Parse { path: String, message: String },
     #[error("member rule `{rule}` in `{file}` names an empty member")]
     EmptyMember { file: String, rule: String },
     #[error("member rule `{rule}` in `{file}` names no member at all")]
@@ -89,21 +87,15 @@ impl MemberPlan {
     }
 }
 
-pub fn compile(
-    sources: &std::collections::BTreeMap<String, Vec<u8>>,
-) -> Result<MemberPlan, MemberCompileError> {
+pub fn compile(assets: &super::assets::ParsedAssets) -> Result<MemberPlan, MemberCompileError> {
     let mut plan = MemberPlan::default();
     let mut ranked: Vec<(i32, usize, String, String)> = Vec::new();
     // One declaration per member name, across every asset: two would make "what does this member mean" a
     // question with two answers, resolved by load order.
     let mut by_member: std::collections::HashMap<String, String> = std::collections::HashMap::new();
 
-    for (file_id, bytes) in sources {
-        let file: super::schema::RuleFile =
-            serde_json::from_slice(bytes).map_err(|error| MemberCompileError::Parse {
-                path: file_id.clone(),
-                message: error.to_string(),
-            })?;
+    for (file_id, file) in assets.iter() {
+        let file_id = &file_id.to_owned();
         for rule in &file.message_members {
             if rule.members.is_empty() {
                 return Err(MemberCompileError::NoMembers {
@@ -191,11 +183,14 @@ mod tests {
     use super::*;
 
     /// One asset holding exactly these member rules.
-    fn compile_rules(rules: &str) -> Result<MemberPlan, MemberCompileError> {
+    fn probe(rules: &str) -> crate::rules::assets::ParsedAssets {
         let asset = format!(r#"{{"id":"probe","message_members":[{rules}]}}"#);
-        let mut sources = std::collections::BTreeMap::new();
-        sources.insert("probe".to_string(), asset.into_bytes());
-        compile(&sources)
+        let sources = std::collections::BTreeMap::from([("probe".to_string(), asset.into_bytes())]);
+        crate::rules::assets::ParsedAssets::parse(&sources).expect("the probe assets parse")
+    }
+
+    fn compile_rules(rules: &str) -> Result<MemberPlan, MemberCompileError> {
+        compile(&probe(rules))
     }
 
     /// A spelling family is one declaration with one flag vector, and every spelling in it answers alike.

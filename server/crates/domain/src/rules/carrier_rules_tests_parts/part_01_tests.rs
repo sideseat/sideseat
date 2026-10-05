@@ -133,7 +133,8 @@ fn a_span_qualified_clause_is_expressible_and_the_aggregator_repair_needs_the_re
     }"#;
     let sources =
         std::collections::BTreeMap::from([("probe.json".to_string(), qualified.to_vec())]);
-    let plan = compile(&sources).expect("a span-qualified clause compiles beside its generic form");
+    let plan = compile(&ParsedAssets::parse(&sources).expect("the probe assets parse"))
+        .expect("a span-qualified clause compiles beside its generic form");
 
     let on_generation = plan
         .resolve(&CarrierContext {
@@ -276,7 +277,10 @@ fn two_clauses_that_could_both_match_fail_compilation() {
     }"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), collide.to_vec())]);
     assert!(
-        matches!(compile(&sources), Err(CompileError::Ambiguous { .. })),
+        matches!(
+            compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")),
+            Err(CompileError::Ambiguous { .. })
+        ),
         "two clauses matching one carrier at equal specificity must be refused, not resolved by order"
     );
 
@@ -292,7 +296,7 @@ fn two_clauses_that_could_both_match_fail_compilation() {
     }"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), disjoint.to_vec())]);
     assert!(
-        compile(&sources).is_ok(),
+        compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).is_ok(),
         "clauses whose qualifiers cannot both hold are not ambiguous"
     );
 }
@@ -308,7 +312,10 @@ fn a_clause_constraining_no_carrier_is_refused() {
     }"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), bare.to_vec())]);
     assert!(
-        matches!(compile(&sources), Err(CompileError::NoPrimaryKey { .. })),
+        matches!(
+            compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")),
+            Err(CompileError::NoPrimaryKey { .. })
+        ),
         "a clause naming no event, attribute or prefix would claim every observation of a span"
     );
 }
@@ -369,10 +376,13 @@ fn a_carrier_qualifier_that_is_not_available_everywhere_is_refused() {
                 "facts": {"preset": "emission"},
             }],
         });
-        let result = crate::rules::carrier_rules::compile(&std::collections::BTreeMap::from([(
-            "probe.json".to_string(),
-            serde_json::to_vec(&asset).expect("serialises"),
-        )]));
+        let result = crate::rules::carrier_rules::compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "probe.json".to_string(),
+                serde_json::to_vec(&asset).expect("serialises"),
+            )]))
+            .expect("the probe assets parse"),
+        );
         // The **variant**, not merely an error: a parse failure would satisfy `is_err()` for a reason that has
         // nothing to do with the dimension being unavailable, so the refusal this test is named for could be
         // deleted and the assertion would still hold.
@@ -402,10 +412,13 @@ fn a_carrier_qualifier_that_is_not_available_everywhere_is_refused() {
             }],
         });
         assert!(
-            crate::rules::carrier_rules::compile(&std::collections::BTreeMap::from([(
-                "probe.json".to_string(),
-                serde_json::to_vec(&asset).expect("serialises"),
-            )]))
+            crate::rules::carrier_rules::compile(
+                &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                    "probe.json".to_string(),
+                    serde_json::to_vec(&asset).expect("serialises"),
+                )]))
+                .expect("the probe assets parse")
+            )
             .is_err(),
             "an observation-type qualifier that cannot match must be refused: {bad}"
         );
@@ -420,10 +433,13 @@ fn a_carrier_qualifier_that_is_not_available_everywhere_is_refused() {
         }],
     });
     assert!(
-        crate::rules::carrier_rules::compile(&std::collections::BTreeMap::from([(
-            "probe.json".to_string(),
-            serde_json::to_vec(&unqualified).expect("serialises"),
-        )]))
+        crate::rules::carrier_rules::compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "probe.json".to_string(),
+                serde_json::to_vec(&unqualified).expect("serialises"),
+            )]))
+            .expect("the probe assets parse")
+        )
         .is_ok(),
         "omission means no restriction, which is a thing a clause may say"
     );
@@ -438,10 +454,13 @@ fn a_carrier_qualifier_that_is_not_available_everywhere_is_refused() {
         }],
     });
     assert!(
-        crate::rules::carrier_rules::compile(&std::collections::BTreeMap::from([(
-            "probe.json".to_string(),
-            serde_json::to_vec(&asset).expect("serialises"),
-        )]))
+        crate::rules::carrier_rules::compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "probe.json".to_string(),
+                serde_json::to_vec(&asset).expect("serialises"),
+            )]))
+            .expect("the probe assets parse")
+        )
         .is_ok(),
         "`observation_type` reaches every consumer and must compile"
     );
@@ -459,7 +478,7 @@ fn a_duplicate_clause_id_is_refused() {
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), dup.to_vec())]);
     assert!(
         matches!(
-            compile(&sources),
+            compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")),
             Err(CompileError::DuplicateClauseId { .. })
         ),
         "clause ids are what the explain trace names, so they must be unique"
@@ -476,7 +495,10 @@ fn an_unknown_preset_is_refused() {
     }"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), bad.to_vec())]);
     assert!(
-        matches!(compile(&sources), Err(CompileError::UnknownPreset { .. })),
+        matches!(
+            compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")),
+            Err(CompileError::UnknownPreset { .. })
+        ),
         "a preset the engine does not define must fail the build, not default to something"
     );
 }
@@ -493,7 +515,8 @@ fn a_longer_prefix_wins_over_a_shorter_one() {
       ]
     }"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), nested.to_vec())]);
-    let plan = compile(&sources).expect("nested prefixes are ordered, not ambiguous");
+    let plan = compile(&ParsedAssets::parse(&sources).expect("the probe assets parse"))
+        .expect("nested prefixes are ordered, not ambiguous");
     let hit = plan
         .resolve(&CarrierContext::carrier_only(None, Some("a.b.c.d")))
         .expect("the longer prefix matches");
@@ -524,6 +547,7 @@ fn the_engine_names_no_framework() {
     // stops being one: it passed while the file it did not read was free to name any producer it liked.
     const ENGINE_SOURCES: &[(&str, &str)] = &[
         ("mod.rs", include_str!("../mod.rs")),
+        ("assets.rs", include_str!("../assets.rs")),
         ("schema.rs", include_str!("../schema.rs")),
         ("carrier_rules.rs", include_str!("../carrier_rules.rs")),
         ("detect_rules.rs", include_str!("../detect_rules.rs")),

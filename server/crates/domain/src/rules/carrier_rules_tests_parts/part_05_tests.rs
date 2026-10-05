@@ -1,4 +1,3 @@
-
 /// Predicates that hold when they should not, and declarations that could never hold.
 ///
 /// Each of these compiled or held before the format review, and each is the same failure at predicate level:
@@ -58,10 +57,13 @@ fn a_predicate_that_could_never_mean_what_it_says_is_refused() {
                 "require_members": require,
             }],
         });
-        crate::rules::message_rules::compile(&std::collections::BTreeMap::from([(
-            "probe.json".to_string(),
-            serde_json::to_vec(&asset).expect("the probe serialises"),
-        )]))
+        crate::rules::message_rules::compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "probe.json".to_string(),
+                serde_json::to_vec(&asset).expect("the probe serialises"),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
     assert!(
         probe_family(serde_json::json!({"all_of": [{"name": ""}]})).is_err(),
@@ -726,10 +728,13 @@ fn a_shared_message_rank_is_refused_only_where_the_order_shows() {
             ],
             "messages": rules,
         });
-        crate::rules::message_rules::compile(&std::collections::BTreeMap::from([(
-            "probe.json".to_string(),
-            serde_json::to_vec(&asset).expect("the probe serialises"),
-        )]))
+        crate::rules::message_rules::compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "probe.json".to_string(),
+                serde_json::to_vec(&asset).expect("the probe serialises"),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
 
     // Two conditional message rules read one attribute at one rank. `a` wins today because

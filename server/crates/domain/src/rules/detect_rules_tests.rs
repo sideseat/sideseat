@@ -1,6 +1,8 @@
 //! Gates on detection equivalence and refusal of a ruleset whose
 //! order nobody owns.
 
+use crate::rules::assets::ParsedAssets;
+
 use std::collections::HashMap;
 
 use super::detect_rules::{DetectCompileError, DetectContext, compile};
@@ -66,7 +68,7 @@ fn two_rules_at_one_rank_are_refused() {
     }"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), clash.to_vec())]);
     assert!(matches!(
-        compile(&sources),
+        compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")),
         Err(DetectCompileError::DuplicateRank { .. })
     ));
 }
@@ -79,7 +81,7 @@ fn a_rule_with_no_signal_is_refused() {
     }"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), bare.to_vec())]);
     assert!(matches!(
-        compile(&sources),
+        compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")),
         Err(DetectCompileError::NoSignal { .. })
     ));
 }
@@ -93,7 +95,7 @@ fn a_slug_claimed_twice_is_refused() {
     }"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), dup.to_vec())]);
     assert!(matches!(
-        compile(&sources),
+        compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")),
         Err(DetectCompileError::DuplicateSlug { .. })
     ));
 }
@@ -107,7 +109,7 @@ fn a_text_source_must_name_something_the_engine_can_read() {
     }"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), bad.to_vec())]);
     assert!(matches!(
-        compile(&sources),
+        compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")),
         Err(DetectCompileError::BadTextSource { .. })
     ));
 }
@@ -122,7 +124,8 @@ fn rank_decides_which_of_two_matching_rules_wins() {
       ]
     }"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), ordered.to_vec())]);
-    let plan = compile(&sources).expect("distinct ranks compile");
+    let plan = compile(&ParsedAssets::parse(&sources).expect("the probe assets parse"))
+        .expect("distinct ranks compile");
     let span_attrs = attrs(&[("x.y.z", "1")]);
     let resource_attrs = attrs(&[]);
     let hit = plan
@@ -157,7 +160,8 @@ fn detection_can_require_independent_signal_sets() {
       }]
     }"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), source.to_vec())]);
-    let plan = compile(&sources).expect("conjunctive detection compiles");
+    let plan = compile(&ParsedAssets::parse(&sources).expect("the probe assets parse"))
+        .expect("conjunctive detection compiles");
     let resource_attrs = attrs(&[]);
     let detected = |pairs: &[(&str, &str)]| {
         let span_attrs = attrs(pairs);
@@ -201,7 +205,7 @@ fn every_required_detection_set_must_declare_a_signal() {
     }"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), source.to_vec())]);
     assert!(matches!(
-        compile(&sources),
+        compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")),
         Err(DetectCompileError::NoSignal { .. })
     ));
 }
@@ -259,7 +263,7 @@ fn a_mixed_first_present_search_is_refused_here_too() {
     }"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), mixed.to_vec())]);
     assert!(
-        compile(&sources).is_err(),
+        compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).is_err(),
         "the declared order between the span name and an attribute is not preserved, so this must not compile"
     );
 
@@ -281,9 +285,9 @@ fn a_mixed_first_present_search_is_refused_here_too() {
     ] {
         let sources = std::collections::BTreeMap::from([("t.json".to_string(), asset)]);
         assert!(
-            compile(&sources).is_ok(),
+            compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).is_ok(),
             "there is no order to lose here: {:?}",
-            compile(&sources).err()
+            compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).err()
         );
     }
 }
@@ -301,10 +305,13 @@ fn a_mixed_first_present_search_is_refused_here_too() {
 fn a_literal_another_already_covers_is_refused() {
     let compiled = |detect: &str| {
         let asset = format!(r#"{{"id":"t","doc":"d","detect":[{detect}]}}"#);
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            asset.into_bytes(),
-        )]))
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                asset.into_bytes(),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
     let subsumed = |detect: &str| {
         matches!(
@@ -564,10 +571,13 @@ fn a_service_name_identifies_a_producer_by_substring() {
 fn a_rule_an_earlier_one_always_satisfies_is_refused() {
     let compiled = |detect: serde_json::Value| {
         let asset = serde_json::json!({"id": "t", "doc": "d", "detect": detect});
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            serde_json::to_vec(&asset).expect("serialises"),
-        )]))
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                serde_json::to_vec(&asset).expect("serialises"),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
     let shadowed = |detect: serde_json::Value| {
         matches!(
@@ -692,10 +702,13 @@ fn a_value_outside_what_a_quantity_can_hold_is_malformed() {
     use crate::rules::span_fields::Reading;
 
     let resolve = |asset: &str, pairs: &[(&str, &str)]| {
-        let plan = crate::rules::span_fields::compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            asset.as_bytes().to_vec(),
-        )]))
+        let plan = crate::rules::span_fields::compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                asset.as_bytes().to_vec(),
+            )]))
+            .expect("the probe assets parse"),
+        )
         .expect("the probe compiles");
         plan.resolve("chat", &attrs(pairs), &[])
     };
@@ -878,10 +891,13 @@ fn what_an_unseen_producer_can_and_cannot_declare() {
         let asset = format!(
             r#"{{"id":"acme-probe","doc":"A producer nobody has captured.","messages":{messages}}}"#
         );
-        compile(&std::collections::BTreeMap::from([(
-            "acme-probe.json".to_string(),
-            asset.into_bytes(),
-        )]))
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "acme-probe.json".to_string(),
+                asset.into_bytes(),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
 
     // Expressible: the flat indexed family, declared entirely in an asset.

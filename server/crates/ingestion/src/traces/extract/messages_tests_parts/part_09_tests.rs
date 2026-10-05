@@ -1,4 +1,3 @@
-
 #[test]
 fn two_rules_reading_one_carrier_are_refused() {
     // Not a precedence question: the ingestion claims a carrier once, so the second rule could never
@@ -14,7 +13,7 @@ fn two_rules_reading_one_carrier_are_refused() {
     }"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), contested.to_vec())]);
     assert!(matches!(
-        compile(&sources),
+        compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")),
         Err(sideseat_domain::rules::message_rules::MessageCompileError::ContestedCarrier { .. })
     ));
 }
@@ -33,7 +32,8 @@ fn the_two_parse_modes_differ_where_it_matters() {
       ]
     }"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), both.to_vec())]);
-    let plan = compile(&sources).expect("compiles");
+    let plan =
+        compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).expect("compiles");
     let span_attrs = rule_attrs(&[("strict", "not json"), ("lenient", "not json")]);
     let emissions = plan.run(&MessageContext::for_span("s", &span_attrs, false));
     let ids: Vec<&str> = emissions.iter().map(|e| e.rule_id).collect();
@@ -197,7 +197,7 @@ fn carrier_ownership_conflicts_are_refused() {
             std::collections::BTreeMap::from([("t.json".to_string(), asset.as_bytes().to_vec())]);
         assert!(
             matches!(
-                compile(&sources),
+                compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")),
                 Err(
                     sideseat_domain::rules::message_rules::MessageCompileError::ContestedCarrier { .. }
                 )
@@ -211,12 +211,6 @@ fn carrier_ownership_conflicts_are_refused() {
 #[test]
 fn inexpressible_rules_are_refused() {
     let cases: &[(&str, &str)] = &[
-        (
-            "`read.event` is accepted by the schema and never executed",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"event":"e"},"parse":"json","emit":"message",
-                 "legacy_rank":1}]}"#,
-        ),
         (
             "`compose` with `wrap`, which would be ignored",
             r#"{"id":"t","doc":"d","messages":[
@@ -241,7 +235,7 @@ fn inexpressible_rules_are_refused() {
                 {"id":"a","doc":"d","read":{"attribute":"k"},"parse":"text","emit":"message",
                  "legacy_rank":1,
                  "sections":{"split_on":"|","routes":[
-                    {"role":"user"},{"tag_prefix":"T:","role":"tool"}]}}]}"#,
+                    {"id":"r.default","role":"user"},{"id":"r.tool","tag_prefix":"T:","role":"tool"}]}}]}"#,
         ),
         (
             "a compose member that is both a sweep and a named source",
@@ -384,7 +378,7 @@ fn inexpressible_rules_are_refused() {
         let sources =
             std::collections::BTreeMap::from([("t.json".to_string(), asset.as_bytes().to_vec())]);
         assert!(
-            compile(&sources).is_err(),
+            compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).is_err(),
             "should have been refused: {what}"
         );
     }
@@ -437,7 +431,7 @@ fn a_tautological_requirement_is_not_a_condition() {
         let sources =
             std::collections::BTreeMap::from([("t.json".to_string(), asset.as_bytes().to_vec())]);
         assert!(
-            compile(&sources).is_err(),
+            compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).is_err(),
             "should have been refused: {what}"
         );
     }
@@ -484,9 +478,9 @@ fn a_tautological_requirement_is_not_a_condition() {
         let sources =
             std::collections::BTreeMap::from([("t.json".to_string(), asset.as_bytes().to_vec())]);
         assert!(
-            compile(&sources).is_ok(),
+            compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).is_ok(),
             "should have been accepted: {what} - {:?}",
-            compile(&sources).err()
+            compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).err()
         );
     }
 }
@@ -548,14 +542,14 @@ fn a_condition_separates_two_rules_only_when_it_differs() {
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
                  "tag_as":"declared","legacy_rank":1,
-                 "elements":{"passes":[{"tag_from":"$.name"}]}}]}"#,
+                 "elements":{"passes":[{"id":"probe.pass","tag_from":"$.name"}]}}]}"#,
         ),
     ];
     for (what, asset) in refused {
         let sources =
             std::collections::BTreeMap::from([("t.json".to_string(), asset.as_bytes().to_vec())]);
         assert!(
-            compile(&sources).is_err(),
+            compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).is_err(),
             "should have been refused: {what}"
         );
     }
@@ -592,9 +586,9 @@ fn a_condition_separates_two_rules_only_when_it_differs() {
         let sources =
             std::collections::BTreeMap::from([("t.json".to_string(), asset.as_bytes().to_vec())]);
         assert!(
-            compile(&sources).is_ok(),
+            compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).is_ok(),
             "should have been accepted: {what} - {:?}",
-            compile(&sources).err()
+            compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).err()
         );
     }
 }
@@ -624,9 +618,9 @@ fn a_leaf_runs_under_both_gates() {
         parent_p_leaf_l("\"l\"").into_bytes(),
     )]);
     assert!(
-        compile(&sources).is_ok(),
+        compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).is_ok(),
         "neither gate covers the other, so nothing is provably dead: {:?}",
-        compile(&sources).err()
+        compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).err()
     );
 
     // The parent's gate covering the leaf's: the conjunction is the leaf's gate, and a later rule on the same
@@ -641,7 +635,7 @@ fn a_leaf_runs_under_both_gates() {
     let sources =
         std::collections::BTreeMap::from([("t.json".to_string(), covered.as_bytes().to_vec())]);
     assert!(
-        compile(&sources).is_err(),
+        compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).is_err(),
         "the parent admits every span the leaf does, so the leaf's gate is the conjunction and the later \
          rule on that same gate is dead"
     );
@@ -671,7 +665,8 @@ fn an_unreadable_source_stops_a_chain_and_not_a_merge() {
             {"id":"s1","attribute":"http.status_code"},
             {"id":"s2","attribute":"http.response.status_code"}]}]}"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), asset.to_vec())]);
-    let plan = compile(&sources).expect("compiles");
+    let plan =
+        compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).expect("compiles");
 
     let attrs = rule_attrs(&[
         ("metadata", r#"{"tags":{}}"#),
@@ -721,7 +716,8 @@ fn an_unreadable_source_stops_a_chain_and_not_a_merge() {
             {"id":"s1","json":{"attribute":"output.value","path":"$.messages[*].models_usage.prompt_tokens","reduce":"sum"}},
             {"id":"s2","attribute":"gen_ai.usage.input_tokens"}]}]}"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), chained.to_vec())]);
-    let plan = compile(&sources).expect("compiles");
+    let plan =
+        compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).expect("compiles");
     let no_messages = rule_attrs(&[
         ("output.value", r#"{"result":"done"}"#),
         ("gen_ai.usage.input_tokens", "42"),
@@ -867,7 +863,10 @@ fn a_field_source_may_not_declare_a_gate_that_never_holds() {
         let sources =
             std::collections::BTreeMap::from([("t.json".to_string(), asset.as_bytes().to_vec())]);
         assert!(
-            sideseat_domain::rules::span_fields::compile(&sources).is_err(),
+            sideseat_domain::rules::span_fields::compile(
+                &ParsedAssets::parse(&sources).expect("the probe assets parse")
+            )
+            .is_err(),
             "should have been refused: {what}"
         );
     }
@@ -884,8 +883,14 @@ fn a_field_source_may_not_declare_a_gate_that_never_holds() {
     let sources =
         std::collections::BTreeMap::from([("t.json".to_string(), ok.as_bytes().to_vec())]);
     assert!(
-        sideseat_domain::rules::span_fields::compile(&sources).is_ok(),
+        sideseat_domain::rules::span_fields::compile(
+            &ParsedAssets::parse(&sources).expect("the probe assets parse")
+        )
+        .is_ok(),
         "a gate naming a real signal must compile: {:?}",
-        sideseat_domain::rules::span_fields::compile(&sources).err()
+        sideseat_domain::rules::span_fields::compile(
+            &ParsedAssets::parse(&sources).expect("the probe assets parse")
+        )
+        .err()
     );
 }

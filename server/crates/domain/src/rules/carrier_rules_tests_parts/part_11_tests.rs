@@ -7,14 +7,16 @@
 fn every_detection_refusal_fires() {
     use crate::rules::detect_rules::{DetectCompileError as E, compile};
     let compiled = |asset: &str| {
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            asset.as_bytes().to_vec(),
-        )]))
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                asset.as_bytes().to_vec(),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
     type Case = (&'static str, &'static str, fn(&E) -> bool);
     let cases: Vec<Case> = vec![
-        ("not JSON at all", "{", |e| matches!(e, E::Parse { .. })),
         (
             "an empty attribute prefix, which matches everything",
             r#"{"id":"t","doc":"d","detect":[{"id":"a","doc":"d","label":"A","legacy_rank":1,
@@ -209,9 +211,10 @@ fn test_module_source(path: &std::path::Path) -> String {
 fn a_scoped_constructor_repr_decoder_yields_to_the_general_carrier_reader() {
     use crate::rules::message_rules::{MessageContext, compile};
 
-    let plan = compile(&std::collections::BTreeMap::from([(
-        "t.json".to_string(),
-        br#"{"id":"t","messages":[
+    let plan = compile(
+        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","messages":[
           {"id":"t.constructor","read":{"attribute":"result"},
            "parse":"python_constructor_repr","instrumentation_scope":{"name":"specific"},
            "wrap":{"role":"tool","content_from_any_of":["$.content"],"block":{
@@ -223,8 +226,10 @@ fn a_scoped_constructor_repr_decoder_yields_to_the_general_carrier_reader() {
           {"id":"t.general","read":{"attribute":"result"},"parse":"json_or_string",
            "wrap":{"role":"tool","block":{"type":"tool_result"}},
            "emit":"message","reads_tool_spans":true,"legacy_rank":2}]}"#
-            .to_vec(),
-    )]))
+                .to_vec(),
+        )]))
+        .expect("the probe assets parse"),
+    )
     .expect("an exact instrumentation scope makes the first reading conditional");
 
     let attrs = std::collections::HashMap::from([(
@@ -261,9 +266,10 @@ fn a_scoped_constructor_repr_decoder_yields_to_the_general_carrier_reader() {
 fn a_list_of_constructor_reprs_is_read_as_blocks_and_only_whole() {
     use crate::rules::message_rules::{MessageContext, compile};
 
-    let plan = compile(&std::collections::BTreeMap::from([(
-        "t.json".to_string(),
-        br#"{"id":"t","messages":[
+    let plan = compile(
+        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","messages":[
           {"id":"t.blocks","read":{"attribute":"result"},"parse":"python_constructor_repr_array",
            "instrumentation_scope":{"name":"specific"},
            "wrap":{"role":"tool","content_from_any_of":["$"],"block":{"type":"tool_result"}},
@@ -271,8 +277,10 @@ fn a_list_of_constructor_reprs_is_read_as_blocks_and_only_whole() {
           {"id":"t.general","read":{"attribute":"result"},"parse":"json_or_string",
            "wrap":{"role":"tool","block":{"type":"tool_result"}},
            "emit":"message","reads_tool_spans":true,"legacy_rank":2}]}"#
-            .to_vec(),
-    )]))
+                .to_vec(),
+        )]))
+        .expect("the probe assets parse"),
+    )
     .expect("the array decoder compiles");
 
     let run = |value: serde_json::Value| {

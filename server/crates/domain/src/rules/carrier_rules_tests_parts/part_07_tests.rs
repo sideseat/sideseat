@@ -19,12 +19,12 @@ fn a_rule_declares_where_it_reads_with_one_member() {
 
     // Two event rules cover one event and one carrier at one rank,
     // differing only in a stage the event path does not read.
-    let refused = compile(&asset(
+    let refused = compile(&ParsedAssets::parse(&asset(
         r#"[{"id":"a","source":{"event":{"names":["acme.event"]}},"read":{"attribute":"payload"},
              "parse":"text","emit":"message","legacy_rank":1},
             {"id":"b","source":{"event":{"names":["acme.event"]}},"read":{"attribute":"payload"},
              "parse":"text","emit":"message","legacy_rank":1}]"#,
-    ))
+    )).expect("the probe assets parse"))
     .expect_err("two event rules over one event at one rank must be refused");
     let message = refused.to_string();
     assert!(
@@ -36,12 +36,15 @@ fn a_rule_declares_where_it_reads_with_one_member() {
     // **different** carriers. Nothing contests a carrier here, so the only defect is the shared rank - and
     // Previously, a stage neither rule's entry point reads was enough to make the compiler call them
     // different arenas and accept it.
-    let refused = compile(&asset(
-        r#"[{"id":"a","source":{"event":{"names":["acme.event"]}},"read":{"attribute":"one"},
+    let refused = compile(
+        &ParsedAssets::parse(&asset(
+            r#"[{"id":"a","source":{"event":{"names":["acme.event"]}},"read":{"attribute":"one"},
              "parse":"text","emit":"message","legacy_rank":1},
             {"id":"b","source":{"event":{"names":["acme.event"]}},"read":{"attribute":"two"},
              "parse":"text","emit":"message","legacy_rank":1}]"#,
-    ))
+        ))
+        .expect("the probe assets parse"),
+    )
     .expect_err(
         "two event rules over one event at one rank share an arena, so the rank must be refused",
     );
@@ -51,20 +54,26 @@ fn a_rule_declares_where_it_reads_with_one_member() {
     );
 
     // And distinct ranks over one event are fine - the ranks are what order them.
-    compile(&asset(
-        r#"[{"id":"a","source":{"event":{"names":["acme.event"]}},"read":{"attribute":"one"},
+    compile(
+        &ParsedAssets::parse(&asset(
+            r#"[{"id":"a","source":{"event":{"names":["acme.event"]}},"read":{"attribute":"one"},
              "parse":"text","emit":"message","legacy_rank":1},
             {"id":"b","source":{"event":{"names":["acme.event"]}},"read":{"attribute":"two"},
              "parse":"text","emit":"message","legacy_rank":2}]"#,
-    ))
+        ))
+        .expect("the probe assets parse"),
+    )
     .expect("distinct ranks in one arena are ordered");
 
     // An event source naming nothing is refused rather than silently becoming a span rule - which is what
     // `when_event: []` did, sending the rule to a different entry point from the one it was written for.
-    let refused = compile(&asset(
-        r#"[{"id":"a","source":{"event":{"names":[]}},"read":{"attribute":"payload"},
+    let refused = compile(
+        &ParsedAssets::parse(&asset(
+            r#"[{"id":"a","source":{"event":{"names":[]}},"read":{"attribute":"payload"},
              "parse":"text","emit":"message","legacy_rank":1}]"#,
-    ))
+        ))
+        .expect("the probe assets parse"),
+    )
     .expect_err("an event source naming no event must be refused");
     assert!(
         refused.to_string().contains("reads nothing"),
@@ -82,15 +91,15 @@ fn a_rule_declares_where_it_reads_with_one_member() {
                  "emit":"message","legacy_rank":1}}]"#
         );
         assert!(
-            compile(&asset(&body)).is_err(),
+            ParsedAssets::parse(&asset(&body)).map_or(true, |assets| compile(&assets).is_err()),
             "a source declaring half of each variant must be refused: {half}"
         );
     }
 
     // The ordinary case still needs no `source` at all, or the migration would be a tax on 340 rules.
-    compile(&asset(
+    compile(&ParsedAssets::parse(&asset(
         r#"[{"id":"a","read":{"attribute":"payload"},"parse":"text","emit":"message","legacy_rank":1}]"#,
-    ))
+    )).expect("the probe assets parse"))
     .expect("a span rule at the dialect stage is the default and declares nothing");
 }
 
@@ -111,10 +120,13 @@ fn a_field_source_can_read_an_event_and_says_which_occurrence_answers() {
         let body = format!(
             r#"{{"id":"t","span_fields":[{{"id":"t.rule","target":"{target}","sources":{sources}}}]}}"#
         );
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            body.into_bytes(),
-        )]))
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                body.into_bytes(),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
     let event = |reason: &str| SpanEvent {
         name: "acme.choice".to_string(),
@@ -284,10 +296,13 @@ fn an_all_or_nothing_reading_cannot_be_starved_by_an_earlier_rank() {
 
     let asset = |rules: &str| {
         let body = format!(r#"{{"id":"t","messages":{rules}}}"#);
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            body.into_bytes(),
-        )]))
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                body.into_bytes(),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
 
     // An indexed family is starved by an earlier conditional rule reading one of its keys.
@@ -409,13 +424,16 @@ fn an_all_or_nothing_reading_cannot_be_starved_by_an_earlier_rank() {
 fn a_named_attribute_family_is_readable_in_a_declared_order() {
     use crate::rules::message_rules::{MessageContext, compile};
 
-    let plan = compile(&std::collections::BTreeMap::from([(
-        "t.json".to_string(),
-        br#"{"id":"t","messages":[{"id":"t.family",
+    let plan = compile(
+        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","messages":[{"id":"t.family",
              "read":{"attribute_family":{"root":"acme.messages","order":"member_name"}},
              "parse":"json","emit":"message","legacy_rank":1}]}"#
-            .to_vec(),
-    )]))
+                .to_vec(),
+        )]))
+        .expect("the probe assets parse"),
+    )
     .expect("a named family compiles");
 
     let attrs = std::collections::HashMap::from([
@@ -482,13 +500,16 @@ fn a_named_attribute_family_is_readable_in_a_declared_order() {
     // A blank member is filtered when the rule says so. The family branch returns **before** the rule-wide
     // emptiness checks, so without applying them per member a `require_non_blank` on a named family was a
     // declaration read from nowhere: the asset stated a filter the engine did not have.
-    let plan = compile(&std::collections::BTreeMap::from([(
-        "t.json".to_string(),
-        br#"{"id":"t","messages":[{"id":"t.family","require_non_blank":true,
+    let plan = compile(
+        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","messages":[{"id":"t.family","require_non_blank":true,
              "read":{"attribute_family":{"root":"acme.messages","order":"member_name"}},
              "parse":"json_or_string","emit":"message","legacy_rank":1}]}"#
-            .to_vec(),
-    )]))
+                .to_vec(),
+        )]))
+        .expect("the probe assets parse"),
+    )
     .expect("a named family with an emptiness requirement compiles");
     let blank = std::collections::HashMap::from([
         ("acme.messages.a".to_string(), "   ".to_string()),
@@ -507,12 +528,15 @@ fn a_named_attribute_family_is_readable_in_a_declared_order() {
 
     // And it is **refused** on an indexed family, where it is equally unreachable and has no meaning to give:
     // entries are assembled from many keys, so there is no raw string for the check to ask about.
-    let refused = compile(&std::collections::BTreeMap::from([(
-        "t.json".to_string(),
-        br#"{"id":"t","messages":[{"id":"t.indexed","require_non_blank":true,
+    let refused = compile(
+        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","messages":[{"id":"t.indexed","require_non_blank":true,
              "read":{"indexed_family":"fam"},"emit":"message","legacy_rank":1}]}"#
-            .to_vec(),
-    )]))
+                .to_vec(),
+        )]))
+        .expect("the probe assets parse"),
+    )
     .expect_err("an emptiness requirement on an indexed family must be refused, not ignored");
     assert!(
         refused.to_string().contains("require_members"),
@@ -521,7 +545,7 @@ fn a_named_attribute_family_is_readable_in_a_declared_order() {
 
     // The order is not optional: without it the format would say nothing about a sequence it produces.
     assert!(
-        compile(&std::collections::BTreeMap::from([(
+        ParsedAssets::parse(&std::collections::BTreeMap::from([(
             "t.json".to_string(),
             br#"{"id":"t","messages":[{"id":"t.family",
                  "read":{"attribute_family":{"root":"acme.messages"}},
@@ -534,14 +558,17 @@ fn a_named_attribute_family_is_readable_in_a_declared_order() {
 
     // And it is one source form among several, so naming it beside another is refused like any other pair.
     assert!(
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            br#"{"id":"t","messages":[{"id":"t.family",
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                br#"{"id":"t","messages":[{"id":"t.family",
                  "read":{"attribute":"acme.other",
                    "attribute_family":{"root":"acme.messages","order":"member_name"}},
                  "parse":"json","emit":"message","legacy_rank":1}]}"#
-                .to_vec(),
-        )]))
+                    .to_vec(),
+            )]))
+            .expect("the probe assets parse")
+        )
         .is_err(),
         "exactly one source form, as every other combination is"
     );
@@ -563,7 +590,7 @@ fn a_named_attribute_family_is_readable_in_a_declared_order() {
 fn an_emission_names_the_clause_inside_its_rule() {
     use crate::rules::message_rules::{MessageContext, compile};
 
-    let plan = compile(&std::collections::BTreeMap::from([(
+    let plan = compile(&ParsedAssets::parse(&std::collections::BTreeMap::from([(
         "t.json".to_string(),
         br#"{"id":"t","messages":[{"id":"t.events","read":{"attribute":"events"},"parse":"json",
              "emit":"message","legacy_rank":1,"elements":{"passes":[
@@ -579,7 +606,7 @@ fn an_emission_names_the_clause_inside_its_rule() {
                     "value":"assistant"}],
                  "tag_by_key":{"user":"gen_ai.user.message","assistant":"gen_ai.assistant.message"}}}]}}]}"#
             .to_vec(),
-    )]))
+    )])).expect("the probe assets parse"))
     .expect("the element-pass shape compiles");
 
     let attrs = std::collections::HashMap::from([(
@@ -642,10 +669,13 @@ fn a_claim_on_a_container_event_suppresses_its_raw_form() {
                  "messages":[{{"id":"t.read","source":{{"event":{{"names":["acme.container"]}}}},
                    "read":{{"attribute":"payload"}},"parse":"json","emit":"{emit}","legacy_rank":1}}]}}"#
         );
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            body.into_bytes(),
-        )]))
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                body.into_bytes(),
+            )]))
+            .expect("the probe assets parse"),
+        )
         .expect("the probe compiles")
     };
     let readable = std::collections::HashMap::from([(
@@ -701,10 +731,13 @@ fn a_wrong_typed_member_of_a_reduction_is_malformed() {
             r#"{{"id":"t","span_fields":[{{"id":"t.rule","target":"{target}","sources":[
                  {{"id":"t.s","json":{{"attribute":"payload","path":"{path}","reduce":"{reduce}"}}}}]}}]}}"#
         );
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            body.into_bytes(),
-        )]))
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                body.into_bytes(),
+            )]))
+            .expect("the probe assets parse"),
+        )
         .expect("the probe compiles")
     };
     // The **answer** and what the chain **refused**, because a malformed reading ends a first-wins chain and

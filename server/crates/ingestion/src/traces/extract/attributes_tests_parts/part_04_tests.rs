@@ -1,4 +1,3 @@
-
 /// The `gen_ai.choice` **event** is the *first* finish-reason source, which is where the retired chain had it.
 ///
 /// This test asserted the opposite for one commit's worth of reasons, and both states were honest at the time.
@@ -97,8 +96,8 @@ fn the_choice_event_is_the_first_finish_reason_source() {
 /// be complete or they check a subset while claiming to check the ontology.
 #[test]
 fn every_field_target_is_listed() {
-    let module_file = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../domain/src/rules/schema.rs");
+    let module_file =
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../domain/src/rules/schema.rs");
     let mut pending = vec![module_file.with_extension(""), module_file];
     let mut source = String::new();
     while let Some(path) = pending.pop() {
@@ -208,15 +207,17 @@ fn every_span_field_refusal_fires() {
     use sideseat_domain::rules::span_fields::{FieldCompileError as E, compile};
 
     let compiled = |asset: &str| {
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            asset.as_bytes().to_vec(),
-        )]))
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                asset.as_bytes().to_vec(),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
     /// A probe asset, and the refusal it must produce.
     type Case = (&'static str, &'static str, fn(&E) -> bool);
     let cases: Vec<Case> = vec![
-        ("not JSON at all", "{", |e| matches!(e, E::Parse { .. })),
         (
             "a rule with no source",
             r#"{"id":"t","span_fields":[{"id":"f","target":"user_id","sources":[]}]}"#,
@@ -302,15 +303,6 @@ fn every_span_field_refusal_fires() {
             |e| matches!(e, E::DuplicateId { .. }),
         ),
         (
-            // Two *sources* sharing an id is a different rule, and it was enforced only where the whole ruleset
-            // is built: `span_fields::compile` parsed the file itself and never asked `declaration_defect`, which
-            // is the hole that function's own doc names - "a hole the moment anything else loads a file".
-            "two sources of one rule sharing an id",
-            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
-               "sources":[{"id":"s","attribute":"k"},{"id":"s","attribute":"j"}]}]}"#,
-            |e| matches!(e, E::Parse { .. }),
-        ),
-        (
             "a gate that can never hold",
             r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
                "sources":[{"id":"s","attribute":"k","when":{"attr_prefix":[""]}}]}]}"#,
@@ -338,6 +330,18 @@ fn every_span_field_refusal_fires() {
             .unwrap_or_else(|| panic!("should have been refused: {what}"));
         assert!(expected(&error), "wrong refusal for {what}: {error}");
     }
+
+    // Two *sources* of one rule sharing an id is a declaration defect, refused where the assets are parsed and
+    // so before any section compiler can see the file.
+    assert!(
+        ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
+               "sources":[{"id":"s","attribute":"k"},{"id":"s","attribute":"j"}]}]}"#
+                .to_vec(),
+        )]))
+        .is_err()
+    );
 
     // Two *different* gates on one source are fine - that is an admitted-unless pair, which several assets use.
     assert!(
@@ -408,8 +412,7 @@ fn an_error_type_makes_the_status_message_the_spans_own_error() {
             .expect("one span");
         (span.exception_type, span.exception_message)
     };
-    let failed =
-        |attributes| failed_with(attributes, "No seats: the booking system is offline.");
+    let failed = |attributes| failed_with(attributes, "No seats: the booking system is offline.");
 
     assert_eq!(
         failed(vec![kv("error.type", "BookingUnavailable")]),

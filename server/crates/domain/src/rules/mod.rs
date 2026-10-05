@@ -18,6 +18,7 @@
 //! builds real clients with real auth flows, which is executable adapter code; calling it data would
 //! be dishonest.
 
+pub mod assets;
 pub mod carrier_rules;
 pub mod classify;
 pub mod content_blocks;
@@ -78,8 +79,8 @@ pub struct SpanFactPlan {
 }
 
 impl SpanFactPlan {
-    fn compile(sources: &std::collections::BTreeMap<String, Vec<u8>>) -> Self {
-        let plan = Self::compile_unvalidated(sources);
+    fn compile(assets: &assets::ParsedAssets) -> Self {
+        let plan = Self::compile_unvalidated(assets);
         for (fact, _, signal) in &plan.signals {
             // A signal that asserts nothing holds for **every** span, which for `tool_execution` would
             // classify every span as a tool running and gate almost every message rule out. Refused rather
@@ -102,10 +103,10 @@ impl SpanFactPlan {
         plan
     }
 
-    fn compile_unvalidated(sources: &std::collections::BTreeMap<String, Vec<u8>>) -> Self {
-        let files = parsed_files(sources);
+    fn compile_unvalidated(assets: &assets::ParsedAssets) -> Self {
         Self {
-            signals: files
+            signals: assets
+                .files()
                 .iter()
                 .flat_map(|file| &file.span_facts)
                 .flat_map(|rule| {
@@ -228,91 +229,61 @@ static RULESET: OnceLock<Ruleset> = OnceLock::new();
 
 /// The compiled ruleset. Panics only if an *embedded* asset is malformed, which is a build defect: the
 /// assets ship inside the binary, so there is no runtime input that can reach this.
-/// Every asset, parsed. Named in the panic and never skipped: a file quietly dropped for a typo is how a
-/// whole dialect's rules once vanished with every test still green.
-fn parsed_files(sources: &std::collections::BTreeMap<String, Vec<u8>>) -> Vec<schema::RuleFile> {
-    let files: Vec<schema::RuleFile> = sources
-        .iter()
-        .map(|(path, bytes)| {
-            let file: schema::RuleFile = serde_json::from_slice(bytes)
-                .unwrap_or_else(|e| panic!("embedded rules are malformed: {path}: {e}"));
-            // Declaration defects, in production and not only in a test over this tree: the clause-uniqueness
-            // rule is one property about six types compiled by three different modules, so it had no single
-            // place to live and the generic compiler accepted two clauses sharing an id.
-            if let Some(defect) = file.declaration_defect() {
-                panic!("embedded rules are malformed: {path}: {defect}");
-            }
-            file
-        })
-        .collect();
-    if let Some(repeated) = repeated_asset_id(&files) {
-        panic!(
-            "embedded rules are malformed: two assets declare the id `{repeated}`, so their clauses share a \
-             provenance path and nothing can tell them apart"
-        );
-    }
-    files
-}
-
-/// An id two assets declare, if any.
-///
-/// An asset id is the provenance every diagnostic reports, and `declaration_defect` is per *file* - so two files
-/// could declare the same one and nothing would notice: their clauses would be indistinguishable precisely where a
-/// reader looks to tell them apart, and the clause-owner uniqueness rule stops at the file boundary. A function
-/// rather than an inline assertion so a test can put two files to it; the embedded set has no duplicate to trigger
-/// it with.
-pub(super) fn repeated_asset_id(files: &[schema::RuleFile]) -> Option<&str> {
-    let mut seen: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
-    files
-        .iter()
-        .find(|file| !seen.insert(file.id.as_str()))
-        .map(|file| file.id.as_str())
-}
-
 pub fn ruleset() -> &'static Ruleset {
     RULESET.get_or_init(|| {
-        let sources = schema::embedded_sources();
-        let digest = schema::digest_of(&sources);
-        let carriers = carrier_rules::compile(&sources)
+        let assets = assets::ParsedAssets::parse(&schema::embedded_sources())
+            .unwrap_or_else(|e| panic!("embedded rules are malformed: {e}"));
+        Ruleset::build(&assets)
+    })
+}
+
+impl Ruleset {
+    /// Compile every section from one parse of the assets.
+    ///
+    /// Takes the parsed corpus and never bytes, so no section can re-parse a file. Panics on a section defect;
+    /// the embedded assets are part of the build, so a defect here is a build defect.
+    pub fn build(assets: &assets::ParsedAssets) -> Self {
+        let files = assets.files();
+        let carriers = carrier_rules::compile(assets)
             .unwrap_or_else(|e| panic!("embedded carrier rules are malformed: {e}"));
-        let detect = detect_rules::compile(&sources)
+        let detect = detect_rules::compile(assets)
             .unwrap_or_else(|e| panic!("embedded detection rules are malformed: {e}"));
-        let messages = message_rules::compile(&sources)
+        let messages = message_rules::compile(assets)
             .unwrap_or_else(|e| panic!("embedded message rules are malformed: {e}"));
-        let files = parsed_files(&sources);
-        let message_events = compile_message_events(&files)
+        let message_events = compile_message_events(files)
             .unwrap_or_else(|e| panic!("embedded message events are malformed: {e}"));
-        let log_events = log_events::LogEventPlan::compile(&files, &message_events)
+        let log_events = log_events::LogEventPlan::compile(files, &message_events)
             .unwrap_or_else(|e| panic!("embedded log events are malformed: {e}"));
+        let tagged_source_names = tag_names(files);
         Ruleset {
             carriers,
             detect,
             messages,
-            message_projection: message_projection::MessageProjectionPlan::compile(&files)
+            message_projection: message_projection::MessageProjectionPlan::compile(files)
                 .unwrap_or_else(|e| panic!("embedded message projection rules are malformed: {e}")),
-            content_blocks: content_blocks::ContentBlockPlan::compile(&files),
+            content_blocks: content_blocks::ContentBlockPlan::compile(files),
             message_events,
             log_events,
-            role_authority: compile_role_authority(&files).unwrap_or_else(|error| {
+            role_authority: compile_role_authority(files).unwrap_or_else(|error| {
                 panic!("the embedded role-authority declarations are malformed: {error}")
             }),
-            event_roles: compile_event_roles(&files, &tag_names(&files))
+            event_roles: compile_event_roles(files, &tagged_source_names)
                 .unwrap_or_else(|e| panic!("embedded event roles are malformed: {e}")),
-            tagged_source_names: tag_names(&files),
-            span_facts: SpanFactPlan::compile(&sources),
-            span_fields: span_fields::compile(&sources)
+            tagged_source_names,
+            span_facts: SpanFactPlan::compile(assets),
+            span_fields: span_fields::compile(assets)
                 .unwrap_or_else(|e| panic!("embedded span field rules are malformed: {e}")),
-            tool_shapes: tool_shapes::ToolShapePlan::compile(&files)
+            tool_shapes: tool_shapes::ToolShapePlan::compile(files)
                 .unwrap_or_else(|e| panic!("embedded tool shapes are malformed: {e}")),
-            observation_types: classify::compile(&sources)
+            observation_types: classify::compile(assets)
                 .unwrap_or_else(|e| panic!("embedded classification rules are malformed: {e}")),
-            message_members: members::compile(&sources)
+            message_members: members::compile(assets)
                 .unwrap_or_else(|e| panic!("embedded member rules are malformed: {e}")),
-            provider_aliases: compile_provider_aliases(&files)
+            provider_aliases: compile_provider_aliases(files)
                 .unwrap_or_else(|e| panic!("embedded provider aliases are malformed: {e}")),
-            digest,
+            digest: assets.digest().to_owned(),
         }
-    })
+    }
 }
 
 /// Every name a rule assigns with `tag_as`, at **any** depth of the rule tree.

@@ -1,4 +1,3 @@
-
 /// Every refusal `compile_event_roles` makes, as a test rather than as a mutation I ran once.
 ///
 /// Mutation verification shows a check works today; it does not stop the check being removed tomorrow. Each
@@ -300,10 +299,13 @@ fn a_scalar_only_that_cannot_apply_is_refused() {
                 "sources": [{"id": "probe.source", "json": json}],
             }],
         });
-        super::span_fields::compile(&std::collections::BTreeMap::from([(
-            "probe.json".to_string(),
-            serde_json::to_vec(&asset).expect("the probe serialises"),
-        )]))
+        super::span_fields::compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "probe.json".to_string(),
+                serde_json::to_vec(&asset).expect("the probe serialises"),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
     for (what, target, json) in [
         (
@@ -360,10 +362,13 @@ fn a_scalar_only_that_cannot_apply_is_refused() {
                 }],
             }],
         });
-        super::span_fields::compile(&std::collections::BTreeMap::from([(
-            "probe.json".to_string(),
-            serde_json::to_vec(&asset).expect("the probe serialises"),
-        )]))
+        super::span_fields::compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "probe.json".to_string(),
+                serde_json::to_vec(&asset).expect("the probe serialises"),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
     assert!(
         witness.is_err(),
@@ -401,10 +406,13 @@ fn a_fold_that_can_do_nothing_is_refused() {
                 "sources": [{"id": "probe.source", "attribute": "probe.attribute", "lowercase": lowercase}],
             }],
         });
-        super::span_fields::compile(&std::collections::BTreeMap::from([(
-            "probe.json".to_string(),
-            serde_json::to_vec(&asset).expect("the probe serialises"),
-        )]))
+        super::span_fields::compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "probe.json".to_string(),
+                serde_json::to_vec(&asset).expect("the probe serialises"),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
     assert!(
         compiled("usage_input_tokens", true).is_err(),

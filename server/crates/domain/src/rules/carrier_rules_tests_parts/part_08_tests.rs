@@ -1,4 +1,3 @@
-
 /// An unreadable **witness** is unanswerable, not false.
 ///
 /// A `when_json` witness gates a source on a member being present, and it answered `false` for a carrier that
@@ -14,15 +13,18 @@ fn an_unreadable_witness_is_unanswerable_rather_than_false() {
     use crate::rules::span_fields::{Reading, compile};
 
     // Two sources with opposite witnesses on one carrier - the shape of a producer discriminator.
-    let plan = compile(&std::collections::BTreeMap::from([(
-        "t.json".to_string(),
-        br#"{"id":"t","span_fields":[{"id":"t.rule","target":"gen_ai_system","sources":[
+    let plan = compile(
+        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","span_fields":[{"id":"t.rule","target":"gen_ai_system","sources":[
              {"id":"t.anthropic","when_json":{"attribute":"request_data","path":"$.system"},
               "value":"anthropic"},
              {"id":"t.openai","when_json":{"attribute":"request_data","path":"$.messages"},
               "value":"openai"}]}]}"#
-            .to_vec(),
-    )]))
+                .to_vec(),
+        )]))
+        .expect("the probe assets parse"),
+    )
     .expect("the probe compiles");
     let read = |raw: &str| {
         let attrs =
@@ -102,10 +104,13 @@ fn a_reading_that_parses_a_scalar_declares_how() {
 
     let asset = |rule: &str| {
         let body = format!(r#"{{"id":"t","messages":[{rule}]}}"#);
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            body.into_bytes(),
-        )]))
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                body.into_bytes(),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
 
     // Each form that parses a scalar of its own, refused without a mode.
@@ -174,14 +179,17 @@ fn a_reading_that_parses_a_scalar_declares_how() {
 fn a_compose_owns_its_members_and_not_its_own_tag() {
     use crate::rules::message_rules::{MessageContext, compile};
 
-    let plan = compile(&std::collections::BTreeMap::from([(
-        "t.json".to_string(),
-        br#"{"id":"t","messages":[{"id":"t.compose","legacy_rank":1,
+    let plan = compile(
+        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","messages":[{"id":"t.compose","legacy_rank":1,
              "compose":{"tag":"canonical.response","members":[
                {"as":"content","from_any_of":["x"],"parse":"text"}]},
              "emit":"message"}]}"#
-            .to_vec(),
-    )]))
+                .to_vec(),
+        )]))
+        .expect("the probe assets parse"),
+    )
     .expect("the probe compiles");
     let attrs = std::collections::HashMap::from([("x".to_string(), "the answer".to_string())]);
     let ctx = MessageContext::for_span("span", &attrs, false);
@@ -220,10 +228,13 @@ fn two_declarations_must_not_write_one_output_member() {
 
     let asset = |rule: &str| {
         let body = format!(r#"{{"id":"t","messages":[{rule}]}}"#);
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            body.into_bytes(),
-        )]))
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                body.into_bytes(),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
     let read = r#""read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1"#;
 
@@ -328,10 +339,13 @@ fn a_construction_branch_refuses_the_siblings_it_would_skip() {
 
     let asset = |rule: &str| {
         let body = format!(r#"{{"id":"t","messages":[{rule}]}}"#);
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            body.into_bytes(),
-        )]))
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                body.into_bytes(),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
     let sections = r#""sections":{"split_on":"|","routes":[{"id":"all","role":"user"}]}"#;
 
@@ -442,7 +456,7 @@ fn a_construction_branch_refuses_the_siblings_it_would_skip() {
 fn a_reading_whose_envelope_cannot_be_built_lets_the_chain_continue() {
     use crate::rules::message_rules::{MessageContext, compile};
 
-    let plan = compile(&std::collections::BTreeMap::from([(
+    let plan = compile(&ParsedAssets::parse(&std::collections::BTreeMap::from([(
         "t.json".to_string(),
         br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json",
              "emit":"message","legacy_rank":1,
@@ -450,7 +464,7 @@ fn a_reading_whose_envelope_cannot_be_built_lets_the_chain_continue() {
                {"id":"first","select":"$.a","wrap":{"role":"user","content_from_any_of":["$.missing"]}},
                {"id":"second","select":"$.b","wrap":{"role":"user","content_from_any_of":["$.text"]}}]}]}"#
             .to_vec(),
-    )]))
+    )])).expect("the probe assets parse"))
     .expect("the probe compiles");
     let attrs = std::collections::HashMap::from([(
         "x".to_string(),
@@ -469,7 +483,7 @@ fn a_reading_whose_envelope_cannot_be_built_lets_the_chain_continue() {
     );
 
     // And the rule's own `fallback`, which was equally unreachable.
-    let plan = compile(&std::collections::BTreeMap::from([(
+    let plan = compile(&ParsedAssets::parse(&std::collections::BTreeMap::from([(
         "t.json".to_string(),
         br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json",
              "emit":"message","legacy_rank":1,
@@ -478,7 +492,7 @@ fn a_reading_whose_envelope_cannot_be_built_lets_the_chain_continue() {
              "fallback":[
                {"id":"last","select":"$.b","wrap":{"role":"user","content_from_any_of":["$.text"]}}]}]}"#
             .to_vec(),
-    )]))
+    )])).expect("the probe assets parse"))
     .expect("the probe compiles");
     let emitted: Vec<String> = plan
         .run(&ctx)
@@ -493,14 +507,14 @@ fn a_reading_whose_envelope_cannot_be_built_lets_the_chain_continue() {
 
     // Still no **bare payload**: an unbuildable envelope emits nothing rather than the value it wrapped, which
     // is the half of this that was already right.
-    let plan = compile(&std::collections::BTreeMap::from([(
+    let plan = compile(&ParsedAssets::parse(&std::collections::BTreeMap::from([(
         "t.json".to_string(),
         br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json",
              "emit":"message","legacy_rank":1,
              "alternatives":[
                {"id":"only","select":"$.a","wrap":{"role":"user","content_from_any_of":["$.missing"]}}]}]}"#
             .to_vec(),
-    )]))
+    )])).expect("the probe assets parse"))
     .expect("the probe compiles");
     assert!(
         plan.run(&ctx).is_empty(),
@@ -519,10 +533,13 @@ fn an_aggregate_wraps_the_assembled_array_once() {
 
     let asset = |rule: &str| {
         let body = format!(r#"{{"id":"t","messages":[{rule}]}}"#);
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            body.into_bytes(),
-        )]))
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                body.into_bytes(),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
 
     // The rule's envelope applies to the array.
@@ -612,9 +629,10 @@ fn an_alternative_and_a_grouped_run_name_every_clause_that_built_them() {
     };
 
     // An alternative, and a fragment case reached *through* one: the selection point and then the case.
-    let plan = compile(&std::collections::BTreeMap::from([(
-        "t.json".to_string(),
-        br#"{"id":"t","fragments":{"shape":{"cases":[
+    let plan = compile(
+        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","fragments":{"shape":{"cases":[
              {"id":"as_user","require":{"all":[{"path":"$.role","one_of":["user"]}]},
               "wrap":{"role":"user","content_from_any_of":["$.content"]}},
              {"id":"as_other","wrap":{"role":"assistant","content_from_any_of":["$.content"]}}]}},
@@ -622,8 +640,10 @@ fn an_alternative_and_a_grouped_run_name_every_clause_that_built_them() {
                "legacy_rank":1,"alternatives":[
                  {"id":"plain","select":"$.direct"},
                  {"id":"via_fragment","select":"$.wrapped[*]","then_fragment":"t.shape"}]}]}"#
-            .to_vec(),
-    )]))
+                .to_vec(),
+        )]))
+        .expect("the probe assets parse"),
+    )
     .expect("the probe compiles");
     assert_eq!(
         paths(
@@ -653,7 +673,7 @@ fn an_alternative_and_a_grouped_run_name_every_clause_that_built_them() {
     );
 
     // A grouped element run built from two cases that derive one key: two witnesses under one pass.
-    let plan = compile(&std::collections::BTreeMap::from([(
+    let plan = compile(&ParsedAssets::parse(&std::collections::BTreeMap::from([(
         "t.json".to_string(),
         br#"{"id":"t","messages":[{"id":"t.e","read":{"attribute":"x"},"parse":"json",
              "emit":"message","legacy_rank":1,"elements":{"passes":[{"id":"blocks","group":{
@@ -664,7 +684,7 @@ fn an_alternative_and_a_grouped_run_name_every_clause_that_built_them() {
                   "value":"user"}],
                "tag_by_key":{"user":"gen_ai.user.message"}}}]}}]}"#
             .to_vec(),
-    )]))
+    )])).expect("the probe assets parse"))
     .expect("the probe compiles");
     assert_eq!(
         paths(
@@ -691,15 +711,18 @@ fn an_alternative_and_a_grouped_run_name_every_clause_that_built_them() {
 fn an_attachment_falls_through_to_its_other_sources() {
     use crate::rules::message_rules::{MessageContext, compile};
 
-    let plan = compile(&std::collections::BTreeMap::from([(
-        "t.json".to_string(),
-        br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json",
+    let plan = compile(
+        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json",
              "emit":"message","legacy_rank":1,
              "wrap":{"role":"assistant","content_from_any_of":["$.content"],
                "attach":[{"as":"finish_reason","from_path":"$.finish_reason","from":"finish_reason",
                  "default":"unknown"}]}}]}"#
-            .to_vec(),
-    )]))
+                .to_vec(),
+        )]))
+        .expect("the probe assets parse"),
+    )
     .expect("the probe compiles");
     let reason = |payload: &str, span: Vec<(&str, &str)>| -> String {
         let mut attrs = std::collections::HashMap::from([("x".to_string(), payload.to_string())]);
@@ -742,19 +765,23 @@ fn an_attachment_falls_through_to_its_other_sources() {
 fn a_span_name_can_be_an_attachments_only_source() {
     use crate::rules::message_rules::{MessageContext, compile};
 
-    let plan = compile(&std::collections::BTreeMap::from([(
-        "t.json".to_string(),
-        br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"text",
+    let plan = compile(
+        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"text",
              "emit":"message","legacy_rank":1,
              "wrap":{"role":"tool","block":{"type":"tool_result","attach":[
                {"as":"name","or_span_name_after":""}]}}}]}"#
-            .to_vec(),
-    )]))
+                .to_vec(),
+        )]))
+        .expect("the probe assets parse"),
+    )
     .expect("the probe compiles");
     let attrs = std::collections::HashMap::from([("x".to_string(), "result".to_string())]);
     let ctx = MessageContext::for_span("done", &attrs, false);
     assert_eq!(
-        plan.run(&ctx)[0].value["content"][0]["name"], "done",
+        plan.run(&ctx)[0].value["content"][0]["name"],
+        "done",
         "an exporter that names its span exactly after the tool keeps that name"
     );
 }
@@ -768,14 +795,14 @@ fn a_span_name_can_be_an_attachments_only_source() {
 fn an_attachment_can_select_a_member_of_its_attribute() {
     use crate::rules::message_rules::{MessageContext, compile};
 
-    let plan = compile(&std::collections::BTreeMap::from([(
+    let plan = compile(&ParsedAssets::parse(&std::collections::BTreeMap::from([(
         "t.json".to_string(),
         br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"text",
              "emit":"message","legacy_rank":1,
              "wrap":{"role":"tool","block":{"type":"tool_result","attach":[
                {"as":"tool_use_id","from":"path","parse":"json","select":"$[-1]","default":"none"}]}}}]}"#
             .to_vec(),
-    )]))
+    )])).expect("the probe assets parse"))
     .expect("the probe compiles");
     let id = |path: Option<&str>| {
         let mut attrs = std::collections::HashMap::from([("x".to_string(), "result".to_string())]);
@@ -806,10 +833,13 @@ fn a_selection_needs_a_structured_attribute() {
                  "emit":"message","legacy_rank":1,"alternatives":[{{"id":"a",
                  "wrap":{{"role":"tool","block":{{"type":"tool_result","attach":[{attach}]}}}}}}]}}]}}"#
         );
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            body.into_bytes(),
-        )]))
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                body.into_bytes(),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
 
     assert!(
@@ -847,10 +877,13 @@ fn a_walk_stops_on_the_clauses_it_names() {
                     "require":{{"all":[{{"path":"$.role"}},{{"path":"$.content"}}]}},
                     "wrap":{{"role_from":"$.role","content_from_any_of":["$.content"]}}}}]}}]}}"#
         );
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            body.into_bytes(),
-        )]))
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                body.into_bytes(),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
     // A node holding a message beside more state: `any_member` recognises the *root*, `whole_node` does not.
     let attrs = std::collections::HashMap::from([(

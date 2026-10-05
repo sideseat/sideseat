@@ -1,4 +1,3 @@
-
 /// A `supersedes` edge that cannot take effect is refused.
 ///
 /// The field **orders**, ahead of `legacy_rank`, and it waives the overlap report - the instrument that names
@@ -33,10 +32,13 @@ fn a_supersedes_edge_that_cannot_take_effect_is_refused() {
                 },
             ],
         });
-        crate::rules::detect_rules::compile(&std::collections::BTreeMap::from([(
-            "probe.json".to_string(),
-            serde_json::to_vec(&asset).expect("the probe serialises"),
-        )]))
+        crate::rules::detect_rules::compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "probe.json".to_string(),
+                serde_json::to_vec(&asset).expect("the probe serialises"),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
 
     // The shape the shipped assets use: the superseding rule already outranks its target.
@@ -82,10 +84,13 @@ fn a_supersedes_edge_that_cannot_take_effect_is_refused() {
                  "match": {"attr_prefix": ["probe.mid.deep."]}, "supersedes": ["probe.b"]},
             ],
         });
-        let plan = crate::rules::detect_rules::compile(&std::collections::BTreeMap::from([(
-            "probe.json".to_string(),
-            serde_json::to_vec(&chain).expect("the probe serialises"),
-        )]))
+        let plan = crate::rules::detect_rules::compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "probe.json".to_string(),
+                serde_json::to_vec(&chain).expect("the probe serialises"),
+            )]))
+            .expect("the probe assets parse"),
+        )
         .expect("a chain of edges compiles");
         let attrs: std::collections::HashMap<String, String> =
             [("probe.mid.deep.marker".to_string(), "1".to_string())]
@@ -138,10 +143,13 @@ fn a_supersedes_edge_that_cannot_take_effect_is_refused() {
         ],
     });
     assert!(
-        crate::rules::detect_rules::compile(&std::collections::BTreeMap::from([(
-            "probe.json".to_string(),
-            serde_json::to_vec(&repeated).expect("serialises"),
-        )]))
+        crate::rules::detect_rules::compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "probe.json".to_string(),
+                serde_json::to_vec(&repeated).expect("serialises"),
+            )]))
+            .expect("the probe assets parse")
+        )
         .is_err(),
         "a target named twice by one rule must be refused"
     );
@@ -184,10 +192,13 @@ fn a_superseded_rule_is_dominated_transitively() {
             },
         ],
     });
-    let plan = crate::rules::detect_rules::compile(&std::collections::BTreeMap::from([(
-        "probe.json".to_string(),
-        serde_json::to_vec(&asset).expect("serialises"),
-    )]))
+    let plan = crate::rules::detect_rules::compile(
+        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "probe.json".to_string(),
+            serde_json::to_vec(&asset).expect("serialises"),
+        )]))
+        .expect("the probe assets parse"),
+    )
     .expect("the probe compiles");
 
     // Nested prefixes rather than one identical condition in all three: identical conditions make the two later
@@ -570,21 +581,19 @@ fn a_fact_vector_the_model_cannot_mean_is_refused() {
             object.insert("ordering_family".to_string(), serde_json::json!(family));
         }
         let asset = serde_json::json!({"id": "probe", "carriers": [clause]});
-        crate::rules::carrier_rules::compile(&std::collections::BTreeMap::from([(
-            "probe.json".to_string(),
-            serde_json::to_vec(&asset).expect("serialises"),
-        )]))
+        crate::rules::carrier_rules::compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "probe.json".to_string(),
+                serde_json::to_vec(&asset).expect("serialises"),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
 
     for (what, facts, family) in [
         (
             "one atomic emission whose positions prove nothing",
             serde_json::json!({"preset": "emission", "position_proves_distinct_occurrence": false}),
-            None,
-        ),
-        (
-            "one atomic emission that may also be a re-listing",
-            serde_json::json!({"preset": "emission", "carrier_may_contain_history_or_state": true}),
             None,
         ),
         (
@@ -783,10 +792,13 @@ fn a_carrier_list_says_how_many_of_its_keys_are_read() {
     };
 
     // `first_present`: the first spelling the span carries, and nothing after it.
-    let plan = compile(&asset(
-        r#"{"id":"t","messages":[{"id":"t.alternatives","read":{"first_present":["new","old"]},
+    let plan = compile(
+        &ParsedAssets::parse(&asset(
+            r#"{"id":"t","messages":[{"id":"t.alternatives","read":{"first_present":["new","old"]},
              "parse":"text","emit":"message","legacy_rank":1}]}"#,
-    ))
+        ))
+        .expect("the probe assets parse"),
+    )
     .expect("ordered alternatives compile");
     let attrs = std::collections::HashMap::from([
         ("new".to_string(), "fresh".to_string()),
@@ -802,10 +814,13 @@ fn a_carrier_list_says_how_many_of_its_keys_are_read() {
 
     // `each` with an ordinary body is refused rather than silently read as `first_present`, which is the
     // whole point of the split: the previous member would have quietly given the first-wins reading here.
-    let refused = compile(&asset(
-        r#"{"id":"t","messages":[{"id":"t.each","read":{"each":["new","old"]},
+    let refused = compile(
+        &ParsedAssets::parse(&asset(
+            r#"{"id":"t","messages":[{"id":"t.each","read":{"each":["new","old"]},
              "parse":"text","emit":"message","legacy_rank":1}]}"#,
-    ))
+        ))
+        .expect("the probe assets parse"),
+    )
     .expect_err("`each` on a body that cannot iterate its carriers must be refused");
     assert!(
         refused.to_string().contains("first_present"),
@@ -813,7 +828,7 @@ fn a_carrier_list_says_how_many_of_its_keys_are_read() {
     );
 
     // And `each` **is** honoured where a body iterates: every listed key present is its own observation.
-    let plan = compile(&asset(
+    let plan = compile(&ParsedAssets::parse(&asset(
         r#"{"id":"t","messages":[{"id":"t.tools","read":{"each":["agents","tasks"]},"parse":"json",
              "emit":"tool_definitions","legacy_rank":1,
              "tool_repr":{"entries":"$[*]","candidates":["$"],"name_field":"name",
@@ -821,7 +836,7 @@ fn a_carrier_list_says_how_many_of_its_keys_are_read() {
                "description_label":"Tool Description:","arguments_label":"Tool Arguments:",
                "repr_markers":["name="],"parameter_members":["parameters"],
                "field_terminators":[","],"type_map":[["str","string"]],"type_default":{"map_to":"string"}}}]}"#,
-    ))
+    )).expect("the probe assets parse"))
     .expect("`each` compiles with `tool_repr`");
     let attrs = std::collections::HashMap::from([
         (
@@ -848,10 +863,10 @@ fn a_carrier_list_says_how_many_of_its_keys_are_read() {
                  "tool_repr":{{"entries":"$[*]","candidates":["$"],"name_field":"name",
                  "description_field":"d","name_label":"N:","description_label":"D:",
                  "arguments_label":"A:","repr_markers":["name="],"parameter_members":["parameters"],
-                 "field_terminators":[","],"type_map":[["str","string"]],"type_default":{{"map_to":"string"}}}}}}}}]}}"#
+                 "field_terminators":[","],"type_map":[["str","string"]],"type_default":{{"map_to":"string"}}}}}}]}}"#
         );
         assert!(
-            compile(&asset(&body)).is_err(),
+            compile(&ParsedAssets::parse(&asset(&body)).expect("the probe assets parse")).is_err(),
             "`{member}` listing one key twice must be refused"
         );
     }

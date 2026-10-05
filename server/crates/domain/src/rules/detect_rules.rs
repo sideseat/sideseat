@@ -13,7 +13,7 @@
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 
-use super::schema::{DetectMatch, KeyValue, RuleFile, TextContains};
+use super::schema::{DetectMatch, KeyValue, TextContains};
 
 /// A compiled detection rule.
 #[derive(Debug, Clone)]
@@ -75,10 +75,6 @@ pub struct DetectContext<'a> {
 /// Why a detection ruleset would not compile.
 #[derive(Debug)]
 pub enum DetectCompileError {
-    Parse {
-        path: String,
-        message: String,
-    },
     EmptyLiteral {
         rule: String,
         dimension: &'static str,
@@ -128,7 +124,6 @@ pub enum DetectCompileError {
 impl std::fmt::Display for DetectCompileError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Parse { path, message } => write!(f, "{path}: {message}"),
             Self::SlugLabelNoRuleProduces { slug, label } => write!(
                 f,
                 "SDK slug `{slug}` resolves to `{label}`, which no detection rule produces - the two sections \
@@ -208,20 +203,12 @@ fn has_signal(spec: &DetectMatch) -> bool {
 }
 
 /// Compile every asset's detection rules into one ordered plan.
-pub fn compile(sources: &BTreeMap<String, Vec<u8>>) -> Result<DetectPlan, DetectCompileError> {
+pub fn compile(assets: &super::assets::ParsedAssets) -> Result<DetectPlan, DetectCompileError> {
     let mut rules: Vec<CompiledDetect> = Vec::new();
     let mut seen_ids: HashMap<String, ()> = HashMap::new();
     let mut plan = DetectPlan::default();
 
-    for (path, bytes) in sources {
-        // Parsed, not skipped. Relying on the carrier compile to have rejected the same bytes made this
-        // pass silently depend on another function's error path - and a caller compiling detection alone
-        // would have quietly ignored a malformed asset.
-        let file: RuleFile =
-            serde_json::from_slice(bytes).map_err(|e| DetectCompileError::Parse {
-                path: path.clone(),
-                message: e.to_string(),
-            })?;
+    for file in assets.files() {
         for slug in &file.sdk_slugs {
             if plan
                 .sdk_slugs

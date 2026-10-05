@@ -2,7 +2,7 @@ use super::*;
 
 /// Compile every asset's field rules into one plan.
 pub fn compile(
-    sources: &std::collections::BTreeMap<String, Vec<u8>>,
+    assets: &super::super::assets::ParsedAssets,
 ) -> Result<SpanFieldPlan, FieldCompileError> {
     let mut rules: Vec<CompiledRule> = Vec::new();
     // Both indices exist to refuse a *silent* mistake: a duplicate id makes an explain trace ambiguous, and
@@ -10,23 +10,10 @@ pub fn compile(
     let mut by_id: HashMap<String, String> = HashMap::new();
     let mut by_target: HashMap<FieldTarget, String> = HashMap::new();
 
-    for (file_id, bytes) in sources {
-        let file: super::super::schema::RuleFile =
-            serde_json::from_slice(bytes).map_err(|error| FieldCompileError::Parse {
-                path: file_id.clone(),
-                message: error.to_string(),
-            })?;
-        // The clause-uniqueness rule, asked **here** and not only where the whole ruleset is built. This function
-        // parses the file itself, so anything calling it got a compile that accepted two sources sharing an id -
-        // which is precisely the hole `declaration_defect`'s own doc names: fine while a test guards this tree, a
-        // hole the moment anything else loads a file. An id is what a diagnostic uses to say which of a chain's
-        // spellings answered, so two of them make the answer unattributable exactly where it is read.
-        if let Some(defect) = file.declaration_defect() {
-            return Err(FieldCompileError::Parse {
-                path: file_id.clone(),
-                message: defect,
-            });
-        }
+    // Declaration defects (two clauses sharing an id among them) are refused by `ParsedAssets::parse`, so no
+    // file reaching this loop has one.
+    for (file_id, file) in assets.iter() {
+        let file_id = &file_id.to_owned();
         for rule in &file.span_fields {
             if let Some(first) = by_id.get(&rule.id) {
                 return Err(FieldCompileError::DuplicateId {

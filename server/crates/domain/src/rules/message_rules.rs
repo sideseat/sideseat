@@ -28,7 +28,6 @@
 //! The engine emits *values*, not `RawMessage`s: the ingestion types live in `domain::traces`, and the
 //! engine having to know them would point the dependency the wrong way for no benefit.
 
-use std::collections::BTreeMap;
 use std::collections::HashMap;
 
 use serde_json::{Value as JsonValue, json};
@@ -37,8 +36,8 @@ use super::detect_rules::CompiledDetect;
 use super::schema::{
     Alternative, AttachSpec, BlockSpec, ComposeMember, ComposeSpec, DetectMatch, ElementsSpec,
     EmitTarget, KeyValue, MemberPresence, MemberRequirements, MessageRule, OverlaySpec, ParseMode,
-    PredicateSet, ReadSpec, RuleFile, SectionsSpec, SingleToolCallSpec, ToolCallsSpec,
-    ToolReprSpec, ValueKind, ValuePredicate, WrapSpec,
+    PredicateSet, ReadSpec, SectionsSpec, SingleToolCallSpec, ToolCallsSpec, ToolReprSpec,
+    ValueKind, ValuePredicate, WrapSpec,
 };
 use super::{detect_rules, expr, refusal, schema, tool_repr};
 
@@ -352,10 +351,6 @@ pub struct MessagePlan {
 /// Why a message ruleset would not compile.
 #[derive(Debug)]
 pub enum MessageCompileError {
-    Parse {
-        path: String,
-        message: String,
-    },
     /// A rule naming no carrier, or naming both an attribute and an event.
     NotExactlyOneCarrier {
         rule: String,
@@ -399,7 +394,6 @@ pub enum MessageCompileError {
 impl std::fmt::Display for MessageCompileError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Parse { path, message } => write!(f, "{path}: {message}"),
             Self::NotExactlyOneCarrier { rule } => write!(
                 f,
                 "message rule `{rule}` must name exactly one of `attribute` or `event`"

@@ -1,4 +1,3 @@
-
 /// A grouped element run is consecutive in the **array a producer wrote**, not in the pass's filtered view.
 ///
 /// The pass filtered the array before finding runs, so an element it does not match simply vanished - and two
@@ -17,9 +16,10 @@ fn a_grouped_run_is_consecutive_in_the_array_the_producer_wrote() {
             .collect()
     }
 
-    let plan = compile(&std::collections::BTreeMap::from([(
-        "t.json".to_string(),
-        br#"{"id":"t","messages":[{"id":"t.e","read":{"attribute":"x"},"parse":"json",
+    let plan = compile(
+        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","messages":[{"id":"t.e","read":{"attribute":"x"},"parse":"json",
              "emit":"message","legacy_rank":1,"elements":{"passes":[
                {"id":"named","when":{"all":[{"path":"$['event.name']","one_of":["assistant"]}]},
                 "tag_from":"$['event.name']"},
@@ -30,8 +30,10 @@ fn a_grouped_run_is_consecutive_in_the_array_the_producer_wrote() {
                    {"id":"is_input","when":{"all":[{"path":"$.data.type","starts_with":"input_"}]},
                     "value":"user"}],
                  "tag_by_key":{"user":"gen_ai.user.message"}}}]}}]}"#
-            .to_vec(),
-    )]))
+                .to_vec(),
+        )]))
+        .expect("the probe assets parse"),
+    )
     .expect("the probe compiles");
     let runs = |payload: &str| -> Vec<usize> {
         let attrs = std::collections::HashMap::from([("x".to_string(), payload.to_string())]);
@@ -68,17 +70,20 @@ fn a_grouped_run_is_consecutive_in_the_array_the_producer_wrote() {
     // An element that matched the pass and derived a case but has **nothing to collect** ends a run as well:
     // it is an element of the array, so it lies between its neighbours whatever it holds. A separate probe,
     // because with `collect: "$.data"` an element that derives a case necessarily has something there.
-    let collecting = compile(&std::collections::BTreeMap::from([(
-        "t.json".to_string(),
-        br#"{"id":"t","messages":[{"id":"t.e","read":{"attribute":"x"},"parse":"json",
+    let collecting = compile(
+        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","messages":[{"id":"t.e","read":{"attribute":"x"},"parse":"json",
              "emit":"message","legacy_rank":1,"elements":{"passes":[
                {"id":"blocks","when":{"all":[{"path":"$.data","kind":"object"}]},
                 "group":{"collect":"$.data.text","key_as":"role","by":[
                    {"id":"is_input","when":{"all":[{"path":"$.data.type","starts_with":"input_"}]},
                     "value":"user"}],
                  "tag_by_key":{"user":"gen_ai.user.message"}}}]}}]}"#
-            .to_vec(),
-    )]))
+                .to_vec(),
+        )]))
+        .expect("the probe assets parse"),
+    )
     .expect("the probe compiles");
     let attrs = std::collections::HashMap::from([(
         "x".to_string(),
@@ -121,10 +126,13 @@ fn a_lift_states_its_source_and_its_conflict_policy() {
             r#"{{"id":"t","messages":[{{"id":"t.r","read":{{"attribute":"x"}},"parse":"json",
                  "emit":"message","legacy_rank":1,"alternatives":[{reading}]}}]}}"#
         );
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            body.into_bytes(),
-        )]))
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                body.into_bytes(),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
     let payload = r#"{"finish_reason":"outer",
                       "choices":[{"finish_reason":"beside","message":{"role":"assistant","content":"x",
@@ -213,10 +221,13 @@ fn a_constructor_and_its_target_describe_the_same_thing() {
 
     let asset = |rule: &str| {
         let body = format!(r#"{{"id":"t","messages":[{rule}]}}"#);
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            body.into_bytes(),
-        )]))
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                body.into_bytes(),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
     let read = r#""read":{"attribute":"x"},"parse":"text","legacy_rank":1"#;
 
@@ -284,10 +295,13 @@ fn a_tool_call_list_declares_what_an_unbuildable_call_means() {
                  "fallback":[{{"id":"as_text","wrap":{{"role":"assistant",
                    "content_from_any_of":["$.summary"]}}}}]}}]}}"#
         );
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            body.into_bytes(),
-        )]))
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                body.into_bytes(),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
     // One call has an id and the other does not.
     let attrs = std::collections::HashMap::from([(
@@ -324,7 +338,7 @@ fn a_tool_call_list_declares_what_an_unbuildable_call_means() {
          "wrap":{"role":"assistant","tool_calls_from":{"select":"$.content[*]","id":"$.id",
            "name":"$.name","arguments":"$.arguments"}}}]}"#;
     assert!(
-        compile(&std::collections::BTreeMap::from([(
+        ParsedAssets::parse(&std::collections::BTreeMap::from([(
             "t.json".to_string(),
             body.as_bytes().to_vec(),
         )]))
@@ -346,13 +360,16 @@ fn a_tool_call_list_declares_what_an_unbuildable_call_means() {
 fn an_indexed_family_is_read_in_one_pass() {
     use crate::rules::message_rules::{MessageContext, compile};
 
-    let plan = compile(&std::collections::BTreeMap::from([(
-        "t.json".to_string(),
-        br#"{"id":"t","messages":[{"id":"t.f","read":{"indexed_family":"fam"},
+    let plan = compile(
+        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","messages":[{"id":"t.f","read":{"indexed_family":"fam"},
              "require_members":{"all_of":[{"name":"role"},{"name":"content"}]},
              "emit":"message","legacy_rank":1}]}"#
-            .to_vec(),
-    )]))
+                .to_vec(),
+        )]))
+        .expect("the probe assets parse"),
+    )
     .expect("the probe compiles");
 
     // 400 entries, plus 400 unrelated attributes the old scans walked once per entry.
@@ -431,15 +448,18 @@ fn an_indexed_family_is_read_in_one_pass() {
 fn a_compose_owns_the_carriers_it_read() {
     use crate::rules::message_rules::{MessageContext, compile};
 
-    let plan = compile(&std::collections::BTreeMap::from([(
-        "t.json".to_string(),
-        br#"{"id":"t","messages":[
+    let plan = compile(
+        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","messages":[
              {"id":"t.compose","legacy_rank":1,"emit":"message",
               "compose":{"tag":"joined","members":[
                 {"as":"content","from_any_of":["text"],"parse":"text"},
                 {"as":"extra","from_any_of":["structured"],"parse":"json"}]}}]}"#
-            .to_vec(),
-    )]))
+                .to_vec(),
+        )]))
+        .expect("the probe assets parse"),
+    )
     .expect("the probe compiles");
     let owned = |payload: &str| -> Vec<String> {
         let attrs = std::collections::HashMap::from([
@@ -492,9 +512,10 @@ fn a_compose_owns_the_carriers_it_read() {
 fn a_repr_field_respects_identifier_boundaries_and_the_earliest_close() {
     use crate::rules::message_rules::{MessageContext, compile};
 
-    let plan = compile(&std::collections::BTreeMap::from([(
-        "t.json".to_string(),
-        br#"{"id":"t","messages":[{"id":"t.tools","read":{"attribute":"tools"},"parse":"json",
+    let plan = compile(
+        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","messages":[{"id":"t.tools","read":{"attribute":"tools"},"parse":"json",
              "emit":"tool_definitions","legacy_rank":1,
              "tool_repr":{"entries":"$[*]","candidates":["$"],
                "name_field":"name","description_field":"description",
@@ -502,8 +523,10 @@ fn a_repr_field_respects_identifier_boundaries_and_the_earliest_close() {
                "arguments_label":"Tool Arguments:","repr_markers":["name=","CrewStructuredTool("],
                "parameter_members":["args"],"field_terminators":["env_vars"],
                "type_map":[["str","string"]],"type_default":{"map_to":"string"}}}]}"#
-            .to_vec(),
-    )]))
+                .to_vec(),
+        )]))
+        .expect("the probe assets parse"),
+    )
     .expect("the probe compiles");
     let tools = |payload: serde_json::Value| -> Vec<serde_json::Value> {
         let attrs = std::collections::HashMap::from([("tools".to_string(), payload.to_string())]);
@@ -570,45 +593,41 @@ fn a_repr_field_respects_identifier_boundaries_and_the_earliest_close() {
 fn a_tool_repr_declares_literals_that_can_match_and_types_that_exist() {
     use crate::rules::message_rules::{MessageContext, compile};
 
-    // The overrides come **last**, and every default they may replace is expressed as an override rather than
-    // written twice - `deny_unknown_fields` refuses a duplicate member, so a base carrying `type_default` and
-    // an override supplying another would fail at parse and say nothing about the check under test.
+    // The overrides come **last**, and every default an override names is left out of the base rather than
+    // written twice - `deny_unknown_fields` refuses a duplicate member, so a base carrying `arguments_label` and
+    // an override supplying another would fail at parse and say nothing about the check under test. Parsing
+    // panics in `asset`, so a probe refused for that reason fails loudly instead of passing.
     let base = |overrides: &str| {
-        let with_default = if overrides.contains("type_default") {
-            String::new()
-        } else {
-            r#","type_default":{"map_to":"string"}"#.to_string()
-        };
-        let with_map = if overrides.contains("type_map") {
-            String::new()
-        } else {
-            r#","type_map":[["str","string"]]"#.to_string()
-        };
-        let with_description = if overrides.contains("description_field") {
-            String::new()
-        } else {
-            r#","description_field":"description""#.to_string()
-        };
-        let with_candidates = if overrides.contains("candidates") {
-            String::new()
-        } else {
-            r#","candidates":["$"]"#.to_string()
-        };
+        let defaults = [
+            ("candidates", r#""candidates":["$"]"#),
+            ("description_field", r#""description_field":"description""#),
+            ("name_label", r#""name_label":"N:""#),
+            ("description_label", r#""description_label":"D:""#),
+            ("arguments_label", r#""arguments_label":"A:""#),
+            ("repr_markers", r#""repr_markers":["name="]"#),
+            ("parameter_members", r#""parameter_members":["args"]"#),
+            ("type_map", r#""type_map":[["str","string"]]"#),
+            ("type_default", r#""type_default":{"map_to":"string"}"#),
+        ];
+        let kept: String = defaults
+            .iter()
+            .filter(|(key, _)| !overrides.contains(&format!("\"{key}\"")))
+            .map(|(_, member)| format!(",{member}"))
+            .collect();
         format!(
             r#"{{"id":"t","messages":[{{"id":"t.tools","read":{{"attribute":"tools"}},"parse":"json",
                  "emit":"tool_definitions","legacy_rank":1,
-                 "tool_repr":{{"entries":"$[*]"{with_candidates},
-                   "name_field":"name"{with_description},
-                   "name_label":"N:","description_label":"D:","arguments_label":"A:",
-                   "repr_markers":["name="],"parameter_members":["args"]{with_map}{with_default}
-                   {overrides}}}}}]}}"#
+                 "tool_repr":{{"entries":"$[*]","name_field":"name"{kept}{overrides}}}}}]}}"#
         )
     };
     let asset = |body: String| {
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            body.into_bytes(),
-        )]))
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                body.into_bytes(),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
     assert!(asset(base("")).is_ok(), "the shipped shape compiles");
 
@@ -691,12 +710,15 @@ fn a_tool_repr_declares_literals_that_can_match_and_types_that_exist() {
 fn a_tool_name_is_a_non_blank_string_and_a_bad_one_costs_only_itself() {
     use crate::rules::message_rules::{MessageContext, compile};
 
-    let plan = compile(&std::collections::BTreeMap::from([(
-        "t.json".to_string(),
-        br#"{"id":"t","messages":[{"id":"t.names","read":{"attribute":"tools"},"parse":"json",
+    let plan = compile(
+        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","messages":[{"id":"t.names","read":{"attribute":"tools"},"parse":"json",
              "emit":"tool_names","legacy_rank":1}]}"#
-            .to_vec(),
-    )]))
+                .to_vec(),
+        )]))
+        .expect("the probe assets parse"),
+    )
     .expect("the probe compiles");
     let names = |payload: &str| -> Vec<serde_json::Value> {
         let attrs = std::collections::HashMap::from([("tools".to_string(), payload.to_string())]);
@@ -736,12 +758,15 @@ fn a_tool_name_is_a_non_blank_string_and_a_bad_one_costs_only_itself() {
     // query-time normalisation. Written as a check over `function.name` this dropped `bedrock/converse`'s
     // perfectly good `get_weather`: provider shapes live in Rust and must
     // move into the assets before a definition can be validated where it is produced.
-    let definitions = compile(&std::collections::BTreeMap::from([(
-        "t.json".to_string(),
-        br#"{"id":"t","messages":[{"id":"t.defs","read":{"attribute":"tools"},"parse":"json",
+    let definitions = compile(
+        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","messages":[{"id":"t.defs","read":{"attribute":"tools"},"parse":"json",
              "emit":"tool_definitions","legacy_rank":1}]}"#
-            .to_vec(),
-    )]))
+                .to_vec(),
+        )]))
+        .expect("the probe assets parse"),
+    )
     .expect("compiles");
     let attrs = std::collections::HashMap::from([(
         "tools".to_string(),
@@ -769,10 +794,13 @@ fn metadata_contends_on_the_axis_it_emits_on() {
 
     let asset = |rules: &str| {
         let body = format!(r#"{{"id":"t","messages":{rules}}}"#);
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            body.into_bytes(),
-        )]))
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                body.into_bytes(),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
 
     // Both unconditional rules use the same carrier and axis.
@@ -855,10 +883,13 @@ fn an_indexed_family_filters_assembled_entries() {
                  "require_members":{{"all_of":[{{"name":"role"}},{{"name":"content"}}]}},
                  "emit":"message","legacy_rank":1}}]}}"#
         );
-        compile(&std::collections::BTreeMap::from([(
-            "t.json".to_string(),
-            asset.into_bytes(),
-        )]))
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                asset.into_bytes(),
+            )]))
+            .expect("the probe assets parse"),
+        )
     };
 
     let plan = compiled(
@@ -888,15 +919,18 @@ fn an_indexed_family_filters_assembled_entries() {
         "the predicate sees each assembled object and excludes only the two declared semantic values"
     );
 
-    let without_family = compile(&std::collections::BTreeMap::from([(
-        "t.json".to_string(),
-        br#"{"id":"t","messages":[{"id":"t.scalar",
+    let without_family = compile(
+        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            br#"{"id":"t","messages":[{"id":"t.scalar",
              "read":{"attribute":"chat","entry_require":{"all":[
                {"path":"$.role","exists":true}
              ]}},
              "parse":"json","emit":"message","legacy_rank":1}]}"#
-            .to_vec(),
-    )]))
+                .to_vec(),
+        )]))
+        .expect("the probe assets parse"),
+    )
     .expect_err("an entry predicate without indexed entries must be refused");
     assert!(
         without_family.to_string().contains("indexed_family"),

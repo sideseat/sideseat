@@ -1,5 +1,7 @@
 //! Gates on carrier-rule equivalence and regressions.
 
+use crate::rules::assets::ParsedAssets;
+
 include!("carrier_rules_tests_parts/part_01_tests.rs");
 include!("carrier_rules_tests_parts/part_02_tests.rs");
 include!("carrier_rules_tests_parts/part_03_tests.rs");
