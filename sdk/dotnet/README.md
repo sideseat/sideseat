@@ -1,6 +1,6 @@
 # SideSeat for .NET
 
-OpenTelemetry for AI agents in .NET: one call configures tracing for a [SideSeat](https://sideseat.ai)
+OpenTelemetry for AI agents in .NET: one call configures tracing, metrics, and logs for a [SideSeat](https://sideseat.ai)
 project, switches on your framework's GenAI telemetry, and attributes every span to the right session
 and user.
 
@@ -19,7 +19,7 @@ using SideSeat;
 
 using var sideseat = SideSeatClient.Create(new SideSeatOptions
 {
-    Integrations = { "extensions-ai" },
+    Integrations = ["extensions-ai"],
 });
 
 IChatClient chat = new AmazonBedrockRuntimeClient()
@@ -68,8 +68,13 @@ using (var span = sideseat.StartSpan("retrieve-context"))
 ```csharp
 builder.Services.AddOpenTelemetry().WithTracing(tracing => tracing.AddSideSeat(new SideSeatOptions
 {
-    Integrations = { "semantic-kernel" },
+    Integrations = ["semantic-kernel"],
 }));
+
+using (new SideSeatSession("conversation-42", userId: "user-7"))
+{
+    await kernel.InvokePromptAsync("Plan a weekend in Lisbon.");
+}
 ```
 
 ## Configuration
@@ -79,13 +84,15 @@ builder.Services.AddOpenTelemetry().WithTracing(tracing => tracing.AddSideSeat(n
 | `Endpoint` | `SIDESEAT_ENDPOINT`, `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://127.0.0.1:5388` |
 | `Project` | `SIDESEAT_PROJECT_ID` | `default` |
 | `ApiKey` | `SIDESEAT_API_KEY` | none |
-| `ServiceName` | `OTEL_SERVICE_NAME` | the primary integration |
-| `Integrations` | `SIDESEAT_INTEGRATIONS` | none |
+| `ServiceName` | `OTEL_SERVICE_NAME` | the primary integration's package, else `sideseat-app` |
+| `Integrations` | `SIDESEAT_INTEGRATIONS` | detected; `[]` for none |
 | `CaptureContent` | `SIDESEAT_CAPTURE_CONTENT` | `true` |
 | `Disabled` | `SIDESEAT_DISABLED` | `false` |
 
-`Flush()` and `Shutdown()` return whether every span was exported; disposing the client shuts it down.
-One client exists per process: create another only after disposing the first.
+`Flush()` and `Shutdown()` return whether every exporter finished; disposing the client shuts it down,
+and so does process exit. `Create` returns the running client for the same options and throws for
+different ones. `sideseat.LoggerFactory` creates loggers whose records are exported too. Every option is
+at https://sideseat.ai/docs/sdks/dotnet/.
 
 ## License
 

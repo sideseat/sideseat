@@ -37,6 +37,7 @@ void RunWithSideSeat()
     using var client = SideSeatClient.Create(new SideSeatOptions
     {
         ServiceName = "dotnet-conformance",
+        Integrations = [],
     });
 
     using (client.StartTrace("canonical-agent-run", SessionId, UserId))

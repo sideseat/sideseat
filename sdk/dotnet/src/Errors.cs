@@ -21,3 +21,13 @@ public sealed class SideSeatConfigurationException : SideSeatException
     {
     }
 }
+
+/// <summary>An integration that was requested explicitly is unknown or its package is not installed.</summary>
+public sealed class SideSeatIntegrationException : SideSeatException
+{
+    /// <summary>Create the exception.</summary>
+    public SideSeatIntegrationException(string message)
+        : base(message)
+    {
+    }
+}

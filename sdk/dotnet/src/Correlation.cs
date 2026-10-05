@@ -50,14 +50,45 @@ internal sealed class CorrelationProcessor : BaseProcessor<Activity>
     }
 }
 
-/// <summary>A correlation scope. Dispose it to restore the outer session and user.</summary>
+/// <summary>
+/// A correlation scope: every activity started inside it, across <c>await</c>, belongs to a session
+/// and, optionally, a user. Dispose it to restore the outer session and user. A nested scope
+/// overrides only the values it names.
+/// </summary>
+/// <remarks>
+/// <see cref="SideSeatClient.Session"/> creates one. An application that adds SideSeat to its own
+/// pipeline with <c>AddSideSeat</c> has no client and constructs the scope directly.
+/// </remarks>
 public sealed class SideSeatSession : IDisposable
 {
-    private readonly object? _previous;
+    private Correlation? _previous;
     private int _disposed;
 
-    internal SideSeatSession(string? sessionId, string? userId)
+    /// <summary>Enter a session scope.</summary>
+    /// <exception cref="ArgumentException">An id is empty, which would merge unrelated conversations.</exception>
+    public SideSeatSession(string sessionId, string? userId = null)
     {
+        Enter(Required(sessionId, nameof(sessionId)), userId);
+    }
+
+    private SideSeatSession()
+    {
+    }
+
+    /// <summary>A scope that may name only a user, or nothing, as a trace's correlation can.</summary>
+    internal static SideSeatSession Partial(string? sessionId, string? userId)
+    {
+        var scope = new SideSeatSession();
+        scope.Enter(sessionId == null ? null : Required(sessionId, nameof(sessionId)), userId);
+        return scope;
+    }
+
+    private void Enter(string? sessionId, string? userId)
+    {
+        if (userId != null)
+        {
+            Required(userId, nameof(userId));
+        }
         _previous = Correlation.Current.Value;
         Correlation.Current.Value = Correlation.Merge(sessionId, userId);
     }
@@ -67,7 +98,16 @@ public sealed class SideSeatSession : IDisposable
     {
         if (Interlocked.Exchange(ref _disposed, 1) == 0)
         {
-            Correlation.Current.Value = (Correlation?)_previous;
+            Correlation.Current.Value = _previous;
         }
+    }
+
+    private static string Required(string value, string name)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            throw new ArgumentException($"The {name} must not be empty.", name);
+        }
+        return value;
     }
 }

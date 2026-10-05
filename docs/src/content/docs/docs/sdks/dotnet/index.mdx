@@ -3,9 +3,9 @@ title: .NET SDK
 description: Send traces, sessions, and conversations from .NET AI applications to SideSeat.
 ---
 
-The `SideSeat` package configures OpenTelemetry tracing for a SideSeat project, listens to the
-activity sources of the AI libraries you use, and attributes every activity to the right session and
-user.
+The `SideSeat` package configures OpenTelemetry tracing, metrics, and logs for a SideSeat project,
+listens to the activity sources of the AI libraries you use, and attributes every activity to the right
+session and user.
 
 ```bash
 dotnet add package SideSeat
@@ -19,7 +19,7 @@ using SideSeat;
 
 using var sideseat = SideSeatClient.Create(new SideSeatOptions
 {
-    Integrations = { "extensions-ai" },
+    Integrations = ["extensions-ai"],
 });
 
 IChatClient chat = bedrockChatClient.AsBuilder().UseOpenTelemetry().Build();
@@ -32,18 +32,25 @@ using (sideseat.Session("conversation-42", userId: "user-7"))
 ```
 
 A session scope attributes every activity started inside it, across `await`, including activities the
-library starts. It creates no span, and its values never leave the process as baggage.
+library starts. It creates no span, and its values never leave the process as baggage. A nested scope
+overrides the outer one until it is disposed. Session and user ids must be non-empty.
 
 ## Integrations
 
-| Name | Library | What SideSeat does |
+| Name | Package | What SideSeat does |
 | --- | --- | --- |
-| `extensions-ai` | Microsoft.Extensions.AI | Listens to its activity source; wrap chat clients with `UseOpenTelemetry()`. |
-| `agent-framework` | Microsoft Agent Framework | Listens to its agent and chat sources. |
-| `semantic-kernel` | Semantic Kernel | Switches on its GenAI diagnostics, content included. |
-| `openai` | OpenAI .NET | Switches on its experimental OpenTelemetry support. |
+| `agent-framework` | `Microsoft.Agents.AI` | Listens to its agent and chat sources. |
+| `semantic-kernel` | `Microsoft.SemanticKernel` | Switches on its GenAI diagnostics, content included. |
+| `extensions-ai` | `Microsoft.Extensions.AI` | Listens to its activity source; wrap chat clients with `UseOpenTelemetry()`. |
+| `openai` | `OpenAI` | Switches on its experimental OpenTelemetry support. Never detected. |
 
-Add your own sources with `Sources = { "MyApp" }`.
+When `Integrations` is not set, SideSeat reads `SIDESEAT_INTEGRATIONS`, and without that uses the first
+installed package in the table above; `Integrations = []` means none. Naming an integration whose package
+is not installed throws `SideSeatIntegrationException`. The primary integration's package and version
+become `service.name` and `service.version` unless you set them. The `AppContext` switches an
+integration turns on are restored at shutdown.
+
+Add your own activity sources and meters with `Sources = { "MyApp" }`.
 
 ## Traces and spans
 
@@ -55,28 +62,74 @@ using (var span = sideseat.StartSpan("retrieve-context"))
 }
 ```
 
-`StartTrace` always starts a root span; `StartSpan` starts a child of `Activity.Current`.
+`StartTrace` always starts a root span; `StartSpan` starts a child of `Activity.Current`. Both take an
+`ActivityKind` and attributes. `SideSeatSpan.RecordException` records an exception and marks the span as
+failed.
+
+## Logs
+
+`sideseat.LoggerFactory` creates `ILogger`s whose records are exported to the project with the same
+resource as the spans:
+
+```csharp
+var logger = sideseat.LoggerFactory.CreateLogger("TravelAgent");
+logger.LogInformation("Planned {Days} days", 3);
+```
 
 ## Hosting
 
-With an existing OpenTelemetry pipeline, add SideSeat to it instead of creating a client:
+With an existing OpenTelemetry pipeline, add SideSeat to its tracing instead of creating a client, and
+scope sessions with `SideSeatSession` directly:
 
 ```csharp
 builder.Services.AddOpenTelemetry()
-    .WithTracing(tracing => tracing.AddSideSeat(new SideSeatOptions { Integrations = { "semantic-kernel" } }));
+    .WithTracing(tracing => tracing.AddSideSeat(new SideSeatOptions { Integrations = ["semantic-kernel"] }));
+
+using (new SideSeatSession("conversation-42", userId: "user-7"))
+{
+    await kernel.InvokePromptAsync("Plan a weekend in Lisbon.");
+}
 ```
+
+`AddSideSeat` adds correlation, the integrations' sources, the resource, and the trace exporter; the
+application's host owns the pipeline's lifetime, metrics, and logs.
 
 ## Configuration
 
 | Property | Environment | Default |
 | --- | --- | --- |
-| `Endpoint` | `SIDESEAT_ENDPOINT`, `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://127.0.0.1:5388` |
+| `Endpoint` | `SIDESEAT_ENDPOINT`, then `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://127.0.0.1:5388` |
 | `Project` | `SIDESEAT_PROJECT_ID` | `default` |
 | `ApiKey` | `SIDESEAT_API_KEY` | none |
-| `ServiceName` | `OTEL_SERVICE_NAME` | the primary integration |
-| `Integrations` | `SIDESEAT_INTEGRATIONS` | none |
+| `ServiceName` | `OTEL_SERVICE_NAME` | the primary integration's package, else `sideseat-app` |
+| `ServiceVersion` | `OTEL_SERVICE_VERSION` | that package's version, else the SDK version |
+| `Integrations` | `SIDESEAT_INTEGRATIONS` (comma-separated) | detected |
 | `CaptureContent` | `SIDESEAT_CAPTURE_CONTENT` | `true` |
 | `Disabled` | `SIDESEAT_DISABLED` | `false` |
+| `Debug` | `SIDESEAT_DEBUG` | `false` |
+| `ResourceAttributes` | `OTEL_RESOURCE_ATTRIBUTES` (merged underneath) | none |
+| `Sources` | | none |
+| `Export` | | `true` |
+| `Metrics` | | `true` |
+| `Logs` | | `true` |
+| `ConfigureTracerProvider` | | none |
 
-One client exists per process; `Create` throws while another is alive. `Flush()` and `Shutdown()` return
-whether every span was exported, and disposing the client shuts it down.
+Boolean variables accept `1`/`0`, `true`/`false`, and `yes`/`no` in any case; anything else throws
+`SideSeatConfigurationException`. An empty or blank property or variable counts as unset.
+
+An endpoint without a path is a SideSeat server: signals go to `{endpoint}/otel/{project}/v1/{signal}`.
+An endpoint with a path is already an OTLP base. The API key is sent as `Authorization: Bearer <key>`;
+headers from `OTEL_EXPORTER_OTLP_HEADERS` are sent too, and the API key replaces an `Authorization`
+header among them. With content capture on, SideSeat sets
+`OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true` unless you chose a value.
+
+## Lifecycle
+
+- `Create` configures the process. Calling it again while the client runs returns the same client for
+  the same options and throws `SideSeatConfigurationException` for different ones, or whenever
+  `ConfigureTracerProvider` is set. `SideSeatClient.Current` is the running client.
+- `Flush()` and `Shutdown()` take a timeout in milliseconds (30 seconds by default) and return whether
+  every exporter finished in time; export problems never throw. `Shutdown` is idempotent, disposing the
+  client calls it, and it runs automatically when the process exits.
+- When disabled, every call works and records nothing: spans have no activity, and `LoggerFactory` is a
+  no-op factory.

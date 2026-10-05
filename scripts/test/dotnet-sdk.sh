@@ -19,11 +19,17 @@ if ! command -v "$dotnet_command" >/dev/null 2>&1; then
 fi
 
 "$dotnet_command" restore "$project" --locked-mode
-"$dotnet_command" test "$project" \
-  --configuration Release \
-  --no-restore \
-  --logger "trx;LogFileName=sideseat.trx" \
-  --results-directory "$results_dir"
+# The tests run on Microsoft.Testing.Platform, which sdk/dotnet/global.json selects. dotnet reads
+# global.json from the working directory, not from the project, so run from there.
+(
+  cd "$repo_root/sdk/dotnet"
+  "$dotnet_command" test --project "$project" \
+    --configuration Release \
+    --no-restore \
+    --results-directory "$results_dir" \
+    --report-xunit-trx \
+    --report-xunit-trx-filename sideseat.trx
+)
 
 python3 - "$trx_file" <<'PY'
 import sys
@@ -40,7 +46,7 @@ if counters is None:
 
 executed = int(counters.attrib.get("executed", "0"))
 failed = int(counters.attrib.get("failed", "0"))
-minimum = 5
+minimum = 25
 if failed:
     raise SystemExit(f"[test-sdk-dotnet] TRX reports {failed} failed test(s)")
 if executed < minimum:

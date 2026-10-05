@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using OpenTelemetry.Trace;
 
@@ -7,11 +8,11 @@ namespace SideSeat;
 
 /// <summary>
 /// Configuration for <see cref="SideSeatClient"/>. Every property falls back to its environment
-/// variable, then to a default, when <see cref="Resolve"/> runs.
+/// variable, then to a default; an empty or blank value counts as unset.
 /// </summary>
 public sealed class SideSeatOptions
 {
-    /// <summary>SideSeat server URL, or an OTLP base URL that already has a path. <c>SIDESEAT_ENDPOINT</c>.</summary>
+    /// <summary>SideSeat server URL, or an OTLP base URL that already has a path. <c>SIDESEAT_ENDPOINT</c>, then <c>OTEL_EXPORTER_OTLP_ENDPOINT</c>.</summary>
     public string? Endpoint { get; set; }
 
     /// <summary>Project that receives the telemetry. <c>SIDESEAT_PROJECT_ID</c>.</summary>
@@ -20,20 +21,24 @@ public sealed class SideSeatOptions
     /// <summary>Sent as a bearer token. <c>SIDESEAT_API_KEY</c>.</summary>
     public string? ApiKey { get; set; }
 
-    /// <summary><c>service.name</c>. <c>OTEL_SERVICE_NAME</c>; defaults to the primary integration's name.</summary>
+    /// <summary><c>service.name</c>. <c>OTEL_SERVICE_NAME</c>; defaults to the primary integration's package.</summary>
     public string? ServiceName { get; set; }
 
-    /// <summary><c>service.version</c>. <c>OTEL_SERVICE_VERSION</c>.</summary>
+    /// <summary><c>service.version</c>. <c>OTEL_SERVICE_VERSION</c>; defaults to that package's version.</summary>
     public string? ServiceVersion { get; set; }
 
     /// <summary>
-    /// Integration names; the first is the primary one. <c>SIDESEAT_INTEGRATIONS</c>. Known names are
-    /// listed in <see cref="SideSeatIntegrations.Names"/>.
+    /// Integration names; the first is the primary one. <c>SIDESEAT_INTEGRATIONS</c> when null, and
+    /// detected from the installed packages when that is unset too. An empty list means none. Known
+    /// names are listed in <see cref="SideSeatIntegrations.Names"/>.
     /// </summary>
-    public IList<string> Integrations { get; } = new List<string>();
+    public IReadOnlyList<string>? Integrations { get; set; }
 
-    /// <summary>Additional activity sources to export, such as the application's own.</summary>
+    /// <summary>Additional activity sources and meters to export, such as the application's own.</summary>
     public IList<string> Sources { get; } = new List<string>();
+
+    /// <summary>Extra attributes on the resource of every signal, over <c>OTEL_RESOURCE_ATTRIBUTES</c>.</summary>
+    public IDictionary<string, object> ResourceAttributes { get; } = new Dictionary<string, object>();
 
     /// <summary>Record prompts, responses, and tool payloads. <c>SIDESEAT_CAPTURE_CONTENT</c>; on by default.</summary>
     public bool? CaptureContent { get; set; }
@@ -41,47 +46,62 @@ public sealed class SideSeatOptions
     /// <summary>Configure nothing; every call becomes a no-op. <c>SIDESEAT_DISABLED</c>.</summary>
     public bool? Disabled { get; set; }
 
-    /// <summary>Send spans over OTLP. Off is useful with <see cref="ConfigureTracerProvider"/> in tests.</summary>
+    /// <summary>Write the resolved configuration to standard error. <c>SIDESEAT_DEBUG</c>.</summary>
+    public bool? Debug { get; set; }
+
+    /// <summary>Send telemetry over OTLP. Off is useful with <see cref="ConfigureTracerProvider"/> in tests.</summary>
     public bool Export { get; set; } = true;
 
-    /// <summary>Add processors or exporters before the provider is built.</summary>
+    /// <summary>Export metrics from the integrations' meters and <see cref="Sources"/>. On by default.</summary>
+    public bool Metrics { get; set; } = true;
+
+    /// <summary>Build <see cref="SideSeatClient.LoggerFactory"/>, whose log records are exported. On by default.</summary>
+    public bool Logs { get; set; } = true;
+
+    /// <summary>Add processors or exporters before the tracer provider is built.</summary>
     public Action<TracerProviderBuilder>? ConfigureTracerProvider { get; set; }
 
     /// <summary>Resolves these options against the environment.</summary>
-    public SideSeatSettings Resolve()
+    internal SideSeatSettings Resolve()
     {
         var endpoint = ParseEndpoint(
-            Endpoint ?? Env("SIDESEAT_ENDPOINT") ?? Env("OTEL_EXPORTER_OTLP_ENDPOINT") ?? SideSeatSettings.DefaultEndpoint);
-        var integrations = Integrations.Count > 0
-            ? Integrations.ToList()
-            : (Env("SIDESEAT_INTEGRATIONS") ?? string.Empty)
-                .Split(',')
-                .Select(name => name.Trim())
-                .Where(name => name.Length > 0)
-                .ToList();
+            Text(Endpoint, "SIDESEAT_ENDPOINT") ?? Text(null, "OTEL_EXPORTER_OTLP_ENDPOINT") ?? SideSeatSettings.DefaultEndpoint);
+        var integrations = Integrations?.ToList() ?? Text(null, "SIDESEAT_INTEGRATIONS")?
+            .Split(',')
+            .Select(name => name.Trim())
+            .Where(name => name.Length > 0)
+            .ToList();
         return new SideSeatSettings(
             endpoint,
-            (Project ?? Env("SIDESEAT_PROJECT_ID") ?? SideSeatSettings.DefaultProject).Trim(),
-            ApiKey ?? Env("SIDESEAT_API_KEY"),
-            ServiceName ?? Env("OTEL_SERVICE_NAME"),
-            ServiceVersion ?? Env("OTEL_SERVICE_VERSION"),
+            Text(Project, "SIDESEAT_PROJECT_ID") ?? SideSeatSettings.DefaultProject,
+            Text(ApiKey, "SIDESEAT_API_KEY"),
+            Text(ServiceName, "OTEL_SERVICE_NAME"),
+            Text(ServiceVersion, "OTEL_SERVICE_VERSION"),
             integrations,
             Sources.ToList(),
+            new Dictionary<string, object>(ResourceAttributes),
             CaptureContent ?? Flag("SIDESEAT_CAPTURE_CONTENT", true),
             Disabled ?? Flag("SIDESEAT_DISABLED", false),
+            Debug ?? Flag("SIDESEAT_DEBUG", false),
             Export,
+            Metrics,
+            Logs,
             ConfigureTracerProvider);
     }
 
-    private static string? Env(string name)
+    private static string? Text(string? explicitValue, string name)
     {
+        if (!string.IsNullOrWhiteSpace(explicitValue))
+        {
+            return explicitValue!.Trim();
+        }
         var value = Environment.GetEnvironmentVariable(name);
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
     private static bool Flag(string name, bool fallback)
     {
-        var raw = Env(name);
+        var raw = Text(null, name);
         if (raw == null)
         {
             return fallback;
@@ -129,11 +149,15 @@ public sealed class SideSeatSettings
         string? apiKey,
         string? serviceName,
         string? serviceVersion,
-        IReadOnlyList<string> integrations,
+        IReadOnlyList<string>? integrations,
         IReadOnlyList<string> sources,
+        IReadOnlyDictionary<string, object> resourceAttributes,
         bool captureContent,
         bool disabled,
+        bool debug,
         bool export,
+        bool metrics,
+        bool logs,
         Action<TracerProviderBuilder>? configure)
     {
         Endpoint = endpoint;
@@ -143,9 +167,13 @@ public sealed class SideSeatSettings
         ServiceVersion = serviceVersion;
         Integrations = integrations;
         Sources = sources;
+        ResourceAttributes = resourceAttributes;
         CaptureContent = captureContent;
         Disabled = disabled;
+        Debug = debug;
         Export = export;
+        Metrics = metrics;
+        Logs = logs;
         Configure = configure;
     }
 
@@ -164,11 +192,14 @@ public sealed class SideSeatSettings
     /// <summary>The configured service version, if any.</summary>
     public string? ServiceVersion { get; }
 
-    /// <summary>Integration names, primary first.</summary>
-    public IReadOnlyList<string> Integrations { get; }
+    /// <summary>Requested integration names, primary first; null when they are detected.</summary>
+    public IReadOnlyList<string>? Integrations { get; }
 
-    /// <summary>Additional activity sources.</summary>
+    /// <summary>Additional activity sources and meters.</summary>
     public IReadOnlyList<string> Sources { get; }
+
+    /// <summary>Extra resource attributes.</summary>
+    public IReadOnlyDictionary<string, object> ResourceAttributes { get; }
 
     /// <summary>Whether message content is recorded.</summary>
     public bool CaptureContent { get; }
@@ -176,8 +207,17 @@ public sealed class SideSeatSettings
     /// <summary>Whether the client is a no-op.</summary>
     public bool Disabled { get; }
 
-    /// <summary>Whether spans are exported over OTLP.</summary>
+    /// <summary>Whether the resolved configuration is written to standard error.</summary>
+    public bool Debug { get; }
+
+    /// <summary>Whether telemetry is exported over OTLP.</summary>
     public bool Export { get; }
+
+    /// <summary>Whether metrics are exported.</summary>
+    public bool Metrics { get; }
+
+    /// <summary>Whether log records are exported.</summary>
+    public bool Logs { get; }
 
     internal Action<TracerProviderBuilder>? Configure { get; }
 
@@ -203,4 +243,41 @@ public sealed class SideSeatSettings
         builder.Path = $"{builder.Path.TrimEnd('/')}/v1/{signal}";
         return builder.Uri;
     }
+
+    /// <summary>
+    /// OTLP request headers in the exporter's <c>key=value,...</c> form: <c>OTEL_EXPORTER_OTLP_HEADERS</c>
+    /// plus the API key, which replaces an <c>Authorization</c> header of any spelling. Setting
+    /// the exporter's headers replaces the ones it would read from the environment, so they are
+    /// merged here.
+    /// </summary>
+    internal string ExportHeaders()
+    {
+        var pairs = (Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_HEADERS") ?? string.Empty)
+            .Split(',')
+            .Select(pair => pair.Trim())
+            .Where(pair => pair.IndexOf('=') > 0)
+            .ToList();
+        if (!string.IsNullOrWhiteSpace(ApiKey))
+        {
+            pairs.RemoveAll(pair => string.Equals(
+                Uri.UnescapeDataString(pair.Substring(0, pair.IndexOf('=')).Trim()),
+                "authorization",
+                StringComparison.OrdinalIgnoreCase));
+            pairs.Add($"Authorization=Bearer {ApiKey}");
+        }
+        return string.Join(",", pairs);
+    }
+
+    /// <summary>What a second <see cref="SideSeatClient.Create"/> must match to return the same client.</summary>
+    internal string Identity() => string.Join(
+        "\u001f",
+        new object?[]
+        {
+            Endpoint, Project, ApiKey, ServiceName, ServiceVersion,
+            Integrations == null ? "<detect>" : string.Join(",", Integrations),
+            string.Join(",", Sources),
+            string.Join(",", ResourceAttributes.OrderBy(kv => kv.Key, StringComparer.Ordinal)
+                .Select(kv => $"{kv.Key}={Convert.ToString(kv.Value, CultureInfo.InvariantCulture)}")),
+            CaptureContent, Disabled, Export, Metrics, Logs,
+        });
 }
