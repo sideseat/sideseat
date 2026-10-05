@@ -28,11 +28,17 @@ property of the endpoint, not of parsing.
 Trace, session and feed row sets apply `MESSAGE_CONTENT_FILTER` and `ORDER BY timestamp_start
 ASC`, exactly as the queries do — feeding unfiltered rows made whole sessions come back empty.
 
+A sample's `logs-*` exports are read by the real log extraction and joined to its spans the way the
+message queries join `otel_logs`: one record per `(log_digest, ordinal)`, grouped by `(trace, span)`, in
+`(timestamp, log_digest, ordinal)` order, attached to nothing when the span is absent. They are not
+requests, so the matrix below counts only `req-*`.
+
 ## Layout
 
 ```
 <producer>/<mode>/<scenario>/req-001.pb     captured OTLP payload (protobuf, or .json)
 <producer>/<mode>/<scenario>/req-002.pb     one file per exported batch, in capture order
+<producer>/<mode>/<scenario>/logs-001.pb    captured OTLP log export, attached to the spans it names
 <producer>/<mode>/<scenario>/expected.json  committed expectation
 _synthetic/<sample>/                        hand-written shapes no producer emits on its own
 ```
@@ -42,7 +48,7 @@ program (`python`, `javascript`, `dotnet`, `rust`). The mode says who configured
 
 | Mode | Telemetry configured by |
 | --- | --- |
-| `_synthetic` | hand-written shapes, no SDK | 17 | 17 |
+| `_synthetic` | hand-written shapes, no SDK | 20 | 20 |
 | `adk/native` | Google ADK 2.11.0 / LiteLLM 1.104.0 (Bedrock Converse) / OpenTelemetry Python 1.42.1 on CPython 3.14.7, ADK's own tracing on a global provider; ADK's trace copy of a request leaves out inline parts, so `files` holds the request text only, and `transfer_to_agent`'s result reaches the next agent only as quoted context | 11 | 18 |
 | `adk/sdk` | SideSeat Python 2.0.0 / Google ADK 2.11.0 / LiteLLM 1.104.0 (Bedrock Converse) / OpenTelemetry Python 1.42.1 on CPython 3.14.7; the integration restores the image and PDF ADK leaves out | 11 | 12 |
 | `ag2/native` | AG2 1.1.1 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native TelemetryMiddleware; AG2's telemetry records no system prompt, binary input, or reasoning, so `files` and `reasoning` carry their text only | 11 | 17 |
@@ -67,6 +73,9 @@ program (`python`, `javascript`, `dotnet`, `rust`). The mode says who configured
 | `crewai/native` | CrewAI 1.15.23 / OpenInference CrewAI instrumentor 1.1.20 / OpenTelemetry Python 1.45.0 on CPython 3.12.8, native OTLP setup; no `structured_output`, `files`, or `streaming`: CrewAI's Bedrock provider forces tool choice, refuses media for Claude 5, and does not run a streamed tool call | 8 | 13 |
 | `crewai/sdk` | SideSeat Python 2.0.0 / CrewAI 1.15.23 / OpenInference CrewAI instrumentor 1.1.20 / OpenTelemetry Python 1.45.0 on CPython 3.12.8 | 8 | 8 |
 | `cross_span_tie/legacy` | a generation span and its tool span reporting the **identical** instant, with the tool span's id sorting *first* | `adopt_call_positions`. Disable it and this fixture reports the answer at index 1 before its question at index 3; every captured fixture stays green, because none of them ties |
+| `log_and_span_event_overlap/legacy` | a dual emitter: the question as a span event **and** a log record, the answer only as a log record | the repeated question collapses to one turn, and the answer appears only because logs are joined (`log_carried_messages_reach_every_view_exactly_once`) |
+| `log_events_before_span/legacy` | the OpenTelemetry OpenAI v2 / botocore default: the whole conversation as log records whose body members are the event, exported before the span, one naming its event through the legacy `event.name` attribute | `log_events` recognition by field and by attribute, and the read-time join; without the logs every view is empty |
+| `log_inference_details/legacy` | `gen_ai.client.inference.operation.details` as a log record whose **attributes** carry the request and response as structured values | the container readings applied to a log record, with structured `AnyValue`s kept whole |
 | `dotnet/native` | OpenTelemetry .NET 1.19.1 on .NET SDK 10.0.401 | 1 | 1 |
 | `dotnet/sdk` | SideSeat .NET 1.0.0 / OpenTelemetry 1.19.1 on .NET SDK 10.0.401 | 1 | 1 |
 | `google-genai/native` | Google GenAI 2.28.0 / Logfire 5.1.1 / Google GenAI OTel instrumentor 1.2b0 / OpenTelemetry Python 1.44.0 on CPython 3.13.7, against the harness's fake Gemini server; reasoning thoughts arrive as text parts (the instrumentation drops Gemini's `thought` flag) and a failed tool call as an error message rather than a tool result | 9 | 9 |

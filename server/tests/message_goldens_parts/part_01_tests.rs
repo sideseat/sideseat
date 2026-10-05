@@ -172,6 +172,7 @@ fn rows_for(paths: &[PathBuf]) -> Vec<(String, MessageSpanRow)> {
         let request = decode_request(path);
         rows.extend(normalize_for_test(&request, &pricing));
     }
+    attach_log_messages(paths, &mut rows);
     rows
 }
 

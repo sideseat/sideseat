@@ -701,6 +701,7 @@ fn rows_for_mode(
         let request = decode_request(path);
         rows.extend(normalize_for_test_with_mode(&request, pricing, mode));
     }
+    attach_log_messages(paths, &mut rows);
     rows
 }
 

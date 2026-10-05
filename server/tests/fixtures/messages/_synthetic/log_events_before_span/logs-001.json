@@ -1,0 +1,141 @@
+{
+ "resourceLogs": [
+  {
+   "resource": {
+    "attributes": [
+     {
+      "key": "service.name",
+      "value": {
+       "stringValue": "synthetic"
+      }
+     }
+    ]
+   },
+   "scopeLogs": [
+    {
+     "scope": {
+      "name": "synthetic.telemetry"
+     },
+     "logRecords": [
+      {
+       "timeUnixNano": "1735689600000000000",
+       "observedTimeUnixNano": "1735689600000000000",
+       "severityNumber": 9,
+       "traceId": "aa00000000000000000000000000000a",
+       "spanId": "0aaaaaaaaaaaaaaa",
+       "attributes": [
+        {
+         "key": "gen_ai.system",
+         "value": {
+          "stringValue": "synthetic"
+         }
+        }
+       ],
+       "eventName": "gen_ai.system.message",
+       "body": {
+        "kvlistValue": {
+         "values": [
+          {
+           "key": "content",
+           "value": {
+            "stringValue": "Answer in one word."
+           }
+          }
+         ]
+        }
+       }
+      },
+      {
+       "timeUnixNano": "1735689600000001000",
+       "observedTimeUnixNano": "1735689600000001000",
+       "severityNumber": 9,
+       "traceId": "aa00000000000000000000000000000a",
+       "spanId": "0aaaaaaaaaaaaaaa",
+       "attributes": [
+        {
+         "key": "gen_ai.system",
+         "value": {
+          "stringValue": "synthetic"
+         }
+        },
+        {
+         "key": "event.name",
+         "value": {
+          "stringValue": "gen_ai.user.message"
+         }
+        }
+       ],
+       "body": {
+        "kvlistValue": {
+         "values": [
+          {
+           "key": "content",
+           "value": {
+            "stringValue": "What is the capital of France?"
+           }
+          }
+         ]
+        }
+       }
+      },
+      {
+       "timeUnixNano": "1735689601500000000",
+       "observedTimeUnixNano": "1735689601500000000",
+       "severityNumber": 9,
+       "traceId": "aa00000000000000000000000000000a",
+       "spanId": "0aaaaaaaaaaaaaaa",
+       "attributes": [
+        {
+         "key": "gen_ai.system",
+         "value": {
+          "stringValue": "synthetic"
+         }
+        }
+       ],
+       "eventName": "gen_ai.choice",
+       "body": {
+        "kvlistValue": {
+         "values": [
+          {
+           "key": "index",
+           "value": {
+            "intValue": "0"
+           }
+          },
+          {
+           "key": "finish_reason",
+           "value": {
+            "stringValue": "stop"
+           }
+          },
+          {
+           "key": "message",
+           "value": {
+            "kvlistValue": {
+             "values": [
+              {
+               "key": "role",
+               "value": {
+                "stringValue": "assistant"
+               }
+              },
+              {
+               "key": "content",
+               "value": {
+                "stringValue": "Paris."
+               }
+              }
+             ]
+            }
+           }
+          }
+         ]
+        }
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

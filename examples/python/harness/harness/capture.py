@@ -13,9 +13,11 @@ A suite whose model is a ``fake-*`` alias needs neither: each run starts the det
 server in-process (:mod:`harness.fakes`), so captures are reproducible without credentials.
 
 Each run also starts a telemetry recorder on a free local port, points the suite at it, and writes every trace
-export to ``server/tests/fixtures/messages/<producer>/<mode>/<scenario>/req-NNN.*``. The previous
-payloads of that scenario are replaced only when the run succeeds, so a failed capture never leaves
-a half-written fixture behind. Logs and metrics are acknowledged and not recorded.
+export to ``server/tests/fixtures/messages/<producer>/<mode>/<scenario>/req-NNN.*``, and every log
+export beside them as ``logs-NNN.*`` - instrumentations that report the conversation as log events
+linked to a span need both halves. The previous payloads of that scenario are replaced only when the
+run succeeds, so a failed capture never leaves a half-written fixture behind. Metrics are acknowledged
+and not recorded.
 
 Capture needs the credentials the scenario's model needs. Regenerate the expectations afterwards and
 read them before committing::
@@ -81,10 +83,23 @@ def anonymise(raw: bytes, agents: dict[bytes, bytes] | None = None) -> bytes:
     return raw.replace(user, PLACEHOLDER_USER[: len(user)].ljust(len(user), b"_"))
 
 
+#: The OTLP/HTTP paths that are recorded, and the file prefix each export is written under.
+RECORDED_SIGNALS = {"/v1/traces": "req", "/v1/logs": "logs"}
+
+
+def recorded_prefix(path: str) -> str | None:
+    """The fixture prefix an export to ``path`` is recorded under, or ``None`` if it is not recorded."""
+    for signal, prefix in RECORDED_SIGNALS.items():
+        if signal in path:
+            return prefix
+    return None
+
+
 class _Recorder(BaseHTTPRequestHandler):
     out: Path
     forward: str | None
     count = 0
+    counts: dict[str, int] = {}
     agents: dict[bytes, bytes] = {}
     lock = threading.Lock()
 
@@ -107,7 +122,8 @@ class _Recorder(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
         body = self._body()
-        if "/v1/traces" in self.path and body:
+        prefix = recorded_prefix(self.path)
+        if prefix and body:
             raw = body
             if self.headers.get("Content-Encoding") == "gzip":
                 raw = gzip.decompress(body)
@@ -116,9 +132,14 @@ class _Recorder(BaseHTTPRequestHandler):
                 if self.headers.get("Content-Type", "").startswith("application/json")
                 else "pb"
             )
+            # One sequence per signal, so trace requests keep the numbering the golden runner replays in
+            # whether or not the run also exported logs.
             with _Recorder.lock:
-                _Recorder.count += 1
-                path = self.out / f"req-{_Recorder.count:03d}.{suffix}"
+                number = _Recorder.counts.get(prefix, 0) + 1
+                _Recorder.counts[prefix] = number
+                if prefix == "req":
+                    _Recorder.count = number
+                path = self.out / f"{prefix}-{number:03d}.{suffix}"
                 payload = anonymise(raw, _Recorder.agents)
             path.write_bytes(payload)
         status, reply = 200, b"{}"
@@ -209,6 +230,7 @@ def capture_one(
         return False
     staging = Path(tempfile.mkdtemp(prefix=f"capture-{producer}-{scenario}-"))
     _Recorder.out, _Recorder.forward, _Recorder.count = staging, forward, 0
+    _Recorder.counts = {}
     _Recorder.agents = {}
     server = ThreadingHTTPServer(("127.0.0.1", 0), _Recorder)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -246,6 +268,7 @@ def capture_one(
     finally:
         server.shutdown()
     recorded = sorted(staging.glob("req-*"))
+    log_exports = sorted(staging.glob("logs-*"))
     if not ok or not recorded:
         print(
             f"[capture] {producer}/{mode}/{scenario}: FAILED ({len(recorded)} request(s) recorded)"
@@ -254,12 +277,14 @@ def capture_one(
         return False
     target = FIXTURES / producer / mode / scenario
     target.mkdir(parents=True, exist_ok=True)
-    for stale in target.glob("req-*"):
-        stale.unlink()
-    for payload in recorded:
+    for pattern in ("req-*", "logs-*"):
+        for stale in target.glob(pattern):
+            stale.unlink()
+    for payload in [*recorded, *log_exports]:
         shutil.move(payload, target / payload.name)
     shutil.rmtree(staging)
-    print(f"[capture] {producer}/{mode}/{scenario}: {len(recorded)} request(s)")
+    logged = f", {len(log_exports)} log export(s)" if log_exports else ""
+    print(f"[capture] {producer}/{mode}/{scenario}: {len(recorded)} request(s){logged}")
     return True
 
 

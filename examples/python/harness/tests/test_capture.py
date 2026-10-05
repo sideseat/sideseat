@@ -1,4 +1,10 @@
-from harness.capture import anonymise
+import getpass
+import threading
+import urllib.request
+from http.server import ThreadingHTTPServer
+from pathlib import Path
+
+from harness.capture import _Recorder, anonymise, recorded_prefix
 
 
 def test_the_cli_attachment_directory_is_pinned_at_its_length() -> None:
@@ -34,3 +40,46 @@ def test_a_subagent_duration_is_zeroed_at_its_length() -> None:
         anonymise(b"tool_uses: 2\\nduration_ms: 73</usage>")
         == b"tool_uses: 2\\nduration_ms: 00</usage>"
     )
+
+
+def test_traces_and_logs_are_recorded_and_metrics_are_not() -> None:
+    assert recorded_prefix("/v1/traces") == "req"
+    assert recorded_prefix("/v1/logs") == "logs"
+    assert recorded_prefix("/v1/metrics") is None
+
+
+def test_a_log_export_is_written_beside_the_requests_and_anonymised(
+    tmp_path: Path,
+) -> None:
+    _Recorder.out, _Recorder.forward, _Recorder.count = tmp_path, None, 0
+    _Recorder.counts = {}
+    _Recorder.agents = {}
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _Recorder)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    named = (
+        b'{"resourceLogs": [], "path": "/Users/' + getpass.getuser().encode() + b'/x"}'
+    )
+    try:
+        for path, body in [
+            ("/v1/logs", named),
+            ("/v1/traces", b'{"resourceSpans": []}'),
+            ("/v1/logs", b'{"resourceLogs": []}'),
+            ("/v1/metrics", b'{"resourceMetrics": []}'),
+        ]:
+            request = urllib.request.Request(
+                f"http://127.0.0.1:{server.server_address[1]}{path}",
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(request, timeout=10) as response:
+                assert response.status == 200
+    finally:
+        server.shutdown()
+
+    assert sorted(p.name for p in tmp_path.iterdir()) == [
+        "logs-001.json",
+        "logs-002.json",
+        "req-001.json",
+    ]
+    assert (tmp_path / "logs-001.json").read_bytes() == anonymise(named)
