@@ -1,0 +1,829 @@
+{
+  "label": "browser-use/native/tool_use",
+  "request_count": 3,
+  "span_count": 13,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/agent.run/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/agent.step/span-11": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/agent.step/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/agent.step/span-7": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/anthropic.chat/span-12": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+          "content_digest": "c42f8360e1449461",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city? Read the forecast on the travel site at http://127.0.0.1:47811 and check the chance of rain for each city w…[2121 chars]",
+          "content_digest": "c08634f436f1aa12",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01Po1HcJHWzyEwZEkQMfwwDt\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"I have all the data. Finalize in at most three sentences.\",\"evaluation_previous_goal\":\"Got precipitation for both cities. Verdict: Succe…[639 chars]",
+          "content_digest": "02b2d19ff63bef8b",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/anthropic.chat/span-5": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+          "content_digest": "c42f8360e1449461",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city? Read the forecast on the travel site at http://127.0.0.1:47811 and check the chance of rain for each city w…[993 chars]",
+          "content_digest": "12759dc01109de1c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01JvR9KG6Rxw9q8815KN6u76\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"Click the Weather forecasts link.\",\"evaluation_previous_goal\":\"Loaded home page.\",\"memory\":\"On home page; need forecast for Paris and To…[348 chars]",
+          "content_digest": "5d33c3086414bb9f",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/anthropic.chat/span-8": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+          "content_digest": "c42f8360e1449461",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city? Read the forecast on the travel site at http://127.0.0.1:47811 and check the chance of rain for each city w…[1851 chars]",
+          "content_digest": "8d971f0af4ba8841",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_015rRXgc9dVZuymf6jFcu6Bn\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"Forecast read. Now call get_precipitation for both cities in the same block.\",\"evaluation_previous_goal\":\"Opened the weather page and re…[548 chars]",
+          "content_digest": "65c7c5c7870088ac",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/click/span-6": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000006\",\"name\":\"click\",\"input\":{\"index\":17}}",
+          "content_digest": "5a80813e844a6542",
+          "tool_name": "click",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Clicked a \"Weather forecasts\"",
+          "content_digest": "eed4605696b55b2e",
+          "tool_name": "click",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/done/span-13": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-00000000000d\",\"name\":\"done\",\"input\":{\"text\":\"Paris: sunny both days (21°C Day 1, 22°C Day 2) with only a 10% chance of rain tomorrow, so no umbrella needed. Tokyo: rain on Day 1 (21°C) and su…[358 chars]",
+          "content_digest": "074292df7178a6d6",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Paris: sunny both days (21°C Day 1, 22°C Day 2) with only a 10% chance of rain tomorrow, so no umbrella needed. Tokyo: rain on Day 1 (21°C) and sunny on Day 2 (22°C), with an 80% chance of rain tomorrow, so pack an umbrella.",
+          "content_digest": "2068a25b4f4884e0",
+          "tool_name": "done",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/get_precipitation/span-10": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-00000000000a\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
+          "content_digest": "f545a0902d18766d",
+          "tool_name": "get_precipitation",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "80% chance of rain in Tokyo tomorrow.",
+          "content_digest": "3f8e50530786eced",
+          "tool_name": "get_precipitation",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/get_precipitation/span-9": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000009\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "fab0d0862264149e",
+          "tool_name": "get_precipitation",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "10% chance of rain in Paris tomorrow.",
+          "content_digest": "df4fc3ca196d3ddd",
+          "tool_name": "get_precipitation",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/navigate/span-3": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000003\",\"name\":\"navigate\",\"input\":{\"url\":\"http://127.0.0.1:47811\",\"new_tab\":false}}",
+          "content_digest": "fdb45798f02eb4ae",
+          "tool_name": "navigate",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "🔗 Navigated to http://127.0.0.1:47811",
+          "content_digest": "194efa49f9f3e9e2",
+          "tool_name": "navigate",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/tool-use/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 17,
+      "role_sequence": [
+        "assistant",
+        "tool",
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool",
+        "user",
+        "assistant",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000003\",\"name\":\"navigate\",\"input\":{\"url\":\"http://127.0.0.1:47811\",\"new_tab\":false}}",
+          "content_digest": "fdb45798f02eb4ae",
+          "tool_name": "navigate",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "🔗 Navigated to http://127.0.0.1:47811",
+          "content_digest": "194efa49f9f3e9e2",
+          "tool_name": "navigate",
+          "observation_type": "tool"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+          "content_digest": "c42f8360e1449461",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city? Read the forecast on the travel site at http://127.0.0.1:47811 and check the chance of rain for each city w…[993 chars]",
+          "content_digest": "12759dc01109de1c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01JvR9KG6Rxw9q8815KN6u76\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"Click the Weather forecasts link.\",\"evaluation_previous_goal\":\"Loaded home page.\",\"memory\":\"On home page; need forecast for Paris and To…[348 chars]",
+          "content_digest": "5d33c3086414bb9f",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000006\",\"name\":\"click\",\"input\":{\"index\":17}}",
+          "content_digest": "5a80813e844a6542",
+          "tool_name": "click",
+          "observation_type": "tool"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Clicked a \"Weather forecasts\"",
+          "content_digest": "eed4605696b55b2e",
+          "tool_name": "click",
+          "observation_type": "tool"
+        },
+        {
+          "index": 7,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city? Read the forecast on the travel site at http://127.0.0.1:47811 and check the chance of rain for each city w…[1851 chars]",
+          "content_digest": "8d971f0af4ba8841",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_015rRXgc9dVZuymf6jFcu6Bn\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"Forecast read. Now call get_precipitation for both cities in the same block.\",\"evaluation_previous_goal\":\"Opened the weather page and re…[548 chars]",
+          "content_digest": "65c7c5c7870088ac",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000009\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "fab0d0862264149e",
+          "tool_name": "get_precipitation",
+          "observation_type": "tool"
+        },
+        {
+          "index": 10,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "10% chance of rain in Paris tomorrow.",
+          "content_digest": "df4fc3ca196d3ddd",
+          "tool_name": "get_precipitation",
+          "observation_type": "tool"
+        },
+        {
+          "index": 11,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-00000000000a\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
+          "content_digest": "f545a0902d18766d",
+          "tool_name": "get_precipitation",
+          "observation_type": "tool"
+        },
+        {
+          "index": 12,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "80% chance of rain in Tokyo tomorrow.",
+          "content_digest": "3f8e50530786eced",
+          "tool_name": "get_precipitation",
+          "observation_type": "tool"
+        },
+        {
+          "index": 13,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city? Read the forecast on the travel site at http://127.0.0.1:47811 and check the chance of rain for each city w…[2121 chars]",
+          "content_digest": "c08634f436f1aa12",
+          "observation_type": "generation"
+        },
+        {
+          "index": 14,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01Po1HcJHWzyEwZEkQMfwwDt\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"I have all the data. Finalize in at most three sentences.\",\"evaluation_previous_goal\":\"Got precipitation for both cities. Verdict: Succe…[639 chars]",
+          "content_digest": "02b2d19ff63bef8b",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        },
+        {
+          "index": 15,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-00000000000d\",\"name\":\"done\",\"input\":{\"text\":\"Paris: sunny both days (21°C Day 1, 22°C Day 2) with only a 10% chance of rain tomorrow, so no umbrella needed. Tokyo: rain on Day 1 (21°C) and su…[358 chars]",
+          "content_digest": "074292df7178a6d6",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 16,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Paris: sunny both days (21°C Day 1, 22°C Day 2) with only a 10% chance of rain tomorrow, so no umbrella needed. Tokyo: rain on Day 1 (21°C) and sunny on Day 2 (22°C), with an 80% chance of rain tomorrow, so pack an umbrella.",
+          "content_digest": "2068a25b4f4884e0",
+          "tool_name": "done",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "browser-use-tool_use": {
+      "message_count": 17,
+      "role_sequence": [
+        "assistant",
+        "tool",
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool",
+        "user",
+        "assistant",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000003\",\"name\":\"navigate\",\"input\":{\"url\":\"http://127.0.0.1:47811\",\"new_tab\":false}}",
+          "content_digest": "fdb45798f02eb4ae",
+          "tool_name": "navigate",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "🔗 Navigated to http://127.0.0.1:47811",
+          "content_digest": "194efa49f9f3e9e2",
+          "tool_name": "navigate",
+          "observation_type": "tool"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+          "content_digest": "c42f8360e1449461",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city? Read the forecast on the travel site at http://127.0.0.1:47811 and check the chance of rain for each city w…[993 chars]",
+          "content_digest": "12759dc01109de1c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01JvR9KG6Rxw9q8815KN6u76\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"Click the Weather forecasts link.\",\"evaluation_previous_goal\":\"Loaded home page.\",\"memory\":\"On home page; need forecast for Paris and To…[348 chars]",
+          "content_digest": "5d33c3086414bb9f",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000006\",\"name\":\"click\",\"input\":{\"index\":17}}",
+          "content_digest": "5a80813e844a6542",
+          "tool_name": "click",
+          "observation_type": "tool"
+        },
+        {
+          "index": 6,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Clicked a \"Weather forecasts\"",
+          "content_digest": "eed4605696b55b2e",
+          "tool_name": "click",
+          "observation_type": "tool"
+        },
+        {
+          "index": 7,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city? Read the forecast on the travel site at http://127.0.0.1:47811 and check the chance of rain for each city w…[1851 chars]",
+          "content_digest": "8d971f0af4ba8841",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_015rRXgc9dVZuymf6jFcu6Bn\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"Forecast read. Now call get_precipitation for both cities in the same block.\",\"evaluation_previous_goal\":\"Opened the weather page and re…[548 chars]",
+          "content_digest": "65c7c5c7870088ac",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000009\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "fab0d0862264149e",
+          "tool_name": "get_precipitation",
+          "observation_type": "tool"
+        },
+        {
+          "index": 10,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "10% chance of rain in Paris tomorrow.",
+          "content_digest": "df4fc3ca196d3ddd",
+          "tool_name": "get_precipitation",
+          "observation_type": "tool"
+        },
+        {
+          "index": 11,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-00000000000a\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
+          "content_digest": "f545a0902d18766d",
+          "tool_name": "get_precipitation",
+          "observation_type": "tool"
+        },
+        {
+          "index": 12,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "80% chance of rain in Tokyo tomorrow.",
+          "content_digest": "3f8e50530786eced",
+          "tool_name": "get_precipitation",
+          "observation_type": "tool"
+        },
+        {
+          "index": 13,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city? Read the forecast on the travel site at http://127.0.0.1:47811 and check the chance of rain for each city w…[2121 chars]",
+          "content_digest": "c08634f436f1aa12",
+          "observation_type": "generation"
+        },
+        {
+          "index": 14,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01Po1HcJHWzyEwZEkQMfwwDt\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"I have all the data. Finalize in at most three sentences.\",\"evaluation_previous_goal\":\"Got precipitation for both cities. Verdict: Succe…[639 chars]",
+          "content_digest": "02b2d19ff63bef8b",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        },
+        {
+          "index": 15,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-00000000000d\",\"name\":\"done\",\"input\":{\"text\":\"Paris: sunny both days (21°C Day 1, 22°C Day 2) with only a 10% chance of rain tomorrow, so no umbrella needed. Tokyo: rain on Day 1 (21°C) and su…[358 chars]",
+          "content_digest": "074292df7178a6d6",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 16,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Paris: sunny both days (21°C Day 1, 22°C Day 2) with only a 10% chance of rain tomorrow, so no umbrella needed. Tokyo: rain on Day 1 (21°C) and sunny on Day 2 (22°C), with an 80% chance of rain tomorrow, so pack an umbrella.",
+          "content_digest": "2068a25b4f4884e0",
+          "tool_name": "done",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 17,
+    "role_sequence": [
+      "tool",
+      "assistant",
+      "user",
+      "assistant",
+      "tool",
+      "assistant",
+      "tool",
+      "assistant",
+      "user",
+      "assistant",
+      "tool",
+      "assistant",
+      "system",
+      "user",
+      "assistant",
+      "tool",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Paris: sunny both days (21°C Day 1, 22°C Day 2) with only a 10% chance of rain tomorrow, so no umbrella needed. Tokyo: rain on Day 1 (21°C) and sunny on Day 2 (22°C), with an 80% chance of rain tomorrow, so pack an umbrella.",
+        "content_digest": "2068a25b4f4884e0",
+        "tool_name": "done",
+        "observation_type": "tool"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-00000000000d\",\"name\":\"done\",\"input\":{\"text\":\"Paris: sunny both days (21°C Day 1, 22°C Day 2) with only a 10% chance of rain tomorrow, so no umbrella needed. Tokyo: rain on Day 1 (21°C) and su…[358 chars]",
+        "content_digest": "074292df7178a6d6",
+        "tool_name": "done",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "<user_request> What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city? Read the forecast on the travel site at http://127.0.0.1:47811 and check the chance of rain for each city w…[2121 chars]",
+        "content_digest": "c08634f436f1aa12",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01Po1HcJHWzyEwZEkQMfwwDt\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"I have all the data. Finalize in at most three sentences.\",\"evaluation_previous_goal\":\"Got precipitation for both cities. Verdict: Succe…[639 chars]",
+        "content_digest": "02b2d19ff63bef8b",
+        "tool_name": "AgentOutput",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "80% chance of rain in Tokyo tomorrow.",
+        "content_digest": "3f8e50530786eced",
+        "tool_name": "get_precipitation",
+        "observation_type": "tool"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-00000000000a\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
+        "content_digest": "f545a0902d18766d",
+        "tool_name": "get_precipitation",
+        "observation_type": "tool"
+      },
+      {
+        "index": 6,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "10% chance of rain in Paris tomorrow.",
+        "content_digest": "df4fc3ca196d3ddd",
+        "tool_name": "get_precipitation",
+        "observation_type": "tool"
+      },
+      {
+        "index": 7,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000009\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
+        "content_digest": "fab0d0862264149e",
+        "tool_name": "get_precipitation",
+        "observation_type": "tool"
+      },
+      {
+        "index": 8,
+        "role": "user",
+        "entry_type": "text",
+        "content": "<user_request> What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city? Read the forecast on the travel site at http://127.0.0.1:47811 and check the chance of rain for each city w…[1851 chars]",
+        "content_digest": "8d971f0af4ba8841",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_015rRXgc9dVZuymf6jFcu6Bn\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"Forecast read. Now call get_precipitation for both cities in the same block.\",\"evaluation_previous_goal\":\"Opened the weather page and re…[548 chars]",
+        "content_digest": "65c7c5c7870088ac",
+        "tool_name": "AgentOutput",
+        "observation_type": "generation"
+      },
+      {
+        "index": 10,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Clicked a \"Weather forecasts\"",
+        "content_digest": "eed4605696b55b2e",
+        "tool_name": "click",
+        "observation_type": "tool"
+      },
+      {
+        "index": 11,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000006\",\"name\":\"click\",\"input\":{\"index\":17}}",
+        "content_digest": "5a80813e844a6542",
+        "tool_name": "click",
+        "observation_type": "tool"
+      },
+      {
+        "index": 12,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+        "content_digest": "c42f8360e1449461",
+        "observation_type": "generation"
+      },
+      {
+        "index": 13,
+        "role": "user",
+        "entry_type": "text",
+        "content": "<user_request> What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city? Read the forecast on the travel site at http://127.0.0.1:47811 and check the chance of rain for each city w…[993 chars]",
+        "content_digest": "12759dc01109de1c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 14,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01JvR9KG6Rxw9q8815KN6u76\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"Click the Weather forecasts link.\",\"evaluation_previous_goal\":\"Loaded home page.\",\"memory\":\"On home page; need forecast for Paris and To…[348 chars]",
+        "content_digest": "5d33c3086414bb9f",
+        "tool_name": "AgentOutput",
+        "observation_type": "generation"
+      },
+      {
+        "index": 15,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "🔗 Navigated to http://127.0.0.1:47811",
+        "content_digest": "194efa49f9f3e9e2",
+        "tool_name": "navigate",
+        "observation_type": "tool"
+      },
+      {
+        "index": 16,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000003\",\"name\":\"navigate\",\"input\":{\"url\":\"http://127.0.0.1:47811\",\"new_tab\":false}}",
+        "content_digest": "fdb45798f02eb4ae",
+        "tool_name": "navigate",
+        "observation_type": "tool"
+      }
+    ]
+  }
+}

@@ -205,6 +205,24 @@ INTENTIONAL_WARNINGS: dict[str, dict[str, tuple[int, str]]] = {
         }
         for mode in ("native", "sdk")
     },
+    **{
+        f"browser-use/{mode}/{scenario}": {
+            "unbalanced_tools": (
+                count,
+                "AgentOutput is Browser Use's per-step schema pseudo-tool: the actions it lists run "
+                "under spans of their own, each with its call and result",
+            ),
+        }
+        for mode in ("native", "sdk")
+        for scenario, count in {
+            "chat": 2,
+            "error": 2,
+            "multi_turn": 2,
+            "session": 3,
+            "structured_output": 2,
+            "tool_use": 2,
+        }.items()
+    },
     "anthropic/sdk/structured_output": {
         "unbalanced_tools": (2, "trip_plan is a terminal schema pseudo-tool"),
     },

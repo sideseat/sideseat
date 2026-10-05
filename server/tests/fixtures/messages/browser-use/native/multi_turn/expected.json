@@ -1,0 +1,665 @@
+{
+  "label": "browser-use/native/multi_turn",
+  "request_count": 2,
+  "span_count": 13,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/agent.run/span-10": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/agent.run/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/agent.run/span-6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/agent.step/span-11": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/agent.step/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/agent.step/span-7": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/anthropic.chat/span-12": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+          "content_digest": "c42f8360e1449461",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> <initial_user_request>I am planning a weekend in Lisbon. Name one neighbourhood to stay in.</initial_user_request> <follow_up_user_request> What is one dish I should try there? </follow_up_user_request> <follow_up_user_reques…[1768 chars]",
+          "content_digest": "2bd606a35250fca0",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01TLkX3Caur6h1ZgDhCPgWxR\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"Final follow-up: summarise the two suggestions (Alfama, pastéis de nata) in one sentence. No browsing needed.\",\"evaluation_previous_goal…[617 chars]",
+          "content_digest": "0da98004530444f1",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/anthropic.chat/span-4": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+          "content_digest": "c42f8360e1449461",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> I am planning a weekend in Lisbon. Name one neighbourhood to stay in. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when …[687 chars]",
+          "content_digest": "288c9aa589546d75",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_019rhyhDxVa4jYuQHsZRRmFj\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"The request is a simple recommendation. No tools needed for weather/bookings. Answer directly in at most three sentences.\",\"evaluation_p…[765 chars]",
+          "content_digest": "c1873358b02b05c3",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/anthropic.chat/span-8": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+          "content_digest": "c42f8360e1449461",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> <initial_user_request>I am planning a weekend in Lisbon. Name one neighbourhood to stay in.</initial_user_request> <follow_up_user_request> What is one dish I should try there? </follow_up_user_request> </user_request> <agent…[1207 chars]",
+          "content_digest": "85d0072500a5a69b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_017QPL7LRGJYRi9wS5Fcbn8T\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"Simple recommendation question; no browsing needed. Answer directly.\",\"evaluation_previous_goal\":\"Previous step answered the neighbourho…[825 chars]",
+          "content_digest": "6cd710511f05fe36",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/done/span-13": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-00000000000d\",\"name\":\"done\",\"input\":{\"text\":\"For your Lisbon weekend, stay in the historic Alfama neighbourhood and be sure to try pastéis de nata, the city's famous custard tarts.\",\"success\"…[269 chars]",
+          "content_digest": "f457aad2bb705d2e",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "For your Lisbon weekend, stay in the historic Alfama neighbourhood and be sure to try pastéis de nata, the city's famous custard tarts.",
+          "content_digest": "885fa8c733a873ef",
+          "tool_name": "done",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/done/span-5": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000005\",\"name\":\"done\",\"input\":{\"text\":\"I'd suggest staying in Alfama, Lisbon's historic old quarter. It has charming narrow streets, fado music, and great viewpoints, and it's walkable …[409 chars]",
+          "content_digest": "b00ec4de7d5ca501",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "I'd suggest staying in Alfama, Lisbon's historic old quarter. It has charming narrow streets, fado music, and great viewpoints, and it's walkable to many major sights. This is a general recommendation from my own knowledge, not from a live …[275 chars]",
+          "content_digest": "bddf43b5f089ea96",
+          "tool_name": "done",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/done/span-9": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000009\",\"name\":\"done\",\"input\":{\"text\":\"Try pastéis de nata, Lisbon's famous custard tarts. They're best eaten warm with a sprinkle of cinnamon, and the bakery in Belém is the classic pl…[414 chars]",
+          "content_digest": "a147f5e5adc4c148",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Try pastéis de nata, Lisbon's famous custard tarts. They're best eaten warm with a sprinkle of cinnamon, and the bakery in Belém is the classic place to get them. If you'd rather have a savoury dish, bacalhau à Brás (shredded salt cod with …[280 chars]",
+          "content_digest": "e5959a0dbec32335",
+          "tool_name": "done",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/multi-turn/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 13,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "user",
+        "assistant",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+          "content_digest": "c42f8360e1449461",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> I am planning a weekend in Lisbon. Name one neighbourhood to stay in. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when …[687 chars]",
+          "content_digest": "288c9aa589546d75",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_019rhyhDxVa4jYuQHsZRRmFj\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"The request is a simple recommendation. No tools needed for weather/bookings. Answer directly in at most three sentences.\",\"evaluation_p…[765 chars]",
+          "content_digest": "c1873358b02b05c3",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000005\",\"name\":\"done\",\"input\":{\"text\":\"I'd suggest staying in Alfama, Lisbon's historic old quarter. It has charming narrow streets, fado music, and great viewpoints, and it's walkable …[409 chars]",
+          "content_digest": "b00ec4de7d5ca501",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "I'd suggest staying in Alfama, Lisbon's historic old quarter. It has charming narrow streets, fado music, and great viewpoints, and it's walkable to many major sights. This is a general recommendation from my own knowledge, not from a live …[275 chars]",
+          "content_digest": "bddf43b5f089ea96",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> <initial_user_request>I am planning a weekend in Lisbon. Name one neighbourhood to stay in.</initial_user_request> <follow_up_user_request> What is one dish I should try there? </follow_up_user_request> </user_request> <agent…[1207 chars]",
+          "content_digest": "85d0072500a5a69b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_017QPL7LRGJYRi9wS5Fcbn8T\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"Simple recommendation question; no browsing needed. Answer directly.\",\"evaluation_previous_goal\":\"Previous step answered the neighbourho…[825 chars]",
+          "content_digest": "6cd710511f05fe36",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000009\",\"name\":\"done\",\"input\":{\"text\":\"Try pastéis de nata, Lisbon's famous custard tarts. They're best eaten warm with a sprinkle of cinnamon, and the bakery in Belém is the classic pl…[414 chars]",
+          "content_digest": "a147f5e5adc4c148",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 8,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Try pastéis de nata, Lisbon's famous custard tarts. They're best eaten warm with a sprinkle of cinnamon, and the bakery in Belém is the classic place to get them. If you'd rather have a savoury dish, bacalhau à Brás (shredded salt cod with …[280 chars]",
+          "content_digest": "e5959a0dbec32335",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 9,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> <initial_user_request>I am planning a weekend in Lisbon. Name one neighbourhood to stay in.</initial_user_request> <follow_up_user_request> What is one dish I should try there? </follow_up_user_request> <follow_up_user_reques…[1768 chars]",
+          "content_digest": "2bd606a35250fca0",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01TLkX3Caur6h1ZgDhCPgWxR\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"Final follow-up: summarise the two suggestions (Alfama, pastéis de nata) in one sentence. No browsing needed.\",\"evaluation_previous_goal…[617 chars]",
+          "content_digest": "0da98004530444f1",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        },
+        {
+          "index": 11,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-00000000000d\",\"name\":\"done\",\"input\":{\"text\":\"For your Lisbon weekend, stay in the historic Alfama neighbourhood and be sure to try pastéis de nata, the city's famous custard tarts.\",\"success\"…[269 chars]",
+          "content_digest": "f457aad2bb705d2e",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 12,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "For your Lisbon weekend, stay in the historic Alfama neighbourhood and be sure to try pastéis de nata, the city's famous custard tarts.",
+          "content_digest": "885fa8c733a873ef",
+          "tool_name": "done",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "browser-use-multi_turn": {
+      "message_count": 13,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "user",
+        "assistant",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+          "content_digest": "c42f8360e1449461",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> I am planning a weekend in Lisbon. Name one neighbourhood to stay in. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when …[687 chars]",
+          "content_digest": "288c9aa589546d75",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_019rhyhDxVa4jYuQHsZRRmFj\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"The request is a simple recommendation. No tools needed for weather/bookings. Answer directly in at most three sentences.\",\"evaluation_p…[765 chars]",
+          "content_digest": "c1873358b02b05c3",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000005\",\"name\":\"done\",\"input\":{\"text\":\"I'd suggest staying in Alfama, Lisbon's historic old quarter. It has charming narrow streets, fado music, and great viewpoints, and it's walkable …[409 chars]",
+          "content_digest": "b00ec4de7d5ca501",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "I'd suggest staying in Alfama, Lisbon's historic old quarter. It has charming narrow streets, fado music, and great viewpoints, and it's walkable to many major sights. This is a general recommendation from my own knowledge, not from a live …[275 chars]",
+          "content_digest": "bddf43b5f089ea96",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> <initial_user_request>I am planning a weekend in Lisbon. Name one neighbourhood to stay in.</initial_user_request> <follow_up_user_request> What is one dish I should try there? </follow_up_user_request> </user_request> <agent…[1207 chars]",
+          "content_digest": "85d0072500a5a69b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_017QPL7LRGJYRi9wS5Fcbn8T\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"Simple recommendation question; no browsing needed. Answer directly.\",\"evaluation_previous_goal\":\"Previous step answered the neighbourho…[825 chars]",
+          "content_digest": "6cd710511f05fe36",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000009\",\"name\":\"done\",\"input\":{\"text\":\"Try pastéis de nata, Lisbon's famous custard tarts. They're best eaten warm with a sprinkle of cinnamon, and the bakery in Belém is the classic pl…[414 chars]",
+          "content_digest": "a147f5e5adc4c148",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 8,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Try pastéis de nata, Lisbon's famous custard tarts. They're best eaten warm with a sprinkle of cinnamon, and the bakery in Belém is the classic place to get them. If you'd rather have a savoury dish, bacalhau à Brás (shredded salt cod with …[280 chars]",
+          "content_digest": "e5959a0dbec32335",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 9,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> <initial_user_request>I am planning a weekend in Lisbon. Name one neighbourhood to stay in.</initial_user_request> <follow_up_user_request> What is one dish I should try there? </follow_up_user_request> <follow_up_user_reques…[1768 chars]",
+          "content_digest": "2bd606a35250fca0",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01TLkX3Caur6h1ZgDhCPgWxR\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"Final follow-up: summarise the two suggestions (Alfama, pastéis de nata) in one sentence. No browsing needed.\",\"evaluation_previous_goal…[617 chars]",
+          "content_digest": "0da98004530444f1",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        },
+        {
+          "index": 11,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-00000000000d\",\"name\":\"done\",\"input\":{\"text\":\"For your Lisbon weekend, stay in the historic Alfama neighbourhood and be sure to try pastéis de nata, the city's famous custard tarts.\",\"success\"…[269 chars]",
+          "content_digest": "f457aad2bb705d2e",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 12,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "For your Lisbon weekend, stay in the historic Alfama neighbourhood and be sure to try pastéis de nata, the city's famous custard tarts.",
+          "content_digest": "885fa8c733a873ef",
+          "tool_name": "done",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 13,
+    "role_sequence": [
+      "tool",
+      "assistant",
+      "user",
+      "assistant",
+      "tool",
+      "assistant",
+      "user",
+      "assistant",
+      "tool",
+      "assistant",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "For your Lisbon weekend, stay in the historic Alfama neighbourhood and be sure to try pastéis de nata, the city's famous custard tarts.",
+        "content_digest": "885fa8c733a873ef",
+        "tool_name": "done",
+        "observation_type": "tool"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-00000000000d\",\"name\":\"done\",\"input\":{\"text\":\"For your Lisbon weekend, stay in the historic Alfama neighbourhood and be sure to try pastéis de nata, the city's famous custard tarts.\",\"success\"…[269 chars]",
+        "content_digest": "f457aad2bb705d2e",
+        "tool_name": "done",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "<user_request> <initial_user_request>I am planning a weekend in Lisbon. Name one neighbourhood to stay in.</initial_user_request> <follow_up_user_request> What is one dish I should try there? </follow_up_user_request> <follow_up_user_reques…[1768 chars]",
+        "content_digest": "2bd606a35250fca0",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01TLkX3Caur6h1ZgDhCPgWxR\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"Final follow-up: summarise the two suggestions (Alfama, pastéis de nata) in one sentence. No browsing needed.\",\"evaluation_previous_goal…[617 chars]",
+        "content_digest": "0da98004530444f1",
+        "tool_name": "AgentOutput",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Try pastéis de nata, Lisbon's famous custard tarts. They're best eaten warm with a sprinkle of cinnamon, and the bakery in Belém is the classic place to get them. If you'd rather have a savoury dish, bacalhau à Brás (shredded salt cod with …[280 chars]",
+        "content_digest": "e5959a0dbec32335",
+        "tool_name": "done",
+        "observation_type": "tool"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000009\",\"name\":\"done\",\"input\":{\"text\":\"Try pastéis de nata, Lisbon's famous custard tarts. They're best eaten warm with a sprinkle of cinnamon, and the bakery in Belém is the classic pl…[414 chars]",
+        "content_digest": "a147f5e5adc4c148",
+        "tool_name": "done",
+        "observation_type": "tool"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "entry_type": "text",
+        "content": "<user_request> <initial_user_request>I am planning a weekend in Lisbon. Name one neighbourhood to stay in.</initial_user_request> <follow_up_user_request> What is one dish I should try there? </follow_up_user_request> </user_request> <agent…[1207 chars]",
+        "content_digest": "85d0072500a5a69b",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_017QPL7LRGJYRi9wS5Fcbn8T\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"Simple recommendation question; no browsing needed. Answer directly.\",\"evaluation_previous_goal\":\"Previous step answered the neighbourho…[825 chars]",
+        "content_digest": "6cd710511f05fe36",
+        "tool_name": "AgentOutput",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "I'd suggest staying in Alfama, Lisbon's historic old quarter. It has charming narrow streets, fado music, and great viewpoints, and it's walkable to many major sights. This is a general recommendation from my own knowledge, not from a live …[275 chars]",
+        "content_digest": "bddf43b5f089ea96",
+        "tool_name": "done",
+        "observation_type": "tool"
+      },
+      {
+        "index": 9,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000005\",\"name\":\"done\",\"input\":{\"text\":\"I'd suggest staying in Alfama, Lisbon's historic old quarter. It has charming narrow streets, fado music, and great viewpoints, and it's walkable …[409 chars]",
+        "content_digest": "b00ec4de7d5ca501",
+        "tool_name": "done",
+        "observation_type": "tool"
+      },
+      {
+        "index": 10,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+        "content_digest": "c42f8360e1449461",
+        "observation_type": "generation"
+      },
+      {
+        "index": 11,
+        "role": "user",
+        "entry_type": "text",
+        "content": "<user_request> I am planning a weekend in Lisbon. Name one neighbourhood to stay in. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when …[687 chars]",
+        "content_digest": "288c9aa589546d75",
+        "observation_type": "generation"
+      },
+      {
+        "index": 12,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_019rhyhDxVa4jYuQHsZRRmFj\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"The request is a simple recommendation. No tools needed for weather/bookings. Answer directly in at most three sentences.\",\"evaluation_p…[765 chars]",
+        "content_digest": "c1873358b02b05c3",
+        "tool_name": "AgentOutput",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

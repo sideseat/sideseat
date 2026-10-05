@@ -1,0 +1,511 @@
+{
+  "label": "browser-use/native/session",
+  "request_count": 2,
+  "span_count": 10,
+  "trace_count": 2,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/agent.run/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/agent.step/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/anthropic.chat/span-4": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+          "content_digest": "c42f8360e1449461",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> Suggest one museum to visit in Madrid. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo_contents> </…[655 chars]",
+          "content_digest": "cf8e1d3da5e65b98",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01WyhVU78ebeMhq1qko4FFoc\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"Simple request; no tools for weather/bookings needed. Answer directly from general knowledge, concisely.\",\"evaluation_previous_goal\":\"N/…[719 chars]",
+          "content_digest": "fe96d0a57bbab41e",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/done/span-5": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000005\",\"name\":\"done\",\"input\":{\"text\":\"I'd suggest the Museo del Prado, Madrid's premier art museum, with masterpieces by Velázquez, Goya, and El Greco. It's on Paseo del Prado near Ret…[447 chars]",
+          "content_digest": "3767d02924293ad4",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "I'd suggest the Museo del Prado, Madrid's premier art museum, with masterpieces by Velázquez, Goya, and El Greco. It's on Paseo del Prado near Retiro Park, so you can easily pair it with a stroll afterward. This is a suggestion from general…[313 chars]",
+          "content_digest": "57495e54cb387b91",
+          "tool_name": "done",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/session-turn-1/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/agent.run/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/agent.step/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/anthropic.chat/span-4": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+          "content_digest": "c42f8360e1449461",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> Suggest one park to visit in Madrid. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo_contents> </ag…[653 chars]",
+          "content_digest": "c5077d2f9b7d09ec",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_011dBpjVvKh7Fee5rraGoGYz\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"The task is simple: suggest one park in Madrid. No tools for weather/bookings are needed, and the browser is empty. I can answer directl…[751 chars]",
+          "content_digest": "a0c18487127a9b9a",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/done/span-5": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-00000000000a\",\"name\":\"done\",\"input\":{\"text\":\"I suggest Retiro Park (Parque del Buen Retiro), Madrid's most famous park. You can rent a rowboat on the lake, visit the Crystal Palace, and strol…[357 chars]",
+          "content_digest": "66922cc234013cd8",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "I suggest Retiro Park (Parque del Buen Retiro), Madrid's most famous park. You can rent a rowboat on the lake, visit the Crystal Palace, and stroll through the rose garden. This is from general knowledge, not a live lookup.",
+          "content_digest": "507fe5f09c25aeff",
+          "tool_name": "done",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-2/session-turn-2/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+          "content_digest": "c42f8360e1449461",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> Suggest one museum to visit in Madrid. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo_contents> </…[655 chars]",
+          "content_digest": "cf8e1d3da5e65b98",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01WyhVU78ebeMhq1qko4FFoc\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"Simple request; no tools for weather/bookings needed. Answer directly from general knowledge, concisely.\",\"evaluation_previous_goal\":\"N/…[719 chars]",
+          "content_digest": "fe96d0a57bbab41e",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000005\",\"name\":\"done\",\"input\":{\"text\":\"I'd suggest the Museo del Prado, Madrid's premier art museum, with masterpieces by Velázquez, Goya, and El Greco. It's on Paseo del Prado near Ret…[447 chars]",
+          "content_digest": "3767d02924293ad4",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "I'd suggest the Museo del Prado, Madrid's premier art museum, with masterpieces by Velázquez, Goya, and El Greco. It's on Paseo del Prado near Retiro Park, so you can easily pair it with a stroll afterward. This is a suggestion from general…[313 chars]",
+          "content_digest": "57495e54cb387b91",
+          "tool_name": "done",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-2": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+          "content_digest": "c42f8360e1449461",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> Suggest one park to visit in Madrid. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo_contents> </ag…[653 chars]",
+          "content_digest": "c5077d2f9b7d09ec",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_011dBpjVvKh7Fee5rraGoGYz\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"The task is simple: suggest one park in Madrid. No tools for weather/bookings are needed, and the browser is empty. I can answer directl…[751 chars]",
+          "content_digest": "a0c18487127a9b9a",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-00000000000a\",\"name\":\"done\",\"input\":{\"text\":\"I suggest Retiro Park (Parque del Buen Retiro), Madrid's most famous park. You can rent a rowboat on the lake, visit the Crystal Palace, and strol…[357 chars]",
+          "content_digest": "66922cc234013cd8",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "I suggest Retiro Park (Parque del Buen Retiro), Madrid's most famous park. You can rent a rowboat on the lake, visit the Crystal Palace, and stroll through the rose garden. This is from general knowledge, not a live lookup.",
+          "content_digest": "507fe5f09c25aeff",
+          "tool_name": "done",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "browser-use-session": {
+      "message_count": 10,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+          "content_digest": "c42f8360e1449461",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> Suggest one museum to visit in Madrid. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo_contents> </…[655 chars]",
+          "content_digest": "cf8e1d3da5e65b98",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01WyhVU78ebeMhq1qko4FFoc\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"Simple request; no tools for weather/bookings needed. Answer directly from general knowledge, concisely.\",\"evaluation_previous_goal\":\"N/…[719 chars]",
+          "content_digest": "fe96d0a57bbab41e",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000005\",\"name\":\"done\",\"input\":{\"text\":\"I'd suggest the Museo del Prado, Madrid's premier art museum, with masterpieces by Velázquez, Goya, and El Greco. It's on Paseo del Prado near Ret…[447 chars]",
+          "content_digest": "3767d02924293ad4",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "I'd suggest the Museo del Prado, Madrid's premier art museum, with masterpieces by Velázquez, Goya, and El Greco. It's on Paseo del Prado near Retiro Park, so you can easily pair it with a stroll afterward. This is a suggestion from general…[313 chars]",
+          "content_digest": "57495e54cb387b91",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+          "content_digest": "c42f8360e1449461",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> Suggest one park to visit in Madrid. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo_contents> </ag…[653 chars]",
+          "content_digest": "c5077d2f9b7d09ec",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_011dBpjVvKh7Fee5rraGoGYz\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"The task is simple: suggest one park in Madrid. No tools for weather/bookings are needed, and the browser is empty. I can answer directl…[751 chars]",
+          "content_digest": "a0c18487127a9b9a",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-00000000000a\",\"name\":\"done\",\"input\":{\"text\":\"I suggest Retiro Park (Parque del Buen Retiro), Madrid's most famous park. You can rent a rowboat on the lake, visit the Crystal Palace, and strol…[357 chars]",
+          "content_digest": "66922cc234013cd8",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 9,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "I suggest Retiro Park (Parque del Buen Retiro), Madrid's most famous park. You can rent a rowboat on the lake, visit the Crystal Palace, and stroll through the rose garden. This is from general knowledge, not a live lookup.",
+          "content_digest": "507fe5f09c25aeff",
+          "tool_name": "done",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 10,
+    "role_sequence": [
+      "tool",
+      "assistant",
+      "system",
+      "user",
+      "assistant",
+      "tool",
+      "assistant",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "I suggest Retiro Park (Parque del Buen Retiro), Madrid's most famous park. You can rent a rowboat on the lake, visit the Crystal Palace, and stroll through the rose garden. This is from general knowledge, not a live lookup.",
+        "content_digest": "507fe5f09c25aeff",
+        "tool_name": "done",
+        "observation_type": "tool"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-00000000000a\",\"name\":\"done\",\"input\":{\"text\":\"I suggest Retiro Park (Parque del Buen Retiro), Madrid's most famous park. You can rent a rowboat on the lake, visit the Crystal Palace, and strol…[357 chars]",
+        "content_digest": "66922cc234013cd8",
+        "tool_name": "done",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+        "content_digest": "c42f8360e1449461",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "<user_request> Suggest one park to visit in Madrid. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo_contents> </ag…[653 chars]",
+        "content_digest": "c5077d2f9b7d09ec",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_011dBpjVvKh7Fee5rraGoGYz\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"The task is simple: suggest one park in Madrid. No tools for weather/bookings are needed, and the browser is empty. I can answer directl…[751 chars]",
+        "content_digest": "a0c18487127a9b9a",
+        "tool_name": "AgentOutput",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "I'd suggest the Museo del Prado, Madrid's premier art museum, with masterpieces by Velázquez, Goya, and El Greco. It's on Paseo del Prado near Retiro Park, so you can easily pair it with a stroll afterward. This is a suggestion from general…[313 chars]",
+        "content_digest": "57495e54cb387b91",
+        "tool_name": "done",
+        "observation_type": "tool"
+      },
+      {
+        "index": 6,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000005\",\"name\":\"done\",\"input\":{\"text\":\"I'd suggest the Museo del Prado, Madrid's premier art museum, with masterpieces by Velázquez, Goya, and El Greco. It's on Paseo del Prado near Ret…[447 chars]",
+        "content_digest": "3767d02924293ad4",
+        "tool_name": "done",
+        "observation_type": "tool"
+      },
+      {
+        "index": 7,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+        "content_digest": "c42f8360e1449461",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "user",
+        "entry_type": "text",
+        "content": "<user_request> Suggest one museum to visit in Madrid. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo_contents> </…[655 chars]",
+        "content_digest": "cf8e1d3da5e65b98",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01WyhVU78ebeMhq1qko4FFoc\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"Simple request; no tools for weather/bookings needed. Answer directly from general knowledge, concisely.\",\"evaluation_previous_goal\":\"N/…[719 chars]",
+        "content_digest": "fe96d0a57bbab41e",
+        "tool_name": "AgentOutput",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

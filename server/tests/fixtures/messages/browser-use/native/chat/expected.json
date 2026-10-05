@@ -1,0 +1,271 @@
+{
+  "label": "browser-use/native/chat",
+  "request_count": 1,
+  "span_count": 5,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/agent.run/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/agent.step/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/anthropic.chat/span-4": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+          "content_digest": "c42f8360e1449461",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> In one sentence, what is Kyoto best known for? </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo_cont…[663 chars]",
+          "content_digest": "e8837300806fc1e8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_0199v8L4bE4HmbkHgKETJnpS\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"This is a simple general knowledge question; no tools are needed. I can answer directly.\",\"evaluation_previous_goal\":\"N/A\",\"memory\":\"Sim…[656 chars]",
+          "content_digest": "8739defd5c14f823",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/done/span-5": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000005\",\"name\":\"done\",\"input\":{\"text\":\"Kyoto is best known as Japan's former imperial capital, famed for its thousands of temples and shrines (such as Kinkaku-ji and Fushimi Inari), tra…[404 chars]",
+          "content_digest": "67b59cee804ddab8",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Kyoto is best known as Japan's former imperial capital, famed for its thousands of temples and shrines (such as Kinkaku-ji and Fushimi Inari), traditional geisha districts, and well-preserved historic culture. This answer comes from general…[270 chars]",
+          "content_digest": "bba3ef146526d3b2",
+          "tool_name": "done",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+          "content_digest": "c42f8360e1449461",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> In one sentence, what is Kyoto best known for? </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo_cont…[663 chars]",
+          "content_digest": "e8837300806fc1e8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_0199v8L4bE4HmbkHgKETJnpS\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"This is a simple general knowledge question; no tools are needed. I can answer directly.\",\"evaluation_previous_goal\":\"N/A\",\"memory\":\"Sim…[656 chars]",
+          "content_digest": "8739defd5c14f823",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000005\",\"name\":\"done\",\"input\":{\"text\":\"Kyoto is best known as Japan's former imperial capital, famed for its thousands of temples and shrines (such as Kinkaku-ji and Fushimi Inari), tra…[404 chars]",
+          "content_digest": "67b59cee804ddab8",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Kyoto is best known as Japan's former imperial capital, famed for its thousands of temples and shrines (such as Kinkaku-ji and Fushimi Inari), traditional geisha districts, and well-preserved historic culture. This answer comes from general…[270 chars]",
+          "content_digest": "bba3ef146526d3b2",
+          "tool_name": "done",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "browser-use-chat": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+          "content_digest": "c42f8360e1449461",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> In one sentence, what is Kyoto best known for? </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo_cont…[663 chars]",
+          "content_digest": "e8837300806fc1e8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_0199v8L4bE4HmbkHgKETJnpS\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"This is a simple general knowledge question; no tools are needed. I can answer directly.\",\"evaluation_previous_goal\":\"N/A\",\"memory\":\"Sim…[656 chars]",
+          "content_digest": "8739defd5c14f823",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000005\",\"name\":\"done\",\"input\":{\"text\":\"Kyoto is best known as Japan's former imperial capital, famed for its thousands of temples and shrines (such as Kinkaku-ji and Fushimi Inari), tra…[404 chars]",
+          "content_digest": "67b59cee804ddab8",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Kyoto is best known as Japan's former imperial capital, famed for its thousands of temples and shrines (such as Kinkaku-ji and Fushimi Inari), traditional geisha districts, and well-preserved historic culture. This answer comes from general…[270 chars]",
+          "content_digest": "bba3ef146526d3b2",
+          "tool_name": "done",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 5,
+    "role_sequence": [
+      "tool",
+      "assistant",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Kyoto is best known as Japan's former imperial capital, famed for its thousands of temples and shrines (such as Kinkaku-ji and Fushimi Inari), traditional geisha districts, and well-preserved historic culture. This answer comes from general…[270 chars]",
+        "content_digest": "bba3ef146526d3b2",
+        "tool_name": "done",
+        "observation_type": "tool"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000005\",\"name\":\"done\",\"input\":{\"text\":\"Kyoto is best known as Japan's former imperial capital, famed for its thousands of temples and shrines (such as Kinkaku-ji and Fushimi Inari), tra…[404 chars]",
+        "content_digest": "67b59cee804ddab8",
+        "tool_name": "done",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+        "content_digest": "c42f8360e1449461",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "<user_request> In one sentence, what is Kyoto best known for? </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo_cont…[663 chars]",
+        "content_digest": "e8837300806fc1e8",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_0199v8L4bE4HmbkHgKETJnpS\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"This is a simple general knowledge question; no tools are needed. I can answer directly.\",\"evaluation_previous_goal\":\"N/A\",\"memory\":\"Sim…[656 chars]",
+        "content_digest": "8739defd5c14f823",
+        "tool_name": "AgentOutput",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

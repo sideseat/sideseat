@@ -1,0 +1,687 @@
+{
+  "label": "browser-use/native/error",
+  "request_count": 3,
+  "span_count": 11,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/agent.run/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/agent.step/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/agent.step/span-6": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/agent.step/span-9": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/anthropic.chat/span-10": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+          "content_digest": "c42f8360e1449461",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> Book me a flight from London to Oslo on 2026-11-14. </user_request> <agent_history> Agent initialized <step> Starting task. Browser is empty; using book_flight tool. Book the flight using book_flight. Result Error executing a…[1240 chars]",
+          "content_digest": "531ae650a2a22168",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_013N6TnbEvcBRsyvv4Zn4wo9\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"Two attempts failed with the system offline. Browser is empty; no alternative. Report failure honestly.\",\"evaluation_previous_goal\":\"Ret…[773 chars]",
+          "content_digest": "06bd5879c9b27846",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/anthropic.chat/span-4": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+          "content_digest": "c42f8360e1449461",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> Book me a flight from London to Oslo on 2026-11-14. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo…[668 chars]",
+          "content_digest": "a7d8912fcc8317e6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01EpfohJ5htFky3ximXWavHi\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"The user wants a flight booked from London to Oslo on 2026-11-14. I have a book_flight tool. Use it directly.\",\"evaluation_previous_goal…[494 chars]",
+          "content_digest": "d137b79b39c661d2",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/anthropic.chat/span-7": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+          "content_digest": "c42f8360e1449461",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> Book me a flight from London to Oslo on 2026-11-14. </user_request> <agent_history> Agent initialized <step> Starting task. Browser is empty; using book_flight tool. Book the flight using book_flight. Result Error executing a…[885 chars]",
+          "content_digest": "91ea37f47cbf2300",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "redacted_thinking",
+          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSjAUKEggSEAEYAjgBQgh0aGlua2luZxIMLsGWNuDKfwwWC9CkGgzT00ptW8bdsX+SinQiMB4UEkVuVIEJqSJ/Jw6Mxah48/HtWjEefFakOXRNoJ7YJpb6/e5jjukp9oXGfoqF/CqnBLcKzffvO+X9tFCpchQyrKo0/yPLoOdQ/iXUzhe6En6Rokz0igwBn97p823b3WzZ…[918 chars]",
+          "content_digest": "952aaaf199823df2",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01Bu3ih4YE1wuQZ2zUBz82Nd\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"The book_flight call failed because the booking system is offline. I'll retry once in case it was temporary.\",\"evaluation_previous_goal\"…[589 chars]",
+          "content_digest": "9fca9e4c594c33cf",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/book_flight/span-5": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000005\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
+          "content_digest": "be103012610e7a55",
+          "tool_name": "book_flight",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Error executing action book_flight: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+          "content_digest": "1dcd74c2bf419b55",
+          "tool_name": "book_flight",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/book_flight/span-8": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000008\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
+          "content_digest": "6d920b961a74504e",
+          "tool_name": "book_flight",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Error executing action book_flight: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+          "content_digest": "680d9e29b1e90def",
+          "tool_name": "book_flight",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/done/span-11": {
+      "message_count": 2,
+      "role_sequence": [
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-00000000000b\",\"name\":\"done\",\"input\":{\"text\":\"I couldn't book the flight from London to Oslo on 2026-11-14. I tried the booking tool twice, and both times it returned \\\"No seats... the booking…[350 chars]",
+          "content_digest": "23b42c2ccebbad58",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "I couldn't book the flight from London to Oslo on 2026-11-14. I tried the booking tool twice, and both times it returned \"No seats... the booking system is offline.\" No booking was made, so please try again later.",
+          "content_digest": "9e929f92ab0173e5",
+          "tool_name": "done",
+          "observation_type": "tool"
+        }
+      ]
+    },
+    "trace-1/error/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 14,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "user",
+        "assistant",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+          "content_digest": "c42f8360e1449461",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> Book me a flight from London to Oslo on 2026-11-14. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo…[668 chars]",
+          "content_digest": "a7d8912fcc8317e6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01EpfohJ5htFky3ximXWavHi\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"The user wants a flight booked from London to Oslo on 2026-11-14. I have a book_flight tool. Use it directly.\",\"evaluation_previous_goal…[494 chars]",
+          "content_digest": "d137b79b39c661d2",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000005\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
+          "content_digest": "be103012610e7a55",
+          "tool_name": "book_flight",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Error executing action book_flight: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+          "content_digest": "1dcd74c2bf419b55",
+          "tool_name": "book_flight",
+          "observation_type": "tool"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> Book me a flight from London to Oslo on 2026-11-14. </user_request> <agent_history> Agent initialized <step> Starting task. Browser is empty; using book_flight tool. Book the flight using book_flight. Result Error executing a…[885 chars]",
+          "content_digest": "91ea37f47cbf2300",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "redacted_thinking",
+          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSjAUKEggSEAEYAjgBQgh0aGlua2luZxIMLsGWNuDKfwwWC9CkGgzT00ptW8bdsX+SinQiMB4UEkVuVIEJqSJ/Jw6Mxah48/HtWjEefFakOXRNoJ7YJpb6/e5jjukp9oXGfoqF/CqnBLcKzffvO+X9tFCpchQyrKo0/yPLoOdQ/iXUzhe6En6Rokz0igwBn97p823b3WzZ…[918 chars]",
+          "content_digest": "952aaaf199823df2",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01Bu3ih4YE1wuQZ2zUBz82Nd\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"The book_flight call failed because the booking system is offline. I'll retry once in case it was temporary.\",\"evaluation_previous_goal\"…[589 chars]",
+          "content_digest": "9fca9e4c594c33cf",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000008\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
+          "content_digest": "6d920b961a74504e",
+          "tool_name": "book_flight",
+          "observation_type": "tool"
+        },
+        {
+          "index": 9,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Error executing action book_flight: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+          "content_digest": "680d9e29b1e90def",
+          "tool_name": "book_flight",
+          "observation_type": "tool"
+        },
+        {
+          "index": 10,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> Book me a flight from London to Oslo on 2026-11-14. </user_request> <agent_history> Agent initialized <step> Starting task. Browser is empty; using book_flight tool. Book the flight using book_flight. Result Error executing a…[1240 chars]",
+          "content_digest": "531ae650a2a22168",
+          "observation_type": "generation"
+        },
+        {
+          "index": 11,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_013N6TnbEvcBRsyvv4Zn4wo9\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"Two attempts failed with the system offline. Browser is empty; no alternative. Report failure honestly.\",\"evaluation_previous_goal\":\"Ret…[773 chars]",
+          "content_digest": "06bd5879c9b27846",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-00000000000b\",\"name\":\"done\",\"input\":{\"text\":\"I couldn't book the flight from London to Oslo on 2026-11-14. I tried the booking tool twice, and both times it returned \\\"No seats... the booking…[350 chars]",
+          "content_digest": "23b42c2ccebbad58",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 13,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "I couldn't book the flight from London to Oslo on 2026-11-14. I tried the booking tool twice, and both times it returned \"No seats... the booking system is offline.\" No booking was made, so please try again later.",
+          "content_digest": "9e929f92ab0173e5",
+          "tool_name": "done",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "browser-use-error": {
+      "message_count": 14,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "tool",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "tool",
+        "user",
+        "assistant",
+        "assistant",
+        "tool"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+          "content_digest": "c42f8360e1449461",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> Book me a flight from London to Oslo on 2026-11-14. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo…[668 chars]",
+          "content_digest": "a7d8912fcc8317e6",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01EpfohJ5htFky3ximXWavHi\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"The user wants a flight booked from London to Oslo on 2026-11-14. I have a book_flight tool. Use it directly.\",\"evaluation_previous_goal…[494 chars]",
+          "content_digest": "d137b79b39c661d2",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000005\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
+          "content_digest": "be103012610e7a55",
+          "tool_name": "book_flight",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Error executing action book_flight: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+          "content_digest": "1dcd74c2bf419b55",
+          "tool_name": "book_flight",
+          "observation_type": "tool"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> Book me a flight from London to Oslo on 2026-11-14. </user_request> <agent_history> Agent initialized <step> Starting task. Browser is empty; using book_flight tool. Book the flight using book_flight. Result Error executing a…[885 chars]",
+          "content_digest": "91ea37f47cbf2300",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "redacted_thinking",
+          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSjAUKEggSEAEYAjgBQgh0aGlua2luZxIMLsGWNuDKfwwWC9CkGgzT00ptW8bdsX+SinQiMB4UEkVuVIEJqSJ/Jw6Mxah48/HtWjEefFakOXRNoJ7YJpb6/e5jjukp9oXGfoqF/CqnBLcKzffvO+X9tFCpchQyrKo0/yPLoOdQ/iXUzhe6En6Rokz0igwBn97p823b3WzZ…[918 chars]",
+          "content_digest": "952aaaf199823df2",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01Bu3ih4YE1wuQZ2zUBz82Nd\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"The book_flight call failed because the booking system is offline. I'll retry once in case it was temporary.\",\"evaluation_previous_goal\"…[589 chars]",
+          "content_digest": "9fca9e4c594c33cf",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000008\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
+          "content_digest": "6d920b961a74504e",
+          "tool_name": "book_flight",
+          "observation_type": "tool"
+        },
+        {
+          "index": 9,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Error executing action book_flight: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+          "content_digest": "680d9e29b1e90def",
+          "tool_name": "book_flight",
+          "observation_type": "tool"
+        },
+        {
+          "index": 10,
+          "role": "user",
+          "entry_type": "text",
+          "content": "<user_request> Book me a flight from London to Oslo on 2026-11-14. </user_request> <agent_history> Agent initialized <step> Starting task. Browser is empty; using book_flight tool. Book the flight using book_flight. Result Error executing a…[1240 chars]",
+          "content_digest": "531ae650a2a22168",
+          "observation_type": "generation"
+        },
+        {
+          "index": 11,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_013N6TnbEvcBRsyvv4Zn4wo9\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"Two attempts failed with the system offline. Browser is empty; no alternative. Report failure honestly.\",\"evaluation_previous_goal\":\"Ret…[773 chars]",
+          "content_digest": "06bd5879c9b27846",
+          "tool_name": "AgentOutput",
+          "observation_type": "generation"
+        },
+        {
+          "index": 12,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-00000000000b\",\"name\":\"done\",\"input\":{\"text\":\"I couldn't book the flight from London to Oslo on 2026-11-14. I tried the booking tool twice, and both times it returned \\\"No seats... the booking…[350 chars]",
+          "content_digest": "23b42c2ccebbad58",
+          "tool_name": "done",
+          "observation_type": "tool"
+        },
+        {
+          "index": 13,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "I couldn't book the flight from London to Oslo on 2026-11-14. I tried the booking tool twice, and both times it returned \"No seats... the booking system is offline.\" No booking was made, so please try again later.",
+          "content_digest": "9e929f92ab0173e5",
+          "tool_name": "done",
+          "observation_type": "tool"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 14,
+    "role_sequence": [
+      "tool",
+      "assistant",
+      "user",
+      "assistant",
+      "tool",
+      "assistant",
+      "user",
+      "assistant",
+      "assistant",
+      "tool",
+      "assistant",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "I couldn't book the flight from London to Oslo on 2026-11-14. I tried the booking tool twice, and both times it returned \"No seats... the booking system is offline.\" No booking was made, so please try again later.",
+        "content_digest": "9e929f92ab0173e5",
+        "tool_name": "done",
+        "observation_type": "tool"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-00000000000b\",\"name\":\"done\",\"input\":{\"text\":\"I couldn't book the flight from London to Oslo on 2026-11-14. I tried the booking tool twice, and both times it returned \\\"No seats... the booking…[350 chars]",
+        "content_digest": "23b42c2ccebbad58",
+        "tool_name": "done",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "<user_request> Book me a flight from London to Oslo on 2026-11-14. </user_request> <agent_history> Agent initialized <step> Starting task. Browser is empty; using book_flight tool. Book the flight using book_flight. Result Error executing a…[1240 chars]",
+        "content_digest": "531ae650a2a22168",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_013N6TnbEvcBRsyvv4Zn4wo9\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"Two attempts failed with the system offline. Browser is empty; no alternative. Report failure honestly.\",\"evaluation_previous_goal\":\"Ret…[773 chars]",
+        "content_digest": "06bd5879c9b27846",
+        "tool_name": "AgentOutput",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Error executing action book_flight: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+        "content_digest": "680d9e29b1e90def",
+        "tool_name": "book_flight",
+        "observation_type": "tool"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000008\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
+        "content_digest": "6d920b961a74504e",
+        "tool_name": "book_flight",
+        "observation_type": "tool"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "entry_type": "text",
+        "content": "<user_request> Book me a flight from London to Oslo on 2026-11-14. </user_request> <agent_history> Agent initialized <step> Starting task. Browser is empty; using book_flight tool. Book the flight using book_flight. Result Error executing a…[885 chars]",
+        "content_digest": "91ea37f47cbf2300",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "assistant",
+        "entry_type": "redacted_thinking",
+        "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSjAUKEggSEAEYAjgBQgh0aGlua2luZxIMLsGWNuDKfwwWC9CkGgzT00ptW8bdsX+SinQiMB4UEkVuVIEJqSJ/Jw6Mxah48/HtWjEefFakOXRNoJ7YJpb6/e5jjukp9oXGfoqF/CqnBLcKzffvO+X9tFCpchQyrKo0/yPLoOdQ/iXUzhe6En6Rokz0igwBn97p823b3WzZ…[918 chars]",
+        "content_digest": "952aaaf199823df2",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01Bu3ih4YE1wuQZ2zUBz82Nd\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"The book_flight call failed because the booking system is offline. I'll retry once in case it was temporary.\",\"evaluation_previous_goal\"…[589 chars]",
+        "content_digest": "9fca9e4c594c33cf",
+        "tool_name": "AgentOutput",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "Error executing action book_flight: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+        "content_digest": "1dcd74c2bf419b55",
+        "tool_name": "book_flight",
+        "observation_type": "tool"
+      },
+      {
+        "index": 10,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"00000000-0000-0000-0000-000000000005\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
+        "content_digest": "be103012610e7a55",
+        "tool_name": "book_flight",
+        "observation_type": "tool"
+      },
+      {
+        "index": 11,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are an AI agent designed to operate in an iterative loop to automate browser tasks. Your ultimate goal is accomplishing the task provided in <user_request>. <intro> You excel at following tasks: 1. Navigating complex websites and extrac…[24160 chars]",
+        "content_digest": "c42f8360e1449461",
+        "observation_type": "generation"
+      },
+      {
+        "index": 12,
+        "role": "user",
+        "entry_type": "text",
+        "content": "<user_request> Book me a flight from London to Oslo on 2026-11-14. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo…[668 chars]",
+        "content_digest": "a7d8912fcc8317e6",
+        "observation_type": "generation"
+      },
+      {
+        "index": 13,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01EpfohJ5htFky3ximXWavHi\",\"name\":\"AgentOutput\",\"input\":{\"thinking\":\"The user wants a flight booked from London to Oslo on 2026-11-14. I have a book_flight tool. Use it directly.\",\"evaluation_previous_goal…[494 chars]",
+        "content_digest": "d137b79b39c661d2",
+        "tool_name": "AgentOutput",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}
