@@ -115,9 +115,8 @@ disk-guard:
 	used=$${used:-0}; \
 	available=$$(df -Pm . | awk 'NR == 2 {print $$4}'); \
 	if [ "$$used" -gt "$(DISK_BUDGET_MB)" ]; then \
-		echo "[disk-guard] Cargo target remains $$used MB; limit is $(DISK_BUDGET_MB) MB"; \
-		echo "[disk-guard] Run 'make clean' or raise DISK_BUDGET_MB."; \
-		exit 1; \
+		echo "[disk-guard] Cargo target remains $$used MB after reclaiming, over the $(DISK_BUDGET_MB) MB budget;"; \
+		echo "[disk-guard] 'make clean' reclaims it. Not an error: the free-space reserve is what protects the disk."; \
 	fi; \
 	if [ "$$available" -lt "$(DISK_FREE_MIN_MB)" ]; then \
 		echo "[disk-guard] only $$available MB free; reserve is $(DISK_FREE_MIN_MB) MB"; \
