@@ -112,8 +112,19 @@ if [ -n "$rust_files" ]; then
                 *) unit+=(-p "$c") ;;
             esac
         done
+        # One build of every target the runs below need, so cargo compiles them in parallel rather
+        # than one invocation after another.
+        build=()
+        if ((${#unit[@]})); then build+=("${unit[@]}"); fi
+        if ((server)); then
+            build+=(-p sideseat-server --test message_goldens)
+            if grep -qvE '\.rs$' <<<"$changed"; then build+=(--test repository); fi
+        fi
+        if ((${#build[@]})); then
+            cargo test --locked -q --no-run --lib --bins "${build[@]}"
+        fi
         if ((${#unit[@]})); then
-            cargo test --locked -q "${unit[@]}" --lib --bins --tests
+            cargo test --locked -q "${unit[@]}" --lib --bins
         fi
         if ((server)); then
             cargo test --locked -q -p sideseat-server --lib --bins
