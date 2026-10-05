@@ -49,6 +49,12 @@ class ModelProxy:
         self.cassette = cassette
         self.record = record
         self.misses: list[str] = []
+        #: How each replayed request found its answer: by an identical request, or - when the request
+        #: changed, as a different framework version serialises it differently - by arrival order on
+        #: the same method and path. Order is sound only while the conversation takes the same course,
+        #: which :meth:`unanswered` lets a caller check.
+        self.exact = 0
+        self.by_order = 0
         self._recorded: list[dict[str, Any]] = []
         self._by_digest: dict[str, deque[dict[str, Any]]] = defaultdict(deque)
         self._by_path: dict[str, deque[dict[str, Any]]] = defaultdict(deque)
@@ -97,11 +103,13 @@ class ModelProxy:
             item = queue.popleft() if queue else None
             if item is not None:
                 self._by_path[f"{method} {path}"].remove(item)
+                self.exact += 1
             else:
                 fallback = self._by_path.get(f"{method} {path}")
                 item = fallback.popleft() if fallback else None
                 if item is not None:
                     self._by_digest[item["request_sha256"]].remove(item)
+                    self.by_order += 1
         if item is None:
             self.misses.append(f"{method} {path}")
             return {
@@ -114,6 +122,11 @@ class ModelProxy:
                 ),
             }
         return item
+
+    def unanswered(self) -> list[str]:
+        """Recorded interactions no request asked for: the replayed run took a shorter course."""
+        with self._lock:
+            return [key for key, queue in self._by_path.items() for _ in queue]
 
     @staticmethod
     def _forward(

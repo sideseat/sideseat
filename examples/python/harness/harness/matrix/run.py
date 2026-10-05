@@ -1,0 +1,145 @@
+"""Replay one scenario in a variant's environment and record what it exports."""
+
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+import tempfile
+import threading
+from dataclasses import dataclass, field
+from http.server import ThreadingHTTPServer
+from pathlib import Path
+
+from harness.capture import Pins, Suite, _Recorder, credential_in, uses_fake_model
+from harness.matrix.environment import executable
+from harness.proxy import ModelProxy, client_environment
+
+
+@dataclass
+class Replay:
+    """What one replayed run did; ``ok`` only if it is a faithful copy of the recorded conversation."""
+
+    scenario: str
+    staging: Path
+    returncode: int = 0
+    exact: int = 0
+    by_order: int = 0
+    misses: list[str] = field(default_factory=list)
+    unanswered: list[str] = field(default_factory=list)
+    leaked: str | None = None
+    output: str = ""
+
+    @property
+    def requests(self) -> list[Path]:
+        return sorted(self.staging.glob("req-*"))
+
+    @property
+    def problems(self) -> list[str]:
+        found = []
+        if self.returncode != 0:
+            found.append(f"the scenario exited with {self.returncode}")
+        if self.misses:
+            found.append(f"requests the cassette has no answer for: {self.misses}")
+        if self.unanswered:
+            # Answers were matched by arrival order, which is sound only if the run asked for all of them.
+            found.append(f"recorded answers no request asked for: {self.unanswered}")
+        if self.leaked:
+            found.append(f"a payload holds {self.leaked}")
+        if not self.requests:
+            found.append("no trace export was recorded")
+        return found
+
+    @property
+    def ok(self) -> bool:
+        return not self.problems
+
+    def discard(self) -> None:
+        shutil.rmtree(self.staging, ignore_errors=True)
+
+
+def replay(
+    suite: Suite,
+    environment: Path,
+    scenario: str,
+    *,
+    mode: str = "native",
+    env: dict[str, str] | None = None,
+    timeout: float = 600,
+) -> Replay:
+    """Run ``scenario`` from ``environment`` against the suite's committed cassette, offline.
+
+    The answer to each request is the recorded one for an identical request, else the next recorded one
+    on the same method and path: an older release serialises its requests differently, so most matches are
+    by order. That is why the run must also consume every recorded answer - a run that asked fewer
+    questions took a different course, and its telemetry is not the recorded conversation.
+    """
+    staging = Path(
+        tempfile.mkdtemp(prefix=f"matrix-{suite.manifest['producer']}-{scenario}-")
+    )
+    result = Replay(scenario, staging)
+    _Recorder.out, _Recorder.forward, _Recorder.count = staging, None, 0
+    _Recorder.counts = {}
+    _Recorder.pins = Pins()
+    recorder = ThreadingHTTPServer(("127.0.0.1", 0), _Recorder)
+    threading.Thread(target=recorder.serve_forever, daemon=True).start()
+    arguments = [scenario] + (["--sideseat"] if mode == "sdk" else [])
+    run_env = {
+        **os.environ,
+        **(env or {}),
+        "SIDESEAT_ENDPOINT": f"http://127.0.0.1:{recorder.server_address[1]}",
+        "SIDESEAT_PROJECT_ID": "default",
+    }
+    run_env.pop("OTEL_EXPORTER_OTLP_ENDPOINT", None)
+    # The variant's interpreter, not the one running the harness: VIRTUAL_ENV would point uv elsewhere.
+    run_env.pop("VIRTUAL_ENV", None)
+    command = [str(executable(environment, "sample")), *arguments]
+    try:
+        if uses_fake_model(suite, None):
+            completed = _run(command, suite.root, run_env, timeout)
+        else:
+            cassette = suite.root / "cassettes" / f"{scenario}.json"
+            if not cassette.exists():
+                result.returncode = -1
+                result.output = f"no cassette at {cassette}"
+                return result
+            with ModelProxy(cassette, record=False) as proxy:
+                run_env.update(client_environment(proxy.url))
+                completed = _run(command, suite.root, run_env, timeout)
+            result.exact, result.by_order = proxy.exact, proxy.by_order
+            result.misses, result.unanswered = proxy.misses, proxy.unanswered()
+        result.returncode, result.output = completed
+    finally:
+        recorder.shutdown()
+    for path in sorted(staging.iterdir()):
+        if kind := credential_in(path.read_bytes()):
+            result.leaked = f"{kind} ({path.name})"
+            break
+    return result
+
+
+def _run(
+    command: list[str], cwd: Path, env: dict[str, str], timeout: float
+) -> tuple[int, str]:
+    try:
+        completed = subprocess.run(
+            command, cwd=cwd, env=env, capture_output=True, text=True, timeout=timeout
+        )
+    except subprocess.TimeoutExpired:
+        return -9, f"timed out after {timeout:.0f}s"
+    return completed.returncode, (completed.stdout + completed.stderr)[-4000:]
+
+
+def commit(result: Replay, target: Path) -> int:
+    """Move a faithful run's exports into its fixture directory, replacing the previous capture."""
+    assert result.ok, result.problems
+    target.mkdir(parents=True, exist_ok=True)
+    for pattern in ("req-*", "logs-*"):
+        for stale in target.glob(pattern):
+            stale.unlink()
+    moved = 0
+    for payload in sorted(result.staging.iterdir()):
+        shutil.move(payload, target / payload.name)
+        moved += payload.name.startswith("req-")
+    result.discard()
+    return moved

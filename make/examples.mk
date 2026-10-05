@@ -1,6 +1,6 @@
 ##@ Examples and fixtures
 
-.PHONY: sample capture capture-offline
+.PHONY: sample capture capture-offline matrix matrix-census matrix-check
 
 # The recording proxy signs Bedrock requests, so capture needs the bedrock extra.
 HARNESS := uv run --locked --extra bedrock --directory examples/python/harness
@@ -27,3 +27,20 @@ capture-offline: ## Re-capture fixtures from committed model cassettes, without 
 	@[ -n "$(P)" ] || { echo "usage: make capture-offline P=<producer> [S=scenario]"; exit 2; }
 	@$(HARNESS) capture $(P) $(S) --offline
 	@UPDATE_GOLDENS=1 $(CARGO_TEST) -p sideseat-server --test message_goldens -E 'test(=message_goldens)'
+
+# The version matrix (docs/engineering/framework-versions.md). Opt-in: neither `make quick` nor `make test`
+# runs it, because it installs one environment per historical release.
+MATRIX := uv run --locked --directory examples/python/harness python -m harness matrix
+
+matrix: ## Replay a suite against its historical releases, offline (P=producer [V=variant] [S=scenario])
+	@[ -n "$(P)" ] || { echo "usage: make matrix P=<producer> [V=variant] [S=scenario]"; exit 2; }
+	@$(MATRIX) $(P) $(V) $(if $(S),--scenario $(S))
+	@UPDATE_GOLDENS=1 $(CARGO_TEST) -p sideseat-server --test message_goldens -E 'test(=message_goldens)'
+	@uv run --locked --directory examples/python/harness python -m harness truth $(P)
+
+matrix-census: ## Classify every release of a suite's support window by telemetry shape (P=producer; network)
+	@[ -n "$(P)" ] || { echo "usage: make matrix-census P=<producer>"; exit 2; }
+	@$(MATRIX) $(P) --census $(if $(RETRY),--retry)
+
+matrix-check: ## Check every suite's census coverage and variant fixtures, offline
+	@$(MATRIX) --check
