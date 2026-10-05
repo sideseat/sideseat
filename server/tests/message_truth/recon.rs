@@ -29,6 +29,8 @@ pub(super) struct Block {
     pub media_sha256: Option<String>,
     /// Digest of role, type and full content: "the same block" in every view.
     pub digest: String,
+    /// The digest with the block's side-channel call id: two blocks are copies only if both agree.
+    pub identity: String,
 }
 
 impl Block {
@@ -68,6 +70,11 @@ impl Block {
             self.role,
             self.kind,
             crate::content_digest(&self.content)
+        );
+        self.identity = format!(
+            "{}#{}",
+            self.digest,
+            self.tool_use_id.as_deref().unwrap_or("")
         );
     }
 }
@@ -184,7 +191,9 @@ pub(super) fn build(fixture: &str, paths: &[PathBuf]) -> Recon {
     from_built(fixture, &built, spans)
 }
 
-/// SHA-256 of inline base64 bytes; `None` for a URL, a placeholder, or no data at all.
+/// SHA-256 of inline base64 bytes; `None` for a URL, no data, or a short placeholder an
+/// instrumentation writes in place of the bytes (`__REDACTED__`, `<replaced>`). Long data that does not
+/// decode is corrupt bytes, not a placeholder, and digests to a value no truth states.
 fn media_sha256(content: &Value) -> Option<String> {
     use base64::Engine as _;
     use sha2::Digest as _;
@@ -195,11 +204,15 @@ fn media_sha256(content: &Value) -> Option<String> {
     if data.is_empty() {
         return None;
     }
-    let bytes = base64::engine::general_purpose::STANDARD
-        .decode(data)
-        .ok()?;
-    Some(super::truth::hex_digest(&sha2::Sha256::digest(&bytes)))
+    match base64::engine::general_purpose::STANDARD.decode(data) {
+        Ok(bytes) => Some(super::truth::hex_digest(&sha2::Sha256::digest(&bytes))),
+        Err(_) if data.len() < PLACEHOLDER_LIMIT => None,
+        Err(_) => Some("undecodable".to_string()),
+    }
 }
+
+/// The longest undecodable data still read as a placeholder rather than as damaged bytes.
+const PLACEHOLDER_LIMIT: usize = 64;
 
 pub(super) fn from_built(fixture: &str, built: &Built, mut spans: Spans) -> Recon {
     let parent_of: BTreeMap<(String, String), String> = spans
@@ -238,6 +251,7 @@ pub(super) fn from_built(fixture: &str, built: &Built, mut spans: Spans) -> Reco
                     output: row.is_output,
                     finish: row.finish,
                     digest: String::new(),
+                    identity: String::new(),
                 };
                 block.refresh();
                 block

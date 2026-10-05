@@ -173,9 +173,11 @@ fn media_matches(value: &Value, block: &Block) -> bool {
     if value.get("modality").and_then(Value::as_str) != Some(block.kind.as_str()) {
         return false;
     }
-    if let Some(shown) = block.content.get("media_type").and_then(Value::as_str)
-        && Some(shown) != value.get("media_type").and_then(Value::as_str)
-    {
+    // The media type is part of the attachment: where the bytes are kept, shown absent is shown
+    // wrong; a placeholder for dropped bytes may have lost it with them.
+    let shown = block.content.get("media_type").and_then(Value::as_str);
+    let stated = value.get("media_type").and_then(Value::as_str);
+    if shown != stated && (shown.is_some() || block.media_sha256.is_some()) {
         return false;
     }
     match &block.media_sha256 {
@@ -187,10 +189,16 @@ fn media_matches(value: &Value, block: &Block) -> bool {
 /// JSON equality with numbers compared by value, so `395` equals `395.0`.
 pub(super) fn json_eq(left: &Value, right: &Value) -> bool {
     match (left, right) {
-        (Value::Number(a), Value::Number(b)) => match (a.as_f64(), b.as_f64()) {
-            (Some(x), Some(y)) => x == y,
-            _ => a == b,
-        },
+        // Integers exactly; only a pair involving a fraction compares as floating point, so two
+        // distinct large integers never collapse onto one double.
+        (Value::Number(a), Value::Number(b)) => {
+            match (a.as_i64(), b.as_i64(), a.as_u64(), b.as_u64()) {
+                (Some(x), Some(y), _, _) => x == y,
+                (_, _, Some(x), Some(y)) => x == y,
+                _ if a.is_f64() || b.is_f64() => a.as_f64() == b.as_f64(),
+                _ => a == b,
+            }
+        }
         (Value::Array(a), Value::Array(b)) => {
             a.len() == b.len() && a.iter().zip(b).all(|(x, y)| json_eq(x, y))
         }

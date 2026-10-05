@@ -34,6 +34,8 @@ use super::{Violation, ViolationView};
 use crate::{attach_log_messages, build_golden, decode_request, describe_diff, normalize_for_test};
 
 type Rows = Vec<(String, MessageSpanRow)>;
+/// One view as role, block type and full-content digest per block.
+type Projection = Vec<(String, String, String)>;
 
 fn rows_of(requests: &[ExportTraceServiceRequest], paths: &[PathBuf]) -> Rows {
     let pricing =
@@ -97,7 +99,7 @@ fn has_logs(paths: &[PathBuf]) -> bool {
 
 /// What a conversation is, independent of how a framework version names its spans: every trace
 /// view, session view and the feed, as role, block type and full-content digest.
-fn conversation(golden: &crate::Golden) -> Vec<Vec<(String, String, String)>> {
+fn conversation(golden: &crate::Golden) -> Vec<(&'static str, Projection)> {
     let project = |view: &crate::GoldenView| {
         view.messages
             .iter()
@@ -110,11 +112,20 @@ fn conversation(golden: &crate::Golden) -> Vec<Vec<(String, String, String)>> {
             })
             .collect::<Vec<_>>()
     };
-    let mut sessions: Vec<_> = golden.session_views.values().map(project).collect();
+    // Tagged, so a trace cannot stand in for a session that happens to hold the same messages.
+    let mut sessions: Vec<_> = golden
+        .session_views
+        .values()
+        .map(|v| ("session", project(v)))
+        .collect();
     sessions.sort();
-    let mut out: Vec<_> = golden.trace_views.values().map(project).collect();
+    let mut out: Vec<_> = golden
+        .trace_views
+        .values()
+        .map(|v| ("trace", project(v)))
+        .collect();
     out.extend(sessions);
-    out.push(project(&golden.feed_view));
+    out.push(("feed", project(&golden.feed_view)));
     out
 }
 
@@ -128,7 +139,11 @@ fn current_release_of(label: &str) -> Option<String> {
 }
 
 /// The ways one fixture's views changed under a different delivery, and its views as delivered.
-fn differences(label: &str, paths: &[PathBuf]) -> (Vec<Violation>, crate::Golden) {
+fn differences(
+    label: &str,
+    paths: &[PathBuf],
+    tamper: fn(&mut Rows),
+) -> (Vec<Violation>, crate::Golden) {
     let requests: Vec<ExportTraceServiceRequest> =
         paths.iter().map(|p| decode_request(p)).collect();
     let rows = rows_of(&requests, paths);
@@ -157,7 +172,8 @@ fn differences(label: &str, paths: &[PathBuf]) -> (Vec<Violation>, crate::Golden
     }
     let found = variants
         .into_iter()
-        .filter_map(|(name, rows)| {
+        .filter_map(|(name, mut rows)| {
+            tamper(&mut rows);
             assert!(
                 super::DELIVERY_FAMILIES.contains(&name),
                 "{name} is not registered"
@@ -202,7 +218,7 @@ fn no_delivery_or_framework_release_changes_a_conversation() {
                     let Some((label, paths)) = fixtures.get(index) else {
                         break;
                     };
-                    let (found, golden) = differences(label, paths);
+                    let (found, golden) = differences(label, paths, |_| {});
                     failures.lock().expect("no worker panicked").extend(found);
                     goldens
                         .lock()
@@ -217,7 +233,19 @@ fn no_delivery_or_framework_release_changes_a_conversation() {
     // framework, is the same conversation: what the model said did not change.
     let goldens = goldens.into_inner().expect("no worker panicked");
     for (label, golden) in &goldens {
-        let Some(current) = current_release_of(label).and_then(|c| goldens.get(&c)) else {
+        let Some(current_label) = current_release_of(label) else {
+            continue;
+        };
+        let Some(current) = goldens.get(&current_label) else {
+            // A release capture with nothing to compare against would never be checked.
+            let mut violation = Violation::new(
+                ViolationView::Delivery,
+                "invariance.framework_version",
+                "conversation",
+                format!("no {current_label} to compare with"),
+            );
+            violation.fixture = label.clone();
+            observed.push(violation);
             continue;
         };
         if conversation(golden) != conversation(current) {
@@ -253,5 +281,47 @@ fn no_delivery_or_framework_release_changes_a_conversation() {
         "{} disagreement(s) between delivery variations and the ledger:\n  {}",
         problems.len(),
         problems.join("\n  ")
+    );
+}
+
+/// Each delivery variation reports a change when there is one: with the variant's rows tampered
+/// with - one message-bearing span dropped - every variation must flag the fixture.
+#[test]
+fn every_delivery_variation_detects_a_changed_answer() {
+    // Every copy of the last span that carries messages, so re-delivery cannot restore it.
+    fn drop_last_message(rows: &mut Rows) {
+        let last = rows
+            .iter()
+            .filter(|(_, r)| r.messages_json != "[]")
+            .map(|(_, r)| r.span_id.clone())
+            .max();
+        rows.retain(|(_, r)| Some(&r.span_id) != last.as_ref());
+    }
+    let fixtures: std::collections::BTreeMap<String, Vec<PathBuf>> =
+        crate::discover_fixtures().into_iter().collect();
+    let label = "_synthetic/tool_use";
+    let (found, _) = differences(label, &fixtures[label], drop_last_message);
+    let fired: std::collections::BTreeSet<&str> =
+        found.iter().map(|v| v.assertion.as_str()).collect();
+    for family in super::DELIVERY_FAMILIES
+        .iter()
+        .filter(|f| **f != "invariance.framework_version")
+    {
+        assert!(
+            fired.contains(family),
+            "{family} did not notice a dropped message: {fired:?}"
+        );
+    }
+    let tool_use =
+        crate::build_golden(label, &fixtures[label], &crate::rows_for(&fixtures[label])).golden;
+    let mut edited = tool_use.clone();
+    edited
+        .trace_views
+        .values_mut()
+        .for_each(|v| v.messages.truncate(1));
+    assert_ne!(
+        conversation(&tool_use),
+        conversation(&edited),
+        "invariance.framework_version compares conversations that differ as equal"
     );
 }

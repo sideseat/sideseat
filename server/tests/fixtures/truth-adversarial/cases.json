@@ -45,10 +45,13 @@
     }
    ],
    "fires": [
-    "call.unmatched",
-    "extra.unexplained",
-    "generation.unexpected",
-    "text.missing"
+    "call:call.unmatched:call-002",
+    "call:generation.unexpected:trace-1/chat/span-4",
+    "feed:text.missing:fact-005",
+    "session:extra.unexplained:assistant/text/31a2921a7958f22a",
+    "session:text.missing:fact-005",
+    "trace:extra.unexplained:assistant/text/31a2921a7958f22a",
+    "trace:text.missing:fact-005"
    ]
   },
   {
@@ -62,8 +65,12 @@
     }
    ],
    "fires": [
-    "extra.unexplained",
-    "text.missing"
+    "feed:text.missing:fact-005",
+    "session:extra.unexplained:assistant/text/31a2921a7958f22a",
+    "session:text.missing:fact-005",
+    "span:text.missing:fact-005",
+    "trace:extra.unexplained:assistant/text/31a2921a7958f22a",
+    "trace:text.missing:fact-005"
    ]
   },
   {
@@ -77,8 +84,12 @@
     }
    ],
    "fires": [
-    "extra.unexplained",
-    "tool_call.missing"
+    "feed:tool_call.missing:fact-003",
+    "session:extra.unexplained:assistant/tool_use/6004a25dd57fe6a0",
+    "session:tool_call.missing:fact-003",
+    "span:tool_call.missing:fact-003",
+    "trace:extra.unexplained:assistant/tool_use/6004a25dd57fe6a0",
+    "trace:tool_call.missing:fact-003"
    ]
   },
   {
@@ -92,8 +103,11 @@
     }
    ],
    "fires": [
-    "extra.unexplained",
-    "tool_result.missing"
+    "feed:tool_result.missing:fact-004",
+    "session:extra.unexplained:tool/tool_result/5245a39f6f120043",
+    "session:tool_result.missing:fact-004",
+    "trace:extra.unexplained:tool/tool_result/5245a39f6f120043",
+    "trace:tool_result.missing:fact-004"
    ]
   },
   {
@@ -107,8 +121,11 @@
     }
    ],
    "fires": [
-    "extra.unexplained",
-    "system.missing"
+    "feed:system.missing:fact-001",
+    "session:extra.unexplained:system/text/14d3157937730bf4",
+    "session:system.missing:fact-001",
+    "trace:extra.unexplained:system/text/14d3157937730bf4",
+    "trace:system.missing:fact-001"
    ]
   },
   {
@@ -122,8 +139,11 @@
     }
    ],
    "fires": [
-    "extra.unexplained",
-    "user_text.missing"
+    "feed:user_text.missing:fact-002",
+    "session:extra.unexplained:user/text/c2201148fae02ae7",
+    "session:user_text.missing:fact-002",
+    "trace:extra.unexplained:user/text/c2201148fae02ae7",
+    "trace:user_text.missing:fact-002"
    ]
   },
   {
@@ -164,7 +184,9 @@
     }
    ],
    "fires": [
-    "user_media.missing"
+    "feed:user_media.missing:fact-009",
+    "session:user_media.missing:fact-009",
+    "trace:user_media.missing:fact-009"
    ]
   },
   {
@@ -211,8 +233,14 @@
     }
    ],
    "fires": [
-    "reasoning.as_text",
-    "reasoning.missing"
+    "feed:reasoning.as_text:fact-009",
+    "feed:reasoning.missing:fact-009",
+    "session:reasoning.as_text:fact-009",
+    "session:reasoning.missing:fact-009",
+    "span:reasoning.as_text:fact-009",
+    "span:reasoning.missing:fact-009",
+    "trace:reasoning.as_text:fact-009",
+    "trace:reasoning.missing:fact-009"
    ]
   },
   {
@@ -231,7 +259,7 @@
     }
    ],
    "fires": [
-    "call.model"
+    "call:call.model:call-001"
    ]
   },
   {
@@ -245,7 +273,7 @@
     }
    ],
    "fires": [
-    "call.response_model"
+    "call:call.response_model:call-001"
    ]
   },
   {
@@ -259,7 +287,7 @@
     }
    ],
    "fires": [
-    "call.response_id"
+    "call:call.response_id:call-001"
    ]
   },
   {
@@ -273,7 +301,7 @@
     }
    ],
    "fires": [
-    "call.finish"
+    "call:call.finish:call-002"
    ]
   },
   {
@@ -287,7 +315,7 @@
     }
    ],
    "fires": [
-    "call.usage.input"
+    "call:call.usage.input:call-001"
    ]
   },
   {
@@ -301,7 +329,7 @@
     }
    ],
    "fires": [
-    "call.usage.output"
+    "call:call.usage.output:call-001"
    ]
   },
   {
@@ -315,7 +343,7 @@
     }
    ],
    "fires": [
-    "call.usage.cache_read"
+    "call:call.usage.cache_read:call-001"
    ]
   },
   {
@@ -329,7 +357,7 @@
     }
    ],
    "fires": [
-    "call.usage.cache_write"
+    "call:call.usage.cache_write:call-001"
    ]
   },
   {
@@ -343,7 +371,7 @@
     }
    ],
    "fires": [
-    "call.usage.reasoning"
+    "call:call.usage.reasoning:call-001"
    ]
   },
   {
@@ -362,7 +390,10 @@
     }
    ],
    "fires": [
-    "tool_call.id_rewritten"
+    "feed:tool_call.id_rewritten:fact-003",
+    "session:tool_call.id_rewritten:fact-003",
+    "span:tool_call.id_rewritten:fact-003",
+    "trace:tool_call.id_rewritten:fact-003"
    ]
   },
   {
@@ -409,13 +440,71 @@
     }
    ],
    "fires": [
-    "user_text.claimed_twice"
+    "feed:user_text.claimed_twice:fact-009",
+    "session:user_text.claimed_twice:fact-009",
+    "trace:user_text.claimed_twice:fact-009"
    ]
   },
   {
    "name": "calls in the other order",
    "truth": "metadata",
    "patch": [
+    {
+     "op": "replace",
+     "path": "/calls",
+     "value": [
+      {
+       "id": "call-002",
+       "attempt": 1,
+       "outcome": "success",
+       "conversation": "conv-1",
+       "api": "bedrock.converse",
+       "streamed": false,
+       "status": 200,
+       "model": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+       "response_model": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+       "response_id": "msg_adv_2",
+       "stop_reason": "end_turn",
+       "finish": "stop",
+       "usage": {
+        "input": 498,
+        "output": 17,
+        "cache_read": 340,
+        "cache_write": 0,
+        "reasoning": 0,
+        "input_includes_cache": false
+       },
+       "outputs": [
+        "fact-005"
+       ]
+      },
+      {
+       "id": "call-001",
+       "attempt": 1,
+       "outcome": "success",
+       "conversation": "conv-1",
+       "api": "bedrock.converse",
+       "streamed": false,
+       "status": 200,
+       "model": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+       "response_model": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+       "response_id": "msg_adv_1",
+       "stop_reason": "tool_use",
+       "finish": "tool_use",
+       "usage": {
+        "input": 412,
+        "output": 58,
+        "cache_read": 300,
+        "cache_write": 40,
+        "reasoning": 12,
+        "input_includes_cache": false
+       },
+       "outputs": [
+        "fact-003"
+       ]
+      }
+     ]
+    },
     {
      "op": "replace",
      "path": "/edges/2",
@@ -427,9 +516,15 @@
     }
    ],
    "fires": [
-    "attribution.call_order",
-    "order.calls",
-    "order.inputs_after_previous"
+    "call:attribution.call_order:call-002<call-001",
+    "feed:attribution.span:fact-001",
+    "feed:order.calls:call-002<call-001",
+    "session:attribution.span:fact-001",
+    "session:order.calls:call-002<call-001",
+    "session:order.inputs_after_previous:call-002<inputs(call-001)",
+    "trace:attribution.span:fact-001",
+    "trace:order.calls:call-002<call-001",
+    "trace:order.inputs_after_previous:call-002<inputs(call-001)"
    ]
   },
   {
@@ -449,7 +544,8 @@
     }
    ],
    "fires": [
-    "order.sequence"
+    "session:order.sequence:fact-005 before fact-004",
+    "trace:order.sequence:fact-005 before fact-004"
    ]
   },
   {
@@ -490,8 +586,9 @@
     }
    ],
    "fires": [
-    "extra.unexplained",
-    "generation.unexpected"
+    "call:generation.unexpected:trace-1/chat/span-4",
+    "session:extra.unexplained:assistant/text/31a2921a7958f22a",
+    "trace:extra.unexplained:assistant/text/31a2921a7958f22a"
    ]
   },
   {
@@ -555,10 +652,19 @@
       "detail": "a hand-written unknowable answer",
       "subject": "fact-009"
      }
+    },
+    {
+     "op": "add",
+     "path": "/edges/-",
+     "value": {
+      "kind": "call_order",
+      "before": "call-002",
+      "after": "call-003"
+     }
     }
    ],
    "fires": [
-    "call.count"
+    "call:call.count:call-003"
    ]
   },
   {
@@ -622,11 +728,22 @@
      "op": "replace",
      "path": "/model_calls",
      "value": 3
+    },
+    {
+     "op": "add",
+     "path": "/edges/-",
+     "value": {
+      "kind": "call_order",
+      "before": "call-002",
+      "after": "call-003"
+     }
     }
    ],
    "fires": [
-    "call.span_shared",
-    "text.claimed_twice"
+    "call:call.span_shared:call-003",
+    "feed:text.claimed_twice:fact-009",
+    "session:text.claimed_twice:fact-009",
+    "trace:text.claimed_twice:fact-009"
    ]
   },
   {
@@ -649,7 +766,8 @@
     }
    ],
    "fires": [
-    "extra.unexplained"
+    "session:extra.unexplained:system/text/14d3157937730bf4",
+    "trace:extra.unexplained:system/text/14d3157937730bf4"
    ]
   },
   {
@@ -686,8 +804,8 @@
     }
    ],
    "fires": [
-    "order.conversations",
-    "order.sequence"
+    "session:order.conversations:conv-2<conv-1",
+    "session:order.sequence:fact-004 before fact-003"
    ]
   },
   {
@@ -701,8 +819,11 @@
     }
    ],
    "fires": [
-    "extra.unexplained",
-    "user_text.wrong_trace"
+    "feed:user_text.wrong_trace:fact-002",
+    "session:extra.unexplained:user/text/63ddd3c6a93ba932",
+    "session:user_text.wrong_trace:fact-002",
+    "trace:extra.unexplained:user/text/63ddd3c6a93ba932",
+    "trace:user_text.wrong_trace:fact-002"
    ]
   },
   {
@@ -727,7 +848,9 @@
     }
    ],
    "fires": [
-    "user_text.leaked"
+    "feed:user_text.leaked:fact-002",
+    "session:user_text.leaked:fact-002",
+    "trace:user_text.leaked:fact-002"
    ]
   },
   {
@@ -746,9 +869,16 @@
     }
    ],
    "fires": [
-    "attribution.span",
-    "order.inputs_after_previous",
-    "order.prompt"
+    "feed:attribution.span:fact-002",
+    "feed:attribution.span:fact-004",
+    "session:attribution.span:fact-002",
+    "session:attribution.span:fact-004",
+    "session:order.inputs_after_previous:call-001<inputs(call-002)",
+    "session:order.prompt:fact-004<call-001",
+    "trace:attribution.span:fact-002",
+    "trace:attribution.span:fact-004",
+    "trace:order.inputs_after_previous:call-001<inputs(call-002)",
+    "trace:order.prompt:fact-004<call-001"
    ]
   },
   {
@@ -756,7 +886,10 @@
    "truth": "duplicate_part",
    "patch": [],
    "fires": [
-    "text.duplicated"
+    "feed:text.duplicated:fact-005",
+    "session:text.duplicated:fact-005",
+    "span:text.duplicated:fact-005",
+    "trace:text.duplicated:fact-005"
    ],
    "why": "one response holds the same text part twice; the wire said it once"
   },
@@ -765,9 +898,13 @@
    "truth": "prompt_on_tool_span",
    "patch": [],
    "fires": [
-    "attribution.span",
-    "order.prompt",
-    "order.sequence"
+    "feed:attribution.span:fact-002",
+    "session:attribution.span:fact-002",
+    "session:order.prompt:fact-002<call-001",
+    "session:order.sequence:fact-002 before fact-004",
+    "trace:attribution.span:fact-002",
+    "trace:order.prompt:fact-002<call-001",
+    "trace:order.sequence:fact-002 before fact-004"
    ],
    "why": "the prompt is reported only by a tool span beside the model calls"
   },
@@ -776,8 +913,12 @@
    "truth": "parts_order",
    "patch": [],
    "fires": [
-    "order.parts",
-    "order.sequence"
+    "feed:order.parts:fact-003<fact-006",
+    "session:order.parts:fact-003<fact-006",
+    "session:order.sequence:fact-003 before fact-006",
+    "span:order.parts:fact-003<fact-006",
+    "trace:order.parts:fact-003<fact-006",
+    "trace:order.sequence:fact-003 before fact-006"
    ],
    "why": "the wire sent the call before the text"
   },
@@ -786,9 +927,12 @@
    "truth": "ambiguous",
    "patch": [],
    "fires": [
-    "call.ambiguous",
-    "generation.unexpected",
-    "text.duplicated"
+    "call:call.ambiguous:call-002",
+    "call:generation.unexpected:trace-1/chat/span-4",
+    "call:generation.unexpected:trace-1/chat/span-5",
+    "feed:text.duplicated:fact-005",
+    "session:text.duplicated:fact-005",
+    "trace:text.duplicated:fact-005"
    ],
    "why": "a sibling generation span shows the answer the call made"
   },
@@ -797,9 +941,17 @@
    "truth": "failed_attempt",
    "patch": [],
    "fires": [
-    "attribution.span",
-    "call.failed_attempt_has_output",
-    "extra.unexplained"
+    "call:call.failed_attempt_has_output:call-001",
+    "feed:attribution.span:fact-001",
+    "feed:attribution.span:fact-002",
+    "session:attribution.span:fact-001",
+    "session:attribution.span:fact-002",
+    "session:extra.unexplained:assistant/text/0ea179f4f68cf188",
+    "session:extra.unexplained:assistant/text/ca45296f4393966d",
+    "trace:attribution.span:fact-001",
+    "trace:attribution.span:fact-002",
+    "trace:extra.unexplained:assistant/text/0ea179f4f68cf188",
+    "trace:extra.unexplained:assistant/text/ca45296f4393966d"
    ],
    "why": "the ERROR span of the throttled attempt still reports a reply"
   }

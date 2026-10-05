@@ -351,7 +351,6 @@ pub(super) fn document_defects(key: &str, truth: &Truth) -> Vec<String> {
         .iter()
         .filter_map(|g| g.subject.as_deref())
         .collect();
-    let gap_categories: BTreeSet<&str> = truth.gaps.iter().map(|g| g.fact.as_str()).collect();
     for fact in &truth.facts {
         if sequenced.get(fact.id.as_str()) != Some(&1) {
             bad(format!("{} is not sequenced exactly once", fact.id));
@@ -389,9 +388,7 @@ pub(super) fn document_defects(key: &str, truth: &Truth) -> Vec<String> {
         }
         match &fact.require {
             None => {
-                if !gap_subjects.contains(fact.id.as_str())
-                    && !gap_categories.contains(fact.kind.as_str())
-                {
+                if !gap_subjects.contains(fact.id.as_str()) {
                     bad(format!("{} is unasserted but no gap names it", fact.id));
                 }
             }
@@ -413,13 +410,14 @@ pub(super) fn document_defects(key: &str, truth: &Truth) -> Vec<String> {
                         fact.id, require.cardinality
                     ));
                 }
-                if require.views.is_empty()
-                    || require
-                        .views
-                        .iter()
-                        .any(|v| !["span", "trace", "session", "feed"].contains(&v.as_str()))
-                    || (require.views.iter().any(|v| v == "span") && require.anchor != "model_call")
-                {
+                // Every view the anchor reaches, no fewer: a requirement that leaves a view out would
+                // leave it unchecked.
+                let expected: &[&str] = if require.anchor == "model_call" {
+                    &["span", "trace", "session", "feed"]
+                } else {
+                    &["trace", "session", "feed"]
+                };
+                if require.views != expected {
                     bad(format!("{} has views {:?}", fact.id, require.views));
                 }
                 if !super::predicates::supports(&fact.kind, &require.matcher) {
@@ -432,8 +430,36 @@ pub(super) fn document_defects(key: &str, truth: &Truth) -> Vec<String> {
         }
     }
     for gap in &truth.gaps {
-        if gap.detail.trim().is_empty() {
-            bad(format!("gap {} explains nothing", gap.reason));
+        if gap.detail.trim().is_empty() || gap.fact.trim().is_empty() {
+            bad(format!(
+                "gap {} names no category or explains nothing",
+                gap.reason
+            ));
+        }
+        // A closed vocabulary: the checks give each reason a meaning, and a gap about one fact or
+        // call names it, so one gap cannot excuse many.
+        let per_subject = match gap.reason.as_str() {
+            "reasoning_text_omitted"
+            | "answer_quotes_framework_rendering"
+            | "tool_not_deterministic"
+            | "no_output_obligation"
+            | "not_exported" => true,
+            "request_body_unrecorded"
+            | "request_modelled"
+            | "fake_model_echoes_request"
+            | "multi_agent_routing"
+            | "prompt_without_model_call" => false,
+            other => {
+                bad(format!("unknown gap reason {other}"));
+                continue;
+            }
+        };
+        if per_subject != gap.subject.is_some() {
+            bad(format!(
+                "gap {} must {}name a subject",
+                gap.reason,
+                if per_subject { "" } else { "not " }
+            ));
         }
         if let Some(subject) = &gap.subject
             && !facts.contains_key(subject.as_str())
@@ -443,6 +469,47 @@ pub(super) fn document_defects(key: &str, truth: &Truth) -> Vec<String> {
         }
     }
 
+    // The edges the order checks rely on must all be there, or those checks pass vacuously.
+    let count = |kind: &str, from: &str| {
+        truth
+            .edges
+            .iter()
+            .filter(|e| e.kind == kind && e.from.as_deref() == Some(from))
+            .count()
+    };
+    for fact in &truth.facts {
+        let (kind, needed) = match fact.kind.as_str() {
+            "user_text" => ("prompt_of", 1),
+            "tool_result" => ("result_of", 1),
+            _ => continue,
+        };
+        if count(kind, &fact.id) != needed {
+            bad(format!("{} needs exactly one {kind} edge", fact.id));
+        }
+    }
+    if truth.topology != "multi_agent" {
+        for conversation in &truth.conversations {
+            let ordered: Vec<&str> = truth
+                .calls
+                .iter()
+                .filter(|c| c.conversation == conversation.id && c.succeeded())
+                .map(|c| c.id.as_str())
+                .collect();
+            for pair in ordered.windows(2) {
+                let linked = truth.edges.iter().any(|e| {
+                    e.kind == "call_order"
+                        && e.before.as_deref() == Some(pair[0])
+                        && e.after.as_deref() == Some(pair[1])
+                });
+                if !linked {
+                    bad(format!(
+                        "{} and {} have no call_order edge",
+                        pair[0], pair[1]
+                    ));
+                }
+            }
+        }
+    }
     for edge in &truth.edges {
         let resolves = match edge.kind.as_str() {
             "prompt_of" => {

@@ -27,12 +27,19 @@ pub(super) fn check(
     }
 }
 
-/// What the truth's gaps allow beyond its facts.
+/// What the truth's gaps allow beyond its facts, each bound to where it applies.
+///
+/// A gap explains blocks only in the traces of the calls it concerns: an unknowable answer or
+/// reasoning block in its call's trace, an unrecorded system prompt once per trace of its conversation
+/// (each distinct prompt once, when agents route between them), a non-deterministic tool's result by
+/// its call id. A slot is consumed by the block it explains, so a gap never covers two.
 struct Allowance {
     system_prompt: bool,
     routing: bool,
-    reasoning: usize,
-    text: usize,
+    /// Traces any truth call ran in; routing and system prompts are bounded to them.
+    traces: BTreeSet<String>,
+    /// (class, trace) slots for unknowable facts; `None` when the fact's call has no span.
+    slots: Vec<(&'static str, Option<String>)>,
     user_text: usize,
     /// Call ids whose result the truth cannot know.
     results_of: BTreeSet<String>,
@@ -41,13 +48,6 @@ struct Allowance {
 impl Allowance {
     fn of(context: &Context<'_>, assigned: &Assigned) -> Self {
         let truth = context.truth;
-        let unasserted = |kind: &str| {
-            truth
-                .facts
-                .iter()
-                .filter(|f| f.require.is_none() && f.kind == kind)
-                .count()
-        };
         let gap = |reason: &str| truth.gaps.iter().any(|g| g.reason == reason);
         let results_of = truth
             .gaps
@@ -64,11 +64,29 @@ impl Allowance {
                 Some(id)
             })
             .collect();
+        let slots = truth
+            .facts
+            .iter()
+            .filter(|f| f.require.is_none())
+            .filter_map(|f| {
+                let class = match f.kind.as_str() {
+                    "reasoning" => "reasoning",
+                    "text" => "text",
+                    _ => return None,
+                };
+                Some((class, context.home_trace.get(f.id.as_str()).cloned()))
+            })
+            .collect();
         Allowance {
             system_prompt: gap("request_body_unrecorded") || gap("request_modelled"),
             routing: gap("multi_agent_routing"),
-            reasoning: unasserted("reasoning"),
-            text: unasserted("text"),
+            traces: context
+                .matching
+                .span_of
+                .values()
+                .map(|&i| context.recon.generations[i].trace.clone())
+                .collect(),
+            slots,
             user_text: truth
                 .gaps
                 .iter()
@@ -76,6 +94,18 @@ impl Allowance {
                 .count(),
             results_of,
         }
+    }
+
+    fn take(&mut self, class: &str, trace: &str) -> bool {
+        let found = self
+            .slots
+            .iter()
+            .position(|(c, t)| *c == class && t.as_deref().is_none_or(|t| t == trace));
+        found.map(|at| self.slots.remove(at)).is_some()
+    }
+
+    fn in_conversation(&self, trace: &str) -> bool {
+        self.traces.contains(trace)
     }
 }
 
@@ -94,29 +124,39 @@ fn check_unexplained(
     // A copy of a claimed block is a duplicate or a leak, which the assignment already reported.
     let claimed_digests: BTreeSet<&str> = claimed
         .iter()
-        .map(|&at| scope.blocks[at].2.digest.as_str())
+        .map(|&at| scope.blocks[at].2.identity.as_str())
         .collect();
     let mut allowance = Allowance::of(context, assigned);
     let mut system_seen: BTreeSet<(&str, &str)> = BTreeSet::new();
     let mut unexplained: BTreeMap<&str, (usize, &Block)> = BTreeMap::new();
     for (at, (_, _, block)) in scope.blocks.iter().enumerate() {
-        if claimed.contains(&at) || claimed_digests.contains(block.digest.as_str()) {
+        if claimed.contains(&at) || claimed_digests.contains(block.identity.as_str()) {
             continue;
         }
+        let trace = block.trace.as_str();
+        let routed = allowance.routing && allowance.in_conversation(trace);
         let explained = match (block.role.as_str(), block.kind.as_str()) {
             ("system", _) => {
                 allowance.system_prompt
-                    && system_seen.insert((block.trace.as_str(), block.digest.as_str()))
+                    && allowance.in_conversation(trace)
+                    && system_seen.insert((
+                        trace,
+                        if allowance.routing {
+                            block.digest.as_str()
+                        } else {
+                            ""
+                        },
+                    ))
             }
-            ("assistant", "thinking" | "redacted_thinking") => take(&mut allowance.reasoning),
-            ("assistant", "text" | "json") => take(&mut allowance.text),
+            ("assistant", "thinking" | "redacted_thinking") => allowance.take("reasoning", trace),
+            ("assistant", "text" | "json") => allowance.take("text", trace),
             ("tool", "tool_result") => {
-                allowance.routing
+                routed
                     || block
                         .result_call_id()
                         .is_some_and(|id| allowance.results_of.remove(id))
             }
-            ("user", "text") => allowance.routing || take(&mut allowance.user_text),
+            ("user", "text") => routed || take(&mut allowance.user_text),
             _ => false,
         };
         if !explained {

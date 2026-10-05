@@ -368,6 +368,11 @@ fn truth_violation_ledger_only_shrinks_against_main() {
             .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
     };
     let Some(base) = git(&["merge-base", "HEAD", "main"]) else {
+        // A checkout without history cannot run the check; CI must never be one.
+        assert!(
+            std::env::var_os("CI").is_none(),
+            "no merge base with main: the shrink check needs history (fetch main)"
+        );
         eprintln!("message_truth: no merge base with main; the shrink check needs git history");
         return;
     };

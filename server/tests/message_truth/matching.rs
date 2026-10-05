@@ -253,12 +253,12 @@ fn match_failed_attempts(
             .collect();
         if let [only] = candidates[..] {
             matching.span_of.insert(call.id.clone(), only);
-            if gen_outputs[only].iter().any(|b| b.role == "assistant") {
+            if !gen_outputs[only].is_empty() {
                 out.push(Violation::new(
                     ViolationView::Call,
                     "call.failed_attempt_has_output",
                     &call.id,
-                    "the span of a failed attempt shows assistant output".to_string(),
+                    "the span of a failed attempt shows output".to_string(),
                 ));
             }
         } else if candidates.len() > 1 {

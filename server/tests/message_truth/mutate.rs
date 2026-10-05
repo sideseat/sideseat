@@ -530,6 +530,7 @@ pub(super) fn failed_span(truth: &mut Truth, recon: &mut Recon, speaks: bool) ->
             finish: None,
             media_sha256: None,
             digest: String::new(),
+            identity: String::new(),
         };
         block.refresh();
         blocks.push(block);
@@ -618,6 +619,7 @@ pub(super) fn extra_content(_: &mut Truth, recon: &mut Recon) -> bool {
                 finish: None,
                 media_sha256: None,
                 digest: String::new(),
+                identity: String::new(),
             };
             block.refresh();
             view.blocks.insert(1, block);
@@ -686,6 +688,7 @@ fn text_block(role: &str, text: &str, trace: &str, span: &str, output: bool) -> 
         finish: None,
         media_sha256: None,
         digest: String::new(),
+        identity: String::new(),
     };
     block.refresh();
     block

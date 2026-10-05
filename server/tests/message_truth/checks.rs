@@ -295,12 +295,20 @@ fn assign(context: &Context<'_>, scope: &Scope<'_>) -> Assigned {
     assigned
 }
 
+/// Whether a block sits where the fact belongs: in the trace of its call and, in a session view, in
+/// the session view of that trace's session - pooled session views must not trade conversations.
 pub(super) fn in_home(context: &Context<'_>, scope: &Scope<'_>, fact: &Fact, at: usize) -> bool {
-    !scope.by_trace
-        || context
-            .home_trace
-            .get(fact.id.as_str())
-            .is_none_or(|trace| scope.blocks[at].2.trace == *trace)
+    let (view, _, block) = scope.blocks[at];
+    let Some(trace) = context
+        .home_trace
+        .get(fact.id.as_str())
+        .filter(|_| scope.by_trace)
+    else {
+        return true;
+    };
+    block.trace == *trace
+        && (scope.kind != ViewKind::Session
+            || context.recon.session_of_trace.get(trace) == Some(&context.recon.views[view].key))
 }
 
 /// The id a result must carry: its call's, as the call appears in this scope.
@@ -414,11 +422,11 @@ fn report_assignment(
         );
         // A copy is another block with the same content: a framework that wraps the prompt in a new
         // template each step shows it in several different blocks, which is not a duplicate.
-        let digest = scope.blocks[at].2.digest.clone();
+        let digest = scope.blocks[at].2.identity.clone();
         let extra: Vec<usize> = anywhere
             .into_iter()
             .filter(|b| *b != at && !claimed.contains(b) && !consumed.contains(b))
-            .filter(|&b| scope.blocks[b].2.digest == digest)
+            .filter(|&b| scope.blocks[b].2.identity == digest)
             .collect();
         let (here, elsewhere): (Vec<usize>, Vec<usize>) = extra
             .into_iter()
