@@ -92,11 +92,6 @@ These fixtures currently cover 27 of the 32 framework identifiers SideSeat recog
 versioned boundary and the remaining list are maintained beside the raw payloads in
 `server/tests/fixtures/messages/README.md`.
 
-Two image-generation payloads are intentionally local-only because their inline base64
-requests are 15 MB and 7 MB. Equivalent media rewriting is committed in the smaller Python
-image fixture, and a repository test ensures the local-only exemption cannot hide an
-accidentally uncommitted ordinary sample.
-
 <Aside type="note">
 A supported framework version means the version captured in the repository's fixture matrix,
 not every past or future release carrying the same product name. Framework and SDK dependency

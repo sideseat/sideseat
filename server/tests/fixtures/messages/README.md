@@ -115,7 +115,8 @@ program (`python`, `javascript`, `dotnet`, `rust`). The mode says who configured
 | `semantic-kernel/sdk` | SideSeat Python 1.0.8 / Semantic Kernel 1.44.1 / OpenAI 3.22.1 / OpenTelemetry Python 1.45.0 | 1 | 1 |
 | `smolagents/native` | Smolagents 1.26.0 / LiteLLM 1.103.2 (Bedrock) / OpenInference Smolagents instrumentor 0.1.42 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native OTLP setup; no `structured_output` or `files` (unsupported) and no `mcp_tools` (its MCP adapter misreads the server schema) | 8 | 15 |
 | `smolagents/sdk` | SideSeat Python 2.0.0 / Smolagents 1.26.0 / LiteLLM 1.103.2 (Bedrock) / OpenInference Smolagents instrumentor 0.1.42 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 8 | 8 |
-| `strands-js/legacy` | @strands-agents/sdk ^1.14.0 | 7 | 12 |
+| `strands-js/native` | Strands Agents for TypeScript 1.19.0 (Bedrock) / OpenTelemetry JS 2.11.0, OTLP exporter 0.219.0 on Node.js 25.2.1, `setupTracer`; Strands reports no reasoning in a turn's output, so `reasoning` shows the answer only and `multi_turn` shows a turn's redacted reasoning after its answer, where the next request's history first carries it | 11 | 12 |
+| `strands-js/sdk` | SideSeat JavaScript 3.0.0 / Strands Agents for TypeScript 1.19.0 (Bedrock) / OpenTelemetry JS 2.11.0 on Node.js 25.2.1 | 11 | 11 |
 | `strands/native` | Strands Agents 1.57.2 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, `StrandsTelemetry` | 11 | 14 |
 | `strands/sdk` | SideSeat Python 2.0.0 / Strands Agents 1.57.2 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 11 | 11 |
 | `tool_use/legacy` | a Strands call/result pair | the baseline hand-written case |
@@ -175,10 +176,5 @@ attribute, so the captured payload contained a live `aws_secret_access_key` and
 taken back — `scripts/message-fixtures/capture.sh` now discards any fixture whose payload matches that
 shape rather than leaving the decision to a later reader.
 
-`strands-js/image-gen` and `vercel-ai-js/image-gen` are gitignored. Those suites inline
-generated images as base64 in the OTLP JSON — 7MB and 15MB for a single request — which would
-sit in git history permanently for no extra parsing coverage. The Python `image_gen` fixtures
-exercise the same path in under 100KB each, because media is rewritten to file URIs before
-storage. Capture the JS ones locally when working on image handling; the harness discovers
-whatever is present and skips the rest. `scripts/message-fixtures/capture.sh` prints a warning for any
-payload over 1MB so the next such case is a decision rather than a surprise.
+`scripts/message-fixtures/capture.sh` prints a warning for any payload over 1MB, so a capture that
+inlines megabytes of media is a decision rather than a surprise.

@@ -809,18 +809,19 @@ fn shadow_order_of(label: &str) -> Vec<(String, String)> {
         .collect()
 }
 
-/// The case that motivated the redesign. On `strands-js/swarm` the intro text and the tool call it
-/// introduces are one `gen_ai.choice` emission on the chat span, but dedup keeps the Planner span's
-/// re-listed copy of the text, so the scalar sort key detaches the text and the trace view returns
-/// `assistant/tool_use, tool/tool_result, assistant/text` — the intro trailing the result it
-/// introduces.
+/// The case that motivated the redesign: a turn's intro text and the tool call it introduces are one
+/// `gen_ai.choice` emission, but dedup can keep a re-listed copy of the text from an agent span, so a
+/// scalar sort key detached the text and the trace view returned `assistant/tool_use,
+/// tool/tool_result, assistant/text` - the intro trailing the result it introduces. The capture that
+/// showed it was retired with the legacy Strands TypeScript suite; the JavaScript conformance program
+/// emits the same shape.
 ///
 /// The shadow resolver contracts the emission (so the text stays with its call) and adds the
 /// call → result edge, yielding intro, then call, then result. This is the property increment 1
 /// exists to prove before any view consumes the new order.
 #[test]
 fn shadow_resolver_keeps_intro_with_its_call_before_the_result() {
-    let order = shadow_order_of("strands-js/legacy/swarm");
+    let order = shadow_order_of("javascript/native/canonical");
 
     let text = order
         .iter()
@@ -848,7 +849,7 @@ fn shadow_resolver_keeps_intro_with_its_call_before_the_result() {
 /// The resolver is a permutation: it reorders survivors, it does not add, drop or alter them.
 #[test]
 fn shadow_resolver_is_a_permutation_of_the_survivors() {
-    for label in ["strands-js/legacy/swarm", "strands/sdk/tool_use", "strands/sdk/mcp_tools"] {
+    for label in ["strands-js/native/multi_agent", "strands/sdk/tool_use", "strands/sdk/mcp_tools"] {
         let (_, paths) = discover_fixtures()
             .into_iter()
             .find(|(l, _)| l == label)

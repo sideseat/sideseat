@@ -1,0 +1,648 @@
+{
+  "label": "strands-js/sdk/multi_turn",
+  "request_count": 1,
+  "span_count": 10,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/chat/span-10": {
+      "message_count": 8,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "redacted_thinking",
+          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSzQQKEggSEAEYAjgBQgh0aGlua2luZxIMkoNTUji04PlkpF/eGgwWSOMGaMb/MDENeDUiMO02Mc4WtLGjXNJT6D6zhDECDfJTF/su9FScnpoj0g+ISycpQcP4yUs9jdSz5fENGyroAx6vk1p78EtQJlsqWGk9GbF1PwJI6BQIgHXZN1cQEiWPiw9FzNwZDy0PDK5hrvc+…[834 chars]",
+          "content_digest": "00638979d0232714",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has narrow cobbled streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to the castle and cathedral. If you'd prefer something flatter and more central,…[269 chars]",
+          "content_digest": "be6e55d31f8eea42",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, ideally warm with a dusting of cinnamon. For a savory option, **bacalhau à Brás** (shredded salt cod with eggs and potatoes) is a classic local dish.",
+          "content_digest": "4a6d38a2abc932c4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarise your two suggestions in one sentence.",
+          "content_digest": "3a58af4870fae288",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in the historic, fado-filled neighbourhood of Alfama, and be sure to try pastéis de nata, Lisbon's iconic custard tarts.",
+          "content_digest": "740ad93b05ae8f80",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat/span-4": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has narrow cobbled streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to the castle and cathedral. If you'd prefer something flatter and more central,…[269 chars]",
+          "content_digest": "be6e55d31f8eea42",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat/span-6": {
+      "message_count": 6,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "redacted_thinking",
+          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSzQQKEggSEAEYAjgBQgh0aGlua2luZxIMkoNTUji04PlkpF/eGgwWSOMGaMb/MDENeDUiMO02Mc4WtLGjXNJT6D6zhDECDfJTF/su9FScnpoj0g+ISycpQcP4yUs9jdSz5fENGyroAx6vk1p78EtQJlsqWGk9GbF1PwJI6BQIgHXZN1cQEiWPiw9FzNwZDy0PDK5hrvc+…[834 chars]",
+          "content_digest": "00638979d0232714",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has narrow cobbled streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to the castle and cathedral. If you'd prefer something flatter and more central,…[269 chars]",
+          "content_digest": "be6e55d31f8eea42",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, ideally warm with a dusting of cinnamon. For a savory option, **bacalhau à Brás** (shredded salt cod with eggs and potatoes) is a classic local dish.",
+          "content_digest": "4a6d38a2abc932c4",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/execute_agent_loop_cycle/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/execute_agent_loop_cycle/span-7": {
+      "message_count": 3,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "redacted_thinking",
+          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSzQQKEggSEAEYAjgBQgh0aGlua2luZxIMkoNTUji04PlkpF/eGgwWSOMGaMb/MDENeDUiMO02Mc4WtLGjXNJT6D6zhDECDfJTF/su9FScnpoj0g+ISycpQcP4yUs9jdSz5fENGyroAx6vk1p78EtQJlsqWGk9GbF1PwJI6BQIgHXZN1cQEiWPiw9FzNwZDy0PDK5hrvc+…[834 chars]",
+          "content_digest": "00638979d0232714",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has narrow cobbled streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to the castle and cathedral. If you'd prefer something flatter and more central,…[269 chars]",
+          "content_digest": "be6e55d31f8eea42",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/execute_agent_loop_cycle/span-8": {
+      "message_count": 5,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "redacted_thinking",
+          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSzQQKEggSEAEYAjgBQgh0aGlua2luZxIMkoNTUji04PlkpF/eGgwWSOMGaMb/MDENeDUiMO02Mc4WtLGjXNJT6D6zhDECDfJTF/su9FScnpoj0g+ISycpQcP4yUs9jdSz5fENGyroAx6vk1p78EtQJlsqWGk9GbF1PwJI6BQIgHXZN1cQEiWPiw9FzNwZDy0PDK5hrvc+…[834 chars]",
+          "content_digest": "00638979d0232714",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has narrow cobbled streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to the castle and cathedral. If you'd prefer something flatter and more central,…[269 chars]",
+          "content_digest": "be6e55d31f8eea42",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "agent"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, ideally warm with a dusting of cinnamon. For a savory option, **bacalhau à Brás** (shredded salt cod with eggs and potatoes) is a classic local dish.",
+          "content_digest": "4a6d38a2abc932c4",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/invoke_agent Strands Agent/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has narrow cobbled streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to the castle and cathedral. If you'd prefer something flatter and more central,…[269 chars]",
+          "content_digest": "be6e55d31f8eea42",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/invoke_agent Strands Agent/span-5": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, ideally warm with a dusting of cinnamon. For a savory option, **bacalhau à Brás** (shredded salt cod with eggs and potatoes) is a classic local dish.",
+          "content_digest": "4a6d38a2abc932c4",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/invoke_agent Strands Agent/span-9": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarise your two suggestions in one sentence.",
+          "content_digest": "3a58af4870fae288",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in the historic, fado-filled neighbourhood of Alfama, and be sure to try pastéis de nata, Lisbon's iconic custard tarts.",
+          "content_digest": "740ad93b05ae8f80",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/multi-turn/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 8,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has narrow cobbled streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to the castle and cathedral. If you'd prefer something flatter and more central,…[269 chars]",
+          "content_digest": "be6e55d31f8eea42",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "redacted_thinking",
+          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSzQQKEggSEAEYAjgBQgh0aGlua2luZxIMkoNTUji04PlkpF/eGgwWSOMGaMb/MDENeDUiMO02Mc4WtLGjXNJT6D6zhDECDfJTF/su9FScnpoj0g+ISycpQcP4yUs9jdSz5fENGyroAx6vk1p78EtQJlsqWGk9GbF1PwJI6BQIgHXZN1cQEiWPiw9FzNwZDy0PDK5hrvc+…[834 chars]",
+          "content_digest": "00638979d0232714",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "agent"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, ideally warm with a dusting of cinnamon. For a savory option, **bacalhau à Brás** (shredded salt cod with eggs and potatoes) is a classic local dish.",
+          "content_digest": "4a6d38a2abc932c4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarise your two suggestions in one sentence.",
+          "content_digest": "3a58af4870fae288",
+          "observation_type": "agent"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in the historic, fado-filled neighbourhood of Alfama, and be sure to try pastéis de nata, Lisbon's iconic custard tarts.",
+          "content_digest": "740ad93b05ae8f80",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "strands-js-multi_turn": {
+      "message_count": 8,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has narrow cobbled streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to the castle and cathedral. If you'd prefer something flatter and more central,…[269 chars]",
+          "content_digest": "be6e55d31f8eea42",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "redacted_thinking",
+          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSzQQKEggSEAEYAjgBQgh0aGlua2luZxIMkoNTUji04PlkpF/eGgwWSOMGaMb/MDENeDUiMO02Mc4WtLGjXNJT6D6zhDECDfJTF/su9FScnpoj0g+ISycpQcP4yUs9jdSz5fENGyroAx6vk1p78EtQJlsqWGk9GbF1PwJI6BQIgHXZN1cQEiWPiw9FzNwZDy0PDK5hrvc+…[834 chars]",
+          "content_digest": "00638979d0232714",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "agent"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, ideally warm with a dusting of cinnamon. For a savory option, **bacalhau à Brás** (shredded salt cod with eggs and potatoes) is a classic local dish.",
+          "content_digest": "4a6d38a2abc932c4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarise your two suggestions in one sentence.",
+          "content_digest": "3a58af4870fae288",
+          "observation_type": "agent"
+        },
+        {
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in the historic, fado-filled neighbourhood of Alfama, and be sure to try pastéis de nata, Lisbon's iconic custard tarts.",
+          "content_digest": "740ad93b05ae8f80",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 8,
+    "role_sequence": [
+      "assistant",
+      "user",
+      "assistant",
+      "assistant",
+      "user",
+      "assistant",
+      "user",
+      "system"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Stay in the historic, fado-filled neighbourhood of Alfama, and be sure to try pastéis de nata, Lisbon's iconic custard tarts.",
+        "content_digest": "740ad93b05ae8f80",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Summarise your two suggestions in one sentence.",
+        "content_digest": "3a58af4870fae288",
+        "observation_type": "agent"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, ideally warm with a dusting of cinnamon. For a savory option, **bacalhau à Brás** (shredded salt cod with eggs and potatoes) is a classic local dish.",
+        "content_digest": "4a6d38a2abc932c4",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "redacted_thinking",
+        "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSzQQKEggSEAEYAjgBQgh0aGlua2luZxIMkoNTUji04PlkpF/eGgwWSOMGaMb/MDENeDUiMO02Mc4WtLGjXNJT6D6zhDECDfJTF/su9FScnpoj0g+ISycpQcP4yUs9jdSz5fENGyroAx6vk1p78EtQJlsqWGk9GbF1PwJI6BQIgHXZN1cQEiWPiw9FzNwZDy0PDK5hrvc+…[834 chars]",
+        "content_digest": "00638979d0232714",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is one dish I should try there?",
+        "content_digest": "fa205a3ea90d1fdf",
+        "observation_type": "agent"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has narrow cobbled streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to the castle and cathedral. If you'd prefer something flatter and more central,…[269 chars]",
+        "content_digest": "be6e55d31f8eea42",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "entry_type": "text",
+        "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+        "content_digest": "c366c7539466c187",
+        "observation_type": "agent"
+      },
+      {
+        "index": 7,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "agent"
+      }
+    ]
+  }
+}

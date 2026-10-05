@@ -1,0 +1,4 @@
+{
+  "producer": "strands-js",
+  "integrations": ["strands"]
+}

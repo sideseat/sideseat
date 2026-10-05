@@ -247,10 +247,6 @@ fn the_corpus_matches_the_support_matrix() {
 
     let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/messages");
     let mut found: Vec<(String, usize, usize)> = Vec::new();
-    // Kept honest by `local_only_samples_are_actually_gitignored`, so this cannot drift into excusing a
-    // sample that someone simply forgot to commit.
-    const LOCAL_ONLY_SAMPLES: [(&str, &str); 2] =
-        [("strands-js/legacy", "image-gen"), ("vercel-ai-js/legacy", "image-gen")];
 
     // A suite is `_synthetic`, or `<producer>/<mode>` for captured telemetry.
     let mut suites: Vec<(String, std::path::PathBuf)> = Vec::new();
@@ -278,13 +274,6 @@ fn the_corpus_matches_the_support_matrix() {
         for sample in std::fs::read_dir(&path).expect("suite dir") {
             let sample = sample.expect("sample entry").path();
             if !sample.is_dir() {
-                continue;
-            }
-            // Samples captured locally only are not part of the documented corpus: their payloads are
-            // megabytes of inlined base64 image data, so they are gitignored and a clean checkout does
-            // not have them.
-            let sample_name = sample.file_name().unwrap().to_string_lossy().to_string();
-            if LOCAL_ONLY_SAMPLES.contains(&(suite.as_str(), sample_name.as_str())) {
                 continue;
             }
             samples += 1;

@@ -235,31 +235,6 @@ fn a_session_known_only_to_the_store_reconstructs_identically() {
     eprintln!("session grouping: {exercised} fixture(s) exercised cross-trace stripping");
 }
 
-/// Every sample the support matrix excuses is one `.gitignore` actually excludes.
-///
-/// The exclusion list exists so a clean checkout passes `the_corpus_matches_the_support_matrix`, and that is
-/// only legitimate for samples the repository deliberately does not carry. Without this check the list would
-/// equally excuse a sample somebody forgot to commit, which is the opposite of what the matrix is for.
-#[test]
-fn local_only_samples_are_actually_gitignored() {
-    let gitignore = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .expect("repo root")
-            .join(".gitignore"),
-    )
-    .expect("read .gitignore");
-
-    for (suite, sample) in [("strands-js/legacy", "image-gen"), ("vercel-ai-js/legacy", "image-gen")] {
-        let path = format!("server/tests/fixtures/messages/{suite}/{sample}/");
-        assert!(
-            gitignore.lines().any(|line| line.trim() == path),
-            "{path} is excused from the support matrix but is not gitignored, so a missing capture there \
-             would be silently accepted"
-        );
-    }
-}
-
 /// Every span-reported exception reaches the trace, and independent reports keep their multiplicity.
 ///
 /// This is the check that the five defects of reviews 14-16 would have failed, and none of the existing
