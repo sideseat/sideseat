@@ -123,11 +123,16 @@ if [ -n "$rust_files" ]; then
         if ((${#build[@]})); then
             cargo test --locked -q --no-run --lib --bins "${build[@]}"
         fi
-        if ((${#unit[@]})); then
-            cargo test --locked -q "${unit[@]}" --lib --bins
+        # The unit tests run in one invocation over the same packages as the build: cargo unifies
+        # features across the packages it is given, so testing a crate apart from the server would
+        # compile it a second time with a different feature set.
+        units=()
+        if ((${#unit[@]})); then units+=("${unit[@]}"); fi
+        if ((server)); then units+=(-p sideseat-server); fi
+        if ((${#units[@]})); then
+            cargo test --locked -q --lib --bins "${units[@]}"
         fi
         if ((server)); then
-            cargo test --locked -q -p sideseat-server --lib --bins
             cargo test --locked -q -p sideseat-server --test message_goldens -- --exact message_goldens
             if grep -qvE '\.rs$' <<<"$changed"; then
                 cargo test --locked -q -p sideseat-server --test repository
