@@ -40,6 +40,11 @@
           "attribute": "mlflow.trace.session"
         },
         {
+          "id": "laminar_session_id",
+          "doc": "Laminar's association property, which it copies onto every span of a trace.",
+          "attribute": "lmnr.association.properties.session_id"
+        },
+        {
           "id": "metadata_thread_id",
           "doc": "Inside a metadata object rather than under a key of its own, which is how a framework that has no attribute for it still says so.",
           "json": {
@@ -76,6 +81,10 @@
         {
           "id": "trace_user",
           "attribute": "mlflow.trace.user"
+        },
+        {
+          "id": "laminar_user_id",
+          "attribute": "lmnr.association.properties.user_id"
         },
         {
           "id": "metadata_user_id",

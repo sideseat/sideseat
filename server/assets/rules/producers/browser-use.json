@@ -1,11 +1,279 @@
 {
   "id": "browser-use",
-  "doc": "The BrowserUse dialect.",
-  "carriers": [],
+  "doc": "The Browser Use dialect, traced by Laminar. Each agent step is one model call, recorded by Laminar's provider instrumentation, whose reply is a single `AgentOutput` tool call listing the browser actions to take; Browser Use then runs every action under a Laminar TOOL span of its own, named after the action, with `{action, params}` as its input and the action's result as its output. Those spans are the executions, so each one states its call and its result.",
+  "carriers": [
+    {
+      "id": "browser-use.action_input",
+      "doc": "What one observed function was given - for a Browser Use action, the action and its parameters. Laminar writes it on every span it observes; only TOOL spans are read as messages, and each is one call.",
+      "match": {
+        "attribute": "lmnr.span.input"
+      },
+      "facts": {
+        "preset": "emission",
+        "carrier_holds_span_output": false,
+        "carrier_holds_span_input": true
+      }
+    },
+    {
+      "id": "browser-use.action_output",
+      "doc": "What that one observed function returned - for a Browser Use action, its result.",
+      "match": {
+        "attribute": "lmnr.span.output"
+      },
+      "facts": {
+        "preset": "emission"
+      }
+    }
+  ],
+  "messages": [
+    {
+      "id": "browser-use.action_call",
+      "doc": "The call an action span executed. Browser Use names the span after the action and writes the parameters under `params`. The model asked for it inside its `AgentOutput` reply, which carries no id per action, so the call and the result beside it take the span's own id.",
+      "instrumentation_scope": {
+        "name": "lmnr.tracer"
+      },
+      "when": {
+        "attr_equals": [
+          {
+            "key": "lmnr.span.type",
+            "value": "TOOL"
+          }
+        ]
+      },
+      "read": {
+        "attribute": "lmnr.span.input"
+      },
+      "parse": "json",
+      "emit": "message",
+      "legacy_rank": 1810,
+      "reads_tool_spans": true,
+      "alternatives": [
+        {
+          "id": "action_params",
+          "doc": "`{action, params}`: the action's name and its parameters.",
+          "select": "$.params",
+          "require_parent": {
+            "all": [
+              {
+                "path": "$.action",
+                "kind": "string",
+                "non_empty": true
+              }
+            ]
+          },
+          "wrap": {
+            "role": "assistant",
+            "block": {
+              "type": "tool_use",
+              "content_as": "input",
+              "attach": [
+                {
+                  "from_path": "$.action",
+                  "as": "name",
+                  "or_span_name_after": "",
+                  "default": ""
+                },
+                {
+                  "doc": "Laminar writes a span's ancestry as an array of ids that ends with the span's own. No call id reaches an action, so the span's id is the call's: two identical actions are two executions, and only their spans tell them apart.",
+                  "from": "lmnr.span.ids_path",
+                  "parse": "json",
+                  "select": "$[-1]",
+                  "as": "id"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "browser-use.action_result",
+      "doc": "What the action returned. A built-in action returns an `ActionResult` whose `error` is set when it failed and whose `extracted_content` is what the model reads next; a custom action may return plain text instead. The `done` action's content is the agent's final answer.",
+      "instrumentation_scope": {
+        "name": "lmnr.tracer"
+      },
+      "when": {
+        "attr_equals": [
+          {
+            "key": "lmnr.span.type",
+            "value": "TOOL"
+          }
+        ]
+      },
+      "read": {
+        "attribute": "lmnr.span.output"
+      },
+      "parse": "json_or_string",
+      "emit": "message",
+      "legacy_rank": 1820,
+      "reads_tool_spans": true,
+      "alternatives": [
+        {
+          "id": "failed",
+          "doc": "A failed action: the error is what the model is told.",
+          "require": {
+            "all": [
+              {
+                "path": "$.error",
+                "kind": "string",
+                "non_empty": true
+              }
+            ]
+          },
+          "wrap": {
+            "role": "tool",
+            "content_from_any_of": [
+              "$.error"
+            ],
+            "block": {
+              "type": "tool_result",
+              "attach": [
+                {
+                  "or_span_name_after": "",
+                  "as": "name"
+                },
+                {
+                  "value": true,
+                  "as": "is_error"
+                },
+                {
+                  "doc": "Laminar writes a span's ancestry as an array of ids that ends with the span's own. No call id reaches an action, so the span's id is the call's: two identical actions are two executions, and only their spans tell them apart.",
+                  "from": "lmnr.span.ids_path",
+                  "parse": "json",
+                  "select": "$[-1]",
+                  "as": "tool_use_id"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "action_result",
+          "doc": "A completed built-in action. Its long-term memory is the fallback for an action that extracted nothing.",
+          "require": {
+            "all": [
+              {
+                "path": "$.is_done",
+                "kind": "bool"
+              }
+            ]
+          },
+          "wrap": {
+            "role": "tool",
+            "content_from_any_of": [
+              "$.extracted_content",
+              "$.long_term_memory"
+            ],
+            "block": {
+              "type": "tool_result",
+              "attach": [
+                {
+                  "or_span_name_after": "",
+                  "as": "name"
+                },
+                {
+                  "doc": "Laminar writes a span's ancestry as an array of ids that ends with the span's own. No call id reaches an action, so the span's id is the call's: two identical actions are two executions, and only their spans tell them apart.",
+                  "from": "lmnr.span.ids_path",
+                  "parse": "json",
+                  "select": "$[-1]",
+                  "as": "tool_use_id"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "text",
+          "doc": "A custom action that returned text.",
+          "require": {
+            "all": [
+              {
+                "kind": "string",
+                "non_empty": true
+              }
+            ]
+          },
+          "wrap": {
+            "role": "tool",
+            "block": {
+              "type": "tool_result",
+              "attach": [
+                {
+                  "or_span_name_after": "",
+                  "as": "name"
+                },
+                {
+                  "doc": "Laminar writes a span's ancestry as an array of ids that ends with the span's own. No call id reaches an action, so the span's id is the call's: two identical actions are two executions, and only their spans tell them apart.",
+                  "from": "lmnr.span.ids_path",
+                  "parse": "json",
+                  "select": "$[-1]",
+                  "as": "tool_use_id"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "observation_types": [
+    {
+      "id": "observation.laminar_tool",
+      "doc": "Laminar states a span's type directly; Browser Use runs each action under a TOOL span.",
+      "rank": 58,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "lmnr.span.type",
+              "value": "TOOL"
+            }
+          ]
+        }
+      ],
+      "result": "tool",
+      "replaces_legacy_result": "span"
+    }
+  ],
+  "span_categories": [
+    {
+      "id": "category.laminar_tool",
+      "doc": "A Laminar TOOL span: one action Browser Use executed.",
+      "rank": 92,
+      "all_of": [
+        {
+          "attr_equals": [
+            {
+              "key": "lmnr.span.type",
+              "value": "TOOL"
+            }
+          ]
+        }
+      ],
+      "result": "tool",
+      "replaces_legacy_result": "other"
+    }
+  ],
+  "span_facts": [
+    {
+      "id": "browser-use.tool_execution",
+      "doc": "A Laminar TOOL span is the span that executed the action.",
+      "fact": "tool_execution",
+      "signals": [
+        {
+          "id": "span_type",
+          "attr_equals": {
+            "key": "lmnr.span.type",
+            "value": "TOOL"
+          }
+        }
+      ]
+    }
+  ],
   "detect": [
     {
       "id": "browser-use.detect",
-      "doc": "browser-use sets gen_ai.provider.name on every span it emits.",
+      "doc": "Browser Use identifies itself in two ways: older releases set `gen_ai.provider.name` on their spans, and current ones trace through Laminar, whose span path names every ancestor - and Browser Use's agent loop runs under `agent.run`.",
       "label": "BrowserUse",
       "match": {
         "attr_equals": [
@@ -15,7 +283,22 @@
           }
         ]
       },
-      "legacy_rank": 130
+      "legacy_rank": 130,
+      "alternatives": [
+        {
+          "id": "browser-use.detect.laminar_agent_run",
+          "doc": "A Laminar span inside Browser Use's `agent.run`: the loop itself, each step, the model calls it makes and the actions it runs. The path is an array attribute, compared as its JSON text, so the quoted name matches one element rather than a substring of one.",
+          "legacy_rank": 131,
+          "match": {
+            "span_attr_contains": [
+              {
+                "key": "lmnr.span.path",
+                "value": "\"agent.run\""
+              }
+            ]
+          }
+        }
+      ]
     }
   ],
   "sdk_slugs": [
