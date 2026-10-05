@@ -106,7 +106,9 @@ spellings, or "if this producer then" branches. All of that lives in the JSON as
   deduplication happen at read time.
 - Every reconstructed conversation must satisfy the rubric in `server/tests/fixtures/messages/README.md`:
   complete messages, correct roles, no duplicates, tool calls before their results, and the same order for
-  spans, traces, and sessions. The native and SDK modes of a framework must reconstruct identically.
+  spans, traces, and sessions. The native and SDK modes of a framework must reconstruct identically. Since
+  rubric v2 each fixture is also checked against its parser-independent truth (`fixtures/truth/`) on full
+  content; a remaining violation lives in the shrink-only `known-violations.json`, never in a new exemption.
 - Tenant-scoped APIs use `ProjectId`; client-provided trace and span IDs are not globally unique.
 - Analytics writes and transactional writes are not one transaction. Preserve the existing fences,
   tombstones, journal, confirmation, and compensation protocols when changing either side.

@@ -33,6 +33,83 @@ message queries join `otel_logs`: one record per `(log_digest, ordinal)`, groupe
 `(timestamp, log_digest, ordinal)` order, attached to nothing when the span is absent. They are not
 requests, so the matrix below counts only `req-*`.
 
+## The rubric (v2)
+
+Every reconstruction is held to two independent references. The first is the committed
+`expected.json` with the invariants of `message_goldens` (no duplicates within a trace, tool calls
+before and paired with their results, scope, session partition, an answer for every run, identical
+native and SDK conversations). The second, since rubric v2, is the parser-independent **truth** under
+[`../truth/`](../truth): one `sideseat.truth/2` document per producer and scenario, derived by
+`python -m harness truth` from the recorded model responses and the scenario scripts, never from a
+reconstruction. `expected.json` keeps a 240-character preview of each block; the truth checks read the
+full content.
+
+The truth comparison runs inside `message_goldens`, on the four views it already built
+(`server/tests/message_truth/`), and requires:
+
+1. **The truth is sound.** Ids are unique and every reference resolves; outputs belong to their call
+   and conversation; every fact is sequenced once; an unasserted fact has a gap naming it; the source's
+   SHA-256 matches the file; every fixture has a truth or a stated reason, and no truth names a missing
+   fixture (`truth_documents_are_internally_consistent`).
+2. **Each call has exactly one span.** Calls are matched to spans injectively, by response id first,
+   else by the spans whose output shows the call's asserted output - typed generation spans before
+   others, the innermost before an enclosing re-listing. Two equal candidates are a violation, never a
+   "closest" pick; a call whose output the truth cannot know takes an unclaimed generation span by
+   count and order; an unclaimed generation span that speaks is unexpected; a failed attempt's span
+   must say nothing. The matched span's model (or `provider/model`), response model, response id,
+   finish (normalised on both sides) and every usage count the wire states must agree; a value the span
+   does not state is a violation only when the raw span carries it.
+3. **Assistant text is exact** against the full block: `exact` byte for byte, `json` by parsed value,
+   a segmented answer as one block or as its consecutive segments.
+4. **Tool calls** carry the wire's id, name (a framework namespace such as `travel-` or `mcp__x__` is
+   accepted) and JSON-equal arguments. An id the framework rewrote consistently is its own violation,
+   `tool_call.id_rewritten`, and the result then pairs by the rewritten id.
+5. **Tool results** pair by call id, one per executed call, and carry the deterministic tool's value:
+   JSON equality with numbers by value, through a JSON string, `[{type: text, text}]` parts, one
+   `{type: json, data}` part, or a single-member `result`/`error`/`content`/`output` envelope. A Python
+   literal is a rendering defect. An error result contains the tool's message; a success may not be
+   flagged as an error.
+6. **Reasoning** the wire returned visibly is a thinking block with its exact text and is never shown as
+   assistant text; signed reasoning with no text is a gap (`reasoning_text_omitted`) until the product
+   decides how to show it.
+7. **Prompts, system prompt and attachments** are present: a prompt contained in (or equal to) a user
+   text block; an echoed system prompt exactly; an attachment by modality, media type and the SHA-256 of
+   its decoded bytes wherever the bytes are kept inline.
+8. **Order** follows the truth: a response's parts in wire order (also in the feed), a prompt before its
+   response, a call before its result, responses in call order (reversed in the feed, which is newest
+   response first), a call's inputs between the previous response and its own, sessions' conversations in
+   order, and in trace and session views the whole conversation sequence, where only a run of inputs
+   between two responses (parallel results, a prompt and its attachments) may permute.
+9. **Placement.** Facts are assigned to blocks by maximum bipartite matching per view, so two identical
+   facts need two blocks. A model call's facts must appear exactly once in its span's output, its
+   trace, its session and the feed; a conversation's facts exactly once in the trace of their call, its
+   session and the feed. A second identical block is a duplicate, one in another trace a leak; the set of
+   blocks showing a fact is the same in every view; every message sits on the span that recorded its
+   call (a prompt on that span or one enclosing it), and a later call's span does not start first.
+10. **Nothing unexplained.** A trace or session view holds the truth's conversation and nothing else:
+    every block no fact claims must be accounted for by a gap of the truth (an unrecorded system prompt,
+    an unknowable answer or tool result, reasoning without text, multi-agent routing), one block per gap.
+
+What still fails is recorded in the shrink-only ledger
+[`../truth/known-violations.json`](../truth/known-violations.json): one entry per fixture, view,
+assertion and subject, with a reason and the backlog item that fixes it. A violation not in the ledger
+fails, and so does an entry that no longer occurs; `truth_violation_ledger_only_shrinks_against_main`
+refuses entries added after the reviewed baseline; `truth_violation_ledger_is_well_formed` refuses
+wildcards, duplicates, untriaged entries and entries about gaps. The goal is zero entries. To triage
+one, `TRUTH_FIXTURE=<label> cargo test --locked -p sideseat-server --test message_goldens -- --ignored
+--nocapture truth_explain` prints the fixture's views and violations; `UPDATE_TRUTH_LEDGER=1` rewrites
+the ledger, keeping every surviving entry's triage and marking new ones `UNTRIAGED`, which the ledger
+refuses until a person gives them an issue.
+
+The rubric is itself tested: `truth_rubric_rejects_each_mutation` applies a catalogue of defects -
+deleting, altering, retyping, swapping, duplicating and misattributing parts, calls, prompts,
+attachments and results; rewriting, reusing and removing call ids; changing models, ids, finishes and
+every usage count; leaking across traces and views; failed attempts that speak, suppressed retries,
+ambiguous matches - to clean reconstructions, and requires each to add a violation, every registered
+check (`ASSERTION_FAMILIES`) to be fired by some mutation, and the positive controls (encodings of a
+result, parallel completion order, a failed attempt then its retry, namespaced tool names, a terminal
+answer tool without a result, a system prompt the truth cannot know) to add none.
+
 ## Layout
 
 ```

@@ -140,10 +140,17 @@ if [ -n "$rust_files" ]; then
         if ((server)); then units+=(-p sideseat-server); fi
         # The golden comparison and the unit tests each keep about one core busy, so with every
         # target built they run side by side; the comparison's output is held back until it ends.
+        # The comparison includes rubric v2, the truth check of every fixture over the views it already
+        # built; the truth documents, the ledger's shape and the rubric's mutation catalogue are cheap
+        # enough to ride along.
         golden=""
         if ((server)); then
             golden_log="$(mktemp)"
             cargo test --locked -q -p sideseat-server --test message_goldens -- --exact message_goldens \
+                message_truth::truth_documents_are_internally_consistent \
+                message_truth::truth_violation_ledger_is_well_formed \
+                message_truth::truth_violation_ledger_only_shrinks_against_main \
+                message_truth::mutations::truth_rubric_rejects_each_mutation \
                 >"$golden_log" 2>&1 &
             golden=$!
         fi
