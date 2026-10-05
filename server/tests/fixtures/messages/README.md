@@ -127,7 +127,7 @@ program (`python`, `javascript`, `dotnet`, `rust`). The mode says who configured
 
 | Mode | Telemetry configured by |
 | --- | --- |
-| `_synthetic` | hand-written shapes, no SDK | 20 | 20 |
+| `_synthetic` | hand-written shapes, no SDK | 29 | 29 |
 | `adk/native` | Google ADK 2.11.0 / LiteLLM 1.104.0 (Bedrock Converse) / OpenTelemetry Python 1.42.1 on CPython 3.14.7, ADK's own tracing on a global provider; ADK's trace copy of a request leaves out inline parts, so `files` holds the request text only, and `transfer_to_agent`'s result reaches the next agent only as quoted context | 11 | 18 |
 | `adk/sdk` | SideSeat Python 2.0.0 / Google ADK 2.11.0 / LiteLLM 1.104.0 (Bedrock Converse) / OpenTelemetry Python 1.42.1 on CPython 3.14.7; the integration restores the image and PDF ADK leaves out | 11 | 12 |
 | `ag2/native` | AG2 1.1.1 / OpenTelemetry Python 1.45.0 on CPython 3.14.7, native TelemetryMiddleware; AG2's telemetry records no system prompt, binary input, or reasoning, so `files` and `reasoning` carry their text only | 11 | 17 |
@@ -219,6 +219,7 @@ program (`python`, `javascript`, `dotnet`, `rust`). The mode says who configured
 | `strands/native@1.57.2+semconv-latest` | strands-agents 1.57.2 / opentelemetry-sdk 1.45.0, profile `semconv-latest` (OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental), released 2026-10-01; version matrix variant, replayed offline from the suite's cassettes | 3 | 3 |
 | `strands/sdk` | SideSeat Python 2.0.0 / Strands Agents 1.57.2 / OpenTelemetry Python 1.45.0 on CPython 3.14.7 | 11 | 11 |
 | `tool_use/legacy` | a Strands call/result pair | the baseline hand-written case |
+| `adversarial_*` | captures that are wrong on purpose - a repeated part, a prompt on a sibling span, parts out of wire order, two spans showing one answer, a failed attempt that speaks - and clean ones the truths in `fixtures/truth-adversarial/` contradict | every rubric v2 check fires on some case (`truth_adversarial_fixtures_fire_their_checks`), each case recording exactly which |
 | `traceloop/native` | TraceLoop SDK 0.62.4 / Bedrock instrumentation 0.62.4 / boto3 1.43.108 Converse / OpenTelemetry Python 1.45.0, native OTLP setup; image and document bytes are exported empty | 12 | 18 |
 | `traceloop/sdk` | SideSeat Python 2.0.0 / TraceLoop SDK 0.62.4 / Bedrock instrumentation 0.62.4 / boto3 1.43.108 Converse / OpenTelemetry Python 1.45.0 | 12 | 13 |
 | `vercel-ai-js/legacy` | ai ^7.0.79; only `tool-use` remains, the sole capture of the `ai.*` attributes the `vercel-ai.prompt`, `prompt_tools`, `response`, `toolcall_args` and `toolcall_result` rules read, which current releases no longer write | 1 | 2 |

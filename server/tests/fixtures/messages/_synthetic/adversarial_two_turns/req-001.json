@@ -1,0 +1,271 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "strands-agents"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "strands.telemetry"
+          },
+          "spans": [
+            {
+              "traceId": "7d0cc7c4f4ea94fa543ee5952af8bf02",
+              "spanId": "1e1e1e1e1e1e1e1e",
+              "name": "invoke_agent",
+              "kind": 1,
+              "startTimeUnixNano": "1735689600000000000",
+              "endTimeUnixNano": "1735689602000000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "invoke_agent"
+                  }
+                },
+                {
+                  "key": "gen_ai.agent.name",
+                  "value": {
+                    "stringValue": "calculator-agent"
+                  }
+                },
+                {
+                  "key": "session.id",
+                  "value": {
+                    "stringValue": "sess-adv-turns"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "7d0cc7c4f4ea94fa543ee5952af8bf02",
+              "spanId": "c3c3c3c3c3c3c3c3",
+              "name": "chat",
+              "kind": 3,
+              "startTimeUnixNano": "1735689600100000000",
+              "endTimeUnixNano": "1735689600900000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                },
+                {
+                  "key": "gen_ai.provider.name",
+                  "value": {
+                    "stringValue": "aws.bedrock"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+                  }
+                },
+                {
+                  "key": "gen_ai.response.model",
+                  "value": {
+                    "stringValue": "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "30"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "7"
+                  }
+                },
+                {
+                  "key": "session.id",
+                  "value": {
+                    "stringValue": "sess-adv-turns"
+                  }
+                }
+              ],
+              "parentSpanId": "1e1e1e1e1e1e1e1e",
+              "events": [
+                {
+                  "name": "gen_ai.system.message",
+                  "timeUnixNano": "1735689600110000000",
+                  "attributes": [
+                    {
+                      "key": "content",
+                      "value": {
+                        "stringValue": "You are a precise calculator."
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "gen_ai.user.message",
+                  "timeUnixNano": "1735689600120000000",
+                  "attributes": [
+                    {
+                      "key": "content",
+                      "value": {
+                        "stringValue": "What is 2 + 2?"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "gen_ai.choice",
+                  "timeUnixNano": "1735689600800000000",
+                  "attributes": [
+                    {
+                      "key": "message",
+                      "value": {
+                        "stringValue": "2 + 2 = 4."
+                      }
+                    },
+                    {
+                      "key": "finish_reason",
+                      "value": {
+                        "stringValue": "stop"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "traceId": "7d0cc7c4f4ea94fa543ee5952af8bf02",
+              "spanId": "d4d4d4d4d4d4d4d4",
+              "name": "chat",
+              "kind": 3,
+              "startTimeUnixNano": "1735689601000000000",
+              "endTimeUnixNano": "1735689601900000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                },
+                {
+                  "key": "gen_ai.provider.name",
+                  "value": {
+                    "stringValue": "aws.bedrock"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+                  }
+                },
+                {
+                  "key": "gen_ai.response.model",
+                  "value": {
+                    "stringValue": "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "45"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "7"
+                  }
+                },
+                {
+                  "key": "session.id",
+                  "value": {
+                    "stringValue": "sess-adv-turns"
+                  }
+                }
+              ],
+              "parentSpanId": "1e1e1e1e1e1e1e1e",
+              "events": [
+                {
+                  "name": "gen_ai.system.message",
+                  "timeUnixNano": "1735689601010000000",
+                  "attributes": [
+                    {
+                      "key": "content",
+                      "value": {
+                        "stringValue": "You are a precise calculator."
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "gen_ai.user.message",
+                  "timeUnixNano": "1735689601020000000",
+                  "attributes": [
+                    {
+                      "key": "content",
+                      "value": {
+                        "stringValue": "What is 2 + 2?"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "gen_ai.assistant.message",
+                  "timeUnixNano": "1735689601015000000",
+                  "attributes": [
+                    {
+                      "key": "content",
+                      "value": {
+                        "stringValue": "2 + 2 = 4."
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "gen_ai.user.message",
+                  "timeUnixNano": "1735689601021000000",
+                  "attributes": [
+                    {
+                      "key": "content",
+                      "value": {
+                        "stringValue": "And 3 + 3?"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "gen_ai.choice",
+                  "timeUnixNano": "1735689601800000000",
+                  "attributes": [
+                    {
+                      "key": "message",
+                      "value": {
+                        "stringValue": "3 + 3 = 6."
+                      }
+                    },
+                    {
+                      "key": "finish_reason",
+                      "value": {
+                        "stringValue": "stop"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

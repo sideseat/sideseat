@@ -1,0 +1,263 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "strands-agents"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "strands.telemetry"
+          },
+          "spans": [
+            {
+              "traceId": "6c9bb6b3e3d983f9432df48419e7ae01",
+              "spanId": "0f0f0f0f0f0f0f0f",
+              "name": "invoke_agent",
+              "kind": 1,
+              "startTimeUnixNano": "1735689600000000000",
+              "endTimeUnixNano": "1735689602000000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "invoke_agent"
+                  }
+                },
+                {
+                  "key": "gen_ai.agent.name",
+                  "value": {
+                    "stringValue": "calculator-agent"
+                  }
+                },
+                {
+                  "key": "session.id",
+                  "value": {
+                    "stringValue": "sess-adv-failed"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "6c9bb6b3e3d983f9432df48419e7ae01",
+              "spanId": "a1a1a1a1a1a1a1a1",
+              "name": "chat",
+              "kind": 3,
+              "startTimeUnixNano": "1735689600100000000",
+              "endTimeUnixNano": "1735689600900000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                },
+                {
+                  "key": "gen_ai.provider.name",
+                  "value": {
+                    "stringValue": "aws.bedrock"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+                  }
+                },
+                {
+                  "key": "gen_ai.response.model",
+                  "value": {
+                    "stringValue": "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "30"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "5"
+                  }
+                },
+                {
+                  "key": "session.id",
+                  "value": {
+                    "stringValue": "sess-adv-failed"
+                  }
+                }
+              ],
+              "parentSpanId": "0f0f0f0f0f0f0f0f",
+              "events": [
+                {
+                  "name": "gen_ai.system.message",
+                  "timeUnixNano": "1735689600110000000",
+                  "attributes": [
+                    {
+                      "key": "content",
+                      "value": {
+                        "stringValue": "You are a precise calculator."
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "gen_ai.user.message",
+                  "timeUnixNano": "1735689600120000000",
+                  "attributes": [
+                    {
+                      "key": "content",
+                      "value": {
+                        "stringValue": "What is 2 + 2?"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "exception",
+                  "timeUnixNano": "1735689600800000000",
+                  "attributes": [
+                    {
+                      "key": "exception.type",
+                      "value": {
+                        "stringValue": "ThrottlingException"
+                      }
+                    },
+                    {
+                      "key": "exception.message",
+                      "value": {
+                        "stringValue": "ThrottlingException: Too many requests"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "gen_ai.choice",
+                  "timeUnixNano": "1735689600800000000",
+                  "attributes": [
+                    {
+                      "key": "message",
+                      "value": {
+                        "stringValue": "4, I think."
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {
+                "code": 2,
+                "message": "ThrottlingException: Too many requests"
+              }
+            },
+            {
+              "traceId": "6c9bb6b3e3d983f9432df48419e7ae01",
+              "spanId": "b2b2b2b2b2b2b2b2",
+              "name": "chat",
+              "kind": 3,
+              "startTimeUnixNano": "1735689601000000000",
+              "endTimeUnixNano": "1735689601900000000",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                },
+                {
+                  "key": "gen_ai.provider.name",
+                  "value": {
+                    "stringValue": "aws.bedrock"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+                  }
+                },
+                {
+                  "key": "gen_ai.response.model",
+                  "value": {
+                    "stringValue": "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "30"
+                  }
+                },
+                {
+                  "key": "gen_ai.usage.output_tokens",
+                  "value": {
+                    "intValue": "7"
+                  }
+                },
+                {
+                  "key": "session.id",
+                  "value": {
+                    "stringValue": "sess-adv-failed"
+                  }
+                }
+              ],
+              "parentSpanId": "0f0f0f0f0f0f0f0f",
+              "events": [
+                {
+                  "name": "gen_ai.system.message",
+                  "timeUnixNano": "1735689601010000000",
+                  "attributes": [
+                    {
+                      "key": "content",
+                      "value": {
+                        "stringValue": "You are a precise calculator."
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "gen_ai.user.message",
+                  "timeUnixNano": "1735689601020000000",
+                  "attributes": [
+                    {
+                      "key": "content",
+                      "value": {
+                        "stringValue": "What is 2 + 2?"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "gen_ai.choice",
+                  "timeUnixNano": "1735689601800000000",
+                  "attributes": [
+                    {
+                      "key": "message",
+                      "value": {
+                        "stringValue": "2 + 2 = 4."
+                      }
+                    },
+                    {
+                      "key": "finish_reason",
+                      "value": {
+                        "stringValue": "stop"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

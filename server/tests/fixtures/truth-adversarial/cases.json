@@ -1,0 +1,807 @@
+{
+ "format": "sideseat.truth-adversarial/1",
+ "cases": [
+  {
+   "name": "clean calculator",
+   "truth": "calculator",
+   "patch": [],
+   "fires": [],
+   "why": "the hand-written baseline every other calculator case alters"
+  },
+  {
+   "name": "clean metadata",
+   "truth": "metadata",
+   "patch": [],
+   "fires": [],
+   "why": "response ids, cache and reasoning counts the base fixture lacks"
+  },
+  {
+   "name": "clean two turns",
+   "truth": "two_turns",
+   "patch": [],
+   "fires": []
+  },
+  {
+   "name": "clean two traces",
+   "truth": "two_traces",
+   "patch": [],
+   "fires": []
+  },
+  {
+   "name": "clean repeated question",
+   "truth": "repeated_question",
+   "patch": [],
+   "fires": [],
+   "why": "the same question in two traces is two facts, each in its own trace"
+  },
+  {
+   "name": "answer text differs, no response id to pin the span",
+   "truth": "calculator",
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/facts/4/value/text",
+     "value": "17 * 23 = 392."
+    }
+   ],
+   "fires": [
+    "call.unmatched",
+    "extra.unexplained",
+    "generation.unexpected",
+    "text.missing"
+   ]
+  },
+  {
+   "name": "answer text differs",
+   "truth": "metadata",
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/facts/4/value/text",
+     "value": "17 * 23 = 392."
+    }
+   ],
+   "fires": [
+    "extra.unexplained",
+    "text.missing"
+   ]
+  },
+  {
+   "name": "arguments differ",
+   "truth": "metadata",
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/facts/2/value/arguments/expression",
+     "value": "17*23"
+    }
+   ],
+   "fires": [
+    "extra.unexplained",
+    "tool_call.missing"
+   ]
+  },
+  {
+   "name": "result value differs",
+   "truth": "metadata",
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/facts/3/value/value",
+     "value": 392
+    }
+   ],
+   "fires": [
+    "extra.unexplained",
+    "tool_result.missing"
+   ]
+  },
+  {
+   "name": "system prompt differs",
+   "truth": "metadata",
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/facts/0/value/text",
+     "value": "You are a calculator."
+    }
+   ],
+   "fires": [
+    "extra.unexplained",
+    "system.missing"
+   ]
+  },
+  {
+   "name": "prompt differs",
+   "truth": "metadata",
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/facts/1/value/text",
+     "value": "What is 17 * 24?"
+    }
+   ],
+   "fires": [
+    "extra.unexplained",
+    "user_text.missing"
+   ]
+  },
+  {
+   "name": "attachment absent",
+   "truth": "metadata",
+   "patch": [
+    {
+     "op": "add",
+     "path": "/facts/-",
+     "value": {
+      "id": "fact-009",
+      "kind": "user_media",
+      "role": "user",
+      "conversation": "conv-1",
+      "evidence": "program",
+      "value": {
+       "modality": "image",
+       "media_type": "image/jpeg",
+       "sha256": "f78ee523f0b06377fd02117287eb8837b342efa9dd8dd4f0a20111e758521f0a",
+       "bytes": 163966
+      },
+      "require": {
+       "anchor": "conversation",
+       "views": [
+        "trace",
+        "session",
+        "feed"
+       ],
+       "cardinality": "exactly_once",
+       "match": "digest"
+      }
+     }
+    },
+    {
+     "op": "add",
+     "path": "/conversations/0/sequence/2",
+     "value": "fact-009"
+    }
+   ],
+   "fires": [
+    "user_media.missing"
+   ]
+  },
+  {
+   "name": "reasoning shown as text",
+   "truth": "metadata",
+   "patch": [
+    {
+     "op": "add",
+     "path": "/facts/-",
+     "value": {
+      "id": "fact-009",
+      "kind": "reasoning",
+      "role": "assistant",
+      "conversation": "conv-1",
+      "evidence": "program",
+      "value": {
+       "text": "17 * 23",
+       "signed": false,
+       "redacted": false
+      },
+      "require": {
+       "anchor": "model_call",
+       "views": [
+        "span",
+        "trace",
+        "session",
+        "feed"
+       ],
+       "cardinality": "exactly_once",
+       "match": "exact"
+      },
+      "call": "call-002"
+     }
+    },
+    {
+     "op": "add",
+     "path": "/calls/1/outputs/0",
+     "value": "fact-009"
+    },
+    {
+     "op": "add",
+     "path": "/conversations/0/sequence/4",
+     "value": "fact-009"
+    }
+   ],
+   "fires": [
+    "reasoning.as_text",
+    "reasoning.missing"
+   ]
+  },
+  {
+   "name": "model differs",
+   "truth": "metadata",
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/calls/0/model",
+     "value": "another-model"
+    },
+    {
+     "op": "replace",
+     "path": "/calls/0/response_model",
+     "value": null
+    }
+   ],
+   "fires": [
+    "call.model"
+   ]
+  },
+  {
+   "name": "response model differs",
+   "truth": "metadata",
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/calls/0/response_model",
+     "value": "another-model"
+    }
+   ],
+   "fires": [
+    "call.response_model"
+   ]
+  },
+  {
+   "name": "response id differs",
+   "truth": "metadata",
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/calls/0/response_id",
+     "value": "msg_other"
+    }
+   ],
+   "fires": [
+    "call.response_id"
+   ]
+  },
+  {
+   "name": "finish differs",
+   "truth": "metadata",
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/calls/1/finish",
+     "value": "length"
+    }
+   ],
+   "fires": [
+    "call.finish"
+   ]
+  },
+  {
+   "name": "input usage differs",
+   "truth": "metadata",
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/calls/0/usage/input",
+     "value": 413
+    }
+   ],
+   "fires": [
+    "call.usage.input"
+   ]
+  },
+  {
+   "name": "output usage differs",
+   "truth": "metadata",
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/calls/0/usage/output",
+     "value": 59
+    }
+   ],
+   "fires": [
+    "call.usage.output"
+   ]
+  },
+  {
+   "name": "cache-read usage differs",
+   "truth": "metadata",
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/calls/0/usage/cache_read",
+     "value": 301
+    }
+   ],
+   "fires": [
+    "call.usage.cache_read"
+   ]
+  },
+  {
+   "name": "cache-write usage differs",
+   "truth": "metadata",
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/calls/0/usage/cache_write",
+     "value": 41
+    }
+   ],
+   "fires": [
+    "call.usage.cache_write"
+   ]
+  },
+  {
+   "name": "reasoning usage differs",
+   "truth": "metadata",
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/calls/0/usage/reasoning",
+     "value": 13
+    }
+   ],
+   "fires": [
+    "call.usage.reasoning"
+   ]
+  },
+  {
+   "name": "call id rewritten by the framework",
+   "truth": "metadata",
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/facts/2/value/id",
+     "value": "tooluse_provider_1"
+    },
+    {
+     "op": "replace",
+     "path": "/facts/3/value/call_id",
+     "value": "tooluse_provider_1"
+    }
+   ],
+   "fires": [
+    "tool_call.id_rewritten"
+   ]
+  },
+  {
+   "name": "one prompt claimed twice",
+   "truth": "metadata",
+   "patch": [
+    {
+     "op": "add",
+     "path": "/facts/-",
+     "value": {
+      "id": "fact-009",
+      "kind": "user_text",
+      "role": "user",
+      "conversation": "conv-1",
+      "evidence": "program",
+      "value": {
+       "text": "What is 17 * 23?"
+      },
+      "require": {
+       "anchor": "conversation",
+       "views": [
+        "trace",
+        "session",
+        "feed"
+       ],
+       "cardinality": "exactly_once",
+       "match": "exact"
+      }
+     }
+    },
+    {
+     "op": "add",
+     "path": "/conversations/0/sequence/2",
+     "value": "fact-009"
+    },
+    {
+     "op": "add",
+     "path": "/edges/-",
+     "value": {
+      "kind": "prompt_of",
+      "from": "fact-009",
+      "to": "call-002"
+     }
+    }
+   ],
+   "fires": [
+    "user_text.claimed_twice"
+   ]
+  },
+  {
+   "name": "calls in the other order",
+   "truth": "metadata",
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/edges/2",
+     "value": {
+      "kind": "call_order",
+      "before": "call-002",
+      "after": "call-001"
+     }
+    }
+   ],
+   "fires": [
+    "attribution.call_order",
+    "order.calls",
+    "order.inputs_after_previous"
+   ]
+  },
+  {
+   "name": "sequence in the other order",
+   "truth": "metadata",
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/conversations/0/sequence",
+     "value": [
+      "fact-001",
+      "fact-002",
+      "fact-005",
+      "fact-003",
+      "fact-004"
+     ]
+    }
+   ],
+   "fires": [
+    "order.sequence"
+   ]
+  },
+  {
+   "name": "a generation no call made",
+   "truth": "metadata",
+   "patch": [
+    {
+     "op": "remove",
+     "path": "/edges/2"
+    },
+    {
+     "op": "remove",
+     "path": "/calls/1"
+    },
+    {
+     "op": "remove",
+     "path": "/facts/4"
+    },
+    {
+     "op": "replace",
+     "path": "/conversations/0/sequence",
+     "value": [
+      "fact-001",
+      "fact-002",
+      "fact-003",
+      "fact-004"
+     ]
+    },
+    {
+     "op": "replace",
+     "path": "/conversations/0/final_answers",
+     "value": []
+    },
+    {
+     "op": "replace",
+     "path": "/model_calls",
+     "value": 1
+    }
+   ],
+   "fires": [
+    "extra.unexplained",
+    "generation.unexpected"
+   ]
+  },
+  {
+   "name": "more unknowable calls than spans",
+   "truth": "metadata",
+   "patch": [
+    {
+     "op": "add",
+     "path": "/calls/-",
+     "value": {
+      "id": "call-003",
+      "attempt": 1,
+      "outcome": "success",
+      "conversation": "conv-1",
+      "api": "bedrock.converse",
+      "streamed": false,
+      "status": 200,
+      "model": null,
+      "response_model": null,
+      "response_id": null,
+      "stop_reason": "end_turn",
+      "finish": "stop",
+      "usage": null,
+      "outputs": [
+       "fact-009"
+      ]
+     }
+    },
+    {
+     "op": "add",
+     "path": "/facts/-",
+     "value": {
+      "id": "fact-009",
+      "kind": "text",
+      "role": "assistant",
+      "conversation": "conv-1",
+      "evidence": "program",
+      "value": {
+       "text": "unknowable"
+      },
+      "require": null,
+      "call": "call-003"
+     }
+    },
+    {
+     "op": "add",
+     "path": "/conversations/0/sequence/-",
+     "value": "fact-009"
+    },
+    {
+     "op": "replace",
+     "path": "/model_calls",
+     "value": 3
+    },
+    {
+     "op": "add",
+     "path": "/gaps/-",
+     "value": {
+      "fact": "assistant_text",
+      "reason": "answer_quotes_framework_rendering",
+      "detail": "a hand-written unknowable answer",
+      "subject": "fact-009"
+     }
+    }
+   ],
+   "fires": [
+    "call.count"
+   ]
+  },
+  {
+   "name": "two calls on one span",
+   "truth": "metadata",
+   "patch": [
+    {
+     "op": "add",
+     "path": "/calls/-",
+     "value": {
+      "id": "call-003",
+      "attempt": 1,
+      "outcome": "success",
+      "conversation": "conv-1",
+      "api": "bedrock.converse",
+      "streamed": false,
+      "status": 200,
+      "model": null,
+      "response_model": null,
+      "response_id": null,
+      "stop_reason": "end_turn",
+      "finish": "stop",
+      "usage": null,
+      "outputs": [
+       "fact-009"
+      ]
+     }
+    },
+    {
+     "op": "add",
+     "path": "/facts/-",
+     "value": {
+      "id": "fact-009",
+      "kind": "text",
+      "role": "assistant",
+      "conversation": "conv-1",
+      "evidence": "program",
+      "value": {
+       "text": "17 * 23 = 391."
+      },
+      "require": {
+       "anchor": "model_call",
+       "views": [
+        "span",
+        "trace",
+        "session",
+        "feed"
+       ],
+       "cardinality": "exactly_once",
+       "match": "exact"
+      },
+      "call": "call-003"
+     }
+    },
+    {
+     "op": "add",
+     "path": "/conversations/0/sequence/-",
+     "value": "fact-009"
+    },
+    {
+     "op": "replace",
+     "path": "/model_calls",
+     "value": 3
+    }
+   ],
+   "fires": [
+    "call.span_shared",
+    "text.claimed_twice"
+   ]
+  },
+  {
+   "name": "a block nothing explains",
+   "truth": "metadata",
+   "patch": [
+    {
+     "op": "remove",
+     "path": "/facts/0"
+    },
+    {
+     "op": "replace",
+     "path": "/conversations/0/sequence",
+     "value": [
+      "fact-002",
+      "fact-003",
+      "fact-004",
+      "fact-005"
+     ]
+    }
+   ],
+   "fires": [
+    "extra.unexplained"
+   ]
+  },
+  {
+   "name": "conversations in the other order",
+   "truth": "two_traces",
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/conversations",
+     "value": [
+      {
+       "id": "conv-2",
+       "sequence": [
+        "fact-004",
+        "fact-005",
+        "fact-006"
+       ],
+       "final_answers": [
+        "fact-006"
+       ]
+      },
+      {
+       "id": "conv-1",
+       "sequence": [
+        "fact-001",
+        "fact-002",
+        "fact-003"
+       ],
+       "final_answers": [
+        "fact-003"
+       ]
+      }
+     ]
+    }
+   ],
+   "fires": [
+    "order.conversations",
+    "order.sequence"
+   ]
+  },
+  {
+   "name": "a prompt in the wrong trace",
+   "truth": "two_traces",
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/edges/0/to",
+     "value": "call-002"
+    }
+   ],
+   "fires": [
+    "extra.unexplained",
+    "user_text.wrong_trace"
+   ]
+  },
+  {
+   "name": "a prompt leaked into another trace",
+   "truth": "repeated_question",
+   "patch": [
+    {
+     "op": "remove",
+     "path": "/edges/1"
+    },
+    {
+     "op": "remove",
+     "path": "/facts/4"
+    },
+    {
+     "op": "replace",
+     "path": "/conversations/1/sequence",
+     "value": [
+      "fact-004",
+      "fact-006"
+     ]
+    }
+   ],
+   "fires": [
+    "user_text.leaked"
+   ]
+  },
+  {
+   "name": "prompts sent to the other turn",
+   "truth": "two_turns",
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/edges/0/to",
+     "value": "call-002"
+    },
+    {
+     "op": "replace",
+     "path": "/edges/2/to",
+     "value": "call-001"
+    }
+   ],
+   "fires": [
+    "attribution.span",
+    "order.inputs_after_previous",
+    "order.prompt"
+   ]
+  },
+  {
+   "name": "a part repeated",
+   "truth": "duplicate_part",
+   "patch": [],
+   "fires": [
+    "text.duplicated"
+   ],
+   "why": "one response holds the same text part twice; the wire said it once"
+  },
+  {
+   "name": "a prompt on a sibling span",
+   "truth": "prompt_on_tool_span",
+   "patch": [],
+   "fires": [
+    "attribution.span",
+    "order.prompt",
+    "order.sequence"
+   ],
+   "why": "the prompt is reported only by a tool span beside the model calls"
+  },
+  {
+   "name": "parts out of wire order",
+   "truth": "parts_order",
+   "patch": [],
+   "fires": [
+    "order.parts",
+    "order.sequence"
+   ],
+   "why": "the wire sent the call before the text"
+  },
+  {
+   "name": "two spans show one response",
+   "truth": "ambiguous",
+   "patch": [],
+   "fires": [
+    "call.ambiguous",
+    "generation.unexpected",
+    "text.duplicated"
+   ],
+   "why": "a sibling generation span shows the answer the call made"
+  },
+  {
+   "name": "a failed attempt that speaks",
+   "truth": "failed_attempt",
+   "patch": [],
+   "fires": [
+    "attribution.span",
+    "call.failed_attempt_has_output",
+    "extra.unexplained"
+   ],
+   "why": "the ERROR span of the throttled attempt still reports a reply"
+  }
+ ]
+}

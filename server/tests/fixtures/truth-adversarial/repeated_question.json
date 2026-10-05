@@ -1,0 +1,232 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "_synthetic",
+ "scenario": "adversarial_repeated_question",
+ "fixtures": [
+  "_synthetic/adversarial_repeated_question"
+ ],
+ "source": {
+  "kind": "program",
+  "path": "server/tests/fixtures/messages/_synthetic/adversarial_repeated_question/req-001.json",
+  "sha256": "c5188b263d2ff41a5c188fe13714195392c49099f37b5e9a6e05f8f03d87c947"
+ },
+ "generator": "hand-written adversarial case",
+ "topology": "sessions",
+ "request_bodies": "program",
+ "model_calls": 2,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+   "response_model": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+   "response_id": null,
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 30,
+    "output": 7,
+    "cache_read": null,
+    "cache_write": null,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-003"
+   ]
+  },
+  {
+   "id": "call-002",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-2",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+   "response_model": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+   "response_id": null,
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 30,
+    "output": 7,
+    "cache_read": null,
+    "cache_write": null,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-006"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002",
+    "fact-003"
+   ],
+   "final_answers": [
+    "fact-003"
+   ]
+  },
+  {
+   "id": "conv-2",
+   "sequence": [
+    "fact-004",
+    "fact-005",
+    "fact-006"
+   ],
+   "final_answers": [
+    "fact-006"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "program",
+   "value": {
+    "text": "You are a precise calculator."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "program",
+   "value": {
+    "text": "What is 2 + 2?"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   }
+  },
+  {
+   "id": "fact-003",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "program",
+   "value": {
+    "text": "2 + 2 = 4."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-004",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-2",
+   "evidence": "program",
+   "value": {
+    "text": "You are a precise calculator."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   }
+  },
+  {
+   "id": "fact-005",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-2",
+   "evidence": "program",
+   "value": {
+    "text": "What is 2 + 2?"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   }
+  },
+  {
+   "id": "fact-006",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-2",
+   "evidence": "program",
+   "value": {
+    "text": "Four."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-002"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-002",
+   "to": "call-001"
+  },
+  {
+   "kind": "prompt_of",
+   "from": "fact-005",
+   "to": "call-002"
+  }
+ ],
+ "gaps": []
+}

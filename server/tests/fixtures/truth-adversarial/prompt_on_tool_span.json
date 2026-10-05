@@ -1,0 +1,215 @@
+{
+ "format": "sideseat.truth/2",
+ "producer": "_synthetic",
+ "scenario": "adversarial_prompt_on_tool_span",
+ "fixtures": [
+  "_synthetic/adversarial_prompt_on_tool_span"
+ ],
+ "source": {
+  "kind": "program",
+  "path": "server/tests/fixtures/messages/_synthetic/adversarial_prompt_on_tool_span/req-001.json",
+  "sha256": "54de29d803a55f4db47c04d020b26a1967b738b636e7e930868a7d88484f62a4"
+ },
+ "generator": "hand-written adversarial case",
+ "topology": "linear",
+ "request_bodies": "program",
+ "model_calls": 2,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+   "response_model": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+   "response_id": null,
+   "stop_reason": "tool_use",
+   "finish": "tool_use",
+   "usage": {
+    "input": 412,
+    "output": 58,
+    "cache_read": null,
+    "cache_write": null,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-003"
+   ]
+  },
+  {
+   "id": "call-002",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "bedrock.converse",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+   "response_model": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+   "response_id": null,
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 498,
+    "output": 17,
+    "cache_read": null,
+    "cache_write": null,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-005"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-001",
+    "fact-002",
+    "fact-003",
+    "fact-004",
+    "fact-005"
+   ],
+   "final_answers": [
+    "fact-005"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "program",
+   "value": {
+    "text": "You are a precise calculator."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "program",
+   "value": {
+    "text": "What is 17 * 23?"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   }
+  },
+  {
+   "id": "fact-003",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "program",
+   "value": {
+    "id": "tooluse_abc123",
+    "name": "calculator",
+    "arguments": {
+     "expression": "17 * 23"
+    }
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-004",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "program",
+   "value": {
+    "call_id": "tooluse_abc123",
+    "name": "calculator",
+    "value": 391,
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-005",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "program",
+   "value": {
+    "text": "17 * 23 = 391."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-002"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-002",
+   "to": "call-001"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-004",
+   "to": "fact-003"
+  },
+  {
+   "kind": "call_order",
+   "before": "call-001",
+   "after": "call-002"
+  }
+ ],
+ "gaps": []
+}
