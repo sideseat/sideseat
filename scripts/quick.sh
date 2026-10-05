@@ -50,8 +50,9 @@ started=$SECONDS
 step() { printf '\n[quick] %s\n' "$*"; }
 
 # --- Rust -------------------------------------------------------------------------------------
-# Changed files map to the crate that owns them; workspace-level inputs select every crate.
-rust_files="$(grep -E '\.(rs|toml)$|^server/assets/|^Cargo\.lock$' <<<"$changed" || true)"
+# Changed files map to the crate that owns them, test fixtures included; workspace-level inputs
+# select every crate.
+rust_files="$(grep -E '\.(rs|toml)$|^server/assets/|^server/tests/|^Cargo\.lock$' <<<"$changed" || true)"
 if [ -n "$rust_files" ]; then
     crates=()
     workspace=0
