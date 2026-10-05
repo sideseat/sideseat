@@ -366,12 +366,13 @@ fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &Pos
                         array_path.child_index(run.start),
                     )),
                     None => {
-                        for position in run.start..run.end {
-                            if is_message_like_object(&arr[position]) {
+                        let messages = arr.iter().enumerate().take(run.end).skip(run.start);
+                        for (position, message) in messages {
+                            if is_message_like_object(message) {
                                 result.push((
                                     RawMessage {
                                         source: raw.source.clone(),
-                                        content: arr[position].clone(),
+                                        content: message.clone(),
                                     },
                                     array_path.child_index(position),
                                 ));

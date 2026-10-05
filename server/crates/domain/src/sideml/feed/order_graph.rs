@@ -294,8 +294,9 @@ pub(super) fn collect_order_evidence(
 /// Where each output attribute's responses end: the messages that carry a finish reason.
 ///
 /// An output attribute is one payload, but not always one response. A client that runs the tool loop
-/// itself reports every round on one span - the call, then the answer written after the call's result
-/// - so contracting the whole payload into one emission left no room for the result between them.
+/// itself reports every round on one span (the call, then the answer written after the call's
+/// result), so contracting the whole payload into one emission left no room for the result between
+/// them.
 /// A message with a finish reason closes its response; the payload keeps its order across them,
 /// through the carrier sequence, while each response is atomic on its own. Only a generation span's
 /// output is read this way: an agent span re-listing a turn reports one message, not model rounds.
