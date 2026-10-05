@@ -53,7 +53,6 @@ type MediaContentProps =
 
 interface MediaConfig {
   icon: LucideIcon;
-  iconClass: string;
   label: string;
   extra?: string;
 }
@@ -63,32 +62,27 @@ function getMediaConfig(props: MediaContentProps): MediaConfig {
     case "image":
       return {
         icon: Image,
-        iconClass: "text-blue-600 dark:text-blue-400",
         label: "Image",
         extra: props.detail ? `(${props.detail})` : undefined,
       };
     case "audio":
       return {
         icon: Music,
-        iconClass: "text-green-600 dark:text-green-400",
         label: "Audio",
       };
     case "video":
       return {
         icon: Video,
-        iconClass: "text-purple-600 dark:text-purple-400",
         label: "Video",
       };
     case "document":
       return {
         icon: FileText,
-        iconClass: "text-orange-600 dark:text-orange-400",
         label: props.name || "Document",
       };
     case "file":
       return {
         icon: File,
-        iconClass: "text-gray-600 dark:text-gray-400",
         label: props.name || "File",
       };
   }
@@ -167,7 +161,7 @@ function ImageViewer({
   return (
     <div className="rounded-lg border border-border/40 bg-muted/20 overflow-hidden inline-block shadow-sm">
       {/* Image container with loading state */}
-      <div className="relative bg-black/5 dark:bg-white/5">
+      <div className="relative bg-muted/40">
         {/* Loading skeleton */}
         {!isLoaded && (
           <div className="absolute inset-0 flex items-center justify-center min-h-30 min-w-40">
@@ -370,7 +364,7 @@ export function MediaContent(props: MediaContentProps) {
       onClick={isPdf && resolvedUrl ? handleOpenPdf : undefined}
     >
       <div className="flex items-center gap-2 min-h-6">
-        <Icon className={`h-4 w-4 ${config.iconClass}`} aria-hidden="true" />
+        <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         <span className="text-sm font-medium">{config.label}</span>
         <span className="text-xs text-muted-foreground">
           {getMediaTypeLabel(mediaType)}

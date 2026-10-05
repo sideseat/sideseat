@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, type CSSProperties } from "react";
 import { ChevronRight, ChevronDown, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, tw } from "@/lib/utils";
 import { useCopy } from "@/hooks";
 import {
   transformToRows,
@@ -31,11 +31,11 @@ const BASE_INDENT_PX = 8;
 function getValueColorClass(type: ValueType): string {
   switch (type) {
     case "string":
-      return "text-green-600 dark:text-green-500";
+      return tw("text-syntax-string");
     case "number":
-      return "text-blue-600 dark:text-blue-500";
+      return tw("text-syntax-number");
     case "boolean":
-      return "text-amber-600 dark:text-amber-500";
+      return tw("text-syntax-boolean");
     case "null":
       return "text-muted-foreground italic";
     case "object":

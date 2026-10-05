@@ -19,7 +19,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { JsonContent } from "@/components/thread/content/json-content";
 import type { BaseEvent, ChatState } from "@/api/agui/types";
-import { cn } from "@/lib/utils";
+import { cn, tw } from "@/lib/utils";
 
 interface Props {
   open: boolean;
@@ -57,62 +57,62 @@ const CATEGORY_META: Record<
   lifecycle: {
     label: "Lifecycle",
     icon: Flag,
-    tint: "text-emerald-700 dark:text-emerald-400 bg-emerald-500/10",
-    ring: "ring-emerald-500/30",
+    tint: tw("text-success bg-success/10"),
+    ring: tw("ring-success/30"),
   },
   step: {
     label: "Step",
     icon: Milestone,
-    tint: "text-violet-700 dark:text-violet-400 bg-violet-500/10",
-    ring: "ring-violet-500/30",
+    tint: tw("text-role-system bg-role-system/10"),
+    ring: tw("ring-role-system/30"),
   },
   text: {
     label: "Text",
     icon: MessageSquare,
-    tint: "text-sky-700 dark:text-sky-400 bg-sky-500/10",
-    ring: "ring-sky-500/30",
+    tint: tw("text-role-user bg-role-user/10"),
+    ring: tw("ring-role-user/30"),
   },
   reasoning: {
     label: "Reasoning",
     icon: Cpu,
-    tint: "text-fuchsia-700 dark:text-fuchsia-400 bg-fuchsia-500/10",
-    ring: "ring-fuchsia-500/30",
+    tint: tw("text-role-thinking bg-role-thinking/10"),
+    ring: tw("ring-role-thinking/30"),
   },
   tool: {
     label: "Tool",
     icon: Wrench,
-    tint: "text-amber-700 dark:text-amber-400 bg-amber-500/10",
-    ring: "ring-amber-500/30",
+    tint: tw("text-role-tool-call bg-role-tool-call/10"),
+    ring: tw("ring-role-tool-call/30"),
   },
   state: {
     label: "State",
     icon: Database,
-    tint: "text-indigo-700 dark:text-indigo-400 bg-indigo-500/10",
-    ring: "ring-indigo-500/30",
+    tint: tw("text-role-context bg-role-context/10"),
+    ring: tw("ring-role-context/30"),
   },
   messages: {
     label: "Snapshot",
     icon: FileText,
-    tint: "text-slate-700 dark:text-slate-300 bg-slate-500/10",
-    ring: "ring-slate-500/30",
+    tint: tw("text-role-assistant bg-role-assistant/10"),
+    ring: tw("ring-role-assistant/30"),
   },
   custom: {
     label: "Custom",
     icon: Sparkles,
-    tint: "text-rose-700 dark:text-rose-400 bg-rose-500/10",
-    ring: "ring-rose-500/30",
+    tint: tw("text-primary bg-primary/10"),
+    ring: tw("ring-primary/30"),
   },
   raw: {
     label: "Raw",
     icon: AlertCircle,
-    tint: "text-zinc-700 dark:text-zinc-400 bg-zinc-500/10",
-    ring: "ring-zinc-500/30",
+    tint: tw("text-muted-foreground bg-muted-foreground/10"),
+    ring: tw("ring-muted-foreground/30"),
   },
   other: {
     label: "Other",
     icon: AlertCircle,
-    tint: "text-muted-foreground bg-muted",
-    ring: "ring-muted",
+    tint: tw("text-muted-foreground bg-muted"),
+    ring: tw("ring-muted"),
   },
 };
 

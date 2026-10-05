@@ -2,32 +2,32 @@ import { Moon, Sun, Monitor, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useTheme } from "@/components/theme-provider";
-import { cn } from "@/lib/utils";
+import { cn, tw } from "@/lib/utils";
 
 const colorSchemes = [
   {
     id: "professional" as const,
     name: "Professional",
     description: "Clean & minimal",
-    gradient: "from-neutral-400 via-neutral-500 to-neutral-600",
+    gradient: tw("from-scheme-professional-from to-scheme-professional-to"),
   },
   {
     id: "fancy" as const,
     name: "Fancy",
     description: "Purple vibes",
-    gradient: "from-[oklch(0.52_0.26_285)] via-[oklch(0.60_0.24_285)] to-[oklch(0.70_0.22_285)]",
+    gradient: tw("from-scheme-fancy-from to-scheme-fancy-to"),
   },
   {
     id: "ocean" as const,
     name: "Ocean",
     description: "Calm & focused",
-    gradient: "from-[oklch(0.52_0.18_195)] via-[oklch(0.62_0.17_195)] to-[oklch(0.72_0.16_195)]",
+    gradient: tw("from-scheme-ocean-from to-scheme-ocean-to"),
   },
   {
     id: "ember" as const,
     name: "Ember",
     description: "Warm & creative",
-    gradient: "from-[oklch(0.50_0.20_35)] via-[oklch(0.58_0.18_55)] to-[oklch(0.65_0.15_70)]",
+    gradient: tw("from-scheme-ember-from to-scheme-ember-to"),
   },
 ] as const;
 

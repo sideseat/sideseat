@@ -253,7 +253,7 @@ const IMAGE_ZOOM_STEP = 0.5;
 function LoadingSpinner() {
   return (
     <div className="flex items-center justify-center min-h-50">
-      <div className="w-10 h-10 border-2 border-white/20 border-t-white/80 rounded-full animate-spin" />
+      <div className="w-10 h-10 border-2 border-overlay-foreground/20 border-t-overlay-foreground/80 rounded-full animate-spin" />
     </div>
   );
 }
@@ -411,7 +411,7 @@ function ImageLightboxContent({
 
       {/* Bottom toolbar */}
       <div
-        className={`absolute bottom-6 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 px-2 py-1.5 bg-black/70 backdrop-blur-sm rounded-full border border-white/10 transition-opacity duration-300 ${showControls ? "opacity-100" : "opacity-0"}`}
+        className={`absolute bottom-6 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 px-2 py-1.5 bg-overlay/70 backdrop-blur-sm rounded-full border border-overlay-foreground/10 transition-opacity duration-300 ${showControls ? "opacity-100" : "opacity-0"}`}
       >
         <Button
           variant="overlay"
@@ -424,7 +424,7 @@ function ImageLightboxContent({
         </Button>
 
         <button
-          className="min-w-15 px-2 py-1 text-xs font-medium text-overlay-foreground/80 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+          className="min-w-15 px-2 py-1 text-xs font-medium text-overlay-foreground/80 hover:text-overlay-foreground hover:bg-overlay-foreground/10 rounded-full transition-colors"
           onClick={handleReset}
           title="Reset (0)"
         >
@@ -441,7 +441,7 @@ function ImageLightboxContent({
           <ZoomIn className="h-4 w-4" />
         </Button>
 
-        <div className="w-px h-5 bg-white/20 mx-1" />
+        <div className="w-px h-5 bg-overlay-foreground/20 mx-1" />
 
         <Button variant="overlay" size="icon-sm" onClick={handleRotate} title="Rotate (R)">
           <RotateCcw className="h-4 w-4" />
@@ -571,17 +571,17 @@ function MediaLightbox({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black select-none"
+      className="fixed inset-0 z-50 bg-overlay select-none"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       {/* Top bar */}
       <div
-        className={`absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-3 bg-linear-to-b from-black/80 via-black/40 to-transparent transition-opacity duration-300 ${showControls ? "opacity-100" : "opacity-0"}`}
+        className={`absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-3 bg-linear-to-b from-overlay/80 via-overlay/40 to-transparent transition-opacity duration-300 ${showControls ? "opacity-100" : "opacity-0"}`}
       >
         <div className="flex items-center gap-3 text-sm text-overlay-muted-foreground">
-          <span className="font-medium text-white">{entry.typeLabel}</span>
+          <span className="font-medium text-overlay-foreground">{entry.typeLabel}</span>
           {headerInfo && (
             <>
               <span className="opacity-40">|</span>
@@ -613,7 +613,7 @@ function MediaLightbox({
         <>
           <button
             aria-label="Previous"
-            className={`absolute left-4 top-1/2 -translate-y-1/2 z-10 h-12 w-12 flex items-center justify-center rounded-full bg-black/50 text-white transition-all duration-150 ${!showControls ? "opacity-0" : hasPrev ? "opacity-100 hover:bg-black/70 cursor-pointer" : "opacity-30 cursor-not-allowed"}`}
+            className={`absolute left-4 top-1/2 -translate-y-1/2 z-10 h-12 w-12 flex items-center justify-center rounded-full bg-overlay/50 text-overlay-foreground transition-all duration-150 ${!showControls ? "opacity-0" : hasPrev ? "opacity-100 hover:bg-overlay/70 cursor-pointer" : "opacity-30 cursor-not-allowed"}`}
             onClick={handlePrev}
             disabled={!hasPrev}
             title="Previous (Left arrow)"
@@ -622,7 +622,7 @@ function MediaLightbox({
           </button>
           <button
             aria-label="Next"
-            className={`absolute right-4 top-1/2 -translate-y-1/2 z-10 h-12 w-12 flex items-center justify-center rounded-full bg-black/50 text-white transition-all duration-150 ${!showControls ? "opacity-0" : hasNext ? "opacity-100 hover:bg-black/70 cursor-pointer" : "opacity-30 cursor-not-allowed"}`}
+            className={`absolute right-4 top-1/2 -translate-y-1/2 z-10 h-12 w-12 flex items-center justify-center rounded-full bg-overlay/50 text-overlay-foreground transition-all duration-150 ${!showControls ? "opacity-0" : hasNext ? "opacity-100 hover:bg-overlay/70 cursor-pointer" : "opacity-30 cursor-not-allowed"}`}
             onClick={handleNext}
             disabled={!hasNext}
             title="Next (Right arrow)"

@@ -5,6 +5,15 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Marks a class string held in data - a lookup table or config object - so the design-system lint
+ * checks it. The linter reads `className`, `cn()` and `cva()`; a class string anywhere else is
+ * invisible to it, which is how raw palette colors survived in lookup tables. Returns its argument.
+ */
+export function tw(classes: string): string {
+  return classes;
+}
+
 export function sortProjectsWithDefaultFirst<T extends { id: string; name: string }>(
   projects: T[],
 ): T[] {

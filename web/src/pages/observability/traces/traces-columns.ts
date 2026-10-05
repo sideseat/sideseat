@@ -1,6 +1,7 @@
 import type { ColDef } from "ag-grid-community";
 import { formatTimestamp24h, formatDuration, formatCost, formatTokens } from "@/lib/format";
 import type { TraceSummary } from "@/api/otel/types";
+import { tw } from "@/lib/utils";
 import type { ColumnConfig } from "@/components/column-selector";
 import {
   ActionsCellRenderer,
@@ -98,7 +99,7 @@ export const columnDefs: ColDef<TraceSummary>[] = [
     headerName: "Input",
     minWidth: 200,
     valueFormatter: (p) => p.value || "-",
-    cellClass: "bg-sky-500/5 dark:bg-sky-400/5",
+    cellClass: tw("bg-role-user/5"),
   },
   {
     colId: "output_preview",
@@ -106,7 +107,7 @@ export const columnDefs: ColDef<TraceSummary>[] = [
     headerName: "Output",
     minWidth: 200,
     valueFormatter: (p) => p.value || "-",
-    cellClass: "bg-amber-500/5 dark:bg-amber-400/5",
+    cellClass: tw("bg-role-assistant/5"),
   },
   {
     colId: "duration_ms",

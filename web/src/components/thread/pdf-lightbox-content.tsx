@@ -28,7 +28,7 @@ interface PdfLightboxContentProps {
 function LoadingSpinner() {
   return (
     <div className="flex items-center justify-center min-h-50">
-      <div className="w-10 h-10 border-2 border-white/20 border-t-white/80 rounded-full animate-spin" />
+      <div className="w-10 h-10 border-2 border-overlay-foreground/20 border-t-overlay-foreground/80 rounded-full animate-spin" />
     </div>
   );
 }
@@ -36,7 +36,7 @@ function LoadingSpinner() {
 function ErrorState({ message, onDownload }: { message: string; onDownload: () => void }) {
   return (
     <div className="absolute inset-0 flex items-center justify-center">
-      <div className="flex flex-col items-center gap-4 p-8 bg-overlay/80 rounded-xl border border-white/10 max-w-md text-center">
+      <div className="flex flex-col items-center gap-4 p-8 bg-overlay/80 rounded-xl border border-overlay-foreground/10 max-w-md text-center">
         <AlertCircle className="h-12 w-12 text-destructive" />
         <p className="text-overlay-foreground/80">{message}</p>
         <Button variant="overlay-outline" onClick={onDownload}>
@@ -185,7 +185,7 @@ export default function PdfLightboxContent({
 
       {/* Bottom toolbar */}
       <div
-        className={`absolute bottom-6 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 px-2 py-1.5 bg-black/70 backdrop-blur-sm rounded-full border border-white/10 transition-opacity duration-300 ${showControls ? "opacity-100" : "opacity-0"}`}
+        className={`absolute bottom-6 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 px-2 py-1.5 bg-overlay/70 backdrop-blur-sm rounded-full border border-overlay-foreground/10 transition-opacity duration-300 ${showControls ? "opacity-100" : "opacity-0"}`}
       >
         {/* Zoom controls */}
         <Button
@@ -199,7 +199,7 @@ export default function PdfLightboxContent({
         </Button>
 
         <button
-          className="min-w-15 px-2 py-1 text-xs font-medium text-overlay-foreground/80 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+          className="min-w-15 px-2 py-1 text-xs font-medium text-overlay-foreground/80 hover:text-overlay-foreground hover:bg-overlay-foreground/10 rounded-full transition-colors"
           onClick={handleResetZoom}
           title="Reset zoom (0)"
         >
@@ -216,7 +216,7 @@ export default function PdfLightboxContent({
           <ZoomIn className="h-4 w-4" />
         </Button>
 
-        <div className="w-px h-5 bg-white/20 mx-1" />
+        <div className="w-px h-5 bg-overlay-foreground/20 mx-1" />
 
         {/* Download */}
         <Button
@@ -234,7 +234,7 @@ export default function PdfLightboxContent({
         {/* Page indicator (only show if multiple pages) */}
         {numPages > 1 && (
           <>
-            <div className="w-px h-5 bg-white/20 mx-1" />
+            <div className="w-px h-5 bg-overlay-foreground/20 mx-1" />
             <span className="px-2 text-xs text-overlay-foreground/80 min-w-16 text-center">
               {currentPage} / {numPages}
             </span>

@@ -36,6 +36,8 @@ export default defineConfig([
     plugins: { shadcn },
     settings: {
       shadcn: {
+        // `tw()` (src/lib/utils.ts) marks class strings kept in lookup tables so these rules see them.
+        mergeFunctions: ["tw"],
         note: "Theme tokens and type steps live in src/styles/index.css; variants and sizes in src/components/ui/.",
       },
     },
