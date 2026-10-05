@@ -66,6 +66,8 @@ AgentScope, Haystack, Browser Use, Logfire, TraceLoop, OpenInference, Langfuse.
 
 **TypeScript:** Strands Agents, Vercel AI SDK, Claude Agent SDK.
 
+**Coding agents:** Claude Code, OpenAI Codex CLI.
+
 **Providers:** Amazon Bedrock, Anthropic, OpenAI, Azure OpenAI, Google Gemini, Vertex AI.
 
 Each of these is verified end to end. Its example suite runs a fixed set of scenarios - chat, multi-turn,

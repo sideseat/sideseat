@@ -1,0 +1,96 @@
+---
+title: Claude Code
+description: Send Claude Code's traces, log events, and metrics to SideSeat and read every session's conversation.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+[Claude Code](https://code.claude.com/docs/en/monitoring-usage) exports OpenTelemetry itself, configured
+by environment variables. SideSeat reads all three signals: spans for the turn structure, log events for
+the conversation, and metrics for cost and usage. Verified with Claude Code 2.1.288.
+
+## Setup
+
+Start SideSeat (`npx sideseat`), then export the variables in the shell that runs `claude`, or put them
+in the `env` block of `~/.claude/settings.json`:
+
+```bash
+export CLAUDE_CODE_ENABLE_TELEMETRY=1
+export CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1          # spans
+export OTEL_TRACES_EXPORTER=otlp
+export OTEL_LOGS_EXPORTER=otlp
+export OTEL_METRICS_EXPORTER=otlp
+export OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:5388/otel/default
+export OTEL_LOG_USER_PROMPTS=1                        # prompt and reply text
+export OTEL_LOG_TOOL_DETAILS=1                        # tool inputs
+export OTEL_LOG_TOOL_CONTENT=1                        # tool outputs (leave off with detailed tracing)
+```
+
+`scripts/dev/run-claude.sh` in the SideSeat repository sets the same variables and starts `claude`.
+
+| Variable | Why |
+| --- | --- |
+| `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA` | Spans are a beta tier. Without them SideSeat still stores the log events and metrics, but has no turn to attach the conversation to. |
+| `OTEL_LOGS_EXPORTER` | The prompt, the reply and each tool call travel as log events (`claude_code.user_prompt`, `assistant_response`, `tool_result`); every event names the turn's span. |
+| `OTEL_LOG_USER_PROMPTS` | Prompts and replies are redacted without it (replies follow it unless `OTEL_LOG_ASSISTANT_RESPONSES=0`). |
+| `OTEL_LOG_TOOL_DETAILS`, `OTEL_LOG_TOOL_CONTENT` | Tool inputs and the `tool.output` span event, which holds what Read and Bash returned. |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | Claude Code has no default protocol; an exporter without one sends nothing. |
+
+### Detailed tracing
+
+With `ENABLE_BETA_TRACING_DETAILED=1` and `BETA_TRACING_ENDPOINT=http://localhost:5388/otel/default`
+(a base URL; a `/v1/traces` path returns 404), the CLI also writes the conversation onto its spans:
+each request's new context, the model's output, and tool inputs and results. SideSeat shows a prompt or
+reply once when both the spans and the log events carry it. Interactive sessions get this tier only
+when your organisation is allowlisted; `claude -p` and Agent SDK sessions always do.
+
+With this tier on, unset `OTEL_LOG_TOOL_CONTENT`: the spans already carry every tool result, and the
+`tool.output` event names no call, so SideSeat would show each result twice.
+
+## What you see in SideSeat
+
+```
+claude_code.interaction              one user turn
+├── claude_code.llm_request          one model request: tokens, cost, latency
+└── claude_code.tool                 one tool call
+    ├── claude_code.tool.blocked_on_user
+    ├── claude_code.tool.execution
+    └── (Agent tool) the sub-agent's llm_request and tool spans
+```
+
+- The prompt, the assistant's replies, every tool call, its output (Read and Bash), and a failed call's
+  error, in order, in the trace and session views. Tool inputs need the detailed tier: without it the
+  input is only on the `tool_result` log event, written after the call, and calls show their name alone.
+- One session per Claude Code session: `claude -p --resume`, `--continue` and interactive turns share
+  `session.id`, so the session view holds the whole conversation.
+- Sub-agents nested under the `Agent` tool span that started them, in the same trace.
+- Token and cost metrics (`claude_code.token.usage`, `claude_code.cost.usage`) and the per-request
+  figures on `api_request` events.
+
+## Amazon Bedrock
+
+```bash
+export CLAUDE_CODE_USE_BEDROCK=1
+export AWS_REGION=us-east-1
+export ANTHROPIC_MODEL=global.anthropic.claude-sonnet-5-5
+```
+
+## Known limits
+
+- The model's thinking is not exported by any setting, and the CLI's own system prompt (the
+  `system_prompt` event, detailed tier only) is stored as a log event but not shown as a message.
+- With the detailed tier, the first request of a resumed session (`--resume`, `--continue`) restates the
+  session's earlier prompts, and the session view shows them a second time.
+- A failed Bash call's log event reports only `Shell command failed`, and that summary is what SideSeat
+  shows even when the detailed tier carries the command's real error output.
+- Without the spans tier, log events carry ids of a span that is never exported, so SideSeat stores them
+  as logs but cannot place them in a conversation.
+- Spans from `claude -p` are labelled `ClaudeAgentSDK`: they are identical to the spans the Agent SDK's
+  CLI emits.
+
+<Aside type="note">
+Claude Code ships changes to its telemetry often; spans and the detailed tier are beta. The version
+SideSeat was verified against is listed in the
+[production-readiness matrix](/docs/reference/production-readiness/).
+</Aside>

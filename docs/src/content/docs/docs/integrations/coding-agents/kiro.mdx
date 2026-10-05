@@ -1,0 +1,15 @@
+---
+title: Kiro CLI
+description: What Kiro CLI telemetry SideSeat can and cannot read.
+---
+
+Kiro CLI does not export its conversations as OpenTelemetry, so SideSeat cannot show Kiro sessions.
+Checked against Kiro CLI 2.27.1.
+
+- Kiro's documented monitoring is administrative: the Kiro console dashboard, per-user activity reports,
+  prompt logs, AWS CloudTrail and Amazon CloudWatch. None of it is OTLP.
+- The CLI contains an undocumented, metrics-only OTLP exporter for Kiro's own product telemetry (request
+  and turn durations, startup and terminal-UI latency). It carries no prompts, responses or tool calls,
+  and is not a supported configuration.
+
+When Kiro exports spans or log events, it can be supported through rule assets like any other producer.

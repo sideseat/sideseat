@@ -67,6 +67,14 @@ export default defineConfig({
               ],
             },
             {
+              label: 'Coding Agents',
+              items: [
+                { label: 'Claude Code', slug: 'docs/integrations/coding-agents/claude-code' },
+                { label: 'OpenAI Codex CLI', slug: 'docs/integrations/coding-agents/codex' },
+                { label: 'Kiro CLI', slug: 'docs/integrations/coding-agents/kiro' },
+              ],
+            },
+            {
               label: 'Providers',
               items: [
                 { label: 'Amazon Bedrock', slug: 'docs/integrations/providers/bedrock' },

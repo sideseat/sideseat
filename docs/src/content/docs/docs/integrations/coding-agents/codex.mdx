@@ -1,0 +1,54 @@
+---
+title: OpenAI Codex CLI
+description: Send the Codex CLI's OpenTelemetry logs, traces, and metrics to SideSeat and read each turn's conversation.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The [Codex CLI](https://developers.openai.com/codex) exports OpenTelemetry when its `[otel]` table is
+configured. Its conversation travels as log events; its spans give each turn a trace. SideSeat reads
+both, and stores the metrics. Verified with Codex CLI 0.160.0.
+
+## Setup
+
+Start SideSeat (`npx sideseat`), then add to `~/.codex/config.toml` (Codex ignores `[otel]` in a
+project's `.codex/config.toml`):
+
+```toml
+[otel]
+log_user_prompt = true        # the prompt text; redacted otherwise
+log_agent_responses = true    # the agent's reply; not exported otherwise
+exporter = { otlp-http = { endpoint = "http://localhost:5388/otel/default/v1/logs", protocol = "binary" } }
+trace_exporter = { otlp-http = { endpoint = "http://localhost:5388/otel/default/v1/traces", protocol = "binary" } }
+metrics_exporter = { otlp-http = { endpoint = "http://localhost:5388/otel/default/v1/metrics", protocol = "binary" } }
+```
+
+Or pass the same keys for one run: `codex exec -c 'otel.log_user_prompt=true' -c 'otel.trace_exporter={...}' ...`.
+
+<Aside type="caution" title="Keep the trace exporter on">
+A Codex log event names a span only while the trace exporter runs. With `trace_exporter = "none"` the
+events reach SideSeat as logs, but nothing ties them to a turn, so no conversation is shown.
+</Aside>
+
+## What you see in SideSeat
+
+- One trace per turn, holding the prompt, every tool call with its arguments and output (shell commands
+  include Codex's own header: chunk id, wall time, exit code), and the final reply.
+- Sub-agents started with `spawn_agent` in the parent's trace: the task the sub-agent was given, its tool
+  calls and its report, followed by the parent's `wait_agent` and `close_agent` calls. Codex reports a
+  call when it finishes, so the sub-agent's task appears just before the `spawn_agent` call that started
+  it.
+- Token usage on Codex's `handle_responses` and `session_task.turn` spans, and its metrics
+  (`codex.api_request`, `codex.tool.call`, `codex.turn.*`).
+
+Codex's spans are its internal instrumentation: several hundred per turn, most of them file reads and
+state bookkeeping, and startup work in traces of its own that hold no messages.
+
+## Known limits
+
+- Codex exports only a turn's **final** reply. Text the model writes between tool calls ("I'll read the
+  file first") and its reasoning are never exported.
+- The system prompt is not exported.
+- No span names the session, so the turns of a resumed session (`codex exec resume`) appear as separate
+  traces rather than one session.
+- `log_agent_responses` is not in Codex's documentation as of 0.160; without it the reply is missing.

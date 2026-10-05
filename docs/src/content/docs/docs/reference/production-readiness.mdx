@@ -35,7 +35,7 @@ of the surviving messages rather than silently inventing or dropping content.
 
 ## Current checked-in boundary
 
-The current tracked corpus contains **86 suites, 685 samples, and 957 captured OTLP requests**:
+The current tracked corpus contains **89 suites, 697 samples, and 992 captured OTLP requests**:
 
 - SideSeat SDK versus plain OpenTelemetry pairs for Python, TypeScript/Node.js, .NET, and Rust;
 - a credential-free OpenAI 3.19.2 / Logfire 6.0.0b7 pair captured both natively and through
@@ -94,6 +94,12 @@ The current tracked corpus contains **86 suites, 685 samples, and 957 captured O
   Bedrock's Responses API, traced by Logfire 5.1.1, in native and SideSeat mode;
 - current captures for Strands TypeScript, Vercel AI SDK, Claude Agent SDK in Python and
   TypeScript, Microsoft Agent Framework, direct OpenAI, direct Anthropic, and Amazon Bedrock;
+- live captures of two coding-agent CLIs driving their own telemetry: Claude Code 2.1.288 on Claude
+  Sonnet 5.5 through Bedrock, with and without its detailed tracing tier, and the Codex CLI 0.160.0 on
+  GPT-6.1-sol through Bedrock's Responses endpoint, each covering a file read and shell command, a
+  resumed three-turn session, a failing command, and a sub-agent. The CLIs' own export limits - no
+  intermediate text or system prompt from Codex, no tool input without Claude Code's detailed tier -
+  are stated in the support matrix and the integration pages;
 - synthetic edge cases for shapes that are difficult or unsafe to obtain from a live model.
 
 These fixtures currently cover 28 of the 32 framework identifiers SideSeat recognises. The exact
