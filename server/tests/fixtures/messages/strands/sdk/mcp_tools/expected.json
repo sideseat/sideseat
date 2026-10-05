@@ -313,9 +313,9 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "The result of (17 × 23) + 4 is 395.",
-          "content_digest": "edd9220ad7f1d831",
+          "content_digest": "8219f713f4f14487",
           "finish_reason": "Stop",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -374,9 +374,9 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "The result of (17 × 23) + 4 is 395.",
-          "content_digest": "edd9220ad7f1d831",
+          "content_digest": "8219f713f4f14487",
           "finish_reason": "Stop",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -400,9 +400,9 @@
         "role": "assistant",
         "entry_type": "text",
         "content": "The result of (17 × 23) + 4 is 395.",
-        "content_digest": "edd9220ad7f1d831",
+        "content_digest": "8219f713f4f14487",
         "finish_reason": "Stop",
-        "observation_type": "agent"
+        "observation_type": "generation"
       },
       {
         "index": 1,

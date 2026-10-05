@@ -1167,7 +1167,7 @@
           "entry_type": "text",
           "content": "Great! Here's your 3-day weather forecast for **New York City**: **Day 1:** Sunny - High: 25°C | Low: 15°C - No precipitation expected **Day 2:** Sunny - High: 26°C | Low: 16°C - Light rain expected **Day 3:** Sunny - High: 27°C | Low: 17°C…[598 chars]",
           "content_digest": "894742c417130c34",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     },
@@ -1258,7 +1258,7 @@
           "entry_type": "text",
           "content": "Excellent! Here's your 7-day weather forecast for **Los Angeles**: **Day 1:** Sunny | High: 25°C | Low: 15°C **Day 2:** Sunny | High: 26°C | Low: 16°C ☔ (Light rain expected) **Day 3:** Sunny | High: 27°C | Low: 17°C **Day 4:** Sunny | High…[806 chars]",
           "content_digest": "25805bf6d95f8a30",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     },
@@ -1311,7 +1311,7 @@
           "entry_type": "text",
           "content": "I appreciate your interest! However, I have a limitation with my weather forecast tool—the **maximum forecast period is 7 days**. I'm unable to provide a 14-day forecast at this time. Would you like me to provide a **7-day weather forecast …[338 chars]",
           "content_digest": "2244443383999919",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     },
@@ -1357,7 +1357,7 @@
         "entry_type": "text",
         "content": "I appreciate your interest! However, I have a limitation with my weather forecast tool—the **maximum forecast period is 7 days**. I'm unable to provide a 14-day forecast at this time. Would you like me to provide a **7-day weather forecast …[338 chars]",
         "content_digest": "2244443383999919",
-        "observation_type": "agent"
+        "observation_type": "generation"
       },
       {
         "index": 1,
@@ -1381,7 +1381,7 @@
         "entry_type": "text",
         "content": "Excellent! Here's your 7-day weather forecast for **Los Angeles**: **Day 1:** Sunny | High: 25°C | Low: 15°C **Day 2:** Sunny | High: 26°C | Low: 16°C ☔ (Light rain expected) **Day 3:** Sunny | High: 27°C | Low: 17°C **Day 4:** Sunny | High…[806 chars]",
         "content_digest": "25805bf6d95f8a30",
-        "observation_type": "agent"
+        "observation_type": "generation"
       },
       {
         "index": 4,
@@ -1439,7 +1439,7 @@
         "entry_type": "text",
         "content": "Great! Here's your 3-day weather forecast for **New York City**: **Day 1:** Sunny - High: 25°C | Low: 15°C - No precipitation expected **Day 2:** Sunny - High: 26°C | Low: 16°C - Light rain expected **Day 3:** Sunny - High: 27°C | Low: 17°C…[598 chars]",
         "content_digest": "894742c417130c34",
-        "observation_type": "agent"
+        "observation_type": "generation"
       },
       {
         "index": 11,

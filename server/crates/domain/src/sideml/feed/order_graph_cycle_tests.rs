@@ -66,6 +66,8 @@ fn evidence(carrier: usize, position: i32) -> OrderEvidence {
         from_generation: false,
         detached_frame: false,
         tool_reference: None,
+        ancestry_truncated: false,
+        span_interval: None,
         input_family: None,
     }
 }
@@ -279,6 +281,8 @@ fn a_relisting_is_discounted_only_on_evidence_from_below_it() {
                 ancestor_spans: ancestors.clone(),
                 detached_frame: false,
                 tool_reference: None,
+                ancestry_truncated: false,
+                span_interval: None,
                 input_family: None,
             })
             .collect::<Vec<_>>()
@@ -299,6 +303,8 @@ fn a_relisting_is_discounted_only_on_evidence_from_below_it() {
         ancestor_spans: ancestors,
         detached_frame: false,
         tool_reference: None,
+        ancestry_truncated: false,
+        span_interval: None,
         input_family: None,
     };
     let lineage = |n: usize| move |o: usize| Some(o % n);
@@ -350,5 +356,78 @@ fn a_relisting_is_discounted_only_on_evidence_from_below_it() {
         redundant_relistings(&evidence, &one_sided, &of_two).is_empty(),
         "a turn's intro text and the call it introduces are one response; contracting them is a \
          documented repair, not a re-listing"
+    );
+}
+
+/// What two model calls produced is two responses, however the span above re-lists them.
+///
+/// The AI SDK's agent span lists a failed tool turn as one message, `[answer, call]` - the shape of an
+/// intro text and the call it introduces - while the call came from the first model call and the
+/// answer from the second. Read as one emission it put the answer before the call that led to it.
+#[test]
+fn a_relisting_of_two_responses_is_discounted() {
+    let at = |seconds: i64| Utc.timestamp_opt(1_700_000_000 + seconds, 0).unwrap();
+    let survivors = ["text", "tool_use"]
+        .map(|entry| {
+            let mut b = block("root", entry);
+            b.role = ChatRole::Assistant;
+            b.entry_type = entry.to_string();
+            b
+        })
+        .to_vec();
+    let observed = |instance: usize, member: i32, span: usize, accumulator: bool| OrderEvidence {
+        emission: Some(instance),
+        message_index: member,
+        entry_index: 0,
+        effective: at(0),
+        credible: true,
+        span,
+        carrier: instance,
+        carrier_ordered: true,
+        is_output: true,
+        from_generation: !accumulator,
+        accumulator,
+        ancestor_spans: if accumulator { Vec::new() } else { vec![0] },
+        ancestry_truncated: false,
+        span_interval: None,
+        detached_frame: false,
+        tool_reference: None,
+        input_family: None,
+    };
+    let of = |o: usize| Some(o % 2);
+    let relisting = || vec![observed(0, 0, 0, true), observed(0, 1, 0, true)];
+
+    // The answer from one model call below, the call from another: two responses.
+    let mut evidence = relisting();
+    evidence.extend([observed(2, 0, 2, false), observed(1, 1, 1, false)]);
+    assert!(redundant_relistings(&evidence, &survivors, &of).contains(&0));
+
+    // Both from one model call: one response, kept whole.
+    let mut evidence = relisting();
+    evidence.extend([observed(1, 0, 1, false), observed(1, 1, 1, false)]);
+    assert!(redundant_relistings(&evidence, &survivors, &of).is_empty());
+
+    // Below it in time but not in ancestry, because a span without messages cut the path: inside the
+    // re-listing span's interval it is below, outside it is not.
+    let cut = |instance: usize, member: i32, span: usize, interval: (i64, i64)| OrderEvidence {
+        ancestor_spans: vec![9],
+        ancestry_truncated: true,
+        span_interval: Some((at(interval.0), at(interval.1))),
+        ..observed(instance, member, span, false)
+    };
+    let mut evidence: Vec<OrderEvidence> = relisting()
+        .into_iter()
+        .map(|seen| OrderEvidence {
+            span_interval: Some((at(0), at(10))),
+            ..seen
+        })
+        .collect();
+    evidence.extend([cut(2, 0, 2, (5, 9)), cut(1, 1, 1, (1, 4))]);
+    assert!(redundant_relistings(&evidence, &survivors, &of).contains(&0));
+    evidence.truncate(2);
+    evidence.extend([cut(2, 0, 2, (5, 11)), cut(1, 1, 1, (1, 4))]);
+    assert!(
+        redundant_relistings(&evidence, &survivors, &of).is_empty(),
+        "a span that outlives the re-listing span is not below it"
     );
 }

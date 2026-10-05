@@ -612,6 +612,36 @@ fn tool_call_identities(blocks: &[BlockEntry]) -> HashMap<(&str, &str), u64> {
     identities
 }
 
+/// How far apart two spans' clocks may be. OpenTelemetry JavaScript fixes each span's clock offset
+/// from a millisecond wall clock when the span starts, so events on different spans can disagree by
+/// up to this much.
+const SPAN_CLOCK_SKEW: chrono::TimeDelta = chrono::TimeDelta::milliseconds(1);
+
+/// The copy of a received message that is its original: the earliest, unless it is a model call's
+/// and an agent span reported the message within the clock skew of it.
+///
+/// An agent receives the question it hands to a model call, but inside the skew time cannot say so:
+/// the model call's copy can carry the earlier time. The survivor then followed clock noise, and
+/// with it the observation the message was attributed to. The spans relating the two copies may
+/// carry no messages and be absent from the rows, so the kinds of span decide. Beyond the skew, and
+/// between any other kinds of span, time stands; produced copies are left to time as well, since the
+/// model call produced the message before anything re-listed it.
+fn original_copy(
+    blocks: &[BlockEntry],
+    sorted: &[(usize, bool, bool, chrono::DateTime<chrono::Utc>)],
+) -> usize {
+    let (first, is_output, _, time) = sorted[0];
+    if is_output || !blocks[first].is_generation_span() {
+        return 0;
+    }
+    sorted
+        .iter()
+        .position(|&(index, other_output, _, other_time)| {
+            !other_output && other_time - time < SPAN_CLOCK_SKEW && blocks[index].is_agent_span()
+        })
+        .unwrap_or(0)
+}
+
 /// Find indices of duplicate blocks that should be marked as history.
 fn find_duplicate_indices(
     blocks: &[BlockEntry],
@@ -691,10 +721,18 @@ fn find_duplicate_indices(
             b.1.cmp(&a.1)
                 .then_with(|| b.2.cmp(&a.2))
                 .then_with(|| a.3.cmp(&b.3))
+                .then_with(|| blocks[a.0].origin_rank().cmp(&blocks[b.0].origin_rank()))
         });
 
-        // Keep first (best), mark others
-        to_mark.extend(sorted.into_iter().skip(1).map(|(idx, _, _, _)| idx));
+        // Keep the original, mark the others.
+        let keep = original_copy(blocks, &sorted);
+        to_mark.extend(
+            sorted
+                .into_iter()
+                .enumerate()
+                .filter(|(position, _)| *position != keep)
+                .map(|(_, (idx, _, _, _))| idx),
+        );
     }
 
     to_mark

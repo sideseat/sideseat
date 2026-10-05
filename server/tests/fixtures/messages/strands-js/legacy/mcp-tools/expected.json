@@ -266,7 +266,7 @@
           "entry_type": "text",
           "content": "12345 plus 6789 equals **19134**.",
           "content_digest": "0a3b078acdfcd530",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     },
@@ -306,7 +306,7 @@
         "entry_type": "text",
         "content": "12345 plus 6789 equals **19134**.",
         "content_digest": "0a3b078acdfcd530",
-        "observation_type": "agent"
+        "observation_type": "generation"
       },
       {
         "index": 1,

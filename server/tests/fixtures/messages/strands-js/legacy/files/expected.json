@@ -182,7 +182,7 @@
           "entry_type": "text",
           "content": "# Analysis ## Image Contents The image shows a beautiful park landscape on a clear day with: - **Foreground**: A dark asphalt walking path that curves gently through the park, bordered by a stone retaining wall on the left and manicured gre…[1104 chars]",
           "content_digest": "36c499a98eda465f",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     },
@@ -213,7 +213,7 @@
         "entry_type": "text",
         "content": "# Analysis ## Image Contents The image shows a beautiful park landscape on a clear day with: - **Foreground**: A dark asphalt walking path that curves gently through the park, bordered by a stone retaining wall on the left and manicured gre…[1104 chars]",
         "content_digest": "36c499a98eda465f",
-        "observation_type": "agent"
+        "observation_type": "generation"
       },
       {
         "index": 1,

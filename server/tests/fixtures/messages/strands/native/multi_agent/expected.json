@@ -607,9 +607,9 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "I checked the Barcelona forecast and handed it to the writer. The writer will turn it into a one-paragraph packing list, and I haven't seen that paragraph yet. The forecast for the next two days: - **Day 1:** Rain, with a high of 21°C. - **…[276 chars]",
-          "content_digest": "41a544e6948ddbe4",
+          "content_digest": "df08c331a8505a65",
           "finish_reason": "Stop",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 8,
@@ -632,9 +632,9 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "For your two days in Barcelona, expect rain on Day 1 with a high of 21°C, then sunny weather on Day 2 with a high of 22°C. Pack a compact, lightweight waterproof jacket or travel umbrella and water-resistant shoes for the rainy first day. B…[738 chars]",
-          "content_digest": "6dd3a3df69ab78cd",
+          "content_digest": "05b30bd5fde3a198",
           "finish_reason": "Stop",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -726,9 +726,9 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "I checked the Barcelona forecast and handed it to the writer. The writer will turn it into a one-paragraph packing list, and I haven't seen that paragraph yet. The forecast for the next two days: - **Day 1:** Rain, with a high of 21°C. - **…[276 chars]",
-          "content_digest": "41a544e6948ddbe4",
+          "content_digest": "df08c331a8505a65",
           "finish_reason": "Stop",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 8,
@@ -751,9 +751,9 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "For your two days in Barcelona, expect rain on Day 1 with a high of 21°C, then sunny weather on Day 2 with a high of 22°C. Pack a compact, lightweight waterproof jacket or travel umbrella and water-resistant shoes for the rainy first day. B…[738 chars]",
-          "content_digest": "6dd3a3df69ab78cd",
+          "content_digest": "05b30bd5fde3a198",
           "finish_reason": "Stop",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -784,9 +784,9 @@
         "role": "assistant",
         "entry_type": "text",
         "content": "For your two days in Barcelona, expect rain on Day 1 with a high of 21°C, then sunny weather on Day 2 with a high of 22°C. Pack a compact, lightweight waterproof jacket or travel umbrella and water-resistant shoes for the rainy first day. B…[738 chars]",
-        "content_digest": "6dd3a3df69ab78cd",
+        "content_digest": "05b30bd5fde3a198",
         "finish_reason": "Stop",
-        "observation_type": "agent"
+        "observation_type": "generation"
       },
       {
         "index": 1,
@@ -809,9 +809,9 @@
         "role": "assistant",
         "entry_type": "text",
         "content": "I checked the Barcelona forecast and handed it to the writer. The writer will turn it into a one-paragraph packing list, and I haven't seen that paragraph yet. The forecast for the next two days: - **Day 1:** Rain, with a high of 21°C. - **…[276 chars]",
-        "content_digest": "41a544e6948ddbe4",
+        "content_digest": "df08c331a8505a65",
         "finish_reason": "Stop",
-        "observation_type": "agent"
+        "observation_type": "generation"
       },
       {
         "index": 4,

@@ -84,6 +84,36 @@
       }
     },
     {
+      "id": "semconv.event.user_message.request",
+      "doc": "On a model call, the per-message events are the request, one event per message in the order the request lists them, so they are one array and carry an ordering family. The order is the only evidence that places a block a request introduces: Strands for TypeScript omits reasoning from a turn's reported output, so a later request's history is where it first appears, and time cannot place it, because OpenTelemetry JavaScript lets spans' clocks disagree by up to a millisecond. Declaring the family was tried once before and reverted because it repaired nothing; on `strands-js/multi_turn` it places that reasoning before the next question in both telemetry modes, and it moves no other fixture.",
+      "match": {
+        "event": "gen_ai.user.message",
+        "observation_type": [
+          "generation"
+        ]
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true
+      },
+      "ordering_family": "semconv.request_messages"
+    },
+    {
+      "id": "semconv.event.assistant_message.request",
+      "doc": "An earlier turn's reply inside a model call's request: a member of the request's ordered array, like `semconv.event.user_message.request`.",
+      "match": {
+        "event": "gen_ai.assistant.message",
+        "observation_type": [
+          "generation"
+        ]
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true
+      },
+      "ordering_family": "semconv.request_messages"
+    },
+    {
       "id": "semconv.event.content_prompt",
       "doc": "The prompt, under the older convention name.",
       "match": {

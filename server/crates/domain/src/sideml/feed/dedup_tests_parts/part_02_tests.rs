@@ -947,3 +947,33 @@ fn a_deduplicated_attachment_keeps_the_filename_a_copy_had() {
         );
     }
 }
+
+/// Two equally good copies of an answer - the model call's and the agent span's re-listing - survive
+/// as the model call's, whichever arrives first. Arrival order is the order of span ids where the
+/// spans' clocks agree only to the millisecond, so it attributed the answer differently per capture.
+#[test]
+fn an_equally_good_answer_survives_as_the_model_calls() {
+    let answer = |span: &str, observation: &str| {
+        let mut block = make_test_block(
+            "trace-1",
+            span,
+            ChatRole::Assistant,
+            "Sunny in Rome.",
+            Utc.timestamp_opt(1_700_000_000, 0).unwrap(),
+        );
+        block.event_name = Some("gen_ai.choice".to_string());
+        block.category = MessageCategory::GenAIChoice;
+        block.finish_reason = Some(FinishReason::Stop);
+        block.observation_type = Some(observation.to_string());
+        block
+    };
+    for agent_first in [true, false] {
+        let mut blocks = vec![answer("chat", "generation"), answer("agent", "agent")];
+        if agent_first {
+            blocks.reverse();
+        }
+        let survivors = process_dedup(blocks, HashMap::new());
+        assert_eq!(survivors.len(), 1);
+        assert_eq!(survivors[0].observation_type.as_deref(), Some("generation"));
+    }
+}

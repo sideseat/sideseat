@@ -500,9 +500,9 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "I'd suggest **Alfama**, Lisbon's oldest district. It has winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's an easy walk to the Sé Cathedral and São Jorge Castle. If you'd prefer something flatter and more…[310 chars]",
-          "content_digest": "8df2f535e58310d2",
+          "content_digest": "7feb541d5711e923",
           "finish_reason": "Stop",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 4,
@@ -517,9 +517,9 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, best eaten warm with a dusting of cinnamon. For a savory option, **bacalhau à Brás** (shredded salt cod with eggs and potatoes) is a local classic.",
-          "content_digest": "d263ffe945b28d00",
+          "content_digest": "5a6a81d703fb9a80",
           "finish_reason": "Stop",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 6,
@@ -543,9 +543,9 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Stay in Alfama for its historic charm and fado atmosphere, and be sure to try pastéis de nata (or bacalhau à Brás if you'd like something savory).",
-          "content_digest": "7ad7c9cb574eef88",
+          "content_digest": "f0508e0c34f2cc30",
           "finish_reason": "Stop",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -597,9 +597,9 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "I'd suggest **Alfama**, Lisbon's oldest district. It has winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's an easy walk to the Sé Cathedral and São Jorge Castle. If you'd prefer something flatter and more…[310 chars]",
-          "content_digest": "8df2f535e58310d2",
+          "content_digest": "7feb541d5711e923",
           "finish_reason": "Stop",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 4,
@@ -614,9 +614,9 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, best eaten warm with a dusting of cinnamon. For a savory option, **bacalhau à Brás** (shredded salt cod with eggs and potatoes) is a local classic.",
-          "content_digest": "d263ffe945b28d00",
+          "content_digest": "5a6a81d703fb9a80",
           "finish_reason": "Stop",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 6,
@@ -640,9 +640,9 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Stay in Alfama for its historic charm and fado atmosphere, and be sure to try pastéis de nata (or bacalhau à Brás if you'd like something savory).",
-          "content_digest": "7ad7c9cb574eef88",
+          "content_digest": "f0508e0c34f2cc30",
           "finish_reason": "Stop",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -666,18 +666,18 @@
       {
         "index": 0,
         "role": "assistant",
-        "entry_type": "text",
-        "content": "Stay in Alfama for its historic charm and fado atmosphere, and be sure to try pastéis de nata (or bacalhau à Brás if you'd like something savory).",
-        "content_digest": "7ad7c9cb574eef88",
+        "entry_type": "redacted_thinking",
+        "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSjQYKEggSEAEYAjgBQgh0aGlua2luZxIMAcLELtDLQWiizagGGgyKhAdbo9Y0erujBkMiMHjVMr5CNyJqqTIC+GLLDCFCzUZRlOif818Aw8rO7jUw5e4jJcxvcVVMopnuN93MQiqoBTbX+uyaImZWtltQQmD8F3dMsvM8+IHk18VUCenW1TmPI6W+0EhGhJGj6HTpyyI4…[1090 chars]",
+        "content_digest": "a3da8b25e6e5bf34",
         "finish_reason": "Stop",
-        "observation_type": "agent"
+        "observation_type": "generation"
       },
       {
         "index": 1,
         "role": "assistant",
-        "entry_type": "redacted_thinking",
-        "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSjQYKEggSEAEYAjgBQgh0aGlua2luZxIMAcLELtDLQWiizagGGgyKhAdbo9Y0erujBkMiMHjVMr5CNyJqqTIC+GLLDCFCzUZRlOif818Aw8rO7jUw5e4jJcxvcVVMopnuN93MQiqoBTbX+uyaImZWtltQQmD8F3dMsvM8+IHk18VUCenW1TmPI6W+0EhGhJGj6HTpyyI4…[1090 chars]",
-        "content_digest": "a3da8b25e6e5bf34",
+        "entry_type": "text",
+        "content": "Stay in Alfama for its historic charm and fado atmosphere, and be sure to try pastéis de nata (or bacalhau à Brás if you'd like something savory).",
+        "content_digest": "f0508e0c34f2cc30",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },
@@ -694,9 +694,9 @@
         "role": "assistant",
         "entry_type": "text",
         "content": "Try **pastéis de nata**, Lisbon's famous custard tarts, best eaten warm with a dusting of cinnamon. For a savory option, **bacalhau à Brás** (shredded salt cod with eggs and potatoes) is a local classic.",
-        "content_digest": "d263ffe945b28d00",
+        "content_digest": "5a6a81d703fb9a80",
         "finish_reason": "Stop",
-        "observation_type": "agent"
+        "observation_type": "generation"
       },
       {
         "index": 4,
@@ -709,18 +709,18 @@
       {
         "index": 5,
         "role": "assistant",
-        "entry_type": "text",
-        "content": "I'd suggest **Alfama**, Lisbon's oldest district. It has winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's an easy walk to the Sé Cathedral and São Jorge Castle. If you'd prefer something flatter and more…[310 chars]",
-        "content_digest": "8df2f535e58310d2",
+        "entry_type": "redacted_thinking",
+        "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQS5QQKEggSEAEYAjgBQgh0aGlua2luZxIMijhhUSW8zyKuBr+1Ggws6H/Z5jNj0apZla8iMK9EkyfDI7RNuHUuP1fW14PK2IlCHp+8bRYCnY1LMNE+iPYpvRSb6dm2Gg73qAjBrSqABKjml89GdcvhFM/X3yVhQ26RQyrdLUhrVTD8nDQ5u8Gf+Pcb66kfFQS8aUUPt+xw…[866 chars]",
+        "content_digest": "dd5558477f5778da",
         "finish_reason": "Stop",
-        "observation_type": "agent"
+        "observation_type": "generation"
       },
       {
         "index": 6,
         "role": "assistant",
-        "entry_type": "redacted_thinking",
-        "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQS5QQKEggSEAEYAjgBQgh0aGlua2luZxIMijhhUSW8zyKuBr+1Ggws6H/Z5jNj0apZla8iMK9EkyfDI7RNuHUuP1fW14PK2IlCHp+8bRYCnY1LMNE+iPYpvRSb6dm2Gg73qAjBrSqABKjml89GdcvhFM/X3yVhQ26RQyrdLUhrVTD8nDQ5u8Gf+Pcb66kfFQS8aUUPt+xw…[866 chars]",
-        "content_digest": "dd5558477f5778da",
+        "entry_type": "text",
+        "content": "I'd suggest **Alfama**, Lisbon's oldest district. It has winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's an easy walk to the Sé Cathedral and São Jorge Castle. If you'd prefer something flatter and more…[310 chars]",
+        "content_digest": "7feb541d5711e923",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },

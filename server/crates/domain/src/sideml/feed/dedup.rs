@@ -580,10 +580,19 @@ fn deduplicate_with_lineage(
         candidates
             .entry(identity)
             .and_modify(|(existing, existing_quality)| {
-                let wins = if prefer_later_on_tie() {
-                    quality >= *existing_quality
-                } else {
-                    quality > *existing_quality
+                // Equal quality falls to the more original copy, and only then to arrival order:
+                // between spans whose clocks agree only to the millisecond, arrival order is the
+                // order of their span ids.
+                let wins = match quality.cmp(existing_quality) {
+                    std::cmp::Ordering::Greater => true,
+                    std::cmp::Ordering::Less => false,
+                    std::cmp::Ordering::Equal => {
+                        match block.origin_rank().cmp(&existing.origin_rank()) {
+                            std::cmp::Ordering::Less => true,
+                            std::cmp::Ordering::Greater => false,
+                            std::cmp::Ordering::Equal => prefer_later_on_tie(),
+                        }
+                    }
                 };
                 let other = if wins {
                     let replaced = std::mem::replace(existing, block.clone());

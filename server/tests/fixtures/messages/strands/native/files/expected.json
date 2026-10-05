@@ -213,9 +213,9 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "**Image:** A curving paved path winds through a sunny park with green lawns, a low stone retaining wall, evergreen and bare winter trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The five-page do…[349 chars]",
-          "content_digest": "83a01f6ac94bbd0e",
+          "content_digest": "c0a67f05decf0605",
           "finish_reason": "Stop",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -271,9 +271,9 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "**Image:** A curving paved path winds through a sunny park with green lawns, a low stone retaining wall, evergreen and bare winter trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The five-page do…[349 chars]",
-          "content_digest": "83a01f6ac94bbd0e",
+          "content_digest": "c0a67f05decf0605",
           "finish_reason": "Stop",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -295,9 +295,9 @@
         "role": "assistant",
         "entry_type": "text",
         "content": "**Image:** A curving paved path winds through a sunny park with green lawns, a low stone retaining wall, evergreen and bare winter trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The five-page do…[349 chars]",
-        "content_digest": "83a01f6ac94bbd0e",
+        "content_digest": "c0a67f05decf0605",
         "finish_reason": "Stop",
-        "observation_type": "agent"
+        "observation_type": "generation"
       },
       {
         "index": 1,

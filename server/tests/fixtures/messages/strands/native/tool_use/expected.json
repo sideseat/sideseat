@@ -604,9 +604,9 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "**Paris:** It will be sunny both days, with highs of 21°C and 22°C. Rain chance tomorrow is only 10%, so you can skip the umbrella. **Tokyo:** Day 1 will be rainy with a high of 21°C, and day 2 will be sunny with a high of 22°C. Rain chance…[278 chars]",
-          "content_digest": "d9991bb5472e41f5",
+          "content_digest": "411ae7a6b4d74794",
           "finish_reason": "Stop",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -722,9 +722,9 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "**Paris:** It will be sunny both days, with highs of 21°C and 22°C. Rain chance tomorrow is only 10%, so you can skip the umbrella. **Tokyo:** Day 1 will be rainy with a high of 21°C, and day 2 will be sunny with a high of 22°C. Rain chance…[278 chars]",
-          "content_digest": "d9991bb5472e41f5",
+          "content_digest": "411ae7a6b4d74794",
           "finish_reason": "Stop",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -755,9 +755,9 @@
         "role": "assistant",
         "entry_type": "text",
         "content": "**Paris:** It will be sunny both days, with highs of 21°C and 22°C. Rain chance tomorrow is only 10%, so you can skip the umbrella. **Tokyo:** Day 1 will be rainy with a high of 21°C, and day 2 will be sunny with a high of 22°C. Rain chance…[278 chars]",
-        "content_digest": "d9991bb5472e41f5",
+        "content_digest": "411ae7a6b4d74794",
         "finish_reason": "Stop",
-        "observation_type": "agent"
+        "observation_type": "generation"
       },
       {
         "index": 1,

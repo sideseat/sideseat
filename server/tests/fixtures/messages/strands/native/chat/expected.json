@@ -137,9 +137,9 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Kyoto is best known for its well-preserved historic temples, shrines, and geisha districts, as the cultural heart of Japan and its imperial capital for over a thousand years.",
-          "content_digest": "5da3e884d01a050f",
+          "content_digest": "4644638bf27b2dca",
           "finish_reason": "Stop",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -176,9 +176,9 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Kyoto is best known for its well-preserved historic temples, shrines, and geisha districts, as the cultural heart of Japan and its imperial capital for over a thousand years.",
-          "content_digest": "5da3e884d01a050f",
+          "content_digest": "4644638bf27b2dca",
           "finish_reason": "Stop",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -198,9 +198,9 @@
         "role": "assistant",
         "entry_type": "text",
         "content": "Kyoto is best known for its well-preserved historic temples, shrines, and geisha districts, as the cultural heart of Japan and its imperial capital for over a thousand years.",
-        "content_digest": "5da3e884d01a050f",
+        "content_digest": "4644638bf27b2dca",
         "finish_reason": "Stop",
-        "observation_type": "agent"
+        "observation_type": "generation"
       },
       {
         "index": 1,

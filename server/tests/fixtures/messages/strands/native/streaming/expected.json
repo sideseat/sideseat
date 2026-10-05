@@ -292,9 +292,9 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Rome will be sunny tomorrow with a high of 21°C. Wear light layers, such as a t-shirt or light shirt with a light jacket or sweater for the cooler morning and evening. Bring sunglasses and comfortable walking shoes.",
-          "content_digest": "977b849e90c837fb",
+          "content_digest": "477642da95afde5f",
           "finish_reason": "Stop",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -353,9 +353,9 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "Rome will be sunny tomorrow with a high of 21°C. Wear light layers, such as a t-shirt or light shirt with a light jacket or sweater for the cooler morning and evening. Bring sunglasses and comfortable walking shoes.",
-          "content_digest": "977b849e90c837fb",
+          "content_digest": "477642da95afde5f",
           "finish_reason": "Stop",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -379,9 +379,9 @@
         "role": "assistant",
         "entry_type": "text",
         "content": "Rome will be sunny tomorrow with a high of 21°C. Wear light layers, such as a t-shirt or light shirt with a light jacket or sweater for the cooler morning and evening. Bring sunglasses and comfortable walking shoes.",
-        "content_digest": "977b849e90c837fb",
+        "content_digest": "477642da95afde5f",
         "finish_reason": "Stop",
-        "observation_type": "agent"
+        "observation_type": "generation"
       },
       {
         "index": 1,

@@ -719,3 +719,63 @@ fn historical_tool_results_are_orphans_despite_bubbled_agent_span() {
 
     assert!(stats.orphan_tool_results >= 1, "at least 1 orphan expected");
 }
+
+/// A copy of the question the agent span received, and the copy it handed a model call, reported
+/// by spans whose clocks disagree by less than a millisecond: the agent's copy is the original
+/// whichever time reads earlier, so the question is attributed to the agent on every capture.
+#[test]
+fn a_received_copy_inside_the_clock_skew_is_the_agent_spans() {
+    let question = |span: &str, observation: &str, offset_us: i64| {
+        let mut block = make_block(
+            "text",
+            Some(observation),
+            Some("gen_ai.user.message"),
+            MessageCategory::GenAIUserMessage,
+            None,
+        );
+        block.role = ChatRole::User;
+        block.span_id = span.to_string();
+        block.span_path = vec![span.to_string()];
+        block.timestamp = chrono::DateTime::from_timestamp(1_700_000_000, 0).unwrap()
+            + chrono::TimeDelta::microseconds(offset_us);
+        block
+    };
+    let marked = |blocks: &mut Vec<BlockEntry>| {
+        mark_duplicate_history(blocks, &HashMap::new());
+        blocks
+            .iter()
+            .filter(|b| b.is_history)
+            .map(|b| b.observation_type.clone().unwrap())
+            .collect::<Vec<_>>()
+    };
+
+    for agent_first in [true, false] {
+        let mut blocks = vec![
+            question("chat", "generation", 0),
+            question("agent", "agent", 300),
+        ];
+        if agent_first {
+            blocks.reverse();
+        }
+        assert_eq!(marked(&mut blocks), ["generation"]);
+    }
+    let mut blocks = vec![
+        question("chat", "generation", 0),
+        question("agent", "agent", 0),
+    ];
+    assert_eq!(
+        marked(&mut blocks),
+        ["generation"],
+        "an exact tie goes to the agent too"
+    );
+
+    let mut blocks = vec![
+        question("chat", "generation", 0),
+        question("agent", "agent", 2_000),
+    ];
+    assert_eq!(
+        marked(&mut blocks),
+        ["agent"],
+        "beyond the skew, time stands"
+    );
+}

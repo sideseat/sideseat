@@ -42,9 +42,11 @@ use super::dedup::{SpanTimestamps, effective_timestamp};
 use super::types::BlockEntry;
 use crate::sideml::types::{ChatRole, FinishReason};
 
+mod relisting;
 mod resolve;
 mod tool_causality;
 
+use relisting::redundant_relistings;
 use tool_causality::{causal_sequence_edges, exact_tool_pairs, parallel_tool_branches};
 
 pub(super) use resolve::resolve;
@@ -133,6 +135,13 @@ pub(super) struct OrderEvidence {
     /// Ancestry, not membership of the trace: "some other span also has this message" is true of a replay
     /// and says nothing, while "a span *below* this one produced it" is what makes a re-listing redundant.
     ancestor_spans: Vec<usize>,
+    /// The ancestry above stops at a parent that carries no messages, so it is not the whole chain.
+    ///
+    /// Rows are spans with messages, and a span's path is built from them, so an intermediate span
+    /// with none - the AI SDK's `step` between its agent span and a model call - cuts the path there.
+    ancestry_truncated: bool,
+    /// When this observation's span started and ended, where both are known.
+    span_interval: Option<(DateTime<Utc>, DateTime<Utc>)>,
     /// The ordered-input carrier *family* this observation belongs to, interned per span, when its
     /// carrier is an ordered input array of a generation span. `llm.input_messages.0.message` and
     /// `.1.message` are one array, and the family is what groups them - the exact key interns them
@@ -179,6 +188,13 @@ pub(super) fn collect_order_evidence(
                     *spans.entry(ancestor.as_str()).or_insert(next)
                 })
                 .collect();
+            let ancestry_truncated = block
+                .span_path
+                .first()
+                .is_some_and(|top| *top != block.span_id && !span_timestamps.contains_key(top));
+            let span_interval = span_timestamps
+                .get(&block.span_id)
+                .and_then(|t| t.span_end.map(|end| (t.span_start, end)));
             // One resolution per observation, and every fact this loop needs comes off it. The clause
             // carries the facts *and* the ordering family, so asking twice - once for each - looked up
             // the same declaration twice and, worse, allowed the two answers to come from different
@@ -229,14 +245,13 @@ pub(super) fn collect_order_evidence(
             // misrepresents the causality the old order showed. Each further family needs its own
             // measured pass, exactly like every other promotion in this module.
             //
-            // The event-stream form of the same fragmentation (`gen_ai.system.message`,
-            // `gen_ai.user.message` interning apart on one generation span) was implemented and
-            // reverted: it fired thousands of forward no-op edges, created no new cycles, and fixed
-            // nothing - for `strands/swarm`, the one case it was aimed at, the target does not exist
-            // as an orderable unit. Strands rewrites the question before the model sees it
-            // (`Context: User Request: ...`), so no identity links the surviving question to any
-            // request, and the wrapped copy is correctly filtered as a context echo. A constraint
-            // class with no measured repair is surface without benefit.
+            // The event-stream form of the same fragmentation (`gen_ai.user.message` and
+            // `gen_ai.assistant.message` interning apart on one generation span) is declared for the
+            // user and assistant events only. The first attempt also covered system messages, was
+            // aimed at `strands/swarm`, where the target is no orderable unit, and fixed nothing, so
+            // it was reverted. The declaration came back with a measured repair: on
+            // `strands-js/multi_turn` a request's history is the only place a turn's reasoning
+            // appears, and its position there is what orders it before the next question.
             // Which fragmented ordered-input family this observation belongs to is a *declared* carrier
             // fact now, not a key comparison here. It used to read
             // `source_attribute.starts_with("llm.input_messages")` - one framework's spelling, written
@@ -275,6 +290,8 @@ pub(super) fn collect_order_evidence(
                 from_generation: block.is_generation_span(),
                 accumulator: block.is_accumulator_span(),
                 ancestor_spans,
+                ancestry_truncated,
+                span_interval,
                 detached_frame: semantics.carrier_is_detached_request_frame,
                 tool_reference: block
                     .tool_use_id
@@ -378,87 +395,6 @@ fn is_credible_emission(block: &BlockEntry) -> bool {
     block.is_output_source()
         && crate::sideml::carrier::semantics_for_context(&block.carrier_context())
             .carrier_is_atomic_emission
-}
-
-/// Which emission instances are a *redundant re-listing* - present, but with no authority over order.
-/// Which emission instances are a *redundant re-listing*, and so contribute presence but not order.
-///
-/// The Vercel defect: a root agent span re-lists a whole turn as its own output, answer first, while the
-/// `chat` spans below it emitted the calls and the answer separately. Read as an emission its stated
-/// order is trusted and the answer sorts ahead of the tool calls that produced it.
-///
-/// The discriminator is **not** the carrier - the same carrier name on a generation span is that span's
-/// own emission - and not "some other span has this message either", which is true of every replay. It
-/// is whether every message the instance lists was independently produced by a *descendant* span. Then
-/// the re-listing adds nothing but an order, and its order is the one thing it gets wrong.
-///
-/// Deliberately all-or-nothing: an instance only *partly* covered still carries evidence about the
-/// messages nobody below it produced, so it keeps all of it. Guessing per message would mean splitting
-/// one emission's order across two readings.
-fn redundant_relistings(
-    evidence: &[OrderEvidence],
-    survivors: &[BlockEntry],
-    survivor_of: &impl Fn(usize) -> Option<usize>,
-) -> HashSet<usize> {
-    // Where each instance sits, and what it claims.
-    let mut instance_span: HashMap<usize, usize> = HashMap::new();
-    let mut instance_accumulator: HashMap<usize, bool> = HashMap::new();
-    let mut instance_ancestors: HashMap<usize, Vec<usize>> = HashMap::new();
-    let mut claimed: HashMap<usize, HashSet<usize>> = HashMap::new();
-    for (observation, seen) in evidence.iter().enumerate() {
-        let Some(instance) = seen.emission else {
-            continue;
-        };
-        instance_span.insert(instance, seen.span);
-        instance_accumulator.insert(instance, seen.accumulator);
-        instance_ancestors.insert(instance, seen.ancestor_spans.clone());
-        if let Some(survivor) = survivor_of(observation) {
-            claimed.entry(instance).or_default().insert(survivor);
-        }
-    }
-    let mut out = HashSet::new();
-    for (&instance, members) in &claimed {
-        if members.is_empty() || instance_accumulator.get(&instance) != Some(&true) {
-            continue;
-        }
-        let Some(&span) = instance_span.get(&instance) else {
-            continue;
-        };
-        // A witness is another instance on a span strictly below this one.
-        let witnessed = |survivor: &usize| {
-            claimed.iter().any(|(&other, others)| {
-                other != instance
-                    && others.contains(survivor)
-                    && instance_ancestors
-                        .get(&other)
-                        .is_some_and(|ancestors| ancestors.contains(&span))
-            })
-        };
-        // A model cannot answer its own call inside one response: it emits the calls, and the results
-        // come back from tools afterwards. So an instance holding **both** a message the span produced
-        // and a result answering one is not one emission - it is a re-listing of a whole turn, whatever
-        // carrier it arrived on.
-        //
-        // This is what separates it from the emissions whose contraction is load-bearing. A turn's intro
-        // text and the call it introduces are one response (`[assistant/text, assistant/tool_use]`) and
-        // must stay contracted; a span re-listing `[text, call, call, result, result]` is reporting what
-        // its children did, and its order is the one thing it gets wrong.
-        let holds_own_output = members
-            .iter()
-            .any(|&m| survivors[m].role == crate::sideml::types::ChatRole::Assistant);
-        // `entry_type`, which is what the rest of this resolver keys a result on (see the call/result edges
-        // below) - not the content variant, so the two cannot disagree about what a result is.
-        let holds_an_answer = members
-            .iter()
-            .any(|&m| survivors[m].entry_type == "tool_result");
-        if !(holds_own_output && holds_an_answer) {
-            continue;
-        }
-        if members.iter().all(witnessed) {
-            out.insert(instance);
-        }
-    }
-    out
 }
 
 /// A disjoint-set over survivor indices, used to contract co-emitted identities into one unit.

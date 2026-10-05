@@ -257,6 +257,27 @@ impl BlockEntry {
         self.observation_type.as_deref() == Some(obs_type::AGENT)
     }
 
+    /// How original this copy of a message is when another copy reports the same instant: a model
+    /// call produced what it returned, and an agent received what it passed on to one. Lower is more
+    /// original.
+    ///
+    /// Attribute carriers take their span's start time, which OpenTelemetry JavaScript records to the
+    /// millisecond, so an agent span and the model call it starts report the same instant. Left to
+    /// block order, which copy survived followed the order of their random span ids, and the message
+    /// was attributed to a different observation on every capture.
+    pub fn origin_rank(&self) -> u8 {
+        let (first, second) = if self.is_output_source() {
+            (self.is_generation_span(), self.is_agent_span())
+        } else {
+            (self.is_agent_span(), self.is_generation_span())
+        };
+        match (first, second) {
+            (true, _) => 0,
+            (_, true) => 1,
+            _ => 2,
+        }
+    }
+
     /// Check if this block is from an accumulator span (span/agent/chain).
     ///
     /// Accumulator spans collect and pass through messages without

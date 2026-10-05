@@ -292,9 +292,9 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "I couldn't book the flight from London to Oslo on 2026-11-14. The booking system is offline, so no seats could be reserved. Do you want me to try again in a bit, or try a different date?",
-          "content_digest": "027f2b5f2193fa5e",
+          "content_digest": "8c6cb312e912c8c2",
           "finish_reason": "Stop",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -353,9 +353,9 @@
           "role": "assistant",
           "entry_type": "text",
           "content": "I couldn't book the flight from London to Oslo on 2026-11-14. The booking system is offline, so no seats could be reserved. Do you want me to try again in a bit, or try a different date?",
-          "content_digest": "027f2b5f2193fa5e",
+          "content_digest": "8c6cb312e912c8c2",
           "finish_reason": "Stop",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     }
@@ -379,9 +379,9 @@
         "role": "assistant",
         "entry_type": "text",
         "content": "I couldn't book the flight from London to Oslo on 2026-11-14. The booking system is offline, so no seats could be reserved. Do you want me to try again in a bit, or try a different date?",
-        "content_digest": "027f2b5f2193fa5e",
+        "content_digest": "8c6cb312e912c8c2",
         "finish_reason": "Stop",
-        "observation_type": "agent"
+        "observation_type": "generation"
       },
       {
         "index": 1,

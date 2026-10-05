@@ -463,7 +463,7 @@
           "entry_type": "text",
           "content": "# Logic Puzzle Solution Let me work through this systematically. ## Step 1: Determine House Assignments From **Clue 4**: Carol lives in the red house. From **Clue 1**: Alice doesn't live in the red house. - Since Carol has the red house, Al…[1402 chars]",
           "content_digest": "040cac10b752cc25",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     },
@@ -506,7 +506,7 @@
           "entry_type": "text",
           "content": "# Water Tank Problem Solution Let me work through this systematically. ## Step 1: Determine the Filling and Emptying Rates **Pipe A (filling):** - Fills the tank in 6 hours - Rate = 1/6 of the tank per hour **Pipe B (emptying):** - Empties …[1110 chars]",
           "content_digest": "31089a0478430ee7",
-          "observation_type": "agent"
+          "observation_type": "generation"
         }
       ]
     },
@@ -608,7 +608,7 @@
         "entry_type": "text",
         "content": "# Water Tank Problem Solution Let me work through this systematically. ## Step 1: Determine the Filling and Emptying Rates **Pipe A (filling):** - Fills the tank in 6 hours - Rate = 1/6 of the tank per hour **Pipe B (emptying):** - Empties …[1110 chars]",
         "content_digest": "31089a0478430ee7",
-        "observation_type": "agent"
+        "observation_type": "generation"
       },
       {
         "index": 4,
@@ -632,7 +632,7 @@
         "entry_type": "text",
         "content": "# Logic Puzzle Solution Let me work through this systematically. ## Step 1: Determine House Assignments From **Clue 4**: Carol lives in the red house. From **Clue 1**: Alice doesn't live in the red house. - Since Carol has the red house, Al…[1402 chars]",
         "content_digest": "040cac10b752cc25",
-        "observation_type": "agent"
+        "observation_type": "generation"
       },
       {
         "index": 7,

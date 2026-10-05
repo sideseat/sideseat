@@ -173,7 +173,7 @@
           "entry_type": "text",
           "content": "I'll break down this project into a structured plan for building a weather app. Let me create a comprehensive project plan that identifies the key tasks and which specialists should handle them.",
           "content_digest": "c1d8de83b3693175",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -199,8 +199,8 @@
   "feed_view": {
     "message_count": 5,
     "role_sequence": [
-      "assistant",
       "tool",
+      "assistant",
       "assistant",
       "user",
       "system"
@@ -212,19 +212,19 @@
     "messages": [
       {
         "index": 0,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "I'll break down this project into a structured plan for building a weather app. Let me create a comprehensive project plan that identifies the key tasks and which specialists should handle them.",
-        "content_digest": "c1d8de83b3693175",
-        "observation_type": "agent"
-      },
-      {
-        "index": 1,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_dcScuDsYJezJEXrH0rvpxn\",\"content\":{\"message\":\"## Weather App Project Plan\\n\\n### Project Overview\\nBuild a weather app that displays forecasts for multiple cities with real-time data, user-friend…[3568 chars]",
         "content_digest": "f98a886153a9b366",
         "observation_type": "tool"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "I'll break down this project into a structured plan for building a weather app. Let me create a comprehensive project plan that identifies the key tasks and which specialists should handle them.",
+        "content_digest": "c1d8de83b3693175",
+        "observation_type": "generation"
       },
       {
         "index": 2,
