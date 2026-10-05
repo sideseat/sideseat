@@ -1,0 +1,482 @@
+{
+  "label": "openai-agents/native/multi_turn",
+  "request_count": 3,
+  "span_count": 16,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/Agent run: 'assistant'/span-14": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/Agent run: 'assistant'/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/Agent run: 'assistant'/span-9": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/OpenAI Agents trace: Agent workflow/span-12": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/OpenAI Agents trace: Agent workflow/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/OpenAI Agents trace: Agent workflow/span-7": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/Responses API with 'global.openai.gpt-6.1-sol'/span-11": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Chiado**—it’s central, walkable, and full of cafés and restaurants, making it a great base for a weekend in Lisbon.",
+          "content_digest": "776a0a257f96e31b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try **bacalhau à Brás**—shredded salt cod mixed with thin fried potatoes, onions, and eggs, usually topped with black olives.",
+          "content_digest": "99a0857cd2091d42",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/Responses API with 'global.openai.gpt-6.1-sol'/span-16": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "user",
+        "user",
+        "assistant",
+        "assistant",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarise your two suggestions in one sentence.",
+          "content_digest": "3a58af4870fae288",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Chiado**—it’s central, walkable, and full of cafés and restaurants, making it a great base for a weekend in Lisbon.",
+          "content_digest": "776a0a257f96e31b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try **bacalhau à Brás**—shredded salt cod mixed with thin fried potatoes, onions, and eggs, usually topped with black olives.",
+          "content_digest": "99a0857cd2091d42",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in Chiado for a central, walkable base, and try bacalhau à Brás, a classic dish of salt cod, thin fried potatoes, onions, and eggs.",
+          "content_digest": "22d352667b0a7c04",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/Responses API with 'global.openai.gpt-6.1-sol'/span-6": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Chiado**—it’s central, walkable, and full of cafés and restaurants, making it a great base for a weekend in Lisbon.",
+          "content_digest": "776a0a257f96e31b",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/Task: Agent workflow/span-13": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/Task: Agent workflow/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/Task: Agent workflow/span-8": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/Turn 1 for agent assistant/span-10": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/Turn 1 for agent assistant/span-15": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/Turn 1 for agent assistant/span-5": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/multi-turn/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Chiado**—it’s central, walkable, and full of cafés and restaurants, making it a great base for a weekend in Lisbon.",
+          "content_digest": "776a0a257f96e31b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try **bacalhau à Brás**—shredded salt cod mixed with thin fried potatoes, onions, and eggs, usually topped with black olives.",
+          "content_digest": "99a0857cd2091d42",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarise your two suggestions in one sentence.",
+          "content_digest": "3a58af4870fae288",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in Chiado for a central, walkable base, and try bacalhau à Brás, a classic dish of salt cod, thin fried potatoes, onions, and eggs.",
+          "content_digest": "22d352667b0a7c04",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "openai-agents-multi_turn": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Chiado**—it’s central, walkable, and full of cafés and restaurants, making it a great base for a weekend in Lisbon.",
+          "content_digest": "776a0a257f96e31b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try **bacalhau à Brás**—shredded salt cod mixed with thin fried potatoes, onions, and eggs, usually topped with black olives.",
+          "content_digest": "99a0857cd2091d42",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarise your two suggestions in one sentence.",
+          "content_digest": "3a58af4870fae288",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in Chiado for a central, walkable base, and try bacalhau à Brás, a classic dish of salt cod, thin fried potatoes, onions, and eggs.",
+          "content_digest": "22d352667b0a7c04",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 7,
+    "role_sequence": [
+      "assistant",
+      "user",
+      "assistant",
+      "user",
+      "assistant",
+      "system",
+      "user"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Stay in Chiado for a central, walkable base, and try bacalhau à Brás, a classic dish of salt cod, thin fried potatoes, onions, and eggs.",
+        "content_digest": "22d352667b0a7c04",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Summarise your two suggestions in one sentence.",
+        "content_digest": "3a58af4870fae288",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Try **bacalhau à Brás**—shredded salt cod mixed with thin fried potatoes, onions, and eggs, usually topped with black olives.",
+        "content_digest": "99a0857cd2091d42",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is one dish I should try there?",
+        "content_digest": "fa205a3ea90d1fdf",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Stay in **Chiado**—it’s central, walkable, and full of cafés and restaurants, making it a great base for a weekend in Lisbon.",
+        "content_digest": "776a0a257f96e31b",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "entry_type": "text",
+        "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+        "content_digest": "c366c7539466c187",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

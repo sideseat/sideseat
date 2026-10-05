@@ -93,6 +93,8 @@ logfire.instrument_openai_agents()
 
 - The Agents SDK also uploads its traces to the OpenAI platform. `agents.set_trace_processors([])`
   removes that upload and keeps SideSeat's spans; `agents.set_tracing_disabled(True)` turns off both.
+- Logfire records an attached image as its data URL in text and an attached file by its name only,
+  so the Messages tab shows the image's URL rather than the image and does not show the file.
 
 ## Next steps
 
