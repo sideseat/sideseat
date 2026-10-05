@@ -296,3 +296,91 @@ fn a_list_of_constructor_reprs_is_read_as_blocks_and_only_whole() {
         "a list with an element that is not a repr is some other shape"
     );
 }
+
+/// OpenInference's OpenAI instrumentor drops a Chat Completions `file` part from the flattened family but
+/// keeps it in the serialised request, so a PDF a user sent was missing from the conversation.
+///
+/// The request is joined by position only when its own list holds the system turn: a body whose system
+/// prompt sits beside the list is indexed one off from the family, and joining it would hand the user's
+/// content to the system message.
+#[test]
+fn a_chat_completions_request_restores_the_file_part_the_family_dropped() {
+    let plan = &super::ruleset().messages;
+    let family = |system_key: &str| {
+        std::collections::HashMap::from([
+            ("openinference.span.kind".to_string(), "LLM".to_string()),
+            (
+                "llm.input_messages.0.message.role".to_string(),
+                "system".to_string(),
+            ),
+            (system_key.to_string(), "be brief".to_string()),
+            (
+                "llm.input_messages.1.message.role".to_string(),
+                "user".to_string(),
+            ),
+            (
+                "llm.input_messages.1.message.contents.0.message_content.type".to_string(),
+                "text".to_string(),
+            ),
+            (
+                "llm.input_messages.1.message.contents.0.message_content.text".to_string(),
+                "read this".to_string(),
+            ),
+        ])
+    };
+    let read = |attrs: &std::collections::HashMap<String, String>| {
+        let ctx = super::message_rules::MessageContext::for_span("ChatCompletion", attrs, false);
+        plan.run(&ctx)
+            .iter()
+            .map(|e| {
+                (
+                    e.value["role"].as_str().unwrap_or("").to_string(),
+                    e.value.to_string(),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+
+    let mut chat = family("llm.input_messages.0.message.content");
+    chat.insert(
+        "input.value".to_string(),
+        serde_json::json!({"model": "m", "messages": [
+            {"role": "system", "content": "be brief"},
+            {"role": "user", "content": [
+                {"type": "text", "text": "read this"},
+                {"type": "file", "file": {
+                    "filename": "task.pdf",
+                    "file_data": "data:application/pdf;base64,JVBERi0x"
+                }}
+            ]}
+        ]})
+        .to_string(),
+    );
+    let messages = read(&chat);
+    assert!(
+        messages
+            .iter()
+            .any(|(role, value)| role == "user" && value.contains("task.pdf")),
+        "the user turn must carry the file part: {messages:?}"
+    );
+
+    let mut converse =
+        family("llm.input_messages.0.message.contents.0.message_content.text");
+    converse.insert(
+        "input.value".to_string(),
+        serde_json::json!({"system": [{"text": "be brief"}], "messages": [
+            {"role": "user", "content": [
+                {"text": "read this"},
+                {"document": {"name": "task.pdf", "format": "pdf", "source": {"bytes": "JVBERi0x"}}}
+            ]}
+        ]})
+        .to_string(),
+    );
+    let messages = read(&converse);
+    assert!(
+        !messages
+            .iter()
+            .any(|(role, value)| role == "system" && value.contains("task.pdf")),
+        "a list without its system turn is one position off the family: {messages:?}"
+    );
+}

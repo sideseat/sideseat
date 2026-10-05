@@ -134,6 +134,14 @@
               {
                 "path": "$[?@.kwargs]",
                 "exists": true
+              },
+              {
+                "path": "$[*].role",
+                "one_of": [
+                  "system",
+                  "developer"
+                ],
+                "doc": "A Chat Completions request body, which the OpenAI instrumentor serialises whole and flattens message by message. Its system turn sits inside the list, so the list is indexed exactly as the family is. A request whose system prompt sits beside the list (Converse, Messages) would shift every position by one, which is why a role list alone is not enough."
               }
             ]
           },
