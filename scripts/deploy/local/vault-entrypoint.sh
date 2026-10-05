@@ -15,12 +15,12 @@ VAULT_PID=$!
 
 # Forward signals to Vault for graceful shutdown (register early to
 # catch SIGTERM during initialization, not just after ready)
-trap "kill $VAULT_PID 2>/dev/null; wait $VAULT_PID" TERM INT
+trap 'kill "$VAULT_PID" 2>/dev/null; wait "$VAULT_PID"' TERM INT
 
 # Wait for Vault listener (exit code 2 = sealed but reachable)
 echo "Waiting for Vault to start..."
 READY=0
-for i in $(seq 1 30); do
+for _ in $(seq 1 30); do
   vault status >/dev/null 2>&1
   rc=$?
   if [ $rc -eq 0 ] || [ $rc -eq 2 ]; then

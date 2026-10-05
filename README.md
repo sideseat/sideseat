@@ -115,16 +115,15 @@ Setup for Codex, Cursor, Kiro, and other clients is in the [MCP docs](https://si
 ## Repository
 
 ```
-server/     Rust backend: crates/ (ports and adapters), src/ (composition root), tests/, assets/rules/
+server/     Rust backend: crates/ (ports and adapters), src/ (composition root), tests/, assets/rules/, specs/ (TLA+)
 web/        React UI
 sdk/        python/  js/  dotnet/  rust/
 examples/   one suite per framework, sharing a scenario harness; the source of the golden fixtures
 docs/       the documentation site, and docs/engineering/ for internals
 cli/        the npm distribution
-deploy/     container image and a local compose stack
 config/     configuration schema and examples
-specs/      TLA+ specifications
-scripts/    automation   tools/  developer utilities   packaging/  release metadata
+make/       Makefile fragments, one per area
+scripts/    automation by purpose: check/ test/ perf/ fixtures/ dev/ release/ ops/ deploy/ tools/
 ```
 
 [CONTRIBUTING.md](CONTRIBUTING.md) explains the development loop.

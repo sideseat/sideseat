@@ -7,8 +7,8 @@
 # experiences; the in-process benches (`bench_ingestion_end_to_end`, `bench_session_scaling`) measure the
 # stages inside it.
 #
-#   scripts/bench-http-latency.sh embedded      # SQLite + DuckDB, the default deployment
-#   scripts/bench-http-latency.sh distributed   # PostgreSQL + ClickHouse, in throwaway containers
+#   scripts/perf/bench-http-latency.sh embedded      # SQLite + DuckDB, the default deployment
+#   scripts/perf/bench-http-latency.sh distributed   # PostgreSQL + ClickHouse, in throwaway containers
 #
 # Three things this script is careful about, each because getting it wrong produces a number that looks
 # like evidence and is not:
@@ -41,8 +41,8 @@ CURL_MAX_TIME="${BENCH_CURL_MAX_TIME:-30}"
 # Back-to-back writes measure saturation and queue depth rather than isolated service time. The concurrent
 # read phase is the deliberate concurrency measurement and uses no gap.
 GAP_MS="${BENCH_GAP_MS:-25}"
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-CARGO_TARGET_DIR="$(bash "$ROOT/scripts/cargo-target-dir.sh")"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+CARGO_TARGET_DIR="$(bash "$ROOT/scripts/dev/cargo-target-dir.sh")"
 export CARGO_TARGET_DIR
 WORK="$(mktemp -d)"
 DOCKER_SCOPE="$(printf '%s' "$ROOT" | cksum | awk '{print $1}')"

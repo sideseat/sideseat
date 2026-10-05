@@ -52,18 +52,15 @@ server/
   src/                  the composition root
   assets/rules/         what each framework's telemetry means - no framework knowledge lives in Rust
   tests/                message goldens, parity suites, repository invariants
+  specs/                TLA+ models of the ordering and claiming algorithms, checked by make harden-spec
 web/                    React UI; web/src/components/ui is the design system
 sdk/                    python/ js/ dotnet/ rust/
 examples/               scenario suites per framework and the shared harness
 docs/                   documentation site; docs/engineering/ holds internals
 cli/                    the npm distribution wrapper
 config/                 configuration schema and examples
-deploy/                 container image and a local compose stack
 make/                   Makefile fragments, one per area
-packaging/              release metadata: Homebrew formula, macOS entitlements
-scripts/                automation and benchmarks
-specs/                  TLA+ specifications, checked by make harden-spec
-tools/                  developer utilities: otel-replay, mcp-calculator, audit
+scripts/                automation, one directory per purpose - see scripts/README.md
 ```
 
 [AGENTS.md](AGENTS.md) states the architecture rules and domain invariants every change must keep.

@@ -35,7 +35,7 @@ CH_TEST_IMAGE ?= clickhouse/clickhouse-server:26.4.3.37
 
 test-clickhouse: ## Test ClickHouse parity in Docker
 	$(call run-with-disk-guard,CH_TEST_CONTAINER="$(CH_TEST_CONTAINER)" CH_TEST_PORT="$(CH_TEST_PORT)" \
-		CH_TEST_IMAGE="$(CH_TEST_IMAGE)" ./scripts/container-test.sh clickhouse)
+		CH_TEST_IMAGE="$(CH_TEST_IMAGE)" ./scripts/test/container-test.sh clickhouse)
 
 CH_REPL_CONTAINER := sideseat-clickhouse-replicated-test-$(DOCKER_SCOPE)
 CH_REPL_PORT ?= 8299
@@ -44,7 +44,7 @@ CH_REPL_PORT ?= 8299
 # Distributed-table schema catch-up. One replica does not test convergence.
 test-clickhouse-replicated: ## Test replicated ClickHouse migrations
 	$(call run-with-disk-guard,CH_REPL_CONTAINER="$(CH_REPL_CONTAINER)" CH_REPL_PORT="$(CH_REPL_PORT)" \
-		CH_TEST_IMAGE="$(CH_TEST_IMAGE)" ./scripts/container-test.sh clickhouse-replicated)
+		CH_TEST_IMAGE="$(CH_TEST_IMAGE)" ./scripts/test/container-test.sh clickhouse-replicated)
 
 CH_NET := sideseat-ch-net-$(DOCKER_SCOPE)
 CH_SHARD_1_CONTAINER := sideseat-ch-shard1-$(DOCKER_SCOPE)
@@ -58,7 +58,7 @@ test-clickhouse-two-shard: ## Test two-shard ClickHouse behavior
 	$(call run-with-disk-guard,CH_NET="$(CH_NET)" CH_SHARD_1_CONTAINER="$(CH_SHARD_1_CONTAINER)" \
 		CH_SHARD_2_CONTAINER="$(CH_SHARD_2_CONTAINER)" CH_SHARD_PORT_1="$(CH_SHARD_PORT_1)" \
 		CH_SHARD_PORT_2="$(CH_SHARD_PORT_2)" CH_TEST_IMAGE="$(CH_TEST_IMAGE)" \
-		./scripts/container-test.sh clickhouse-two-shard)
+		./scripts/test/container-test.sh clickhouse-two-shard)
 
 # PostgreSQL-specific transactional SQL and SQLite parity.
 PG_TEST_CONTAINER := sideseat-postgres-test-$(DOCKER_SCOPE)
@@ -67,7 +67,7 @@ PG_TEST_IMAGE ?= postgres:17-alpine
 
 test-postgres: ## Test PostgreSQL parity in Docker
 	$(call run-with-disk-guard,PG_TEST_CONTAINER="$(PG_TEST_CONTAINER)" PG_TEST_PORT="$(PG_TEST_PORT)" \
-		PG_TEST_IMAGE="$(PG_TEST_IMAGE)" ./scripts/container-test.sh postgres)
+		PG_TEST_IMAGE="$(PG_TEST_IMAGE)" ./scripts/test/container-test.sh postgres)
 
 # Durable consumer-group ingestion against append-only Redis.
 REDIS_TEST_CONTAINER := sideseat-redis-test-$(DOCKER_SCOPE)
@@ -76,7 +76,7 @@ REDIS_TEST_IMAGE ?= redis:7.4-alpine
 
 test-redis: ## Test Redis-backed ingestion
 	$(call run-with-disk-guard,REDIS_TEST_CONTAINER="$(REDIS_TEST_CONTAINER)" REDIS_TEST_PORT="$(REDIS_TEST_PORT)" \
-		REDIS_TEST_IMAGE="$(REDIS_TEST_IMAGE)" ./scripts/container-test.sh redis)
+		REDIS_TEST_IMAGE="$(REDIS_TEST_IMAGE)" ./scripts/test/container-test.sh redis)
 
 REDPANDA_TEST_CONTAINER := sideseat-redpanda-test-$(DOCKER_SCOPE)
 REDPANDA_TEST_PORT ?= 19092
@@ -85,19 +85,19 @@ REDPANDA_TEST_IMAGE ?= docker.redpanda.com/redpandadata/redpanda:v26.2.3
 
 test-redpanda: ## Test Redpanda-backed ingestion
 	$(call run-with-disk-guard,REDPANDA_TEST_CONTAINER="$(REDPANDA_TEST_CONTAINER)" REDPANDA_TEST_PORT="$(REDPANDA_TEST_PORT)" \
-		REDPANDA_TEST_IMAGE="$(REDPANDA_TEST_IMAGE)" ./scripts/container-test.sh redpanda)
+		REDPANDA_TEST_IMAGE="$(REDPANDA_TEST_IMAGE)" ./scripts/test/container-test.sh redpanda)
 
 # End-to-end HTTP latency for embedded and distributed deployments.
 bench-http: ## Benchmark embedded HTTP latency
-	$(call run-with-disk-guard,scripts/bench-http-latency.sh embedded)
+	$(call run-with-disk-guard,scripts/perf/bench-http-latency.sh embedded)
 
 bench-http-distributed: ## Benchmark distributed HTTP latency
-	$(call run-with-disk-guard,scripts/bench-http-latency.sh distributed)
+	$(call run-with-disk-guard,scripts/perf/bench-http-latency.sh distributed)
 
 # RSS gates run against the release server; in-process gates use allocation
 # counters because system allocators may retain freed pages.
 footprint: ## Enforce memory footprint ceilings
-	$(call run-with-disk-guard,scripts/footprint-gates.sh)
+	$(call run-with-disk-guard,scripts/perf/footprint-gates.sh)
 	@# Allocation counters are process-global, so serialize these tests.
 	$(call run-with-disk-guard,cd $(SERVER_DIR) && cargo test --locked --release --test footprint -- --ignored --nocapture --test-threads=1)
 
@@ -120,11 +120,11 @@ test-sdk-python: ## Run Python SDK tests
 
 test-python-frameworks: ## Import every Python framework suite in native and SideSeat modes
 	@echo "[test-python-frameworks] Running native/SDK framework smoke matrix..."
-	@./scripts/test-python-frameworks.sh
+	@./scripts/test/python-frameworks.sh
 
 test-sdk-dotnet: ## Run non-vacuous .NET SDK tests
 	@echo "[test-sdk-dotnet] Running .NET SDK tests..."
-	@DOTNET_COMMAND="$(DOTNET)" ./scripts/test-dotnet-sdk.sh
+	@DOTNET_COMMAND="$(DOTNET)" ./scripts/test/dotnet-sdk.sh
 
 coverage: ## Generate test coverage reports
 	@echo "[coverage] Running tests with coverage..."

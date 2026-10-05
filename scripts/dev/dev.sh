@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 child_pids=()
 
 terminate_children() {
@@ -52,7 +52,7 @@ trap 'exit 129' HUP
 cd "$repo_root"
 echo "[dev] Starting server (port 5388) and web (port 5389)..."
 
-./scripts/dev-server.sh "$@" &
+./scripts/dev/dev-server.sh "$@" &
 server_pid=$!
 child_pids+=("$server_pid")
 

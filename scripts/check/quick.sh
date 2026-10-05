@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # The inner developer loop: format, lint, and unit-test only the areas changed relative to a base.
 #
-#   scripts/quick.sh               uncommitted changes on main; on a branch, changes since it forked
-#   scripts/quick.sh --base REF    changes since REF
-#   scripts/quick.sh --all         every area, as if everything had changed
+#   scripts/check/quick.sh               uncommitted changes on main; on a branch, changes since it forked
+#   scripts/check/quick.sh --base REF    changes since REF
+#   scripts/check/quick.sh --all         every area, as if everything had changed
 #
 # The budget is one minute on a warm cache. Anything slower belongs in `make check` or an opt-in
 # target, not here. Live model calls and containers never run from this script.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
 base=""
@@ -212,7 +212,7 @@ fi
 # --- .NET -------------------------------------------------------------------------------------
 if grep -qE '^sdk/dotnet/' <<<"$changed"; then
     step "sdk/dotnet: tests"
-    DOTNET_COMMAND="${DOTNET:-dotnet}" ./scripts/test-dotnet-sdk.sh
+    DOTNET_COMMAND="${DOTNET:-dotnet}" ./scripts/test/dotnet-sdk.sh
 fi
 
 # --- Shell ------------------------------------------------------------------------------------

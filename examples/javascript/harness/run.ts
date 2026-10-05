@@ -65,7 +65,9 @@ export class Run<M = unknown> {
 
 /** The stdio command that starts the example MCP calculator server. */
 export function mcpCalculatorCommand(): { command: string; args: string[] } {
-  const directory = fileURLToPath(new URL('../../../tools/mcp-calculator', import.meta.url));
+  const directory = fileURLToPath(
+    new URL('../../../scripts/tools/mcp-calculator', import.meta.url)
+  );
   return {
     command: 'uv',
     args: ['run', '--locked', '--directory', directory, 'mcp-calculator'],

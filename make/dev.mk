@@ -3,10 +3,10 @@
 .PHONY: dev dev-server dev-web run start
 
 dev: ## Start server and web development processes
-	@./scripts/dev.sh $(ARGS)
+	@./scripts/dev/dev.sh $(ARGS)
 
 dev-server: ## Start the Rust server with reload
-	@./scripts/dev-server.sh $(ARGS)
+	@./scripts/dev/dev-server.sh $(ARGS)
 
 dev-web: ## Start the web development server
 	@cd $(WEB_DIR) && npm run dev

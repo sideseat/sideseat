@@ -10,20 +10,20 @@ everything in the directory. A tool documents itself.
 Accepts `.jsonl`, `.jsonl.gz` and `.zip`.
 
 ```bash
-uv run --locked --directory tools/otel-replay replay traces-strands.jsonl.gz
-uv run --locked --directory tools/otel-replay replay traces-adk.jsonl.gz
-uv run --locked --directory tools/otel-replay replay traces-vercel.jsonl.gz
-uv run --locked --directory tools/otel-replay replay traces-langgraph.jsonl.gz
-uv run --locked --directory tools/otel-replay replay traces-autogen.jsonl.gz
-uv run --locked --directory tools/otel-replay replay traces-crewai.jsonl.gz
+uv run --locked --directory scripts/tools/otel-replay replay traces-strands.jsonl.gz
+uv run --locked --directory scripts/tools/otel-replay replay traces-adk.jsonl.gz
+uv run --locked --directory scripts/tools/otel-replay replay traces-vercel.jsonl.gz
+uv run --locked --directory scripts/tools/otel-replay replay traces-langgraph.jsonl.gz
+uv run --locked --directory scripts/tools/otel-replay replay traces-autogen.jsonl.gz
+uv run --locked --directory scripts/tools/otel-replay replay traces-crewai.jsonl.gz
 
 # Absolute path or custom server URL
-uv run --locked --directory tools/otel-replay replay /path/to/file.jsonl
-uv run --locked --directory tools/otel-replay replay traces-autogen.jsonl.gz --base-url http://localhost:5388
+uv run --locked --directory scripts/tools/otel-replay replay /path/to/file.jsonl
+uv run --locked --directory scripts/tools/otel-replay replay traces-autogen.jsonl.gz --base-url http://localhost:5388
 ```
 
 Load generation:
 
 ```bash
-uv run --locked --directory tools/otel-replay generate_load --spans 100000 --workers 5
+uv run --locked --directory scripts/tools/otel-replay generate_load --spans 100000 --workers 5
 ```

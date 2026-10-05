@@ -823,7 +823,7 @@ pub const WS_HELLO_TIMEOUT_SECS: u64 = 5;
 // Footprint ceilings
 //
 // Enforced by `server/tests/footprint.rs` (the two in-process gates) and
-// `scripts/footprint-gates.sh` (the two that need a running server). They live
+// `scripts/perf/footprint-gates.sh` (the two that need a running server). They live
 // here, in one place, because two of the four are read from a shell script and
 // a ceiling with two spellings is a ceiling that drifts;
 // `the_footprint_script_enforces_the_declared_ceilings` compares the script's

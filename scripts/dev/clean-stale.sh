@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
 
-target_dir="$(bash scripts/cargo-target-dir.sh)"
+target_dir="$(bash scripts/dev/cargo-target-dir.sh)"
 if [[ ! -d "$target_dir" ]]; then
   echo "[clean-stale] target directory does not exist; nothing to remove"
   exit 0

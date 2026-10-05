@@ -60,7 +60,7 @@ class Run:
         return ASSETS / name
 
 
-TOOLS = EXAMPLES.parent / "tools"
+TOOLS = EXAMPLES.parent / "scripts" / "tools"
 
 
 def mcp_calculator_command() -> list[str]:

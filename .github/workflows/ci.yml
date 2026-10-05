@@ -148,7 +148,7 @@ jobs:
   check-clickhouse-replicated:
     name: ClickHouse (replicated migration)
     runs-on: ubuntu-latest
-    # Not a service container: this one needs `scripts/clickhouse-replicated/cluster.xml` mounted, and service
+    # Not a service container: this one needs `scripts/test/clickhouse-replicated/cluster.xml` mounted, and service
     # containers cannot mount a workspace file. Without the cluster config there is no Keeper, no
     # `remote_servers` entry and no macros, so `distributed: true` cannot start at all.
     steps:
@@ -167,7 +167,7 @@ jobs:
           docker run -d --name sideseat-ch-repl -p 8299:8123 \
             -e CLICKHOUSE_USER=sideseat -e CLICKHOUSE_PASSWORD=sideseat \
             -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 \
-            -v "$PWD/scripts/clickhouse-replicated/cluster.xml:/etc/clickhouse-server/config.d/cluster.xml:ro" \
+            -v "$PWD/scripts/test/clickhouse-replicated/cluster.xml:/etc/clickhouse-server/config.d/cluster.xml:ro" \
             clickhouse/clickhouse-server:26.4.3.37
           for _ in $(seq 1 90); do
             curl -sf http://127.0.0.1:8299/ping >/dev/null && break
@@ -525,7 +525,7 @@ jobs:
           project="examples/python/${{ matrix.suite }}"
           for mode in native sdk; do
             uv run --locked --python "${{ matrix.python }}" --project "$project" \
-              python scripts/python-framework-smoke.py "$project" "$mode"
+              python scripts/test/python-framework-smoke.py "$project" "$mode"
           done
 
   check-versions:
@@ -683,7 +683,7 @@ jobs:
       # `websockets` resolves to 16.1.1 below 3.11 and 17.0.1 above, for instance - so auditing a single
       # interpreter leaves the other branches unexamined while the package supports `>=3.10`. Three
       # interpreters cover every branch that exists today; the `>=3.15` branch has no release to run yet.
-      # The scanner runs from `tools/audit`, which has its **own lockfile**: `--with pip-audit==2.10.1` pinned
+      # The scanner runs from `scripts/tools/audit`, which has its **own lockfile**: `--with pip-audit==2.10.1` pinned
       # the tool and left uv to resolve its dependencies fresh on every run, so an unchanged commit could be
       # audited by different code. `--path` names the environment to examine, because a locked scanner run from
       # its own project audits *itself* otherwise - which reports clean about the wrong thing, and did while I
@@ -693,7 +693,7 @@ jobs:
           for python in 3.10 3.12 3.13; do
             echo "--- python $python"
             (cd sdk/python && uv sync --locked --all-extras --python "$python")
-            uv run --locked --project tools/audit pip-audit \
+            uv run --locked --project scripts/tools/audit pip-audit \
               --path "$(echo sdk/python/.venv/lib/python*/site-packages)"
           done
 
@@ -702,9 +702,9 @@ jobs:
       # `uv lock --upgrade`.
       - name: Run pip-audit (tools)
         run: |
-          for tool in tools/otel-replay tools/mcp-calculator; do
+          for tool in scripts/tools/otel-replay scripts/tools/mcp-calculator; do
             (cd "$tool" && uv sync --locked)
-            uv run --locked --project tools/audit pip-audit \
+            uv run --locked --project scripts/tools/audit pip-audit \
               --path "$(echo "$tool"/.venv/lib/python*/site-packages)"
           done
 

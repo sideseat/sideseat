@@ -29,7 +29,7 @@ them, checks SQLite integrity, copies durable files, and writes a SHA-256 manife
 `debug/`.
 
 ```bash
-./scripts/backup-embedded.sh \
+./scripts/ops/backup-embedded.sh \
   "$SIDESEAT_DATA_DIR" \
   "/backups/sideseat-$(date -u +%Y%m%dT%H%M%SZ)"
 ```
@@ -42,7 +42,7 @@ configuration file as separate stores.
 Restore into a new, empty directory. Do not overwrite the damaged directory: retain it until recovery is accepted.
 
 ```bash
-./scripts/restore-embedded.sh \
+./scripts/ops/restore-embedded.sh \
   /backups/sideseat-20260922T120000Z \
   /srv/sideseat-restored
 

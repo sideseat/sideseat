@@ -1,4 +1,3 @@
-
 /// A rule says **where** it reads with one member, so no entry point can honour half of it.
 ///
 /// `stage` and `when_event` were an implicit sum, and the two entry points disagreed about which fields they
@@ -266,7 +265,7 @@ fn a_field_source_can_read_an_event_and_says_which_occurrence_answers() {
 /// the shipped assets for the compose case. Two reasons it had to become a production refusal rather than gain
 /// three more cases: a test over *this* corpus says nothing about an asset added later, and the shape it was
 /// checking is one the compiler actively **excuses** - so the corpus could drift into it through an edit to
-/// either rule. The property came from `specs/CarrierClaiming.tla`, whose first form asserted "the lowest-ranked
+/// either rule. The property came from `server/specs/CarrierClaiming.tla`, whose first form asserted "the lowest-ranked
 /// rule that reads a carrier gets it"; TLC refuted it in seconds, and `ComposedReadingsCanBeStarved` records
 /// that the situation is reachable.
 ///

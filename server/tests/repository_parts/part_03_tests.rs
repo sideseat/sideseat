@@ -1,4 +1,3 @@
-
 /// Every script that walks up to the repository root actually arrives there.
 ///
 /// Root-walking expressions encode a directory depth that changes when a script moves. The stated level count
@@ -30,7 +29,7 @@ fn every_script_that_locates_the_repository_root_finds_it() {
         // Exclude only vendored dependency trees; repository-owned examples remain in scope.
         .filter(|f| !f.contains("/.venv/") && !f.contains("/node_modules/"))
     {
-        // The file's own depth: `scripts/bench-http-latency.sh` sits one directory below the root.
+        // The file's own depth: `scripts/perf/bench-http-latency.sh` sits one directory below the root.
         let depth = file.matches('/').count();
         let text = std::fs::read_to_string(repo.join(file)).unwrap_or_default();
         for (number, line) in text.lines().enumerate() {
@@ -125,7 +124,7 @@ fn the_documented_project_structure_matches_the_tree() {
         .filter(|d| !actual.contains(**d))
         .collect();
     assert!(
-        documented.len() >= 10,
+        documented.len() >= 8,
         "parsed only {} directories from the structure block - the parse is wrong, not the document",
         documented.len()
     );
@@ -383,11 +382,11 @@ fn the_image_gate_reads_the_shapes_that_defeated_it() {
 
     // Compose spellings Compose itself accepts.
     for path in [
-        "deploy/local/docker-compose.yml",
-        "deploy/local/docker-compose.override.yml",
-        "deploy/compose.yaml",
-        "deploy/Dockerfile",
-        "deploy/Dockerfile.dev",
+        "scripts/deploy/local/docker-compose.yml",
+        "scripts/deploy/local/docker-compose.override.yml",
+        "scripts/deploy/compose.yaml",
+        "scripts/deploy/Dockerfile",
+        "scripts/deploy/Dockerfile.dev",
         ".github/workflows/ci.yml",
         "some/action.yml",
     ] {
@@ -807,8 +806,8 @@ fn every_workspace_crate_takes_the_one_version() {
 
 #[test]
 fn release_stages_only_version_files_and_pushes_atomically() {
-    let script =
-        std::fs::read_to_string(repo_root().join("scripts/release.sh")).expect("release script");
+    let script = std::fs::read_to_string(repo_root().join("scripts/release/release.sh"))
+        .expect("release script");
 
     for required in [
         "git status --porcelain",
@@ -846,7 +845,7 @@ fn release_stages_only_version_files_and_pushes_atomically() {
 
 #[test]
 fn development_processes_are_scoped_and_environment_is_explicit() {
-    let dev = std::fs::read_to_string(repo_root().join("scripts/dev.sh")).expect("dev script");
+    let dev = std::fs::read_to_string(repo_root().join("scripts/dev/dev.sh")).expect("dev script");
     assert!(
         !dev.contains("kill 0"),
         "development cleanup must not signal the caller's process group"
@@ -860,7 +859,7 @@ fn development_processes_are_scoped_and_environment_is_explicit() {
         "an unexpected clean child exit must still fail the development supervisor"
     );
 
-    let server = std::fs::read_to_string(repo_root().join("scripts/dev-server.sh"))
+    let server = std::fs::read_to_string(repo_root().join("scripts/dev/dev-server.sh"))
         .expect("dev-server script");
     assert!(
         server.contains("server_env=(")

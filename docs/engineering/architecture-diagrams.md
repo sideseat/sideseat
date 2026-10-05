@@ -244,7 +244,7 @@ and therefore would not impose the declared ordering.
 
 `ShadowedRule` and `supersedes` are the same fact from two directions, which is why the refusal exempts a
 rule that beats its shadower: without that exemption it rejected exactly the shape `supersedes` exists for.
-`RefusalIsSound` in `specs/OrderedResolution.tla` is that argument as a checked theorem.
+`RefusalIsSound` in `server/specs/OrderedResolution.tla` is that argument as a checked theorem.
 
 And `alternatives` exists because the conditions inside one rule are independently sufficient, so a single
 rank has to be placed for the _weakest_ of them — which put one producer's own self-identification behind a

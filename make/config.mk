@@ -20,7 +20,7 @@ PRICES_FILE := $(SERVER_DIR)/assets/pricing/model_prices_and_context_window.json
 
 # Docker
 DOCKER_IMAGE := sideseat/core
-DOCKER_FILE  := deploy/Dockerfile
+DOCKER_FILE  := scripts/deploy/Dockerfile
 
 # Homebrew tap
 BREW_TAP_REPO ?= sideseat/homebrew-tap
@@ -71,7 +71,7 @@ BUILD_CMD_linux-arm64    := cargo zigbuild
 BIN_NAME_linux-arm64     := sideseat
 
 RUST_TARGET_win32-x64    := x86_64-pc-windows-gnu
-BUILD_CMD_win32-x64      := CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=$(CURDIR)/scripts/mingw-static-link.sh cargo build
+BUILD_CMD_win32-x64      := CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=$(CURDIR)/scripts/release/mingw-static-link.sh cargo build
 BIN_NAME_win32-x64       := sideseat.exe
 
 # Derived lists

@@ -3,7 +3,7 @@
 # Setup script for the agent_core sample.
 # Creates AWS AgentCore memory store, S3 bucket, and updates .env
 #
-# Usage: ./scripts/setup-agent-core.sh [options]
+# Usage: ./examples/python/setup-agent-core.sh [options]
 #
 # Options:
 #   --name NAME       Base name for resources (default: sideseat-demo)
@@ -159,7 +159,9 @@ PYTHON_EOF
 
 # Create S3 bucket
 create_s3_bucket() {
-    local bucket_name="${NAME_PREFIX}-sessions-$(aws sts get-caller-identity --query Account --output text)"
+    local account bucket_name
+    account="$(aws sts get-caller-identity --query Account --output text)"
+    bucket_name="${NAME_PREFIX}-sessions-${account}"
 
     log_info "Creating S3 bucket: $bucket_name"
 

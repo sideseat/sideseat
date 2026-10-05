@@ -4,7 +4,7 @@
 
 version: ## Show package versions
 	@echo "CLI:                $$(node -p "require('./cli/package.json').version")"
-	@echo "Server:             $$(./scripts/workspace-version.sh)"
+	@echo "Server:             $$(./scripts/release/workspace-version.sh)"
 	@echo "SDK (JavaScript):   $$(node -p "require('./sdk/js/package.json').version")"
 	@echo "SDK (Python):       $$(grep '__version__' sdk/python/src/sideseat/_version.py | sed 's/.*\"\(.*\)\".*/\1/')"
 	@echo "SDK (Rust):         $$(sed -n 's/^version = \"\(.*\)\"/\1/p' sdk/rust/Cargo.toml | head -1)"
@@ -12,7 +12,7 @@ version: ## Show package versions
 
 version-check: ## Verify coordinated package versions
 	@CLI_VERSION=$$(node -p "require('./cli/package.json').version") && \
-	SERVER_VERSION=$$(./scripts/workspace-version.sh) && \
+	SERVER_VERSION=$$(./scripts/release/workspace-version.sh) && \
 	MISMATCHED="" && \
 	if [ "$$CLI_VERSION" != "$$SERVER_VERSION" ]; then \
 		MISMATCHED="$$MISMATCHED\n  Rust workspace: $$SERVER_VERSION"; \
@@ -51,7 +51,7 @@ sync-version: ## Synchronize server and CLI versions
 	sed "s/^version = \".*\"/version = \"$$NEW_VERSION\"/" Cargo.toml > "$$TEMP_FILE" && \
 	mv "$$TEMP_FILE" Cargo.toml && \
 	cargo update --workspace --quiet && \
-	CARGO_VERSION=$$(./scripts/workspace-version.sh) && \
+	CARGO_VERSION=$$(./scripts/release/workspace-version.sh) && \
 	if [ "$$NEW_VERSION" != "$$CARGO_VERSION" ]; then \
 		echo "Error: Version sync failed. Expected $$NEW_VERSION, got $$CARGO_VERSION"; \
 		exit 1; \
@@ -118,7 +118,7 @@ publish-cli: ## Publish CLI platform packages
 	echo "Warning: sideseat@$$VERSION published but not yet verified on registry"
 
 release: ## Check, bump, commit, tag, and atomically push
-	@./scripts/release.sh "$(TYPE)"
+	@./scripts/release/release.sh "$(TYPE)"
 
 # Production signing identity is supplied through the environment or a make argument.
 sign-release: ## Sign macOS platform binaries with Developer ID
@@ -126,7 +126,7 @@ sign-release: ## Sign macOS platform binaries with Developer ID
 	@[ -n "$(SIGN_IDENTITY)" ] || { echo "Error: SIGN_IDENTITY required. Usage: make sign-release SIGN_IDENTITY=\"Developer ID Application: Name (TEAMID)\""; exit 1; }
 	@for bin in $(foreach p,$(DARWIN_PLATFORMS),$(call cli-bin,$(p))); do \
 		[ -f "$$bin" ] || { echo "Error: missing $$bin. Run 'make build-cli' first."; exit 1; }; \
-		codesign --force --options runtime --sign "$(SIGN_IDENTITY)" --entitlements packaging/macos/entitlements.plist "$$bin" || \
+		codesign --force --options runtime --sign "$(SIGN_IDENTITY)" --entitlements scripts/release/packaging/macos/entitlements.plist "$$bin" || \
 			{ echo "Error: failed to sign $$bin"; exit 1; }; \
 		echo "[sign-release] Signed $$bin"; \
 	done
@@ -251,7 +251,7 @@ publish-brew: ## Update the Homebrew tap
 		-e "s/__SHA256_DARWIN_X64__/$$SHA_DARWIN_X64/g" \
 		-e "s/__SHA256_LINUX_X64__/$$SHA_LINUX_X64/g" \
 		-e "s/__SHA256_LINUX_ARM64__/$$SHA_LINUX_ARM64/g" \
-		packaging/homebrew/sideseat.rb.tmpl > "$$FORMULA" && \
+		scripts/release/packaging/homebrew/sideseat.rb.tmpl > "$$FORMULA" && \
 	grep -q '__' "$$FORMULA" && \
 		{ echo "Error: Unreplaced placeholders in generated formula"; rm -f "$$FORMULA"; exit 1; } || true && \
 	ENCODED=$$(base64 < "$$FORMULA" | tr -d '\n') && \

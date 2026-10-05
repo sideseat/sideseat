@@ -1,7 +1,6 @@
-
 #[test]
 fn container_tests_share_trapped_cleanup() {
-    let script = std::fs::read_to_string(repo_root().join("scripts/container-test.sh"))
+    let script = std::fs::read_to_string(repo_root().join("scripts/test/container-test.sh"))
         .expect("container test helper");
     for required in [
         "trap cleanup EXIT",
@@ -27,7 +26,7 @@ fn container_tests_share_trapped_cleanup() {
         "redpanda",
     ] {
         assert!(
-            makefile.contains(&format!("./scripts/container-test.sh {scenario}")),
+            makefile.contains(&format!("./scripts/test/container-test.sh {scenario}")),
             "{scenario} must use the shared container lifecycle"
         );
     }
@@ -37,10 +36,20 @@ fn container_tests_share_trapped_cleanup() {
 fn pre_commit_stays_cheap() {
     let hook =
         std::fs::read_to_string(repo_root().join(".githooks/pre-commit")).expect("pre-commit hook");
-    for required in ["make --no-print-directory secret-scan-staged", "check-file-lengths.sh --cached"] {
+    for required in [
+        "make --no-print-directory secret-scan-staged",
+        "scripts/check/file-lengths.sh --cached",
+    ] {
         assert!(hook.contains(required), "pre-commit must run `{required}`");
     }
-    for forbidden in ["make test", "make lint", "make check", "nextest", "cargo test", "clippy"] {
+    for forbidden in [
+        "make test",
+        "make lint",
+        "make check",
+        "nextest",
+        "cargo test",
+        "clippy",
+    ] {
         assert!(
             !hook.contains(forbidden),
             "pre-commit must not run `{forbidden}`: tests and lint belong to make quick, pre-push, and CI"
@@ -95,7 +104,7 @@ fn unsafe_code_is_confined_to_the_counting_allocator() {
 
 #[test]
 fn http_benchmark_bounds_requests_and_shutdown() {
-    let script = std::fs::read_to_string(repo_root().join("scripts/bench-http-latency.sh"))
+    let script = std::fs::read_to_string(repo_root().join("scripts/perf/bench-http-latency.sh"))
         .expect("HTTP benchmark script");
     for required in [
         "CURL_CONNECT_TIMEOUT=",
@@ -113,12 +122,13 @@ fn http_benchmark_bounds_requests_and_shutdown() {
 
 #[test]
 fn stale_cleanup_discovers_every_incremental_directory() {
-    let script = std::fs::read_to_string(repo_root().join("scripts/clean-stale.sh"))
+    let script = std::fs::read_to_string(repo_root().join("scripts/dev/clean-stale.sh"))
         .expect("cleanup script");
-    let target_resolver = std::fs::read_to_string(repo_root().join("scripts/cargo-target-dir.sh"))
-        .expect("Cargo target resolver");
+    let target_resolver =
+        std::fs::read_to_string(repo_root().join("scripts/dev/cargo-target-dir.sh"))
+            .expect("Cargo target resolver");
     for required in [
-        "target_dir=\"$(bash scripts/cargo-target-dir.sh)\"",
+        "target_dir=\"$(bash scripts/dev/cargo-target-dir.sh)\"",
         "find \"$target_dir\" -type d -name incremental",
         "cargo sweep --installed",
         "cargo sweep --time 3",
@@ -152,7 +162,7 @@ fn make_help_is_generated_from_target_annotations() {
     let makefile = makefile_sources();
     assert!(
         makefile.contains("help: ## Show available commands")
-            && makefile.contains("@awk -f scripts/make-help.awk $(MAKEFILE_LIST)")
+            && makefile.contains("@awk -f make/help.awk $(MAKEFILE_LIST)")
             && !makefile.contains("@echo \"SideSeat Development Commands\"")
             && !makefile.contains("NOTARIZE ?= 1"),
         "Make help and defaults must have one current source"
@@ -163,7 +173,7 @@ fn make_help_is_generated_from_target_annotations() {
 fn dependency_report_discovers_every_project_manifest() {
     let repo = repo_root();
     let output = Command::new("bash")
-        .arg("scripts/deps-check.sh")
+        .arg("scripts/check/deps.sh")
         .env("SIDESEAT_DEPS_CHECK_DRY_RUN", "1")
         .current_dir(repo)
         .output()
@@ -195,7 +205,7 @@ fn dependency_report_discovers_every_project_manifest() {
     );
 
     let script =
-        std::fs::read_to_string(repo.join("scripts/deps-check.sh")).expect("dependency report");
+        std::fs::read_to_string(repo.join("scripts/check/deps.sh")).expect("dependency report");
     assert!(
         script.contains("command -v cargo-outdated")
             && script.contains("npm_status=0")

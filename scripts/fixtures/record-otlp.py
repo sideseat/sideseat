@@ -11,7 +11,7 @@ server actually receives, so a fixture cannot drift from what the framework real
 
 Usage:
     # terminal 1
-    python3 scripts/message-fixtures/record-otlp.py --label strands/tool_use
+    python3 scripts/fixtures/record-otlp.py --label strands/tool_use
 
     # terminal 2 - point the sample at the recorder instead of SideSeat
     OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:5399/otel/default \\

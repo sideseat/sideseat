@@ -22,16 +22,16 @@ build-sdk-dotnet: ## Build the .NET SDK NuGet package
 	@$(DOTNET) pack sdk/dotnet/SideSeat.csproj --configuration Release --no-restore
 
 capture-sdk-conformance-dotnet: ## Capture .NET SDK-on and raw-OTel message fixtures
-	@DOTNET_COMMAND="$(DOTNET)" ./scripts/message-fixtures/capture-dotnet-conformance.sh
+	@DOTNET_COMMAND="$(DOTNET)" ./scripts/fixtures/capture-dotnet-conformance.sh
 
 capture-sdk-conformance-python: ## Capture Python SDK-on and raw-OTel message fixtures
-	@UV_COMMAND=uv ./scripts/message-fixtures/capture-python-conformance.sh
+	@UV_COMMAND=uv ./scripts/fixtures/capture-python-conformance.sh
 
 capture-sdk-conformance-javascript: ## Capture JavaScript SDK-on and raw-OTel message fixtures
-	@NPM_COMMAND=npm ./scripts/message-fixtures/capture-javascript-conformance.sh
+	@NPM_COMMAND=npm ./scripts/fixtures/capture-javascript-conformance.sh
 
 capture-sdk-conformance-rust: ## Capture Rust SDK-on and raw-OTel message fixtures
-	@CARGO_COMMAND=cargo ./scripts/message-fixtures/capture-rust-conformance.sh
+	@CARGO_COMMAND=cargo ./scripts/fixtures/capture-rust-conformance.sh
 
 publish-sdk-js: ## Publish the JavaScript SDK
 	@echo "[publish-sdk-js] Verifying npm authentication..."

@@ -6,10 +6,10 @@ this size, so this renders the parts that matter — per-view message count, rol
 content — and flags patterns that usually mean a parsing defect.
 
 Usage:
-    scripts/message-fixtures/review-goldens.py                    # every fixture, summary only
-    scripts/message-fixtures/review-goldens.py strands            # one suite, full detail
-    scripts/message-fixtures/review-goldens.py strands/tool_use   # one sample, full detail
-    scripts/message-fixtures/review-goldens.py --suspicious       # only fixtures with warnings
+    scripts/fixtures/review-goldens.py                    # every fixture, summary only
+    scripts/fixtures/review-goldens.py strands            # one suite, full detail
+    scripts/fixtures/review-goldens.py strands/tool_use   # one sample, full detail
+    scripts/fixtures/review-goldens.py --suspicious       # only fixtures with warnings
 """
 
 from __future__ import annotations

@@ -21,7 +21,7 @@ stored can change with them.
 
 - Prebuilt CLI binaries for five platforms, published to npm as `sideseat`.
 - The Python package `sideseat` on PyPI, and `@sideseat/sdk` on npm.
-- A Homebrew formula, generated from `packaging/homebrew/sideseat.rb.tmpl`.
+- A Homebrew formula, generated from `scripts/release/packaging/homebrew/sideseat.rb.tmpl`.
 
 ## Finding what changed in a specific area
 

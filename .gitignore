@@ -547,8 +547,8 @@ cli/platforms/*/sideseat.exe
 cli/vendor/
 release/
 
-# Downloaded TLA+ toolchain (make harden fetches it); a third-party jar, not source.
-.tools/
+# Downloaded TLA+ toolchain (make harden-spec fetches it); a third-party jar, not source.
+scripts/tools/tla/
 
 # TLC artifacts: error-trace dumps and states written by a model check. Unanchored, because TLC writes
 # them next to wherever it was invoked, not next to the spec - a root-level run left states/ untracked.
@@ -571,9 +571,9 @@ server/tests/fixtures/messages/crewai/legacy/agent_core/
 
 # TLC scratch output. The specs and their configs are the artefact; a model-checking run leaves trace
 # fingerprints and a states directory beside them, and 7 MB of those had been committed once.
-specs/states/
-specs/*_TTrace_*.bin
-specs/*.out
+server/specs/states/
+server/specs/*_TTrace_*.bin
+server/specs/*.out
 
 # Machine-local Claude Code permissions, not shared configuration
 .claude/settings.local.json

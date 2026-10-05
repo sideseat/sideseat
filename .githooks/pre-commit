@@ -11,7 +11,7 @@ cd "$REPO_ROOT"
 # A committed secret survives in reflogs, stashes, and clones even if it is never pushed.
 make --no-print-directory secret-scan-staged
 # Reads blobs from the index, so an unstaged shortening cannot hide an oversized staged version.
-./scripts/check-file-lengths.sh --cached
+./scripts/check/file-lengths.sh --cached
 
 staged() { git diff --cached --name-only --diff-filter=ACMR -- "$@"; }
 

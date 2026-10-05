@@ -53,7 +53,7 @@ updates:
   # this. The `docker` ecosystem covers Compose files as well as Dockerfiles.
   - package-ecosystem: "docker"
     directories:
-      - "/deploy"
+      - "/scripts/deploy"
     schedule:
       interval: "weekly"
     commit-message:
@@ -66,7 +66,7 @@ updates:
   # one entry for both left the four pinned services unwatched while the config looked complete.
   - package-ecosystem: "docker-compose"
     directories:
-      - "/deploy/local"
+      - "/scripts/deploy/local"
     schedule:
       interval: "weekly"
     commit-message:
@@ -81,11 +81,11 @@ updates:
       - "/sdk/python"
       # The standalone tools have their own lockfiles, so they need their own entries - "one entry per
       # manifest" was the stated rule and these two were missed.
-      - "/tools/otel-replay"
-      - "/tools/mcp-calculator"
+      - "/scripts/tools/otel-replay"
+      - "/scripts/tools/mcp-calculator"
       # The advisory scanner's own locked environment. Watched like any other manifest: a scanner nobody
       # updates goes stale against the advisory database it reads.
-      - "/tools/audit"
+      - "/scripts/tools/audit"
     schedule:
       interval: "weekly"
     commit-message:

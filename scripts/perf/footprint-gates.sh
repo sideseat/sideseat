@@ -3,7 +3,7 @@
 # The two footprint ceilings that need a running server: idle resident memory, and resident memory under
 # steady ingest. The other two are stated on live allocated bytes and live in `server/tests/footprint.rs`.
 #
-#   scripts/footprint-gates.sh
+#   scripts/perf/footprint-gates.sh
 #
 # This **enforces** rather than reports, as `bench-http-latency.sh` does: the run exits non-zero when a ceiling
 # is missed. A number nobody compares against a target can drift arbitrarily far from the promise while every
@@ -64,8 +64,8 @@ REQUEST_TIMEOUT_SECS="${FOOTPRINT_REQUEST_TIMEOUT_SECS:-30}"
 # How long the server gets to exit on SIGTERM before SIGKILL. See `cleanup`.
 SHUTDOWN_GRACE_SECS="${FOOTPRINT_SHUTDOWN_GRACE_SECS:-15}"
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-CARGO_TARGET_DIR="$(bash "$ROOT/scripts/cargo-target-dir.sh")"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+CARGO_TARGET_DIR="$(bash "$ROOT/scripts/dev/cargo-target-dir.sh")"
 export CARGO_TARGET_DIR
 WORK="$(mktemp -d)"
 SERVER_PID=""

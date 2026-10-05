@@ -1,7 +1,7 @@
 // Derive the supported Node range from every tracked npm lockfile and verify documented claims.
 // Optional and platform-specific packages are excluded because they do not apply to every checkout.
 //
-// Usage: node scripts/node-floor.mjs [extra versions to test...]
+// Usage: node scripts/check/node-floor.mjs [extra versions to test...]
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -9,7 +9,7 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 // Discover the inventory from Git so adding or moving an npm package cannot bypass the check.
 const packages = execFileSync("git", ["ls-files", "*package-lock.json"], {
@@ -151,12 +151,12 @@ if (!process.argv.includes("--check")) {
 
 const contributing = readFileSync(join(root, "CONTRIBUTING.md"), "utf8");
 const claim = contributing.match(
-  /Node\.js (\^\d+\.\d+\.\d+ \|\| \^\d+\.\d+\.\d+ \|\| >=\d+\.\d+\.\d+)/,
+  /Node(?:\.js)?(?: versions:)? (\^\d+\.\d+\.\d+ \|\| \^\d+\.\d+\.\d+ \|\| >=\d+\.\d+\.\d+)/,
 );
 if (!claim) {
   console.error(
     "\nCONTRIBUTING.md does not state a Node requirement in the form " +
-      "`Node.js ^<version> || ^<version> || >=<version>`, " +
+      "`Node versions: ^<version> || ^<version> || >=<version>`, " +
       "so there is nothing to check the derivation against.",
   );
   process.exit(1);

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
 
 # suite|Python version. Agent Framework currently supports Python 3.12 only;
@@ -34,6 +34,6 @@ for entry in "${SUITES[@]}"; do
   for mode in native sdk; do
     SIDESEAT_ENDPOINT=http://127.0.0.1:1 \
       uv run --locked --python "$python_version" --project "$project" \
-      python scripts/python-framework-smoke.py "$project" "$mode"
+      python scripts/test/python-framework-smoke.py "$project" "$mode"
   done
 done

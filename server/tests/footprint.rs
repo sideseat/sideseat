@@ -1,6 +1,6 @@
 //! The footprint gates that run in process, plus the invariants that keep the four ceilings honest.
 //!
-//! Two of the plan's four ceilings need a running server and live in `scripts/footprint-gates.sh`; the two
+//! Two of the plan's four ceilings need a running server and live in `scripts/perf/footprint-gates.sh`; the two
 //! here are the ones a test binary can measure directly, and they are the two stated on **live allocated
 //! bytes** rather than on RSS. `runtime::allocation` carries the argument for that distinction; the short
 //! version is that both glibc and jemalloc retain freed pages, so an RSS-based "returns to baseline" gate
@@ -389,9 +389,9 @@ fn search_term_write_amplification_preserves_the_recall_floor() {
 #[test]
 fn the_footprint_script_enforces_the_declared_ceilings() {
     let script = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../scripts/footprint-gates.sh"),
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../scripts/perf/footprint-gates.sh"),
     )
-    .expect("scripts/footprint-gates.sh is the other half of the footprint gate");
+    .expect("scripts/perf/footprint-gates.sh is the other half of the footprint gate");
 
     for (name, declared) in [
         ("IDLE_RSS_CEILING_BYTES", FOOTPRINT_IDLE_RSS_MAX_BYTES),
@@ -404,7 +404,7 @@ fn the_footprint_script_enforces_the_declared_ceilings() {
             script.lines().any(
                 |line| line.trim_start().starts_with(&wanted) && line.trim() == wanted.as_str()
             ),
-            "scripts/footprint-gates.sh must set `{wanted}`, matching \
+            "scripts/perf/footprint-gates.sh must set `{wanted}`, matching \
              sideseat_core::constants; found:\n{}",
             script
                 .lines()

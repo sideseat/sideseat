@@ -18,7 +18,7 @@ fmt-check: ## Check source formatting
 	@$(MAKE) --no-print-directory fmt-check-python
 
 file-length-check: ## Enforce the hard 1000-line source-file limit
-	@./scripts/check-file-lengths.sh
+	@./scripts/check/file-lengths.sh
 
 lint: ## Run all linters
 	@echo "[lint] Running linters..."
@@ -123,12 +123,13 @@ harden-supply: ## Audit dependencies and secrets
 # separate from `check` because it takes minutes.
 TLA_VERSION := 1.8.0
 TLA_SHA256  := db131ddb48e7004d823bef4493df7b35694babe37505b9d9fa5685e7a331f1f1
-TLA_JAR     := .tools/tla2tools-$(TLA_VERSION).jar
+TLA_DIR     := scripts/tools/tla
+TLA_JAR     := $(TLA_DIR)/tla2tools-$(TLA_VERSION).jar
 
 harden-spec: ## Model-check every TLA+ specification
 	@if [ ! -f $(TLA_JAR) ]; then \
 		echo "[harden-spec] fetching tla2tools $(TLA_VERSION)..."; \
-		mkdir -p .tools; \
+		mkdir -p $(TLA_DIR); \
 		curl -sSL -o $(TLA_JAR).tmp \
 			https://github.com/tlaplus/tlaplus/releases/download/v$(TLA_VERSION)/tla2tools.jar && \
 			mv $(TLA_JAR).tmp $(TLA_JAR); \
@@ -143,11 +144,11 @@ harden-spec: ## Model-check every TLA+ specification
 	@# Validate spec/config pairs in both directions; TLC counterexample traces
 	@# are generated artifacts rather than source specifications.
 	@orphans=$$( \
-		for tla in specs/*.tla; do \
+		for tla in server/specs/*.tla; do \
 			[ "$${tla#*_TTrace_}" = "$$tla" ] || continue; \
 			[ -f "$${tla%.tla}.cfg" ] || echo "$$tla has no .cfg, so nothing model-checks it"; \
 		done; \
-		for cfg in specs/*.cfg; do \
+		for cfg in server/specs/*.cfg; do \
 			[ -f "$${cfg%.cfg}.tla" ] || echo "$$cfg configures no specification"; \
 		done); \
 	if [ -n "$$orphans" ]; then \
@@ -157,11 +158,11 @@ harden-spec: ## Model-check every TLA+ specification
 		exit 1; \
 	fi
 	@failed=0; \
-	for tla in specs/*.tla; do \
+	for tla in server/specs/*.tla; do \
 		[ "$${tla#*_TTrace_}" = "$$tla" ] || continue; \
 		spec=$$(basename $$tla .tla); \
 		printf "[harden-spec] %-16s " "$$spec"; \
-		out=$$(cd specs && java -XX:+UseParallelGC -cp ../$(TLA_JAR) tlc2.TLC \
+		out=$$(cd server/specs && java -XX:+UseParallelGC -cp $(CURDIR)/$(TLA_JAR) tlc2.TLC \
 			-workers auto -config $$spec.cfg $$spec.tla 2>&1); \
 		if echo "$$out" | grep -q "Model checking completed. No error has been found"; then \
 			echo "$$out" | grep -oE "[0-9]+ distinct states found" | head -1; \
@@ -171,5 +172,5 @@ harden-spec: ## Model-check every TLA+ specification
 			failed=1; \
 		fi; \
 	done; \
-	rm -rf specs/states specs/*_TTrace_*.bin specs/*_TTrace_*.tla; \
+	rm -rf server/specs/states server/specs/*_TTrace_*.bin server/specs/*_TTrace_*.tla; \
 	exit $$failed

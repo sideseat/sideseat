@@ -358,7 +358,7 @@ fn claude_configuration_agrees_everywhere_it_is_duplicated() {
         "web/src/pages/configuration/telemetry-frameworks.ts",
         "examples/python/claude-agent-sdk/native.py",
         "examples/javascript/claude-agent-sdk/native.ts",
-        "scripts/run-claude.sh",
+        "scripts/dev/run-claude.sh",
     ];
 
     for relative in copies {

@@ -1,99 +1,186 @@
 # SideSeat agent guide
 
-This file applies to the entire repository. A nested `AGENTS.md` may add narrower
-instructions for its subtree.
+This file applies to the entire repository. A nested `AGENTS.md` may add narrower instructions for its
+subtree. `CLAUDE.md` only imports this file; edit this one.
 
 ## Product
 
-SideSeat is an OpenTelemetry observability workbench for AI applications. It
-stores traces, metrics, and logs, reconstructs framework-specific conversations
-as SideML, and serves them through HTTP, gRPC, MCP, SSE, WebSocket, and the web
-application.
+SideSeat is an OpenTelemetry observability workbench for AI applications. It stores traces, metrics, and
+logs, reconstructs each framework's conversations as SideML, and serves them through HTTP, gRPC, MCP, SSE,
+WebSocket, and the web application. The SDKs (`sdk/python`, `sdk/js`, `sdk/dotnet`, `sdk/rust`) configure
+OpenTelemetry export for an application; they carry no parsing logic of their own.
+
+## Repository map
+
+```
+server/                 Rust workspace root for the backend
+  crates/<layer>/       ports-and-adapters crates, see Architecture
+  src/                  composition root: adapter selection, wiring, process lifecycle
+  assets/rules/         every framework's telemetry semantics, as declarative JSON
+    conventions/        published conventions: OTel GenAI semconv, generic input/output
+    producers/          one asset per framework or provider
+    vocabulary/         cross-framework tables: span fields, content blocks, roles, categories
+  tests/                message goldens, backend parity suites, repository invariants
+    fixtures/messages/  captured OTLP per <framework>/<mode>/<scenario>, with the parsing rubric (README.md)
+  specs/                TLA+ models of ordering, carrier claiming and invocation flow
+web/                    React UI; web/src/components/ui is the shadcn design system
+sdk/                    python/ js/ dotnet/ rust/
+examples/               one suite per framework per language, on a shared scenario harness
+docs/                   src/ is the user documentation site; engineering/ holds internals
+cli/                    the npm distribution wrapper
+config/                 configuration JSON schema and examples
+make/                   Makefile fragments, one per area; `make help` lists every target
+scripts/                automation grouped by purpose; scripts/README.md maps it
+  check/ test/ perf/ fixtures/ dev/ release/ ops/ deploy/ tools/
+```
+
+Where a new thing goes:
+
+- Framework telemetry knowledge: a rule asset under `server/assets/rules/`. Never Rust.
+- A framework example: `examples/<language>/<framework>/`, built on the harness in
+  `examples/python/harness` (or `examples/javascript/harness`), with `native/` and `sdk/` modes.
+- A script: the `scripts/` subdirectory of its purpose, wired to a `make` target. Nothing loose in `scripts/`.
+- A standalone developer utility with its own environment: `scripts/tools/<name>/`.
+- A container image or compose stack: `scripts/deploy/`.
+- A formal model: `server/specs/<Name>.tla` with a matching `<Name>.cfg`; `make harden-spec` checks every pair
+  with the TLA+ tools it downloads into `scripts/tools/tla/` (gitignored, digest-checked).
+- Internals documentation: `docs/engineering/`. User-facing behaviour: `docs/src/`.
+
+Repository invariants in `server/tests/repository*.rs` hold this layout to account: the documented structure
+must match the tree, every cited path must resolve, and `scripts/` must stay grouped.
 
 ## Architecture
 
 The Rust workspace follows ports and adapters:
 
-- `server/crates/core`: configuration, constants, CLI types, and shared utilities. It
-  must not depend on SideSeat crates or infrastructure drivers.
-- `server/crates/ports`: storage and service traits plus shared DTOs. It contains no
-  adapter implementations or SQL.
-- `server/crates/domain`: SideML, rules, retention, search, files, storage governance,
-  and restore workflows.
-- `server/crates/ingestion`: OTLP decoding, normalization, signal identity, staging,
-  durability, and persistence orchestration.
+- `server/crates/core`: configuration, constants, CLI types, and shared utilities. It must not depend on
+  SideSeat crates or infrastructure drivers.
+- `server/crates/ports`: storage and service traits plus shared DTOs. It contains no adapter
+  implementations or SQL.
+- `server/crates/domain`: SideML, the rules engine, retention, search, files, storage governance, and
+  restore workflows.
+- `server/crates/ingestion`: OTLP decoding, normalization, signal identity, staging, durability, and
+  persistence orchestration.
 - `server/crates/messaging`: typed stream and broadcast messaging over the queue port.
 - `server/crates/query-sql`: typed analytical queries and backend-specific lowering.
-- `server/crates/rule-assets`: deterministic embedding of framework rule JSON. It
-  contains no interpretation logic or dependencies on other SideSeat crates.
+- `server/crates/rule-assets`: deterministic embedding of the rule JSON. It contains no interpretation
+  logic or dependencies on other SideSeat crates.
 - `server/crates/api`: HTTP, gRPC, MCP, SSE, and WebSocket transport code.
-- `server/crates/adapter-*`: implementations for databases, blobs, cache, secrets,
-  registrations, queues, and model-provider credential probes.
-- `server`: the composition root. It selects adapters, wires services, starts
-  background work, and owns process lifecycle.
+- `server/crates/adapter-*`: implementations for databases, blobs, cache, secrets, registrations, queues,
+  and model-provider credential probes.
+- `server`: the composition root. It selects adapters, wires services, starts background work, and owns
+  process lifecycle.
 
-Dependencies point inward. API and ingestion use messaging rather than a queue
-adapter; messaging depends only on ports. Ingestion depends on domain and ports;
-domain talks to ports and consumes rule assets, never an adapter. Adapters do
-not import sibling adapters. The server may depend on all layers because it
+Dependencies point inward. API and ingestion use messaging rather than a queue adapter; messaging depends
+only on ports. Ingestion depends on domain and ports; domain talks to ports and consumes rule assets, never
+an adapter. Adapters do not import sibling adapters. The server may depend on all layers because it
 assembles the application.
 
-Detailed architecture belongs in `docs/engineering/`. User-facing behavior
-belongs in `docs/src/`. Do not turn agent instructions into a second
-architecture manual.
+Detailed architecture belongs in `docs/engineering/`: `architecture-diagrams.md`,
+`ingestion-architecture.md`, `framework-rules-engine.md`, `sdk-contract.md`. Do not turn this file into a
+second architecture manual.
+
+## Hard requirement: Rust knows no framework
+
+Rust code is a generic interpreter of declarative rules. It must not know anything specific to a
+framework: no framework names, no framework attribute keys, span names, scope names, payload shapes, role
+spellings, or "if this producer then" branches. All of that lives in the JSON assets under
+`server/assets/rules/`, and the engine reads it.
+
+- To support a framework or fix its parsing, change its asset. If the rule language cannot express what the
+  telemetry means, extend the language in `domain::rules` generically - a new operator any asset can use -
+  and then use it from the asset.
+- Rust may name only published conventions (OpenTelemetry semantic conventions, generic `input.value` and
+  `output.value`), SideSeat's own vocabulary (`sideseat.*`), and model providers where it prices or connects
+  to them.
+- Product-facing catalogues may list supported frameworks, such as the MCP setup guide, but must not
+  control extraction.
+- Two tests enforce this, and neither may be weakened to make a change pass:
+  `no_production_module_names_a_framework` (framework names and aliases) and
+  `no_production_module_spells_a_framework_attribute_key` (every key a non-convention asset declares). Test
+  code and `#[cfg(test)]` equivalence oracles are exempt; production code is not.
 
 ## Domain invariants
 
-- Framework-specific telemetry interpretation and SideML reconstruction
-  knowledge belongs in `server/assets/rules/`, not Rust branches or constants.
-  Product-facing integration catalogs may name supported frameworks, but must
-  not control extraction behavior.
-- Preserve raw telemetry during ingestion. SideML role derivation,
-  normalization, history detection, and deduplication happen at read time.
-- Tenant-scoped APIs use `ProjectId`; client-provided trace and span IDs are not
-  globally unique.
-- Analytics writes and transactional writes are not one transaction. Preserve
-  the existing fences, tombstones, journal, confirmation, and compensation
-  protocols when changing either side.
-- A successful ingest response must not acknowledge data before its configured
-  durability boundary.
-- File and body ownership is reference-based. Do not weaken
-  `pending_writers`, `durable`, legal-hold, or restore-reconciliation semantics.
-- Embedded and distributed backends must return equivalent public answers where
-  the capability is shared. Add parity coverage for backend-specific changes.
+- Preserve raw telemetry during ingestion. SideML role derivation, normalization, history detection, and
+  deduplication happen at read time.
+- Every reconstructed conversation must satisfy the rubric in `server/tests/fixtures/messages/README.md`:
+  complete messages, correct roles, no duplicates, tool calls before their results, and the same order for
+  spans, traces, and sessions. The native and SDK modes of a framework must reconstruct identically.
+- Tenant-scoped APIs use `ProjectId`; client-provided trace and span IDs are not globally unique.
+- Analytics writes and transactional writes are not one transaction. Preserve the existing fences,
+  tombstones, journal, confirmation, and compensation protocols when changing either side.
+- A successful ingest response must not acknowledge data before its configured durability boundary.
+- File and body ownership is reference-based. Do not weaken `pending_writers`, `durable`, legal-hold, or
+  restore-reconciliation semantics.
+- Embedded and distributed backends must return equivalent public answers where the capability is shared.
+  Add parity coverage for backend-specific changes.
+- Everything must work with horizontally scaled, ephemeral server instances: no correctness may depend on
+  process-local state.
+
+## Examples, fixtures and models
+
+- The golden fixtures are captured from the example suites, never written by hand:
+  `make capture P=<framework>` records live runs through a recording proxy; `make capture-offline P=...`
+  replays them. Review the regenerated views with `scripts/fixtures/review-goldens.py`.
+- Tests replay fixtures and use the in-process fake model servers. Live model calls happen only in
+  `make capture`.
+- Live captures reach Claude through Amazon Bedrock on the default AWS credential chain, and only call
+  `bedrock-runtime`. A run that would record a credential is discarded; never commit one.
+- Use the latest models. The catalogue is `examples/python/harness/harness/models.py`: Claude Sonnet 5.5 by
+  default, Opus 5.5, Haiku 4.5, and the current GPT model on Bedrock's OpenAI endpoint. Update the catalogue,
+  not individual suites.
 
 ## Code conventions
 
-- Prefer small cohesive modules with names from the problem domain.
-- Keep public APIs narrow. Do not add compatibility re-exports.
+- Prefer small cohesive modules with names from the problem domain. Source files stay under 1000 lines;
+  the pre-commit hook enforces it.
+- Keep public APIs narrow. Do not add compatibility re-exports. SDKs carry no backward-compatibility shims.
 - Use `thiserror` in libraries and `anyhow` at application boundaries.
-- Explain constraints and non-obvious tradeoffs in comments. Do not narrate the
-  editing process, repeat the code, preserve review history, or record temporary
-  measurements in source comments.
-- Public APIs receive useful rustdoc. Private code receives comments only when
-  the reason cannot be expressed through naming and structure.
+- Explain constraints and non-obvious tradeoffs in comments. Do not narrate the editing process, repeat the
+  code, preserve review history, or record temporary measurements in source comments.
+- Public APIs receive useful rustdoc. Private code receives comments only when the reason cannot be
+  expressed through naming and structure.
 - Rust must remain warning-free under the workspace lint configuration.
-- TypeScript uses erasable syntax: no enums, namespaces, or constructor
-  parameter properties.
-- Do not hand-edit generated files, lockfiles, captured fixtures, or
-  `web/src/components/ui/` unless the task specifically targets their generator
-  or source.
-- Keep changes cross-platform where the surrounding component supports macOS,
-  Linux, and Windows.
+- TypeScript uses erasable syntax: no enums, namespaces, or constructor parameter properties.
+- In `web/`, use the tokens in `web/src/styles/index.css` and the variants in `web/src/components/ui/`
+  instead of raw colours, arbitrary values, inline styles, or restyled components; `npm --prefix web run
+  lint` runs the `@shadcn/lint` rules.
+- Do not hand-edit generated files, lockfiles, captured fixtures, or `web/src/components/ui/` unless the
+  task specifically targets their generator or source.
+- Keep changes cross-platform where the surrounding component supports macOS, Linux, and Windows.
+- Commit messages follow Conventional Commits with a scope: `fix(rules): ...`, `perf(quick): ...`,
+  `test(goldens): ...`. The body says why.
 
 ## Dependencies
 
 - Use `--locked` for commands that resolve dependencies.
 - Update Rust dependencies deliberately, then inspect `Cargo.lock`.
-- `make update-python-deps` is the only workflow that intentionally rewrites
-  Python lockfiles.
+- `make update-python-deps` is the only workflow that intentionally rewrites Python lockfiles.
 - Use package-local Node tooling; the repository has no root Node package.
+- `mise` pins the toolchains: Node, Python, uv, .NET, cargo-nextest.
+
+## Hard requirement: the fastest possible developer loop
+
+The developer loop is a product requirement, not a convenience. Every change must keep it short.
+
+- `make quick` is the inner loop. It must finish in under 60 seconds on a warm cache. It runs formatting,
+  lint, and unit tests for the areas changed relative to `main`, and nothing else.
+- While iterating, run only the narrowest command for the code you touched: one crate
+  (`cargo test -p <crate> --lib`), one package (`uv run --locked pytest <path>`, `npm test -- <file>`), one
+  golden (`cargo nextest run -p sideseat-server message_goldens -E 'test(<suite>)'`). Never start a
+  workspace-wide build or test run to check a local change.
+- Tests are deterministic and offline by default: replay captured OTLP fixtures and use the fake model
+  servers. Live model calls happen only in `make capture`, never in `make quick`, `make test`, or CI.
+- A new test, gate, hook, or dependency that makes `make quick` slower than the budget belongs in
+  `make test` or an opt-in target instead. Measure it before adding it.
+- Git hooks stay cheap: pre-commit runs formatting, the file-length check, and the secret scan only; heavier
+  checks belong to pre-push and CI.
+- If the loop has become slow, fixing that takes priority over the feature you are working on.
 
 ## Verification
 
-`make quick` is the inner loop: it formats, lints, and tests only the areas changed
-since `main`, and must stay under a minute. Run it while iterating, then the broader
-gate for the affected surface:
+Run `make quick` while iterating, then the broader gate for the affected surface:
 
 ```bash
 make quick
@@ -106,10 +193,8 @@ make test
 make check
 ```
 
-After changing `web/`, run `npm --prefix web run lint`; it includes the `@shadcn/lint` design-system rules, so use the tokens in `web/src/styles/index.css` and the variants in `web/src/components/ui/` instead of raw colors, arbitrary values, inline styles, or restyling components.
-
-Backend and operational checks are opt-in because they start containers or
-release binaries:
+Backend and operational checks are opt-in because they start containers, release binaries, or model
+checkers:
 
 ```bash
 make test-postgres
@@ -122,15 +207,16 @@ make test-backup-restore
 make footprint
 make bench-http
 make bench-http-distributed
+make harden-spec
 ```
 
 Choose checks proportionally:
 
 - Storage or SQL changes: relevant unit tests plus both affected parity suites.
-- Message reconstruction or rules: golden fixtures and invariants.
+- Message reconstruction or rules: golden fixtures and invariants, and both framework-knowledge sweeps.
+- Ordering, claiming, or invocation protocol changes: update the TLA+ model and run `make harden-spec`.
 - API changes: server tests and the matching SDK/web tests.
-- Scripts or Makefile: syntax/static checks and at least one representative
-  target.
+- Scripts or Makefile: syntax/static checks and at least one representative target.
 - Documentation or repository layout: repository structural tests.
 
 The container-free aggregate does not substitute for live backend parity.
@@ -141,24 +227,7 @@ The container-free aggregate does not substitute for live backend parity.
 - Use `rg` and `rg --files` for repository searches.
 - Keep commits focused and independently reviewable.
 - Remove dead code instead of suppressing warnings.
-- Add a regression test for every defect whose failure can be reproduced.
-- Before finishing, inspect the final diff, run applicable checks, and report
-  remaining risks or intentionally unverified behavior.
-
-## Hard requirement: the fastest possible developer loop
-
-The developer loop is a product requirement, not a convenience. Every change must keep it short.
-
-- `make quick` is the inner loop. It must finish in under 60 seconds on a warm cache. It runs formatting,
-  lint, and unit tests for the areas changed relative to `main`, and nothing else.
-- While iterating, run only the narrowest command for the code you touched: one crate
-  (`cargo nextest run -p <crate>`), one package (`uv run --locked pytest <path>`, `npm test -- <file>`),
-  one golden (`cargo nextest run -p sideseat-server message_goldens -E 'test(<suite>)'`). Never start a
-  workspace-wide build or test run to check a local change.
-- Tests are deterministic and offline by default: replay captured OTLP fixtures and use the fake model
-  servers. Live model calls happen only in `make capture`, never in `make quick`, `make test`, or CI.
-- A new test, gate, hook, or dependency that makes `make quick` slower than the budget belongs in
-  `make test` or an opt-in target instead. Measure it before adding it.
-- Git hooks stay cheap: pre-commit runs formatting and the secret scan only; heavier checks belong to
-  pre-push and CI.
-- If the loop has become slow, fixing that takes priority over the feature you are working on.
+- Add a regression test for every defect whose failure can be reproduced, and check that it fails without
+  the fix.
+- Before finishing, inspect the final diff, run applicable checks, and report remaining risks or
+  intentionally unverified behavior.

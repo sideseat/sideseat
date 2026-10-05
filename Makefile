@@ -16,11 +16,11 @@ include make/config.mk
 .PHONY: help quick check
 
 help: ## Show available commands
-	@awk -f scripts/make-help.awk $(MAKEFILE_LIST)
+	@awk -f make/help.awk $(MAKEFILE_LIST)
 	@printf "\nDefaults: TYPE=%s  NOTARIZE=%s\n" "$(TYPE)" "$(NOTARIZE)"
 
 quick: ## Format, lint, and test only what changed since main
-	@./scripts/quick.sh $(ARGS)
+	@./scripts/check/quick.sh $(ARGS)
 
 check: fmt-check lint test ## Run every container-free gate
 	@echo "[check] All checks passed"

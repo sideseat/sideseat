@@ -3,12 +3,12 @@
 .PHONY: deps-check node-floor download-prices clean-stale clean-docker disk disk-guard clean
 
 deps-check: ## Report outdated dependencies
-	@./scripts/deps-check.sh
+	@./scripts/check/deps.sh
 
 node-floor: ## Derive the supported Node.js floor
 	@#  Prints the Node versions every installed `engines.node` range accepts. Needs an installed tree for
 	@#  `semver`, which is transitive rather than declared - the script says so and stops if none is there.
-	@node scripts/node-floor.mjs --check
+	@node scripts/check/node-floor.mjs --check
 
 download-prices: ## Refresh model pricing data
 	@echo "[download-prices] Downloading LLM pricing data..."
@@ -26,7 +26,7 @@ download-prices: ## Refresh model pricing data
 
 # Reclaim stale and incremental Cargo artifacts without removing the current build.
 clean-stale: ## Remove stale Cargo artifacts
-	@./scripts/clean-stale.sh
+	@./scripts/dev/clean-stale.sh
 
 # Docker resources created by test and benchmark targets. Keep this list explicit:
 # machine-wide prune commands can remove caches or anonymous volumes owned by other projects.
@@ -59,7 +59,7 @@ clean-docker: ## Remove this checkout's test containers
 
 # Report local storage and fail when the Cargo cache or free-space reserve is unhealthy.
 disk: ## Report and enforce the local disk budget
-	@bash scripts/cargo-target-dir.sh >/dev/null
+	@bash scripts/dev/cargo-target-dir.sh >/dev/null
 	@echo "[disk] Free space:"
 	@df -h . | tail -1
 	@echo "[disk] Largest local directories:"
@@ -103,7 +103,7 @@ disk: ## Report and enforce the local disk budget
 
 # Finite Rust build and test recipes run this before and after their main command.
 disk-guard:
-	@bash scripts/cargo-target-dir.sh >/dev/null
+	@bash scripts/dev/cargo-target-dir.sh >/dev/null
 	@used=$$(du -sm "$(CARGO_TARGET_DIR)" 2>/dev/null | awk '{print $$1}'); \
 	used=$${used:-0}; \
 	available=$$(df -Pm . | awk 'NR == 2 {print $$4}'); \
@@ -126,7 +126,7 @@ disk-guard:
 
 clean: ## Remove all generated build artifacts
 	@echo "[clean] Removing build artifacts..."
-	@bash scripts/cargo-target-dir.sh >/dev/null
+	@bash scripts/dev/cargo-target-dir.sh >/dev/null
 	@cargo clean
 	@# The API build script recreates a placeholder web/dist when the real UI is absent.
 	@rm -rf $(WEB_DIR)/dist

@@ -19,8 +19,8 @@ docker info >/dev/null 2>&1 || {
   exit 1
 }
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CARGO_TARGET_DIR="$(bash "$repo_root/scripts/cargo-target-dir.sh")"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+CARGO_TARGET_DIR="$(bash "$repo_root/scripts/dev/cargo-target-dir.sh")"
 export CARGO_TARGET_DIR
 containers=()
 networks=()
@@ -140,7 +140,7 @@ case "$scenario" in
     docker run -d --name "$CH_REPL_CONTAINER" -p "$CH_REPL_PORT:8123" \
       -e CLICKHOUSE_USER=sideseat -e CLICKHOUSE_PASSWORD=sideseat \
       -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 \
-      -v "$repo_root/scripts/clickhouse-replicated/cluster.xml:/etc/clickhouse-server/config.d/cluster.xml:ro" \
+      -v "$repo_root/scripts/test/clickhouse-replicated/cluster.xml:/etc/clickhouse-server/config.d/cluster.xml:ro" \
       "$CH_TEST_IMAGE" >/dev/null
     wait_for_http "http://127.0.0.1:$CH_REPL_PORT/ping" 90 "$CH_REPL_CONTAINER" 30
 
@@ -173,11 +173,11 @@ case "$scenario" in
         --network "$CH_NET" --network-alias "ch-shard$node" -p "$port:8123" \
         -e CLICKHOUSE_USER=sideseat -e CLICKHOUSE_PASSWORD=sideseat \
         -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 \
-        -v "$repo_root/scripts/clickhouse-replicated/two-shard-common.xml:/etc/clickhouse-server/config.d/cluster.xml:ro" \
-        -v "$repo_root/scripts/clickhouse-replicated/two-shard-node-$node.xml:/etc/clickhouse-server/config.d/node.xml:ro")
+        -v "$repo_root/scripts/test/clickhouse-replicated/two-shard-common.xml:/etc/clickhouse-server/config.d/cluster.xml:ro" \
+        -v "$repo_root/scripts/test/clickhouse-replicated/two-shard-node-$node.xml:/etc/clickhouse-server/config.d/node.xml:ro")
       if [[ "$node" == 1 ]]; then
         docker_args+=(
-          -v "$repo_root/scripts/clickhouse-replicated/two-shard-keeper.xml:/etc/clickhouse-server/config.d/keeper.xml:ro"
+          -v "$repo_root/scripts/test/clickhouse-replicated/two-shard-keeper.xml:/etc/clickhouse-server/config.d/keeper.xml:ro"
         )
       fi
       docker_args+=("$CH_TEST_IMAGE")

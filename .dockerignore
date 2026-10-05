@@ -17,8 +17,8 @@ sdk/js/
 sdk/dotnet/
 examples/
 docs/public/images/screenshots/
-tools/otel-replay/fixtures/
-tools/otel-replay/
+scripts/tools/otel-replay/fixtures/
+scripts/tools/otel-replay/
 examples/assets/
 CLAUDE*.md
 GEMINI*.md

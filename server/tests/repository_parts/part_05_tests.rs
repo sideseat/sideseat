@@ -1,4 +1,3 @@
-
 #[test]
 fn migrated_clock_consumers_cannot_read_the_system_clock() {
     let repo = repo_root();
@@ -241,7 +240,11 @@ fn google_genai_fixture_version_matches_its_example_lock() {
         .expect("Google GenAI example lock is readable");
     let package = lock
         .split("[[package]]")
-        .find(|package| package.lines().any(|line| line == "name = \"google-genai\""))
+        .find(|package| {
+            package
+                .lines()
+                .any(|line| line == "name = \"google-genai\"")
+        })
         .expect("Google GenAI package is locked");
     let version = package
         .lines()
@@ -267,6 +270,44 @@ fn google_genai_fixture_version_matches_its_example_lock() {
         assert!(
             source.contains(&format!("Google GenAI {version}")),
             "{relative} does not describe the locked Google GenAI {version} fixture"
+        );
+    }
+}
+
+/// `scripts/` is grouped by purpose, and `scripts/README.md` names every group. A script dropped loose at the top,
+/// or a group the README does not describe, is how the directory became an undifferentiated pile before.
+#[test]
+fn scripts_are_grouped_by_purpose() {
+    let repo = repo_root();
+    let listing = Command::new("git")
+        .args(["ls-files", "scripts"])
+        .current_dir(repo)
+        .output()
+        .expect("git is available in a git checkout");
+    let files = String::from_utf8_lossy(&listing.stdout).into_owned();
+    let loose: Vec<&str> = files
+        .lines()
+        .filter(|f| f.matches('/').count() == 1 && *f != "scripts/README.md")
+        .collect();
+    assert!(
+        loose.is_empty(),
+        "scripts/ holds only purpose directories and its README; move these into one: {loose:?}"
+    );
+    let readme =
+        std::fs::read_to_string(repo.join("scripts/README.md")).expect("scripts/README.md");
+    let groups: BTreeSet<&str> = files
+        .lines()
+        .filter_map(|f| {
+            f.strip_prefix("scripts/")?
+                .split_once('/')
+                .map(|(group, _)| group)
+        })
+        .collect();
+    assert!(groups.len() >= 5, "found only {groups:?} under scripts/");
+    for group in groups {
+        assert!(
+            readme.contains(&format!("`{group}/`")),
+            "scripts/README.md does not describe `{group}/`"
         );
     }
 }

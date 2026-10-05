@@ -10,7 +10,7 @@ All data is stored in `./data/` via bind mounts. Delete it to reset everything.
 ## Quick Start
 
 ```bash
-# From deploy/local:
+# From scripts/deploy/local:
 docker compose up -d
 docker compose ps        # Wait for all 6 services to be healthy
 ```

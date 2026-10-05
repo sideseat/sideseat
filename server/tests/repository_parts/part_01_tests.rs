@@ -447,7 +447,7 @@ fn every_action_is_pinned_to_a_commit_and_every_image_to_a_tag() {
 /// hand: a new `package.json`, `pyproject.toml`, `Dockerfile` or Compose file fails this until it is declared.
 ///
 /// The ecosystem is checked, not merely the directory. A Compose file is a **separate** ecosystem from a
-/// Dockerfile, and declaring `/deploy/local` under `docker` left four pinned services unwatched while a
+/// Dockerfile, and declaring `/scripts/deploy/local` under `docker` left four pinned services unwatched while a
 /// containment check would have passed - which is why this parses the blocks rather than searching the text.
 ///
 /// Two exclusions, each on a stated ground rather than by omission: the `examples/` suites pin framework
@@ -568,7 +568,7 @@ fn dependabot_covers_every_manifest_in_the_tree() {
 const HOME_PLACEHOLDERS: [&str; 3] = [
     // What the capture tool's `anonymise` substitutes (`examples/python/harness/harness/capture.py`).
     "sideseat",
-    // What the replay archives under `tools/otel-replay/fixtures/` were scrubbed to.
+    // What the replay archives under `scripts/tools/otel-replay/fixtures/` were scrubbed to.
     "test-user",
     // The generic in documentation and doc comments (`expand_path("~") -> /home/user`).
     "user",

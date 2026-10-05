@@ -29,7 +29,7 @@ capture_mode() {
   local mode="$2"
   local recorder_log="$run_dir/recorder-$mode.log"
 
-  python3 "$repo_root/scripts/message-fixtures/record-otlp.py" \
+  python3 "$repo_root/scripts/fixtures/record-otlp.py" \
     --no-forward \
     --label "$label" \
     --port 0 >"$recorder_log" 2>&1 &
@@ -80,6 +80,6 @@ capture_mode rust/native/canonical otel
 capture_mode rust/sdk/canonical sdk
 
 echo "[rust-conformance] review and record expectations:"
-echo "  scripts/message-fixtures/review-goldens.py rust/native/canonical"
-echo "  scripts/message-fixtures/review-goldens.py rust/sdk/canonical"
+echo "  scripts/fixtures/review-goldens.py rust/native/canonical"
+echo "  scripts/fixtures/review-goldens.py rust/sdk/canonical"
 echo "  UPDATE_GOLDENS=1 cargo test --locked -p sideseat-server --test message_goldens message_goldens"

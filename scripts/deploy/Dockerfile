@@ -5,14 +5,14 @@
 #   VERSION=$(node -p "require('./cli/package.json').version") && \
 #   docker buildx build --platform linux/amd64,linux/arm64 \
 #     -t sideseat/core:latest -t sideseat/core:$VERSION \
-#     -f deploy/Dockerfile .
+#     -f scripts/deploy/Dockerfile .
 #
 # Publish:
 #   docker push sideseat/core:latest && \
 #   docker push sideseat/core:$VERSION
 #
 # Build (single arch, local):
-#   docker build -t sideseat/core -f deploy/Dockerfile .
+#   docker build -t sideseat/core -f scripts/deploy/Dockerfile .
 #
 # Run:
 #   docker run -p 5388:5388 -v sideseat-data:/data sideseat/core
