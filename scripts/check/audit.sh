@@ -34,10 +34,25 @@ done
 
 # The Python SDK is published. `--all-extras`, because pip-audit examines the installed environment and would
 # otherwise never see the optional framework instrumentation. Once per lockfile resolution branch: the lock
-# splits on python_full_version, so one interpreter leaves the other branches unexamined. The scanner runs
-# from scripts/tools/audit, which has its own lockfile; `--path` names the environment to examine, because a
+# splits on python_full_version, so one interpreter leaves the other branches unexamined. The branches are read
+# from the lock rather than listed here, so a moved floor or a new split cannot leave one unaudited; a branch
+# above every released interpreter (`>= 3.15`) has nothing to run yet. The scanner runs from
+# scripts/tools/audit, which has its own lockfile; `--path` names the environment to examine, because a
 # locked scanner run from its own project audits itself otherwise.
-for python in 3.10 3.12 3.13; do
+branches="$(python3 - <<'PY'
+import re
+lock = open("sdk/python/uv.lock").read()
+markers = re.search(r"^resolution-markers = \[(.*?)^\]", lock, re.M | re.S).group(1)
+versions = set()
+for minor in re.findall(r"python_full_version == '3\.(\d+)\.\*'", markers):
+    versions.add(int(minor))
+for minor in re.findall(r"python_full_version < '3\.(\d+)'", markers):
+    versions.add(int(minor) - 1)
+print(" ".join(f"3.{minor}" for minor in sorted(versions)))
+PY
+)"
+[ -n "$branches" ] || { echo "[audit] no resolution branches found in sdk/python/uv.lock" >&2; exit 1; }
+for python in $branches; do
     step "pip-audit (sdk/python, python $python)"
     (cd sdk/python && uv sync --locked --all-extras --python "$python")
     uv run --locked --project scripts/tools/audit pip-audit \
