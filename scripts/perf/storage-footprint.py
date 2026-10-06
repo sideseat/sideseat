@@ -27,8 +27,11 @@ transactional store are counted with the signal whose rows they reference. What 
 schema version rows, the pricing catalogue, users, projects - is reported as `fixed` and left out of the
 ratio, because it does not grow with telemetry.
 
-`--json PATH` writes the measurement for `--gate`, which fails the run when any signal's ratio is below the
-floor recorded in `scripts/perf/storage-footprint-floor.json`.
+The gated figure is **stored bytes per item excluding media**: media (images, documents, audio) is stored once per
+project, losslessly, at its floor - the unique decoded bytes - and is reported beside it, not inside it.
+`--gate` fails the run when any signal exceeds its ceiling in `scripts/perf/storage-footprint-ceiling.json`: the
+`target` the product promises, and a `regression` ceiling - the last measured figure plus a margin - so a change
+that makes storage worse fails even while the target is still out of reach.
 """
 
 from __future__ import annotations
@@ -52,7 +55,9 @@ ROOT = Path(__file__).resolve().parents[2]
 CORPUS = ROOT / "server/tests/fixtures/messages"
 # Metric exports have no message golden, so they live in their own corpus (`harness capture --metrics`).
 METRIC_CORPUS = ROOT / "server/tests/fixtures/metrics"
-FLOOR = ROOT / "scripts/perf/storage-footprint-floor.json"
+CEILING = ROOT / "scripts/perf/storage-footprint-ceiling.json"
+# Layers that are media objects. Everything else, content-body copies included, is telemetry encoding.
+MEDIA_LAYERS = ("blobs:files",)
 SIGNALS = ("traces", "logs", "metrics")
 SPAN_TABLES = {
     "otel_spans": "traces",
@@ -609,27 +614,30 @@ def report(exports: list[dict], measured: dict, mode: str) -> dict:
         f"\n[storage] {mode}: whole corpus, {len({e['tenant'] for e in exports})} projects\n"
     )
     print(
-        "| Signal | Exports | Items | Raw OTLP protobuf | Stored | Ratio | Raw B/item | Stored B/item |"
+        "| Signal | Exports | Items | Raw OTLP protobuf | Stored | Media | Stored excl. media | "
+        "Raw B/item | Stored excl. media B/item |"
     )
-    print("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
+    print("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
     for s in SIGNALS:
         stored = sum(layers[s].values())
+        media = sum(layers[s].get(layer, 0) for layer in MEDIA_LAYERS)
         count = sum(1 for e in exports if e["signal"] == s)
-        ratio = raw[s] / stored if stored else None
+        per_item = (stored - media) / items[s] if items[s] else None
         result["signals"][s] = {
             "exports": count,
             "items": items[s],
             "raw_bytes": raw[s],
             "stored_bytes": stored,
-            "ratio": ratio,
+            "media_bytes": media,
+            "stored_excluding_media_per_item": per_item,
             "layers": dict(layers[s].most_common()),
         }
         if not count:
-            print(f"| {s} | 0 | 0 | - | {stored:,} | no corpus | - | - |")
+            print(f"| {s} | 0 | 0 | - | {stored:,} | - | - | - | no corpus |")
             continue
         print(
-            f"| {s} | {count} | {items[s]:,} | {raw[s]:,} | {stored:,} | {ratio:.2f}x | "
-            f"{raw[s] / max(items[s], 1):,.0f} | {stored / max(items[s], 1):,.0f} |"
+            f"| {s} | {count} | {items[s]:,} | {raw[s]:,} | {stored:,} | {media:,} | "
+            f"{stored - media:,} | {raw[s] / items[s]:,.0f} | {per_item:,.0f} |"
         )
     print(f"\nfixed (not attributed): {sum(layers['fixed'].values()):,} B")
     for s in SIGNALS:
@@ -649,12 +657,19 @@ def report(exports: list[dict], measured: dict, mode: str) -> dict:
 
 
 def gate(result: dict) -> int:
-    floors = json.loads(FLOOR.read_text())[result["mode"]]
+    ceilings = json.loads(CEILING.read_text())[result["mode"]]
     failures = []
-    for s, floor in floors.items():
-        ratio = result["signals"][s]["ratio"]
-        if result["signals"][s]["exports"] and (ratio is None or ratio < floor):
-            failures.append(f"{s}: {ratio:.2f}x is below the {floor}x floor")
+    for s, limits in ceilings.items():
+        figure = result["signals"][s]["stored_excluding_media_per_item"]
+        if not result["signals"][s]["exports"] or figure is None:
+            failures.append(f"{s}: no corpus to measure")
+            continue
+        for kind in ("regression", "target"):
+            if kind in limits and figure > limits[kind]:
+                failures.append(
+                    f"{s}: {figure:,.0f} B/item excluding media is above the {kind} ceiling of "
+                    f"{limits[kind]:,} B/item"
+                )
     for failure in failures:
         log(f"FAIL: {failure}")
     return 1 if failures else 0
