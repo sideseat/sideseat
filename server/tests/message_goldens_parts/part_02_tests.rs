@@ -1,4 +1,3 @@
-
 /// A conversation that asked something must show an answer.
 ///
 /// The other invariants are all about *not* returning the wrong thing - scope, duplicates, pairing.
@@ -787,7 +786,10 @@ fn framework_sdk_and_native_conversations_are_identical() {
             generations_only_in_sdk.insert(producer.to_string());
         }
 
-        if !VARIABLE_STEP_SPANS.iter().any(|(label, _)| *label == sdk_label) {
+        if !VARIABLE_STEP_SPANS
+            .iter()
+            .any(|(label, _)| *label == sdk_label)
+        {
             assert_eq!(
                 sdk.span_count, native.span_count,
                 "{sdk_label}: SDK changed the number of framework spans"
@@ -804,7 +806,10 @@ fn framework_sdk_and_native_conversations_are_identical() {
         // Where step spans repeat a variable number of times, each message-less step counts once.
         let projections = |views: &BTreeMap<String, GoldenView>| {
             let mut comparable = span_multiset(views);
-            if VARIABLE_STEP_SPANS.iter().any(|(label, _)| *label == sdk_label) {
+            if VARIABLE_STEP_SPANS
+                .iter()
+                .any(|(label, _)| *label == sdk_label)
+            {
                 comparable.dedup_by(|a, b| a == b && a.1.contains("\"message_count\":0"));
             }
             comparable
@@ -865,7 +870,10 @@ fn with_restored_media_aligned(label: &str, native: Golden, sdk: Golden) -> (Gol
         !sdk_json.contains(MEDIA_OMITTED),
         "{label}: SDK telemetry lost a media payload the integration should restore"
     );
-    if MEDIA_DROPPED_NATIVELY.iter().any(|(declared, _)| *declared == label) {
+    if MEDIA_DROPPED_NATIVELY
+        .iter()
+        .any(|(declared, _)| *declared == label)
+    {
         let count = |golden: &Golden| {
             golden
                 .trace_views
@@ -881,18 +889,30 @@ fn with_restored_media_aligned(label: &str, native: Golden, sdk: Golden) -> (Gol
         );
         return (native, without_media(sdk));
     }
-    if !serde_json::to_string(&native).expect("golden is serializable").contains(MEDIA_OMITTED) {
+    if !serde_json::to_string(&native)
+        .expect("golden is serializable")
+        .contains(MEDIA_OMITTED)
+    {
         return (native, sdk);
     }
     fn mask(value: &mut serde_json::Value) {
         match value {
             serde_json::Value::Object(map) => {
-                let media = map.get("entry_type").and_then(serde_json::Value::as_str).is_some_and(|kind| {
-                    matches!(kind, "image" | "document" | "audio" | "video" | "file")
-                });
+                let media = map
+                    .get("entry_type")
+                    .and_then(serde_json::Value::as_str)
+                    .is_some_and(|kind| {
+                        matches!(kind, "image" | "document" | "audio" | "video" | "file")
+                    });
                 if media {
-                    map.insert("content".into(), serde_json::Value::String("<media>".into()));
-                    map.insert("content_digest".into(), serde_json::Value::String(String::new()));
+                    map.insert(
+                        "content".into(),
+                        serde_json::Value::String("<media>".into()),
+                    );
+                    map.insert(
+                        "content_digest".into(),
+                        serde_json::Value::String(String::new()),
+                    );
                 }
                 map.values_mut().for_each(mask);
             }

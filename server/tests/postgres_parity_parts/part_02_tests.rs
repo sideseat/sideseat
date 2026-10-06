@@ -1,4 +1,3 @@
-
 /// Files, their references and their deletion fence - the machinery a dangling reference comes from.
 #[tokio::test]
 async fn files_and_references_behave_identically() {

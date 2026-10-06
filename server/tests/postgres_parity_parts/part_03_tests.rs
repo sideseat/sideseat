@@ -1,4 +1,3 @@
-
 /// Two batches sharing one association: a commit by either survives the other's release - on both backends.
 ///
 /// The concurrency case the pending-writer count exists for, and the orphan a boolean flag produced: two

@@ -1,4 +1,3 @@
-
 /// And a reported zero is a fact the fallback must not overwrite.
 #[test]
 fn a_reported_zero_survives_a_fallback() {

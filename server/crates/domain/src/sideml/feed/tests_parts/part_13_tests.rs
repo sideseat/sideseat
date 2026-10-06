@@ -1,4 +1,3 @@
-
 /// How far the bounded search reaches on the three-level shape, reported rather than assumed.
 ///
 /// A construction with identical roots, identical middles, and unique leaves: `root_i -> middle_i ->
@@ -775,7 +774,14 @@ fn a_tool_result_sits_between_the_rounds_of_one_generation_span() {
     );
     tool_row.observation_type = Some("tool".to_string());
     let rows = vec![
-        make_span_row_with_timestamps("trace1", "generation", None, &generation.to_string(), at(0), Some(at(30))),
+        make_span_row_with_timestamps(
+            "trace1",
+            "generation",
+            None,
+            &generation.to_string(),
+            at(0),
+            Some(at(30)),
+        ),
         tool_row,
     ];
 
@@ -803,11 +809,21 @@ fn a_choiceless_generation_does_not_promote_a_reply_an_earlier_generation_stated
     };
     let first = json!([
         event("gen_ai.user.message", "user", "Name a neighbourhood.", t0),
-        event("gen_ai.assistant.message", "assistant", "Stay in Chiado.", t0),
+        event(
+            "gen_ai.assistant.message",
+            "assistant",
+            "Stay in Chiado.",
+            t0
+        ),
     ]);
     let second = json!([
         event("gen_ai.user.message", "user", "Name a neighbourhood.", t1),
-        event("gen_ai.assistant.message", "assistant", "Stay in Chiado.", t1),
+        event(
+            "gen_ai.assistant.message",
+            "assistant",
+            "Stay in Chiado.",
+            t1
+        ),
         event("gen_ai.user.message", "user", "And a dish?", t1),
         event("gen_ai.assistant.message", "assistant", "Try bacalhau.", t1),
     ]);

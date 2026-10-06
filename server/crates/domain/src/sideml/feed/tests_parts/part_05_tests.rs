@@ -1,4 +1,3 @@
-
 /// Regression #40: ToolUse from tool spans is INPUT, not OUTPUT.
 ///
 /// Tool spans log tool invocation (INPUT). The tool_use is output only if it

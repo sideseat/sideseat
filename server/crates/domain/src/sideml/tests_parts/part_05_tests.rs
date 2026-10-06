@@ -1,4 +1,3 @@
-
 #[test]
 fn test_convert_keeps_multiple_tool_results_unchanged() {
     // Multiple tool_results should be kept as-is (parallel tool calls)

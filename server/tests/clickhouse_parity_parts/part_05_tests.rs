@@ -1,4 +1,3 @@
-
 #[tokio::test]
 async fn deleting_removes_the_same_rows_on_both_backends() {
     let Ok(url) = std::env::var(URL_ENV) else {

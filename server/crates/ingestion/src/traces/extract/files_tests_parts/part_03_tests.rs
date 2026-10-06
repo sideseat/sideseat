@@ -1,4 +1,3 @@
-
 #[test]
 fn test_embedded_data_url_cached_produces_same_uri() {
     let cache = FileExtractionCache::new();

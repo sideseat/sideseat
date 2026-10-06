@@ -1,4 +1,3 @@
-
 /// The declared member vocabulary answers exactly as the three retired lists did.
 ///
 /// All three questions, because a member usually answers more than one and the lists had drifted: which member
@@ -245,12 +244,10 @@ fn crewai_empty_agent_snapshot_is_not_a_user_message() {
     );
 
     assert!(
-        messages.iter().all(
-            |message| !matches!(
-                &message.source,
-                MessageSource::Attribute { key, .. } if key == "input.value"
-            )
-        ),
+        messages.iter().all(|message| !matches!(
+            &message.source,
+            MessageSource::Attribute { key, .. } if key == "input.value"
+        )),
         "CrewAI's empty agent envelope is metadata, not a conversation: {messages:?}"
     );
 }
@@ -281,7 +278,11 @@ fn openai_agents_logfire_function_span_keeps_input_and_output() {
         true,
     );
 
-    assert_eq!(messages.len(), 2, "both sides of the function call are needed");
+    assert_eq!(
+        messages.len(),
+        2,
+        "both sides of the function call are needed"
+    );
     assert_eq!(messages[0].content["role"], "assistant");
     assert_eq!(messages[0].content["content"][0]["type"], "tool_use");
     assert_eq!(

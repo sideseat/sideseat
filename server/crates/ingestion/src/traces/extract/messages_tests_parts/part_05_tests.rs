@@ -1,4 +1,3 @@
-
 #[test]
 fn test_strands_agents_inference_operation_details_event_complex_messages() {
     // Array is stored as-is at ingestion; expansion happens at query time in SideML pipeline

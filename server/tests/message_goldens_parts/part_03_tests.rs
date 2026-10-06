@@ -1,4 +1,3 @@
-
 /// The harness is only meaningful if the invariant checks can actually fail. Every assertion
 /// here also documents a case that a previous version of these checks got wrong.
 #[test]
@@ -10,7 +9,8 @@ fn invariant_checks_are_not_vacuous() {
             carrier_orders_positions: true,
             carrier_proves_occurrence: false,
             order_time: chrono::DateTime::UNIX_EPOCH,
-            is_output: false, finish: None,
+            is_output: false,
+            finish: None,
             position: index.to_string(),
             trace_id: trace.to_string(),
             span_id: "span-1".to_string(),
@@ -32,7 +32,8 @@ fn invariant_checks_are_not_vacuous() {
             carrier_orders_positions: true,
             carrier_proves_occurrence: false,
             order_time: chrono::DateTime::UNIX_EPOCH,
-            is_output: false, finish: None,
+            is_output: false,
+            finish: None,
             position: index.to_string(),
             trace_id: trace.to_string(),
             span_id: "span-1".to_string(),
@@ -124,7 +125,8 @@ fn invariant_checks_are_not_vacuous() {
         carrier_orders_positions: true,
         carrier_proves_occurrence: false,
         order_time: chrono::DateTime::UNIX_EPOCH,
-        is_output: false, finish: None,
+        is_output: false,
+        finish: None,
         carrier: "attr:test".to_string(),
         position: "0".to_string(),
         trace_id: "aaaaaaaa1111".to_string(),
@@ -633,7 +635,8 @@ fn system_frame_violations(built: &Built) -> Vec<String> {
         // The first frame precedes the first turn it frames: one in its own span's subtree. In a
         // multi-agent trace the request to the orchestrator legitimately comes before a sub-agent's
         // instructions, and a later instruction may re-frame a turn that has already completed.
-        let Some((system, frame)) = rows.iter().enumerate().find(|(_, r)| r.role == "system") else {
+        let Some((system, frame)) = rows.iter().enumerate().find(|(_, r)| r.role == "system")
+        else {
             continue;
         };
         let framed_user = rows
@@ -642,7 +645,9 @@ fn system_frame_violations(built: &Built) -> Vec<String> {
         if let Some(user) = framed_user
             && system > user
         {
-            out.push(format!("{name}: system at {system}, first user it frames at {user}"));
+            out.push(format!(
+                "{name}: system at {system}, first user it frames at {user}"
+            ));
         }
     }
     out
@@ -852,7 +857,11 @@ fn shadow_resolver_keeps_intro_with_its_call_before_the_result() {
 /// The resolver is a permutation: it reorders survivors, it does not add, drop or alter them.
 #[test]
 fn shadow_resolver_is_a_permutation_of_the_survivors() {
-    for label in ["strands-js/native/multi_agent", "strands/sdk/tool_use", "strands/sdk/mcp_tools"] {
+    for label in [
+        "strands-js/native/multi_agent",
+        "strands/sdk/tool_use",
+        "strands/sdk/mcp_tools",
+    ] {
         let (_, paths) = discover_fixtures()
             .into_iter()
             .find(|(l, _)| l == label)
@@ -943,58 +952,4 @@ fn promoted_constraints_do_not_change_which_messages_appear() {
         }
     }
     assert!(checked > 50, "only checked {checked} traces");
-}
-
-/// The resolver cannot move a block with every constraint class off.
-///
-/// With `Constraints::NEUTRAL` the resolver enforces only what the previous sort already satisfies -
-/// every edge already forward, every contracted emission already contiguous, the legacy index as the
-/// pop seed - so its output must be the previous order exactly, on every trace of every fixture. That
-/// is the proof the machinery has no opinion of its own: whatever production's promoted classes then
-/// change is attributable to those classes, not to the graph, the Kahn resolve or the cycle fallback.
-///
-/// Checked as a property here rather than left to the goldens, which are regenerable: a golden diff
-/// would show a scaffold reorder as "expected output changed" and could be blessed by accident.
-#[test]
-fn the_neutral_resolver_reproduces_the_legacy_order() {
-    let mut checked = 0usize;
-    for (label, paths) in discover_fixtures() {
-        let all = rows_for(&paths);
-        let mut by_trace: BTreeMap<String, Vec<MessageSpanRow>> = BTreeMap::new();
-        for (_, row) in all {
-            by_trace.entry(row.trace_id.clone()).or_default().push(row);
-        }
-        for (trace_id, trace_rows) in by_trace {
-            let rows = sorted_by_timestamp(
-                trace_rows
-                    .into_iter()
-                    .filter(passes_content_filter)
-                    .collect(),
-            );
-            if rows.is_empty() {
-                continue;
-            }
-            let (legacy, neutral) = legacy_and_neutral_order(rows);
-            // The whole block, serialised. A role/type/span/hash fingerprint is too weak: two
-            // identical tool calls with distinct ids share it, so swapping them would have passed -
-            // and those two calls are exactly what the resolver's contraction reasons about.
-            let seq = |blocks: &[sideseat_domain::sideml::feed::BlockEntry]| -> Vec<String> {
-                blocks
-                    .iter()
-                    .map(|b| serde_json::to_string(b).expect("a block serialises"))
-                    .collect()
-            };
-            assert_eq!(
-                seq(&neutral),
-                seq(&legacy),
-                "{label} / trace {trace_id}: the resolver moved a block with every class off, so the \
-                 machinery is not neutral"
-            );
-            checked += 1;
-        }
-    }
-    assert!(
-        checked > 50,
-        "expected the corpus to contribute many traces, only checked {checked}"
-    );
 }

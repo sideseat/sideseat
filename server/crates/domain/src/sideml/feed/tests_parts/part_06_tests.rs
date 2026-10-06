@@ -1,4 +1,3 @@
-
 /// Regression #50: Tool_use preserved when intermediate text is filtered.
 ///
 /// In generation spans, intermediate assistant text should be filtered

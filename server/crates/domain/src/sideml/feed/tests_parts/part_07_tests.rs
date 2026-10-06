@@ -1,4 +1,3 @@
-
 /// Regression #56: User/System messages in non-root generation spans filtered.
 ///
 /// In Strands-like traces with agent spans:

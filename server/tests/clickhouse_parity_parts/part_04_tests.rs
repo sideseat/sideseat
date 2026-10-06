@@ -1,4 +1,3 @@
-
 async fn assert_detail_and_feed_parity(
     duck: &sideseat_adapter_duckdb::DuckdbRepository,
     ch: &sideseat_adapter_clickhouse::ClickhouseRepository,

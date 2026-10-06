@@ -1,4 +1,3 @@
-
 #[test]
 fn test_strands_tool_span_with_input_and_output_events() {
     // Simulates the exact format from user's Strands agents example:

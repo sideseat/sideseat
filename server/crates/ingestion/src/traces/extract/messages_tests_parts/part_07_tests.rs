@@ -1,4 +1,3 @@
-
 #[test]
 fn regression_langgraph_indexed_tool_definitions_sparse() {
     // Regression test: LangGraph with sparse tool indices (not starting at 0)

@@ -1,4 +1,3 @@
-
 /// A stalled replica's cursor write is refused once another replica has moved it, so nothing is skipped.
 ///
 /// Replica A reads and stalls; replica B advances the cursor; A's delayed write must become a no-op rather

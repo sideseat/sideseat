@@ -1,4 +1,3 @@
-
 #[test]
 fn test_strands_agents_framework_detection_via_span_name_and_agent_attr() {
     let empty_attrs = HashMap::new();

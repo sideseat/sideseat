@@ -1,4 +1,3 @@
-
 // ----------------------------------------------------------------------------
 // Test: Genuine repeated user message preserved (the reported bug)
 // User asks the same question in trace 2 as in trace 1.

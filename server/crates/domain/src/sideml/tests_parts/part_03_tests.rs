@@ -1,4 +1,3 @@
-
 #[test]
 fn test_crewai_tool_call_format() {
     let input = json!({

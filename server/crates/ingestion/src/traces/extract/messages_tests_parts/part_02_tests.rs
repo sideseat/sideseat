@@ -1,4 +1,3 @@
-
 #[test]
 fn test_gen_ai_tool_names_and_definitions_together() {
     // Both agent tools and definitions present - should extract to separate vectors

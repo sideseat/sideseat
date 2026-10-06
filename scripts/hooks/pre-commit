@@ -19,7 +19,8 @@ staged() { git diff --cached --name-only --diff-filter=ACMR -- "$@"; }
 # commit on someone else's unformatted work in progress, which says nothing about this change. Without
 # skip_children rustfmt also checks every module a staged file declares, which is the same problem one level
 # down: a staged lib.rs would fail on an unformatted sibling module someone else is editing.
-rust_files="$(staged '*.rs')"
+# Files under `*_rule_cases/` are expression fragments `include!`d into a test, which rustfmt cannot parse alone.
+rust_files="$(staged '*.rs' | grep -v '_rule_cases/' || true)"
 if [ -n "$rust_files" ]; then
     # shellcheck disable=SC2086
     rustfmt --check --edition 2024 --config skip_children=true $rust_files

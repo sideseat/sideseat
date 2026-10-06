@@ -1,4 +1,3 @@
-
 /// The convention's inference-details container is read on a tool span too.
 ///
 /// The retired extractor answered this event *before* any tool-span check, so declaring the rules without

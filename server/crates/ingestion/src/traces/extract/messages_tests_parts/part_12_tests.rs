@@ -1,4 +1,3 @@
-
 /// The declared counter resolvers find exactly what the retired table found - value **and** presence.
 ///
 /// Presence is half the point: a counter nothing carried and a genuine `0` are different statements about a

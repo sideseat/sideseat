@@ -1,4 +1,3 @@
-
 #[tokio::test]
 async fn clickhouse_search_matches_duckdb_on_ordering_pagination_and_unknowns() {
     let Ok(url) = std::env::var(URL_ENV) else {

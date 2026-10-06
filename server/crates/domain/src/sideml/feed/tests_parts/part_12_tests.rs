@@ -1,4 +1,3 @@
-
 /// The feed must keep a trace whole when only its root span names the session.
 ///
 /// Several frameworks record the session id on the root span alone. Grouping by each row's own id

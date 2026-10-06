@@ -1,4 +1,3 @@
-
 async fn assert_list_and_filter_parity(
     duck: &sideseat_adapter_duckdb::DuckdbRepository,
     ch: &sideseat_adapter_clickhouse::ClickhouseRepository,

@@ -360,3 +360,57 @@ fn describe_diff(label: &str, expected: &Golden, actual: &Golden) -> String {
     }
     out.join("\n")
 }
+
+/// The resolver cannot move a block with every constraint class off.
+///
+/// With `Constraints::NEUTRAL` the resolver enforces only what the previous sort already satisfies -
+/// every edge already forward, every contracted emission already contiguous, the legacy index as the
+/// pop seed - so its output must be the previous order exactly, on every trace of every fixture. That
+/// is the proof the machinery has no opinion of its own: whatever production's promoted classes then
+/// change is attributable to those classes, not to the graph, the Kahn resolve or the cycle fallback.
+///
+/// Checked as a property here rather than left to the goldens, which are regenerable: a golden diff
+/// would show a scaffold reorder as "expected output changed" and could be blessed by accident.
+#[test]
+fn the_neutral_resolver_reproduces_the_legacy_order() {
+    let mut checked = 0usize;
+    for (label, paths) in discover_fixtures() {
+        let all = rows_for(&paths);
+        let mut by_trace: BTreeMap<String, Vec<MessageSpanRow>> = BTreeMap::new();
+        for (_, row) in all {
+            by_trace.entry(row.trace_id.clone()).or_default().push(row);
+        }
+        for (trace_id, trace_rows) in by_trace {
+            let rows = sorted_by_timestamp(
+                trace_rows
+                    .into_iter()
+                    .filter(passes_content_filter)
+                    .collect(),
+            );
+            if rows.is_empty() {
+                continue;
+            }
+            let (legacy, neutral) = legacy_and_neutral_order(rows);
+            // The whole block, serialised. A role/type/span/hash fingerprint is too weak: two
+            // identical tool calls with distinct ids share it, so swapping them would have passed -
+            // and those two calls are exactly what the resolver's contraction reasons about.
+            let seq = |blocks: &[sideseat_domain::sideml::feed::BlockEntry]| -> Vec<String> {
+                blocks
+                    .iter()
+                    .map(|b| serde_json::to_string(b).expect("a block serialises"))
+                    .collect()
+            };
+            assert_eq!(
+                seq(&neutral),
+                seq(&legacy),
+                "{label} / trace {trace_id}: the resolver moved a block with every class off, so the \
+                 machinery is not neutral"
+            );
+            checked += 1;
+        }
+    }
+    assert!(
+        checked > 50,
+        "expected the corpus to contribute many traces, only checked {checked}"
+    );
+}

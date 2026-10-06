@@ -1,4 +1,3 @@
-
 // === Edge Case Tests ===
 
 #[test]
@@ -782,7 +781,10 @@ fn a_user_turn_carrying_a_tool_call_id_is_a_tool_result() {
         message.content
     );
     // Without an id a user turn is what the user said.
-    assert_eq!(normalize(&json!({"role": "user", "content": "hi"})).role, ChatRole::User);
+    assert_eq!(
+        normalize(&json!({"role": "user", "content": "hi"})).role,
+        ChatRole::User
+    );
 }
 
 /// A tool that returns a number reports it as a string. Decoded as JSON it became a number with no
@@ -804,7 +806,8 @@ fn scalar_content_is_kept_as_text() {
 #[test]
 fn a_tool_result_that_reads_as_a_number_keeps_its_value() {
     for text in ["395.0", "true", "null"] {
-        let message = normalize(&json!({"role": "tool", "content": text, "tool_call_id": "call-1"}));
+        let message =
+            normalize(&json!({"role": "tool", "content": text, "tool_call_id": "call-1"}));
         assert!(
             matches!(
                 &message.content[..],
@@ -863,7 +866,10 @@ fn a_choice_envelope_is_read_as_the_message_it_holds() {
         "{:?}",
         message.content
     );
-    assert!(message.finish_reason.is_some(), "the envelope's finish reason is the message's");
+    assert!(
+        message.finish_reason.is_some(),
+        "the envelope's finish reason is the message's"
+    );
 }
 
 /// A Converse tool result block reads in the canonical form a tool message's content takes, so one result
@@ -876,7 +882,10 @@ fn a_converse_tool_result_takes_the_canonical_content_form() {
         ]}))
     };
     for (content, want) in [
-        (json!([{"text": "10% chance of rain."}]), json!("10% chance of rain.")),
+        (
+            json!([{"text": "10% chance of rain."}]),
+            json!("10% chance of rain."),
+        ),
         (json!([{"json": {"city": "Rome"}}]), json!({"city": "Rome"})),
     ] {
         let message = block(content);

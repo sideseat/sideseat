@@ -926,8 +926,20 @@ fn a_deduplicated_attachment_keeps_the_filename_a_copy_had() {
         ..make_tool_result_block("trace1", span, "", "unused", t0)
     };
     let spans = HashMap::from([
-        ("named".to_string(), SpanTimestamps { span_start: t0, span_end: Some(t0) }),
-        ("bare".to_string(), SpanTimestamps { span_start: t0, span_end: Some(t0) }),
+        (
+            "named".to_string(),
+            SpanTimestamps {
+                span_start: t0,
+                span_end: Some(t0),
+            },
+        ),
+        (
+            "bare".to_string(),
+            SpanTimestamps {
+                span_start: t0,
+                span_end: Some(t0),
+            },
+        ),
     ]);
 
     for order in [[Some("task"), None], [None, Some("task")]] {

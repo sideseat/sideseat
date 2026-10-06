@@ -1,4 +1,3 @@
-
 #[test]
 fn test_id_field_not_extracted_for_assistant_role() {
     let input = json!({
@@ -819,7 +818,10 @@ fn test_strands_tool_result_rich_format_from_content() {
         assert_eq!(block["tool_use_id"], "tooluse_abc123");
         block["content"].clone()
     };
-    assert_eq!(normalized(json!([{"text": "Weather: sunny"}])), json!("Weather: sunny"));
+    assert_eq!(
+        normalized(json!([{"text": "Weather: sunny"}])),
+        json!("Weather: sunny")
+    );
     let rich = normalized(json!([{"text": "Weather: sunny"}, {"text": "Wind: light"}]));
     assert!(rich.is_array(), "several blocks stay a list, got: {rich}");
     assert_eq!(rich[0]["text"], "Weather: sunny");

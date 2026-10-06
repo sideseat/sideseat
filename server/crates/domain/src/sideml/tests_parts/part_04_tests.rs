@@ -1,4 +1,3 @@
-
 #[test]
 fn test_unflatten_multiple_tool_calls() {
     use crate::observations::{MessageSource, RawMessage};

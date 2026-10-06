@@ -80,7 +80,9 @@ if [ -n "$rust_files" ]; then
 
     step "rustfmt"
     # The changed files only: their formatting is all this change can have altered.
-    rs_existing="$(grep -E '\.rs$' <<<"$rust_files" | existing || true)"
+    # Files under `*_rule_cases/` are expression fragments `include!`d into a test, which rustfmt cannot
+    # parse alone.
+    rs_existing="$(grep -E '\.rs$' <<<"$rust_files" | grep -v '_rule_cases/' | existing || true)"
     if [ -n "$rs_existing" ]; then
         # shellcheck disable=SC2086
         rustfmt --check --edition 2024 --config skip_children=true $rs_existing

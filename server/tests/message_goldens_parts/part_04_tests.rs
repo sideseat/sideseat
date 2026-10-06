@@ -105,7 +105,8 @@ fn the_feed_keeps_each_response_forward() {
 #[test]
 #[ignore]
 fn bench_pipeline() {
-    let want = std::env::var("BENCH").unwrap_or_else(|_| "langgraph/native/multi_agent".to_string());
+    let want =
+        std::env::var("BENCH").unwrap_or_else(|_| "langgraph/native/multi_agent".to_string());
     let (_, paths) = discover_fixtures()
         .into_iter()
         .find(|(l, _)| *l == want)
@@ -249,8 +250,10 @@ fn the_corpus_matches_the_support_matrix() {
     let mut found: Vec<(String, usize, usize)> = Vec::new();
     // Kept honest by `local_only_samples_are_actually_gitignored`, so this cannot drift into excusing a
     // sample that someone simply forgot to commit.
-    const LOCAL_ONLY_SAMPLES: [(&str, &str); 2] =
-        [("strands-js/legacy", "image-gen"), ("vercel-ai-js/legacy", "image-gen")];
+    const LOCAL_ONLY_SAMPLES: [(&str, &str); 2] = [
+        ("strands-js/legacy", "image-gen"),
+        ("vercel-ai-js/legacy", "image-gen"),
+    ];
 
     let tracked = requested_tracked_samples(&root);
     // A suite is `_synthetic`, or `<producer>/<mode>` for captured telemetry.
@@ -802,7 +805,8 @@ async fn bench_ingestion_end_to_end() {
     use sideseat_server::app::storage::{AnalyticsService, TransactionalService};
     use std::sync::Arc;
 
-    let want = std::env::var("BENCH").unwrap_or_else(|_| "langgraph/native/multi_agent".to_string());
+    let want =
+        std::env::var("BENCH").unwrap_or_else(|_| "langgraph/native/multi_agent".to_string());
     let (label, paths) = discover_fixtures()
         .into_iter()
         .find(|(l, _)| *l == want)

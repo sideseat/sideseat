@@ -1,4 +1,3 @@
-
 /// Every native half of a framework parity pair reaches the framework label its SDK slug declares.
 ///
 /// Conversation goldens deliberately omit provenance, so a current instrumentor could keep producing the
@@ -91,11 +90,8 @@ fn the_declared_classification_matches_the_sweep_across_the_corpus() {
                             && swept == "agent"
                             && attrs.get("gen_ai.operation.name").map(String::as_str)
                                 == Some("execute_tool");
-                        let declared_replacement = plan.observation_type_replaces_legacy(
-                            &span.name,
-                            &attrs,
-                            &swept,
-                        );
+                        let declared_replacement =
+                            plan.observation_type_replaces_legacy(&span.name, &attrs, &swept);
                         if declared != swept && !repaired_tool_execution && !declared_replacement {
                             disagreements.push(format!(
                                 "{label} / {}: observation declared {declared}, swept {swept}",

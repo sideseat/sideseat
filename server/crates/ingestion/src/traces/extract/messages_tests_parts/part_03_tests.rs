@@ -1,4 +1,3 @@
-
 #[test]
 fn test_langsmith_completion_with_choices() {
     let completion_json = r#"{
