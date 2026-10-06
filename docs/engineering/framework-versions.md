@@ -155,6 +155,17 @@ until the reconstruction places it. 1.x predates the 2.0 rewrite the suite is wr
 
 **opentelemetry-haystack** has one release in the window, the suite's own.
 
+**OpenInference's Agno instrumentor** (24 releases, 2 classes): from 0.1.35 the model input's tool messages
+carry `llm.input_messages.#.message.tool_call_id`. 0.1.16 - 0.1.30 are exempt: they call wrapt 1.x's
+`wrap_function_wrapper(module=...)` without bounding wrapt below 2.
+
+**Logfire behind the Anthropic suite** (37 releases, 4 classes): 4.19 drops the tool loop's own log spans,
+4.33 adds `logfire.version` and 4.37 the `host.*` / `os.*` resource attributes. Logfire 4.31.1 - 4.41 import
+httpx without declaring it, so the pin adds it. Logfire 4.x reports Anthropic calls as its own
+`request_data` / `response_data`, which the asset reads only for OpenAI, so the historical captures are
+withheld; the suite records SDK mode only, because native Logfire 5.1.1 abandons the span of a call made
+without tools.
+
 Replay gives the scenario an HTTP proxy that refuses everything but loopback, so a release that ignores the
 client it is given (AgentScope 2.0.0 - 2.0.5) fails locally instead of reaching a provider's public API.
 

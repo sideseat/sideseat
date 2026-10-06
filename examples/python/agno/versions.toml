@@ -1,0 +1,93 @@
+# The historical openinference-instrumentation-agno releases this suite is replayed against; see `python -m harness matrix --help`
+# and docs/engineering/framework-versions.md. The OpenInference Agno instrumentor writes the spans, so its release history is the window.
+[matrix]
+package = "openinference-instrumentation-agno"
+since = "2025-10-05"
+resolved-before = "2026-10-05T00:00:00Z"
+probes = ["tool_use", "streaming"]
+scenarios = ["tool_use", "streaming"]
+
+# Each variant is the newest release of one telemetry class in `versions.census.json`.
+[[variant]]
+version = "0.1.34"
+doc = "0.1.31-0.1.34: tool messages in the model input carry no llm.input_messages.#.message.tool_call_id."
+
+[[variant]]
+version = "1.0.13"
+current = true
+doc = "0.1.35 onwards: tool messages carry their tool_call_id. The suite's locked release; its fixtures are the ordinary capture."
+
+[[exempt]]
+version = "0.1.16"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.17"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.18"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.19"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.20"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.21"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.22"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.23"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.24"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.25"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.26"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.27"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.28"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.29"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.30"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"

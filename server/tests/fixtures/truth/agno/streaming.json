@@ -4,6 +4,7 @@
  "scenario": "streaming",
  "fixtures": [
   "agno/native/streaming",
+  "agno/native@0.1.34/streaming",
   "agno/sdk/streaming"
  ],
  "source": {

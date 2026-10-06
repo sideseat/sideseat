@@ -4,6 +4,7 @@
  "scenario": "tool_use",
  "fixtures": [
   "agno/native/tool_use",
+  "agno/native@0.1.34/tool_use",
   "agno/sdk/tool_use"
  ],
  "source": {

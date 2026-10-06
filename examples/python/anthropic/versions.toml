@@ -1,0 +1,35 @@
+# The historical logfire releases this suite is replayed against; see `python -m harness matrix --help`
+# and docs/engineering/framework-versions.md. Logfire's Anthropic integration writes the spans, so its release history is the window.
+[matrix]
+package = "logfire"
+# Logfire 4.31.1-4.41 import httpx in their Anthropic integration without declaring it, and the current
+# Anthropic SDK no longer brings it.
+pin = ["logfire=={version}", "httpx"]
+since = "2025-10-05"
+resolved-before = "2026-10-05T00:00:00Z"
+probes = ["tool_use", "streaming"]
+scenarios = ["tool_use", "streaming"]
+# The suite has only an SDK mode: native Logfire 5.1.1 abandons the span of an Anthropic call made without
+# tools. The census still classifies the native telemetry, which the tool-using probes produce.
+modes = ["sdk"]
+
+# Each variant is the newest release of one telemetry class in `versions.census.json`.
+[[variant]]
+version = "4.18.0"
+withheld = { tool_use = "Logfire 4.x reports Anthropic calls as its own request_data / response_data, which the Logfire asset reads only for OpenAI: the views hold no messages (4.19-4.36) or a tool result without its call (4.12-4.18), which the golden invariants refuse; recorded once the asset reads it (rule-language backlog 156).", streaming = "Logfire 4.x reports Anthropic calls as its own request_data / response_data, which the Logfire asset reads only for OpenAI: the views hold no messages (4.19-4.36) or a tool result without its call (4.12-4.18), which the golden invariants refuse; recorded once the asset reads it (rule-language backlog 156)." }
+doc = "4.12-4.18: the tool loop's own Logfire log spans (logfire.span_type log, code.filepath) beside the model spans."
+
+[[variant]]
+version = "4.32.1"
+withheld = { tool_use = "Logfire 4.x reports Anthropic calls as its own request_data / response_data, which the Logfire asset reads only for OpenAI: the views hold no messages (4.19-4.36) or a tool result without its call (4.12-4.18), which the golden invariants refuse; recorded once the asset reads it (rule-language backlog 156).", streaming = "Logfire 4.x reports Anthropic calls as its own request_data / response_data, which the Logfire asset reads only for OpenAI: the views hold no messages (4.19-4.36) or a tool result without its call (4.12-4.18), which the golden invariants refuse; recorded once the asset reads it (rule-language backlog 156)." }
+doc = "4.19-4.32: those log spans are gone."
+
+[[variant]]
+version = "4.36.0"
+withheld = { tool_use = "Logfire 4.x reports Anthropic calls as its own request_data / response_data, which the Logfire asset reads only for OpenAI: the views hold no messages (4.19-4.36) or a tool result without its call (4.12-4.18), which the golden invariants refuse; recorded once the asset reads it (rule-language backlog 156).", streaming = "Logfire 4.x reports Anthropic calls as its own request_data / response_data, which the Logfire asset reads only for OpenAI: the views hold no messages (4.19-4.36) or a tool result without its call (4.12-4.18), which the golden invariants refuse; recorded once the asset reads it (rule-language backlog 156)." }
+doc = "4.33-4.36: the resource gains logfire.version."
+
+[[variant]]
+version = "5.1.1"
+current = true
+doc = "4.37 onwards: the resource gains host.* and os.* attributes. The suite's locked release; its fixtures are the ordinary capture."
