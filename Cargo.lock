@@ -5424,7 +5424,6 @@ dependencies = [
 name = "sideseat-adapter-secrets"
 version = "1.0.13"
 dependencies = [
- "anyhow",
  "async-trait",
  "aws-config",
  "aws-sdk-secretsmanager",

@@ -18,7 +18,6 @@ use types::{Secret, SecretKey, SecretScope};
 
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
@@ -28,8 +27,11 @@ use sideseat_core::storage::AppStorage;
 use sideseat_core::utils::crypto;
 use sideseat_ports::clock::Clock;
 
-#[cfg(test)]
-use error::SecretError;
+pub use error::SecretError;
+
+/// Every root secret is a 256-bit key: the JWT signing key and the API-key pepper are both HMAC-SHA256
+/// inputs.
+const ROOT_SECRET_BYTES: usize = 32;
 
 #[cfg(test)]
 #[derive(Debug)]
@@ -69,7 +71,7 @@ impl SecretManager {
         storage: &AppStorage,
         config: &SecretsConfig,
         clock: Arc<dyn Clock>,
-    ) -> Result<Self> {
+    ) -> Result<Self, SecretError> {
         let provider: Arc<dyn SecretProvider> = match config.backend {
             SecretsBackend::File => {
                 Arc::new(file::FileProvider::init(storage.data_dir(), Arc::clone(&clock)).await?)
@@ -104,7 +106,10 @@ impl SecretManager {
                 Arc::new(env::EnvProvider::new(prefix, Arc::clone(&clock)))
             }
             SecretsBackend::Aws => {
-                let aws_cfg = config.aws.as_ref().context("AWS secrets config missing")?;
+                let aws_cfg = config
+                    .aws
+                    .as_ref()
+                    .ok_or_else(|| SecretError::Config("AWS secrets config missing".into()))?;
                 let p = aws::AwsProvider::new(
                     aws_cfg.region.clone(),
                     aws_cfg.prefix.clone(),
@@ -117,7 +122,7 @@ impl SecretManager {
                 let v = config
                     .vault
                     .as_ref()
-                    .context("Vault secrets config missing")?;
+                    .ok_or_else(|| SecretError::Config("Vault secrets config missing".into()))?;
                 let p = hashicorp::HashiVaultProvider::new(
                     v.address.clone(),
                     &v.token,
@@ -146,24 +151,28 @@ impl SecretManager {
 
     // -- Scoped API --
 
-    async fn get_scoped(&self, key: &SecretKey) -> Result<Option<Secret>> {
-        self.provider.get(key).await.map_err(Into::into)
+    async fn get_scoped(&self, key: &SecretKey) -> Result<Option<Secret>, SecretError> {
+        self.provider.get(key).await
     }
 
-    async fn set_scoped(&self, key: &SecretKey, secret: Secret) -> Result<()> {
-        self.provider.set(key, &secret).await.map_err(Into::into)
+    async fn set_scoped(&self, key: &SecretKey, secret: Secret) -> Result<(), SecretError> {
+        self.provider.set(key, &secret).await
     }
 
-    async fn set_scoped_value(&self, key: &SecretKey, value: impl Into<String>) -> Result<()> {
+    async fn set_scoped_value(
+        &self,
+        key: &SecretKey,
+        value: impl Into<String>,
+    ) -> Result<(), SecretError> {
         self.set_scoped(key, Secret::new(value, self.clock.now()))
             .await
     }
 
-    async fn delete_scoped(&self, key: &SecretKey) -> Result<()> {
-        self.provider.delete(key).await.map_err(Into::into)
+    async fn delete_scoped(&self, key: &SecretKey) -> Result<(), SecretError> {
+        self.provider.delete(key).await
     }
 
-    async fn get_value(&self, name: &str) -> Result<Option<String>> {
+    async fn get_value(&self, name: &str) -> Result<Option<String>, SecretError> {
         Ok(self
             .get_scoped(&SecretKey::global(name))
             .await?
@@ -174,7 +183,7 @@ impl SecretManager {
 
     /// Ensure all required secrets exist, creating them if needed.
     /// On read-only backends, verifies they exist and fails with clear error if not.
-    pub async fn ensure_secrets(&self) -> Result<()> {
+    pub async fn ensure_secrets(&self) -> Result<(), SecretError> {
         if self.provider.is_read_only() {
             // Use get_scoped (not exists()) so backend errors propagate instead of
             // being swallowed as "missing secret"
@@ -194,12 +203,10 @@ impl SecretManager {
                 .into_iter()
                 .flatten()
                 .collect();
-                anyhow::bail!(
-                    "Secret backend '{}' is read-only. Required secrets missing: {}. \
-                     Pre-configure these before starting the server.",
-                    self.provider.name(),
-                    missing.join(", ")
-                );
+                return Err(SecretError::ReadOnlyMissingSecrets {
+                    backend: self.provider.name(),
+                    missing: missing.join(", "),
+                });
             }
             return Ok(());
         }
@@ -208,7 +215,7 @@ impl SecretManager {
         Ok(())
     }
 
-    pub async fn get_jwt_signing_key(&self) -> Result<Vec<u8>> {
+    pub async fn get_jwt_signing_key(&self) -> Result<Vec<u8>, SecretError> {
         self.get_or_create_root_secret(
             SECRET_KEY_JWT_SIGNING,
             "JWT signing key",
@@ -218,7 +225,7 @@ impl SecretManager {
         .await
     }
 
-    pub async fn get_api_key_secret(&self) -> Result<Vec<u8>> {
+    pub async fn get_api_key_secret(&self) -> Result<Vec<u8>, SecretError> {
         self.get_or_create_root_secret(
             SECRET_KEY_API_KEY,
             "API key secret",
@@ -248,14 +255,14 @@ impl SecretManager {
     /// and needs to know now rather than from a user's 401.
     async fn get_or_create_root_secret(
         &self,
-        key: &str,
-        label: &str,
-        consequence: &str,
-    ) -> Result<Vec<u8>> {
+        key: &'static str,
+        label: &'static str,
+        consequence: &'static str,
+    ) -> Result<Vec<u8>, SecretError> {
         match self.get_value(key).await {
             Ok(Some(value_hex)) => {
                 if let Ok(secret) = crypto::decode_hex(&value_hex)
-                    && secret.len() == 32
+                    && secret.len() == ROOT_SECRET_BYTES
                 {
                     return Ok(secret);
                 }
@@ -266,12 +273,12 @@ impl SecretManager {
                 self.create_root_secret(key).await
             }
             Ok(None) => self.create_root_secret(key).await,
-            Err(e) => Err(anyhow::anyhow!(
-                "could not read the {label} from the {} secrets backend: {e}. Refusing to start: \
-                 generating a replacement would mean {consequence}. Restore access to the backend, or \
-                 set the secret explicitly.",
-                self.provider.name(),
-            )),
+            Err(source) => Err(SecretError::RootSecretUnreadable {
+                label,
+                backend: self.provider.name(),
+                consequence,
+                source: Box::new(source),
+            }),
         }
     }
 
@@ -306,7 +313,7 @@ impl SecretManager {
 
     // -- Private helpers --
 
-    async fn ensure_jwt_signing_key(&self) -> Result<()> {
+    async fn ensure_jwt_signing_key(&self) -> Result<(), SecretError> {
         self.ensure_root_secret(SECRET_KEY_JWT_SIGNING, "JWT signing key")
             .await
     }
@@ -317,17 +324,19 @@ impl SecretManager {
     /// path runs at startup *before* anything reads the secret - so a backend that was merely unreachable
     /// made the server generate a replacement and overwrite the live one, which is the loss
     /// `get_or_create_root_secret` refuses. Asking the provider directly keeps the two answers apart.
-    async fn ensure_root_secret(&self, key: &str, label: &str) -> Result<()> {
+    async fn ensure_root_secret(
+        &self,
+        key: &'static str,
+        label: &'static str,
+    ) -> Result<(), SecretError> {
         let present = self
             .provider
             .exists(&SecretKey::global(key))
             .await
-            .with_context(|| {
-                format!(
-                    "could not tell whether the {label} is already stored in the {} secrets backend; \
-                     refusing to overwrite a secret that may exist",
-                    self.provider.name()
-                )
+            .map_err(|source| SecretError::RootSecretPresenceUnknown {
+                label,
+                backend: self.provider.name(),
+                source: Box::new(source),
             })?;
         if present {
             tracing::debug!(secret = key, "{label} exists");
@@ -345,7 +354,7 @@ impl SecretManager {
     /// The winner writes; the losers read what the winner wrote. Backends without a native CAS keep the
     /// legacy exists-then-set behaviour, which is safe only for the single-instance secret stores that
     /// the shared-store rule (`validate_store_sharing`) allows here anyway.
-    async fn create_root_secret(&self, key: &str) -> Result<Vec<u8>> {
+    async fn create_root_secret(&self, key: &'static str) -> Result<Vec<u8>, SecretError> {
         let proposed = crypto::generate_signing_key();
         let stored = self
             .provider
@@ -355,15 +364,19 @@ impl SecretManager {
             )
             .await?;
         let decoded = crypto::decode_hex(&stored.value)
-            .with_context(|| format!("secret {key} is not valid hex"))?;
-        if decoded.len() != 32 {
-            anyhow::bail!("secret {key} is not 32 bytes ({} stored)", decoded.len());
+            .map_err(|source| SecretError::RootSecretNotHex { key, source })?;
+        if decoded.len() != ROOT_SECRET_BYTES {
+            return Err(SecretError::RootSecretWrongLength {
+                key,
+                expected: ROOT_SECRET_BYTES,
+                stored: decoded.len(),
+            });
         }
         tracing::debug!(secret = key, "Root secret is provisioned");
         Ok(decoded)
     }
 
-    async fn ensure_api_key_secret(&self) -> Result<()> {
+    async fn ensure_api_key_secret(&self) -> Result<(), SecretError> {
         self.ensure_root_secret(SECRET_KEY_API_KEY, "API key secret")
             .await
     }
@@ -533,6 +546,72 @@ mod tests {
             "the surviving secret still verifies every key hashed with it"
         );
         assert_eq!(provider.writes.load(Ordering::SeqCst), 1);
+    }
+
+    /// The two refusals above are now variants rather than formatted strings, and both still say the
+    /// whole sentence an operator needs *and* keep the backend's own error reachable as the cause.
+    #[tokio::test]
+    async fn an_unreadable_backend_is_reported_as_itself_with_its_cause() {
+        let provider = Arc::new(FlakyProvider::default());
+        let mgr = SecretManager {
+            provider: Arc::clone(&provider) as Arc<dyn SecretProvider>,
+            clock: test_clock(),
+        };
+        provider.reads_fail.store(true, Ordering::SeqCst);
+
+        let read = mgr.get_api_key_secret().await.unwrap_err();
+        assert!(matches!(read, SecretError::RootSecretUnreadable { .. }));
+        assert_eq!(
+            read.to_string(),
+            "could not read the API key secret from the flaky secrets backend: Secret backend \
+             error (flaky): backend unreachable. Refusing to start: generating a replacement would \
+             mean every stored API key hash becomes unverifiable and authenticated ingestion fails \
+             with 401. Restore access to the backend, or set the secret explicitly."
+        );
+        assert!(std::error::Error::source(&read).is_some());
+
+        let presence = mgr.ensure_secrets().await.unwrap_err();
+        assert!(matches!(
+            presence,
+            SecretError::RootSecretPresenceUnknown { .. }
+        ));
+        assert_eq!(
+            presence.to_string(),
+            "could not tell whether the JWT signing key is already stored in the flaky secrets \
+             backend; refusing to overwrite a secret that may exist"
+        );
+        assert!(std::error::Error::source(&presence).is_some());
+    }
+
+    /// The wording `anyhow::bail!` produced for the refusals that have no reachable backend fixture.
+    #[test]
+    fn provisioning_refusal_messages_are_unchanged() {
+        assert_eq!(
+            SecretError::ReadOnlyMissingSecrets {
+                backend: "env",
+                missing: "jwt_signing_key, api_key_secret".to_string(),
+            }
+            .to_string(),
+            "Secret backend 'env' is read-only. Required secrets missing: jwt_signing_key, \
+             api_key_secret. Pre-configure these before starting the server."
+        );
+        assert_eq!(
+            SecretError::RootSecretNotHex {
+                key: SECRET_KEY_JWT_SIGNING,
+                source: sideseat_core::utils::crypto::HexDecodeError::OddLength,
+            }
+            .to_string(),
+            format!("secret {SECRET_KEY_JWT_SIGNING} is not valid hex")
+        );
+        assert_eq!(
+            SecretError::RootSecretWrongLength {
+                key: SECRET_KEY_JWT_SIGNING,
+                expected: ROOT_SECRET_BYTES,
+                stored: 16,
+            }
+            .to_string(),
+            format!("secret {SECRET_KEY_JWT_SIGNING} is not 32 bytes (16 stored)")
+        );
     }
 
     async fn test_manager(dir: &tempfile::TempDir) -> SecretManager {

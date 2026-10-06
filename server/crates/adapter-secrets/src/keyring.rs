@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
 use async_trait::async_trait;
 use keyring::Entry;
 use tokio::sync::RwLock;
@@ -25,7 +24,7 @@ pub struct KeyringProvider {
 }
 
 impl KeyringProvider {
-    pub async fn init(backend: SecretsBackend, clock: Arc<dyn Clock>) -> Result<Self> {
+    pub async fn init(backend: SecretsBackend, clock: Arc<dyn Clock>) -> Result<Self, SecretError> {
         debug_assert!(
             backend.is_vault_based() && backend != SecretsBackend::File,
             "KeyringProvider does not handle File backend"
@@ -48,9 +47,9 @@ impl KeyringProvider {
         })
     }
 
-    async fn load(service_name: &str) -> Result<SecretVault> {
+    async fn load(service_name: &str) -> Result<SecretVault, SecretError> {
         let entry = Entry::new(service_name, VAULT_KEY)
-            .map_err(|e| anyhow::anyhow!("Failed to create keychain entry: {}", e))?;
+            .map_err(|source| SecretError::KeychainEntry { source })?;
 
         // Said before the read, not after: this is the first thing at startup that can block, and
         // what blocks it is a dialog, not slow I/O. macOS opens an authorization window that can
@@ -75,16 +74,13 @@ impl KeyringProvider {
         });
         let timeout = std::time::Duration::from_secs(SECRETS_LOAD_TIMEOUT_SECS);
         let result = match tokio::time::timeout(timeout, rx).await {
-            Ok(received) => received.context("Keychain reader thread died")?,
+            Ok(received) => {
+                received.map_err(|source| SecretError::KeychainReaderGone { source })?
+            }
             Err(_) => {
-                anyhow::bail!(
-                    "the OS credential store did not respond within {}s. An authorization window \
-                     is probably open and unanswered - look behind the terminal, and approve it \
-                     with Always Allow so it stops asking. A background process, an SSH session \
-                     or CI has no way to answer it at all; there, configure the file backend \
-                     instead: `secrets: {{ backend: \"file\" }}` in sideseat.json.",
-                    SECRETS_LOAD_TIMEOUT_SECS
-                );
+                return Err(SecretError::KeychainTimeout {
+                    timeout_secs: SECRETS_LOAD_TIMEOUT_SECS,
+                });
             }
         };
 
@@ -100,7 +96,7 @@ impl KeyringProvider {
                         "Corrupted vault in keychain, deleting and starting fresh"
                     );
                     let entry = Entry::new(service_name, VAULT_KEY)
-                        .map_err(|e| anyhow::anyhow!("Failed to create keychain entry: {}", e))?;
+                        .map_err(|source| SecretError::KeychainEntry { source })?;
                     let _ = tokio::task::spawn_blocking(move || entry.delete_credential()).await;
                     Ok(SecretVault::default())
                 }
@@ -109,7 +105,7 @@ impl KeyringProvider {
                 tracing::debug!("No existing vault in keychain, creating new one");
                 Ok(SecretVault::default())
             }
-            Err(e) => Err(anyhow::anyhow!("Failed to load from keychain: {}", e)),
+            Err(source) => Err(SecretError::KeychainLoad { source }),
         }
     }
 
@@ -132,15 +128,16 @@ impl KeyringProvider {
         Ok(())
     }
 
-    async fn save_static(service_name: &str, vault: &SecretVault) -> Result<()> {
-        let json = serde_json::to_string(vault).context("Failed to serialize vault")?;
+    async fn save_static(service_name: &str, vault: &SecretVault) -> Result<(), SecretError> {
+        let json = serde_json::to_string(vault)
+            .map_err(|source| SecretError::SerializeVault { source })?;
         let sn = service_name.to_string();
-        let entry = Entry::new(&sn, VAULT_KEY)
-            .map_err(|e| anyhow::anyhow!("Failed to create keychain entry: {}", e))?;
+        let entry =
+            Entry::new(&sn, VAULT_KEY).map_err(|source| SecretError::KeychainEntry { source })?;
         tokio::task::spawn_blocking(move || entry.set_password(&json))
             .await
-            .context("Keychain task failed")?
-            .map_err(|e| anyhow::anyhow!("Failed to save to keychain: {}", e))?;
+            .map_err(|source| SecretError::KeychainTask { source })?
+            .map_err(|source| SecretError::KeychainSave { source })?;
         Ok(())
     }
 }

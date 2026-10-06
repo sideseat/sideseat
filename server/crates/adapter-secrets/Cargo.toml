@@ -12,7 +12,6 @@ workspace = true
 [dependencies]
 sideseat-core = { path = "../core" }
 sideseat-ports = { path = "../ports" }
-anyhow = { workspace = true }
 async-trait = { workspace = true }
 aws-config = { workspace = true }
 aws-sdk-secretsmanager = { workspace = true }

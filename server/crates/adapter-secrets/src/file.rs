@@ -1,7 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
 use async_trait::async_trait;
 use tokio::sync::RwLock;
 
@@ -22,17 +21,19 @@ pub struct FileProvider {
 }
 
 impl FileProvider {
-    pub async fn init(data_dir: &Path, clock: Arc<dyn Clock>) -> Result<Self> {
+    pub async fn init(data_dir: &Path, clock: Arc<dyn Clock>) -> Result<Self, SecretError> {
         let path = data_dir.join(FILE_SECRETS_FILENAME);
         let mut vault = Self::load(&path, clock.as_ref()).await?;
 
         if vault.migrate() {
             tracing::info!("Migrated secret vault from v1 to v2 (added global/ prefix)");
             let json = serde_json::to_string_pretty(&vault)
-                .context("Failed to serialize vault after migration")?;
-            Self::atomic_write(&path, &json)
-                .await
-                .context("Failed to save migrated vault")?;
+                .map_err(|source| SecretError::SerializeMigratedVault { source })?;
+            Self::atomic_write(&path, &json).await.map_err(|source| {
+                SecretError::SaveMigratedVault {
+                    source: Box::new(source),
+                }
+            })?;
         }
 
         Ok(Self {
@@ -43,7 +44,7 @@ impl FileProvider {
         })
     }
 
-    async fn load(path: &Path, clock: &dyn Clock) -> Result<SecretVault> {
+    async fn load(path: &Path, clock: &dyn Clock) -> Result<SecretVault, SecretError> {
         match tokio::fs::read_to_string(path).await {
             Ok(json) => match serde_json::from_str::<SecretVault>(&json) {
                 Ok(vault) => {
@@ -68,7 +69,7 @@ impl FileProvider {
                 tracing::debug!("No existing secrets file, creating new vault");
                 Ok(SecretVault::default())
             }
-            Err(e) => Err(anyhow::anyhow!("Failed to load secrets file: {}", e)),
+            Err(source) => Err(SecretError::LoadSecretsFile { source }),
         }
     }
 
