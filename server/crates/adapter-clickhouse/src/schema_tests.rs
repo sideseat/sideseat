@@ -27,8 +27,8 @@ fn test_generate_schema_single_node() {
     let config = default_config();
     let statements = generate_schema(&config);
 
-    // Six tables followed by one policy for each project-scoped physical table.
-    assert_eq!(statements.len(), 11);
+    // Eight tables followed by one policy for each project-scoped physical table.
+    assert_eq!(statements.len(), 15);
     // Indexed by name rather than by position, because a count plus a positional assertion is what made
     // adding a table here a two-test edit with a silent window in between.
     let spans = statements
