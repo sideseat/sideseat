@@ -661,10 +661,10 @@ fn original_copy(
         if kept.is_accumulator_span()
             && crate::sideml::carrier::semantics_for_context(&kept.carrier_context())
                 .may_restate_prior_observations
-            && let Some(executed) = sorted
-                .iter()
-                .position(|&(index, _, _, _)| executes_call(&blocks[index]))
+            && let Some(executed) = sole_execution(blocks, sorted)
         {
+            // Exactly one span ran it. Two executions of one shape are told apart by their ranks before
+            // this, so two spans here mean the occurrence is ambiguous, and the re-listing stands.
             return executed;
         }
         return keep;
@@ -680,11 +680,32 @@ fn original_copy(
         .unwrap_or(0)
 }
 
+/// Where in `sorted` the one tool span that ran this call sits, when exactly one span did. A span
+/// delivered twice is still one span.
+fn sole_execution(
+    blocks: &[BlockEntry],
+    sorted: &[(usize, bool, bool, chrono::DateTime<chrono::Utc>)],
+) -> Option<usize> {
+    let executions: Vec<usize> = sorted
+        .iter()
+        .enumerate()
+        .filter(|&(_, &(index, _, _, _))| executes_call(&blocks[index]))
+        .map(|(position, _)| position)
+        .collect();
+    let first = *executions.first()?;
+    let span = &blocks[sorted[first].0].span_id;
+    executions
+        .iter()
+        .all(|&position| &blocks[sorted[position].0].span_id == span)
+        .then_some(first)
+}
+
 /// A tool span's record of the call it ran: where the call was observed, though its carrier is the tool's
 /// input rather than anything the span produced.
 fn executes_call(block: &BlockEntry) -> bool {
     matches!(block.content, ContentBlock::ToolUse { .. })
         && block.observation_type.as_deref() == Some(super::obs_type::TOOL)
+        && !block.is_output_source()
 }
 
 /// Whether `outer`'s span is a strict ancestor of `inner`'s.

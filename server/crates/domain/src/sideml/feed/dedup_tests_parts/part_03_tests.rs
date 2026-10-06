@@ -139,10 +139,20 @@ fn a_current_result_takes_the_id_of_its_history_copy() {
         *name = Some("weather".to_string());
     }
     relisted.is_history = true;
+    let call = make_tool_use_block("t1", "tool", "call_1", "weather", utc(150));
+    let result = process_dedup(
+        vec![relisted.clone(), executed.clone(), call],
+        HashMap::new(),
+    );
+    let results: Vec<_> = result.iter().filter(|b| b.is_tool_result()).collect();
+    assert_eq!(results.len(), 1, "{:?}", result);
+    assert_eq!(results[0].span_id, "tool");
+    assert_eq!(results[0].tool_use_id.as_deref(), Some("call_1"));
+
+    // An earlier turn's result with the same text answers an earlier call: the new result takes no id.
     let result = process_dedup(vec![relisted, executed], HashMap::new());
     assert_eq!(result.len(), 1, "{:?}", result);
-    assert_eq!(result[0].span_id, "tool");
-    assert_eq!(result[0].tool_use_id.as_deref(), Some("call_1"));
+    assert_eq!(result[0].tool_use_id, None, "{:?}", result);
 
     // A history copy nothing current is a copy of is still history.
     let mut past = make_tool_result_block("t1", "agent", "call_9", "Cloudy", utc(100));

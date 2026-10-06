@@ -13,6 +13,7 @@ use serde_json::{Value, json};
 
 use super::mutate::*;
 use super::mutate_framework::*;
+use super::mutate_matching::*;
 use super::recon::Recon;
 use super::truth::Truth;
 
@@ -373,6 +374,11 @@ const CATALOGUE: &[(&str, Expect, Apply)] = &[
         "invent a model a metadata gap does not excuse",
         Expect::Only(&["call.model", "call.response_model"]),
         invented_model_under_a_gap,
+    ),
+    (
+        "show a call below its span and corrupt the span's usage",
+        Expect::Caught,
+        relist_below_and_corrupt_usage,
     ),
     (
         "declare a restated prompt the reconstruction does not show",

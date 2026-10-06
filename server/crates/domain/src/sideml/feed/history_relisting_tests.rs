@@ -79,3 +79,27 @@ fn a_model_calls_output_still_outranks_the_tool_span_running_it() {
     );
     assert!(!blocks[1].is_history, "the model call emitted it");
 }
+
+/// Two tool spans holding the same call leave the occurrence ambiguous: the re-listing stands.
+#[test]
+fn two_tool_spans_running_one_call_shape_do_not_displace_the_relisting() {
+    let relisted = call("agent", "agent", "output.value", Some("call_1"));
+    let first = call("tool-a", "tool", "input.value", None);
+    let second = call("tool-b", "tool", "input.value", None);
+    let mut blocks = vec![relisted, first, second];
+    mark_duplicate_history(&mut blocks, &HashMap::new());
+    assert!(
+        !blocks[0].is_history,
+        "no unique execution outranks the re-listing"
+    );
+}
+
+/// One tool span delivered twice is still one execution.
+#[test]
+fn a_redelivered_tool_span_still_outranks_the_relisting() {
+    let relisted = call("agent", "agent", "output.value", Some("call_1"));
+    let executed = call("tool", "tool", "input.value", None);
+    let mut blocks = vec![relisted, executed.clone(), executed];
+    mark_duplicate_history(&mut blocks, &HashMap::new());
+    assert!(blocks[0].is_history, "the agent restates the call");
+}

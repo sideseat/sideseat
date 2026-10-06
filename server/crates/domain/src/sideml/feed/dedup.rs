@@ -547,7 +547,9 @@ fn deduplicate_with_lineage(
         .collect();
     // A current result that is an id-less copy of a history one - a tool span's own output, where only a
     // re-listing names the call - is that result's current equivalent: the alias says they are one, so
-    // the history copy stays to be merged, and its id with it.
+    // the history copy stays to be merged, and its id with it. Only where the call that id names is
+    // itself current: an earlier turn's result with the same text answers an earlier call, and keeping
+    // it would hand the new result that call's id.
     let early_alias = tool_result_aliases(
         blocks
             .iter()
@@ -555,11 +557,44 @@ fn deduplicate_with_lineage(
             .enumerate()
             .map(|(index, (block, ordinal))| (index, block, *ordinal)),
     );
-    for (block, ordinal) in blocks.iter().zip(&ordinals).filter(|(b, _)| !b.is_history) {
-        if let Some(canonical) = early_alias.get(&(MessageIdentity::from_block(block), *ordinal)) {
-            non_history_ids.insert((canonical.clone(), *ordinal));
-        }
-    }
+    let aliased_by_current: HashSet<(MessageIdentity, u32)> = blocks
+        .iter()
+        .zip(&ordinals)
+        .filter(|(b, _)| !b.is_history)
+        .filter_map(|(block, ordinal)| {
+            early_alias
+                .get(&(MessageIdentity::from_block(block), *ordinal))
+                .map(|canonical| (canonical.clone(), *ordinal))
+        })
+        .collect();
+    let current_calls: HashSet<(&str, &str)> = blocks
+        .iter()
+        .zip(&ordinals)
+        .filter(|(b, ordinal)| {
+            non_history_ids.contains(&(MessageIdentity::from_block(b), **ordinal))
+        })
+        .filter_map(|(block, _)| match &block.content {
+            ContentBlock::ToolUse { id: Some(id), .. } if !id.is_empty() => {
+                Some((block.trace_id.as_str(), id.as_str()))
+            }
+            _ => None,
+        })
+        .collect();
+    let kept_for_merge: HashSet<(MessageIdentity, u32)> = blocks
+        .iter()
+        .zip(&ordinals)
+        .filter(|(b, _)| b.is_history)
+        .filter(|(block, _)| match &block.content {
+            ContentBlock::ToolResult {
+                tool_use_id: Some(id),
+                ..
+            } => current_calls.contains(&(block.trace_id.as_str(), id.as_str())),
+            _ => false,
+        })
+        .map(|(block, ordinal)| (MessageIdentity::from_block(block), *ordinal))
+        .filter(|key| aliased_by_current.contains(key))
+        .collect();
+    non_history_ids.extend(kept_for_merge);
 
     // Filter: keep non-history blocks, and history blocks only if they have a non-history equivalent
     // This removes messages from previous turns that appear in history

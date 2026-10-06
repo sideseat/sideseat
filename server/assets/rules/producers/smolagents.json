@@ -22,7 +22,7 @@
   "messages": [
     {
       "id": "smolagents.agent_chain_input",
-      "doc": "Smolagents AGENT and CHAIN spans carry framework execution state in `input.value`; their LLM children carry the actual conversation. Claim the envelope so the generic fallback does not present task options or an ActionStep repr as a user turn.",
+      "doc": "Smolagents AGENT and CHAIN spans carry framework execution state in `input.value`; their LLM children carry the actual conversation. Claim the envelope so the generic fallback does not present task options or an ActionStep repr as a user turn. Where no LLM child exists - a streamed run on instrumentor releases before 0.1.33 - the prompt the model saw is only inside the agent output's ActionStep reprs, which are not read: those runs show no user turn.",
       "instrumentation_scope": {
         "name": "openinference.instrumentation.smolagents"
       },
