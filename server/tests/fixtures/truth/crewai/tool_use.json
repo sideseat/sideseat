@@ -4,6 +4,9 @@
  "scenario": "tool_use",
  "fixtures": [
   "crewai/native/tool_use",
+  "crewai/native@1.1.10/tool_use",
+  "crewai/native@1.1.3/tool_use",
+  "crewai/native@1.1.7/tool_use",
   "crewai/sdk/tool_use"
  ],
  "source": {

@@ -1,0 +1,200 @@
+{
+  "label": "crewai/native@1.1.10/chat",
+  "request_count": 1,
+  "span_count": 3,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/Crew_379743be-53d4-430e-9a7e-eacd42123123.kickoff/span-2": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "chain"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: In one sentence, what is Kyoto best known for? This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. Provide your c…[257 chars]",
+          "content_digest": "ac0e7f83cd40ed81",
+          "observation_type": "chain"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Kyoto is best known for its classical Japanese culture, including more than 1,600 Buddhist temples, Shinto shrines like Fushimi Inari, traditional geisha districts such as Gion, and its role as Japan's imperial capital for over a thousand y…[245 chars]",
+          "content_digest": "273b33649c1f1bb9",
+          "observation_type": "chain"
+        }
+      ]
+    },
+    "trace-1/Travel assistant._execute_core/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: In one sentence, what is Kyoto best known for? This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. Provide your c…[257 chars]",
+          "content_digest": "ac0e7f83cd40ed81",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Kyoto is best known for its classical Japanese culture, including more than 1,600 Buddhist temples, Shinto shrines like Fushimi Inari, traditional geisha districts such as Gion, and its role as Japan's imperial capital for over a thousand y…[245 chars]",
+          "content_digest": "273b33649c1f1bb9",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/chat/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: In one sentence, what is Kyoto best known for? This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. Provide your c…[257 chars]",
+          "content_digest": "ac0e7f83cd40ed81",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Kyoto is best known for its classical Japanese culture, including more than 1,600 Buddhist temples, Shinto shrines like Fushimi Inari, traditional geisha districts such as Gion, and its role as Japan's imperial capital for over a thousand y…[245 chars]",
+          "content_digest": "273b33649c1f1bb9",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "crewai-chat": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+          "content_digest": "9c00dff086e79acc",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Current Task: In one sentence, what is Kyoto best known for? This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. Provide your c…[257 chars]",
+          "content_digest": "ac0e7f83cd40ed81",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Kyoto is best known for its classical Japanese culture, including more than 1,600 Buddhist temples, Shinto shrines like Fushimi Inari, traditional geisha districts such as Gion, and its role as Japan's imperial capital for over a thousand y…[245 chars]",
+          "content_digest": "273b33649c1f1bb9",
+          "observation_type": "agent"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 3,
+    "role_sequence": [
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
+        "content_digest": "9c00dff086e79acc",
+        "observation_type": "agent"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Current Task: In one sentence, what is Kyoto best known for? This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. Provide your c…[257 chars]",
+        "content_digest": "ac0e7f83cd40ed81",
+        "observation_type": "agent"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Kyoto is best known for its classical Japanese culture, including more than 1,600 Buddhist temples, Shinto shrines like Fushimi Inari, traditional geisha districts such as Gion, and its role as Japan's imperial capital for over a thousand y…[245 chars]",
+        "content_digest": "273b33649c1f1bb9",
+        "observation_type": "agent"
+      }
+    ]
+  }
+}

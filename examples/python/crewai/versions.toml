@@ -1,0 +1,93 @@
+# The historical openinference-instrumentation-crewai releases this suite is replayed against; see `python -m harness matrix --help`
+# and docs/engineering/framework-versions.md. The OpenInference CrewAI instrumentor writes the spans, so its release history is the window.
+[matrix]
+package = "openinference-instrumentation-crewai"
+since = "2025-10-05"
+resolved-before = "2026-10-05T00:00:00Z"
+# The suite supports CPython below 3.14 only.
+python = "3.13"
+probes = ["tool_use", "chat"]
+scenarios = ["tool_use", "chat"]
+
+[[exempt]]
+version = "0.1.14"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.15"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.16"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.17"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.18"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.19"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.20"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.21"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.22"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "1.0.0"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "1.1.0"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "1.1.1"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "1.1.2"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+# Each variant is the newest release of one telemetry class in `versions.census.json`.
+[[variant]]
+version = "1.1.3"
+doc = "1.1.3: the earliest runnable format, with a span per flow node of the agent's executor."
+
+[[variant]]
+version = "1.1.7"
+doc = "1.1.4-1.1.7: message JSON changes inside the same carriers."
+
+[[variant]]
+version = "1.1.10"
+doc = "1.1.8-1.1.10: the flow-node spans (flow.node.name) are gone."
+
+[[variant]]
+version = "1.1.20"
+current = true
+doc = "1.1.11 onwards: each tool run gets a <tool>.run span with tool.* attributes. The suite's locked release; its fixtures are the ordinary capture."

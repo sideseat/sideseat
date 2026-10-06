@@ -199,6 +199,10 @@ their tool-calling turns leave), and 4.4 and 4.5.3 change message JSON.
 **OpenInference's LangChain instrumentor** behind `langchain` and `langgraph` (26 releases): every runnable
 release (0.1.63 onwards) emits the suites' own format; 0.1.53 - 0.1.62 call wrapt 1.x and are exempt.
 
+**OpenInference's CrewAI instrumentor** (31 releases, 4 classes, CPython 3.13 since CrewAI supports nothing
+newer): 1.1.3 traces the executor's flow nodes, 1.1.4 changes message JSON, 1.1.8 drops the flow-node spans,
+1.1.11 adds a `<tool>.run` span per tool run; 0.1.14 - 1.1.2 call wrapt 1.x and are exempt.
+
 Replay gives the scenario an HTTP proxy that refuses everything but loopback, so a release that ignores the
 client it is given (AgentScope 2.0.0 - 2.0.5) fails locally instead of reaching a provider's public API. A suite
 that must reach another host declares it with its reason (`allow-hosts`: LiteLLM routes Bedrock models by

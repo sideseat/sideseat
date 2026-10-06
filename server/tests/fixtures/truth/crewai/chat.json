@@ -4,6 +4,9 @@
  "scenario": "chat",
  "fixtures": [
   "crewai/native/chat",
+  "crewai/native@1.1.10/chat",
+  "crewai/native@1.1.3/chat",
+  "crewai/native@1.1.7/chat",
   "crewai/sdk/chat"
  ],
  "source": {
