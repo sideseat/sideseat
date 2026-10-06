@@ -46,6 +46,12 @@ export interface Settings {
   readonly serviceVersion: string | undefined;
   readonly integrations: ReadonlyArray<string | Integration> | undefined;
   readonly captureContent: boolean;
+  /**
+   * Whether `captureContent` overrides the instrumentations' own content switch: when it was an
+   * option, or when it is off. `SIDESEAT_CAPTURE_CONTENT=true` alone does not turn on content an
+   * application switched off in another variable.
+   */
+  readonly captureContentOverrides: boolean;
   readonly disabled: boolean;
   readonly debug: boolean;
   readonly export: boolean;
@@ -59,6 +65,11 @@ export interface Settings {
 
 export function resolveSettings(options: SideSeatOptions = {}): Settings {
   const envIntegrations = text(undefined, "SIDESEAT_INTEGRATIONS");
+  const content = flag(
+    options.captureContent,
+    "SIDESEAT_CAPTURE_CONTENT",
+    true,
+  );
   return Object.freeze({
     endpoint: normalizeEndpoint(
       text(options.endpoint, "SIDESEAT_ENDPOINT") ??
@@ -71,11 +82,8 @@ export function resolveSettings(options: SideSeatOptions = {}): Settings {
     integrations:
       options.integrations ??
       (envIntegrations ? splitNames(envIntegrations) : undefined),
-    captureContent: flag(
-      options.captureContent,
-      "SIDESEAT_CAPTURE_CONTENT",
-      true,
-    ),
+    captureContent: content,
+    captureContentOverrides: options.captureContent !== undefined || !content,
     disabled: flag(options.disabled, "SIDESEAT_DISABLED", false),
     debug: flag(options.debug, "SIDESEAT_DEBUG", false),
     export: options.export ?? true,
@@ -136,6 +144,7 @@ export function identity(settings: Settings): string {
     settings.serviceVersion,
     names ?? null,
     settings.captureContent,
+    settings.captureContentOverrides,
     settings.disabled,
     settings.export,
     settings.metrics,

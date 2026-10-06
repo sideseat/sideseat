@@ -206,8 +206,14 @@ export class SideSeat {
       serviceName,
       serviceVersion,
     };
-    if (settings.captureContent && !process.env[GENAI_CAPTURE_CONTENT]) {
-      process.env[GENAI_CAPTURE_CONTENT] = "true";
+    // An explicit option wins over the environment, as it does everywhere else, and so does content
+    // turned off, which must mean off. Otherwise SideSeat only fills an unset switch, so an
+    // application that turned it off keeps it off.
+    if (
+      settings.captureContentOverrides ||
+      !process.env[GENAI_CAPTURE_CONTENT]
+    ) {
+      process.env[GENAI_CAPTURE_CONTENT] = String(settings.captureContent);
     }
 
     for (const integration of candidates) {
@@ -333,7 +339,7 @@ export class SideSeat {
     });
     if (!metrics.setGlobalMeterProvider(provider)) {
       diag.warn(
-        "[sideseat] another library registered the global meter provider first; its metrics will not reach SideSeat",
+        `[sideseat] another library registered the global meter provider first; a built meter provider takes no new reader, so its metrics reach SideSeat only if the application gives it a reader exporting to ${signalEndpoint(this.settings, "metrics")}`,
       );
     }
     this.meterProvider = provider;

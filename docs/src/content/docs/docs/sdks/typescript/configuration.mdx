@@ -37,8 +37,9 @@ spelling.
 `spanProcessors` in tests.
 
 **Content.** Prompts, responses, and tool payloads are recorded by default; `captureContent: false`
-turns them off. With it on, SideSeat sets `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true`
-unless you chose a value.
+turns them off. SideSeat sets `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` to match: content
+off, or a `captureContent: true` option, replaces a value already there; otherwise SideSeat sets `true`
+only when the variable is unset.
 
 **Calling init twice.** The same options resolve to the same client; different options reject with
 `ConfigurationError`. Call `shutdown()` first to configure again.
@@ -46,7 +47,22 @@ unless you chose a value.
 **Another provider registered first.** OpenTelemetry JS cannot add processors to a provider that is
 already built, so SideSeat always creates its own. It keeps the first global tracer, meter, and logger
 provider; if another library registered one before `init`, SideSeat warns, and telemetry created through
-that global goes to the other provider. Call `init` earlier.
+that global goes to the other provider. Call `init` earlier. A meter provider the application builds
+itself takes no reader once built, so its metrics reach SideSeat only if it is constructed with
+SideSeat's reader; `init` warns with the metrics URL:
+
+```ts
+import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
+import { MeterProvider, PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
+
+const provider = new MeterProvider({
+  readers: [
+    new PeriodicExportingMetricReader({
+      exporter: new OTLPMetricExporter({ url: "http://127.0.0.1:5388/otel/default/v1/metrics" }),
+    }),
+  ],
+});
+```
 
 **Disabling.** `disabled: true` or `SIDESEAT_DISABLED=true` configures nothing. Every call still works:
 callbacks run, spans are non-recording, and `flush` and `shutdown` resolve to `true`.

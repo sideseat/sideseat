@@ -122,6 +122,34 @@ describe("correlation", () => {
   });
 });
 
+describe("content capture", () => {
+  const SWITCH = "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT";
+  afterEach(() => vi.unstubAllEnvs());
+
+  it.each([
+    [{ captureContent: false }, {}, "true", "false"],
+    [{ captureContent: true }, {}, "false", "true"],
+    [{}, { SIDESEAT_CAPTURE_CONTENT: "false" }, "true", "false"],
+    [{}, { SIDESEAT_CAPTURE_CONTENT: "true" }, "false", "false"],
+    [{}, {}, "false", "false"],
+    [{}, {}, undefined, "true"],
+  ])(
+    "an explicit or off setting overrides the standard switch, otherwise fills it (%j %j %s)",
+    async (options, env, preset, expected) => {
+      vi.stubEnv(SWITCH, preset);
+      for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value);
+      await sideseat.init({
+        integrations: [],
+        export: false,
+        logs: false,
+        metrics: false,
+        ...options,
+      });
+      expect(process.env[SWITCH]).toBe(expected);
+    },
+  );
+});
+
 describe("lifecycle", () => {
   it("returns the same client for the same options", async () => {
     const first = await sideseat.init({
