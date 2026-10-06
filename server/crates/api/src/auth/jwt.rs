@@ -1,38 +1,36 @@
 //! JWT session token handling
 
-use std::fmt;
-
-use anyhow::{Result, anyhow};
 use chrono::Duration;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use uuid::Uuid;
 
 use sideseat_core::constants::DEFAULT_SESSION_TTL_DAYS;
 use sideseat_ports::clock::Clock;
 
-/// JWT validation error
-#[derive(Debug)]
+/// Why a session token could not be issued or accepted.
+///
+/// `Expired` is kept apart from the rest because the middleware answers it differently: an expired
+/// session tells the browser to sign in again, where an invalid one is a rejection.
+#[derive(Debug, Error)]
 pub enum JwtError {
     /// Token signature has expired
+    #[error("Session token has expired")]
     Expired,
     /// Token signature is invalid
+    #[error("Invalid session token signature")]
     InvalidSignature,
     /// Other validation error
+    #[error("Invalid session token: {0}")]
     Invalid(String),
+    /// Signing failed, which is a fault in this process rather than in the token.
+    #[error("Failed to create JWT: {source}")]
+    Encode {
+        #[source]
+        source: jsonwebtoken::errors::Error,
+    },
 }
-
-impl fmt::Display for JwtError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Expired => write!(f, "Session token has expired"),
-            Self::InvalidSignature => write!(f, "Invalid session token signature"),
-            Self::Invalid(msg) => write!(f, "Invalid session token: {}", msg),
-        }
-    }
-}
-
-impl std::error::Error for JwtError {}
 
 /// JWT claims for session tokens
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,14 +69,14 @@ pub fn create_session_token(
     user_id: &str,
     auth_method: &str,
     clock: &dyn Clock,
-) -> Result<String> {
+) -> Result<String, JwtError> {
     let claims = SessionClaims::new(user_id, auth_method, clock);
     encode(
         &Header::new(Algorithm::HS256),
         &claims,
         &EncodingKey::from_secret(signing_key),
     )
-    .map_err(|e| anyhow!("Failed to create JWT: {}", e))
+    .map_err(|source| JwtError::Encode { source })
 }
 
 /// Validate and decode a JWT session token

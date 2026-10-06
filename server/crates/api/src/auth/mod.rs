@@ -22,5 +22,5 @@ pub use api_key::{
 
 // Other exports
 pub use jwt::SessionClaims;
-pub use manager::AuthManager;
+pub use manager::{AuthManager, TokenExchangeError};
 pub use middleware::{AuthError, AuthState, require_auth};
