@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+from typing import Any
 
 import pytest
 from opentelemetry import context as otel_context
@@ -170,6 +171,29 @@ def test_content_capture_sets_the_standard_genai_switch_unless_already_chosen(
     monkeypatch.setenv("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT", "false")
     with capture(integrations=[]):
         assert os.environ["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"] == "false"
+
+
+@pytest.mark.parametrize(
+    ("chosen", "preset", "expected"),
+    [
+        ({"capture_content": False}, "true", "false"),
+        ({"capture_content": True}, "false", "true"),
+        ({"SIDESEAT_CAPTURE_CONTENT": "false"}, "true", "false"),
+        ({"SIDESEAT_CAPTURE_CONTENT": "true"}, "false", "false"),
+    ],
+)
+def test_an_explicit_or_off_content_setting_overrides_the_standard_genai_switch(
+    monkeypatch: pytest.MonkeyPatch, chosen: dict[str, Any], preset: str, expected: str
+) -> None:
+    import os
+
+    monkeypatch.setenv("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT", preset)
+    kwargs = {k: v for k, v in chosen.items() if not k.isupper()}
+    for name, value in chosen.items():
+        if name.isupper():
+            monkeypatch.setenv(name, value)
+    with capture(integrations=[], **kwargs):
+        assert os.environ["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"] == expected
 
 
 def test_an_application_provider_is_reused_not_replaced() -> None:

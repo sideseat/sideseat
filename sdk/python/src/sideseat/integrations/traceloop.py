@@ -7,7 +7,7 @@ from typing import Any
 from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
 
 from sideseat.integrations._base import Integration, SetupContext
-from sideseat.integrations._util import temporary_env
+from sideseat.integrations._util import content_switch
 
 
 class TraceLoop(Integration):
@@ -19,19 +19,20 @@ class TraceLoop(Integration):
         from traceloop.sdk import Traceloop
         from traceloop.sdk.instruments import Instruments
 
-        # TraceLoop snapshots its content setting at init.
-        with temporary_env({"TRACELOOP_TRACE_CONTENT": "true" if ctx.capture_content else "false"}):
-            Traceloop.init(
-                app_name=ctx.service_name,
-                # Given an exporter, TraceLoop adds a second export pipeline; given a processor it
-                # wraps that processor's on_start with its workflow enrichment and exports nothing.
-                processor=_EnrichmentOnly(),
-                resource_attributes=dict(ctx.resource.attributes),
-                # Instrumenting requests or urllib3 would trace SideSeat's own OTLP exports.
-                block_instruments={Instruments.REQUESTS, Instruments.URLLIB3},
-                image_uploader=_InlineImages(),
-                use_attributes=True,
-            )
+        # TraceLoop snapshots its content setting at init, and its instrumentations read the same
+        # variable again on every call.
+        content_switch(ctx.settings, "TRACELOOP_TRACE_CONTENT")
+        Traceloop.init(
+            app_name=ctx.service_name,
+            # Given an exporter, TraceLoop adds a second export pipeline; given a processor it
+            # wraps that processor's on_start with its workflow enrichment and exports nothing.
+            processor=_EnrichmentOnly(),
+            resource_attributes=dict(ctx.resource.attributes),
+            # Instrumenting requests or urllib3 would trace SideSeat's own OTLP exports.
+            block_instruments={Instruments.REQUESTS, Instruments.URLLIB3},
+            image_uploader=_InlineImages(),
+            use_attributes=True,
+        )
 
 
 class _EnrichmentOnly(SpanProcessor):

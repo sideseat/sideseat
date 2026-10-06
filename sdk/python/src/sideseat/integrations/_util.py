@@ -5,6 +5,10 @@ from __future__ import annotations
 import os
 from collections.abc import Iterator, Mapping
 from contextlib import AbstractContextManager, contextmanager
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sideseat._config import Settings
 
 GENAI_CAPTURE_CONTENT = "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"
 
@@ -52,3 +56,18 @@ def default_env(key: str, value: str) -> None:
     """
     if not os.environ.get(key):
         os.environ[key] = value
+
+
+def content_switch(settings: Settings, key: str = GENAI_CAPTURE_CONTENT) -> None:
+    """Set a content switch instrumentations read lazily from SideSeat's content setting.
+
+    An explicit argument wins over a value already in the environment, as it does everywhere else,
+    and so does content turned off, which must mean off. Otherwise SideSeat only fills an unset
+    switch, so an application that turned it off keeps it off. Instrumentations read these switches
+    on every call, so they cannot be scoped to initialization.
+    """
+    value = "true" if settings.capture_content else "false"
+    if settings.capture_content_overrides:
+        os.environ[key] = value
+    else:
+        default_env(key, value)

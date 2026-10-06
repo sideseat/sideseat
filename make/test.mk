@@ -128,6 +128,10 @@ test-sdk-js: ## Run JavaScript SDK tests
 test-sdk-python: ## Run Python SDK tests
 	@echo "[test-sdk-python] Running Python SDK tests..."
 	@cd sdk/python && uv run --locked pytest
+# Laminar cannot share the SDK environment with TraceLoop; Browser Use's example environment holds it.
+# The test runner is pinned to the versions sdk/python/uv.lock holds.
+	@uv run --locked --project examples/python/browser-use --with pytest==9.1.1 --with pytest-asyncio==1.4.0 \
+		pytest -q -p no:cacheprovider sdk/python/tests/test_browser_use.py
 	@cd examples/python/harness && uv run --locked --all-extras pytest -q
 	@uv run --locked --project examples/python/sdk-conformance \
 		python examples/python/sdk-conformance/conformance.py --help >/dev/null

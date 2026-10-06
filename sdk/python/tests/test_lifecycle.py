@@ -245,16 +245,70 @@ def test_init_after_shutdown_is_an_error() -> None:
         sideseat.init(integrations=[], export=False)
 
 
-def test_an_application_meter_provider_is_reported_rather_than_silently_skipped(
+def test_an_application_meter_provider_gets_sideseat_reader_until_shutdown(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    from opentelemetry import metrics
+    from opentelemetry.sdk.metrics import MeterProvider
+    from opentelemetry.sdk.metrics.export import (
+        MetricExporter,
+        MetricExportResult,
+        PeriodicExportingMetricReader,
+    )
+
+    from sideseat.integrations._base import SetupContext
+
+    exported: list[str] = []
+
+    class Recording(MetricExporter):
+        def export(self, metrics_data: Any, timeout_millis: float = 10_000, **_: Any) -> Any:
+            exported.extend(
+                m.name
+                for r in metrics_data.resource_metrics
+                for s in r.scope_metrics
+                for m in s.metrics
+            )
+            return MetricExportResult.SUCCESS
+
+        def force_flush(self, timeout_millis: float = 10_000) -> bool:
+            return True
+
+        def shutdown(self, timeout_millis: float = 30_000, **_: Any) -> None:
+            pass
+
+    reader = PeriodicExportingMetricReader(Recording(), export_interval_millis=3_600_000)
+    monkeypatch.setattr(SetupContext, "metric_reader", lambda self: reader)
+    provider = MeterProvider()
+    metrics.set_meter_provider(provider)
+    sideseat.init(integrations=[], logs=False)
+    counter = provider.get_meter("app").create_counter("tokens")
+    counter.add(1)
+    # The provider flushes only the readers it was built with; SideSeat flushes its own.
+    assert sideseat.flush() is True
+    assert exported == ["tokens"]
+    with caplog.at_level(logging.WARNING):
+        assert sideseat.shutdown() is True
+    assert caplog.records == []
+    assert reader not in provider._measurement_consumer._reader_storages
+    provider.shutdown()
+
+
+def test_an_application_meter_provider_that_cannot_take_a_reader_is_reported(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     from opentelemetry import metrics
     from opentelemetry.sdk.metrics import MeterProvider
 
-    metrics.set_meter_provider(MeterProvider())
+    class BeforeReadersCouldBeAdded(MeterProvider):
+        def __getattribute__(self, name: str) -> Any:
+            if name == "add_metric_reader":
+                raise AttributeError(name)
+            return super().__getattribute__(name)
+
+    metrics.set_meter_provider(BeforeReadersCouldBeAdded())
     with caplog.at_level(logging.WARNING, logger="sideseat"):
         sideseat.init(integrations=[], logs=False)
-    assert "meter provider" in caplog.text
+    assert "/otel/default/v1/metrics" in caplog.text
 
 
 _EXIT_SCRIPT = """

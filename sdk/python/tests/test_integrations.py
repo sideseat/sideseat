@@ -246,6 +246,53 @@ def _pretend_installed(monkeypatch: pytest.MonkeyPatch, cls: type[Integration]) 
     monkeypatch.setattr(cls, "installed_package", classmethod(lambda c: (c.packages[0], "1.0")))
 
 
+def test_traceloop_keeps_content_off_after_init_where_its_instrumentations_read_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import types
+
+    from opentelemetry.sdk.resources import Resource
+
+    from sideseat._config import resolve
+    from sideseat.integrations.traceloop import TraceLoop
+
+    seen: list[str | None] = []
+    traceloop = types.SimpleNamespace(
+        init=lambda **_: seen.append(os.environ.get("TRACELOOP_TRACE_CONTENT"))
+    )
+    _fake_module(monkeypatch, "traceloop")
+    _fake_module(monkeypatch, "traceloop.sdk", Traceloop=traceloop)
+    _fake_module(
+        monkeypatch,
+        "traceloop.sdk.instruments",
+        Instruments=types.SimpleNamespace(REQUESTS="requests", URLLIB3="urllib3"),
+    )
+    monkeypatch.setenv("TRACELOOP_TRACE_CONTENT", "true")
+    settings = resolve(
+        endpoint=None,
+        project=None,
+        api_key=None,
+        service_name=None,
+        service_version=None,
+        integrations=None,
+        capture_content=False,
+        disabled=False,
+        debug=False,
+        export=False,
+        metrics=False,
+        logs=False,
+        capture_python_logs=False,
+        resource_attributes=None,
+        span_processors=None,
+    )
+    ctx = SetupContext(
+        settings=settings, resource=Resource.get_empty(), service_name="app", service_version="1"
+    )
+    TraceLoop().instrument(ctx)
+    assert seen == ["false"]
+    assert os.environ["TRACELOOP_TRACE_CONTENT"] == "false"
+
+
 def test_agent_framework_settings_are_restored_at_shutdown(monkeypatch: pytest.MonkeyPatch) -> None:
     import types
 

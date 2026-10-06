@@ -24,6 +24,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Logfire receives SideSeat's metric reader and log processor, so its metrics and logs are exported,
   and its resource keeps attribute types. Agent Framework, Strands, and Semantic Kernel restore what
   they changed at shutdown.
+- An application's meter provider receives SideSeat's metric reader (opentelemetry-sdk 1.44 and
+  later), removed again at shutdown.
+- Content off, or an explicit `capture_content=True`, overrides
+  `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` already in the environment.
+
+### Fixed
+
+- Browser Use: Laminar exports nothing with `export=False`, its log records go to the logs endpoint
+  instead of the traces endpoint, and its providers are stopped once.
+- Browser Use and TraceLoop keep content off for model calls after `init`; their instrumentations
+  read the content switch on every call.
 
 ## [2.0.0]
 

@@ -29,6 +29,10 @@ class Settings:
     service_version: str | None
     integrations: tuple[Any, ...] | None
     capture_content: bool
+    #: Whether ``capture_content`` overrides the instrumentations' own content switches: when it was
+    #: an argument, or when it is off. ``SIDESEAT_CAPTURE_CONTENT=true`` alone does not turn on
+    #: content an application switched off in another variable.
+    capture_content_overrides: bool
     disabled: bool
     debug: bool
     export: bool
@@ -69,6 +73,7 @@ class Settings:
             tuple(_integration_key(i) for i in self.integrations or ()),
             self.integrations is None,
             self.capture_content,
+            self.capture_content_overrides,
             self.disabled,
             self.debug,
             self.export,
@@ -107,6 +112,7 @@ def resolve(
     else:
         resolved_integrations = tuple(integrations)
 
+    content = _flag(capture_content, "SIDESEAT_CAPTURE_CONTENT", True)
     return Settings(
         endpoint=_endpoint(
             _text(endpoint, "SIDESEAT_ENDPOINT") or _text(None, "OTEL_EXPORTER_OTLP_ENDPOINT")
@@ -116,7 +122,8 @@ def resolve(
         service_name=_text(service_name, "OTEL_SERVICE_NAME"),
         service_version=_text(service_version, "OTEL_SERVICE_VERSION"),
         integrations=resolved_integrations,
-        capture_content=_flag(capture_content, "SIDESEAT_CAPTURE_CONTENT", True),
+        capture_content=content,
+        capture_content_overrides=capture_content is not None or not content,
         disabled=_flag(disabled, "SIDESEAT_DISABLED", False),
         debug=_flag(debug, "SIDESEAT_DEBUG", False),
         export=export,

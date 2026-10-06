@@ -45,8 +45,9 @@ spelling there, so exactly one credential is sent.
 
 Prompts, responses, tool arguments, and tool results are recorded by default, because reading the
 conversation is the point of SideSeat. `capture_content=False` turns content off in every integration.
-With it on, SideSeat sets the standard `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true` unless
-you already chose a value. Images and documents are exported as base64 and moved to file storage by the
+SideSeat sets the standard `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` to match. Content off,
+or a `capture_content=True` argument, replaces a value already in that variable; otherwise SideSeat sets
+it to `true` only when it is unset, so `SIDESEAT_CAPTURE_CONTENT=true` does not override a `false` there. Images and documents are exported as base64 and moved to file storage by the
 server.
 
 ## Logs and metrics
@@ -60,11 +61,25 @@ log processor and metric reader go into Logfire's, so its metrics reach SideSeat
 
 When the application has already installed an OpenTelemetry tracer or logger provider, SideSeat adds
 its processors and exporter to it instead of replacing it. At shutdown it stops what it added and
-leaves the provider itself to the application. Signals then carry the application's resource. A meter
-provider cannot take another reader once built, so with one already installed SideSeat logs a warning
-and its metrics are not exported.
+leaves the provider itself to the application. Signals then carry the application's resource. An
+application meter provider gets SideSeat's metric reader the same way, and shutdown removes it. That
+needs `opentelemetry-sdk` 1.44 or later; with an older SDK, `init` warns with the metrics URL, and the
+application adds the reader where it builds its provider:
+
+```python
+from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+
+reader = PeriodicExportingMetricReader(
+    OTLPMetricExporter(endpoint="http://127.0.0.1:5388/otel/default/v1/metrics")
+)
+provider = MeterProvider(metric_readers=[reader, *your_readers])
+```
+
 Frameworks that build their own provider - Logfire and Browser Use's Laminar - own it, and SideSeat
-attaches to theirs.
+attaches to theirs. Their exporters follow SideSeat's settings: with `export=False` Laminar sends
+nothing, and its log records go to the logs endpoint through SideSeat's log processor.
 
 ## Calling init twice
 

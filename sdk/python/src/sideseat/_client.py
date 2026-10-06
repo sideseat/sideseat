@@ -26,7 +26,7 @@ from sideseat._config import Settings
 from sideseat._version import __version__
 from sideseat.errors import ConfigurationError, IntegrationError
 from sideseat.integrations import Integration, SetupContext, resolve
-from sideseat.integrations._util import GENAI_CAPTURE_CONTENT, default_env
+from sideseat.integrations._util import content_switch
 
 if TYPE_CHECKING:
     from sideseat.runtime import RuntimeClient
@@ -48,8 +48,8 @@ class SideSeat:
         self._integrations: list[Integration] = []
         self._owned_providers: list[Any] = []
         self._logging_handler: logging.Handler | None = None
-        # Processors SideSeat added to providers it does not own; stopped at shutdown.
-        self._attached: list[Any] = []
+        # What stops the processors and readers SideSeat added to providers it does not own.
+        self._attached: list[Callable[[], Any]] = []
         self._shutdown_lock = threading.Lock()
         self._shutdown_started = False
         self._shutdown_done = threading.Event()
@@ -58,6 +58,9 @@ class SideSeat:
         self._tracer_provider: Any = otel_trace.NoOpTracerProvider()
         self._logger_provider: Any = None
         self._meter_provider: Any = None
+        # A reader SideSeat added to the application's meter provider, which flushes only the
+        # readers it was built with.
+        self._added_reader: Any = None
         self._runtime: RuntimeClient | None = None
         if settings.debug:
             logging.getLogger("sideseat").setLevel(logging.DEBUG)
@@ -80,8 +83,7 @@ class SideSeat:
             ):
                 self._integrations.append(integration)
         ctx = self._setup_context(self._integrations)
-        if settings.capture_content:
-            default_env(GENAI_CAPTURE_CONTENT, "true")
+        content_switch(settings)
 
         for integration in list(self._integrations):
             if not self._guard(
@@ -123,7 +125,7 @@ class SideSeat:
         for processor in processors:
             provider.add_span_processor(processor)
         if provider not in self._owned_providers:
-            self._attached.extend(processors)
+            self._attached.extend(processor.shutdown for processor in processors)
         self._tracer_provider = provider
         ctx.tracer_provider = provider
 
@@ -207,7 +209,7 @@ class SideSeat:
         if processor is not None:
             provider.add_log_record_processor(processor)
             if provider not in self._owned_providers:
-                self._attached.append(processor)
+                self._attached.append(processor.shutdown)
         return provider
 
     def _start_metrics(self, ctx: SetupContext) -> Any:
@@ -216,10 +218,19 @@ class SideSeat:
 
         existing = metrics.get_meter_provider()
         if isinstance(existing, MeterProvider):
-            # Unlike tracer and logger providers, a built meter provider cannot take another reader.
-            logger.warning(
-                "The application already set a meter provider; its metrics will not reach SideSeat"
-            )
+            # OpenTelemetry 1.44 added readers to built meter providers; before it, a provider
+            # takes readers only when it is constructed.
+            if not hasattr(existing, "add_metric_reader"):
+                logger.warning(
+                    "The application already set a meter provider and this opentelemetry-sdk "
+                    "cannot add a reader to it, so its metrics will not reach SideSeat; upgrade "
+                    "opentelemetry-sdk to 1.44, or give the provider a reader exporting to %s",
+                    ctx.settings.signal_endpoint("metrics"),
+                )
+            elif (reader := ctx.metric_reader()) is not None:
+                existing.add_metric_reader(reader)
+                self._added_reader = reader
+                self._attached.append(functools.partial(_detach_reader, existing, reader))
             return existing
         reader = ctx.metric_reader()
         if reader is None:
@@ -371,7 +382,13 @@ class SideSeat:
         ok = True
         for integration in self._integrations:
             ok = _attempt(f"flush {integration.name}", integration.flush, _left(deadline)) and ok
-        for provider in (self._tracer_provider, self._logger_provider, self._meter_provider):
+        signals = (
+            self._tracer_provider,
+            self._logger_provider,
+            self._meter_provider,
+            self._added_reader,
+        )
+        for provider in signals:
             force_flush = getattr(provider, "force_flush", None)
             if force_flush is not None:
                 ok = _attempt("flush a telemetry provider", force_flush, _left(deadline)) and ok
@@ -409,8 +426,8 @@ class SideSeat:
             ok = self._flush(deadline) and ok
         for integration in reversed(self._integrations):
             ok = _attempt(f"shut down {integration.name}", integration.shutdown) and ok
-        for processor in self._attached:
-            ok = _attempt("stop a processor", processor.shutdown) and ok
+        for stop in self._attached:
+            ok = _attempt("stop a processor", stop) and ok
         for provider in reversed(self._owned_providers):
             ok = _attempt("shut down a telemetry provider", provider.shutdown) and ok
         return ok
@@ -497,6 +514,27 @@ def _installed(distribution: str) -> bool:
     except metadata.PackageNotFoundError:
         return False
     return True
+
+
+def _detach_reader(provider: Any, reader: Any) -> None:
+    """Remove a reader SideSeat added to the application's meter provider, and stop it.
+
+    The provider unregisters the reader before stopping it, so the reader's last collection finds
+    no provider and OpenTelemetry warns; the flush just before exports that collection instead.
+    """
+    try:
+        reader.force_flush()
+    finally:
+        export_logger = logging.getLogger("opentelemetry.sdk.metrics._internal.export")
+        export_logger.addFilter(_not_unregistered_collect)
+        try:
+            provider.remove_metric_reader(reader)
+        finally:
+            export_logger.removeFilter(_not_unregistered_collect)
+
+
+def _not_unregistered_collect(record: logging.LogRecord) -> bool:
+    return "until it is registered" not in record.getMessage()
 
 
 def _left(deadline: float) -> int:
