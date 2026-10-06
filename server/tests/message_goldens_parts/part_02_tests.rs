@@ -449,7 +449,7 @@ fn message_goldens() {
     for (label, paths) in &fixtures {
         let (rows, spans) = message_truth::read(paths);
         let built = build_golden(label, paths, &rows);
-        truth_violations.extend(truths.check(label, &built, spans));
+        truth_violations.extend(truths.check(label, paths, &built, spans));
         let golden = &built.golden;
 
         if update {

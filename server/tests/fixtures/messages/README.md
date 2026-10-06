@@ -198,8 +198,12 @@ request assigned to that span's input blocks. The assignment is exact, injective
 messages, through the same predicates the facts use; the parts of one message are a batch, because a
 provider's parallel calls and their results may be shown in completion order. A call id the framework
 reissued consistently is resolved first, so a rewrite is reported once, by `tool_call.id_rewritten`.
-What is left over is a violation:
-- `request.missing`: a part the span does not show;
+What is left over is a violation. A part the span does not show is first searched for in the fixture's own
+payloads, by the same prover the truth gaps use, so a producer's limitation is never reported as a parsing
+defect:
+- `request.not_exported`: no payload carries the part - the producer does not export it;
+- `request.missing`: a payload does carry it, and no input shows it (an unprovable absence fails closed
+  into this, as every absence claim does);
 - `request.extra`: a block the request did not send;
 - `request.duplicated`: a second copy of a sent part;
 - `request.order`: a sent part shown elsewhere;

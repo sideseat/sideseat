@@ -14,6 +14,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::{Value, json};
 
+use super::absence::haystack::Haystack;
+use super::absence::{Proof, prove};
 use super::matching::Matching;
 use super::predicates::{Shows, shows};
 use super::recon::{Block, Recon, ViewKind};
@@ -264,6 +266,20 @@ fn assignment(expected: &[Expected], blocks: &[&Block]) -> Vec<(usize, usize)> {
     pairs
 }
 
+/// One fixture's decoded payloads, built once per fixture however many calls consult them.
+///
+/// Keyed by the fixture, which is sound under the mutation catalogue: a mutation edits a reconstruction
+/// or a truth, never the captured payloads.
+fn haystack(recon: &Recon) -> &'static Haystack {
+    static CACHE: std::sync::OnceLock<std::sync::Mutex<BTreeMap<String, &'static Haystack>>> =
+        std::sync::OnceLock::new();
+    let cache = CACHE.get_or_init(Default::default);
+    let mut cache = cache.lock().expect("the haystack cache is not poisoned");
+    cache
+        .entry(recon.fixture.clone())
+        .or_insert_with(|| Box::leak(Box::new(Haystack::of_fixture(&recon.paths))))
+}
+
 /// Accept an occurrence shown inside its own message's span of the input, in another position.
 ///
 /// The parts of one message are a batch, not a sequence: a provider's parallel calls - and the results
@@ -370,10 +386,37 @@ pub(super) fn check_requests(
                     format!("shown as {}, sent as {}", blocks[j].role, item.role),
                 )
             } else {
-                (
-                    "request.missing",
-                    format!("the span's input does not show this {}", item.fact.kind),
-                )
+                // Whether the content is in the payloads at all decides what this is. Present: the
+                // telemetry carried what the call was sent and the reconstruction lost it. Absent: the
+                // producer never exported it, which is a limitation of that framework's telemetry, not
+                // a parsing defect. Unprovable fails closed, as every absence claim does.
+                // Proven from the part as the request carried it, never from the id a view reissued:
+                // whether the telemetry holds what the call was sent is a question about the payloads.
+                let sent = as_fact(&item.label, item.role, &item.part, &BTreeMap::new());
+                match prove(sent.as_ref().unwrap_or(&item.fact), haystack(recon)) {
+                    Proof::Absent => (
+                        "request.not_exported",
+                        format!(
+                            "no payload carries this {}: the producer does not export it",
+                            item.fact.kind
+                        ),
+                    ),
+                    Proof::Present(at) | Proof::Partial(at) => (
+                        "request.missing",
+                        format!(
+                            "{at} carries this {}, and no input shows it",
+                            item.fact.kind
+                        ),
+                    ),
+                    Proof::Unprovable(why) => (
+                        "request.missing",
+                        format!(
+                            "the span's input does not show this {}, and its absence from the \
+                             payloads cannot be proven: {why}",
+                            item.fact.kind
+                        ),
+                    ),
+                }
             };
             out.push(Violation::new(
                 ViolationView::Request,

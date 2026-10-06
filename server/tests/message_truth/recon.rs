@@ -140,6 +140,8 @@ pub(super) struct Generation {
 #[derive(Debug, Clone)]
 pub(super) struct Recon {
     pub fixture: String,
+    /// The fixture's captured payloads, for searching what the telemetry carries (`absence`).
+    pub paths: Vec<PathBuf>,
     pub views: Vec<View>,
     pub generations: Vec<Generation>,
     pub session_of_trace: BTreeMap<String, String>,
@@ -155,7 +157,14 @@ impl Recon {
 
 /// Every span of a fixture, keyed `<trace>/<span>`; a span re-delivered by a later request keeps its
 /// first copy, which is the one the golden rows also read first.
-pub(crate) type Spans = BTreeMap<String, NormalizedSpan>;
+/// One replayed span: the row ingestion would store, and the span's OTLP JSON as a reader renders it from the
+/// raw record. The JSON is no longer a stored column, so the truth checks render it the way the API does.
+pub(crate) struct Replayed {
+    pub(crate) span: NormalizedSpan,
+    pub(crate) raw: Option<String>,
+}
+
+pub(crate) type Spans = BTreeMap<String, Replayed>;
 
 /// Replays one fixture's requests and logs, keeping each span's metadata beside its message row.
 ///
@@ -164,7 +173,7 @@ pub(crate) fn read(paths: &[PathBuf]) -> (Vec<(String, MessageSpanRow)>, Spans) 
     let pricing =
         sideseat_domain::pricing::PricingService::init_for_test().expect("offline pricing service");
     let mut rows = Vec::new();
-    let mut spans: BTreeMap<String, NormalizedSpan> = BTreeMap::new();
+    let mut spans: Spans = BTreeMap::new();
     for path in paths {
         let request = decode_request(path);
         let Some(normalized) = sideseat_ingestion::traces::process_request_for_test_with_mode(
@@ -174,11 +183,15 @@ pub(crate) fn read(paths: &[PathBuf]) -> (Vec<(String, MessageSpanRow)>, Spans) 
         ) else {
             continue;
         };
+        let rendered = sideseat_ingestion::traces::raw_views::render(&request, None, false);
         for span in normalized {
             rows.push((span.span_name.clone(), message_row(&span)));
+            let raw = rendered
+                .get(&(span.trace_id.clone(), span.span_id.clone()))
+                .cloned();
             spans
                 .entry(format!("{}/{}", span.trace_id, span.span_id))
-                .or_insert(span);
+                .or_insert(Replayed { span, raw });
         }
     }
     attach_log_messages(paths, &mut rows);
@@ -188,7 +201,7 @@ pub(crate) fn read(paths: &[PathBuf]) -> (Vec<(String, MessageSpanRow)>, Spans) 
 pub(super) fn build(fixture: &str, paths: &[PathBuf]) -> Recon {
     let (rows, spans) = read(paths);
     let built = build_golden(fixture, paths, &rows);
-    from_built(fixture, &built, spans)
+    from_built(fixture, paths, &built, spans)
 }
 
 /// SHA-256 of inline base64 bytes; `None` for a URL, no data, or a short placeholder an
@@ -214,13 +227,19 @@ fn media_sha256(content: &Value) -> Option<String> {
 /// The longest undecodable data still read as a placeholder rather than as damaged bytes.
 const PLACEHOLDER_LIMIT: usize = 64;
 
-pub(super) fn from_built(fixture: &str, built: &Built, mut spans: Spans) -> Recon {
+pub(super) fn from_built(
+    fixture: &str,
+    paths: &[PathBuf],
+    built: &Built,
+    mut spans: Spans,
+) -> Recon {
     let parent_of: BTreeMap<(String, String), String> = spans
         .values()
-        .filter_map(|s| {
-            s.parent_span_id
+        .filter_map(|replayed| {
+            let span = &replayed.span;
+            span.parent_span_id
                 .clone()
-                .map(|p| ((s.trace_id.clone(), s.span_id.clone()), p))
+                .map(|p| ((span.trace_id.clone(), span.span_id.clone()), p))
         })
         .collect();
     let mut views = Vec::new();
@@ -258,8 +277,9 @@ pub(super) fn from_built(fixture: &str, built: &Built, mut spans: Spans) -> Reco
             })
             .collect();
         if let Scope::Span { trace_id, span_id } = scope
-            && let Some(span) = spans.get_mut(&format!("{trace_id}/{span_id}"))
+            && let Some(replayed) = spans.get_mut(&format!("{trace_id}/{span_id}"))
         {
+            let span = &replayed.span;
             let mut finish = span.gen_ai_finish_reasons.clone();
             finish.extend(
                 blocks
@@ -298,7 +318,7 @@ pub(super) fn from_built(fixture: &str, built: &Built, mut spans: Spans) -> Reco
                     .exception_message
                     .clone()
                     .or_else(|| span.status_message.clone()),
-                raw: span.raw_span.take(),
+                raw: replayed.raw.take(),
             });
         }
         views.push(View { kind, key, blocks });
@@ -310,6 +330,7 @@ pub(super) fn from_built(fixture: &str, built: &Built, mut spans: Spans) -> Reco
         .collect();
     Recon {
         fixture: fixture.to_string(),
+        paths: paths.to_vec(),
         views,
         generations,
         session_of_trace,

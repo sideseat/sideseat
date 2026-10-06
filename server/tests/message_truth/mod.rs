@@ -164,6 +164,7 @@ pub(crate) const ASSERTION_FAMILIES: &[&str] = &[
     "request.duplicated",
     "request.order",
     "request.role",
+    "request.not_exported",
 ];
 
 /// The delivery variations `invariance` checks, by assertion.
@@ -245,6 +246,7 @@ impl Truths {
     pub(crate) fn check(
         &self,
         fixture: &str,
+        paths: &[std::path::PathBuf],
         built: &crate::Built,
         spans: recon::Spans,
     ) -> Vec<Violation> {
@@ -257,7 +259,7 @@ impl Truths {
         };
         check(
             &truth.for_fixture(fixture),
-            &recon::from_built(fixture, built, spans),
+            &recon::from_built(fixture, paths, built, spans),
         )
     }
 }

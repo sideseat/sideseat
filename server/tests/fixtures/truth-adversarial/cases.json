@@ -1081,6 +1081,27 @@
     "request:request.role:call-001:m0.0"
    ],
    "why": "the request sent the question as the assistant's turn; the span shows it as the user's"
+  },
+  {
+   "name": "a sent part no payload carries",
+   "truth": "calculator",
+   "patch": [
+    {
+     "op": "add",
+     "path": "/requests/_synthetic~1tool_use/calls/call-001/system/-",
+     "value": {
+      "part": {
+       "type": "text",
+       "text": "A preamble the client added that this telemetry never carried, in any payload."
+      },
+      "new": "rq-002"
+     }
+    }
+   ],
+   "fires": [
+    "request:request.not_exported:call-001:system.1"
+   ],
+   "why": "the request carried a preamble the payloads do not hold: the producer does not export it, which is its limitation rather than a parsing defect"
   }
  ]
 }

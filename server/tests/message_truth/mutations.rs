@@ -403,6 +403,16 @@ const CATALOGUE: &[(&str, Expect, Apply)] = &[
         reassign_sent_role,
     ),
     (
+        "claim a sent part no payload carries",
+        Expect::Only(&["request.not_exported"]),
+        claim_an_unexported_part,
+    ),
+    (
+        "claim a sent part the payloads carry and no input shows",
+        Expect::Only(&["request.missing"]),
+        claim_a_lost_part,
+    ),
+    (
         "declare a restated prompt the reconstruction does not show",
         Expect::Only(&["gap.unused"]),
         |t, r| restate_prompt(t, r, 0),
