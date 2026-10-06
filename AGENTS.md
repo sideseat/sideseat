@@ -144,6 +144,10 @@ spellings, or "if this producer then" branches. All of that lives in the JSON as
   media and raw content; Redis or Redpanda for the ingestion queue; and the existing secret backends. New
   tables, columns, encodings and blob layouts inside them are fine; a new engine, file format with its own
   server, or external service is not.
+- No backward compatibility for stored data. Every backend is at schema version 2, created from scratch; there
+  is no migration chain, dual read, or legacy format. A store at any other version is refused at startup with
+  a message naming the found and supported versions and the explicit reset command; data is never migrated,
+  silently ignored, or deleted without that explicit action.
 - Tenant-scoped APIs use `ProjectId`; client-provided trace and span IDs are not globally unique.
 - Analytics writes and transactional writes are not one transaction. Preserve the existing fences,
   tombstones, journal, confirmation, and compensation protocols when changing either side.
