@@ -44,11 +44,13 @@ export CARGO_TARGET_DIR
 DISK_BUDGET_MB   ?= 12000
 DISK_FREE_MIN_MB ?= 10000
 
-# Run finite commands that can grow the Cargo target directory with checks before and after them.
+# Run finite commands that can grow the Cargo target directory with checks before and after them. The
+# command runs in a subshell: one that starts with `cd` would otherwise leave the second check in a
+# directory without the Makefile.
 define run-with-disk-guard
 @$(MAKE) --no-print-directory disk-guard
 @command_status=0; guard_status=0; \
-	$(1) || command_status=$$?; \
+	( $(1) ) || command_status=$$?; \
 	$(MAKE) --no-print-directory disk-guard || guard_status=$$?; \
 	[ "$$command_status" -eq 0 ] || exit "$$command_status"; \
 	exit "$$guard_status"
