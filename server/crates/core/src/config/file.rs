@@ -467,12 +467,16 @@ pub struct FileConfig {
 
 impl FileConfig {
     /// Load configuration from a JSON file
-    pub(super) fn load_from_file(path: &Path) -> Result<Self> {
+    pub(super) fn load_from_file(path: &Path) -> Result<Self, ConfigError> {
         tracing::debug!(path = %path.display(), "Loading config file");
-        let content = fs::read_to_string(path)
-            .with_context(|| format!("Failed to read config file: {}", path.display()))?;
-        let config: Self = serde_json::from_str(&content)
-            .with_context(|| format!("Failed to parse config file: {}", path.display()))?;
+        let content = fs::read_to_string(path).map_err(|source| ConfigError::Read {
+            path: path.to_path_buf(),
+            source,
+        })?;
+        let config: Self = serde_json::from_str(&content).map_err(|source| ConfigError::Parse {
+            path: path.to_path_buf(),
+            source,
+        })?;
         tracing::trace!(config = ?config, "Parsed config file");
         Ok(config)
     }

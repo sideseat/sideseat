@@ -8,7 +8,7 @@ impl AppConfig {
     /// 2. Profile directory config (~/.sideseat/sideseat.json)
     /// 3. Local directory config OR CLI-specified config path
     /// 4. CLI arguments (which include env var fallbacks via clap)
-    pub fn load(cli: &CliConfig) -> Result<Self> {
+    pub fn load(cli: &CliConfig) -> Result<Self, ConfigError> {
         tracing::debug!("Loading application configuration");
         tracing::trace!(cli = ?cli, "CLI config");
 
@@ -29,7 +29,7 @@ impl AppConfig {
         let overlay_path = if let Some(ref path) = cli.config {
             let expanded = expand_path(&path.to_string_lossy());
             if !expanded.exists() {
-                anyhow::bail!("Config file not found: {}", expanded.display());
+                return Err(ConfigError::NotFound { path: expanded });
             }
             Some(expanded)
         } else {
@@ -527,37 +527,45 @@ impl AppConfig {
     }
 
     /// Validate the configuration for consistency and correctness
-    fn validate(&self) -> Result<()> {
+    fn validate(&self) -> Result<(), ConfigError> {
         // Host must not be empty
         if self.server.host.is_empty() {
-            anyhow::bail!("Configuration error: server.host must not be empty");
+            return Err(ConfigError::Invalid(
+                "server.host must not be empty".to_string(),
+            ));
         }
 
         // Port must be non-zero (port 0 would cause bind failure)
         if self.server.port == 0 {
-            anyhow::bail!("Configuration error: server.port must be greater than 0");
+            return Err(ConfigError::Invalid(
+                "server.port must be greater than 0".to_string(),
+            ));
         }
         if self.otel.grpc_enabled && self.otel.grpc_port == 0 {
-            anyhow::bail!("Configuration error: otel.grpc.port must be greater than 0");
+            return Err(ConfigError::Invalid(
+                "otel.grpc.port must be greater than 0".to_string(),
+            ));
         }
         if self.otel.staging_redrive_cap == 0 {
-            anyhow::bail!("Configuration error: otel.staging_redrive_cap must be greater than 0");
+            return Err(ConfigError::Invalid(
+                "otel.staging_redrive_cap must be greater than 0".to_string(),
+            ));
         }
 
         // Port collision check (only if both are enabled)
         if self.otel.grpc_enabled && self.server.port == self.otel.grpc_port {
-            anyhow::bail!(
-                "Configuration error: server.port ({}) and otel.grpc.port ({}) cannot be the same",
-                self.server.port,
-                self.otel.grpc_port
-            );
+            return Err(ConfigError::Invalid(format!(
+                "server.port ({}) and otel.grpc.port ({}) cannot be the same",
+                self.server.port, self.otel.grpc_port
+            )));
         }
 
         // S3 bucket required when using S3 storage
         if self.files.storage == StorageBackend::S3 && self.files.s3.is_none() {
-            anyhow::bail!(
-                "Configuration error: files.s3.bucket is required (and non-empty) when files.storage is 's3'"
-            );
+            return Err(ConfigError::Invalid(
+                "files.s3.bucket is required (and non-empty) when files.storage is 's3'"
+                    .to_string(),
+            ));
         }
 
         // Redis URL required when using Redis cache backend
@@ -568,9 +576,9 @@ impl AppConfig {
                 .as_ref()
                 .is_none_or(|r| r.url.is_empty())
         {
-            anyhow::bail!(
-                "Configuration error: database.redis.url is required when database.cache is 'redis'"
-            );
+            return Err(ConfigError::Invalid(
+                "database.redis.url is required when database.cache is 'redis'".to_string(),
+            ));
         }
         if self.database.queue == QueueBackendType::Redis
             && self
@@ -579,30 +587,31 @@ impl AppConfig {
                 .as_ref()
                 .is_none_or(|r| r.url.is_empty())
         {
-            anyhow::bail!(
-                "Configuration error: database.redis.url is required when database.queue is 'redis'"
-            );
+            return Err(ConfigError::Invalid(
+                "database.redis.url is required when database.queue is 'redis'".to_string(),
+            ));
         }
         if self.database.queue == QueueBackendType::Redpanda {
             let Some(redpanda) = self.database.redpanda.as_ref() else {
-                anyhow::bail!(
-                    "Configuration error: RedPanda configuration missing when database.queue is 'redpanda'"
-                );
+                return Err(ConfigError::Invalid(
+                    "RedPanda configuration missing when database.queue is 'redpanda'".to_string(),
+                ));
             };
             if redpanda.brokers.trim().is_empty() {
-                anyhow::bail!(
-                    "Configuration error: database.redpanda.brokers is required when database.queue is 'redpanda'"
-                );
+                return Err(ConfigError::Invalid(
+                    "database.redpanda.brokers is required when database.queue is 'redpanda'"
+                        .to_string(),
+                ));
             }
             if redpanda.partitions <= 0 || redpanda.replication_factor <= 0 {
-                anyhow::bail!(
-                    "Configuration error: RedPanda partitions and replication_factor must be greater than 0"
-                );
+                return Err(ConfigError::Invalid(
+                    "RedPanda partitions and replication_factor must be greater than 0".to_string(),
+                ));
             }
             if redpanda.retention_warning_ms >= redpanda.retention_ms {
-                anyhow::bail!(
-                    "Configuration error: RedPanda retention_warning_ms must be less than retention_ms"
-                );
+                return Err(ConfigError::Invalid(
+                    "RedPanda retention_warning_ms must be less than retention_ms".to_string(),
+                ));
             }
             if redpanda.replication_factor == 1 {
                 tracing::warn!(
@@ -651,15 +660,14 @@ impl AppConfig {
         if self.database.transactional == TransactionalBackend::Postgres {
             if let Some(ref pg) = self.database.postgres {
                 if pg.url.is_empty() {
-                    anyhow::bail!(
-                        "Configuration error: database.postgres.url is required when database.transactional is 'postgres'. \
-                         Set via SIDESEAT_POSTGRES_URL env var or database.postgres.url in config file."
-                    );
+                    return Err(ConfigError::Invalid("database.postgres.url is required when database.transactional is 'postgres'. \
+                         Set via SIDESEAT_POSTGRES_URL env var or database.postgres.url in config file.".to_string()));
                 }
             } else {
-                anyhow::bail!(
-                    "Configuration error: PostgreSQL configuration missing when database.transactional is 'postgres'"
-                );
+                return Err(ConfigError::Invalid(
+                    "PostgreSQL configuration missing when database.transactional is 'postgres'"
+                        .to_string(),
+                ));
             }
         }
 
@@ -680,9 +688,10 @@ impl AppConfig {
             if let Some(ref ch) = self.database.clickhouse {
                 validate_clickhouse(ch)?;
             } else {
-                anyhow::bail!(
-                    "Configuration error: ClickHouse configuration missing when database.analytics is 'clickhouse'"
-                );
+                return Err(ConfigError::Invalid(
+                    "ClickHouse configuration missing when database.analytics is 'clickhouse'"
+                        .to_string(),
+                ));
             }
         }
 
@@ -691,39 +700,39 @@ impl AppConfig {
             && let Some(d) = aws.recovery_window_days
             && !(7..=30).contains(&d)
         {
-            anyhow::bail!(
-                "Configuration error: secrets.aws.recovery_window_days must be between 7 and 30 (got {})",
+            return Err(ConfigError::Invalid(format!(
+                "secrets.aws.recovery_window_days must be between 7 and 30 (got {})",
                 d
-            );
+            )));
         }
 
         // Vault address and token required when using Vault secrets backend
         if self.secrets.backend == SecretsBackend::Vault {
             if let Some(ref v) = self.secrets.vault {
                 if v.address.is_empty() {
-                    anyhow::bail!(
-                        "Configuration error: secrets.vault.address is required when secrets.backend is 'vault'. \
+                    return Err(ConfigError::Invalid(format!(
+                        "secrets.vault.address is required when secrets.backend is 'vault'. \
                          Set via {} env var or secrets.vault.address in config file.",
                         ENV_SECRETS_VAULT_ADDR
-                    );
+                    )));
                 }
                 if !v.address.starts_with("http://") && !v.address.starts_with("https://") {
-                    anyhow::bail!(
-                        "Configuration error: secrets.vault.address must start with http:// or https://. Got: {}",
+                    return Err(ConfigError::Invalid(format!(
+                        "secrets.vault.address must start with http:// or https://. Got: {}",
                         v.address
-                    );
+                    )));
                 }
                 if v.token.is_empty() {
-                    anyhow::bail!(
-                        "Configuration error: Vault token required when secrets.backend is 'vault'. \
+                    return Err(ConfigError::Invalid(format!(
+                        "Vault token required when secrets.backend is 'vault'. \
                          Set via VAULT_TOKEN, {} env var, or secrets.vault.token in config file.",
                         ENV_SECRETS_VAULT_TOKEN
-                    );
+                    )));
                 }
             } else {
-                anyhow::bail!(
-                    "Configuration error: Vault configuration missing when secrets.backend is 'vault'"
-                );
+                return Err(ConfigError::Invalid(
+                    "Vault configuration missing when secrets.backend is 'vault'".to_string(),
+                ));
             }
         }
 

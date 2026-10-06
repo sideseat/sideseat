@@ -2,8 +2,8 @@ use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 use crate::utils::file::expand_path;
 
@@ -29,6 +29,38 @@ mod app;
 mod file;
 
 pub use file::*;
+
+/// Why a configuration could not be loaded.
+///
+/// `Invalid` carries its sentence rather than being one variant per rule, and that is deliberate.
+/// There are two dozen of these rules, no caller branches on which one fired - a refusal is a refusal,
+/// and the process exits - and what each one is *for* is the paragraph it prints: which setting to
+/// change, to what, and what goes silently wrong if it is left alone. A variant per rule would turn
+/// that prose into a public taxonomy that every rename breaks, and buy nothing.
+#[derive(Debug, Error)]
+pub enum ConfigError {
+    #[error("Config file not found: {}", path.display())]
+    NotFound { path: PathBuf },
+
+    #[error("Failed to read config file: {}", path.display())]
+    Read {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("Failed to parse config file: {}", path.display())]
+    Parse {
+        path: PathBuf,
+        #[source]
+        source: serde_json::Error,
+    },
+
+    /// A setting, or a combination of settings, that cannot work. The message names the setting and
+    /// says what to set instead.
+    #[error("Configuration error: {0}")]
+    Invalid(String),
+}
 
 // =============================================================================
 // Runtime Config Structs (final merged configuration)
@@ -446,45 +478,45 @@ fn validate_store_sharing(
     storage: StorageBackend,
     secrets: SecretsBackend,
     auth_enabled: bool,
-) -> Result<()> {
+) -> Result<(), ConfigError> {
     if transactional.sharing() == Sharing::PerInstance {
         return Ok(());
     }
 
     if analytics.sharing() == Sharing::PerInstance {
-        anyhow::bail!(
-            "Configuration error: database.transactional is '{transactional}', which every instance \
+        return Err(ConfigError::Invalid(format!(
+            "database.transactional is '{transactional}', which every instance \
              shares, but database.analytics is '{analytics}', which is a file each instance holds \
              separately. Telemetry would be partitioned across replicas - a trace ingested on one is \
              absent from the others' reads, and its files are visible everywhere via the shared \
              transactional store. Set database.analytics to 'clickhouse', or database.transactional to \
              'sqlite' for a single-instance deployment."
-        );
+        )));
     }
 
     if storage.sharing() == Sharing::PerInstance {
-        anyhow::bail!(
-            "Configuration error: database.transactional is '{transactional}', which every instance \
+        return Err(ConfigError::Invalid(format!(
+            "database.transactional is '{transactional}', which every instance \
              shares, but files.storage is '{storage}', which is local to one instance. A file's metadata \
              would be visible everywhere while its content existed on a single machine's disk - so \
              another instance finds the row, cannot serve the content and cannot clean it up, and \
              replacing that instance loses the content with the row still promising it. Set \
              files.storage to 's3', or database.transactional to 'sqlite' for a single-instance \
              deployment."
-        );
+        )));
     }
 
     // Only when auth is on: with `--no-auth` there are no API keys and no sessions, so nothing depends
     // on a pepper being the same everywhere.
     if auth_enabled && secrets.sharing() == Sharing::PerInstance {
-        anyhow::bail!(
-            "Configuration error: database.transactional is '{transactional}', which every instance \
+        return Err(ConfigError::Invalid(format!(
+            "database.transactional is '{transactional}', which every instance \
              shares, but secrets.backend is '{secrets}', which is local to one instance. An API key row \
              holds HMAC(key, secret) and is looked up by that hash, so a key created on one instance is \
              not merely unknown on another - it is unverifiable there, and the answer is an ordinary 401. \
              Authenticated ingestion would fail depending on which instance a request reached. Set \
              secrets.backend to 'env', 'aws' or 'vault' so every instance reads the same secret."
-        );
+        )));
     }
 
     Ok(())
@@ -496,18 +528,17 @@ fn validate_store_sharing(
 /// reads the real config files and environment. This rule in particular was unreachable for a
 /// while - `distributed` was being folded to false when no cluster was named, before validation
 /// saw it - so a deployment meant to be sharded came up single-node in silence.
-fn validate_clickhouse(ch: &ClickhouseConfig) -> Result<()> {
+fn validate_clickhouse(ch: &ClickhouseConfig) -> Result<(), ConfigError> {
     if ch.url.is_empty() {
-        anyhow::bail!(
-            "Configuration error: database.clickhouse.url is required when database.analytics is 'clickhouse'. \
+        return Err(ConfigError::Invalid(
+            "database.clickhouse.url is required when database.analytics is 'clickhouse'. \
              Set via SIDESEAT_CLICKHOUSE_URL env var or database.clickhouse.url in config file."
-        );
+                .to_string(),
+        ));
     }
     if ch.distributed && ch.cluster.as_ref().is_none_or(|c| c.is_empty()) {
-        anyhow::bail!(
-            "Configuration error: database.clickhouse.cluster is required when database.clickhouse.distributed is true. \
-             Specify the ClickHouse cluster name for distributed table creation."
-        );
+        return Err(ConfigError::Invalid("database.clickhouse.cluster is required when database.clickhouse.distributed is true. \
+             Specify the ClickHouse cluster name for distributed table creation.".to_string()));
     }
     // Fire-and-forget insertion contradicts what a 200 means here.
     //
@@ -522,20 +553,16 @@ fn validate_clickhouse(ch: &ClickhouseConfig) -> Result<()> {
     // cost of getting it right is in CLAUDE.md: waiting is *faster* here than the async path anyway.
     // A quorum of one is not a quorum; it is the default with extra latency and a false sense of safety.
     if ch.insert_quorum == 1 {
-        anyhow::bail!(
-            "Configuration error: database.clickhouse.insert_quorum of 1 means the initiating replica \
+        return Err(ConfigError::Invalid("database.clickhouse.insert_quorum of 1 means the initiating replica \
              alone, which is what happens with no quorum at all. Use 0 for an unreplicated table, or at \
-             least 2 so an insert survives losing one replica."
-        );
+             least 2 so an insert survives losing one replica.".to_string()));
     }
     if ch.async_insert && !ch.wait_for_async_insert {
-        anyhow::bail!(
-            "Configuration error: database.clickhouse.wait_for_async_insert must be true when \
+        return Err(ConfigError::Invalid("database.clickhouse.wait_for_async_insert must be true when \
              async_insert is true. With both set this way an INSERT returns once ClickHouse has \
              buffered the rows in memory, and SideSeat answers the exporter 200 - and acknowledges the \
              ingestion queue - for data a restart would discard. Set wait_for_async_insert to true, or \
-             async_insert to false."
-        );
+             async_insert to false.".to_string()));
     }
     Ok(())
 }
@@ -844,6 +871,14 @@ mod clickhouse_config_tests {
         assert!(
             err.to_string().contains("files.storage"),
             "unexpected error: {err}"
+        );
+        // The backends are interpolated, not printed as placeholders: the sentence only tells an
+        // operator what to change if it names the two settings it actually found.
+        assert!(
+            err.to_string()
+                .contains("database.transactional is 'postgres'")
+                && err.to_string().contains("files.storage is 'filesystem'"),
+            "the message must name the configured backends: {err}"
         );
 
         let err =

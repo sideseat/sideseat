@@ -692,3 +692,62 @@ fn test_secrets_aws_recovery_window_days_omitted() {
     let aws = config.secrets.aws.unwrap();
     assert!(aws.recovery_window_days.is_none());
 }
+
+/// The three file-level failures keep the wording `anyhow`'s context produced, and the two that have a
+/// cause keep it reachable - the `io::Error` says *why* the read failed, and `serde_json`'s error says
+/// which line of JSON is wrong, which the message deliberately does not repeat.
+#[test]
+fn a_missing_config_file_is_named_by_its_own_variant() {
+    let missing = std::path::PathBuf::from("/nonexistent/sideseat-does-not-exist.json");
+    let cli = CliConfig {
+        config: Some(missing.clone()),
+        ..Default::default()
+    };
+
+    let error = AppConfig::load(&cli).unwrap_err();
+    assert!(matches!(error, ConfigError::NotFound { .. }));
+    assert_eq!(
+        error.to_string(),
+        format!("Config file not found: {}", missing.display())
+    );
+}
+
+#[test]
+fn an_unparseable_config_file_keeps_the_path_and_the_serde_cause() {
+    use std::io::Write;
+
+    let mut temp_file = tempfile::NamedTempFile::new().unwrap();
+    temp_file.write_all(b"{ not json").unwrap();
+    let cli = CliConfig {
+        config: Some(temp_file.path().to_path_buf()),
+        ..Default::default()
+    };
+
+    let error = AppConfig::load(&cli).unwrap_err();
+    assert!(matches!(error, ConfigError::Parse { .. }));
+    assert_eq!(
+        error.to_string(),
+        format!(
+            "Failed to parse config file: {}",
+            temp_file.path().display()
+        )
+    );
+    assert!(std::error::Error::source(&error).is_some());
+}
+
+/// Every refusal still reads "Configuration error: ...", which is what the messages the operator-facing
+/// docs quote begin with, and what the rest of this file asserts substrings of.
+#[test]
+fn a_rejected_setting_keeps_the_configuration_error_prefix() {
+    let cli = CliConfig {
+        host: Some(String::new()),
+        ..Default::default()
+    };
+
+    let error = AppConfig::load(&cli).unwrap_err();
+    assert!(matches!(error, ConfigError::Invalid(_)));
+    assert_eq!(
+        error.to_string(),
+        "Configuration error: server.host must not be empty"
+    );
+}
