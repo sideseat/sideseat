@@ -1,0 +1,46 @@
+# The historical traceloop-sdk releases this suite is replayed against; see `python -m harness matrix --help`
+# and docs/engineering/framework-versions.md. The TraceLoop SDK writes the spans, so its release history is the window.
+[matrix]
+package = "traceloop-sdk"
+since = "2025-10-05"
+resolved-before = "2026-10-05T00:00:00Z"
+probes = ["tool_use", "streaming"]
+scenarios = ["tool_use", "streaming"]
+
+# Each variant is the newest release of one telemetry class in `versions.census.json`.
+[[variant]]
+version = "0.53.3"
+doc = "0.48.2-0.53.3: bedrock.converse spans with the indexed gen_ai.prompt.N.* / gen_ai.completion.N.* attributes and llm.request.type."
+
+[[variant]]
+version = "0.56.0"
+doc = "0.53.4-0.56.0: chat spans in the current conventions: gen_ai.input.messages, gen_ai.output.messages, gen_ai.system_instructions, gen_ai.tool.definitions, gen_ai.provider.name and semconv cache token keys."
+
+[[variant]]
+version = "0.61.0"
+doc = "0.56.1-0.61.0: tool spans carry gen_ai.tool.name."
+
+[[variant]]
+version = "0.62.4"
+current = true
+doc = "0.62.1 onwards: traceloop.workflow.name is no longer written. The suite's locked release; its fixtures are the ordinary capture."
+
+[[exempt]]
+version = "0.47.4"
+reason = "Imports opentelemetry._events, which OpenTelemetry 1.45 removed while its OpenTelemetry bound stayed open; it fails at instrumentation beside the current SDK."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.47.5"
+reason = "Imports opentelemetry._events, which OpenTelemetry 1.45 removed while its OpenTelemetry bound stayed open; it fails at instrumentation beside the current SDK."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.48.0"
+reason = "Imports opentelemetry._events, which OpenTelemetry 1.45 removed while its OpenTelemetry bound stayed open; it fails at instrumentation beside the current SDK."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.48.1"
+reason = "Imports opentelemetry._events, which OpenTelemetry 1.45 removed while its OpenTelemetry bound stayed open; it fails at instrumentation beside the current SDK."
+revisit = "2027-01-05"

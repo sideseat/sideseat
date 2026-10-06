@@ -185,6 +185,11 @@ Logfire's `events` carrier). 0.4.0 - 0.18.0 are exempt: with the current OpenAI 
 usage record, the current Logfire imports span types they lack, and the OpenAI SDK of their day does not
 accept the harness's httpx2 client.
 
+**The TraceLoop SDK** (43 releases, 4 classes): 0.53.4 moves from indexed `gen_ai.prompt.N.*` /
+`gen_ai.completion.N.*` `bedrock.converse` spans to `chat` spans in the current conventions, 0.56.1 adds
+`gen_ai.tool.name` on tool spans, 0.62.1 drops `traceloop.workflow.name`. 0.47.4 - 0.48.1 import
+`opentelemetry._events`, which OpenTelemetry 1.45 removed, and are exempt.
+
 Replay gives the scenario an HTTP proxy that refuses everything but loopback, so a release that ignores the
 client it is given (AgentScope 2.0.0 - 2.0.5) fails locally instead of reaching a provider's public API. A suite
 that must reach another host declares it with its reason (`allow-hosts`: LiteLLM routes Bedrock models by
