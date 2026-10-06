@@ -33,17 +33,18 @@
         {
           "index": 1,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\"}],\"role\":\"user\"}}",
-          "content_digest": "87917556c86c82ca",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"request\":\"deterministic request\"},\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\"}}],\"role\":\"model\"}}",
-          "content_digest": "512fdb8687beb7dd",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\",\"input\":{\"request\":\"deterministic request\"}}",
+          "content_digest": "897ed4451c5640b7",
+          "tool_name": "weather_specialist",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -70,17 +71,17 @@
         {
           "index": 1,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"deterministic request\"}],\"role\":\"user\"}}",
-          "content_digest": "8aa8287f7eb1f655",
+          "entry_type": "text",
+          "content": "deterministic request",
+          "content_digest": "40776977e9a52052",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"This is a deterministic local response.\"}],\"role\":\"model\"}}",
-          "content_digest": "860700ec728b0757",
+          "entry_type": "text",
+          "content": "This is a deterministic local response.",
+          "content_digest": "cabe67b517eb819b",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -91,8 +92,8 @@
       "role_sequence": [
         "system",
         "user",
-        "user",
-        "user",
+        "assistant",
+        "tool",
         "assistant"
       ],
       "tool_names": [],
@@ -109,33 +110,35 @@
         {
           "index": 1,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\"}],\"role\":\"user\"}}",
-          "content_digest": "87917556c86c82ca",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
           "observation_type": "generation"
         },
         {
           "index": 2,
-          "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"request\":\"deterministic request\"},\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\"}}],\"role\":\"model\"}}",
-          "content_digest": "512fdb8687beb7dd",
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\",\"input\":{\"request\":\"deterministic request\"}}",
+          "content_digest": "897ed4451c5640b7",
+          "tool_name": "weather_specialist",
           "observation_type": "generation"
         },
         {
           "index": 3,
-          "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\",\"response\":{\"result\":\"This is a deterministic local response.\"}}}],\"role\":\"user\"}}",
-          "content_digest": "104d367ee67523d9",
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\",\"content\":{\"result\":\"This is a deterministic local response.\"}}",
+          "content_digest": "f6173c61fec139e7",
+          "tool_name": "weather_specialist",
           "observation_type": "generation"
         },
         {
           "index": 4,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"This is a deterministic local response.\"}],\"role\":\"model\"}}",
-          "content_digest": "860700ec728b0757",
+          "entry_type": "text",
+          "content": "This is a deterministic local response.",
+          "content_digest": "cabe67b517eb819b",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -165,7 +168,7 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 9,
+      "message_count": 8,
       "role_sequence": [
         "system",
         "user",
@@ -173,8 +176,7 @@
         "system",
         "user",
         "assistant",
-        "user",
-        "user",
+        "tool",
         "assistant"
       ],
       "tool_names": [],
@@ -191,17 +193,18 @@
         {
           "index": 1,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\"}],\"role\":\"user\"}}",
-          "content_digest": "87917556c86c82ca",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"request\":\"deterministic request\"},\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\"}}],\"role\":\"model\"}}",
-          "content_digest": "512fdb8687beb7dd",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\",\"input\":{\"request\":\"deterministic request\"}}",
+          "content_digest": "897ed4451c5640b7",
+          "tool_name": "weather_specialist",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -216,42 +219,35 @@
         {
           "index": 4,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"deterministic request\"}],\"role\":\"user\"}}",
-          "content_digest": "8aa8287f7eb1f655",
+          "entry_type": "text",
+          "content": "deterministic request",
+          "content_digest": "40776977e9a52052",
           "observation_type": "generation"
         },
         {
           "index": 5,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"This is a deterministic local response.\"}],\"role\":\"model\"}}",
-          "content_digest": "860700ec728b0757",
+          "entry_type": "text",
+          "content": "This is a deterministic local response.",
+          "content_digest": "cabe67b517eb819b",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
         {
           "index": 6,
-          "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"request\":\"deterministic request\"},\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\"}}],\"role\":\"model\"}}",
-          "content_digest": "512fdb8687beb7dd",
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\",\"content\":{\"result\":\"This is a deterministic local response.\"}}",
+          "content_digest": "f6173c61fec139e7",
+          "tool_name": "weather_specialist",
           "observation_type": "generation"
         },
         {
           "index": 7,
-          "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\",\"response\":{\"result\":\"This is a deterministic local response.\"}}}],\"role\":\"user\"}}",
-          "content_digest": "104d367ee67523d9",
-          "observation_type": "generation"
-        },
-        {
-          "index": 8,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"This is a deterministic local response.\"}],\"role\":\"model\"}}",
-          "content_digest": "860700ec728b0757",
+          "entry_type": "text",
+          "content": "This is a deterministic local response.",
+          "content_digest": "cabe67b517eb819b",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -260,7 +256,7 @@
   },
   "session_views": {
     "adk-go-multi_agent": {
-      "message_count": 9,
+      "message_count": 8,
       "role_sequence": [
         "system",
         "user",
@@ -268,8 +264,7 @@
         "system",
         "user",
         "assistant",
-        "user",
-        "user",
+        "tool",
         "assistant"
       ],
       "tool_names": [],
@@ -286,17 +281,18 @@
         {
           "index": 1,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\"}],\"role\":\"user\"}}",
-          "content_digest": "87917556c86c82ca",
+          "entry_type": "text",
+          "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+          "content_digest": "603f05d965d18b4d",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"request\":\"deterministic request\"},\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\"}}],\"role\":\"model\"}}",
-          "content_digest": "512fdb8687beb7dd",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\",\"input\":{\"request\":\"deterministic request\"}}",
+          "content_digest": "897ed4451c5640b7",
+          "tool_name": "weather_specialist",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -311,42 +307,35 @@
         {
           "index": 4,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"deterministic request\"}],\"role\":\"user\"}}",
-          "content_digest": "8aa8287f7eb1f655",
+          "entry_type": "text",
+          "content": "deterministic request",
+          "content_digest": "40776977e9a52052",
           "observation_type": "generation"
         },
         {
           "index": 5,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"This is a deterministic local response.\"}],\"role\":\"model\"}}",
-          "content_digest": "860700ec728b0757",
+          "entry_type": "text",
+          "content": "This is a deterministic local response.",
+          "content_digest": "cabe67b517eb819b",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
         {
           "index": 6,
-          "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"request\":\"deterministic request\"},\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\"}}],\"role\":\"model\"}}",
-          "content_digest": "512fdb8687beb7dd",
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\",\"content\":{\"result\":\"This is a deterministic local response.\"}}",
+          "content_digest": "f6173c61fec139e7",
+          "tool_name": "weather_specialist",
           "observation_type": "generation"
         },
         {
           "index": 7,
-          "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\",\"response\":{\"result\":\"This is a deterministic local response.\"}}}],\"role\":\"user\"}}",
-          "content_digest": "104d367ee67523d9",
-          "observation_type": "generation"
-        },
-        {
-          "index": 8,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"This is a deterministic local response.\"}],\"role\":\"model\"}}",
-          "content_digest": "860700ec728b0757",
+          "entry_type": "text",
+          "content": "This is a deterministic local response.",
+          "content_digest": "cabe67b517eb819b",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -354,11 +343,10 @@
     }
   },
   "feed_view": {
-    "message_count": 9,
+    "message_count": 8,
     "role_sequence": [
       "assistant",
-      "user",
-      "user",
+      "tool",
       "assistant",
       "user",
       "system",
@@ -372,47 +360,40 @@
       {
         "index": 0,
         "role": "assistant",
-        "entry_type": "json",
-        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"This is a deterministic local response.\"}],\"role\":\"model\"}}",
-        "content_digest": "860700ec728b0757",
+        "entry_type": "text",
+        "content": "This is a deterministic local response.",
+        "content_digest": "cabe67b517eb819b",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {
         "index": 1,
-        "role": "user",
-        "entry_type": "json",
-        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\",\"response\":{\"result\":\"This is a deterministic local response.\"}}}],\"role\":\"user\"}}",
-        "content_digest": "104d367ee67523d9",
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\",\"content\":{\"result\":\"This is a deterministic local response.\"}}",
+        "content_digest": "f6173c61fec139e7",
+        "tool_name": "weather_specialist",
         "observation_type": "generation"
       },
       {
         "index": 2,
-        "role": "user",
-        "entry_type": "json",
-        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"request\":\"deterministic request\"},\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\"}}],\"role\":\"model\"}}",
-        "content_digest": "512fdb8687beb7dd",
-        "observation_type": "generation"
-      },
-      {
-        "index": 3,
         "role": "assistant",
-        "entry_type": "json",
-        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"This is a deterministic local response.\"}],\"role\":\"model\"}}",
-        "content_digest": "860700ec728b0757",
+        "entry_type": "text",
+        "content": "This is a deterministic local response.",
+        "content_digest": "cabe67b517eb819b",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {
-        "index": 4,
+        "index": 3,
         "role": "user",
-        "entry_type": "json",
-        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"deterministic request\"}],\"role\":\"user\"}}",
-        "content_digest": "8aa8287f7eb1f655",
+        "entry_type": "text",
+        "content": "deterministic request",
+        "content_digest": "40776977e9a52052",
         "observation_type": "generation"
       },
       {
-        "index": 5,
+        "index": 4,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"weather_specialist\". The description about you is \"Answers quest…[289 chars]",
@@ -420,24 +401,25 @@
         "observation_type": "generation"
       },
       {
-        "index": 6,
+        "index": 5,
         "role": "assistant",
-        "entry_type": "json",
-        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"request\":\"deterministic request\"},\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\"}}],\"role\":\"model\"}}",
-        "content_digest": "512fdb8687beb7dd",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\",\"input\":{\"request\":\"deterministic request\"}}",
+        "content_digest": "897ed4451c5640b7",
+        "tool_name": "weather_specialist",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {
-        "index": 7,
+        "index": 6,
         "role": "user",
-        "entry_type": "json",
-        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\"}],\"role\":\"user\"}}",
-        "content_digest": "87917556c86c82ca",
+        "entry_type": "text",
+        "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+        "content_digest": "603f05d965d18b4d",
         "observation_type": "generation"
       },
       {
-        "index": 8,
+        "index": 7,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Ask weather_specialist for any forecast you need. You are an agent. Your internal name is \"coordinator\".",

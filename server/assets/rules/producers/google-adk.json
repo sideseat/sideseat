@@ -35,6 +35,29 @@
       "facts": {
         "preset": "emission"
       }
+    },
+    {
+      "id": "google-adk.request_content",
+      "doc": "A turn of the request a model call received, in the request's order. ADK for Go writes the whole request as events at request time, so a later trace re-sends an earlier trace's turns under the later trace's time: the replay is recognised by its place in the replayed prefix, never by its time.",
+      "match": {
+        "event": "google_adk.request_content"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true,
+        "carrier_replays_across_traces": true
+      },
+      "ordering_family": "google_adk.request_content"
+    },
+    {
+      "id": "google-adk.choice_content",
+      "doc": "The model's own output, one emission per call.",
+      "match": {
+        "event": "google_adk.choice_content"
+      },
+      "facts": {
+        "preset": "emission"
+      }
     }
   ],
   "detect": [
@@ -272,6 +295,99 @@
             }
           }
         ]
+      }
+    },
+    {
+      "id": "google-adk.event_content_request",
+      "doc": "ADK for Go writes every turn of a model request as a semantic-convention event whose `content` is the model API's whole message - `{role, parts}` - and names every non-system turn `gen_ai.user.message`, the model's own replies included. The message is read as it stands, so its stated role decides (a replayed `model` turn is the assistant's) and its parts are content blocks; the event's raw form keeps only what this reading leaves, which is no content at all. Gated on ADK's instrumentation scope, because the tag's carrier declares ADK's replay timing, and on the shape, so a `content` that is text or any other object is the event's ordinary member.",
+      "source": {
+        "event": {
+          "names": [
+            "gen_ai.system.message",
+            "gen_ai.user.message"
+          ]
+        }
+      },
+      "read": {
+        "attribute": "content"
+      },
+      "parse": "json",
+      "emit": "message",
+      "legacy_rank": 2010,
+      "alternatives": [
+        {
+          "id": "content",
+          "doc": "The model API's own message: a role and its parts.",
+          "select": "$",
+          "require": {
+            "all": [
+              {
+                "path": "$.role",
+                "kind": "string",
+                "non_empty": true
+              },
+              {
+                "path": "$.parts",
+                "kind": "array"
+              }
+            ]
+          }
+        }
+      ],
+      "tag_as": "google_adk.request_content",
+      "instrumentation_scope": {
+        "name": "gcp.vertex.agent"
+      }
+    },
+    {
+      "id": "google-adk.event_content_choice",
+      "doc": "The model's answer as ADK for Go reports it: a `gen_ai.choice` whose `content` is the model API's message, with the finish reason the event states beside it. Read like the request turns, under a tag of its own because it is the call's output rather than its input.",
+      "source": {
+        "event": {
+          "names": [
+            "gen_ai.choice"
+          ]
+        }
+      },
+      "read": {
+        "attribute": "content"
+      },
+      "parse": "json",
+      "emit": "message",
+      "legacy_rank": 2011,
+      "alternatives": [
+        {
+          "id": "content",
+          "doc": "The model API's own message: a role and its parts.",
+          "select": "$",
+          "require": {
+            "all": [
+              {
+                "path": "$.role",
+                "kind": "string",
+                "non_empty": true
+              },
+              {
+                "path": "$.parts",
+                "kind": "array"
+              }
+            ]
+          },
+          "lift": [
+            {
+              "doc": "The reason the model stopped, which the event states beside its content.",
+              "from": "carrier",
+              "members": [
+                "finish_reason"
+              ],
+              "on_conflict": "keep_target"
+            }
+          ]
+        }
+      ],
+      "tag_as": "google_adk.choice_content",
+      "instrumentation_scope": {
+        "name": "gcp.vertex.agent"
       }
     }
   ],

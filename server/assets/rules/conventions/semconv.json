@@ -126,12 +126,13 @@
     },
     {
       "id": "semconv.event.input_messages",
-      "doc": "The conversation as this span received it, as an event.",
+      "doc": "The conversation as this span received it, as an event. Every message of the request shares the event's time, so a later trace's replay of an earlier one is recognised by its place in the replayed prefix, not by its time.",
       "match": {
         "event": "gen_ai.input.messages"
       },
       "facts": {
-        "preset": "snapshot"
+        "preset": "snapshot",
+        "carrier_replays_across_traces": true
       }
     },
     {

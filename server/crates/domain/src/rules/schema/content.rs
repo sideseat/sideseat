@@ -346,6 +346,10 @@ pub enum LiftSource {
     Element,
     /// The value the selection came out of, for a fact stated once for a batch.
     Parent,
+    /// The other attributes of the carrier the reading came from - an event's attributes, or a span's - for
+    /// a fact a producer states beside the attribute that holds the message (a finish reason next to the
+    /// event's `content`). Each is read as the text it is; lifting one does not claim it.
+    Carrier,
 }
 
 /// What a lift does where the target already carries the member.

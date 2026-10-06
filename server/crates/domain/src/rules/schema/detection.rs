@@ -702,6 +702,8 @@ pub struct Facts {
     pub carrier_holds_span_input: Option<bool>,
     #[serde(default)]
     pub carrier_holds_expandable_message_array: Option<bool>,
+    #[serde(default)]
+    pub carrier_replays_across_traces: Option<bool>,
 }
 
 /// Every rule asset, keyed by path so compilation order is deterministic.

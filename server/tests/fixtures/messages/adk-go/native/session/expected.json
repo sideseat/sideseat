@@ -26,17 +26,17 @@
         {
           "index": 1,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Suggest one museum to visit in Madrid.\"}],\"role\":\"user\"}}",
-          "content_digest": "576cea16f5888529",
+          "entry_type": "text",
+          "content": "Suggest one museum to visit in Madrid.",
+          "content_digest": "9d08c76a1df2d525",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Visit the Museo del Prado.\"}],\"role\":\"model\"}}",
-          "content_digest": "a736006c6802cbfa",
+          "entry_type": "text",
+          "content": "Visit the Museo del Prado.",
+          "content_digest": "ddb325fec3c26631",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -61,7 +61,7 @@
       "role_sequence": [
         "system",
         "user",
-        "user",
+        "assistant",
         "user",
         "assistant"
       ],
@@ -79,33 +79,33 @@
         {
           "index": 1,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Suggest one museum to visit in Madrid.\"}],\"role\":\"user\"}}",
-          "content_digest": "576cea16f5888529",
+          "entry_type": "text",
+          "content": "Suggest one museum to visit in Madrid.",
+          "content_digest": "9d08c76a1df2d525",
           "observation_type": "generation"
         },
         {
           "index": 2,
-          "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Visit the Museo del Prado.\"}],\"role\":\"model\"}}",
-          "content_digest": "a736006c6802cbfa",
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Visit the Museo del Prado.",
+          "content_digest": "ddb325fec3c26631",
           "observation_type": "generation"
         },
         {
           "index": 3,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Suggest one park to visit in Madrid.\"}],\"role\":\"user\"}}",
-          "content_digest": "87087200bb325041",
+          "entry_type": "text",
+          "content": "Suggest one park to visit in Madrid.",
+          "content_digest": "95fac62b5ab37eb3",
           "observation_type": "generation"
         },
         {
           "index": 4,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Walk through the Retiro Park.\"}],\"role\":\"model\"}}",
-          "content_digest": "57534bc1b0599c66",
+          "entry_type": "text",
+          "content": "Walk through the Retiro Park.",
+          "content_digest": "bf7b248bef7a2f0e",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -148,28 +148,26 @@
         {
           "index": 1,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Suggest one museum to visit in Madrid.\"}],\"role\":\"user\"}}",
-          "content_digest": "576cea16f5888529",
+          "entry_type": "text",
+          "content": "Suggest one museum to visit in Madrid.",
+          "content_digest": "9d08c76a1df2d525",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Visit the Museo del Prado.\"}],\"role\":\"model\"}}",
-          "content_digest": "a736006c6802cbfa",
+          "entry_type": "text",
+          "content": "Visit the Museo del Prado.",
+          "content_digest": "ddb325fec3c26631",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
       ]
     },
     "trace-2": {
-      "message_count": 5,
+      "message_count": 3,
       "role_sequence": [
         "system",
-        "user",
-        "user",
         "user",
         "assistant"
       ],
@@ -187,33 +185,17 @@
         {
           "index": 1,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Suggest one museum to visit in Madrid.\"}],\"role\":\"user\"}}",
-          "content_digest": "576cea16f5888529",
+          "entry_type": "text",
+          "content": "Suggest one park to visit in Madrid.",
+          "content_digest": "95fac62b5ab37eb3",
           "observation_type": "generation"
         },
         {
           "index": 2,
-          "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Visit the Museo del Prado.\"}],\"role\":\"model\"}}",
-          "content_digest": "a736006c6802cbfa",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Suggest one park to visit in Madrid.\"}],\"role\":\"user\"}}",
-          "content_digest": "87087200bb325041",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Walk through the Retiro Park.\"}],\"role\":\"model\"}}",
-          "content_digest": "57534bc1b0599c66",
+          "entry_type": "text",
+          "content": "Walk through the Retiro Park.",
+          "content_digest": "bf7b248bef7a2f0e",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -222,14 +204,12 @@
   },
   "session_views": {
     "adk-go-session": {
-      "message_count": 8,
+      "message_count": 6,
       "role_sequence": [
         "system",
         "user",
         "assistant",
         "system",
-        "user",
-        "user",
         "user",
         "assistant"
       ],
@@ -247,17 +227,17 @@
         {
           "index": 1,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Suggest one museum to visit in Madrid.\"}],\"role\":\"user\"}}",
-          "content_digest": "576cea16f5888529",
+          "entry_type": "text",
+          "content": "Suggest one museum to visit in Madrid.",
+          "content_digest": "9d08c76a1df2d525",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Visit the Museo del Prado.\"}],\"role\":\"model\"}}",
-          "content_digest": "a736006c6802cbfa",
+          "entry_type": "text",
+          "content": "Visit the Museo del Prado.",
+          "content_digest": "ddb325fec3c26631",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -272,33 +252,17 @@
         {
           "index": 4,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Suggest one museum to visit in Madrid.\"}],\"role\":\"user\"}}",
-          "content_digest": "576cea16f5888529",
+          "entry_type": "text",
+          "content": "Suggest one park to visit in Madrid.",
+          "content_digest": "95fac62b5ab37eb3",
           "observation_type": "generation"
         },
         {
           "index": 5,
-          "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Visit the Museo del Prado.\"}],\"role\":\"model\"}}",
-          "content_digest": "a736006c6802cbfa",
-          "observation_type": "generation"
-        },
-        {
-          "index": 6,
-          "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Suggest one park to visit in Madrid.\"}],\"role\":\"user\"}}",
-          "content_digest": "87087200bb325041",
-          "observation_type": "generation"
-        },
-        {
-          "index": 7,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Walk through the Retiro Park.\"}],\"role\":\"model\"}}",
-          "content_digest": "57534bc1b0599c66",
+          "entry_type": "text",
+          "content": "Walk through the Retiro Park.",
+          "content_digest": "bf7b248bef7a2f0e",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -306,11 +270,9 @@
     }
   },
   "feed_view": {
-    "message_count": 8,
+    "message_count": 6,
     "role_sequence": [
       "assistant",
-      "user",
-      "user",
       "user",
       "system",
       "assistant",
@@ -323,38 +285,22 @@
       {
         "index": 0,
         "role": "assistant",
-        "entry_type": "json",
-        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Walk through the Retiro Park.\"}],\"role\":\"model\"}}",
-        "content_digest": "57534bc1b0599c66",
+        "entry_type": "text",
+        "content": "Walk through the Retiro Park.",
+        "content_digest": "bf7b248bef7a2f0e",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {
         "index": 1,
         "role": "user",
-        "entry_type": "json",
-        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Suggest one park to visit in Madrid.\"}],\"role\":\"user\"}}",
-        "content_digest": "87087200bb325041",
+        "entry_type": "text",
+        "content": "Suggest one park to visit in Madrid.",
+        "content_digest": "95fac62b5ab37eb3",
         "observation_type": "generation"
       },
       {
         "index": 2,
-        "role": "user",
-        "entry_type": "json",
-        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Visit the Museo del Prado.\"}],\"role\":\"model\"}}",
-        "content_digest": "a736006c6802cbfa",
-        "observation_type": "generation"
-      },
-      {
-        "index": 3,
-        "role": "user",
-        "entry_type": "json",
-        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Suggest one museum to visit in Madrid.\"}],\"role\":\"user\"}}",
-        "content_digest": "576cea16f5888529",
-        "observation_type": "generation"
-      },
-      {
-        "index": 4,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",
@@ -362,24 +308,24 @@
         "observation_type": "generation"
       },
       {
-        "index": 5,
+        "index": 3,
         "role": "assistant",
-        "entry_type": "json",
-        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Visit the Museo del Prado.\"}],\"role\":\"model\"}}",
-        "content_digest": "a736006c6802cbfa",
+        "entry_type": "text",
+        "content": "Visit the Museo del Prado.",
+        "content_digest": "ddb325fec3c26631",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {
-        "index": 6,
+        "index": 4,
         "role": "user",
-        "entry_type": "json",
-        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Suggest one museum to visit in Madrid.\"}],\"role\":\"user\"}}",
-        "content_digest": "576cea16f5888529",
+        "entry_type": "text",
+        "content": "Suggest one museum to visit in Madrid.",
+        "content_digest": "9d08c76a1df2d525",
         "observation_type": "generation"
       },
       {
-        "index": 7,
+        "index": 5,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",

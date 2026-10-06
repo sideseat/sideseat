@@ -120,6 +120,32 @@
           "$.function_response.id"
         ]
       }
+    },
+    {
+      "id": "gemini.inline_data",
+      "at": "after_provider_formats",
+      "legacy_rank": 5,
+      "doc": "Bytes sent inline, under the API's camelCase member names (`inlineData`, `mimeType`). The provider format reads only the Python SDK's snake_case spelling, so an attachment ADK for Go sent rendered as raw JSON.",
+      "require": {
+        "all": [
+          {
+            "path": "$.inlineData.data",
+            "kind": "string"
+          },
+          {
+            "path": "$.inline_data",
+            "exists": false
+          }
+        ]
+      },
+      "media": {
+        "media_type": [
+          "$.inlineData.mimeType"
+        ],
+        "data": [
+          "$.inlineData.data"
+        ]
+      }
     }
   ]
 }

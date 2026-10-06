@@ -529,7 +529,14 @@ fn a_claim_on_a_container_event_suppresses_its_raw_form() {
 
     // A claim produces no message, and still replaces the raw form.
     let claim_plan = plan("claim");
-    let claimed = claim_plan.from_event("acme.container", &readable, "span", &span_attrs, false);
+    let claimed = claim_plan.from_event(
+        "acme.container",
+        &readable,
+        "span",
+        None,
+        &span_attrs,
+        false,
+    );
     assert!(
         claimed.emissions.is_empty(),
         "a claim is not a message, so nothing is emitted"
@@ -542,7 +549,14 @@ fn a_claim_on_a_container_event_suppresses_its_raw_form() {
 
     // The same rule against an unreadable payload: nothing claimed it, the carrier was there, so the raw form
     // is kept and the caller is told.
-    let failed = claim_plan.from_event("acme.container", &unreadable, "span", &span_attrs, false);
+    let failed = claim_plan.from_event(
+        "acme.container",
+        &unreadable,
+        "span",
+        None,
+        &span_attrs,
+        false,
+    );
     assert!(
         !failed.replaces_raw && failed.unhandled_container,
         "a claim that could not read its payload has not taken anything off the table"
@@ -551,7 +565,14 @@ fn a_claim_on_a_container_event_suppresses_its_raw_form() {
     // And a message reading behaves the same way, which is what makes this a fact about handling rather than
     // about the emission kind.
     let message_plan = plan("message");
-    let emitted = message_plan.from_event("acme.container", &readable, "span", &span_attrs, false);
+    let emitted = message_plan.from_event(
+        "acme.container",
+        &readable,
+        "span",
+        None,
+        &span_attrs,
+        false,
+    );
     assert!(emitted.replaces_raw && !emitted.unhandled_container);
 }
 

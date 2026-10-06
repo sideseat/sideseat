@@ -168,7 +168,7 @@ program (`python`, `javascript`, `dotnet`, `rust`). The mode says who configured
 | Mode | Telemetry configured by |
 | --- | --- |
 | `_synthetic` | hand-written shapes, no SDK | 30 | 30 |
-| `adk-go/native` | Google ADK for Go 1.8.0 / Google GenAI for Go 1.57.0 / OpenTelemetry Go 1.47.0 on Go 1.27.1, ADK's telemetry on the application's tracer and logger providers with message content captured, against the harness's fake Gemini server; the conversation is only in GenAI log events, which SideSeat does not yet reconstruct | 11 | 11 |
+| `adk-go/native` | Google ADK for Go 1.8.0 / Google GenAI for Go 1.57.0 / OpenTelemetry Go 1.47.0 on Go 1.27.1, ADK's telemetry on the application's tracer and logger providers with message content captured, against the harness's fake Gemini server; the conversation is only in GenAI log events, each holding the model API's whole message | 11 | 11 |
 | `adk-go/sdk` | The same under SideSeat's OpenTelemetry recipe for Go (`sideseat.framework` on the resource) | 11 | 11 |
 | `adk-java/native` | Google ADK for Java 1.11.0 (ADK's Claude model on the Anthropic Java SDK 2.15.0's Bedrock backend, Claude Sonnet 5.5) / ADK's own tracing on the global OpenTelemetry Java 1.66.0 SDK on Temurin 25; the suite leaves the model's thinking blocks out of the responses ADK sees, because ADK's Claude model converts only text and tool use; no `streaming`, `reasoning`, `files` or `mcp_tools`, which ADK's Claude model does not support, and a failed booking is the tool's result, because ADK's function tool replaces any exception with a fixed message | 7 | 13 |
 | `adk-java/sdk` | The same under SideSeat's OpenTelemetry recipe for the JVM (`sideseat.framework` on the resource) | 7 | 7 |

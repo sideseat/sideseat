@@ -1,4 +1,3 @@
-
 #[test]
 fn test_autogen_tool_call_summary_nested_is_skipped() {
     // ToolCallSummaryMessage in nested {"message": {...}} format (autogen process spans).
@@ -853,7 +852,7 @@ fn declared_message_rules_cover_what_they_claim() {
     let plan = &ruleset().messages;
     assert_eq!(
         plan.rule_count(),
-        113,
+        115,
         "the assets declare {} message rules. Production has no extractor registry: even last-resort \
          carriers are declared with `stage: fallback`. A dialect moves whole or not at all, so there are \
          no partially migrated carriers to count.",

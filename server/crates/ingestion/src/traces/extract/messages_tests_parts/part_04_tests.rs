@@ -1,4 +1,3 @@
-
 #[test]
 fn test_openinference_tool_message() {
     let attrs = make_attrs(&[
@@ -716,7 +715,8 @@ fn test_strands_agents_choice_with_tool_result_attribute() {
     // First message: assistant with tool_use
     let assistant_msg = &msgs[0];
     assert!(assistant_msg.content.get("message").is_some());
-    assert!(assistant_msg.content.get("tool.result").is_some());
+    // The result is the reading's, so the raw form does not repeat it.
+    assert!(assistant_msg.content.get("tool.result").is_none());
 
     // Second message: tool_result (from tool.result attribute)
     let tool_msg = &msgs[1];

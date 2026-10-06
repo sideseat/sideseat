@@ -327,11 +327,18 @@ fn an_event_rules_gate_asks_about_its_span_not_about_the_event() {
     let marked = rule_attrs(&[("framework.marker", "yes")]);
     let bare = rule_attrs(&[]);
     let fired = |span_name: &str, span_attrs: &HashMap<String, String>| -> Vec<String> {
-        plan.from_event("some.event", &event_attrs, span_name, span_attrs, false)
-            .emissions
-            .iter()
-            .map(|e| e.rule_id.to_string())
-            .collect()
+        plan.from_event(
+            "some.event",
+            &event_attrs,
+            span_name,
+            None,
+            span_attrs,
+            false,
+        )
+        .emissions
+        .iter()
+        .map(|e| e.rule_id.to_string())
+        .collect()
     };
 
     assert_eq!(
@@ -355,9 +362,16 @@ fn an_event_rules_gate_asks_about_its_span_not_about_the_event() {
         ("framework.marker", "yes"),
     ]);
     assert!(
-        plan.from_event("some.event", &self_marked, "tool execution", &bare, false)
-            .emissions
-            .is_empty(),
+        plan.from_event(
+            "some.event",
+            &self_marked,
+            "tool execution",
+            None,
+            &bare,
+            false
+        )
+        .emissions
+        .is_empty(),
         "an event carrying the marker is not a span carrying it"
     );
 }

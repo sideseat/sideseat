@@ -140,13 +140,14 @@ impl<'a> MessageContext<'a> {
     /// One of a span's events: read from the event, gated on the span that carries it.
     pub fn for_event(
         span_name: &'a str,
+        scope_name: Option<&'a str>,
         span_attrs: &'a HashMap<String, String>,
         event_attrs: &'a HashMap<String, String>,
         is_tool_span: bool,
     ) -> Self {
         Self {
             span_name,
-            scope_name: None,
+            scope_name,
             span_attrs: event_attrs,
             gate_attrs: span_attrs,
             is_tool_span,
@@ -195,6 +196,9 @@ pub struct EventReading<'a> {
     /// loss - and the caller reports it, since an unreadable container and an ordinary one are different
     /// diagnoses.
     pub unhandled_container: bool,
+    /// The event attributes a reading owns. The raw form is the fallback for what nothing read, so it never
+    /// repeats them: one owner per carrier holds for an event's attributes as it does for a span's.
+    pub owned_attributes: Vec<String>,
 }
 
 /// One observation a rule produced.

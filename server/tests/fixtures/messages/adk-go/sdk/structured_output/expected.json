@@ -26,17 +26,17 @@
         {
           "index": 1,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Plan a two-day trip to Vienna.\"}],\"role\":\"user\"}}",
-          "content_digest": "42d640dc04c9cc23",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"{\\\"budget_eur\\\":600,\\\"city\\\":\\\"Vienna\\\",\\\"days\\\":[\\\"Sch\\\\u00f6nbrunn Palace and the Naschmarkt\\\",\\\"St. Stephen's Cathedral and the Prater\\\"]}\"}],\"role\":\"model\"}}",
-          "content_digest": "949e1cf48eba66b2",
+          "entry_type": "text",
+          "content": "{\"budget_eur\":600,\"city\":\"Vienna\",\"days\":[\"Sch\\u00f6nbrunn Palace and the Naschmarkt\",\"St. Stephen's Cathedral and the Prater\"]}",
+          "content_digest": "cc7ef9e21dfe35c4",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -79,17 +79,17 @@
         {
           "index": 1,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Plan a two-day trip to Vienna.\"}],\"role\":\"user\"}}",
-          "content_digest": "42d640dc04c9cc23",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"{\\\"budget_eur\\\":600,\\\"city\\\":\\\"Vienna\\\",\\\"days\\\":[\\\"Sch\\\\u00f6nbrunn Palace and the Naschmarkt\\\",\\\"St. Stephen's Cathedral and the Prater\\\"]}\"}],\"role\":\"model\"}}",
-          "content_digest": "949e1cf48eba66b2",
+          "entry_type": "text",
+          "content": "{\"budget_eur\":600,\"city\":\"Vienna\",\"days\":[\"Sch\\u00f6nbrunn Palace and the Naschmarkt\",\"St. Stephen's Cathedral and the Prater\"]}",
+          "content_digest": "cc7ef9e21dfe35c4",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -118,17 +118,17 @@
         {
           "index": 1,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Plan a two-day trip to Vienna.\"}],\"role\":\"user\"}}",
-          "content_digest": "42d640dc04c9cc23",
+          "entry_type": "text",
+          "content": "Plan a two-day trip to Vienna.",
+          "content_digest": "5f56235d64bfe00d",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"{\\\"budget_eur\\\":600,\\\"city\\\":\\\"Vienna\\\",\\\"days\\\":[\\\"Sch\\\\u00f6nbrunn Palace and the Naschmarkt\\\",\\\"St. Stephen's Cathedral and the Prater\\\"]}\"}],\"role\":\"model\"}}",
-          "content_digest": "949e1cf48eba66b2",
+          "entry_type": "text",
+          "content": "{\"budget_eur\":600,\"city\":\"Vienna\",\"days\":[\"Sch\\u00f6nbrunn Palace and the Naschmarkt\",\"St. Stephen's Cathedral and the Prater\"]}",
+          "content_digest": "cc7ef9e21dfe35c4",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -148,18 +148,18 @@
       {
         "index": 0,
         "role": "assistant",
-        "entry_type": "json",
-        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"{\\\"budget_eur\\\":600,\\\"city\\\":\\\"Vienna\\\",\\\"days\\\":[\\\"Sch\\\\u00f6nbrunn Palace and the Naschmarkt\\\",\\\"St. Stephen's Cathedral and the Prater\\\"]}\"}],\"role\":\"model\"}}",
-        "content_digest": "949e1cf48eba66b2",
+        "entry_type": "text",
+        "content": "{\"budget_eur\":600,\"city\":\"Vienna\",\"days\":[\"Sch\\u00f6nbrunn Palace and the Naschmarkt\",\"St. Stephen's Cathedral and the Prater\"]}",
+        "content_digest": "cc7ef9e21dfe35c4",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {
         "index": 1,
         "role": "user",
-        "entry_type": "json",
-        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Plan a two-day trip to Vienna.\"}],\"role\":\"user\"}}",
-        "content_digest": "42d640dc04c9cc23",
+        "entry_type": "text",
+        "content": "Plan a two-day trip to Vienna.",
+        "content_digest": "5f56235d64bfe00d",
         "observation_type": "generation"
       },
       {

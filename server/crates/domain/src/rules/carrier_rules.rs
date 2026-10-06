@@ -207,6 +207,9 @@ fn resolve_facts(
     if let Some(v) = facts.carrier_holds_expandable_message_array {
         semantics.carrier_holds_expandable_message_array = v;
     }
+    if let Some(v) = facts.carrier_replays_across_traces {
+        semantics.carrier_replays_across_traces = v;
+    }
     if let Some(v) = facts.carrier_is_detached_request_frame {
         semantics.carrier_is_detached_request_frame = v;
     }

@@ -19,19 +19,22 @@ use crate::otlp::{any_value_to_json, any_value_to_string};
 pub(crate) struct EventSpan<'a> {
     pub name: &'a str,
     pub attrs: &'a HashMap<String, String>,
+    /// The instrumentation scope that emitted the event: the span's, or the log record's.
+    pub scope: Option<&'a str>,
     pub is_tool_span: bool,
 }
 
-impl EventSpan<'static> {
-    /// No span context: the reading a log record gets at ingest.
+impl<'a> EventSpan<'a> {
+    /// No span context: the reading a log record gets at ingest, knowing only the scope that wrote it.
     ///
     /// Conservative by construction - a gate on the span's name or attributes cannot hold, and the event is
     /// not read as a tool span's - because the span may not have arrived and its row is not consulted.
-    pub(crate) fn unattached() -> Self {
+    pub(crate) fn unattached(scope: Option<&'a str>) -> Self {
         static EMPTY: std::sync::OnceLock<HashMap<String, String>> = std::sync::OnceLock::new();
         Self {
             name: "",
             attrs: EMPTY.get_or_init(HashMap::new),
+            scope,
             is_tool_span: false,
         }
     }
@@ -70,6 +73,7 @@ pub(crate) fn read_message_event(
         name,
         attrs,
         span.name,
+        span.scope,
         span.attrs,
         span.is_tool_span,
     );
@@ -99,8 +103,25 @@ pub(crate) fn read_message_event(
     // In key order, so one event always serialises to the same bytes: the attributes arrive as a hash map,
     // and a stored message whose member order varied between two deliveries of one record would differ
     // byte-for-byte while saying the same thing.
-    let mut keyed: Vec<(&String, &String)> = attrs.iter().collect();
+    //
+    // An attribute a reading owns is that reading's, so the raw form leaves it out; and a raw form left with
+    // no content member at all - the reading took the message, leaving bookkeeping such as an index - is no
+    // message, so it is not emitted.
+    let owned = &reading.owned_attributes;
+    let mut keyed: Vec<(&String, &String)> = attrs
+        .iter()
+        .filter(|(key, _)| !owned.contains(key))
+        .collect();
     keyed.sort_unstable();
+    if !owned.is_empty() {
+        let members = &sideseat_domain::rules::ruleset().message_members;
+        let has_content = members
+            .content_in_order()
+            .any(|member| keyed.iter().any(|(key, _)| key.as_str() == member));
+        if !has_content {
+            return declared;
+        }
+    }
     let mut raw = serde_json::Map::new();
     for (key, value) in keyed {
         let json_val = if value.starts_with('{') || value.starts_with('[') {
@@ -257,5 +278,62 @@ mod tests {
             json!({"role": "assistant", "content": [{"text": "hi"}]}),
             "nested members keep their structure rather than becoming strings"
         );
+    }
+
+    fn names(messages: &[RawMessage]) -> Vec<String> {
+        messages
+            .iter()
+            .map(|m| match &m.source {
+                sideseat_domain::observations::MessageSource::Event { name, .. } => name.clone(),
+                sideseat_domain::observations::MessageSource::Attribute { key, .. } => key.clone(),
+            })
+            .collect()
+    }
+
+    /// A reading that owns the attribute holding the message leaves the raw form with no content, so the
+    /// event is reported once, as the reading; one that owns nothing keeps the raw form whole.
+    #[test]
+    fn the_raw_form_never_repeats_what_a_reading_owns() {
+        let time = chrono::Utc::now();
+        let read = HashMap::from([
+            (
+                "content".to_string(),
+                r#"{"role":"model","parts":[{"text":"Visit the Prado."}]}"#.to_string(),
+            ),
+            ("finish_reason".to_string(), "STOP".to_string()),
+            ("index".to_string(), "0".to_string()),
+        ]);
+        let messages = read_message_event(
+            "gen_ai.choice",
+            &read,
+            time,
+            EventSpan::unattached(Some("gcp.vertex.agent")),
+        );
+        assert_eq!(messages.len(), 1, "{messages:?}");
+        assert_ne!(names(&messages), vec!["gen_ai.choice".to_string()]);
+        assert_eq!(messages[0].content["parts"][0]["text"], "Visit the Prado.");
+        assert_eq!(
+            messages[0].content["finish_reason"], "STOP",
+            "the finish reason beside the message is lifted onto it"
+        );
+        // Another scope's event of the same shape is not ADK's, so nothing reads it.
+        let other = read_message_event(
+            "gen_ai.choice",
+            &read,
+            time,
+            EventSpan::unattached(Some("another.scope")),
+        );
+        assert_eq!(names(&other), vec!["gen_ai.choice".to_string()]);
+
+        // `content` that is not the model API's message is the event's ordinary member.
+        let plain = HashMap::from([("content".to_string(), "Visit the Prado.".to_string())]);
+        let messages = read_message_event(
+            "gen_ai.choice",
+            &plain,
+            time,
+            EventSpan::unattached(Some("gcp.vertex.agent")),
+        );
+        assert_eq!(names(&messages), vec!["gen_ai.choice".to_string()]);
+        assert_eq!(messages[0].content["content"], "Visit the Prado.");
     }
 }

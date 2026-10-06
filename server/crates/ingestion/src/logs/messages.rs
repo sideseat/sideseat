@@ -20,18 +20,39 @@ use crate::otlp::extract_attributes;
 /// Nothing is read from a record that names no span, since nothing could attach it to a conversation, nor
 /// from one no declaration recognises. The instant is the record's own time, falling back to its observed
 /// time - never the receipt time, so a re-delivered record reads exactly as it did the first time.
-pub(super) fn log_record_messages(record: &LogRecord) -> Vec<RawMessage> {
+pub(super) fn log_record_messages(record: &LogRecord, scope: Option<&str>) -> Vec<RawMessage> {
     if !names_a_span(record) {
         return Vec::new();
     }
-    let attributes = extract_attributes(&record.attributes);
-    let event_name = (!record.event_name.is_empty()).then_some(record.event_name.as_str());
-    let Some(declared) = sideseat_domain::rules::ruleset()
-        .log_events
-        .recognise(event_name, |key| attributes.get(key).map(String::as_str))
-    else {
+    let Some((name, payload)) = log_event_payload(record) else {
         return Vec::new();
     };
+    let nanos = if record.time_unix_nano != 0 {
+        record.time_unix_nano
+    } else {
+        record.observed_time_unix_nano
+    };
+    read_message_event(
+        &name,
+        &payload,
+        nanos_to_datetime(nanos),
+        EventSpan::unattached(scope),
+    )
+}
+
+/// The message event a log record is declared to carry: its name, and the attributes the event reader
+/// takes - the record's body members or its own attributes, as the `log_events` declaration says.
+///
+/// `None` when no declaration recognises the record. Public so a corpus measurement can ask the event plan
+/// exactly what ingestion asks it.
+pub fn log_event_payload(
+    record: &LogRecord,
+) -> Option<(String, std::collections::HashMap<String, String>)> {
+    let attributes = extract_attributes(&record.attributes);
+    let event_name = (!record.event_name.is_empty()).then_some(record.event_name.as_str());
+    let declared = sideseat_domain::rules::ruleset()
+        .log_events
+        .recognise(event_name, |key| attributes.get(key).map(String::as_str))?;
     let payload = match declared.payload {
         LogEventPayload::BodyMembers => {
             match record.body.as_ref().and_then(|body| body.value.as_ref()) {
@@ -48,17 +69,7 @@ pub(super) fn log_record_messages(record: &LogRecord) -> Vec<RawMessage> {
         }
         LogEventPayload::Attributes => structured_attributes(&record.attributes),
     };
-    let nanos = if record.time_unix_nano != 0 {
-        record.time_unix_nano
-    } else {
-        record.observed_time_unix_nano
-    };
-    read_message_event(
-        &declared.name,
-        &payload,
-        nanos_to_datetime(nanos),
-        EventSpan::unattached(),
-    )
+    Some((declared.name.clone(), payload))
 }
 
 /// The members of a JSON object written as text, each as the string an attribute of that value would be.
@@ -160,7 +171,7 @@ mod tests {
             ])),
             ..Default::default()
         });
-        let messages = log_record_messages(&record);
+        let messages = log_record_messages(&record, None);
         assert_eq!(sources(&messages), vec!["event:gen_ai.choice".to_string()]);
         assert_eq!(
             messages[0].content["message"],
@@ -184,7 +195,7 @@ mod tests {
             )])),
             ..Default::default()
         });
-        let messages = log_record_messages(&record);
+        let messages = log_record_messages(&record, None);
         assert_eq!(
             sources(&messages),
             vec!["event:gen_ai.user.message".to_string()]
@@ -209,7 +220,7 @@ mod tests {
             ],
             ..Default::default()
         });
-        let messages = log_record_messages(&record);
+        let messages = log_record_messages(&record, None);
         assert!(
             !messages.is_empty()
                 && !sources(&messages)
@@ -232,20 +243,26 @@ mod tests {
             body: body.clone(),
             ..Default::default()
         };
-        assert!(log_record_messages(&unlinked).is_empty(), "no span ids");
+        assert!(
+            log_record_messages(&unlinked, None).is_empty(),
+            "no span ids"
+        );
         let zero = LogRecord {
             trace_id: vec![0; 16],
             span_id: vec![0; 8],
             ..unlinked.clone()
         };
-        assert!(log_record_messages(&zero).is_empty(), "invalid span ids");
+        assert!(
+            log_record_messages(&zero, None).is_empty(),
+            "invalid span ids"
+        );
         let undeclared = linked(LogRecord {
             event_name: "app.checkout".to_string(),
             body,
             ..Default::default()
         });
         assert!(
-            log_record_messages(&undeclared).is_empty(),
+            log_record_messages(&undeclared, None).is_empty(),
             "no declaration"
         );
     }
@@ -283,7 +300,7 @@ mod tests {
             )])),
             ..Default::default()
         });
-        let messages = log_record_messages(&record);
+        let messages = log_record_messages(&record, None);
         assert_eq!(
             messages[0].content["content"][0]["image"]["source"]["bytes"],
             json!("/9j/"),
@@ -302,7 +319,7 @@ mod tests {
             )),
             ..Default::default()
         });
-        let messages = log_record_messages(&record);
+        let messages = log_record_messages(&record, None);
         assert_eq!(sources(&messages), vec!["event:gen_ai.choice".to_string()]);
         assert_eq!(
             messages[0].content["message"],

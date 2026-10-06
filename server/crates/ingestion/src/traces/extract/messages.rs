@@ -36,27 +36,15 @@ use super::keys;
 pub(crate) fn extract_messages_from_events(
     messages: &mut Vec<RawMessage>,
     events: &[Event],
-    span_name: &str,
-    span_attrs: &HashMap<String, String>,
-    is_tool_span: bool,
+    span: EventSpan<'_>,
 ) {
     for event in events {
-        messages.extend(extract_message_from_event(
-            event,
-            span_name,
-            span_attrs,
-            is_tool_span,
-        ));
+        messages.extend(read_span_event(event, span));
     }
 }
 
 /// One span event, read by the shared event reader with its span as context.
-pub(crate) fn extract_message_from_event(
-    event: &Event,
-    span_name: &str,
-    span_attrs: &HashMap<String, String>,
-    is_tool_span: bool,
-) -> Vec<RawMessage> {
+fn read_span_event(event: &Event, span: EventSpan<'_>) -> Vec<RawMessage> {
     if !is_message_event(&event.name) {
         return vec![];
     }
@@ -64,9 +52,24 @@ pub(crate) fn extract_message_from_event(
         &event.name,
         &extract_attributes(&event.attributes),
         nanos_to_datetime(event.time_unix_nano),
+        span,
+    )
+}
+
+/// One span event of an unscoped span, as the extractor's tests read it.
+#[cfg(test)]
+pub(crate) fn extract_message_from_event(
+    event: &Event,
+    span_name: &str,
+    span_attrs: &HashMap<String, String>,
+    is_tool_span: bool,
+) -> Vec<RawMessage> {
+    read_span_event(
+        event,
         EventSpan {
             name: span_name,
             attrs: span_attrs,
+            scope: None,
             is_tool_span,
         },
     )
@@ -545,9 +548,12 @@ pub(super) fn extract_messages_for_scoped_span(
     extract_messages_from_events(
         &mut raw_messages,
         &otlp_span.events,
-        &otlp_span.name,
-        span_attrs,
-        is_tool_span,
+        EventSpan {
+            name: &otlp_span.name,
+            attrs: span_attrs,
+            scope: scope_name,
+            is_tool_span,
+        },
     );
 
     // Enrich tool span messages with metadata from span attributes

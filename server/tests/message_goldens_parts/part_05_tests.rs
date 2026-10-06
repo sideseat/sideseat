@@ -668,6 +668,7 @@ fn rules_that_emit() -> BTreeSet<String> {
                                 &event.name,
                                 &event_attrs,
                                 &span.name,
+                                scope_name,
                                 &attrs,
                                 is_tool,
                             );
@@ -686,24 +687,18 @@ fn rules_that_emit() -> BTreeSet<String> {
             for resource in &decode_logs(&export).resource_logs {
                 for scope in &resource.scope_logs {
                     for record in &scope.log_records {
-                        let attrs = extract_attributes(&record.attributes);
-                        let event_name =
-                            (!record.event_name.is_empty()).then_some(record.event_name.as_str());
-                        let Some(declared) = sideseat_domain::rules::ruleset()
-                            .log_events
-                            .recognise(event_name, |key| attrs.get(key).map(String::as_str))
+                        let Some((name, attrs)) =
+                            sideseat_ingestion::logs::log_event_payload(record)
                         else {
                             continue;
                         };
-                        if declared.payload
-                            != sideseat_domain::rules::schema::LogEventPayload::Attributes
-                        {
-                            // A body-members payload needs the body decoded the way ingestion decodes it;
-                            // no rule reads one yet, so there is nothing to credit.
-                            continue;
-                        }
                         let empty = HashMap::new();
-                        let reading = plan.from_event(&declared.name, &attrs, "", &empty, false);
+                        let scope_name = scope
+                            .scope
+                            .as_ref()
+                            .map(|s| s.name.as_str())
+                            .filter(|n| !n.is_empty());
+                        let reading = plan.from_event(&name, &attrs, "", scope_name, &empty, false);
                         for emission in reading.emissions {
                             fired.insert(emission.rule_id.to_string());
                             fired.extend(clause_paths(&emission));

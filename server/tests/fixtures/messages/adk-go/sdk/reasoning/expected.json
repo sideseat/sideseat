@@ -6,10 +6,11 @@
   "session_count": 1,
   "span_views": {
     "trace-1/generate_content gemini-flash-latest/span-3": {
-      "message_count": 3,
+      "message_count": 4,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -26,17 +27,26 @@
         {
           "index": 1,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total cros…[295 chars]",
-          "content_digest": "c1cbec2d17509c6a",
+          "entry_type": "text",
+          "content": "Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the schedule?",
+          "content_digest": "fee6de4ff136c52a",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"The two slowest should cross together so the 10 absorbs the 5. Shuttling the torch with the two fastest costs 1 + 2 + 2, so the total is 2 + 1 + 10 + 2 + 2.\",\"thought\":true},{\"text\":\"The fastest cros…[381 chars]",
-          "content_digest": "0c290d6902091bcf",
+          "entry_type": "thinking",
+          "content": "The two slowest should cross together so the 10 absorbs the 5. Shuttling the torch with the two fastest costs 1 + 2 + 2, so the total is 2 + 1 + 10 + 2 + 2.",
+          "content_digest": "2f0893064e8f5a4c",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The fastest crossing takes 17 minutes: 1 and 2 cross (2), 1 returns (1), 5 and 10 cross (10), 2 returns (2), and 1 and 2 cross again (2).",
+          "content_digest": "b40de4157ba61eb5",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -59,10 +69,11 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 3,
+      "message_count": 4,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -79,17 +90,26 @@
         {
           "index": 1,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total cros…[295 chars]",
-          "content_digest": "c1cbec2d17509c6a",
+          "entry_type": "text",
+          "content": "Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the schedule?",
+          "content_digest": "fee6de4ff136c52a",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"The two slowest should cross together so the 10 absorbs the 5. Shuttling the torch with the two fastest costs 1 + 2 + 2, so the total is 2 + 1 + 10 + 2 + 2.\",\"thought\":true},{\"text\":\"The fastest cros…[381 chars]",
-          "content_digest": "0c290d6902091bcf",
+          "entry_type": "thinking",
+          "content": "The two slowest should cross together so the 10 absorbs the 5. Shuttling the torch with the two fastest costs 1 + 2 + 2, so the total is 2 + 1 + 10 + 2 + 2.",
+          "content_digest": "2f0893064e8f5a4c",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The fastest crossing takes 17 minutes: 1 and 2 cross (2), 1 returns (1), 5 and 10 cross (10), 2 returns (2), and 1 and 2 cross again (2).",
+          "content_digest": "b40de4157ba61eb5",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -98,10 +118,11 @@
   },
   "session_views": {
     "adk-go-reasoning": {
-      "message_count": 3,
+      "message_count": 4,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -118,17 +139,26 @@
         {
           "index": 1,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total cros…[295 chars]",
-          "content_digest": "c1cbec2d17509c6a",
+          "entry_type": "text",
+          "content": "Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the schedule?",
+          "content_digest": "fee6de4ff136c52a",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"The two slowest should cross together so the 10 absorbs the 5. Shuttling the torch with the two fastest costs 1 + 2 + 2, so the total is 2 + 1 + 10 + 2 + 2.\",\"thought\":true},{\"text\":\"The fastest cros…[381 chars]",
-          "content_digest": "0c290d6902091bcf",
+          "entry_type": "thinking",
+          "content": "The two slowest should cross together so the 10 absorbs the 5. Shuttling the torch with the two fastest costs 1 + 2 + 2, so the total is 2 + 1 + 10 + 2 + 2.",
+          "content_digest": "2f0893064e8f5a4c",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The fastest crossing takes 17 minutes: 1 and 2 cross (2), 1 returns (1), 5 and 10 cross (10), 2 returns (2), and 1 and 2 cross again (2).",
+          "content_digest": "b40de4157ba61eb5",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -136,8 +166,9 @@
     }
   },
   "feed_view": {
-    "message_count": 3,
+    "message_count": 4,
     "role_sequence": [
+      "assistant",
       "assistant",
       "user",
       "system"
@@ -148,22 +179,31 @@
       {
         "index": 0,
         "role": "assistant",
-        "entry_type": "json",
-        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"The two slowest should cross together so the 10 absorbs the 5. Shuttling the torch with the two fastest costs 1 + 2 + 2, so the total is 2 + 1 + 10 + 2 + 2.\",\"thought\":true},{\"text\":\"The fastest cros…[381 chars]",
-        "content_digest": "0c290d6902091bcf",
+        "entry_type": "thinking",
+        "content": "The two slowest should cross together so the 10 absorbs the 5. Shuttling the torch with the two fastest costs 1 + 2 + 2, so the total is 2 + 1 + 10 + 2 + 2.",
+        "content_digest": "2f0893064e8f5a4c",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {
         "index": 1,
-        "role": "user",
-        "entry_type": "json",
-        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total cros…[295 chars]",
-        "content_digest": "c1cbec2d17509c6a",
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The fastest crossing takes 17 minutes: 1 and 2 cross (2), 1 returns (1), 5 and 10 cross (10), 2 returns (2), and 1 and 2 cross again (2).",
+        "content_digest": "b40de4157ba61eb5",
+        "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {
         "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the schedule?",
+        "content_digest": "fee6de4ff136c52a",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",

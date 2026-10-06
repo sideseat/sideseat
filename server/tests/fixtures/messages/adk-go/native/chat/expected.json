@@ -33,17 +33,17 @@
         {
           "index": 1,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"In one sentence, what is Kyoto best known for?\"}],\"role\":\"user\"}}",
-          "content_digest": "c5e92c8dbbbd1856",
+          "entry_type": "text",
+          "content": "In one sentence, what is Kyoto best known for?",
+          "content_digest": "0f69e296627452c3",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Kyoto is best known for its historic Buddhist temples, Shinto shrines, and traditional gardens.\"}],\"role\":\"model\"}}",
-          "content_digest": "755b8ca9e295f5ae",
+          "entry_type": "text",
+          "content": "Kyoto is best known for its historic Buddhist temples, Shinto shrines, and traditional gardens.",
+          "content_digest": "b1cc1f45374d3499",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -79,17 +79,17 @@
         {
           "index": 1,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"In one sentence, what is Kyoto best known for?\"}],\"role\":\"user\"}}",
-          "content_digest": "c5e92c8dbbbd1856",
+          "entry_type": "text",
+          "content": "In one sentence, what is Kyoto best known for?",
+          "content_digest": "0f69e296627452c3",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Kyoto is best known for its historic Buddhist temples, Shinto shrines, and traditional gardens.\"}],\"role\":\"model\"}}",
-          "content_digest": "755b8ca9e295f5ae",
+          "entry_type": "text",
+          "content": "Kyoto is best known for its historic Buddhist temples, Shinto shrines, and traditional gardens.",
+          "content_digest": "b1cc1f45374d3499",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -118,17 +118,17 @@
         {
           "index": 1,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"In one sentence, what is Kyoto best known for?\"}],\"role\":\"user\"}}",
-          "content_digest": "c5e92c8dbbbd1856",
+          "entry_type": "text",
+          "content": "In one sentence, what is Kyoto best known for?",
+          "content_digest": "0f69e296627452c3",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Kyoto is best known for its historic Buddhist temples, Shinto shrines, and traditional gardens.\"}],\"role\":\"model\"}}",
-          "content_digest": "755b8ca9e295f5ae",
+          "entry_type": "text",
+          "content": "Kyoto is best known for its historic Buddhist temples, Shinto shrines, and traditional gardens.",
+          "content_digest": "b1cc1f45374d3499",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -148,18 +148,18 @@
       {
         "index": 0,
         "role": "assistant",
-        "entry_type": "json",
-        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Kyoto is best known for its historic Buddhist temples, Shinto shrines, and traditional gardens.\"}],\"role\":\"model\"}}",
-        "content_digest": "755b8ca9e295f5ae",
+        "entry_type": "text",
+        "content": "Kyoto is best known for its historic Buddhist temples, Shinto shrines, and traditional gardens.",
+        "content_digest": "b1cc1f45374d3499",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {
         "index": 1,
         "role": "user",
-        "entry_type": "json",
-        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"In one sentence, what is Kyoto best known for?\"}],\"role\":\"user\"}}",
-        "content_digest": "c5e92c8dbbbd1856",
+        "entry_type": "text",
+        "content": "In one sentence, what is Kyoto best known for?",
+        "content_digest": "0f69e296627452c3",
         "observation_type": "generation"
       },
       {

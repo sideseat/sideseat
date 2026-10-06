@@ -343,6 +343,13 @@
             "null"
           ],
           "default": null
+        },
+        "carrier_replays_across_traces": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
         }
       },
       "additionalProperties": false,
@@ -2119,6 +2126,11 @@
           "description": "The value the selection came out of, for a fact stated once for a batch.",
           "type": "string",
           "const": "parent"
+        },
+        {
+          "description": "The other attributes of the carrier the reading came from - an event's attributes, or a span's - for\na fact a producer states beside the attribute that holds the message (a finish reason next to the\nevent's `content`). Each is read as the text it is; lifting one does not claim it.",
+          "type": "string",
+          "const": "carrier"
         }
       ]
     },

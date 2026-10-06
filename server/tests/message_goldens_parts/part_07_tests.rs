@@ -1,3 +1,131 @@
+/// Duplicate detection, the property most at risk from dedup changes.
+///
+/// Partitioned by trace: identity is (role, entry_type, content) **within one trace**. Two
+/// identical prompts in two different traces are two legitimate messages, not a duplicate -
+/// several samples run their whole conversation twice, once with a session id and once
+/// without, so a session view contains each prompt twice by design.
+///
+/// A genuine repeat needs independent occurrence evidence. Ordered payload positions prove repeated
+/// members within one span. Separate execution spans prove them only when deduplication assigned a
+/// different occurrence rank to every copy. A re-delivery retains both the span and rank, while peer
+/// spans merely re-listing one request retain the same rank.
+fn assert_no_duplicates(label: &str, view_name: &str, rows: &[InvariantRow]) {
+    type Identity<'a> = (&'a str, &'a str, &'a str, &'a str, &'a str);
+    let mut seen: HashMap<Identity<'_>, Vec<&InvariantRow>> = HashMap::new();
+    for r in rows {
+        // An exception is a fact about a *span*, and it is composed from that span's own
+        // `exception_*` fields rather than read from a payload - so two spans reporting the same
+        // failure are two failures, not a re-send. `openai-agents/image_gen` is the case: three
+        // `generate_image` executions each failed with the same message, and collapsing them showed
+        // three tool results beside one explanation.
+        //
+        // This is the amendment the check's own doc comment anticipated: the pipeline learned to keep a
+        // repeat that has no id, so the invariant had to learn it in the same change, or it reports the
+        // repair as the defect.
+        let scope = if r.carrier == "attr:exception" {
+            r.span_id.as_str()
+        } else {
+            ""
+        };
+        seen.entry((
+            r.trace_id.as_str(),
+            scope,
+            r.role.as_str(),
+            r.entry_type.as_str(),
+            r.content_digest.as_str(),
+        ))
+        .or_default()
+        .push(r);
+    }
+    let mut dupes: Vec<String> = seen
+        .iter()
+        .filter(|(_, copies)| {
+            if copies.len() < 2 {
+                return false;
+            }
+            let occurrences: HashSet<(&str, &str, &str)> = copies
+                .iter()
+                .filter(|row| row.carrier_proves_occurrence && !row.position.is_empty())
+                .map(|row| {
+                    (
+                        row.span_id.as_str(),
+                        row.carrier.as_str(),
+                        row.position.as_str(),
+                    )
+                })
+                .collect();
+            let ordinals: HashSet<u32> = copies.iter().map(|row| row.occurrence_ordinal).collect();
+            let spans: HashSet<&str> = copies.iter().map(|row| row.span_id.as_str()).collect();
+            let carrier_proves_all = occurrences.len() == copies.len();
+            let separate_executions_prove_all =
+                ordinals.len() == copies.len() && spans.len() == copies.len();
+            !carrier_proves_all && !separate_executions_prove_all
+        })
+        .map(|((trace, _scope, role, kind, content), copies)| {
+            let head: String = content.chars().take(70).collect();
+            format!(
+                "{}x in trace {} [{role}/{kind}] {head}",
+                copies.len(),
+                &trace[..trace.len().min(8)]
+            )
+        })
+        .collect();
+    dupes.sort();
+    assert!(
+        dupes.is_empty(),
+        "{label} / {view_name}: duplicate messages within one trace:\n  {}",
+        dupes.join("\n  ")
+    );
+}
+
+/// A tool_use block's own call id: from the block field when set, otherwise from the id
+/// embedded in the serialized content.
+fn extract_tool_use_id(row: &InvariantRow) -> Option<&str> {
+    row.tool_use_id.as_deref().or_else(|| {
+        let start = row.content.find("\"id\":\"")? + 6;
+        let rest = &row.content[start..];
+        let end = rest.find('"')?;
+        Some(&rest[..end])
+    })
+}
+
+/// Tool calls and results must balance within a trace.
+///
+/// Counted per `(trace, tool_use_id)`: parallel calls may return out of order, and some producers
+/// legitimately reuse an id for multiple sequential executions.
+///
+/// A result whose id matches no call is a defect, and results cannot outnumber calls for that id.
+/// Occurrence order is checked separately by `assert_tool_causality`.
+///
+/// Unanswered calls are NOT asserted - a cancelled or failed turn legitimately leaves one open,
+/// and a time-filtered view can cut between the two halves.
+/// Fixtures whose SOURCE telemetry cannot satisfy tool pairing, with the reason.
+///
+/// A capability limit of the framework, not a parsing defect, so it is recorded per fixture
+/// rather than weakening the check for everyone. Empty since the legacy Claude Agent SDK capture
+/// it excused was retired: the current Claude Code CLI exports a subagent's calls beside their
+/// results. Kept, like `NO_ANSWER_EXPECTED`, so the next genuine limit has a place to be declared.
+const PAIRING_EXEMPT: &[(&str, &str)] = &[];
+
+/// Fixtures whose source has no answer to show, with the reason.
+///
+/// Everything else is required to have one: a run that was asked something and completed must show
+/// what it replied. CrewAI's answers were dropped for months because no invariant said so - its
+/// reasoning fixture recorded `system -> user -> user -> user`, three questions and no answers, and
+/// the goldens blessed it as correct.
+/// Empty, and that is the point: the one entry it held is gone because the defect behind it was fixed.
+///
+/// `strands/legacy/error` was exempted on the grounds that "the sample exists to fail, so the run never
+/// produced an answer". The run *did* produce an answer - a `ValidationException` - and three span views
+/// displayed it while the trace view showed `system, user` and nothing else, because a parent error span
+/// deferred to a child that had ERROR status and no exception fields to render. The exemption was
+/// describing a defect rather than a property of the telemetry, which is exactly what an exemption must
+/// never do: the rule is that a legitimate one proves the invariant's antecedent is false in the source.
+///
+/// Kept as an empty list rather than deleted, because the next fixture that genuinely cannot answer -
+/// a cancelled run, a hard transport failure - needs somewhere to be declared with its reason.
+const NO_ANSWER_EXPECTED: &[(&str, &str)] = &[];
+
 fn occurrence_row(index: usize, position: &str, proves_occurrence: bool) -> InvariantRow {
     InvariantRow {
         trace_id: "trace-a".to_string(),
@@ -142,17 +270,25 @@ const MEDIA_DROPPED_NATIVELY: &[(&str, &str)] = &[(
 )];
 
 fn is_media(entry_type: &str) -> bool {
-    matches!(entry_type, "image" | "document" | "audio" | "video" | "file")
+    matches!(
+        entry_type,
+        "image" | "document" | "audio" | "video" | "file"
+    )
 }
 
 fn without_media(mut golden: Golden) -> Golden {
     let strip = |view: &mut GoldenView| {
-        view.messages.retain(|message| !is_media(&message.entry_type));
+        view.messages
+            .retain(|message| !is_media(&message.entry_type));
         for (index, message) in view.messages.iter_mut().enumerate() {
             message.index = index;
         }
         view.message_count = view.messages.len();
-        view.role_sequence = view.messages.iter().map(|message| message.role.clone()).collect();
+        view.role_sequence = view
+            .messages
+            .iter()
+            .map(|message| message.role.clone())
+            .collect();
     };
     golden
         .span_views
@@ -204,7 +340,11 @@ fn a_pinned_duration_compares_by_presence_alone() {
         collapsed("tool_uses: 2 duration_ms: 00</usage> duration_ms: 0000 x"),
         collapsed("tool_uses: 2 duration_ms: 000</usage> duration_ms: 0 x"),
     );
-    assert_eq!(collapsed("duration_ms: 1200"), "duration_ms: 1200", "only pinned values collapse");
+    assert_eq!(
+        collapsed("duration_ms: 1200"),
+        "duration_ms: 1200",
+        "only pinned values collapse"
+    );
     assert_ne!(
         collapsed("tool_uses: 2 duration_ms: 00"),
         collapsed("tool_uses: 3 duration_ms: 00"),
@@ -324,8 +464,16 @@ fn native_gap_declarations_hold(
     generations: &std::collections::BTreeSet<String>,
 ) {
     for (declarations, seen, what) in [
-        (TOOL_DEFINITIONS_DROPPED_NATIVELY, definitions, "tool definitions"),
-        (MODEL_CALLS_ARE_TRANSPORT_NATIVELY, generations, "generations"),
+        (
+            TOOL_DEFINITIONS_DROPPED_NATIVELY,
+            definitions,
+            "tool definitions",
+        ),
+        (
+            MODEL_CALLS_ARE_TRANSPORT_NATIVELY,
+            generations,
+            "generations",
+        ),
     ] {
         for (producer, _) in declarations {
             assert!(

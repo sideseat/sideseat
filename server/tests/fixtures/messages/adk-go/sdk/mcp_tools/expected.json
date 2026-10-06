@@ -33,17 +33,18 @@
         {
           "index": 1,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Use the calculator to compute (17 * 23) + 4, then report the result.\"}],\"role\":\"user\"}}",
-          "content_digest": "03cd4cc36e1a5257",
+          "entry_type": "text",
+          "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
+          "content_digest": "94524de89ab3c69f",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"expression\":\"(17 * 23) + 4\"},\"id\":\"call_calculate_d938abb17f0a\",\"name\":\"calculate\"}}],\"role\":\"model\"}}",
-          "content_digest": "d4089a62d1e9961b",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_calculate_d938abb17f0a\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+          "content_digest": "15c295203e0f9710",
+          "tool_name": "calculate",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -54,8 +55,8 @@
       "role_sequence": [
         "system",
         "user",
-        "user",
-        "user",
+        "assistant",
+        "tool",
         "assistant"
       ],
       "tool_names": [],
@@ -72,33 +73,35 @@
         {
           "index": 1,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Use the calculator to compute (17 * 23) + 4, then report the result.\"}],\"role\":\"user\"}}",
-          "content_digest": "03cd4cc36e1a5257",
+          "entry_type": "text",
+          "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
+          "content_digest": "94524de89ab3c69f",
           "observation_type": "generation"
         },
         {
           "index": 2,
-          "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"expression\":\"(17 * 23) + 4\"},\"id\":\"call_calculate_d938abb17f0a\",\"name\":\"calculate\"}}],\"role\":\"model\"}}",
-          "content_digest": "d4089a62d1e9961b",
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_calculate_d938abb17f0a\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+          "content_digest": "15c295203e0f9710",
+          "tool_name": "calculate",
           "observation_type": "generation"
         },
         {
           "index": 3,
-          "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_calculate_d938abb17f0a\",\"name\":\"calculate\",\"response\":{\"output\":{\"result\":395.0}}}}],\"role\":\"user\"}}",
-          "content_digest": "4e5f48edbce8bc34",
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_calculate_d938abb17f0a\",\"name\":\"calculate\",\"content\":{\"output\":{\"result\":395.0}}}",
+          "content_digest": "2a360c8d81f37024",
+          "tool_name": "calculate",
           "observation_type": "generation"
         },
         {
           "index": 4,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"The result is {'output': {'result': 395}}.\"}],\"role\":\"model\"}}",
-          "content_digest": "300a53b9564567a2",
+          "entry_type": "text",
+          "content": "The result is {'output': {'result': 395}}.",
+          "content_digest": "67653076c6efde9a",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -121,13 +124,12 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 6,
+      "message_count": 5,
       "role_sequence": [
         "system",
         "user",
         "assistant",
-        "user",
-        "user",
+        "tool",
         "assistant"
       ],
       "tool_names": [],
@@ -144,42 +146,36 @@
         {
           "index": 1,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Use the calculator to compute (17 * 23) + 4, then report the result.\"}],\"role\":\"user\"}}",
-          "content_digest": "03cd4cc36e1a5257",
+          "entry_type": "text",
+          "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
+          "content_digest": "94524de89ab3c69f",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"expression\":\"(17 * 23) + 4\"},\"id\":\"call_calculate_d938abb17f0a\",\"name\":\"calculate\"}}],\"role\":\"model\"}}",
-          "content_digest": "d4089a62d1e9961b",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_calculate_d938abb17f0a\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+          "content_digest": "15c295203e0f9710",
+          "tool_name": "calculate",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
         {
           "index": 3,
-          "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"expression\":\"(17 * 23) + 4\"},\"id\":\"call_calculate_d938abb17f0a\",\"name\":\"calculate\"}}],\"role\":\"model\"}}",
-          "content_digest": "d4089a62d1e9961b",
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_calculate_d938abb17f0a\",\"name\":\"calculate\",\"content\":{\"output\":{\"result\":395.0}}}",
+          "content_digest": "2a360c8d81f37024",
+          "tool_name": "calculate",
           "observation_type": "generation"
         },
         {
           "index": 4,
-          "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_calculate_d938abb17f0a\",\"name\":\"calculate\",\"response\":{\"output\":{\"result\":395.0}}}}],\"role\":\"user\"}}",
-          "content_digest": "4e5f48edbce8bc34",
-          "observation_type": "generation"
-        },
-        {
-          "index": 5,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"The result is {'output': {'result': 395}}.\"}],\"role\":\"model\"}}",
-          "content_digest": "300a53b9564567a2",
+          "entry_type": "text",
+          "content": "The result is {'output': {'result': 395}}.",
+          "content_digest": "67653076c6efde9a",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -188,13 +184,12 @@
   },
   "session_views": {
     "adk-go-mcp_tools": {
-      "message_count": 6,
+      "message_count": 5,
       "role_sequence": [
         "system",
         "user",
         "assistant",
-        "user",
-        "user",
+        "tool",
         "assistant"
       ],
       "tool_names": [],
@@ -211,42 +206,36 @@
         {
           "index": 1,
           "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Use the calculator to compute (17 * 23) + 4, then report the result.\"}],\"role\":\"user\"}}",
-          "content_digest": "03cd4cc36e1a5257",
+          "entry_type": "text",
+          "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
+          "content_digest": "94524de89ab3c69f",
           "observation_type": "generation"
         },
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"expression\":\"(17 * 23) + 4\"},\"id\":\"call_calculate_d938abb17f0a\",\"name\":\"calculate\"}}],\"role\":\"model\"}}",
-          "content_digest": "d4089a62d1e9961b",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_calculate_d938abb17f0a\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+          "content_digest": "15c295203e0f9710",
+          "tool_name": "calculate",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
         {
           "index": 3,
-          "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"expression\":\"(17 * 23) + 4\"},\"id\":\"call_calculate_d938abb17f0a\",\"name\":\"calculate\"}}],\"role\":\"model\"}}",
-          "content_digest": "d4089a62d1e9961b",
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_calculate_d938abb17f0a\",\"name\":\"calculate\",\"content\":{\"output\":{\"result\":395.0}}}",
+          "content_digest": "2a360c8d81f37024",
+          "tool_name": "calculate",
           "observation_type": "generation"
         },
         {
           "index": 4,
-          "role": "user",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_calculate_d938abb17f0a\",\"name\":\"calculate\",\"response\":{\"output\":{\"result\":395.0}}}}],\"role\":\"user\"}}",
-          "content_digest": "4e5f48edbce8bc34",
-          "observation_type": "generation"
-        },
-        {
-          "index": 5,
           "role": "assistant",
-          "entry_type": "json",
-          "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"The result is {'output': {'result': 395}}.\"}],\"role\":\"model\"}}",
-          "content_digest": "300a53b9564567a2",
+          "entry_type": "text",
+          "content": "The result is {'output': {'result': 395}}.",
+          "content_digest": "67653076c6efde9a",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -254,11 +243,10 @@
     }
   },
   "feed_view": {
-    "message_count": 6,
+    "message_count": 5,
     "role_sequence": [
       "assistant",
-      "user",
-      "user",
+      "tool",
       "assistant",
       "user",
       "system"
@@ -269,47 +257,41 @@
       {
         "index": 0,
         "role": "assistant",
-        "entry_type": "json",
-        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"The result is {'output': {'result': 395}}.\"}],\"role\":\"model\"}}",
-        "content_digest": "300a53b9564567a2",
+        "entry_type": "text",
+        "content": "The result is {'output': {'result': 395}}.",
+        "content_digest": "67653076c6efde9a",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {
         "index": 1,
-        "role": "user",
-        "entry_type": "json",
-        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionResponse\":{\"id\":\"call_calculate_d938abb17f0a\",\"name\":\"calculate\",\"response\":{\"output\":{\"result\":395.0}}}}],\"role\":\"user\"}}",
-        "content_digest": "4e5f48edbce8bc34",
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_calculate_d938abb17f0a\",\"name\":\"calculate\",\"content\":{\"output\":{\"result\":395.0}}}",
+        "content_digest": "2a360c8d81f37024",
+        "tool_name": "calculate",
         "observation_type": "generation"
       },
       {
         "index": 2,
-        "role": "user",
-        "entry_type": "json",
-        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"expression\":\"(17 * 23) + 4\"},\"id\":\"call_calculate_d938abb17f0a\",\"name\":\"calculate\"}}],\"role\":\"model\"}}",
-        "content_digest": "d4089a62d1e9961b",
-        "observation_type": "generation"
-      },
-      {
-        "index": 3,
         "role": "assistant",
-        "entry_type": "json",
-        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"functionCall\":{\"args\":{\"expression\":\"(17 * 23) + 4\"},\"id\":\"call_calculate_d938abb17f0a\",\"name\":\"calculate\"}}],\"role\":\"model\"}}",
-        "content_digest": "d4089a62d1e9961b",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call_calculate_d938abb17f0a\",\"name\":\"calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+        "content_digest": "15c295203e0f9710",
+        "tool_name": "calculate",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },
       {
-        "index": 4,
+        "index": 3,
         "role": "user",
-        "entry_type": "json",
-        "content": "{\"type\":\"json\",\"data\":{\"parts\":[{\"text\":\"Use the calculator to compute (17 * 23) + 4, then report the result.\"}],\"role\":\"user\"}}",
-        "content_digest": "03cd4cc36e1a5257",
+        "entry_type": "text",
+        "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
+        "content_digest": "94524de89ab3c69f",
         "observation_type": "generation"
       },
       {
-        "index": 5,
+        "index": 4,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. You are an agent. Your internal name is \"assistant\".",

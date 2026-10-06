@@ -279,8 +279,9 @@ pub(super) fn readings(
                     for lift in &alternative.lift {
                         // `element` is the value the selection landed on, `parent` the value it came out of.
                         let source = match lift.from {
-                            super::schema::LiftSource::Element => element,
-                            super::schema::LiftSource::Parent => parsed,
+                            super::schema::LiftSource::Element => Some(element),
+                            super::schema::LiftSource::Parent => Some(parsed),
+                            super::schema::LiftSource::Carrier => None,
                         };
                         for member in &lift.members {
                             if object.contains_key(member.as_str())
@@ -288,8 +289,15 @@ pub(super) fn readings(
                             {
                                 continue;
                             }
-                            if let Some(value) = source.get(member.as_str()) {
-                                object.insert(member.clone(), value.clone());
+                            let value = match source {
+                                Some(source) => source.get(member.as_str()).cloned(),
+                                None => build
+                                    .as_ref()
+                                    .and_then(|b| b.ctx.span_attrs.get(member.as_str()))
+                                    .map(|text| JsonValue::String(text.clone())),
+                            };
+                            if let Some(value) = value {
+                                object.insert(member.clone(), value);
                             }
                         }
                     }

@@ -58,7 +58,10 @@ pub fn extract_logs_batch(
                     .map(any_value_to_json)
                     .unwrap_or_default();
                 let body_text = record.body.as_ref().and_then(body_text);
-                let messages = super::messages::log_record_messages(record);
+                let scope_name = scope
+                    .map(|scope| scope.name.as_str())
+                    .filter(|n| !n.is_empty());
+                let messages = super::messages::log_record_messages(record, scope_name);
 
                 let mut log = NormalizedLog {
                     project_id: resource_map.get(PROJECT_ID_ATTR).cloned(),

@@ -70,5 +70,6 @@ providers.SetGlobalOtelProviders()
 ```
 
 ADK for Go records invocations, model calls and tool executions as spans, and the conversation only as GenAI
-log events whose content is a Gemini `Content`. SideSeat shows the spans, models, usage and tool calls; the
-messages inside those log events are not yet reconstructed, and appear as raw JSON.
+log events whose content is a Gemini `Content`. Export the logs as well as the traces: SideSeat reads each
+event's message with its own role - ADK names the model's replayed turns `gen_ai.user.message` too - and
+recognises a later request's replay of earlier turns, so every view shows each message once.

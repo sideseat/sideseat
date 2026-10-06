@@ -131,13 +131,16 @@ impl MessagePlan {
         event_name: &str,
         event_attrs: &HashMap<String, String>,
         span_name: &str,
+        scope_name: Option<&str>,
         span_attrs: &HashMap<String, String>,
         is_tool_span: bool,
     ) -> EventReading<'p> {
-        let ctx = MessageContext::for_event(span_name, span_attrs, event_attrs, is_tool_span);
+        let ctx =
+            MessageContext::for_event(span_name, scope_name, span_attrs, event_attrs, is_tool_span);
         let mut out = Vec::new();
         let mut handled = false;
         let mut carrier_present = false;
+        let mut owned_attributes: Vec<String> = Vec::new();
         let mut claimed: std::collections::HashSet<OwnedCarrier> = std::collections::HashSet::new();
         // The event's own declaration, asked once. It used to be ORed together from every reading that
         // matched and whose gates held, which meant the policy was stated twice with nothing keeping the
@@ -179,6 +182,11 @@ impl MessagePlan {
             // separates "the container was unreadable" from "the container held nothing this rule wanted",
             // which the two cases below need to answer differently.
             carrier_present |= resolve_attribute(&rule.read, ctx.span_attrs).is_some();
+            for owned in kept.iter().flat_map(|e| &e.owns).filter(|o| !o.is_event) {
+                if !owned_attributes.contains(&owned.name) {
+                    owned_attributes.push(owned.name.clone());
+                }
+            }
             out.extend(kept.into_iter().filter(|e| e.target == EmitTarget::Message));
         }
         // **Replacement depends on something having read the event**, not on the declaration alone. A
@@ -202,6 +210,7 @@ impl MessagePlan {
         EventReading {
             replaces_raw: replaces && !unreadable,
             unhandled_container: unreadable,
+            owned_attributes,
             emissions: out,
         }
     }

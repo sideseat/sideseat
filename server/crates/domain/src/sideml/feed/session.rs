@@ -147,15 +147,14 @@ pub(super) fn mark_cross_trace_prefix(
         return true;
     }
 
-    // A block is "cross-trace strippable" if it represents history re-sent to a new LLM call:
-    // - Attribute-sourced input (LangGraph, ADK, Vercel, etc.)
-    // - gen_ai.input.messages event (Strands JS bundled format: all messages share event_time,
-    //   so timestamp comparison cannot detect history within a single span)
-    // Pure per-message event frameworks (Strands Python: gen_ai.user.message etc.) are excluded
-    // because they preserve original timestamps and timestamp comparison handles them within each trace.
+    // A block is "cross-trace strippable" if it represents history re-sent to a new LLM call: input from an
+    // attribute, which has no time of its own, or from an event carrier declared to replay earlier turns at
+    // request time. An event carrier stamped with each turn's own time is left to timestamp comparison.
     let is_strippable = |b: &BlockEntry| {
-        (b.is_input_source() && b.source_type == source_type::ATTRIBUTE)
-            || b.event_name.as_deref() == Some("gen_ai.input.messages")
+        b.is_input_source()
+            && (b.source_type == source_type::ATTRIBUTE
+                || crate::sideml::carrier::declared_semantics_for_context(&b.carrier_context())
+                    .is_some_and(|declared| declared.carrier_replays_across_traces))
     };
 
     let input_source_count = blocks.iter().filter(|b| b.is_input_source()).count();
@@ -182,10 +181,48 @@ pub(super) fn mark_cross_trace_prefix(
 
         // The span's replayable blocks, in payload order. System prompts are per-trace framing rather
         // than history, so they are transparent: skipped without ending the prefix.
+        //
+        // A block identical to one before it in everything that places it - payload position, carrier,
+        // role, content - is that block delivered again (a retried export stores the span's row twice), not
+        // a repeat inside the request: positions are unique within one payload, so only a second row can
+        // repeat one. It is matched as its original rather than as a second occurrence the earlier trace
+        // never showed.
+        type Placement<'b> = (
+            &'b PositionPath,
+            &'b str,
+            crate::sideml::types::ChatRole,
+            Option<&'b str>,
+            Option<&'b str>,
+        );
+        let mut originals: HashMap<Placement<'_>, usize> = HashMap::new();
+        let mut copies: Vec<(usize, usize)> = Vec::new();
         let replayable: Vec<usize> = (span_start..span_end)
             .filter(|&i| {
                 is_strippable(&blocks[i])
                     && blocks[i].role != crate::sideml::types::ChatRole::System
+            })
+            .filter(|&i| {
+                if blocks[i].position.is_empty() {
+                    return true;
+                }
+                let block = &blocks[i];
+                let key = (
+                    &block.position,
+                    block.content_hash.as_str(),
+                    block.role,
+                    block.event_name.as_deref(),
+                    block.source_attribute.as_deref(),
+                );
+                match originals.get(&key) {
+                    Some(&original) => {
+                        copies.push((i, original));
+                        false
+                    }
+                    None => {
+                        originals.insert(key, i);
+                        true
+                    }
+                }
             })
             .collect();
         let identities: Vec<(crate::sideml::types::ChatRole, &str)> = replayable
@@ -195,7 +232,17 @@ pub(super) fn mark_cross_trace_prefix(
 
         let (matched, exhaustive) = accumulated.longest_matching_prefix(&identities);
         replay_matching_complete &= exhaustive;
-        for &i in replayable.iter().take(matched.len()) {
+        let marked_here: HashSet<usize> = replayable.iter().take(matched.len()).copied().collect();
+        let copies_marked = copies
+            .iter()
+            .filter(|(_, original)| marked_here.contains(original))
+            .map(|&(copy, _)| copy);
+        for i in marked_here
+            .iter()
+            .copied()
+            .chain(copies_marked)
+            .collect::<Vec<_>>()
+        {
             blocks[i].is_history = true;
             blocks[i].is_cross_trace_history = true;
             marked += 1;

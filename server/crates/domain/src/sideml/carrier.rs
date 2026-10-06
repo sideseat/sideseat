@@ -102,6 +102,13 @@ pub struct CarrierSemantics {
     /// a content-block list, a tool manifest, a context array - and expanding one of those turns a single
     /// message into several fragments.
     pub carrier_holds_expandable_message_array: bool,
+    /// The carrier re-sends earlier turns stamped with the *request's* time, so a later trace's copy of an
+    /// earlier trace's turn can only be recognised by its place in the replayed prefix, not by its time.
+    ///
+    /// Attribute carriers have no time of their own and are treated so without declaring it. An event
+    /// carrier is declared, because events differ: one producer stamps each per-message event with when the
+    /// turn happened, another writes every turn of the request as an event at request time.
+    pub carrier_replays_across_traces: bool,
 }
 
 impl CarrierSemantics {
@@ -109,6 +116,7 @@ impl CarrierSemantics {
     pub(crate) const EMISSION: Self = Self {
         carrier_holds_span_input: false,
         carrier_holds_expandable_message_array: false,
+        carrier_replays_across_traces: false,
         position_proves_distinct_occurrence: true,
         position_provides_sequence_order: true,
         history_positions_provide_sequence_order: false,
@@ -124,6 +132,7 @@ impl CarrierSemantics {
     pub(crate) const SNAPSHOT: Self = Self {
         carrier_holds_span_input: false,
         carrier_holds_expandable_message_array: false,
+        carrier_replays_across_traces: false,
         position_proves_distinct_occurrence: false,
         position_provides_sequence_order: true,
         history_positions_provide_sequence_order: false,
@@ -142,6 +151,7 @@ impl CarrierSemantics {
     pub(crate) const ACCUMULATED_STATE: Self = Self {
         carrier_holds_span_input: false,
         carrier_holds_expandable_message_array: false,
+        carrier_replays_across_traces: false,
         position_proves_distinct_occurrence: false,
         position_provides_sequence_order: true,
         history_positions_provide_sequence_order: false,
@@ -332,8 +342,13 @@ fn legacy_declared_semantics_without_direction(
             "gen_ai.user.message"
             | "gen_ai.system.message"
             | "gen_ai.assistant.message"
-            | "gen_ai.content.prompt"
-            | "gen_ai.input.messages" => CarrierSemantics::SNAPSHOT,
+            | "gen_ai.content.prompt" => CarrierSemantics::SNAPSHOT,
+            // The whole request at request time, so every turn shares the event's time: the table's
+            // special case in the cross-trace prefix pass, now a declared fact.
+            "gen_ai.input.messages" => CarrierSemantics {
+                carrier_replays_across_traces: true,
+                ..CarrierSemantics::SNAPSHOT
+            },
             _ => return None,
         });
     }
