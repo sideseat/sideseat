@@ -1,0 +1,21 @@
+# The historical semantic-kernel releases this suite is replayed against; see `python -m harness matrix --help`
+# and docs/engineering/framework-versions.md. Semantic Kernel writes its own spans and log records, so its release history is the window.
+[matrix]
+package = "semantic-kernel"
+pin = "semantic-kernel[aws,mcp]=={version}"
+since = "2025-10-05"
+resolved-before = "2026-10-05T00:00:00Z"
+# The suite supports CPython below 3.14 only.
+python = "3.13"
+probes = ["tool_use", "streaming"]
+scenarios = ["tool_use", "streaming"]
+
+# Each variant is the newest release of one telemetry class in `versions.census.json`.
+[[variant]]
+version = "1.37.1"
+doc = "1.37.1: model spans named chat.completions / chat.streaming_completions."
+
+[[variant]]
+version = "1.44.1"
+current = true
+doc = "1.38 onwards: the chat operation name for both. The suite's locked release; its fixtures are the ordinary capture."

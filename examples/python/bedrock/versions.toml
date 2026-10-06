@@ -1,0 +1,25 @@
+# The historical opentelemetry-instrumentation-botocore releases this suite is replayed against; see `python -m harness matrix --help`
+# and docs/engineering/framework-versions.md. The botocore instrumentation writes the Converse spans and GenAI events, so its release history is the window.
+[matrix]
+package = "opentelemetry-instrumentation-botocore"
+since = "2025-10-05"
+resolved-before = "2026-10-05T00:00:00Z"
+# The contrib instrumentations publish only beta releases (0.66b0, 1.2b0).
+prereleases = true
+probes = ["tool_use", "streaming"]
+scenarios = ["tool_use", "streaming"]
+
+[matrix.profiles]
+# The contrib GenAI instrumentations write the current conventions only when asked to.
+semconv-latest = { OTEL_SEMCONV_STABILITY_OPT_IN = "gen_ai_latest_experimental" }
+
+# Each variant is the newest release of one telemetry class in `versions.census.json`; the opt-in changes
+# nothing in any release of the window.
+[[variant]]
+version = "0.63b1"
+doc = "0.59b0-0.63b1: the earliest window format; the resource carries no service.instance.id."
+
+[[variant]]
+version = "0.66b0"
+current = true
+doc = "0.64b0 onwards: the resource gains service.instance.id from the OpenTelemetry SDK these releases require. The suite's locked release; its fixtures are the ordinary capture."

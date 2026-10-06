@@ -4,6 +4,7 @@
  "scenario": "tool_use",
  "fixtures": [
   "bedrock/native/tool_use",
+  "bedrock/native@0.63b1/tool_use",
   "bedrock/sdk/tool_use"
  ],
  "source": {

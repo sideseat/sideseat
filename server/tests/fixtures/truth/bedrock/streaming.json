@@ -4,6 +4,7 @@
  "scenario": "streaming",
  "fixtures": [
   "bedrock/native/streaming",
+  "bedrock/native@0.63b1/streaming",
   "bedrock/sdk/streaming"
  ],
  "source": {

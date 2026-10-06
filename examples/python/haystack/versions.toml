@@ -1,0 +1,14 @@
+# The historical opentelemetry-haystack releases this suite is replayed against; see `python -m harness matrix --help`
+# and docs/engineering/framework-versions.md. opentelemetry-haystack writes the spans since Haystack 3.0 moved tracing out, so its release history is the window.
+[matrix]
+package = "opentelemetry-haystack"
+since = "2025-10-05"
+resolved-before = "2026-10-05T00:00:00Z"
+probes = ["tool_use", "streaming"]
+scenarios = ["tool_use", "streaming"]
+
+# opentelemetry-haystack has had one release in the window; Haystack 3.0 moved tracing into it.
+[[variant]]
+version = "1.0.0"
+current = true
+doc = "1.0.0: the only release. The suite's locked release; its fixtures are the ordinary capture."

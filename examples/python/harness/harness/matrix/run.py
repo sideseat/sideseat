@@ -97,6 +97,23 @@ def replay(
         "SIDESEAT_PROJECT_ID": "default",
     }
     run_env.pop("OTEL_EXPORTER_OTLP_ENDPOINT", None)
+    # Every model request goes to the local proxy, which alone reaches Bedrock (in live mode). A release
+    # that ignores the client it is given would otherwise call its provider's public API from here, so
+    # the scenario gets a proxy that refuses everything but loopback.
+    run_env.update(
+        {
+            name: "http://127.0.0.1:9"
+            for name in (
+                "HTTP_PROXY",
+                "HTTPS_PROXY",
+                "ALL_PROXY",
+                "http_proxy",
+                "https_proxy",
+                "all_proxy",
+            )
+        }
+    )
+    run_env["NO_PROXY"] = run_env["no_proxy"] = "127.0.0.1,localhost"
     # The variant's interpreter, not the one running the harness: VIRTUAL_ENV would point uv elsewhere.
     run_env.pop("VIRTUAL_ENV", None)
     command = [str(executable(environment, "sample")), *arguments]

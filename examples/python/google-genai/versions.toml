@@ -1,0 +1,47 @@
+# The historical opentelemetry-instrumentation-google-genai releases this suite is replayed against; see `python -m harness matrix --help`
+# and docs/engineering/framework-versions.md. The contrib Google GenAI instrumentation writes the model spans and events Logfire forwards, so its release history is the window.
+[matrix]
+package = "opentelemetry-instrumentation-google-genai"
+# The instrumentation patches the Google GenAI client, which resolves as of each release's day: releases
+# before 0.7b1 do not instrument the 2.x client the suite locks.
+pin = ["opentelemetry-instrumentation-google-genai=={version}", "google-genai"]
+era = ["google-genai"]
+since = "2025-10-05"
+resolved-before = "2026-10-05T00:00:00Z"
+# The contrib instrumentations publish only beta releases (0.66b0, 1.2b0).
+prereleases = true
+probes = ["tool_use", "streaming"]
+scenarios = ["tool_use", "streaming"]
+
+[matrix.profiles]
+# The contrib GenAI instrumentations write the current conventions only when asked to.
+semconv-latest = { OTEL_SEMCONV_STABILITY_OPT_IN = "gen_ai_latest_experimental" }
+
+# Each variant is the newest release of one telemetry class in `versions.census.json`.
+[[variant]]
+version = "0.7b1"
+withheld = { tool_use = "Without the opt-in these releases write the conversation only as GenAI log events, and Logfire's documented setup exports spans alone, so every view is empty.", streaming = "Without the opt-in these releases write the conversation only as GenAI log events, and Logfire's documented setup exports spans alone, so every view is empty." }
+doc = "0.4b0-0.7b1: generate_content and execute_tool spans with code.function.* attributes; the conversation only in GenAI log events."
+
+[[variant]]
+version = "0.6b0"
+profile = "semconv-latest"
+doc = "0.4b0-0.6b0 opted in: gen_ai.input.messages, gen_ai.output.messages and gen_ai.system_instructions on the model span; tool arguments and returns as code.function.parameters.* / return.value."
+
+[[variant]]
+version = "0.7b1"
+profile = "semconv-latest"
+doc = "0.7b0-0.7b1 opted in: gen_ai.tool.definitions too."
+
+[[variant]]
+version = "1.0b1"
+doc = "1.0b1: rewritten on opentelemetry-util-genai, with or without the opt-in: chat operations, gen_ai.provider.name, gen_ai.tool.call.arguments / result, and execute_tool spans from the util-genai handler."
+
+[[variant]]
+version = "1.1b1"
+doc = "1.1b0-1.1b1: message JSON changes inside the same carriers."
+
+[[variant]]
+version = "1.2b0"
+current = true
+doc = "1.2b0: generate_content operations again, gen_ai.request.stream, and the instrumentation's own execute_tool spans. The suite's locked release; its fixtures are the ordinary capture."

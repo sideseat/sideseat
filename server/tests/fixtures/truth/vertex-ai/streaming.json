@@ -4,6 +4,9 @@
  "scenario": "streaming",
  "fixtures": [
   "vertex-ai/native/streaming",
+  "vertex-ai/native@0.7b1+semconv-latest/streaming",
+  "vertex-ai/native@1.0b1/streaming",
+  "vertex-ai/native@1.1b1/streaming",
   "vertex-ai/sdk/streaming"
  ],
  "source": {

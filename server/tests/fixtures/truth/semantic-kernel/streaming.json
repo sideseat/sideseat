@@ -4,6 +4,7 @@
  "scenario": "streaming",
  "fixtures": [
   "semantic-kernel/native/streaming",
+  "semantic-kernel/native@1.37.1/streaming",
   "semantic-kernel/sdk/streaming"
  ],
  "source": {

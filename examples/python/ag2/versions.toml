@@ -1,0 +1,137 @@
+# The historical ag2 releases this suite is replayed against; see `python -m harness matrix --help`
+# and docs/engineering/framework-versions.md. AG2's own OpenTelemetry integration writes the spans, so its release history is the window.
+[matrix]
+package = "ag2"
+pin = "ag2[bedrock,mcp,tracing]=={version}"
+since = "2025-10-05"
+resolved-before = "2026-10-05T00:00:00Z"
+probes = ["tool_use", "streaming"]
+scenarios = ["tool_use", "streaming"]
+
+# Each variant is the newest release of one telemetry class in `versions.census.json`.
+[[variant]]
+version = "1.0.2"
+doc = "1.0.0-1.0.2: the first 1.x format."
+
+[[variant]]
+version = "1.0.3"
+doc = "1.0.3: record_usage spans (ag2.span.type usage, ag2.usage.kind model_call, ag2.usage.total_tokens)."
+
+[[variant]]
+version = "1.0.4"
+doc = "1.0.4: message JSON changes inside the same carriers."
+
+[[variant]]
+version = "1.1.1"
+current = true
+doc = "1.0.5 onwards: message JSON changes again. The suite's locked release; its fixtures are the ordinary capture."
+
+[[exempt]]
+version = "0.10.0"
+reason = "Before 1.0 AG2 is imported as `autogen`; the suite imports the `ag2` package that 1.0 introduced."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.10.1"
+reason = "Before 1.0 AG2 is imported as `autogen`; the suite imports the `ag2` package that 1.0 introduced."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.10.2"
+reason = "Before 1.0 AG2 is imported as `autogen`; the suite imports the `ag2` package that 1.0 introduced."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.10.3"
+reason = "Before 1.0 AG2 is imported as `autogen`; the suite imports the `ag2` package that 1.0 introduced."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.10.4"
+reason = "Before 1.0 AG2 is imported as `autogen`; the suite imports the `ag2` package that 1.0 introduced."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.10.5"
+reason = "Before 1.0 AG2 is imported as `autogen`; the suite imports the `ag2` package that 1.0 introduced."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.11.0"
+reason = "Before 1.0 AG2 is imported as `autogen`; the suite imports the `ag2` package that 1.0 introduced."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.11.1"
+reason = "Before 1.0 AG2 is imported as `autogen`; the suite imports the `ag2` package that 1.0 introduced."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.11.2"
+reason = "Before 1.0 AG2 is imported as `autogen`; the suite imports the `ag2` package that 1.0 introduced."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.11.3"
+reason = "Before 1.0 AG2 is imported as `autogen`; the suite imports the `ag2` package that 1.0 introduced."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.11.4"
+reason = "Before 1.0 AG2 is imported as `autogen`; the suite imports the `ag2` package that 1.0 introduced."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.11.5"
+reason = "Before 1.0 AG2 is imported as `autogen`; the suite imports the `ag2` package that 1.0 introduced."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.12.0"
+reason = "Before 1.0 AG2 is imported as `autogen`; the suite imports the `ag2` package that 1.0 introduced."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.12.1"
+reason = "Before 1.0 AG2 is imported as `autogen`; the suite imports the `ag2` package that 1.0 introduced."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.12.2"
+reason = "Before 1.0 AG2 is imported as `autogen`; the suite imports the `ag2` package that 1.0 introduced."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.12.3"
+reason = "Before 1.0 AG2 is imported as `autogen`; the suite imports the `ag2` package that 1.0 introduced."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.13.0"
+reason = "Before 1.0 AG2 is imported as `autogen`; the suite imports the `ag2` package that 1.0 introduced."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.13.1"
+reason = "Before 1.0 AG2 is imported as `autogen`; the suite imports the `ag2` package that 1.0 introduced."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.13.2"
+reason = "Before 1.0 AG2 is imported as `autogen`; the suite imports the `ag2` package that 1.0 introduced."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.13.3"
+reason = "Before 1.0 AG2 is imported as `autogen`; the suite imports the `ag2` package that 1.0 introduced."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.13.4"
+reason = "Before 1.0 AG2 is imported as `autogen`; the suite imports the `ag2` package that 1.0 introduced."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.14.0"
+reason = "Before 1.0 AG2 is imported as `autogen`; the suite imports the `ag2` package that 1.0 introduced."
+revisit = "2027-01-05"

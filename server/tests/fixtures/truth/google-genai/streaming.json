@@ -4,6 +4,10 @@
  "scenario": "streaming",
  "fixtures": [
   "google-genai/native/streaming",
+  "google-genai/native@0.6b0+semconv-latest/streaming",
+  "google-genai/native@0.7b1+semconv-latest/streaming",
+  "google-genai/native@1.0b1/streaming",
+  "google-genai/native@1.1b1/streaming",
   "google-genai/sdk/streaming"
  ],
  "source": {

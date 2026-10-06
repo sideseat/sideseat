@@ -4,6 +4,10 @@
  "scenario": "tool_use",
  "fixtures": [
   "google-genai/native/tool_use",
+  "google-genai/native@0.6b0+semconv-latest/tool_use",
+  "google-genai/native@0.7b1+semconv-latest/tool_use",
+  "google-genai/native@1.0b1/tool_use",
+  "google-genai/native@1.1b1/tool_use",
   "google-genai/sdk/tool_use"
  ],
  "source": {

@@ -1,0 +1,62 @@
+# The historical opentelemetry-instrumentation-google-genai releases this suite is replayed against; see `python -m harness matrix --help`
+# and docs/engineering/framework-versions.md. The contrib Google GenAI instrumentation writes the model spans and events, so its release history is the window.
+[matrix]
+package = "opentelemetry-instrumentation-google-genai"
+# The instrumentation patches the Google GenAI client, which resolves as of each release's day: releases
+# before 0.7b1 do not instrument the 2.x client the suite locks.
+pin = ["opentelemetry-instrumentation-google-genai=={version}", "google-genai"]
+era = ["google-genai"]
+since = "2025-10-05"
+resolved-before = "2026-10-05T00:00:00Z"
+# The contrib instrumentations publish only beta releases (0.66b0, 1.2b0).
+prereleases = true
+probes = ["tool_use", "streaming"]
+scenarios = ["tool_use", "streaming"]
+
+[matrix.profiles]
+# The contrib GenAI instrumentations write the current conventions only when asked to.
+semconv-latest = { OTEL_SEMCONV_STABILITY_OPT_IN = "gen_ai_latest_experimental" }
+
+# Each variant is the newest release of one telemetry class in `versions.census.json`.
+[[variant]]
+version = "0.7b1"
+withheld = { tool_use = "Without the opt-in this release writes the conversation only as GenAI log events, and Logfire's documented setup exports spans alone, so every view is empty.", streaming = "Without the opt-in this release writes the conversation only as GenAI log events, and Logfire's documented setup exports spans alone, so every view is empty." }
+doc = "0.7b1: generate_content and execute_tool spans with code.function.* attributes; the conversation only in GenAI log events."
+
+[[variant]]
+version = "0.7b1"
+profile = "semconv-latest"
+doc = "0.7b1 opted in: gen_ai.input.messages, gen_ai.output.messages, gen_ai.system_instructions and gen_ai.tool.definitions on the model span."
+
+[[variant]]
+version = "1.0b1"
+doc = "1.0b1: rewritten on opentelemetry-util-genai, with or without the opt-in."
+
+[[variant]]
+version = "1.1b1"
+doc = "1.1b0-1.1b1: message JSON changes inside the same carriers."
+
+[[variant]]
+version = "1.2b0"
+current = true
+doc = "1.2b0: the instrumentation's own generate_content and execute_tool spans again, and gen_ai.request.stream. The suite's locked release; its fixtures are the ordinary capture."
+
+[[exempt]]
+version = "0.4b0"
+reason = "Does not instrument the 2.x Google GenAI client, and the 1.x client of its day has no enterprise (Vertex AI) mode the suite runs; the google-genai suite covers this release's format."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.5b0"
+reason = "Does not instrument the 2.x Google GenAI client, and the 1.x client of its day has no enterprise (Vertex AI) mode the suite runs; the google-genai suite covers this release's format."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.6b0"
+reason = "Does not instrument the 2.x Google GenAI client, and the 1.x client of its day has no enterprise (Vertex AI) mode the suite runs; the google-genai suite covers this release's format."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.7b0"
+reason = "Does not instrument the 2.x Google GenAI client, and the 1.x client of its day has no enterprise (Vertex AI) mode the suite runs; the google-genai suite covers this release's format."
+revisit = "2027-01-05"

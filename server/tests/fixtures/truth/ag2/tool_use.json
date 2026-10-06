@@ -4,6 +4,9 @@
  "scenario": "tool_use",
  "fixtures": [
   "ag2/native/tool_use",
+  "ag2/native@1.0.2/tool_use",
+  "ag2/native@1.0.3/tool_use",
+  "ag2/native@1.0.4/tool_use",
   "ag2/sdk/tool_use"
  ],
  "source": {

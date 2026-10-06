@@ -1,0 +1,139 @@
+# The historical agentscope releases this suite is replayed against; see `python -m harness matrix --help`
+# and docs/engineering/framework-versions.md. AgentScope writes its own semconv spans, so its release history is the window.
+[matrix]
+package = "agentscope"
+since = "2025-10-05"
+resolved-before = "2026-10-05T00:00:00Z"
+probes = ["tool_use", "streaming"]
+scenarios = ["tool_use", "streaming"]
+
+# Each variant is the newest release of one telemetry class in `versions.census.json`.
+[[variant]]
+version = "2.0.6"
+withheld = { tool_use = "2.0.6 writes no gen_ai.input.messages on its chat spans, so the user's turn is only on the invoke_agent span and the trace view orders it after the reply, which the golden invariants refuse; recorded once the reconstruction places it (rule-language backlog 156).", streaming = "2.0.6 writes no gen_ai.input.messages on its chat spans, so the user's turn is only on the invoke_agent span and the trace view orders it after the reply, which the golden invariants refuse; recorded once the reconstruction places it (rule-language backlog 156)." }
+doc = "2.0.6: the earliest release that uses the client the suite gives it; chat spans carry gen_ai.output.messages but no gen_ai.input.messages."
+
+[[variant]]
+version = "2.0.9"
+current = true
+doc = "2.0.7 onwards: message JSON changes inside the same carriers. The suite's locked release; its fixtures are the ordinary capture."
+
+[[exempt]]
+version = "1.0.6"
+reason = "The 1.x line predates the AgentScope 2.0 rewrite the suite is written against, and imports packages it does not declare (greenlet, tqdm, an MCP client the current mcp no longer has)."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "1.0.7"
+reason = "The 1.x line predates the AgentScope 2.0 rewrite the suite is written against, and imports packages it does not declare (greenlet, tqdm, an MCP client the current mcp no longer has)."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "1.0.8"
+reason = "The 1.x line predates the AgentScope 2.0 rewrite the suite is written against, and imports packages it does not declare (greenlet, tqdm, an MCP client the current mcp no longer has)."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "1.0.9"
+reason = "The 1.x line predates the AgentScope 2.0 rewrite the suite is written against, and imports packages it does not declare (greenlet, tqdm, an MCP client the current mcp no longer has)."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "1.0.10"
+reason = "The 1.x line predates the AgentScope 2.0 rewrite the suite is written against, and imports packages it does not declare (greenlet, tqdm, an MCP client the current mcp no longer has)."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "1.0.11"
+reason = "The 1.x line predates the AgentScope 2.0 rewrite the suite is written against, and imports packages it does not declare (greenlet, tqdm, an MCP client the current mcp no longer has)."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "1.0.12"
+reason = "The 1.x line predates the AgentScope 2.0 rewrite the suite is written against, and imports packages it does not declare (greenlet, tqdm, an MCP client the current mcp no longer has)."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "1.0.13"
+reason = "The 1.x line predates the AgentScope 2.0 rewrite the suite is written against, and imports packages it does not declare (greenlet, tqdm, an MCP client the current mcp no longer has)."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "1.0.14"
+reason = "The 1.x line predates the AgentScope 2.0 rewrite the suite is written against, and imports packages it does not declare (greenlet, tqdm, an MCP client the current mcp no longer has)."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "1.0.15"
+reason = "The 1.x line predates the AgentScope 2.0 rewrite the suite is written against, and imports packages it does not declare (greenlet, tqdm, an MCP client the current mcp no longer has)."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "1.0.16"
+reason = "The 1.x line predates the AgentScope 2.0 rewrite the suite is written against, and imports packages it does not declare (greenlet, tqdm, an MCP client the current mcp no longer has)."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "1.0.17"
+reason = "The 1.x line predates the AgentScope 2.0 rewrite the suite is written against, and imports packages it does not declare (greenlet, tqdm, an MCP client the current mcp no longer has)."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "1.0.18"
+reason = "The 1.x line predates the AgentScope 2.0 rewrite the suite is written against, and imports packages it does not declare (greenlet, tqdm, an MCP client the current mcp no longer has)."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "1.0.19"
+reason = "The 1.x line predates the AgentScope 2.0 rewrite the suite is written against, and imports packages it does not declare (greenlet, tqdm, an MCP client the current mcp no longer has)."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "1.0.19.post1"
+reason = "The 1.x line predates the AgentScope 2.0 rewrite the suite is written against, and imports packages it does not declare (greenlet, tqdm, an MCP client the current mcp no longer has)."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "1.0.20"
+reason = "The 1.x line predates the AgentScope 2.0 rewrite the suite is written against, and imports packages it does not declare (greenlet, tqdm, an MCP client the current mcp no longer has)."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "1.0.21"
+reason = "The 1.x line predates the AgentScope 2.0 rewrite the suite is written against, and imports packages it does not declare (greenlet, tqdm, an MCP client the current mcp no longer has)."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "2.0.0"
+reason = "Ignores the Anthropic client the suite assigns to the model and builds its own for api.anthropic.com, which replay cannot answer; the model's client became assignable in 2.0.6."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "2.0.1"
+reason = "Ignores the Anthropic client the suite assigns to the model and builds its own for api.anthropic.com, which replay cannot answer; the model's client became assignable in 2.0.6."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "2.0.2"
+reason = "Ignores the Anthropic client the suite assigns to the model and builds its own for api.anthropic.com, which replay cannot answer; the model's client became assignable in 2.0.6."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "2.0.3"
+reason = "Ignores the Anthropic client the suite assigns to the model and builds its own for api.anthropic.com, which replay cannot answer; the model's client became assignable in 2.0.6."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "2.0.4"
+reason = "Ignores the Anthropic client the suite assigns to the model and builds its own for api.anthropic.com, which replay cannot answer; the model's client became assignable in 2.0.6."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "2.0.4.post1"
+reason = "Ignores the Anthropic client the suite assigns to the model and builds its own for api.anthropic.com, which replay cannot answer; the model's client became assignable in 2.0.6."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "2.0.5"
+reason = "Ignores the Anthropic client the suite assigns to the model and builds its own for api.anthropic.com, which replay cannot answer; the model's client became assignable in 2.0.6."
+revisit = "2027-01-05"

@@ -4,6 +4,7 @@
  "scenario": "tool_use",
  "fixtures": [
   "semantic-kernel/native/tool_use",
+  "semantic-kernel/native@1.37.1/tool_use",
   "semantic-kernel/sdk/tool_use"
  ],
  "source": {

@@ -4,6 +4,9 @@
  "scenario": "streaming",
  "fixtures": [
   "ag2/native/streaming",
+  "ag2/native@1.0.2/streaming",
+  "ag2/native@1.0.3/streaming",
+  "ag2/native@1.0.4/streaming",
   "ag2/sdk/streaming"
  ],
  "source": {

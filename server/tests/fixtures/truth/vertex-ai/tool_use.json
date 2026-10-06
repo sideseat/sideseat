@@ -4,6 +4,9 @@
  "scenario": "tool_use",
  "fixtures": [
   "vertex-ai/native/tool_use",
+  "vertex-ai/native@0.7b1+semconv-latest/tool_use",
+  "vertex-ai/native@1.0b1/tool_use",
+  "vertex-ai/native@1.1b1/tool_use",
   "vertex-ai/sdk/tool_use"
  ],
  "source": {

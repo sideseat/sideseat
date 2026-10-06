@@ -127,6 +127,37 @@ The `gen_ai_latest_experimental` opt-in changes nothing in any of them. The prov
 packages release in lockstep and import the core's internals, so they resolve as of each core release's day.
 The weekly pre-1.0 betas are not covered.
 
+**OpenTelemetry's Google GenAI instrumentation** behind the `google-genai` suite (9 beta releases since
+2025-10-05, with and without the opt-in; 6 classes). The Google GenAI client resolves as of each release's day
+(`era`), because 0.4b0 - 0.7b0 do not instrument the 2.x client the suite locks. Without the opt-in, 0.4b0 -
+0.7b1 write the conversation only as GenAI log events, which Logfire's documented setup does not export, so
+those captures are withheld; opted in, 0.4b0 - 0.6b0 put `gen_ai.input.messages` / `output.messages` /
+`system_instructions` on the model span and 0.7b0 - 0.7b1 add `gen_ai.tool.definitions`; 1.0b1 is rewritten
+on `opentelemetry-util-genai` (chat operations, `gen_ai.tool.call.arguments` / `.result`) with or without the
+opt-in; 1.1 changes message JSON; 1.2b0 returns to `generate_content` operations. The `vertex-ai` suite shows
+the same classes from 0.7b1 on; 0.4b0 - 0.7b0 are exempt there, because the client of their day has no
+Vertex AI (`enterprise`) mode.
+
+**OpenTelemetry's botocore instrumentation** behind the `bedrock` suite (11 releases, 2 classes): 0.64b0
+onwards differ from 0.59b0 - 0.63b1 only by the SDK's `service.instance.id` resource attribute; the opt-in
+changes nothing.
+
+**Semantic Kernel** (17 releases, 2 classes): 1.37.1 names its model spans `chat.completions` /
+`chat.streaming_completions`, 1.38 onwards `chat`.
+
+**AG2** (27 releases, 4 classes): 1.0.3 adds `record_usage` spans; 1.0.4 and 1.0.5 change message JSON. The
+0.10 - 0.14 releases are exempt: before 1.0 AG2 is imported as `autogen`.
+
+**AgentScope** (31 releases, 2 classes): 2.0.6 writes no `gen_ai.input.messages` on its chat spans, so the
+user's turn is only on the agent span and the trace view orders it after the reply; its captures are withheld
+until the reconstruction places it. 1.x predates the 2.0 rewrite the suite is written against, and 2.0.0 -
+2.0.5 ignore the client the suite assigns and call api.anthropic.com, so both are exempt.
+
+**opentelemetry-haystack** has one release in the window, the suite's own.
+
+Replay gives the scenario an HTTP proxy that refuses everything but loopback, so a release that ignores the
+client it is given (AgentScope 2.0.0 - 2.0.5) fails locally instead of reaching a provider's public API.
+
 ### Not yet covered by the matrix
 
 - **Live captures needed:** any release whose model traffic differs from the committed cassettes in call
