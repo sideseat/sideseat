@@ -78,7 +78,8 @@ The current tracked corpus contains **161 suites, 923 samples, and 1224 captured
 - a credential-free Google ADK for Go 1.8.0 pair over all eleven scenarios, whose conversation arrives
   only as GenAI log events and is not yet reconstructed (ledgered under `rv2/*/adk-go`);
 - JVM suites captured live on Claude Sonnet 5.5 through Bedrock, each beside SideSeat's OpenTelemetry
-  recipe: Koog 1.3.0 (chat, tool use, a failing tool, sessions, a delegating agent), LangChain4j 1.21.0
+  recipe: Google ADK for Java 1.11.0 with its Claude model (seven scenarios), Koog 1.3.0 (chat, tool use, a
+  failing tool, sessions, a delegating agent), LangChain4j 1.21.0
   with OpenInference (eight scenarios), and Spring AI 2.0.1 with OpenInference (eight scenarios, where the
   instrumentor records only the first of several tool results in one message);
 - a credential-free TraceLoop SDK 0.62.4 / OpenAI 3.22.1 pair covering retained history,

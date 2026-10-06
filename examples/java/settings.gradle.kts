@@ -10,6 +10,7 @@ dependencyResolutionManagement {
 }
 
 include("harness")
+include("adk")
 include("koog")
 include("langchain4j")
 include("spring-ai")

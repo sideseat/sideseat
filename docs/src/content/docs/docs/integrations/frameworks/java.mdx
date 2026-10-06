@@ -1,6 +1,6 @@
 ---
 title: Java and Kotlin
-description: Send Spring AI, LangChain4j and Koog telemetry to SideSeat with plain OpenTelemetry.
+description: Send Spring AI, LangChain4j, Google ADK and Koog telemetry to SideSeat with plain OpenTelemetry.
 ---
 
 There is no SideSeat SDK for the JVM: JVM frameworks trace through OpenTelemetry, and SideSeat reads OTLP.
@@ -62,6 +62,20 @@ var assistant = AiServices.builder(Assistant.class)
     .registerListeners(instrumentor.createAiServiceListeners())
     .build();
 ```
+
+## Google ADK
+
+ADK for Java traces itself through the global OpenTelemetry instance, so register the recipe's SDK globally
+before the first agent runs:
+
+```java
+OpenTelemetrySdk sdk = /* the recipe's SDK, with sideseat.framework=google-adk on the resource */;
+GlobalOpenTelemetry.set(sdk);
+```
+
+ADK records each model request and response (`gcp.vertex.agent.llm_request` / `llm_response`) and every
+tool call, which SideSeat reads with the same rules as the Python ADK. Message content is captured unless
+`ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS=false`.
 
 ## Koog
 

@@ -10,6 +10,9 @@ koog = "1.3.0"
 kotlinx-coroutines = "1.11.0"
 opentelemetry = "1.66.0"
 jackson = "2.22.3"
+adk = "1.11.0"
+# The Anthropic SDK release ADK's Claude model is built against; the Bedrock backend must match it.
+anthropic = "2.15.0"
 
 [libraries]
 spring-ai-bedrock-converse = { module = "org.springframework.ai:spring-ai-bedrock-converse", version.ref = "spring-ai" }
@@ -27,6 +30,8 @@ koog-bedrock = { module = "ai.koog:prompt-executor-bedrock-client-jvm", version.
 opentelemetry-bom = { module = "io.opentelemetry:opentelemetry-bom", version.ref = "opentelemetry" }
 opentelemetry-sdk = { module = "io.opentelemetry:opentelemetry-sdk" }
 opentelemetry-exporter-otlp = { module = "io.opentelemetry:opentelemetry-exporter-otlp" }
+adk = { module = "com.google.adk:google-adk", version.ref = "adk" }
+anthropic-bedrock = { module = "com.anthropic:anthropic-java-bedrock", version.ref = "anthropic" }
 jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
 
 [plugins]

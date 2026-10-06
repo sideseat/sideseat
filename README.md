@@ -68,7 +68,7 @@ AgentScope, Haystack, Browser Use, Logfire, TraceLoop, OpenInference, Langfuse, 
 
 **Go:** Genkit, through plain OpenTelemetry and the [Go recipe](https://sideseat.ai/docs/integrations/frameworks/go/).
 
-**Java and Kotlin:** Spring AI and LangChain4j through OpenInference, and Koog, with plain OpenTelemetry and
+**Java and Kotlin:** Spring AI and LangChain4j through OpenInference, and Google ADK and Koog, with plain OpenTelemetry and
 the [JVM recipe](https://sideseat.ai/docs/integrations/frameworks/java/).
 
 **Coding agents:** Claude Code, OpenAI Codex CLI.

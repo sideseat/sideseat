@@ -79,7 +79,8 @@ plain OpenTelemetry, natively and under the recipe in `docs/src/content/docs/doc
 | Spring AI | 2.0.1 | OpenInference Spring AI 0.1.10 | `spring-ai` |
 | LangChain4j | 1.21.0 | OpenInference LangChain4j 0.1.9 | `langchain4j` |
 | Koog | 1.3.0 | its own OpenTelemetry feature | `koog` |
-| Google ADK for Java, Semantic Kernel for Java | 1.11.0, 1.5.0 | their own | none yet |
+| Google ADK for Java | 1.11.0 | its own tracing | `adk-java` (Claude on Bedrock through ADK's Claude model) |
+| Semantic Kernel for Java | 1.5.0 | its own | rejected for now: its spans carry model and usage attributes but no prompt, completion or tool content, and it has no Bedrock or Anthropic connector (Bedrock's OpenAI-compatible endpoint serves no Claude model and refuses function tools for GPT-6.1 on Chat Completions) |
 
 ## Gaps, in the order to close them
 

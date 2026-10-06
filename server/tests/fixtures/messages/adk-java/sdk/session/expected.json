@@ -1,0 +1,271 @@
+{
+  "label": "adk-java/sdk/session",
+  "request_count": 1,
+  "span_count": 8,
+  "trace_count": 2,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/call_llm/span-4": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one museum to visit in Madrid.",
+          "content_digest": "9d08c76a1df2d525",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'd recommend the **Museo del Prado**, Spain's premier art museum, featuring masterpieces by Velázquez (*Las Meninas*), Goya, and El Greco. It's located in the heart of Madrid's \"Golden Triangle of Art,\" so you can easily pair it with the R…[396 chars]",
+          "content_digest": "a1fc44cf91f181b3",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/invocation/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/invoke_agent assistant/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/session-turn-1/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/call_llm/span-4": {
+      "message_count": 4,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one museum to visit in Madrid.",
+          "content_digest": "9d08c76a1df2d525",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'd recommend the **Museo del Prado**, Spain's premier art museum, featuring masterpieces by Velázquez (*Las Meninas*), Goya, and El Greco. It's located in the heart of Madrid's \"Golden Triangle of Art,\" so you can easily pair it with the R…[396 chars]",
+          "content_digest": "a1fc44cf91f181b3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one park to visit in Madrid.",
+          "content_digest": "95fac62b5ab37eb3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'd recommend **Retiro Park (Parque del Buen Retiro)**, a sprawling green oasis right in central Madrid, just a short walk from the Prado. Highlights include the Crystal Palace, the boating lake beneath the Alfonso XII monument, and the pea…[359 chars]",
+          "content_digest": "14509de7737e794e",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2/invocation/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/invoke_agent assistant/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-2/session-turn-2/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one museum to visit in Madrid.",
+          "content_digest": "9d08c76a1df2d525",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'd recommend the **Museo del Prado**, Spain's premier art museum, featuring masterpieces by Velázquez (*Las Meninas*), Goya, and El Greco. It's located in the heart of Madrid's \"Golden Triangle of Art,\" so you can easily pair it with the R…[396 chars]",
+          "content_digest": "a1fc44cf91f181b3",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-2": {
+      "message_count": 2,
+      "role_sequence": [
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one park to visit in Madrid.",
+          "content_digest": "95fac62b5ab37eb3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'd recommend **Retiro Park (Parque del Buen Retiro)**, a sprawling green oasis right in central Madrid, just a short walk from the Prado. Highlights include the Crystal Palace, the boating lake beneath the Alfonso XII monument, and the pea…[359 chars]",
+          "content_digest": "14509de7737e794e",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "adk-java-session": {
+      "message_count": 4,
+      "role_sequence": [
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one museum to visit in Madrid.",
+          "content_digest": "9d08c76a1df2d525",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'd recommend the **Museo del Prado**, Spain's premier art museum, featuring masterpieces by Velázquez (*Las Meninas*), Goya, and El Greco. It's located in the heart of Madrid's \"Golden Triangle of Art,\" so you can easily pair it with the R…[396 chars]",
+          "content_digest": "a1fc44cf91f181b3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one park to visit in Madrid.",
+          "content_digest": "95fac62b5ab37eb3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "I'd recommend **Retiro Park (Parque del Buen Retiro)**, a sprawling green oasis right in central Madrid, just a short walk from the Prado. Highlights include the Crystal Palace, the boating lake beneath the Alfonso XII monument, and the pea…[359 chars]",
+          "content_digest": "14509de7737e794e",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 4,
+    "role_sequence": [
+      "user",
+      "assistant",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Suggest one park to visit in Madrid.",
+        "content_digest": "95fac62b5ab37eb3",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "I'd recommend **Retiro Park (Parque del Buen Retiro)**, a sprawling green oasis right in central Madrid, just a short walk from the Prado. Highlights include the Crystal Palace, the boating lake beneath the Alfonso XII monument, and the pea…[359 chars]",
+        "content_digest": "14509de7737e794e",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Suggest one museum to visit in Madrid.",
+        "content_digest": "9d08c76a1df2d525",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "I'd recommend the **Museo del Prado**, Spain's premier art museum, featuring masterpieces by Velázquez (*Las Meninas*), Goya, and El Greco. It's located in the heart of Madrid's \"Golden Triangle of Art,\" so you can easily pair it with the R…[396 chars]",
+        "content_digest": "a1fc44cf91f181b3",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

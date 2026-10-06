@@ -1,0 +1,6 @@
+{
+  "producer": "adk-java",
+  "integrations": ["google-adk"],
+  "service-name": "adk-java",
+  "default-model": "claude"
+}
