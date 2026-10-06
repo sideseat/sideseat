@@ -10,7 +10,7 @@
 mod maintenance;
 mod survivor_references;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -275,6 +275,22 @@ impl SpanStore for DuckdbRepository {
         let records = records.to_vec();
         DuckdbService::run_query(move || {
             query::spans_match_content(&db.conn(), &project_id, &records)
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
+    }
+
+    async fn spans_with_matching_content(
+        &self,
+        project_id: &ProjectId,
+        records: &[(String, String, String)],
+    ) -> Result<HashSet<(String, String, String)>, DataError> {
+        let db = Arc::clone(&self.0);
+        let project_id = project_id.to_string();
+        let records = records.to_vec();
+        DuckdbService::run_query(move || {
+            query::spans_with_matching_content(&db.conn(), &project_id, &records)
         })
         .await
         .map_err(DataError::from)?

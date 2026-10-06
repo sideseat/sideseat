@@ -3,7 +3,7 @@
 //! This module implements the AnalyticsRepository trait for Arc<ClickhouseService>.
 //! ClickHouse operations are natively async so no spawn_blocking needed.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -230,6 +230,20 @@ impl SpanStore for ClickhouseRepository {
             self,
             project_id,
             query::spans_match_content,
+            project_id.as_str(),
+            records
+        )
+    }
+
+    async fn spans_with_matching_content(
+        &self,
+        project_id: &ProjectId,
+        records: &[(String, String, String)],
+    ) -> Result<HashSet<(String, String, String)>, DataError> {
+        tenant_query!(
+            self,
+            project_id,
+            query::spans_with_matching_content,
             project_id.as_str(),
             records
         )

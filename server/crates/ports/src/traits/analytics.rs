@@ -161,6 +161,15 @@ pub trait SpanStore: Send + Sync {
         project_id: &ProjectId,
         records: &[(String, String, String)],
     ) -> Result<bool, DataError>;
+
+    /// The `(trace_id, span_id, content_digest)` records whose winning revision carries exactly that digest,
+    /// in one read for the whole batch. The digest is part of the answer because a batch may carry two
+    /// revisions of one span, and only the one matching the stored winner is a redelivery.
+    async fn spans_with_matching_content(
+        &self,
+        project_id: &ProjectId,
+        records: &[(String, String, String)],
+    ) -> Result<HashSet<(String, String, String)>, DataError>;
 }
 
 /// Metric writes and the read API over winning datapoint revisions.

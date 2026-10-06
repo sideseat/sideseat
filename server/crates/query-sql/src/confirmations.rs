@@ -20,34 +20,90 @@ pub fn spans(
     if records.is_empty() {
         return None;
     }
-    let tuples = std::iter::repeat_n("(?, ?, ?)", records.len())
+    let expected = records.len() as u64;
+    let query = winning_spans_with_digest(project_id, &records, "count()", backend);
+    Some(ConfirmationQuery { query, expected })
+}
+
+/// The `(trace_id, span_id, content_digest)` records whose winning revision carries exactly that digest.
+///
+/// One query for a whole batch. The redelivery check used [`spans`] for the batch and fell back to one
+/// query per span whenever the batch was mixed - which is every batch of new spans - so a request of N
+/// spans ran N+1 queries, each over the whole table.
+pub fn matching_spans(
+    project_id: &str,
+    records: &[(String, String, String)],
+    backend: Backend,
+) -> Option<ParameterizedQuery> {
+    let records: BTreeSet<_> = records.iter().cloned().collect();
+    if records.is_empty() {
+        return None;
+    }
+    Some(winning_spans_with_digest(
+        project_id,
+        &records,
+        "trace_id, span_id, content_digest",
+        backend,
+    ))
+}
+
+/// `SELECT {select}` over the winning revisions of the requested identities whose digest matches.
+///
+/// DuckDB selects winners **after** restricting to the requested identities and only the three columns the
+/// comparison needs. Ranking first, as this did, numbered every revision of every span in the table and
+/// materialised all of their columns, so each confirmation cost time proportional to the whole table. The
+/// winner of an identity depends only on that identity's revisions, so filtering first is the same answer.
+/// ClickHouse's `FINAL` already merges per sorting key, and the identities are a prefix of it.
+fn winning_spans_with_digest(
+    project_id: &str,
+    records: &BTreeSet<(String, String, String)>,
+    select: &str,
+    backend: Backend,
+) -> ParameterizedQuery {
+    let triples = std::iter::repeat_n("(?, ?, ?)", records.len())
         .collect::<Vec<_>>()
         .join(", ");
+    let mut params = vec![QueryValue::String(project_id.to_string())];
     let source = match backend {
         Backend::Duckdb => {
-            "(SELECT * FROM otel_spans QUALIFY ROW_NUMBER() OVER (\
-             PARTITION BY project_id, trace_id, span_id \
-             ORDER BY ingested_at DESC, rowid DESC) = 1)"
+            let identities: BTreeSet<_> = records
+                .iter()
+                .map(|(trace_id, span_id, _)| (trace_id, span_id))
+                .collect();
+            let pairs = std::iter::repeat_n("(?, ?)", identities.len())
+                .collect::<Vec<_>>()
+                .join(", ");
+            for (trace_id, span_id) in identities {
+                params.push(QueryValue::String(trace_id.clone()));
+                params.push(QueryValue::String(span_id.clone()));
+            }
+            format!(
+                "(SELECT trace_id, span_id, content_digest FROM otel_spans \
+                 WHERE project_id = ? AND (trace_id, span_id) IN ({pairs}) \
+                 QUALIFY ROW_NUMBER() OVER (\
+                 PARTITION BY trace_id, span_id ORDER BY ingested_at DESC, rowid DESC) = 1)"
+            )
         }
-        Backend::Clickhouse => "otel_spans FINAL",
+        Backend::Clickhouse => "otel_spans FINAL".to_string(),
     };
-    let mut params = vec![QueryValue::String(project_id.to_string())];
-    for (trace_id, span_id, digest) in &records {
+    // The project bind is first in both: DuckDB consumes it inside the subquery, ClickHouse here.
+    let filter = match backend {
+        Backend::Duckdb => "",
+        Backend::Clickhouse => "project_id = ? AND ",
+    };
+    for (trace_id, span_id, digest) in records {
         params.push(QueryValue::String(trace_id.clone()));
         params.push(QueryValue::String(span_id.clone()));
         params.push(QueryValue::String(digest.clone()));
     }
-    Some(ConfirmationQuery {
-        query: ParameterizedQuery::new(
-            format!(
-                "SELECT count() FROM {source} \
-                 WHERE project_id = ? AND (trace_id, span_id, content_digest) IN ({tuples}){}",
-                sequential_consistency(backend)
-            ),
-            params,
+    ParameterizedQuery::new(
+        format!(
+            "SELECT {select} FROM {source} \
+             WHERE {filter}(trace_id, span_id, content_digest) IN ({triples}){}",
+            sequential_consistency(backend)
         ),
-        expected: records.len() as u64,
-    })
+        params,
+    )
 }
 
 pub fn metrics(
@@ -153,5 +209,24 @@ mod tests {
                 .ends_with("SETTINGS select_sequential_consistency = 1")
         );
         assert_eq!(query.query.params().len(), 4);
+    }
+    /// DuckDB ranks only the requested identities' revisions: ranking the whole table first made every
+    /// confirmation cost time proportional to everything ever stored.
+    #[test]
+    fn duckdb_selects_winners_after_restricting_to_the_requested_identities() {
+        let records = vec![
+            ("t".to_string(), "a".to_string(), "d1".to_string()),
+            ("t".to_string(), "a".to_string(), "d2".to_string()),
+            ("t".to_string(), "b".to_string(), "d3".to_string()),
+        ];
+        let query = matching_spans("project", &records, Backend::Duckdb).unwrap();
+        let sql = query.sql();
+        let filter = sql.find("(trace_id, span_id) IN").unwrap();
+        let rank = sql.find("ROW_NUMBER()").unwrap();
+        assert!(filter < rank, "{sql}");
+        assert!(!sql.contains("SELECT *"), "{sql}");
+        // project + two distinct identities + three triples
+        assert_eq!(query.params().len(), 1 + 2 * 2 + 3 * 3);
+        assert!(sql.starts_with("SELECT trace_id, span_id, content_digest FROM"));
     }
 }

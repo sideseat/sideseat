@@ -441,29 +441,17 @@ impl TracePipeline {
                 .collect::<Vec<_>>();
             match self
                 .analytics
-                .spans_match_content(&project_id, &digests)
+                .spans_with_matching_content(&project_id, &digests)
                 .await
             {
-                Ok(true) => exact.extend(records.into_iter().map(|(index, _, _, _)| index)),
-                Ok(false) => {
-                    for (index, trace, span, digest) in records {
-                        match self
-                            .analytics
-                            .spans_match_content(&project_id, &[(trace, span, digest)])
-                            .await
-                        {
-                            Ok(true) => {
-                                exact.insert(index);
-                            }
-                            Ok(false) => {}
-                            Err(error) => tracing::warn!(
-                                %error,
-                                %project_id,
-                                "Could not check an exact span redelivery; preserving the revision"
-                            ),
-                        }
-                    }
-                }
+                Ok(matching) => exact.extend(
+                    records
+                        .into_iter()
+                        .filter(|(_, trace, span, digest)| {
+                            matching.contains(&(trace.clone(), span.clone(), digest.clone()))
+                        })
+                        .map(|(index, _, _, _)| index),
+                ),
                 Err(error) => tracing::warn!(
                     %error,
                     %project_id,

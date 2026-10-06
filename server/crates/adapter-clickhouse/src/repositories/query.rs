@@ -4,6 +4,8 @@
 
 mod rows;
 
+use std::collections::HashSet;
+
 use chrono::{DateTime, Utc};
 use clickhouse::{Client, Row};
 use serde::Deserialize;
@@ -36,6 +38,22 @@ pub async fn spans_match_content(
         .fetch_one()
         .await?;
     Ok(found == plan.expected)
+}
+
+pub async fn spans_with_matching_content(
+    client: &Client,
+    project_id: &str,
+    records: &[(String, String, String)],
+) -> Result<HashSet<(String, String, String)>, ClickhouseError> {
+    let Some(query) = confirmations::matching_spans(project_id, records, Backend::Clickhouse)
+    else {
+        return Ok(HashSet::new());
+    };
+    let rows: Vec<(String, String, String)> =
+        bind_analytics_values(client.query(query.sql()), query.params())
+            .fetch_all()
+            .await?;
+    Ok(rows.into_iter().collect())
 }
 
 /// Builder for constructing parameterized SQL WHERE clauses.

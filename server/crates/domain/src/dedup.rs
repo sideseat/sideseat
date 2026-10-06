@@ -5,7 +5,7 @@
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use sideseat_ports::error::DataError;
 use sideseat_ports::traits::{
@@ -135,6 +135,16 @@ impl SpanStore for DedupAnalyticsRepository {
         records: &[(String, String, String)],
     ) -> Result<bool, DataError> {
         self.inner.spans_match_content(project_id, records).await
+    }
+
+    async fn spans_with_matching_content(
+        &self,
+        project_id: &ProjectId,
+        records: &[(String, String, String)],
+    ) -> Result<HashSet<(String, String, String)>, DataError> {
+        self.inner
+            .spans_with_matching_content(project_id, records)
+            .await
     }
 }
 

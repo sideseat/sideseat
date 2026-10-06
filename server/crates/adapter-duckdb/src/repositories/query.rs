@@ -2,6 +2,8 @@
 
 mod rows;
 
+use std::collections::HashSet;
+
 use chrono::{DateTime, Utc};
 use duckdb::{Connection, Row};
 
@@ -288,6 +290,22 @@ pub fn spans_match_content(
     let values = duckdb_values(plan.query.params());
     let found: i64 = conn.query_row(plan.query.sql(), values.as_slice(), |row| row.get(0))?;
     Ok(found as u64 == plan.expected)
+}
+
+pub fn spans_with_matching_content(
+    conn: &Connection,
+    project_id: &str,
+    records: &[(String, String, String)],
+) -> Result<HashSet<(String, String, String)>, DuckdbError> {
+    let Some(query) = confirmations::matching_spans(project_id, records, Backend::Duckdb) else {
+        return Ok(HashSet::new());
+    };
+    let values = duckdb_values(query.params());
+    let mut statement = conn.prepare(query.sql())?;
+    let rows = statement.query_map(values.as_slice(), |row| {
+        Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+    })?;
+    Ok(rows.collect::<Result<_, _>>()?)
 }
 
 // --- Delete operations ---
