@@ -369,8 +369,7 @@ impl TracePipeline {
                 payload.signal
             ));
         }
-        let request = ExportTraceServiceRequest::decode(bytes.as_slice())
-            .map_err(|error| format!("staged trace protobuf is invalid: {error}"))?;
+        let request = crate::received::staged_traces(&bytes, payload.project_id.as_str())?;
         Ok(Some((payload, request)))
     }
 

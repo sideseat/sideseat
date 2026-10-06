@@ -122,6 +122,8 @@ pub enum PersistOutcome {
 /// Inputs shared by the two OTLP transports after framing and authorization.
 pub struct SignalContext<'a> {
     pub project_id: &'a str,
+    /// The body as received: what staging holds, rather than a re-encoding of the mutated request.
+    pub received: &'a crate::received::ReceivedPayload,
     pub debug_path: Option<&'a Path>,
     pub clock: &'a dyn Clock,
     pub staging: &'a StagingService,
@@ -196,7 +198,7 @@ pub async fn export_signal<S: Signal>(
         );
         return Err(SignalExportError::StoreUnavailable);
     }
-    let encoded = request.encode_to_vec();
+    let encoded = context.received.staged();
     context
         .storage_governance
         .admit(
@@ -873,7 +875,7 @@ fn storable_nanos(value: u64) -> bool {
         ))
 }
 
-fn strip_unstorable_metrics(request: &mut ExportMetricsServiceRequest) -> usize {
+pub(crate) fn strip_unstorable_metrics(request: &mut ExportMetricsServiceRequest) -> usize {
     let mut removed = 0usize;
     for resource in &mut request.resource_metrics {
         for scope in &mut resource.scope_metrics {
@@ -926,7 +928,7 @@ fn strip_unstorable_metrics(request: &mut ExportMetricsServiceRequest) -> usize 
     removed
 }
 
-fn strip_unstorable_logs(request: &mut ExportLogsServiceRequest) -> usize {
+pub(crate) fn strip_unstorable_logs(request: &mut ExportLogsServiceRequest) -> usize {
     let mut removed = 0usize;
     for resource in &mut request.resource_logs {
         for scope in &mut resource.scope_logs {

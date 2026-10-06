@@ -129,6 +129,24 @@ pub fn encode(raw: &[u8], content: RawContent) -> EncodedRaw {
     }
 }
 
+/// A record of the received payload with nothing cut out.
+///
+/// What a durability buffer holds before the media can be stored: it is the same format, so a reader of one
+/// reads the other, and it is never the stored raw record - see [`encode`].
+pub fn wrap(raw: &[u8], content: RawContent) -> Vec<u8> {
+    let mut record = Vec::with_capacity(raw.len() + MAGIC.len() + 2);
+    record.extend_from_slice(MAGIC);
+    record.push(content.tag());
+    put_varint(&mut record, 0);
+    record.extend_from_slice(raw);
+    record
+}
+
+/// Whether bytes are a raw record, as opposed to a payload staged before raw records existed.
+pub fn is_record(bytes: &[u8]) -> bool {
+    bytes.len() > MAGIC.len() && &bytes[..MAGIC.len()] == MAGIC
+}
+
 /// The media hashes a record references, in order of first appearance, without decoding the payload.
 pub fn media_hashes(record: &[u8]) -> Result<Vec<[u8; 32]>, RawPayloadError> {
     let header = Header::parse(record)?;
@@ -380,6 +398,19 @@ mod tests {
         assert_eq!(
             decode(&truncated, |_| None),
             Err(RawPayloadError::Malformed)
+        );
+    }
+
+    #[test]
+    fn a_wrapped_payload_is_a_record_without_media() {
+        let raw = format!("x{}", STANDARD.encode(image(5, 900)));
+        let wrapped = wrap(raw.as_bytes(), RawContent::Json);
+        assert!(is_record(&wrapped));
+        assert!(!is_record(raw.as_bytes()));
+        assert!(media_hashes(&wrapped).unwrap().is_empty());
+        assert_eq!(
+            decode(&wrapped, |_| None).unwrap(),
+            (RawContent::Json, raw.into_bytes())
         );
     }
 

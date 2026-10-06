@@ -44,6 +44,14 @@ impl OtlpContentType {
         }
     }
 
+    /// How the raw record names this encoding.
+    pub fn raw_content(self) -> sideseat_domain::raw_payload::RawContent {
+        match self {
+            OtlpContentType::Protobuf => sideseat_domain::raw_payload::RawContent::Protobuf,
+            OtlpContentType::Json => sideseat_domain::raw_payload::RawContent::Json,
+        }
+    }
+
     #[inline]
     fn decode_error_message(self) -> &'static str {
         match self {

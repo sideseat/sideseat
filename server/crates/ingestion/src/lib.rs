@@ -5,6 +5,7 @@ pub mod logs;
 mod message_events;
 pub mod metrics;
 pub mod otlp;
+pub mod received;
 pub mod signals;
 pub mod staging;
 pub mod traces;

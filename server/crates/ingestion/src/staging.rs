@@ -9,10 +9,6 @@
 use std::sync::Arc;
 
 use chrono::TimeDelta;
-use opentelemetry_proto::tonic::collector::{
-    logs::v1::ExportLogsServiceRequest, metrics::v1::ExportMetricsServiceRequest,
-    trace::v1::ExportTraceServiceRequest,
-};
 use prost::Message;
 use sideseat_core::config::RetentionConfig;
 use sideseat_ports::blobs::{FileStorage, FileStorageError};
@@ -290,22 +286,24 @@ impl StagingService {
                 continue;
             };
             let write_ok = match current.signal {
-                StagedSignal::Traces => match ExportTraceServiceRequest::decode(bytes.as_slice()) {
-                    Ok(request) => !matches!(
-                        trace_pipeline.ingest_now(&request).await,
-                        IngestOutcome::Failed
-                    ),
-                    Err(error) => {
-                        tracing::error!(
-                            staged_payload_id = %current.id,
-                            %error,
-                            "Could not decode a staged trace payload during redrive"
-                        );
-                        false
+                StagedSignal::Traces => {
+                    match crate::received::staged_traces(&bytes, current.project_id.as_str()) {
+                        Ok(request) => !matches!(
+                            trace_pipeline.ingest_now(&request).await,
+                            IngestOutcome::Failed
+                        ),
+                        Err(error) => {
+                            tracing::error!(
+                                staged_payload_id = %current.id,
+                                %error,
+                                "Could not decode a staged trace payload during redrive"
+                            );
+                            false
+                        }
                     }
-                },
+                }
                 StagedSignal::Metrics => {
-                    match ExportMetricsServiceRequest::decode(bytes.as_slice()) {
+                    match crate::received::staged_metrics(&bytes, current.project_id.as_str()) {
                         Ok(request) => crate::metrics::ingest(
                             &request,
                             self.analytics.as_ref(),
@@ -323,24 +321,26 @@ impl StagingService {
                         }
                     }
                 }
-                StagedSignal::Logs => match ExportLogsServiceRequest::decode(bytes.as_slice()) {
-                    Ok(request) => crate::logs::ingest(
-                        &request,
-                        self.analytics.as_ref(),
-                        self.database.as_ref(),
-                        current.created_at,
-                    )
-                    .await
-                    .is_ok(),
-                    Err(error) => {
-                        tracing::error!(
-                            staged_payload_id = %current.id,
-                            %error,
-                            "Could not decode a staged logs payload during redrive"
-                        );
-                        false
+                StagedSignal::Logs => {
+                    match crate::received::staged_logs(&bytes, current.project_id.as_str()) {
+                        Ok(request) => crate::logs::ingest(
+                            &request,
+                            self.analytics.as_ref(),
+                            self.database.as_ref(),
+                            current.created_at,
+                        )
+                        .await
+                        .is_ok(),
+                        Err(error) => {
+                            tracing::error!(
+                                staged_payload_id = %current.id,
+                                %error,
+                                "Could not decode a staged logs payload during redrive"
+                            );
+                            false
+                        }
                     }
-                },
+                }
             };
 
             if write_ok && self.settle(&current).await? != StagingDisposition::Pending {

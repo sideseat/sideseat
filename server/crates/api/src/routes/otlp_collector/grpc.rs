@@ -25,10 +25,13 @@ use opentelemetry_proto::tonic::collector::{
 };
 
 use crate::extractors::is_valid_project_id;
+use prost::Message;
 use sideseat_core::config::OtelConfig;
 use sideseat_core::constants::{OTLP_BODY_LIMIT, TOPIC_TRACES};
 use sideseat_core::storage::{AppStorage, DataSubdir};
+use sideseat_domain::raw_payload::RawContent;
 use sideseat_domain::storage_governance::StorageGovernanceService;
+use sideseat_ingestion::received::ReceivedPayload;
 use sideseat_ingestion::signals::{
     LogSignal, MetricsSignal, SignalContext, SignalExportError, TraceSignal, export_signal,
 };
@@ -376,6 +379,15 @@ impl OtlpTraceService {
     }
 }
 
+/// The payload a gRPC export is staged and stored as.
+///
+/// tonic hands over the decoded message, so this is prost's canonical encoding of it rather than the bytes on
+/// the wire: identical for the canonical encoders exporters use, but without any field prost does not know.
+/// HTTP export carries the received body itself.
+fn received_from_grpc(request: &impl Message) -> ReceivedPayload {
+    ReceivedPayload::new(request.encode_to_vec(), RawContent::Protobuf)
+}
+
 #[tonic::async_trait]
 impl TraceService for OtlpTraceService {
     async fn export(
@@ -395,11 +407,13 @@ impl TraceService for OtlpTraceService {
             return Err(Status::not_found("unknown project, or it is being deleted"));
         }
         let req = request.into_inner();
+        let received = received_from_grpc(&req);
         export_signal(
             self.signal.as_ref(),
             req,
             SignalContext {
                 project_id: &project_id,
+                received: &received,
                 debug_path: self.debug_path.as_deref(),
                 clock: self.clock.as_ref(),
                 staging: self.staging.as_ref(),
@@ -474,11 +488,13 @@ impl MetricsService for OtlpMetricsService {
             return Err(Status::not_found("unknown project, or it is being deleted"));
         }
         let req = request.into_inner();
+        let received = received_from_grpc(&req);
         export_signal(
             self.signal.as_ref(),
             req,
             SignalContext {
                 project_id: &project_id,
+                received: &received,
                 debug_path: self.debug_path.as_deref(),
                 clock: self.clock.as_ref(),
                 staging: self.staging.as_ref(),
@@ -551,11 +567,13 @@ impl LogsService for OtlpLogsService {
             return Err(Status::not_found("unknown project, or it is being deleted"));
         }
         let req = request.into_inner();
+        let received = received_from_grpc(&req);
         export_signal(
             self.signal.as_ref(),
             req,
             SignalContext {
                 project_id: &project_id,
+                received: &received,
                 debug_path: self.debug_path.as_deref(),
                 clock: self.clock.as_ref(),
                 staging: self.staging.as_ref(),

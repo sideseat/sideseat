@@ -10,6 +10,7 @@ use super::OtlpState;
 use super::encoding::{OtlpContentType, decode_request, success_response};
 use crate::extractors::is_valid_project_id;
 use sideseat_core::constants::BACKPRESSURE_RETRY_AFTER_SECS;
+use sideseat_ingestion::received::ReceivedPayload;
 use sideseat_ingestion::signals::{SignalContext, SignalExportError, export_signal};
 
 pub async fn export(
@@ -41,11 +42,14 @@ pub async fn export(
         Err(error) => return error.into_response(content_type),
     };
 
+    // The body as it arrived, for staging: the decoded request is about to be mutated.
+    let received = ReceivedPayload::new(body.to_vec(), content_type.raw_content());
     match export_signal(
         state.log_signal.as_ref(),
         request,
         SignalContext {
             project_id: &project_id,
+            received: &received,
             debug_path: state.debug_path.as_deref(),
             clock: state.clock.as_ref(),
             staging: state.staging.as_ref(),
