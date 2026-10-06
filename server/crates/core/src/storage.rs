@@ -8,12 +8,29 @@
 
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
 use directories::ProjectDirs;
+use thiserror::Error;
 
 use super::config::AppConfig;
 use super::constants::{APP_DOT_FOLDER, APP_NAME, ENV_DATA_DIR};
 use crate::utils::file::expand_path;
+
+/// Why the data directory layout could not be created.
+///
+/// The failing path is a field rather than only part of the message, because the one thing an operator
+/// does with this is look at that path: it is usually a permission or a mount, and the directory
+/// SideSeat chose is not always the one they expected.
+#[derive(Debug, Error)]
+pub enum StorageError {
+    #[error("Failed to create {what} directory: {}", path.display())]
+    CreateDirectory {
+        /// `data`, or the subdirectory's stored name.
+        what: &'static str,
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+}
 
 /// Data subdirectories
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,7 +74,7 @@ pub struct AppStorage {
 
 impl AppStorage {
     /// Initialize storage with platform-appropriate data directory
-    pub async fn init(config: &AppConfig) -> Result<Self> {
+    pub async fn init(config: &AppConfig) -> Result<Self, StorageError> {
         let data_dir = Self::resolve_data_dir();
 
         // Create directories first (canonicalize requires path to exist)
@@ -107,43 +124,21 @@ impl AppStorage {
         data_dir: &Path,
         debug: bool,
         files_enabled: bool,
-    ) -> Result<()> {
-        // Create base data directory
-        tokio::fs::create_dir_all(data_dir)
-            .await
-            .with_context(|| format!("Failed to create data directory: {}", data_dir.display()))?;
+    ) -> Result<(), StorageError> {
+        create_dir("data", data_dir.to_path_buf()).await?;
 
-        // Create subdirectories
         for subdir in DataSubdir::all() {
-            let path = data_dir.join(subdir.as_str());
-            tokio::fs::create_dir_all(&path).await.with_context(|| {
-                format!(
-                    "Failed to create {} directory: {}",
-                    subdir.as_str(),
-                    path.display()
-                )
-            })?;
+            create_dir(subdir.as_str(), data_dir.join(subdir.as_str())).await?;
         }
 
-        // Create debug directory if debug mode is enabled
+        // Debug mode only; the directory is evidence the mode was on.
         if debug {
-            let path = data_dir.join(DataSubdir::Debug.as_str());
-            tokio::fs::create_dir_all(&path)
-                .await
-                .with_context(|| format!("Failed to create debug directory: {}", path.display()))?;
+            create_dir("debug", data_dir.join(DataSubdir::Debug.as_str())).await?;
         }
 
-        // Create file storage directories if enabled
         if files_enabled {
             for subdir in DataSubdir::files() {
-                let path = data_dir.join(subdir.as_str());
-                tokio::fs::create_dir_all(&path).await.with_context(|| {
-                    format!(
-                        "Failed to create {} directory: {}",
-                        subdir.as_str(),
-                        path.display()
-                    )
-                })?;
+                create_dir(subdir.as_str(), data_dir.join(subdir.as_str())).await?;
             }
         }
 
@@ -195,6 +190,12 @@ impl AppStorage {
     }
 }
 
+async fn create_dir(what: &'static str, path: PathBuf) -> Result<(), StorageError> {
+    tokio::fs::create_dir_all(&path)
+        .await
+        .map_err(|source| StorageError::CreateDirectory { what, path, source })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -239,6 +240,27 @@ mod tests {
         let path = AppStorage::resolve_data_dir_with_override(Some("./sideseat-test-data"));
         assert!(path.is_absolute());
         assert!(path.ends_with("sideseat-test-data"));
+    }
+
+    /// The wording the `anyhow` context produced, and the I/O cause the context chain carried.
+    #[tokio::test]
+    async fn create_directory_error_keeps_the_message_and_the_cause() {
+        let root = tempfile::tempdir().unwrap();
+        let occupied = root.path().join("not-a-directory");
+        std::fs::write(&occupied, b"occupied").unwrap();
+
+        let error = create_dir("sqlite", occupied.join("sqlite"))
+            .await
+            .unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            format!(
+                "Failed to create sqlite directory: {}",
+                occupied.join("sqlite").display()
+            )
+        );
+        assert!(std::error::Error::source(&error).is_some());
     }
 
     #[test]
