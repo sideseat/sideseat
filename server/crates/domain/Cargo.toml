@@ -19,6 +19,7 @@ sideseat-ports = { path = "../ports" }
 sideseat-rule-assets = { path = "../rule-assets" }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
+base64 = { workspace = true }
 blake3 = { workspace = true }
 chrono = { workspace = true }
 cuid2 = { workspace = true }

@@ -8,6 +8,7 @@ pub mod observations;
 pub mod pricing;
 pub mod providers;
 pub mod rate_limit;
+pub mod raw_payload;
 pub mod restore;
 pub mod rules;
 pub mod search;
