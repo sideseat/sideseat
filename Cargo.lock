@@ -5555,7 +5555,6 @@ dependencies = [
 name = "sideseat-domain"
 version = "1.0.13"
 dependencies = [
- "anyhow",
  "async-trait",
  "base64 0.22.1",
  "blake3",

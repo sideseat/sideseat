@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use anyhow::{Context, Result, anyhow};
+use thiserror::Error;
 
 use crate::files::FileService;
 use sideseat_core::constants::{
@@ -13,11 +13,98 @@ use sideseat_core::constants::{
     PROJECT_DELETION_CLAIM_STALE_SECS, PROJECT_TOMBSTONE_CLEAN_SWEEPS,
 };
 use sideseat_ports::cache::{CacheKey, CacheStore};
+use sideseat_ports::error::DataError;
 use sideseat_ports::traits::{AnalyticsRepository, TransactionalRepository};
 use sideseat_ports::types::ProjectId;
 
 type TransactionalStore = dyn TransactionalRepository + Send + Sync + 'static;
 type AnalyticsStore = dyn AnalyticsRepository + Send + Sync + 'static;
+
+/// Why a deletion did not finish.
+///
+/// Every variant means the same thing operationally - the tombstone stays, so the subject is invisible
+/// and unwritable and the sweep will try again - but they are kept apart because the step that failed is
+/// the only thing that tells an operator *what* to look at: a store that refused a claim is a different
+/// problem from an analytics delete that reported success and left rows.
+///
+/// Each store failure keeps the [`DataError`] as its `#[source]` *and* names it in the message, because
+/// both callers render these with `{}`: an API error body and a `tracing::warn!` field. `anyhow` showed
+/// only the outermost context there, so the driver's own words were being dropped from exactly the two
+/// places anyone reads them.
+#[derive(Debug, Error)]
+pub enum CleanupError {
+    #[error("Failed to claim and journal the organization deletion: {source}")]
+    ClaimOrganization {
+        #[source]
+        source: DataError,
+    },
+
+    #[error("Failed to list an organization's projects: {source}")]
+    ListProjects {
+        #[source]
+        source: DataError,
+    },
+
+    #[error("Failed to fence and journal project {project_id} of organization {org_id}: {source}")]
+    FenceProject {
+        project_id: ProjectId,
+        org_id: String,
+        #[source]
+        source: DataError,
+    },
+
+    #[error("Failed to count an organization's remaining projects: {source}")]
+    CountRemainingProjects {
+        #[source]
+        source: DataError,
+    },
+
+    #[error("Failed to delete organization row: {source}")]
+    DeleteOrganizationRow {
+        #[source]
+        source: DataError,
+    },
+
+    #[error("Failed to claim and journal the project deletion: {source}")]
+    ClaimProject {
+        #[source]
+        source: DataError,
+    },
+
+    #[error("Failed to record a project cleanup sweep: {source}")]
+    RecordProjectSweep {
+        #[source]
+        source: DataError,
+    },
+
+    #[error("Failed to look for tombstoned projects: {source}")]
+    ListTombstonedProjects {
+        #[source]
+        source: DataError,
+    },
+
+    #[error("Failed to look for tombstoned organizations: {source}")]
+    ListTombstonedOrganizations {
+        #[source]
+        source: DataError,
+    },
+
+    /// One or more of an organization's projects did not finish. The organization row stays, because
+    /// deleting it would cascade away the project rows the retry needs.
+    #[error("Organization {org_id} cleanup is not finished; it stays fenced for retry: {details}")]
+    OrganizationIncomplete { org_id: String, details: String },
+
+    /// A project's own data outlived its delete. It stays claimed so the sweep retries whatever survived.
+    #[error(
+        "Project {project_id} cleanup failed with {failures} errors, leaving it claimed for retry: \
+         {details}"
+    )]
+    ProjectIncomplete {
+        project_id: ProjectId,
+        failures: usize,
+        details: String,
+    },
+}
 
 /// Delete an organization: tombstone it, tombstone its projects, and let the sweep finish.
 ///
@@ -38,7 +125,7 @@ pub async fn cleanup_organization(
     file_service: &Arc<FileService>,
     cache: Option<&dyn CacheStore>,
     org_id: &str,
-) -> Result<bool> {
+) -> Result<bool, CleanupError> {
     let repo = database.as_ref();
 
     // The claim and its journal entry in **one transaction**, and the entry written only if this caller won.
@@ -50,7 +137,7 @@ pub async fn cleanup_organization(
     if !repo
         .claim_organization_for_deletion_journalled(org_id)
         .await
-        .context("Failed to claim and journal the organization deletion")?
+        .map_err(|source| CleanupError::ClaimOrganization { source })?
     {
         return Ok(false);
     }
@@ -73,27 +160,30 @@ pub async fn finish_organization_deletion(
     analytics: &Arc<AnalyticsStore>,
     file_service: &Arc<FileService>,
     org_id: &str,
-) -> Result<()> {
+) -> Result<(), CleanupError> {
     let repo = database.as_ref();
     let mut errors: Vec<String> = Vec::new();
 
     // Every project fenced first. A project that is not fenced can still be written to while its data
     // is being deleted, and nothing later in this function would notice.
-    for project_id in repo.list_project_ids(org_id).await? {
+    for project_id in repo
+        .list_project_ids(org_id)
+        .await
+        .map_err(|source| CleanupError::ListProjects { source })?
+    {
         let project_id = ProjectId::from(project_id);
         // Fenced and journalled in one transaction, and the entry only if this call won the claim - see
         // `cleanup_organization` for why. The returned bool is discarded here deliberately: losing the claim means
         // another caller owns this project's deletion, which is fine, and the entry was written by whoever won.
-        if let Err(e) = repo
+        if let Err(source) = repo
             .claim_project_for_deletion_journalled(&project_id)
             .await
         {
-            return Err(anyhow!(
-                "Failed to fence and journal project {} of organization {}: {}",
+            return Err(CleanupError::FenceProject {
                 project_id,
-                org_id,
-                e
-            ));
+                org_id: org_id.to_string(),
+                source,
+            });
         }
         if let Err(e) =
             finish_project_deletion(database, analytics, file_service, &project_id).await
@@ -105,18 +195,17 @@ pub async fn finish_organization_deletion(
     if !errors.is_empty() {
         // The organization stays tombstoned, which is to say invisible and unwritable, and the sweep
         // tries again. Deleting its row now would cascade away the project rows the retry needs.
-        return Err(anyhow!(
-            "Organization {} cleanup is not finished; it stays fenced for retry: {}",
-            org_id,
-            errors.join("; ")
-        ));
+        return Err(CleanupError::OrganizationIncomplete {
+            org_id: org_id.to_string(),
+            details: errors.join("; "),
+        });
     }
 
     // Only once no project rows are left. While one remains, its own cleanup is still relying on it.
     let remaining = repo
         .count_projects_of_organization(org_id)
         .await
-        .context("Failed to count an organization's remaining projects")?;
+        .map_err(|source| CleanupError::CountRemainingProjects { source })?;
     if remaining > 0 {
         tracing::debug!(
             org_id,
@@ -128,7 +217,7 @@ pub async fn finish_organization_deletion(
 
     repo.delete_organization(org_id)
         .await
-        .context("Failed to delete organization row")?;
+        .map_err(|source| CleanupError::DeleteOrganizationRow { source })?;
     Ok(())
 }
 
@@ -174,7 +263,7 @@ pub async fn cleanup_project(
     analytics: &Arc<AnalyticsStore>,
     file_service: &Arc<FileService>,
     project_id: &ProjectId,
-) -> Result<bool> {
+) -> Result<bool, CleanupError> {
     let repo = database.as_ref();
 
     // The compare-and-set decides who owns this deletion. Losing it means the project was already
@@ -185,7 +274,7 @@ pub async fn cleanup_project(
     if !repo
         .claim_project_for_deletion_journalled(project_id)
         .await
-        .context("Failed to claim and journal the project deletion")?
+        .map_err(|source| CleanupError::ClaimProject { source })?
     {
         return Ok(false);
     }
@@ -204,7 +293,7 @@ pub async fn finish_project_deletion(
     analytics: &Arc<AnalyticsStore>,
     file_service: &Arc<FileService>,
     project_id: &ProjectId,
-) -> Result<()> {
+) -> Result<(), CleanupError> {
     let repo = database.as_ref();
     let analytics_repo = analytics.as_ref();
     let mut errors: Vec<String> = Vec::new();
@@ -221,12 +310,11 @@ pub async fn finish_project_deletion(
 
     if !errors.is_empty() {
         // Keep the project fenced so the sweep can retry whatever survived.
-        return Err(anyhow!(
-            "Project {} cleanup failed with {} errors, leaving it claimed for retry: {}",
-            project_id,
-            errors.len(),
-            errors.join("; ")
-        ));
+        return Err(CleanupError::ProjectIncomplete {
+            project_id: project_id.clone(),
+            failures: errors.len(),
+            details: errors.join("; "),
+        });
     }
 
     // Verified, not assumed. A delete that reported success can still leave rows behind: ClickHouse
@@ -262,7 +350,7 @@ pub async fn finish_project_deletion(
             (CLAIM_RECOVERY_INTERVAL_SECS / 2) as i64,
         )
         .await
-        .context("Failed to record a project cleanup sweep")?;
+        .map_err(|source| CleanupError::RecordProjectSweep { source })?;
     if removed {
         tracing::debug!(project_id = %project_id, "Project tombstone removed");
     } else {
@@ -290,14 +378,14 @@ pub async fn advance_pending_deletions(
     analytics: &Arc<AnalyticsStore>,
     file_service: &Arc<FileService>,
     stale_after_secs: i64,
-) -> Result<usize> {
+) -> Result<usize, CleanupError> {
     let repo = database.as_ref();
     let mut advanced = 0;
 
     let projects = repo
         .get_stale_claimed_projects(stale_after_secs)
         .await
-        .context("Failed to look for tombstoned projects")?;
+        .map_err(|source| CleanupError::ListTombstonedProjects { source })?;
     for (project_id, observed) in &projects {
         let project_id = ProjectId::from(project_id.as_str());
         // Leased before the work, so N replicas share the backlog instead of each doing all of it. The lease
@@ -483,7 +571,7 @@ pub async fn advance_pending_deletions(
     let orgs = repo
         .get_stale_claimed_organizations(stale_after_secs)
         .await
-        .context("Failed to look for tombstoned organizations")?;
+        .map_err(|source| CleanupError::ListTombstonedOrganizations { source })?;
     for (org_id, observed) in &orgs {
         // Leased, as the project loop above is and for the same reasons.
         match repo.reclaim_stale_organization(org_id, *observed).await {
@@ -734,3 +822,7 @@ mod tombstone_ordering_tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "cleanup_tests.rs"]
+mod tests;
