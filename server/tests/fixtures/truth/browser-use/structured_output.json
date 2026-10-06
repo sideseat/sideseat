@@ -65,7 +65,7 @@
     "input_includes_cache": false
    },
    "outputs": [
-    "fact-004"
+    "fact-005"
    ]
   }
  ],
@@ -76,9 +76,14 @@
     "fact-001",
     "fact-002",
     "fact-003",
-    "fact-004"
+    "fact-004",
+    "fact-005",
+    "fact-006",
+    "fact-007"
    ],
-   "final_answers": []
+   "final_answers": [
+    "fact-006"
+   ]
   }
  ],
  "facts": [
@@ -160,6 +165,31 @@
    "conversation": "conv-1",
    "evidence": "wire",
    "value": {
+    "id": null,
+    "name": "navigate",
+    "arguments": {
+     "url": "https://wttr.in/Vienna?format=4",
+     "new_tab": false
+    }
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-005",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
     "id": "toolu_bdrk_013tQs2h9dECEEk2s8navXJe",
     "name": "AgentOutput",
     "arguments": {
@@ -197,6 +227,67 @@
     "match": "semantic"
    },
    "call": "call-002"
+  },
+  {
+   "id": "fact-006",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": null,
+    "name": "done",
+    "arguments": {
+     "data": {
+      "city": "Vienna",
+      "days": [
+       "Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace and a Viennese café stop, then an evening walk along the Ringstrasse (indoor backups: Kunsthistorisches Museum).",
+       "Day 2: Tour Schönbrunn Palace and its gardens in the morning, then visit the Belvedere (Klimt's The Kiss) and finish with a stroll through the Naschmarkt."
+      ],
+      "budget_eur": 350
+     }
+    }
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-007",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": null,
+    "name": "done",
+    "value": {
+     "city": "Vienna",
+     "days": [
+      "Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace and a Viennese café stop, then an evening walk along the Ringstrasse (indoor backups: Kunsthistorisches Museum).",
+      "Day 2: Tour Schönbrunn Palace and its gardens in the morning, then visit the Belvedere (Klimt's The Kiss) and finish with a stroll through the Naschmarkt."
+     ],
+     "budget_eur": 350
+    },
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
   }
  ],
  "edges": [
@@ -209,6 +300,11 @@
    "kind": "call_order",
    "before": "call-001",
    "after": "call-002"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-007",
+   "to": "fact-006"
   }
  ],
  "gaps": [
@@ -226,14 +322,14 @@
   {
    "fact": "tool_result",
    "reason": "tool_not_deterministic",
-   "detail": "AgentOutput is not one of the shared deterministic tools",
-   "subject": "fact-003"
+   "detail": "navigate is not one of the shared deterministic tools",
+   "subject": "fact-004"
   },
   {
-   "fact": "tool_result",
-   "reason": "tool_not_deterministic",
-   "detail": "AgentOutput is not one of the shared deterministic tools",
-   "subject": "fact-004"
+   "fact": "user_text",
+   "reason": "framework_restates_prompt",
+   "detail": "the framework re-sends the task inside its own state message on every step; the request body is unrecorded, so the message is known only to contain the prompt",
+   "subject": "call-002"
   }
  ]
 }

@@ -28,6 +28,7 @@ mod invariance;
 mod ledger;
 mod matching;
 mod mutate;
+mod mutate_framework;
 mod mutations;
 mod order;
 mod predicates;
@@ -149,6 +150,7 @@ pub(crate) const ASSERTION_FAMILIES: &[&str] = &[
     "order.conversations",
     "order.sequence",
     "extra.unexplained",
+    "gap.unused",
     "attribution.span",
     "attribution.call_order",
 ];

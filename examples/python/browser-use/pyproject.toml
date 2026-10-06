@@ -16,6 +16,21 @@ integrations = ["browser-use"]
 # Browser Use reaches Claude through the Anthropic SDK; see models.py.
 default-model = "claude"
 
+# How Browser Use turns the model's answer into a conversation, for the truth derivation
+# (`python -m harness truth`). The model answers every step with one AgentOutput call whose `action`
+# list the framework executes and reports, each action under an id of its own; `done` ends the turn
+# and its result is the answer (`data` under an output schema, `text` otherwise). Every step's request
+# restates the task in the framework's own state message, and a task naming a URL is opened before
+# the first step.
+[tool.sideseat-example.truth]
+action_plans = { AgentOutput = "action" }
+turn_ending_actions = ["done"]
+action_results = { done = ["data", "text"] }
+restates_prompt = true
+
+[tool.sideseat-example.truth.initial_actions]
+tool_use = [{ navigate = { url = "http://127.0.0.1:47811", new_tab = false } }]
+
 [tool.uv]
 required-version = "==0.12.13"
 package = false

@@ -65,7 +65,11 @@ The truth comparison runs inside `message_goldens`, on the four views it already
    a segmented answer as one block or as its consecutive segments.
 4. **Tool calls** carry the wire's id, name (a framework namespace such as `travel-` or `mcp__x__` is
    accepted) and JSON-equal arguments. An id the framework rewrote consistently is its own violation,
-   `tool_call.id_rewritten`, and the result then pairs by the rewritten id.
+   `tool_call.id_rewritten`, and the result then pairs by the rewritten id. A call the framework
+   executes on the model's behalf - an action listed inside a plan call (`[tool.sideseat-example.truth]`
+   in the suite manifest says which) - never had a wire id: its fact's id is `null`, it is shown under
+   the id the framework assigns, and its result pairs by that id. A block (or span) showing a call
+   under its own id is always preferred to one showing it under another.
 5. **Tool results** pair by call id, one per executed call, and carry the deterministic tool's value:
    JSON equality with numbers by value, through a JSON string, `[{type: text, text}]` parts, one
    `{type: json, data}` part, or a single-member `result`/`error`/`content`/`output` envelope. A Python
@@ -84,7 +88,8 @@ The truth comparison runs inside `message_goldens`, on the four views it already
    order, and in trace and session views the whole conversation sequence, where only a run of inputs
    between two responses (parallel results, a prompt and its attachments) may permute.
 9. **Placement.** Facts are assigned to blocks by maximum bipartite matching per view, so two identical
-   facts need two blocks. A model call's facts must appear exactly once in its span's output, its
+   facts need two blocks; candidates are tried oldest first in every view (the feed is read in reverse),
+   and identical facts take their blocks in the truth's order. A model call's facts must appear exactly once in its span's output, its
    trace, its session and the feed; a conversation's facts exactly once in the trace of their call, its
    session and the feed. A second identical block is a duplicate, one in another trace a leak; the set of
    blocks showing a fact is the same in every view; every message sits on the span that recorded its
@@ -103,7 +108,9 @@ the same conversation as the current release's.
 
 What the truth cannot know is not asserted, and says so: which agent made a call and what one agent
 passed another (`multi_agent_routing`), a system prompt the cassette never recorded
-(`request_body_unrecorded`), which span reports a tool result, and whether a streamed and an unstreamed
+(`request_body_unrecorded`), the framework's own per-step state message that restates the prompt in a
+later call's request (`framework_restates_prompt`, one user text containing that turn's prompt per
+such call, in its trace; an allowance nothing uses contradicts the declaration and is `gap.unused`), which span reports a tool result, and whether a streamed and an unstreamed
 run of a scenario are equivalent (the truth records `streamed` per call but no scenario pair it calls
 equivalent). Sub-millisecond clock jitter is not asserted either: it crosses the pipeline's stated
 1 ms tie tolerance, where a changed answer is legitimate.

@@ -42,6 +42,12 @@ fn shown_in(fact: &Fact, blocks: &[&Block]) -> bool {
     blocks.iter().any(|b| shows(fact, b, None) != Shows::No)
 }
 
+fn shown_exactly(fact: &Fact, blocks: &[&Block]) -> bool {
+    blocks
+        .iter()
+        .any(|b| matches!(shows(fact, b, None), Shows::Yes | Shows::Assigned(_)))
+}
+
 pub(super) fn match_calls(truth: &Truth, recon: &Recon, out: &mut Vec<Violation>) -> Matching {
     let mut matching = Matching::default();
     let gen_outputs: Vec<Vec<&Block>> = recon
@@ -86,6 +92,18 @@ pub(super) fn match_calls(truth: &Truth, recon: &Recon, out: &mut Vec<Violation>
             all
         } else {
             any
+        };
+        // A span showing the call's tool calls under their own ids is evidence a span showing them
+        // under other ids is not: two identical calls differ only by id.
+        let exact: BTreeSet<usize> = shown
+            .iter()
+            .copied()
+            .filter(|&i| signature.iter().all(|f| shown_exactly(f, &gen_outputs[i])))
+            .collect();
+        let shown = if shown.len() > 1 && !exact.is_empty() {
+            exact
+        } else {
+            shown
         };
         let chosen = innermost(recon, prefer_typed(recon, shown));
         candidates.insert(call.id.clone(), chosen);

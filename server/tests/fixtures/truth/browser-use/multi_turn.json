@@ -64,7 +64,7 @@
     "input_includes_cache": false
    },
    "outputs": [
-    "fact-003"
+    "fact-006"
    ]
   },
   {
@@ -89,7 +89,7 @@
     "input_includes_cache": false
    },
    "outputs": [
-    "fact-004"
+    "fact-010"
    ]
   }
  ],
@@ -100,9 +100,21 @@
     "fact-001",
     "fact-002",
     "fact-003",
-    "fact-004"
+    "fact-004",
+    "fact-005",
+    "fact-006",
+    "fact-007",
+    "fact-008",
+    "fact-009",
+    "fact-010",
+    "fact-011",
+    "fact-012"
    ],
-   "final_answers": []
+   "final_answers": [
+    "fact-003",
+    "fact-007",
+    "fact-011"
+   ]
   }
  ],
  "facts": [
@@ -171,6 +183,75 @@
    "conversation": "conv-1",
    "evidence": "wire",
    "value": {
+    "id": null,
+    "name": "done",
+    "arguments": {
+     "text": "I'd suggest staying in Alfama, Lisbon's historic old quarter. It has charming narrow streets, fado music, and great viewpoints, and it's walkable to many major sights. This is a general recommendation from my own knowledge, not from a live search of the web or booking tools.",
+     "success": true,
+     "files_to_display": []
+    }
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-004",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": null,
+    "name": "done",
+    "value": "I'd suggest staying in Alfama, Lisbon's historic old quarter. It has charming narrow streets, fado music, and great viewpoints, and it's walkable to many major sights. This is a general recommendation from my own knowledge, not from a live search of the web or booking tools.",
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-005",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "What is one dish I should try there?"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-006",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
     "id": "toolu_bdrk_017QPL7LRGJYRi9wS5Fcbn8T",
     "name": "AgentOutput",
     "arguments": {
@@ -205,7 +286,76 @@
    "call": "call-002"
   },
   {
-   "id": "fact-004",
+   "id": "fact-007",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": null,
+    "name": "done",
+    "arguments": {
+     "text": "Try pastéis de nata, Lisbon's famous custard tarts. They're best eaten warm with a sprinkle of cinnamon, and the bakery in Belém is the classic place to get them. If you'd rather have a savoury dish, bacalhau à Brás (shredded salt cod with eggs and potatoes) is a local favourite.",
+     "success": true,
+     "files_to_display": []
+    }
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-008",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": null,
+    "name": "done",
+    "value": "Try pastéis de nata, Lisbon's famous custard tarts. They're best eaten warm with a sprinkle of cinnamon, and the bakery in Belém is the classic place to get them. If you'd rather have a savoury dish, bacalhau à Brás (shredded salt cod with eggs and potatoes) is a local favourite.",
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-009",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Summarise your two suggestions in one sentence."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-010",
    "kind": "tool_call",
    "role": "assistant",
    "conversation": "conv-1",
@@ -241,6 +391,55 @@
     "match": "semantic"
    },
    "call": "call-003"
+  },
+  {
+   "id": "fact-011",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": null,
+    "name": "done",
+    "arguments": {
+     "text": "For your Lisbon weekend, stay in the historic Alfama neighbourhood and be sure to try pastéis de nata, the city's famous custard tarts.",
+     "success": true,
+     "files_to_display": []
+    }
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-012",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": null,
+    "name": "done",
+    "value": "For your Lisbon weekend, stay in the historic Alfama neighbourhood and be sure to try pastéis de nata, the city's famous custard tarts.",
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
   }
  ],
  "edges": [
@@ -250,14 +449,39 @@
    "to": "call-001"
   },
   {
+   "kind": "result_of",
+   "from": "fact-004",
+   "to": "fact-003"
+  },
+  {
    "kind": "call_order",
    "before": "call-001",
    "after": "call-002"
   },
   {
+   "kind": "prompt_of",
+   "from": "fact-005",
+   "to": "call-002"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-008",
+   "to": "fact-007"
+  },
+  {
    "kind": "call_order",
    "before": "call-002",
    "after": "call-003"
+  },
+  {
+   "kind": "prompt_of",
+   "from": "fact-009",
+   "to": "call-003"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-012",
+   "to": "fact-011"
   }
  ],
  "gaps": [
@@ -265,34 +489,6 @@
    "fact": "system_prompt",
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
-  },
-  {
-   "fact": "tool_result",
-   "reason": "tool_not_deterministic",
-   "detail": "AgentOutput is not one of the shared deterministic tools",
-   "subject": "fact-002"
-  },
-  {
-   "fact": "tool_result",
-   "reason": "tool_not_deterministic",
-   "detail": "AgentOutput is not one of the shared deterministic tools",
-   "subject": "fact-003"
-  },
-  {
-   "fact": "tool_result",
-   "reason": "tool_not_deterministic",
-   "detail": "AgentOutput is not one of the shared deterministic tools",
-   "subject": "fact-004"
-  },
-  {
-   "fact": "user_text",
-   "reason": "prompt_without_model_call",
-   "detail": "the script sends 'What is one dish I should try there?', but no recorded call answers it"
-  },
-  {
-   "fact": "user_text",
-   "reason": "prompt_without_model_call",
-   "detail": "the script sends 'Summarise your two suggestions in one sentence.', but no recorded call answers it"
   }
  ]
 }

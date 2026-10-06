@@ -39,7 +39,7 @@
     "input_includes_cache": false
    },
    "outputs": [
-    "fact-002"
+    "fact-003"
    ]
   },
   {
@@ -64,7 +64,7 @@
     "input_includes_cache": false
    },
    "outputs": [
-    "fact-003"
+    "fact-005"
    ]
   },
   {
@@ -89,7 +89,7 @@
     "input_includes_cache": false
    },
    "outputs": [
-    "fact-004"
+    "fact-010"
    ]
   }
  ],
@@ -100,9 +100,19 @@
     "fact-001",
     "fact-002",
     "fact-003",
-    "fact-004"
+    "fact-004",
+    "fact-005",
+    "fact-006",
+    "fact-007",
+    "fact-008",
+    "fact-009",
+    "fact-010",
+    "fact-011",
+    "fact-012"
    ],
-   "final_answers": []
+   "final_answers": [
+    "fact-011"
+   ]
   }
  ],
  "facts": [
@@ -128,6 +138,31 @@
   },
   {
    "id": "fact-002",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "id": null,
+    "name": "navigate",
+    "arguments": {
+     "url": "http://127.0.0.1:47811",
+     "new_tab": false
+    }
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-003",
    "kind": "tool_call",
    "role": "assistant",
    "conversation": "conv-1",
@@ -163,7 +198,31 @@
    "call": "call-001"
   },
   {
-   "id": "fact-003",
+   "id": "fact-004",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": null,
+    "name": "click",
+    "arguments": {
+     "index": 17
+    }
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-005",
    "kind": "tool_call",
    "role": "assistant",
    "conversation": "conv-1",
@@ -204,7 +263,101 @@
    "call": "call-002"
   },
   {
-   "id": "fact-004",
+   "id": "fact-006",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": null,
+    "name": "get_precipitation",
+    "arguments": {
+     "city": "Paris"
+    }
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-007",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": null,
+    "name": "get_precipitation",
+    "value": "10% chance of rain in Paris tomorrow.",
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-008",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": null,
+    "name": "get_precipitation",
+    "arguments": {
+     "city": "Tokyo"
+    }
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-009",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": null,
+    "name": "get_precipitation",
+    "value": "80% chance of rain in Tokyo tomorrow.",
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-010",
    "kind": "tool_call",
    "role": "assistant",
    "conversation": "conv-1",
@@ -240,6 +393,55 @@
     "match": "semantic"
    },
    "call": "call-003"
+  },
+  {
+   "id": "fact-011",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": null,
+    "name": "done",
+    "arguments": {
+     "text": "Paris: sunny both days (21°C Day 1, 22°C Day 2) with only a 10% chance of rain tomorrow, so no umbrella needed. Tokyo: rain on Day 1 (21°C) and sunny on Day 2 (22°C), with an 80% chance of rain tomorrow, so pack an umbrella.",
+     "success": true,
+     "files_to_display": []
+    }
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-012",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": null,
+    "name": "done",
+    "value": "Paris: sunny both days (21°C Day 1, 22°C Day 2) with only a 10% chance of rain tomorrow, so no umbrella needed. Tokyo: rain on Day 1 (21°C) and sunny on Day 2 (22°C), with an 80% chance of rain tomorrow, so pack an umbrella.",
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
   }
  ],
  "edges": [
@@ -254,9 +456,24 @@
    "after": "call-002"
   },
   {
+   "kind": "result_of",
+   "from": "fact-007",
+   "to": "fact-006"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-009",
+   "to": "fact-008"
+  },
+  {
    "kind": "call_order",
    "before": "call-002",
    "after": "call-003"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-012",
+   "to": "fact-011"
   }
  ],
  "gaps": [
@@ -268,20 +485,26 @@
   {
    "fact": "tool_result",
    "reason": "tool_not_deterministic",
-   "detail": "AgentOutput is not one of the shared deterministic tools",
+   "detail": "navigate is not one of the shared deterministic tools",
    "subject": "fact-002"
   },
   {
    "fact": "tool_result",
    "reason": "tool_not_deterministic",
-   "detail": "AgentOutput is not one of the shared deterministic tools",
-   "subject": "fact-003"
+   "detail": "click is not one of the shared deterministic tools",
+   "subject": "fact-004"
   },
   {
-   "fact": "tool_result",
-   "reason": "tool_not_deterministic",
-   "detail": "AgentOutput is not one of the shared deterministic tools",
-   "subject": "fact-004"
+   "fact": "user_text",
+   "reason": "framework_restates_prompt",
+   "detail": "the framework re-sends the task inside its own state message on every step; the request body is unrecorded, so the message is known only to contain the prompt",
+   "subject": "call-002"
+  },
+  {
+   "fact": "user_text",
+   "reason": "framework_restates_prompt",
+   "detail": "the framework re-sends the task inside its own state message on every step; the request body is unrecorded, so the message is known only to contain the prompt",
+   "subject": "call-003"
   }
  ]
 }

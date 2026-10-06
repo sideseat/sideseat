@@ -248,6 +248,89 @@ def test_a_terminal_answer_tool_ends_the_turn_without_a_result() -> None:
     assert not any(gap["fact"] in ("user_text", "tool_result") for gap in builder.gaps)
 
 
+PLANNER = derive.Framework.of(
+    {
+        "action_plans": {"Plan": "action"},
+        "turn_ending_actions": ["done"],
+        "action_results": {"done": ["text"]},
+        "restates_prompt": True,
+        "initial_actions": {"tool_use": [{"navigate": {"url": "http://site"}}]},
+    }
+)
+
+
+def test_a_plan_call_lists_actions_the_framework_names_and_runs() -> None:
+    # The model answers with one plan; each action is a call under the framework's own id, a shared
+    # tool's result is recomputed, and `done` ends the turn with its text as the result.
+    calls = [
+        model_call(
+            wire.tool_call_part(
+                "p1", "Plan", {"action": [{"get_precipitation": {"city": "Paris"}}]}
+            ),
+            finish="tool_use",
+        ),
+        model_call(
+            wire.tool_call_part(
+                "p2", "Plan", {"action": [{"done": {"text": "No umbrella."}}]}
+            ),
+            finish="tool_use",
+        ),
+    ]
+    builder = derive.assemble(
+        "p", "tool_use", calls, options=derive.Options(framework=PLANNER)
+    )
+    actions = [
+        f for f in facts_by_kind(builder, "tool_call") if f["value"]["id"] is None
+    ]
+    assert [a["value"]["name"] for a in actions] == [
+        "navigate",
+        "get_precipitation",
+        "done",
+    ]
+    assert all(a["require"]["anchor"] == "conversation" for a in actions)
+    assert actions[0]["evidence"] == "script"
+    results = {
+        r["value"]["name"]: r["value"]["value"]
+        for r in facts_by_kind(builder, "tool_result")
+    }
+    assert results == {
+        "get_precipitation": "10% chance of rain in Paris tomorrow.",
+        "done": "No umbrella.",
+    }
+    (conversation,) = builder.conversations
+    assert conversation["final_answers"] == [actions[2]["id"]]
+    # The plan has no result of its own; the browser action's result is not the script's to know.
+    gaps = {(g["reason"], g.get("subject")) for g in builder.gaps}
+    assert ("tool_not_deterministic", actions[0]["id"]) in gaps
+    plans = {
+        f["id"]
+        for f in facts_by_kind(builder, "tool_call")
+        if f["value"]["name"] == "Plan"
+    }
+    assert len(plans) == 2 and not plans & {subject for _, subject in gaps}
+    # The second step's request restates the prompt; the first is the prompt itself.
+    assert [
+        g["subject"] for g in builder.gaps if g["reason"] == "framework_restates_prompt"
+    ] == ["call-002"]
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {},
+        {"action": []},
+        {"action": [{"a": {}, "b": {}}]},
+        {"action": [{"done": {}}, {"click": {}}]},
+    ],
+)
+def test_a_malformed_plan_is_a_derivation_error(arguments: dict[str, Any]) -> None:
+    calls = [
+        model_call(wire.tool_call_part("p1", "Plan", arguments), finish="tool_use")
+    ]
+    with pytest.raises(ValueError):
+        derive.assemble("p", "chat", calls, options=derive.Options(framework=PLANNER))
+
+
 def test_committed_truths_are_internally_consistent() -> None:
     for path in committed():
         document = json.loads(path.read_text())

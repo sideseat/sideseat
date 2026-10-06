@@ -20,21 +20,27 @@ use serde_json::Value;
 use super::truth::Truth;
 
 /// Checks whose firing fixture is a captured one, named with the fixture whose ledger entry shows it.
-const FIRED_BY_CAPTURES: &[(&str, &str)] = &[
-    // The feed of a LangGraph error run shows a prompt by another block than its trace does; a
-    // hand-written payload would have to reproduce the feed's own pipeline divergence to show it.
-    ("cross_view.differs", "langgraph/native/error"),
-    // The pipeline orders a result before the response that consumed it in every hand-written shape
-    // tried; a captured LangGraph error run holds the defect.
-    ("order.inputs_before_next", "langgraph/native/error"),
-];
+const FIRED_BY_CAPTURES: &[(&str, &str)] = &[];
 
 /// Checks no committed fixture can make fire, with the reason; the mutation catalogue still does.
-const FIRED_ONLY_BY_MUTATIONS: &[(&str, &str)] = &[(
-    "order.result",
-    "`assert_tool_causality` already rejects every fixture whose result precedes its call by id, so \
-     no committed capture can hold the shape",
-)];
+const FIRED_ONLY_BY_MUTATIONS: &[(&str, &str)] = &[
+    (
+        "order.result",
+        "`assert_tool_causality` already rejects every fixture whose result precedes its call by id, so \
+         no committed capture can hold the shape",
+    ),
+    (
+        "cross_view.differs",
+        "the LangGraph error captures that showed it were the matcher pairing two identical calls by each \
+         other's ids; no capture or hand-written payload makes the pipeline show one fact by different \
+         blocks in two views, and a truth patch cannot change the views",
+    ),
+    (
+        "order.inputs_before_next",
+        "the same LangGraph matcher artefact; the pipeline orders a result before the response that \
+         consumed it in every capture and hand-written shape, and a truth patch cannot move a block",
+    ),
+];
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]

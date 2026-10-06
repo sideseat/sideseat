@@ -31,6 +31,8 @@ pub(super) enum Shows {
     Yes,
     /// A tool call whose name and arguments match but whose id is the framework's own, carried here.
     WithRewrittenId(String),
+    /// A call the wire never gave an id, shown under the one the framework assigned.
+    Assigned(String),
 }
 
 /// Whether `block` shows `fact`. A tool result is paired by the id its call carries in this view,
@@ -119,6 +121,15 @@ fn tool_call_shows(value: &Value, block: &Block) -> Shows {
     let arguments_match = json_eq(&block.content["input"], &value["arguments"]);
     if !name_matches || !arguments_match {
         return Shows::No;
+    }
+    // A call the framework executed on the model's behalf has no wire id (`null`): the framework names
+    // it, and its result pairs by that name, so the id is carried without being a rewrite.
+    if value.get("id").is_some_and(Value::is_null) {
+        // The framework must name it: without an id its result cannot pair, which is a rewrite to "".
+        return match block.call_id().filter(|id| !id.is_empty()) {
+            Some(id) => Shows::Assigned(id.to_string()),
+            None => Shows::WithRewrittenId(String::new()),
+        };
     }
     let expected = value.get("id").and_then(Value::as_str);
     match block.call_id() {

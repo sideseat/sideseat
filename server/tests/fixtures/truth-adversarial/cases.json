@@ -963,6 +963,27 @@
     "call:call.response_model:call-002"
    ],
    "why": "neither span states a response model the parser reads; the first states only the requested model, which is not which model answered, while the second carries the answering model under a member nothing reads"
+  },
+  {
+   "name": "a restated prompt the capture does not show",
+   "truth": "two_turns",
+   "patch": [
+    {
+     "op": "add",
+     "path": "/gaps/-",
+     "value": {
+      "fact": "user_text",
+      "reason": "framework_restates_prompt",
+      "detail": "declared by a test",
+      "subject": "call-002"
+     }
+    }
+   ],
+   "fires": [
+    "session:gap.unused:call-002",
+    "trace:gap.unused:call-002"
+   ],
+   "why": "a declaration that the framework restates the prompt is an allowance only the capture can use; unused, it is contradicted"
   }
  ]
 }

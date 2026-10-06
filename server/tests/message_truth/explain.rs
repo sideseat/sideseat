@@ -33,7 +33,7 @@ pub(super) fn check(
 /// reasoning block in its call's trace, an unrecorded system prompt once per trace of its conversation
 /// (each distinct prompt once, when agents route between them), a non-deterministic tool's result by
 /// its call id. A slot is consumed by the block it explains, so a gap never covers two.
-struct Allowance {
+struct Allowance<'a> {
     system_prompt: bool,
     routing: bool,
     /// Traces any truth call ran in; routing and system prompts are bounded to them.
@@ -43,10 +43,13 @@ struct Allowance {
     user_text: usize,
     /// Call ids whose result the truth cannot know.
     results_of: BTreeSet<String>,
+    /// One slot per restated request: the call, its trace (`None` when it has no span) and the prompt
+    /// of its turn, which the restating user text must contain.
+    restated: Vec<(&'a str, Option<String>, &'a str)>,
 }
 
-impl Allowance {
-    fn of(context: &Context<'_>, assigned: &Assigned) -> Self {
+impl<'a> Allowance<'a> {
+    fn of(context: &Context<'a>, assigned: &Assigned) -> Self {
         let truth = context.truth;
         let gap = |reason: &str| truth.gaps.iter().any(|g| g.reason == reason);
         let results_of = truth
@@ -104,7 +107,49 @@ impl Allowance {
                 .filter(|g| g.reason == "prompt_without_model_call")
                 .count(),
             results_of,
+            restated: {
+                // The prompt each call answers: the latest one sent to a call of its conversation.
+                let mut turn: BTreeMap<&str, &str> = BTreeMap::new();
+                let mut governing: BTreeMap<&str, &str> = BTreeMap::new();
+                for call in &truth.calls {
+                    if let Some(prompt) = truth
+                        .edges
+                        .iter()
+                        .find(|e| e.kind == "prompt_of" && e.to.as_deref() == Some(&call.id))
+                        .and_then(|e| e.from.as_deref())
+                        .and_then(|id| context.fact(id))
+                    {
+                        turn.insert(call.conversation.as_str(), prompt.text());
+                    }
+                    if let Some(&prompt) = turn.get(call.conversation.as_str()) {
+                        governing.insert(call.id.as_str(), prompt);
+                    }
+                }
+                truth
+                    .gaps
+                    .iter()
+                    .filter(|g| g.reason == "framework_restates_prompt")
+                    .filter_map(|g| g.subject.as_deref())
+                    .filter_map(|call| Some((call, *governing.get(call)?)))
+                    .map(|(call, prompt)| {
+                        let trace = context
+                            .matching
+                            .span_of
+                            .get(call)
+                            .map(|&i| context.recon.generations[i].trace.clone());
+                        (call, trace, prompt)
+                    })
+                    .collect()
+            },
         }
+    }
+
+    /// A user text restating a prompt, in the trace of a call whose request restates it.
+    fn take_restated(&mut self, text: &str, trace: &str) -> bool {
+        let found = self.restated.iter().position(|(_, t, prompt)| {
+            t.as_deref().is_none_or(|t| t == trace) && !prompt.is_empty() && text.contains(prompt)
+        });
+        found.map(|at| self.restated.remove(at)).is_some()
     }
 
     fn take(&mut self, class: &str, trace: &str) -> bool {
@@ -167,7 +212,13 @@ fn check_unexplained(
                         .result_call_id()
                         .is_some_and(|id| allowance.results_of.remove(id))
             }
-            ("user", "text") => routed || take(&mut allowance.user_text),
+            ("user", "text") => {
+                routed
+                    || block
+                        .text()
+                        .is_some_and(|text| allowance.take_restated(text, trace))
+                    || take(&mut allowance.user_text)
+            }
             _ => false,
         };
         if !explained {
@@ -175,6 +226,25 @@ fn check_unexplained(
                 .entry(block.digest.as_str())
                 .or_insert((0, block))
                 .0 += 1;
+        }
+    }
+    // An allowance nothing used is a declaration the capture contradicts: the framework was said to
+    // restate the prompt in this call's request, and the reconstruction shows no such message.
+    let traces: BTreeSet<&str> = scope
+        .blocks
+        .iter()
+        .map(|(_, _, b)| b.trace.as_str())
+        .collect();
+    for (call, trace, _) in &allowance.restated {
+        if trace.as_deref().is_some_and(|t| traces.contains(t)) {
+            out.push(Violation::new(
+                ViolationView::from(scope.kind),
+                "gap.unused",
+                call,
+                "the framework is declared to restate the prompt in this call's request, and no \
+                 message does"
+                    .to_string(),
+            ));
         }
     }
     for (digest, (count, block)) in unexplained {

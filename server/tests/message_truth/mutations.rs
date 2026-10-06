@@ -12,6 +12,7 @@ use std::collections::BTreeSet;
 use serde_json::{Value, json};
 
 use super::mutate::*;
+use super::mutate_framework::*;
 use super::recon::Recon;
 use super::truth::Truth;
 
@@ -352,6 +353,26 @@ const CATALOGUE: &[(&str, Expect, Apply)] = &[
         "positive: rewritten but consistent ids",
         Expect::Only(&["tool_call.id_rewritten"]),
         rewrite_ids_consistently,
+    ),
+    (
+        "positive: a call the framework names, under the framework's id",
+        Expect::Clean,
+        framework_named_call,
+    ),
+    (
+        "positive: the framework restates the prompt in a later step's request",
+        Expect::Clean,
+        |t, r| restate_prompt(t, r, 1),
+    ),
+    (
+        "restate the prompt more often than the framework does",
+        Expect::Only(&["extra.unexplained"]),
+        |t, r| restate_prompt(t, r, 2),
+    ),
+    (
+        "declare a restated prompt the reconstruction does not show",
+        Expect::Only(&["gap.unused"]),
+        |t, r| restate_prompt(t, r, 0),
     ),
 ];
 

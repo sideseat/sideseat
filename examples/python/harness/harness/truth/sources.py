@@ -28,7 +28,7 @@ from harness.fakes import google_genai as fake_gemini
 from harness.fakes import openai as fake_openai
 from harness.scrub import PLACEHOLDER_USER
 from harness.truth import derive
-from harness.truth.derive import Builder, Options, assemble, document
+from harness.truth.derive import Builder, Framework, Options, assemble, document
 from harness.truth.wire import ModelCall, decode, decode_cassette
 
 REPO = derive.REPO
@@ -182,7 +182,12 @@ def build(target: Target) -> dict[str, Any]:
     calls, ignored = decode_cassette(cassette)
     if not calls:
         raise Underivable(f"{_relative(cassette)} records no model call")
-    builder = assemble(target.producer, target.scenario, calls)
+    builder = assemble(
+        target.producer,
+        target.scenario,
+        calls,
+        options=Options(framework=Framework.of(suite.manifest.get("truth"))),
+    )
     source = {
         "kind": "cassette",
         "path": _relative(cassette),

@@ -247,6 +247,82 @@ def _usage(call: ModelCall) -> dict[str, Any] | None:
     return call.usage.to_json() if call.usage else None
 
 
+@dataclass(frozen=True)
+class Framework:
+    """How a suite's framework turns the model's output into a conversation, as the suite declares it.
+
+    Read from the suite manifest's ``truth`` table. Some frameworks do not let the model call tools
+    directly: the model answers with one *plan* call whose member lists actions, and the framework
+    executes each - under ids of its own, since the wire never had any - and reports each action and
+    its result. Those actions are facts of the conversation: what the model asked for is on the wire,
+    inside the plan's arguments.
+    """
+
+    #: Plan tool name -> the argument member listing its actions, each ``{action_name: arguments}``.
+    action_plans: dict[str, str] = field(default_factory=dict)
+    #: Actions that end the turn; the first is the turn's answer.
+    turn_ending_actions: frozenset[str] = frozenset()
+    #: Action -> the argument members whose value the framework reports as the action's result, the
+    #: first present one deciding (a ``done`` action's result is its answer).
+    action_results: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    #: The framework re-sends the task inside a state message of its own on every step of a turn.
+    restates_prompt: bool = False
+    #: Scenario -> actions the framework performs before the model's first call (opening a URL the task
+    #: names), each ``{action_name: arguments}``.
+    initial_actions: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+
+    @classmethod
+    def of(cls, table: dict[str, Any] | None) -> "Framework":
+        table = table or {}
+        return cls(
+            action_plans=dict(table.get("action_plans", {})),
+            turn_ending_actions=frozenset(table.get("turn_ending_actions", ())),
+            action_results={
+                name: tuple(members)
+                for name, members in table.get("action_results", {}).items()
+            },
+            restates_prompt=bool(table.get("restates_prompt", False)),
+            initial_actions={
+                scenario: list(actions)
+                for scenario, actions in table.get("initial_actions", {}).items()
+            },
+        )
+
+    def actions(self, name: str, arguments: Any) -> list[tuple[str, Any]] | None:
+        """The actions a plan call lists, or ``None`` when the call is not a plan.
+
+        Fails closed: a plan without its declared list, an entry that is not one ``{action:
+        arguments}`` pair, or an action after the turn's end is a derivation error rather than a plan
+        with nothing to assert.
+        """
+        member = self.action_plans.get(name)
+        if member is None:
+            return None
+        listed = arguments.get(member) if isinstance(arguments, dict) else None
+        if not isinstance(listed, list) or not listed:
+            raise ValueError(f"the {name} plan has no {member!r} list: {arguments!r}")
+        actions = []
+        for entry in listed:
+            if not isinstance(entry, dict) or len(entry) != 1:
+                raise ValueError(
+                    f"a {name} action is not one {{name: arguments}} pair: {entry!r}"
+                )
+            ((action, value),) = entry.items()
+            if actions and actions[-1][0] in self.turn_ending_actions:
+                raise ValueError(
+                    f"the {name} plan acts after ending the turn: {listed!r}"
+                )
+            actions.append((action, value))
+        return actions
+
+    def action_result(self, name: str, arguments: Any) -> ToolOutcome | None:
+        """The result the framework reports for an action it carried out itself."""
+        for member in self.action_results.get(name, ()):
+            if isinstance(arguments, dict) and arguments.get(member) is not None:
+                return ToolOutcome(arguments[member], is_error=False)
+        return None
+
+
 @dataclass
 class Options:
     """What a source can vouch for, beyond the response content itself."""
@@ -255,6 +331,8 @@ class Options:
     metadata_from_wire: bool = True
     #: An answer built from tool results quotes the framework's rendering of them (fake models).
     answers_follow_results: bool = False
+    #: The suite's declarations about its framework.
+    framework: Framework = field(default_factory=Framework)
 
 
 def assemble(
@@ -284,8 +362,67 @@ def assemble(
             "only each call's own output and the shared tools' results are asserted",
         )
 
-    state: dict[str, Any] = {"conversation": None, "pending": None}
+    state: dict[str, Any] = {
+        "conversation": None,
+        "pending": None,
+        "turn_calls": 0,
+        "initial": True,
+    }
     previous_call: str | None = None
+    framework = options.framework
+
+    def add_result(
+        conversation: dict[str, Any], call_fact: str, outcome: ToolOutcome | None
+    ) -> bool:
+        """A tool call's result as a fact, or a gap when the script cannot compute it."""
+        value = builder.facts[int(call_fact.split("-")[1]) - 1]["value"]
+        if outcome is None:
+            builder.gap(
+                "tool_result",
+                "tool_not_deterministic",
+                f"{value['name']} is not one of the shared deterministic tools",
+                subject=call_fact,
+            )
+            return False
+        result = builder.fact(
+            conversation,
+            "tool_result",
+            "tool",
+            "script",
+            {
+                "call_id": value["id"],
+                "name": value["name"],
+                "value": outcome.value,
+                "is_error": outcome.is_error,
+            },
+            # A framework renders a raised error in its own words around the message.
+            require=_conversation_requirement(
+                "error_message" if outcome.is_error else "semantic"
+            ),
+        )
+        builder.edges.append({"kind": "result_of", "from": result, "to": call_fact})
+        return True
+
+    def add_action(
+        conversation: dict[str, Any], name: str, arguments: Any, evidence: str
+    ) -> str:
+        """An action the framework executes: a call under an id the framework assigns, and its result."""
+        fact = builder.fact(
+            conversation,
+            "tool_call",
+            "assistant",
+            evidence,
+            {"id": None, "name": name, "arguments": arguments},
+            # Executed and reported by the framework, not returned by the model call, so it belongs to
+            # the conversation rather than to the call's span.
+            require=_conversation_requirement("semantic"),
+        )
+        add_result(
+            conversation,
+            fact,
+            framework.action_result(name, arguments) or run_tool(name, arguments),
+        )
+        return fact
 
     def open_turn(new_conversation: bool) -> None:
         nonlocal previous_call
@@ -315,6 +452,12 @@ def assemble(
                     media,
                     require=_conversation_requirement("digest"),
                 )
+        state["turn_calls"] = 0
+        if state["initial"]:
+            state["initial"] = False
+            for entry in framework.initial_actions.get(scenario, ()):
+                for name, arguments in entry.items():
+                    add_action(conversation, name, arguments, "script")
 
     def next_turn() -> None:
         # A new conversation starts when the scenario's next prompt belongs to another trace.
@@ -364,6 +507,15 @@ def assemble(
             )
             state["pending"] = None
         previous_call = identifier
+        state["turn_calls"] += 1
+        if framework.restates_prompt and state["turn_calls"] > 1:
+            builder.gap(
+                "user_text",
+                "framework_restates_prompt",
+                "the framework re-sends the task inside its own state message on every step; the "
+                "request body is unrecorded, so the message is known only to contain the prompt",
+                subject=identifier,
+            )
         if call.system_echo and not any(
             f["kind"] == "system" and f["conversation"] == conversation["id"]
             for f in builder.facts
@@ -449,6 +601,7 @@ def assemble(
                 )
             call_facts.append(fact)
         record["outputs"] = call_facts
+        turn_answer: str | None = None
         for fact_id in call_facts:
             fact = builder.facts[int(fact_id.split("-")[1]) - 1]
             if fact["kind"] != "tool_call":
@@ -456,35 +609,25 @@ def assemble(
             value = fact["value"]
             if value["name"] in TERMINAL_TOOLS:
                 continue
-            outcome = run_tool(value["name"], value["arguments"])
-            if outcome is None:
-                builder.gap(
-                    "tool_result",
-                    "tool_not_deterministic",
-                    f"{value['name']} is not one of the shared deterministic tools",
-                    subject=fact_id,
-                )
+            actions = framework.actions(value["name"], value["arguments"])
+            if actions is not None:
+                # A plan has no result of its own; each action it lists does.
+                for name, arguments in actions:
+                    action = add_action(conversation, name, arguments, evidence)
+                    results_seen = True
+                    if name in framework.turn_ending_actions and turn_answer is None:
+                        turn_answer = action
                 continue
-            results_seen = True
-            result = builder.fact(
-                conversation,
-                "tool_result",
-                "tool",
-                "script",
-                {
-                    "call_id": value["id"],
-                    "name": value["name"],
-                    "value": outcome.value,
-                    "is_error": outcome.is_error,
-                },
-                # A framework renders a raised error in its own words around the message.
-                require=_conversation_requirement(
-                    "error_message" if outcome.is_error else "semantic"
-                ),
-            )
-            builder.edges.append({"kind": "result_of", "from": result, "to": fact_id})
-        terminal = all(part["name"] in TERMINAL_TOOLS for part in call.tool_calls)
-        final = _final_answer(builder, call_facts) if terminal else None
+            if add_result(
+                conversation, fact_id, run_tool(value["name"], value["arguments"])
+            ):
+                results_seen = True
+        terminal = turn_answer is not None or all(
+            part["name"] in TERMINAL_TOOLS for part in call.tool_calls
+        )
+        final = turn_answer or (
+            _final_answer(builder, call_facts) if terminal else None
+        )
         if final:
             # One per answered prompt: a multi-turn conversation has an answer for every question.
             conversation["final_answers"].append(final)

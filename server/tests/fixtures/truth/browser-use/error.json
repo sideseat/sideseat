@@ -64,8 +64,8 @@
     "input_includes_cache": false
    },
    "outputs": [
-    "fact-003",
-    "fact-004"
+    "fact-005",
+    "fact-006"
    ]
   },
   {
@@ -90,7 +90,7 @@
     "input_includes_cache": false
    },
    "outputs": [
-    "fact-005"
+    "fact-009"
    ]
   }
  ],
@@ -102,9 +102,17 @@
     "fact-002",
     "fact-003",
     "fact-004",
-    "fact-005"
+    "fact-005",
+    "fact-006",
+    "fact-007",
+    "fact-008",
+    "fact-009",
+    "fact-010",
+    "fact-011"
    ],
-   "final_answers": []
+   "final_answers": [
+    "fact-010"
+   ]
   }
  ],
  "facts": [
@@ -170,6 +178,55 @@
   },
   {
    "id": "fact-003",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": null,
+    "name": "book_flight",
+    "arguments": {
+     "origin": "London",
+     "destination": "Oslo",
+     "date": "2026-11-14"
+    }
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-004",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": null,
+    "name": "book_flight",
+    "value": "No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+    "is_error": true
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "error_message"
+   }
+  },
+  {
+   "id": "fact-005",
    "kind": "reasoning",
    "role": "assistant",
    "conversation": "conv-1",
@@ -183,7 +240,7 @@
    "call": "call-002"
   },
   {
-   "id": "fact-004",
+   "id": "fact-006",
    "kind": "tool_call",
    "role": "assistant",
    "conversation": "conv-1",
@@ -221,7 +278,56 @@
    "call": "call-002"
   },
   {
-   "id": "fact-005",
+   "id": "fact-007",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": null,
+    "name": "book_flight",
+    "arguments": {
+     "origin": "London",
+     "destination": "Oslo",
+     "date": "2026-11-14"
+    }
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-008",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": null,
+    "name": "book_flight",
+    "value": "No seats from London to Oslo on 2026-11-14: the booking system is offline.",
+    "is_error": true
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "error_message"
+   }
+  },
+  {
+   "id": "fact-009",
    "kind": "tool_call",
    "role": "assistant",
    "conversation": "conv-1",
@@ -257,6 +363,55 @@
     "match": "semantic"
    },
    "call": "call-003"
+  },
+  {
+   "id": "fact-010",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "id": null,
+    "name": "done",
+    "arguments": {
+     "text": "I couldn't book the flight from London to Oslo on 2026-11-14. I tried the booking tool twice, and both times it returned \"No seats... the booking system is offline.\" No booking was made, so please try again later.",
+     "success": false,
+     "files_to_display": []
+    }
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-011",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": null,
+    "name": "done",
+    "value": "I couldn't book the flight from London to Oslo on 2026-11-14. I tried the booking tool twice, and both times it returned \"No seats... the booking system is offline.\" No booking was made, so please try again later.",
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
   }
  ],
  "edges": [
@@ -266,14 +421,29 @@
    "to": "call-001"
   },
   {
+   "kind": "result_of",
+   "from": "fact-004",
+   "to": "fact-003"
+  },
+  {
    "kind": "call_order",
    "before": "call-001",
    "after": "call-002"
   },
   {
+   "kind": "result_of",
+   "from": "fact-008",
+   "to": "fact-007"
+  },
+  {
    "kind": "call_order",
    "before": "call-002",
    "after": "call-003"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-011",
+   "to": "fact-010"
   }
  ],
  "gaps": [
@@ -283,28 +453,22 @@
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
   },
   {
-   "fact": "tool_result",
-   "reason": "tool_not_deterministic",
-   "detail": "AgentOutput is not one of the shared deterministic tools",
-   "subject": "fact-002"
+   "fact": "user_text",
+   "reason": "framework_restates_prompt",
+   "detail": "the framework re-sends the task inside its own state message on every step; the request body is unrecorded, so the message is known only to contain the prompt",
+   "subject": "call-002"
   },
   {
    "fact": "reasoning",
    "reason": "reasoning_text_omitted",
    "detail": "the provider returned a signed reasoning block with no visible text; whether a reconstruction shows a placeholder for it is a product decision, not a fidelity fact",
-   "subject": "fact-003"
-  },
-  {
-   "fact": "tool_result",
-   "reason": "tool_not_deterministic",
-   "detail": "AgentOutput is not one of the shared deterministic tools",
-   "subject": "fact-004"
-  },
-  {
-   "fact": "tool_result",
-   "reason": "tool_not_deterministic",
-   "detail": "AgentOutput is not one of the shared deterministic tools",
    "subject": "fact-005"
+  },
+  {
+   "fact": "user_text",
+   "reason": "framework_restates_prompt",
+   "detail": "the framework re-sends the task inside its own state message on every step; the request body is unrecorded, so the message is known only to contain the prompt",
+   "subject": "call-003"
   }
  ]
 }

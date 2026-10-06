@@ -268,18 +268,39 @@ fn assign(context: &Context<'_>, scope: &Scope<'_>) -> Assigned {
             .iter()
             .map(|fact| {
                 let call_id = paired_call_id(context, fact, &assigned);
-                (0..scope.blocks.len())
+                // Oldest first, as the conversation happened: the feed lists newest first, so a fact
+                // more than one block shows - a prompt the framework restates every step - prefers the
+                // copy the conversation sent first in every view alike.
+                // A block showing the call under its own id is tried before one under another id: a
+                // rewrite is the explanation of last resort, never a rival to the call's own block.
+                let mut candidates: Vec<(bool, usize)> = chronological(scope)
                     .filter(|&at| !taken.contains_key(&at))
-                    .filter(|&at| block_shows(fact, scope, at, call_id.as_deref()) != Shows::No)
-                    .filter(|&at| in_home(context, scope, fact, at))
-                    .collect()
+                    .filter_map(
+                        |at| match block_shows(fact, scope, at, call_id.as_deref()) {
+                            Shows::No => None,
+                            Shows::WithRewrittenId(_) => Some((true, at)),
+                            Shows::Yes | Shows::Assigned(_) => Some((false, at)),
+                        },
+                    )
+                    .filter(|&(_, at)| in_home(context, scope, fact, at))
+                    .collect();
+                candidates.sort_by_key(|&(rewritten, _)| rewritten);
+                candidates.into_iter().map(|(_, at)| at).collect()
             })
             .collect();
-        let matched = maximum_matching(&adjacency);
+        let matched = in_sequence(
+            context,
+            scope,
+            &phase,
+            &adjacency,
+            maximum_matching(&adjacency),
+        );
         for (index, block) in matched.into_iter().enumerate() {
             let Some(at) = block else { continue };
             let fact = phase[index];
-            if let Shows::WithRewrittenId(id) = shows(fact, scope.blocks[at].2, None) {
+            if let Shows::WithRewrittenId(id) | Shows::Assigned(id) =
+                shows(fact, scope.blocks[at].2, None)
+            {
                 assigned.rewritten.insert(fact.id.clone(), id);
             }
             assigned.block_of.insert(fact.id.clone(), at);
@@ -329,6 +350,71 @@ fn paired_call_id(context: &Context<'_>, fact: &Fact, assigned: &Assigned) -> Op
             .and_then(|id| id.as_str())
             .map(str::to_owned)
     })
+}
+
+/// The scope's blocks in the order the conversation happened: view order, reversed in the feed.
+fn chronological(scope: &Scope<'_>) -> Box<dyn Iterator<Item = usize>> {
+    if scope.kind == ViewKind::Feed {
+        Box::new((0..scope.blocks.len()).rev())
+    } else {
+        Box::new(0..scope.blocks.len())
+    }
+}
+
+/// A matching in which interchangeable facts take their blocks in the truth's order.
+///
+/// Two facts with the same kind, value and matcher and exactly the same candidate blocks are
+/// indistinguishable to every check - two identical calls a framework names itself, say - so any
+/// assignment of those blocks between them is as valid as another, and Kuhn's order would decide which one
+/// the order checks see first. The truth's sequence decides instead: the earlier fact takes the earlier
+/// block. Facts whose candidates differ are never exchanged, so no fact can receive a block it does not
+/// show or that sits outside its home.
+fn in_sequence(
+    context: &Context<'_>,
+    scope: &Scope<'_>,
+    phase: &[&Fact],
+    adjacency: &[Vec<usize>],
+    mut matched: Vec<Option<usize>>,
+) -> Vec<Option<usize>> {
+    let position: BTreeMap<&str, usize> = context
+        .truth
+        .conversations
+        .iter()
+        .flat_map(|c| &c.sequence)
+        .enumerate()
+        .map(|(i, id)| (id.as_str(), i))
+        .collect();
+    type Interchangeable<'f> = (String, String, Option<&'f str>, Vec<usize>);
+    let mut groups: BTreeMap<Interchangeable<'_>, Vec<usize>> = BTreeMap::new();
+    for (index, fact) in phase.iter().enumerate() {
+        if matched[index].is_some() {
+            let mut candidates = adjacency[index].clone();
+            candidates.sort_unstable();
+            groups
+                .entry((
+                    fact.kind.clone(),
+                    super::super::canonical_json(&fact.value),
+                    fact.require.as_ref().map(|r| r.matcher.as_str()),
+                    candidates,
+                ))
+                .or_default()
+                .push(index);
+        }
+    }
+    for members in groups.values().filter(|m| m.len() > 1) {
+        let mut facts = members.clone();
+        facts.sort_by_key(|&i| position.get(phase[i].id.as_str()).copied());
+        let mut blocks: Vec<usize> = members.iter().filter_map(|&i| matched[i]).collect();
+        let rank: BTreeMap<usize, usize> = chronological(scope)
+            .enumerate()
+            .map(|(r, at)| (at, r))
+            .collect();
+        blocks.sort_by_key(|at| rank.get(at).copied());
+        for (fact, block) in facts.into_iter().zip(blocks) {
+            matched[fact] = Some(block);
+        }
+    }
+    matched
 }
 
 /// Kuhn's augmenting paths: for each left vertex, the right vertex it is matched to.
@@ -404,7 +490,27 @@ fn report_assignment(
             out.push(Violation::new(view, &assertion, &fact.id, detail));
             continue;
         };
-        if let Some(id) = assigned.rewritten.get(&fact.id) {
+        // A call the wire gave no id is named by the framework, which is no rewrite - unless the name is
+        // another call's too, when the two results can no longer tell their calls apart.
+        let framework_named = fact.value.get("id").is_some_and(serde_json::Value::is_null);
+        if framework_named
+            && let Some(id) = assigned.rewritten.get(&fact.id)
+            && let Some(other) = assigned
+                .rewritten
+                .iter()
+                .find(|(other, shared)| *other != &fact.id && *shared == id)
+                .map(|(other, _)| other)
+        {
+            out.push(Violation::new(
+                view,
+                "tool_call.id_rewritten",
+                &fact.id,
+                format!("the framework names it {id:?}, as it names {other}"),
+            ));
+        }
+        if let Some(id) = assigned.rewritten.get(&fact.id)
+            && !framework_named
+        {
             out.push(Violation::new(
                 view,
                 "tool_call.id_rewritten",
@@ -412,11 +518,14 @@ fn report_assignment(
                 format!("the call is shown under the id {id:?}"),
             ));
         }
+        // Every block showing the fact but one another fact owns: two identical calls each show the
+        // other under a different id, and the other's block is that call, not a second showing of this.
         shown_by.insert(
             fact.id.clone(),
             anywhere
                 .iter()
                 .filter(|&&b| in_home(context, scope, fact, b) && !consumed.contains(&b))
+                .filter(|&&b| b == at || !claimed.contains(&b))
                 .map(|&b| scope.blocks[b].2.digest.clone())
                 .collect(),
         );

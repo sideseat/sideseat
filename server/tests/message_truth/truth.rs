@@ -200,6 +200,9 @@ pub(super) fn gap_effects(reason: &str) -> Option<GapEffects> {
         "tool_not_deterministic" => effects(GapSubject::Fact, false, true, false),
         // A failed attempt owes no output.
         "no_output_obligation" => effects(GapSubject::Call, false, false, false),
+        // The framework's own per-step state message restates the prompt in the call's request: one
+        // user text containing the prompt, in that call's trace.
+        "framework_restates_prompt" => effects(GapSubject::Call, false, true, false),
         // The telemetry does not carry the fact: proven, never assumed.
         "not_exported" => effects(GapSubject::Fact, true, false, true),
         "request_body_unrecorded"

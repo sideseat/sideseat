@@ -46,7 +46,7 @@
    "id": "call-002",
    "attempt": 1,
    "outcome": "success",
-   "conversation": "conv-1",
+   "conversation": "conv-2",
    "api": "anthropic.messages",
    "streamed": false,
    "status": 200,
@@ -64,7 +64,7 @@
     "input_includes_cache": false
    },
    "outputs": [
-    "fact-003"
+    "fact-006"
    ]
   }
  ],
@@ -74,9 +74,24 @@
    "sequence": [
     "fact-001",
     "fact-002",
-    "fact-003"
+    "fact-003",
+    "fact-004"
    ],
-   "final_answers": []
+   "final_answers": [
+    "fact-003"
+   ]
+  },
+  {
+   "id": "conv-2",
+   "sequence": [
+    "fact-005",
+    "fact-006",
+    "fact-007",
+    "fact-008"
+   ],
+   "final_answers": [
+    "fact-007"
+   ]
   }
  ],
  "facts": [
@@ -145,6 +160,75 @@
    "conversation": "conv-1",
    "evidence": "wire",
    "value": {
+    "id": null,
+    "name": "done",
+    "arguments": {
+     "text": "I'd suggest the Museo del Prado, Madrid's premier art museum, with masterpieces by Velázquez, Goya, and El Greco. It's on Paseo del Prado near Retiro Park, so you can easily pair it with a stroll afterward. This is a suggestion from general knowledge; I didn't check opening hours or availability in this session.",
+     "success": true,
+     "files_to_display": []
+    }
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-004",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": null,
+    "name": "done",
+    "value": "I'd suggest the Museo del Prado, Madrid's premier art museum, with masterpieces by Velázquez, Goya, and El Greco. It's on Paseo del Prado near Retiro Park, so you can easily pair it with a stroll afterward. This is a suggestion from general knowledge; I didn't check opening hours or availability in this session.",
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-005",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-2",
+   "evidence": "script",
+   "value": {
+    "text": "Suggest one park to visit in Madrid."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-006",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-2",
+   "evidence": "wire",
+   "value": {
     "id": "toolu_bdrk_011dBpjVvKh7Fee5rraGoGYz",
     "name": "AgentOutput",
     "arguments": {
@@ -175,6 +259,55 @@
     "match": "semantic"
    },
    "call": "call-002"
+  },
+  {
+   "id": "fact-007",
+   "kind": "tool_call",
+   "role": "assistant",
+   "conversation": "conv-2",
+   "evidence": "wire",
+   "value": {
+    "id": null,
+    "name": "done",
+    "arguments": {
+     "text": "I suggest Retiro Park (Parque del Buen Retiro), Madrid's most famous park. You can rent a rowboat on the lake, visit the Crystal Palace, and stroll through the rose garden. This is from general knowledge, not a live lookup.",
+     "success": true,
+     "files_to_display": []
+    }
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-008",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-2",
+   "evidence": "script",
+   "value": {
+    "call_id": null,
+    "name": "done",
+    "value": "I suggest Retiro Park (Parque del Buen Retiro), Madrid's most famous park. You can rent a rowboat on the lake, visit the Crystal Palace, and stroll through the rose garden. This is from general knowledge, not a live lookup.",
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
   }
  ],
  "edges": [
@@ -184,9 +317,19 @@
    "to": "call-001"
   },
   {
-   "kind": "call_order",
-   "before": "call-001",
-   "after": "call-002"
+   "kind": "result_of",
+   "from": "fact-004",
+   "to": "fact-003"
+  },
+  {
+   "kind": "prompt_of",
+   "from": "fact-005",
+   "to": "call-002"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-008",
+   "to": "fact-007"
   }
  ],
  "gaps": [
@@ -194,23 +337,6 @@
    "fact": "system_prompt",
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
-  },
-  {
-   "fact": "tool_result",
-   "reason": "tool_not_deterministic",
-   "detail": "AgentOutput is not one of the shared deterministic tools",
-   "subject": "fact-002"
-  },
-  {
-   "fact": "tool_result",
-   "reason": "tool_not_deterministic",
-   "detail": "AgentOutput is not one of the shared deterministic tools",
-   "subject": "fact-003"
-  },
-  {
-   "fact": "user_text",
-   "reason": "prompt_without_model_call",
-   "detail": "the script sends 'Suggest one park to visit in Madrid.', but no recorded call answers it"
   }
  ]
 }
