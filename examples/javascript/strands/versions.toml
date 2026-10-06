@@ -107,12 +107,12 @@ version = "0.7.0"
 reason = "The suite's native setup imports @strands-agents/sdk/telemetry and the 1.x agent API, which the 0.x line does not export."
 revisit = "2027-01-05"
 
-[[exempt]]
+# 1.0.0 and 1.1.0 call Bedrock CountTokens before every model call, so the suite's cassettes cannot answer
+# them; their own were recorded live with `python -m harness matrix strands-js --live`.
+[[recording]]
 version = "1.0.0"
-reason = "Calls Bedrock CountTokens before each model call, which the suite's cassettes do not hold; it needs a [[recording]] of its own, taken live with `matrix --live`."
-revisit = "2026-11-05"
+reason = "Calls Bedrock CountTokens before each model call, which the suite's cassettes do not hold."
 
-[[exempt]]
+[[recording]]
 version = "1.1.0"
-reason = "Calls Bedrock CountTokens before each model call, which the suite's cassettes do not hold; it needs a [[recording]] of its own, taken live with `matrix --live`."
-revisit = "2026-11-05"
+reason = "Calls Bedrock CountTokens before each model call, which the suite's cassettes do not hold."

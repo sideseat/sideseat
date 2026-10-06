@@ -227,7 +227,8 @@ releases, 2 classes): the finish reason moves from `llm.response.finish_reasons`
 instrumentor** (3 releases, 2 classes): 0.1.10 adds `llm.finish_reason`. **Strands Agents for TypeScript**
 (38 releases): without the opt-in 1.2 onwards is one format; opted in, 1.12 adds
 `gen_ai.tool.call.arguments` / `.result`. The 0.x line lacks the `@strands-agents/sdk/telemetry` export the
-suite imports, and 1.0.0 - 1.1.0 call CountTokens before each model call: they wait for a live recording.
+suite imports; 1.0.0 - 1.1.0 call CountTokens before each model call, replay cassettes of their own recorded live,
+and fall in the existing classes.
 
 **`@ai-sdk/otel`** behind `vercel-ai-js` (119 releases, 4 classes): 1.0.44 adds `gen_ai.response.model`, 1.0.54
 and 1.0.69 change message JSON.
