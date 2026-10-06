@@ -16,7 +16,7 @@
 //! content is too weak to search for (`Unprovable`). Proven gaps are framework limitations, listed in
 //! the documentation from the truths themselves (`limitations_section`).
 
-mod haystack;
+pub(super) mod haystack;
 #[cfg(test)]
 mod tests;
 
