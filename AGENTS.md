@@ -200,6 +200,14 @@ spellings, or "if this producer then" branches. All of that lives in the JSON as
 - `make update-python-deps` is the only workflow that intentionally rewrites Python lockfiles.
 - Use package-local Node tooling; the repository has no root Node package.
 - `mise` pins the toolchains: Node, Python, uv, .NET, cargo-nextest.
+- Rust libraries, by default: `thiserror` for every library crate's errors and `anyhow` only in the server
+  binary and tests; `serde` for serialisation; `tracing` for events and spans, with the subscriber installed
+  only by the server binary, never by a library or the SDK. Use `strum` when an enum has a string form that is
+  not just its JSON one, or variants must be enumerated - when the strings exist only for JSON, `serde`'s
+  `rename_all` is enough. Use `itertools` where it removes real code, not to turn loops into long adapter
+  chains. Situational: `derive_more` for `From`/`Display`/arithmetic on newtypes (never `Deref`, which erases
+  the type boundary), `bon` only for constructors with many optional parameters. Not used: `miette` and
+  `color-eyre`, which suit compilers and CLIs rather than a service.
 
 ## Hard requirement: the fastest possible developer loop
 
