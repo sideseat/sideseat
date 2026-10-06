@@ -11,9 +11,9 @@
 # and `make check` locally means the same thing the hook enforces.
 set -euo pipefail
 
-# Git writes the pushed refs to this hook's stdin. Read them all now and give every check /dev/null instead:
-# a tool that closed the inherited stdin while git was still writing made git die of SIGPIPE after every
-# check had passed, so the push failed with nothing wrong.
+# Git writes the pushed refs to this hook's stdin; read them all and give every check /dev/null, so no tool
+# can consume or close git's pipe. Push with `make push`: this hook runs for many minutes while git holds the
+# SSH connection open, and without keepalives the server drops it and git dies of SIGPIPE afterwards.
 cat >/dev/null
 exec </dev/null
 

@@ -1,6 +1,6 @@
 ##@ Utilities
 
-.PHONY: deps-check node-floor download-prices clean-stale clean-docker disk disk-guard clean
+.PHONY: push deps-check node-floor download-prices clean-stale clean-docker disk disk-guard clean
 
 deps-check: ## Report outdated dependencies
 	@./scripts/check/deps.sh
@@ -138,3 +138,10 @@ clean: ## Remove all generated build artifacts
 	@rm -rf $(RELEASE_DIR)
 	@echo "[clean] Done. Cargo artifacts and web/dist are gone; the next Rust build is cold."
 	@echo "[clean] The API crate recreates web/dist as a placeholder on the next build - run make build-web for the real UI."
+
+# git opens the SSH connection before the pre-push hook runs `make check`, which can take half an hour; an
+# idle connection the server dropped meanwhile kills the push with SIGPIPE after every check has passed.
+# Keepalives hold it open.
+push: ## Push the current branch through the pre-push gate
+	@GIT_SSH_COMMAND="$${GIT_SSH_COMMAND:-ssh} -o ServerAliveInterval=20 -o ServerAliveCountMax=180" \
+		git push $(if $(ARGS),$(ARGS),origin HEAD)
