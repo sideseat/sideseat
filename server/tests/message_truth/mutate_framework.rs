@@ -105,3 +105,32 @@ pub(super) fn restate_prompt(truth: &mut Truth, recon: &mut Recon, copies: usize
     }
     true
 }
+
+/// A proven-absent model waives only what the producer said: a reconstruction stating a model its span's
+/// payload never carried is still wrong.
+pub(super) fn invented_model_under_a_gap(truth: &mut Truth, recon: &mut Recon) -> bool {
+    let Some(call) = truth
+        .calls
+        .iter()
+        .find(|c| c.succeeded() && c.model.is_some())
+        .map(|c| c.id.clone())
+    else {
+        return false;
+    };
+    truth.gaps.push(Gap {
+        fact: "model".to_string(),
+        reason: "metadata_not_exported".to_string(),
+        detail: "declared by a test".to_string(),
+        subject: Some(call),
+        modes: Vec::new(),
+    });
+    super::mutate::edit_generation(
+        truth,
+        recon,
+        |c| c.model.is_some(),
+        |g| {
+            g.request_model = Some("an-invented-model".into());
+            g.response_model = None;
+        },
+    )
+}

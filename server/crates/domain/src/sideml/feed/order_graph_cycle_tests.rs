@@ -59,6 +59,7 @@ fn evidence(carrier: usize, position: i32) -> OrderEvidence {
         entry_index: 0,
         effective: Utc.timestamp_opt(1_700_000_000, 0).unwrap(),
         credible: false,
+        history: false,
         span: 0,
         carrier,
         carrier_ordered: true,
@@ -272,6 +273,7 @@ fn a_relisting_is_discounted_only_on_evidence_from_below_it() {
                 entry_index: 0,
                 effective: Utc.timestamp_opt(1_700_000_000, 0).unwrap(),
                 credible: true,
+                history: false,
                 span,
                 carrier: 0,
                 carrier_ordered: true,
@@ -294,6 +296,7 @@ fn a_relisting_is_discounted_only_on_evidence_from_below_it() {
         entry_index: 0,
         effective: Utc.timestamp_opt(1_700_000_000, 0).unwrap(),
         credible: true,
+        history: false,
         span: 1,
         carrier: 1,
         carrier_ordered: true,
@@ -381,6 +384,7 @@ fn a_relisting_of_two_responses_is_discounted() {
         entry_index: 0,
         effective: at(0),
         credible: true,
+        history: false,
         span,
         carrier: instance,
         carrier_ordered: true,
@@ -429,5 +433,52 @@ fn a_relisting_of_two_responses_is_discounted() {
     assert!(
         redundant_relistings(&evidence, &survivors, &of).is_empty(),
         "a span that outlives the re-listing span is not below it"
+    );
+}
+
+/// A history copy's time is when it was assembled: a unit observed directly takes its time from that
+/// observation, so a run's re-listing stamped at the run's start does not pull the unit ahead of what
+/// happened before it.
+#[test]
+fn a_history_copy_does_not_date_a_directly_observed_unit() {
+    let at = |seconds: i64| Utc.timestamp_opt(1_700_000_000 + seconds, 0).unwrap();
+    let survivors = vec![block("tool-a", "first"), block("tool-b", "second")];
+    let observed = |carrier: usize, time: i64, history: bool| OrderEvidence {
+        effective: at(time),
+        carrier_ordered: false,
+        history,
+        ..evidence(carrier, 0)
+    };
+    let order = |evidence_set: &[OrderEvidence], lineage: &[Option<usize>]| {
+        resolve(
+            evidence_set,
+            &survivors,
+            lineage,
+            &[0, 0],
+            &HashMap::new(),
+            Constraints::PRODUCTION,
+        )
+        .iter()
+        .map(|b| b.span_id.clone())
+        .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        order(
+            &[
+                observed(0, 10, false),
+                observed(1, 30, false),
+                observed(2, 0, true)
+            ],
+            &[Some(0), Some(1), Some(1)],
+        ),
+        ["tool-a", "tool-b"]
+    );
+    // Where nothing observed a unit directly, its history copies still date it.
+    assert_eq!(
+        order(
+            &[observed(0, 10, false), observed(2, 0, true)],
+            &[Some(0), Some(1)]
+        ),
+        ["tool-b", "tool-a"]
     );
 }

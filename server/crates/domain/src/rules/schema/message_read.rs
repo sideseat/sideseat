@@ -543,6 +543,11 @@ pub enum ParseMode {
     /// A serialised list of framework objects. All or nothing: an element that is not such a repr means the
     /// carrier is some other shape, and it is left to the rules that read that shape.
     PythonConstructorReprArray,
+    /// Parse text that is several Python constructor `repr`s written back to back, into an array of their trees.
+    ///
+    /// A framework that records a stream of its own objects by concatenating their reprs. All or nothing: any
+    /// text between them that is not whitespace means the carrier is some other shape.
+    PythonConstructorReprSequence,
     /// Parse the Python `str()` of a dict or a list - single-quoted strings, `True`, `False`, `None` -
     /// into a JSON tree; the carrier is skipped when the whole text is not one.
     ///

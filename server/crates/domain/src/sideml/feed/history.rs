@@ -653,6 +653,20 @@ fn original_copy(
                 None => break,
             }
         }
+        // An agent or chain span's output that may restate what its run already did lists a call when
+        // the run reported it; the tool span that ran the call is where it happened. Ancestry cannot
+        // decide this one: a span that carried no message is absent from every path, which is what a
+        // framework's step spans between the agent and its tools usually are.
+        let kept = &blocks[sorted[keep].0];
+        if kept.is_accumulator_span()
+            && crate::sideml::carrier::semantics_for_context(&kept.carrier_context())
+                .may_restate_prior_observations
+            && let Some(executed) = sorted
+                .iter()
+                .position(|&(index, _, _, _)| executes_call(&blocks[index]))
+        {
+            return executed;
+        }
         return keep;
     }
     if !blocks[first].is_generation_span() {
@@ -664,6 +678,13 @@ fn original_copy(
             !other_output && other_time - time < SPAN_CLOCK_SKEW && blocks[index].is_agent_span()
         })
         .unwrap_or(0)
+}
+
+/// A tool span's record of the call it ran: where the call was observed, though its carrier is the tool's
+/// input rather than anything the span produced.
+fn executes_call(block: &BlockEntry) -> bool {
+    matches!(block.content, ContentBlock::ToolUse { .. })
+        && block.observation_type.as_deref() == Some(super::obs_type::TOOL)
 }
 
 /// Whether `outer`'s span is a strict ancestor of `inner`'s.
@@ -826,6 +847,10 @@ impl HistoryStats {
 #[cfg(test)]
 #[path = "history_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "history_relisting_tests.rs"]
+mod relisting_tests;
 
 #[cfg(test)]
 mod duplicate_key_tests {

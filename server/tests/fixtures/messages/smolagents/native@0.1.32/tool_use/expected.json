@@ -6,8 +6,9 @@
   "session_count": 1,
   "span_views": {
     "trace-1/FinalAnswerTool/span-11": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
+        "assistant",
         "tool"
       ],
       "tool_names": [],
@@ -15,6 +16,15 @@
       "messages": [
         {
           "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Paris: sunny both days (highs 21°C and 22°C) with only a 10% chance of rain tomorrow, so no umbrella needed. Tokyo: rain on day 1 (high 21°C, 80% chance of rain) and sunny on day 2…[287 chars]",
+          "content_digest": "ff56695dfc0a2465",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "Paris: sunny both days (highs 21°C and 22°C) with only a 10% chance of rain tomorrow, so no umbrella needed. Tokyo: rain on day 1 (high 21°C, 80% chance of rain) and sunny on day 2 (high 22°C), so pack an umbrella for Tokyo.",
@@ -137,8 +147,9 @@
       ]
     },
     "trace-1/SimpleTool/span-5": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
+        "assistant",
         "tool"
       ],
       "tool_names": [],
@@ -146,6 +157,15 @@
       "messages": [
         {
           "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
+          "content_digest": "7ea12665788ee1ee",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"name\":\"get_weather\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
@@ -156,8 +176,9 @@
       ]
     },
     "trace-1/SimpleTool/span-6": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
+        "assistant",
         "tool"
       ],
       "tool_names": [],
@@ -165,6 +186,15 @@
       "messages": [
         {
           "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
+          "content_digest": "8973386b9db4114d",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"name\":\"get_weather\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
@@ -175,8 +205,9 @@
       ]
     },
     "trace-1/SimpleTool/span-7": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
+        "assistant",
         "tool"
       ],
       "tool_names": [],
@@ -184,6 +215,15 @@
       "messages": [
         {
           "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "507cc958be8ddb7f",
+          "tool_name": "get_precipitation",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "10% chance of rain in Paris tomorrow.",
@@ -194,8 +234,9 @@
       ]
     },
     "trace-1/SimpleTool/span-8": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
+        "assistant",
         "tool"
       ],
       "tool_names": [],
@@ -203,6 +244,15 @@
       "messages": [
         {
           "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
+          "content_digest": "1b2090a5133b4bd5",
+          "tool_name": "get_precipitation",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "80% chance of rain in Tokyo tomorrow.",

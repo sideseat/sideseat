@@ -245,6 +245,9 @@ pub(super) enum Claim<'t> {
     /// One of a call's metadata (`metadata_not_exported`): the field and the values that would state
     /// it - the model, a response id, or the finish as a category and as the provider's own word.
     Metadata(&'static str, Vec<String>),
+    /// That a fact's text is reasoning (`kind_not_exported`): the text is in the payloads, and nothing
+    /// that holds it marks it as reasoning.
+    Kind(&'t Fact),
 }
 
 impl Claim<'_> {
@@ -253,6 +256,7 @@ impl Claim<'_> {
             Claim::Fact(fact) => kind_label(&fact.kind),
             Claim::Id(_) => "tool call id",
             Claim::Response(_) => "model response",
+            Claim::Kind(_) => "reasoning, as such",
             Claim::Metadata(field, _) => match *field {
                 "finish" => "finish reason",
                 "response_id" => "response id",
@@ -281,6 +285,7 @@ pub(super) fn absence_gaps(truth: &Truth) -> Vec<(&truth::Gap, Claim<'_>)> {
             let subject = gap.subject.as_deref()?;
             let claim = match gap.reason.as_str() {
                 "id_not_exported" => Claim::Id(fact(subject)?),
+                "kind_not_exported" => Claim::Kind(fact(subject)?),
                 "call_not_exported" => {
                     let call = truth.calls.iter().find(|c| c.id == subject)?;
                     Claim::Response(call.outputs.iter().filter_map(|id| fact(id)).collect())
@@ -311,6 +316,7 @@ pub(super) fn prove_claim(claim: &Claim<'_>, haystack: &Haystack) -> Proof {
         Claim::Fact(fact) => prove(fact, haystack),
         Claim::Id(fact) => prove_id(fact, haystack),
         Claim::Metadata(field, values) => prove_metadata(field, values, haystack),
+        Claim::Kind(fact) => prove_kind(fact, haystack),
         // A response is absent when every one of its parts is a tool call whose id is absent - the one
         // member no other carrier repeats - and no carrier holds two of its calls' arguments together,
         // which only a copy of the response would. A response with any other part, or a call with no
@@ -378,6 +384,11 @@ pub(super) fn prove_claim(claim: &Claim<'_>, haystack: &Haystack) -> Proof {
 /// finish (`finish_reason`, `stopReason`) holds the category or the provider's word, in any case - a
 /// finish word elsewhere, a block's `type: tool_use` or a sentence, is not a finish stated.
 fn prove_metadata(field: &str, values: &[String], haystack: &Haystack) -> Proof {
+    if let Some(at) = haystack.undecoded.first() {
+        return Proof::Unprovable(format!(
+            "{at} is encoded deeper than the search decodes ({MAX_DEPTH} layers)"
+        ));
+    }
     if values.iter().all(|v| v.trim().is_empty()) {
         return Proof::Unprovable(format!("the truth states no {field}"));
     }
@@ -394,6 +405,52 @@ fn prove_metadata(field: &str, values: &[String], haystack: &Haystack) -> Proof 
             });
             if found {
                 return Proof::Present(at.clone());
+            }
+        }
+    }
+    Proof::Absent
+}
+
+/// Whether a member name or a `type` value names reasoning.
+fn names_reasoning(text: &str) -> bool {
+    let text = text.to_ascii_lowercase();
+    text.contains("reason") || text.contains("think") || text.contains("thought")
+}
+
+/// Reasoning exported as text: the text is somewhere (else it is a missing fact, not a mislabelled one),
+/// and nothing holding it names reasoning: no JSON object that holds it has a reasoning member or `type`,
+/// and no attribute of a flattened family beside it is a reasoning `type`.
+fn prove_kind(fact: &Fact, haystack: &Haystack) -> Proof {
+    if let Some(at) = haystack.undecoded.first() {
+        return Proof::Unprovable(format!(
+            "{at} is encoded deeper than the search decodes ({MAX_DEPTH} layers)"
+        ));
+    }
+    let text = fact.text();
+    if !matches!(prove_text(text, haystack), Proof::Present(_)) {
+        return Proof::Unprovable(format!("{}'s text is not in the payloads at all", fact.id));
+    }
+    let needle = collapse_whitespace(text);
+    let marks = |node: &Value| {
+        node.as_object().is_some_and(|map| {
+            map.iter().any(|(key, value)| {
+                names_reasoning(key)
+                    || (key == "type" && value.as_str().is_some_and(names_reasoning))
+            })
+        })
+    };
+    for carrier in &haystack.carriers {
+        if let Some(at) = find_node(carrier, |node| {
+            marks(node) && holds(node, &Value::String(text.to_string()))
+        }) {
+            return Proof::Present(format!("{at} marks the text as reasoning"));
+        }
+        for (at, value) in carrier.strings.iter().filter(|(_, v)| v.contains(&needle)) {
+            let base = at.rsplit_once('.').map_or(at.as_str(), |(base, _)| base);
+            if carrier.strings.iter().any(|(other, kind)| {
+                other.starts_with(base) && other.ends_with(".type") && names_reasoning(kind)
+            }) {
+                return Proof::Present(format!("{at} is typed as reasoning beside {value:?}"));
             }
         }
     }

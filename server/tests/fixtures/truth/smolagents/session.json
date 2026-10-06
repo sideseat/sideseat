@@ -64,7 +64,7 @@
     "input_includes_cache": false
    },
    "outputs": [
-    "fact-004"
+    "fact-005"
    ]
   }
  ],
@@ -73,7 +73,8 @@
    "id": "conv-1",
    "sequence": [
     "fact-001",
-    "fact-002"
+    "fact-002",
+    "fact-003"
    ],
    "final_answers": [
     "fact-002"
@@ -82,11 +83,12 @@
   {
    "id": "conv-2",
    "sequence": [
-    "fact-003",
-    "fact-004"
+    "fact-004",
+    "fact-005",
+    "fact-006"
    ],
    "final_answers": [
-    "fact-004"
+    "fact-005"
    ]
   }
  ],
@@ -139,6 +141,29 @@
   },
   {
    "id": "fact-003",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": "tooluse_gDbink0F6t2hj4oYQCSEQb",
+    "name": "final_answer",
+    "value": "Visit the Museo del Prado, Madrid's premier art museum, home to masterpieces by Velázquez, Goya, and El Greco. It's located on Paseo del Prado, near Retiro Park, so you can easily combine the two.",
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
+  },
+  {
+   "id": "fact-004",
    "kind": "user_text",
    "role": "user",
    "conversation": "conv-2",
@@ -158,7 +183,7 @@
    }
   },
   {
-   "id": "fact-004",
+   "id": "fact-005",
    "kind": "tool_call",
    "role": "assistant",
    "conversation": "conv-2",
@@ -182,6 +207,29 @@
     "match": "semantic"
    },
    "call": "call-002"
+  },
+  {
+   "id": "fact-006",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-2",
+   "evidence": "script",
+   "value": {
+    "call_id": "tooluse_PAmdM02zW4gG4BxD3O1BuK",
+    "name": "final_answer",
+    "value": "Visit Retiro Park (Parque del Buen Retiro) — Madrid's most famous park, with a boating lake, the Crystal Palace, and beautiful gardens perfect for a relaxed stroll.",
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
   }
  ],
  "edges": [
@@ -191,9 +239,19 @@
    "to": "call-001"
   },
   {
-   "kind": "prompt_of",
+   "kind": "result_of",
    "from": "fact-003",
+   "to": "fact-002"
+  },
+  {
+   "kind": "prompt_of",
+   "from": "fact-004",
    "to": "call-002"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-006",
+   "to": "fact-005"
   }
  ],
  "gaps": [

@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use sideseat_domain::sideml::FinishReason;
 
 use super::predicates::{Shows, shows};
-use super::recon::{Block, Generation, Recon};
+use super::recon::{Block, Generation, Recon, ViewKind};
 use super::truth::{Call, Fact, Truth};
 use super::{Violation, ViolationView};
 
@@ -116,6 +116,10 @@ pub(super) fn match_calls(truth: &Truth, recon: &Recon, out: &mut Vec<Violation>
         } else {
             shown
         };
+        let shown: BTreeSet<usize> = shown
+            .into_iter()
+            .filter(|&i| !relists_from_below(recon, &signature, i))
+            .collect();
         let chosen = innermost(recon, prefer_typed(recon, shown));
         candidates.insert(call.id.clone(), chosen);
     }
@@ -240,6 +244,34 @@ fn prefer_typed(recon: &Recon, candidates: BTreeSet<usize>) -> BTreeSet<usize> {
     if typed.is_empty() { candidates } else { typed }
 }
 
+/// The span re-lists outputs the conversation shows on spans below it, and only there.
+///
+/// A run's agent span naming what its tool spans ran, where no model span exists: the reconstruction keeps
+/// each call on the span that ran it, so the agent's copy is a re-listing and no call's span. A span whose
+/// copy is the one the conversation keeps - no span below shows it - stays a candidate.
+fn relists_from_below(recon: &Recon, signature: &[&Fact], candidate: usize) -> bool {
+    let span = &recon.generations[candidate].span;
+    !signature.is_empty()
+        && signature.iter().all(|fact| {
+            let shown_at: BTreeSet<&str> = recon
+                .views
+                .iter()
+                .filter(|view| view.kind == ViewKind::Trace)
+                .flat_map(|view| &view.blocks)
+                .filter(|block| shows(fact, block, None) != Shows::No)
+                .map(|block| block.span.as_str())
+                .collect();
+            !shown_at.is_empty()
+                && !shown_at.contains(span.as_str())
+                && shown_at.iter().all(|at| {
+                    recon
+                        .generations
+                        .iter()
+                        .any(|g| g.span == *at && g.ancestors.contains(span))
+                })
+        })
+}
+
 /// Candidates with no candidate below them: the model call is the innermost span showing its output,
 /// and every enclosing agent or chain span that reports the same output is a re-listing.
 fn innermost(recon: &Recon, candidates: BTreeSet<usize>) -> BTreeSet<usize> {
@@ -343,10 +375,19 @@ pub(super) fn check_metadata(
         // What the span says about the *answer*: a member stating what was requested is not a statement
         // of which model answered, even when the two values coincide.
         let answered = Carried::of_answer(generation.raw.as_deref());
+        // A gap waives a field only for what the producer itself said: every value the span states is
+        // in the span's own payload. A value the reconstruction made up is still a violation.
+        let waived = |assertion: &str, stated: &[&str], finish: bool| {
+            not_exported.contains(&(call.id.as_str(), assertion.to_string()))
+                && stated.iter().all(|value| {
+                    if finish {
+                        carried.finish_word(value)
+                    } else {
+                        carried.string(value)
+                    }
+                })
+        };
         let mut differ = |assertion: &str, expected: &str, actual: String| {
-            if not_exported.contains(&(call.id.as_str(), assertion.to_string())) {
-                return;
-            }
             out.push(Violation::new(
                 ViolationView::Call,
                 assertion,
@@ -363,7 +404,11 @@ pub(super) fn check_metadata(
                     .is_some_and(|m| m == model || m.ends_with(&format!("/{model}")))
             };
             let states_any = stated.iter().any(|m| m.is_some());
-            if !stated.iter().any(names) && (states_any || carried.string(model)) {
+            let values: Vec<&str> = stated.iter().filter_map(|m| m.as_deref()).collect();
+            if !stated.iter().any(names)
+                && (states_any || carried.string(model))
+                && !waived("call.model", &values, false)
+            {
                 differ("call.model", model, describe(&stated));
             }
         }
@@ -385,6 +430,11 @@ pub(super) fn check_metadata(
             if let Some(e) = expected
                 && actual.as_ref() != Some(e)
                 && (actual.is_some() || raw.string(e))
+                && !waived(
+                    assertion,
+                    &actual.iter().map(String::as_str).collect::<Vec<_>>(),
+                    false,
+                )
             {
                 differ(assertion, e, describe(&[actual]));
             }
@@ -392,19 +442,24 @@ pub(super) fn check_metadata(
         if let Some(finish) = call.finish.as_deref() {
             // The normalised category, or the provider's own word: Gemini answers a function call
             // with `STOP`, and a span stating `stop` reports exactly what the wire said.
-            let expected: Vec<Option<FinishReason>> = [Some(finish), call.stop_reason.as_deref()]
-                .into_iter()
-                .flatten()
-                .map(FinishReason::from_str_normalized)
-                .collect();
-            let agrees = generation
-                .finish
-                .iter()
-                .any(|f| expected.contains(&FinishReason::from_str_normalized(f)));
+            // A word no table knows agrees only with the same word, never with another unknown one.
             let words = [Some(finish), call.stop_reason.as_deref()];
+            let agrees = generation.finish.iter().any(|f| {
+                words.iter().flatten().any(|w| {
+                    match (
+                        FinishReason::from_str_normalized(w),
+                        FinishReason::from_str_normalized(f),
+                    ) {
+                        (Some(a), Some(b)) => a == b,
+                        _ => w.eq_ignore_ascii_case(f),
+                    }
+                })
+            });
+            let stated_finish: Vec<&str> = generation.finish.iter().map(String::as_str).collect();
             if !agrees
                 && (!generation.finish.is_empty()
                     || words.iter().flatten().any(|w| carried.finish_word(w)))
+                && !waived("call.finish", &stated_finish, true)
             {
                 let stated = if generation.finish.is_empty() {
                     "states none".to_string()
@@ -548,7 +603,7 @@ impl Carried {
                     self.walk(&inner, depth + 1, finish);
                 }
                 if finish {
-                    self.finish_words.insert(text.clone());
+                    self.finish_words.insert(text.to_ascii_lowercase());
                 }
                 self.strings.insert(text.clone());
             }
@@ -578,7 +633,7 @@ impl Carried {
     }
 
     fn finish_word(&self, value: &str) -> bool {
-        self.finish_words.contains(value)
+        self.finish_words.contains(&value.to_ascii_lowercase())
     }
 
     fn number(&self, value: i64) -> bool {

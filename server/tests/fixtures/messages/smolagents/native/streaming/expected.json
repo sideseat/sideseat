@@ -6,8 +6,9 @@
   "session_count": 1,
   "span_views": {
     "trace-1/FinalAnswerTool/span-8": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
+        "assistant",
         "tool"
       ],
       "tool_names": [],
@@ -15,6 +16,15 @@
       "messages": [
         {
           "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Tomorrow in Rome will be sunny with a high of 21°C. Wear light, breathable layers like a t-shirt and light trousers, and bring a light jacket for the cooler morning and evening. Su…[286 chars]",
+          "content_digest": "4ebd2f7bf3d95209",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "Tomorrow in Rome will be sunny with a high of 21°C. Wear light, breathable layers like a t-shirt and light trousers, and bring a light jacket for the cooler morning and evening. Sunglasses and sunscreen are a good idea too.",
@@ -105,8 +115,9 @@
       ]
     },
     "trace-1/SimpleTool/span-5": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
+        "assistant",
         "tool"
       ],
       "tool_names": [],
@@ -114,6 +125,15 @@
       "messages": [
         {
           "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+          "content_digest": "0aea3913a97f0952",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"name\":\"get_weather\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
@@ -138,11 +158,53 @@
       "messages": []
     },
     "trace-1/ToolCallingAgent.run/span-2": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 4,
+      "role_sequence": [
+        "assistant",
+        "tool",
+        "assistant",
+        "tool"
+      ],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_7Gi9pMyfHIDwqlJEPXK4uw\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+          "content_digest": "0877f1c2ad599f2d",
+          "tool_name": "get_weather",
+          "observation_type": "agent"
+        },
+        {
+          "index": 1,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_7Gi9pMyfHIDwqlJEPXK4uw\",\"name\":\"get_weather\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "6494a6621090a602",
+          "tool_name": "get_weather",
+          "observation_type": "agent"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_fxXvbuUiFnXzqhEazxk8Qr\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Tomorrow in Rome will be sunny with a high of 21°C. Wear light, breathable layers like a t-shirt and light trousers, and bring a light jacket …[324 chars]",
+          "content_digest": "470e97a7444d136f",
+          "tool_name": "final_answer",
+          "observation_type": "agent"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "Tomorrow in Rome will be sunny with a high of 21°C. Wear light, breathable layers like a t-shirt and light trousers, and bring a light jacket for the cooler morning and evening. Sunglasses and sunscreen are a good idea too.",
+          "content_digest": "f00501bab47207d6",
+          "tool_name": "final_answer",
+          "observation_type": "agent"
+        }
+      ]
     },
     "trace-1/streaming/span-1": {
       "message_count": 0,

@@ -106,7 +106,8 @@
     "fact-005",
     "fact-006",
     "fact-007",
-    "fact-008"
+    "fact-008",
+    "fact-009"
    ],
    "final_answers": [
     "fact-008"
@@ -289,6 +290,29 @@
     "match": "semantic"
    },
    "call": "call-003"
+  },
+  {
+   "id": "fact-009",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": "tooluse_mvLCUimyQfoor1TvoWHssK",
+    "name": "final_answer",
+    "value": "I couldn't book your London to Oslo flight for 2026-11-14. The booking system is offline, and I got the same error with \"London/Oslo\" and with the airport codes LHR/OSL. I haven't tried other dates, since you asked for this one. Please try again later, or tell me if you want me to check a different date.",
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
   }
  ],
  "edges": [
@@ -316,6 +340,11 @@
    "kind": "call_order",
    "before": "call-002",
    "after": "call-003"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-009",
+   "to": "fact-008"
   }
  ],
  "gaps": [

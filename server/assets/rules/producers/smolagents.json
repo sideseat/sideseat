@@ -46,6 +46,36 @@
       "legacy_rank": 216
     },
     {
+      "id": "smolagents.agent_stream_objects",
+      "doc": "A streamed run's AGENT `output.value` is every object the run yielded, their Python reprs written back to back: stream deltas, then for each tool the model called a `ToolCall` and the `ToolOutput` its execution returned - both carrying the model's id - then the step's bookkeeping. Instrumentor releases before 0.1.33 record no span for a streamed model call, so this is the only place the ids are. It re-lists what the TOOL spans ran: content identity makes each copy one with the span's own, which keeps the span and the time and takes the id.",
+      "instrumentation_scope": {
+        "name": "openinference.instrumentation.smolagents"
+      },
+      "when": {
+        "attr_equals_ignore_case": [
+          {
+            "key": "openinference.span.kind",
+            "value": "agent"
+          }
+        ]
+      },
+      "read": {
+        "attribute": "output.value"
+      },
+      "parse": "python_constructor_repr_sequence",
+      "alternatives": [
+        {
+          "id": "yielded_objects",
+          "doc": "In the order the run yielded them; the fragment says which objects are turns.",
+          "select": "$",
+          "each": true,
+          "then_fragment": "smolagents.stream_object"
+        }
+      ],
+      "emit": "message",
+      "legacy_rank": 186
+    },
+    {
       "id": "smolagents.agent_chain_output",
       "doc": "The AGENT and CHAIN output is an aggregate copy of the answer already represented by the model tool call and its execution span. Streaming agents additionally serialise every delta into a Python repr here, so this carrier is claimed rather than shown as an assistant message.",
       "instrumentation_scope": {
@@ -68,7 +98,7 @@
       },
       "parse": "json_or_string",
       "emit": "claim",
-      "legacy_rank": 186
+      "legacy_rank": 187
     },
     {
       "id": "smolagents.tool_output",
@@ -107,6 +137,115 @@
       "emit": "message",
       "legacy_rank": 205,
       "reads_tool_spans": true
+    },
+    {
+      "id": "smolagents.tool_input",
+      "doc": "The call a smolagents TOOL span executed: the tool's name and the keyword arguments it was invoked with (`input.value` holds `{args, kwargs}`). The model's call is also on its generation span with its id, and content identity makes the two one call; this copy is what lets the span's own failure answer it, since a failing tool records only its exception, and it is the only copy of a call the model wrote as a text action.",
+      "instrumentation_scope": {
+        "name": "openinference.instrumentation.smolagents"
+      },
+      "when": {
+        "attr_equals_ignore_case": [
+          {
+            "key": "openinference.span.kind",
+            "value": "tool"
+          }
+        ]
+      },
+      "read": {
+        "attribute": "input.value"
+      },
+      "parse": "json",
+      "alternatives": [
+        {
+          "id": "kwargs",
+          "select": "$.kwargs",
+          "require": {
+            "all": [
+              {
+                "kind": "object"
+              }
+            ]
+          }
+        }
+      ],
+      "wrap": {
+        "role": "assistant",
+        "block": {
+          "type": "tool_use",
+          "content_as": "input",
+          "attach": [
+            {
+              "from": "tool.name",
+              "as": "name",
+              "default": ""
+            },
+            {
+              "from": "gen_ai.tool.call.id",
+              "as": "id"
+            }
+          ]
+        }
+      },
+      "emit": "message",
+      "legacy_rank": 204,
+      "reads_tool_spans": true
+    },
+    {
+      "id": "smolagents.llm_input_reprs",
+      "doc": "The request a model call received, as instrumentor releases before `llm.input_messages` recorded it: `input.value` holds `{\"messages\": [...]}` whose members are the Python reprs of smolagents' `ChatMessage` objects. Each is read as the constructor it renders; read only where the indexed input family is absent.",
+      "instrumentation_scope": {
+        "name": "openinference.instrumentation.smolagents"
+      },
+      "when": {
+        "attr_equals_ignore_case": [
+          {
+            "key": "openinference.span.kind",
+            "value": "llm"
+          }
+        ]
+      },
+      "unless": {
+        "attr_exists": [
+          "llm.input_messages.0.message.role"
+        ]
+      },
+      "read": {
+        "attribute": "input.value"
+      },
+      "parse": "json",
+      "alternatives": [
+        {
+          "id": "chat_message_reprs",
+          "doc": "One repr each.",
+          "select": "$.messages",
+          "each": true,
+          "parse": "python_constructor_repr",
+          "require": {
+            "all": [
+              {
+                "path": "$.role",
+                "exists": true
+              },
+              {
+                "path": "$.role",
+                "none_of": [
+                  "tool-call",
+                  "tool-response"
+                ],
+                "doc": "Smolagents' rendered `Calling tools` and `Observation` bookkeeping, as the indexed family's reading excludes it: the model's call and the TOOL span are the lossless copies."
+              },
+              {
+                "path": "$.content[0].text",
+                "doc": "The agent's memory re-sends a step whose model output was empty as an assistant turn with one blank text part; it says nothing.",
+                "non_empty": true
+              }
+            ]
+          }
+        }
+      ],
+      "emit": "message",
+      "legacy_rank": 206
     }
   ],
   "sdk_slugs": [
@@ -114,5 +253,83 @@
       "slug": "smolagents",
       "label": "Smolagents"
     }
-  ]
+  ],
+  "fragments": {
+    "stream_object": {
+      "doc": "What one object a smolagents run yielded is, as a turn: a call the model asked for, and the output its execution returned, each naming the model's id. Deltas, step records and the final-answer marker restate them.",
+      "cases": [
+        {
+          "id": "tool_call",
+          "doc": "A call the model asked for, with the model's id.",
+          "require": {
+            "all": [
+              {
+                "path": "$.__python_constructor",
+                "one_of": [
+                  "ToolCall"
+                ]
+              },
+              {
+                "path": "$.name",
+                "kind": "string"
+              }
+            ]
+          },
+          "wrap": {
+            "role": "assistant",
+            "tool_calls_from": {
+              "select": "$",
+              "id": "$.id",
+              "name": "$.name",
+              "arguments": "$.arguments",
+              "on_invalid_item": "skip"
+            }
+          }
+        },
+        {
+          "id": "tool_output",
+          "doc": "What the call's execution returned, answering the call's id.",
+          "require": {
+            "all": [
+              {
+                "path": "$.__python_constructor",
+                "one_of": [
+                  "ToolOutput"
+                ]
+              },
+              {
+                "path": "$.id",
+                "kind": "string"
+              }
+            ]
+          },
+          "wrap": {
+            "role": "tool",
+            "content_from_any_of": [
+              "$.output"
+            ],
+            "content_default": null,
+            "block": {
+              "type": "tool_result",
+              "content_as": "content",
+              "attach": [
+                {
+                  "from_value_any_of": [
+                    "$.id"
+                  ],
+                  "as": "tool_use_id"
+                },
+                {
+                  "from_value_any_of": [
+                    "$.tool_call.name"
+                  ],
+                  "as": "name"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
 }

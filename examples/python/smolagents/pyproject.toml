@@ -16,6 +16,14 @@ dependencies = [
 producer = "smolagents"
 integrations = ["smolagents"]
 
+# How smolagents reports what the model asked for, for the truth derivation (`python -m harness truth`):
+# the agent answers through its `final_answer` tool, and the tool's span reports the answer as its result.
+# A model answering in text - the call written as a JSON action, or plain prose - is answered through
+# the same tool, which smolagents runs itself.
+[tool.sideseat-example.truth]
+action_results = { final_answer = ["answer"] }
+text_answer_action = { tool = "final_answer", argument = "answer" }
+
 [tool.uv]
 required-version = "==0.12.13"
 package = false

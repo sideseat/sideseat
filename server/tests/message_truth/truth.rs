@@ -186,6 +186,15 @@ impl Truth {
                 fact.value["id"] = Value::Null;
             }
         }
+        let plain: BTreeSet<String> = truth
+            .gaps
+            .iter()
+            .filter(|g| g.reason == "kind_not_exported")
+            .filter_map(|g| g.subject.clone())
+            .collect();
+        for fact in truth.facts.iter_mut().filter(|f| plain.contains(&f.id)) {
+            fact.kind = "text".to_string();
+        }
         truth
     }
 }
@@ -259,6 +268,9 @@ pub(super) fn gap_effects(reason: &str) -> Option<GapEffects> {
         // A call's model or finish the producer states wrongly, where the right one is in no payload:
         // the span cannot state what the telemetry never carried.
         "metadata_not_exported" => effects(GapSubject::Call, false, false, true),
+        // Visible reasoning a producer records as ordinary text, with nothing marking it as reasoning:
+        // the text is asserted, as the text it was exported as.
+        "kind_not_exported" => effects(GapSubject::Fact, false, false, true),
         "request_body_unrecorded"
         | "request_modelled"
         | "fake_model_echoes_request"
@@ -595,6 +607,14 @@ pub(super) fn document_defects(key: &str, truth: &Truth) -> Vec<String> {
                     gap.reason, fact.id
                 ));
             }
+        }
+        if gap.reason == "kind_not_exported"
+            && !(fact.kind == "reasoning" && fact.require.is_some() && !fact.text().is_empty())
+        {
+            bad(format!(
+                "gap kind_not_exported on {} needs visible, asserted reasoning",
+                fact.id
+            ));
         }
         // An unexported id is a tool call's wire id; the fact keeps it, and checking moves it aside.
         if gap.reason == "id_not_exported"

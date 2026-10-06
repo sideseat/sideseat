@@ -45,6 +45,9 @@ pub(super) fn parse_value(raw: &str, mode: ParseMode) -> Option<JsonValue> {
                 .collect::<Option<Vec<_>>>()
                 .map(JsonValue::Array)
         }
+        ParseMode::PythonConstructorReprSequence => {
+            crate::sideml::content::try_parse_python_constructor_repr_sequence(raw)
+        }
         ParseMode::PythonLiteral => crate::sideml::content::try_parse_python_literal(raw),
         // Prose. Parsing it would turn a bare word into a non-string and an accidental digit string
         // into a number.
@@ -190,6 +193,17 @@ pub(super) fn readings(
         } else {
             selected
         };
+        // Declared serialised elements decode as a unit: one that does not would be a message silently
+        // dropped from a list whose others were read, so the shape is refused whole instead.
+        if let Some(mode) = alternative.parse
+            && !elements.iter().all(|element| {
+                element
+                    .as_str()
+                    .is_some_and(|text| parse_value(text, mode).is_some())
+            })
+        {
+            continue;
+        }
 
         let mut produced = Vec::new();
         for element in elements {
@@ -273,6 +287,13 @@ pub(super) fn readings(
                     }
                     None => element.clone(),
                 };
+                if let Some(mode) = alternative.parse {
+                    let Some(decoded) = candidate.as_str().and_then(|text| parse_value(text, mode))
+                    else {
+                        continue;
+                    };
+                    candidate = decoded;
+                }
                 if !alternative.lift.is_empty()
                     && let Some(object) = candidate.as_object_mut()
                 {

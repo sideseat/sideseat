@@ -286,6 +286,11 @@ pub struct Alternative {
     /// After selecting an element, descend to this member - `choices[].message`.
     #[serde(default)]
     pub descend: Option<String>,
+    /// Decode the selected element when it is text: a list whose members are themselves serialised
+    /// (`{"messages": ["ChatMessage(role=..., content=...)"]}`). An element that is not text, or does not
+    /// decode, is not this shape and the reading moves on.
+    #[serde(default)]
+    pub parse: Option<ParseMode>,
     /// Members copied into the value being emitted, from the element or from the value it was selected out of.
     ///
     /// **One primitive with a declared conflict policy**, where there were two members with opposite and

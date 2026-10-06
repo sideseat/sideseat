@@ -96,3 +96,88 @@ fn an_anonymous_result_is_the_one_named_result_it_repeats() {
         2
     );
 }
+
+/// The result a tool span ran keeps the call id that only a re-listing elsewhere carried. The tool span's
+/// copy wins on quality - it is the execution - and it was never told the model's id.
+#[test]
+fn a_result_keeps_the_id_a_dropped_copy_carried() {
+    let mut executed = anonymous(
+        make_tool_result_block("t1", "tool", "call_1", "Sunny", utc(200)),
+        Some("weather"),
+    );
+    executed.observation_type = Some("tool".to_string());
+    executed.source_attribute = Some("output.value".to_string());
+    let mut relisted = make_tool_result_block("t1", "agent", "call_1", "Sunny", utc(100));
+    if let ContentBlock::ToolResult { name, .. } = &mut relisted.content {
+        *name = Some("weather".to_string());
+    }
+    relisted.observation_type = Some("agent".to_string());
+    let result = process_dedup(vec![relisted, executed], HashMap::new());
+    assert_eq!(result.len(), 1, "{:?}", result);
+    assert_eq!(result[0].span_id, "tool", "the execution's copy survives");
+    assert!(
+        matches!(
+            &result[0].content,
+            ContentBlock::ToolResult { tool_use_id: Some(id), .. } if id == "call_1"
+        ),
+        "{:?}",
+        result[0].content
+    );
+    assert_eq!(result[0].tool_use_id.as_deref(), Some("call_1"));
+}
+
+/// A history copy naming the call stays to be merged into the current id-less result it is: otherwise
+/// the history filter drops the only copy with the id before the two are known to be one.
+#[test]
+fn a_current_result_takes_the_id_of_its_history_copy() {
+    let executed = anonymous(
+        make_tool_result_block("t1", "tool", "call_1", "Sunny", utc(200)),
+        Some("weather"),
+    );
+    let mut relisted = make_tool_result_block("t1", "agent", "call_1", "Sunny", utc(100));
+    if let ContentBlock::ToolResult { name, .. } = &mut relisted.content {
+        *name = Some("weather".to_string());
+    }
+    relisted.is_history = true;
+    let result = process_dedup(vec![relisted, executed], HashMap::new());
+    assert_eq!(result.len(), 1, "{:?}", result);
+    assert_eq!(result[0].span_id, "tool");
+    assert_eq!(result[0].tool_use_id.as_deref(), Some("call_1"));
+
+    // A history copy nothing current is a copy of is still history.
+    let mut past = make_tool_result_block("t1", "agent", "call_9", "Cloudy", utc(100));
+    past.is_history = true;
+    assert!(process_dedup(vec![past], HashMap::new()).is_empty());
+}
+
+/// A call keeps the provider's id a dropped copy carried; a survivor with an id of its own keeps that one.
+#[test]
+fn a_call_keeps_the_id_a_dropped_copy_carried() {
+    let mut survivor = make_tool_use_block("t1", "model", "unused", "weather", utc(100));
+    if let ContentBlock::ToolUse { id, .. } = &mut survivor.content {
+        *id = None;
+    }
+    survivor.tool_use_id = None;
+    survivor.model = Some("m".to_string());
+    let carrier = make_tool_use_block("t1", "agent", "call_1", "weather", utc(150));
+    let result = process_dedup(vec![survivor, carrier], HashMap::new());
+    assert_eq!(result.len(), 1, "{:?}", result);
+    assert_eq!(result[0].span_id, "model");
+    assert_eq!(result[0].tool_use_id.as_deref(), Some("call_1"));
+    assert!(matches!(
+        &result[0].content,
+        ContentBlock::ToolUse { id: Some(id), .. } if id == "call_1"
+    ));
+
+    let mut own = make_tool_use_block("t1", "model", "call_own", "weather", utc(100));
+    own.model = Some("m".to_string());
+    let other = make_tool_use_block("t1", "agent", "call_1", "weather", utc(150));
+    let result = process_dedup(vec![own, other], HashMap::new());
+    assert!(
+        result
+            .iter()
+            .any(|b| b.tool_use_id.as_deref() == Some("call_own")),
+        "an id the survivor carries is never replaced: {:?}",
+        result
+    );
+}

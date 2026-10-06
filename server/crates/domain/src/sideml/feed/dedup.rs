@@ -55,8 +55,10 @@ use super::types::BlockEntry;
 use crate::sideml::types::{ChatRole, ContentBlock};
 use sideseat_ports::types::MessageCategory;
 
+mod adopt;
 mod identity;
 mod timing;
+use adopt::{adopt_attachment_name, adopt_call_id, adopt_failure, adopt_result_id};
 
 pub(super) use identity::*;
 pub use timing::{SpanTimestamps, effective_timestamp};
@@ -353,46 +355,6 @@ impl BlockSortKey {
     }
 }
 
-/// Give a surviving attachment the filename a duplicate kept.
-///
-/// An attachment is identified by its bytes, so one instrumentation's copy with the filename and
-/// another's without it are one block; whichever survives on quality, the name is not lost.
-fn adopt_attachment_name(survivor: &mut BlockEntry, other: &BlockEntry) {
-    let named = match &other.content {
-        ContentBlock::Document {
-            name: Some(name), ..
-        }
-        | ContentBlock::File {
-            name: Some(name), ..
-        } => name,
-        _ => return,
-    };
-    if let ContentBlock::Document {
-        name: name @ None, ..
-    }
-    | ContentBlock::File {
-        name: name @ None, ..
-    } = &mut survivor.content
-    {
-        *name = Some(named.clone());
-    }
-}
-
-/// A tool result keeps the failure a dropped copy of it reported.
-///
-/// One instrumentation can carry a result twice - as the tool message and inside the next request's user
-/// turn - and only one copy may say the call failed. The copy that wins on quality is not necessarily that
-/// one, and the failure is the one thing about a result a copy can lose without changing its text.
-fn adopt_failure(survivor: &mut BlockEntry, other: &BlockEntry) {
-    if let (
-        ContentBlock::ToolResult { is_error, .. },
-        ContentBlock::ToolResult { is_error: true, .. },
-    ) = (&mut survivor.content, &other.content)
-    {
-        *is_error = true;
-    }
-}
-
 /// Deduplicate blocks by identity, keeping highest quality version.
 ///
 /// Note: Birth time is computed during sorting, not here. Deduplication only
@@ -423,7 +385,9 @@ fn adopt_failure(survivor: &mut BlockEntry, other: &BlockEntry) {
 ///
 /// Scoped to one `(trace, ordinal)`: the ordinal is what keeps a model's two genuinely identical calls
 /// - and their two identical results - apart, so matching across it would undo that.
-fn tool_result_aliases(blocks: &[(usize, BlockEntry, u32)]) -> HashMap<DedupKey, MessageIdentity> {
+fn tool_result_aliases<'a>(
+    blocks: impl Iterator<Item = (usize, &'a BlockEntry, u32)>,
+) -> HashMap<DedupKey, MessageIdentity> {
     /// A result of one (trace, ordinal), by content: which identities carry an id, and which do not.
     type Group = (String, u32, u64);
 
@@ -450,13 +414,13 @@ fn tool_result_aliases(blocks: &[(usize, BlockEntry, u32)]) -> HashMap<DedupKey,
         };
         let group = (
             block.trace_id.clone(),
-            *ordinal,
+            ordinal,
             compute_tool_result_hash(name.as_deref(), *is_error, content),
         );
         let identity = MessageIdentity::from_block(block);
         let unnamed = (
             block.trace_id.clone(),
-            *ordinal,
+            ordinal,
             compute_tool_result_hash(None, *is_error, content),
         );
         let has_id = tool_use_id.as_deref().is_some_and(|id| !id.is_empty());
@@ -464,7 +428,7 @@ fn tool_result_aliases(blocks: &[(usize, BlockEntry, u32)]) -> HashMap<DedupKey,
             named.entry(unnamed).or_default().push((
                 block.span_id.clone(),
                 block.position.clone(),
-                block.position.is_empty().then_some(*index),
+                block.position.is_empty().then_some(index),
                 identity.clone(),
             ));
         } else if !has_id && (block.is_history || block.is_input_source()) {
@@ -575,12 +539,27 @@ fn deduplicate_with_lineage(
 
     // First: collect identities of non-history blocks
     // History-only messages (no current-turn equivalent) will be filtered out
-    let non_history_ids: HashSet<(MessageIdentity, u32)> = blocks
+    let mut non_history_ids: HashSet<(MessageIdentity, u32)> = blocks
         .iter()
         .zip(&ordinals)
         .filter(|(b, _)| !b.is_history)
         .map(|(b, ordinal)| (MessageIdentity::from_block(b), *ordinal))
         .collect();
+    // A current result that is an id-less copy of a history one - a tool span's own output, where only a
+    // re-listing names the call - is that result's current equivalent: the alias says they are one, so
+    // the history copy stays to be merged, and its id with it.
+    let early_alias = tool_result_aliases(
+        blocks
+            .iter()
+            .zip(&ordinals)
+            .enumerate()
+            .map(|(index, (block, ordinal))| (index, block, *ordinal)),
+    );
+    for (block, ordinal) in blocks.iter().zip(&ordinals).filter(|(b, _)| !b.is_history) {
+        if let Some(canonical) = early_alias.get(&(MessageIdentity::from_block(block), *ordinal)) {
+            non_history_ids.insert((canonical.clone(), *ordinal));
+        }
+    }
 
     // Filter: keep non-history blocks, and history blocks only if they have a non-history equivalent
     // This removes messages from previous turns that appear in history
@@ -627,7 +606,11 @@ fn deduplicate_with_lineage(
     //
     // Scoped to one `(trace, ordinal)`: the ordinal is what keeps a model's two genuinely identical
     // calls - and their two identical results - apart, so unioning across it would undo that.
-    let result_alias = tool_result_aliases(&blocks);
+    let result_alias = tool_result_aliases(
+        blocks
+            .iter()
+            .map(|(index, block, ordinal)| (*index, block, *ordinal)),
+    );
 
     // Identity-based dedup: non-history will win due to quality scoring.
     let mut candidates: HashMap<DedupKey, (BlockEntry, u32)> = HashMap::new();
@@ -666,6 +649,8 @@ fn deduplicate_with_lineage(
                 };
                 adopt_attachment_name(existing, &other);
                 adopt_failure(existing, &other);
+                adopt_result_id(existing, &other);
+                adopt_call_id(existing, &other);
             })
             .or_insert((block, quality));
     }

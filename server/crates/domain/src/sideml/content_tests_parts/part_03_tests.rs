@@ -515,3 +515,37 @@ fn a_declared_splice_puts_each_member_of_a_content_list_in_the_message() {
     assert_eq!(blocks[1]["id"], "t1");
     assert_eq!(blocks[2]["text"], "Done.");
 }
+
+#[test]
+fn python_constructor_repr_sequence_reads_reprs_written_back_to_back() {
+    let parsed = try_parse_python_constructor_repr_sequence(
+        "Delta(content='', usage=None)ToolCall(name='get_weather', arguments={'city': 'Rome'}, \
+         id='call_1')\n ToolOutput(id='call_1', output={'high_c': 21})",
+    )
+    .expect("a sequence of supported reprs parses");
+    let items = parsed.as_array().expect("an array of trees");
+    assert_eq!(items.len(), 3);
+    assert_eq!(items[1]["__python_constructor"], "ToolCall");
+    assert_eq!(items[1]["arguments"]["city"], "Rome");
+    assert_eq!(items[2]["output"]["high_c"], 21);
+    assert_eq!(
+        try_parse_python_constructor_repr_sequence("ToolCall(name='a')")
+            .and_then(|v| v.as_array().map(Vec::len)),
+        Some(1),
+        "one repr is a sequence of one"
+    );
+    for refused in [
+        "",
+        "   ",
+        "ToolCall(name='a') and then ToolCall(name='b')",
+        "ToolCall(name='a'), ToolCall(name='b')",
+        "ToolCall(name='a'",
+        "{'name': 'a'}",
+    ] {
+        assert_eq!(
+            try_parse_python_constructor_repr_sequence(refused),
+            None,
+            "all or nothing: {refused:?}"
+        );
+    }
+}

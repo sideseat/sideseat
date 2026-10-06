@@ -50,7 +50,8 @@
    "sequence": [
     "fact-001",
     "fact-002",
-    "fact-003"
+    "fact-003",
+    "fact-004"
    ],
    "final_answers": [
     "fact-003"
@@ -127,6 +128,29 @@
     "match": "semantic"
    },
    "call": "call-001"
+  },
+  {
+   "id": "fact-004",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": "tooluse_WFVXb2wRXrKGe1lUSjDt85",
+    "name": "final_answer",
+    "value": "The fastest total crossing time is 17 minutes.\n\nSchedule (travellers are named by their crossing times, 1, 2, 5 and 10):\n1. The 1 and the 2 cross together. This takes 2 minutes, for a running total of 2.\n2. The 1 returns with the torch. This takes 1 minute, for a total of 3.\n3. The 5 and the 10 cross together. This takes 10 minutes, for a total of 13.\n4. The 2, who is already on the far side, returns with the torch. This takes 2 minutes, for a total of 15.\n5. The 1 and the 2 cross again. This takes 2 minutes, for a total of 17.\n\nCheck: 2 + 1 + 10 + 2 + 2 = 17.\n\nThe obvious alternative is to have the 1 escort everyone: 2 + 1 + 5 + 1 + 10 = 19 minutes. That is slower. The 17-minute plan is faster because the two slowest travellers (5 and 10) cross together, so the 5 does not add its own trip. The 2 can then make the return trip with the torch at a cost of only 2 minutes.",
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
   }
  ],
  "edges": [
@@ -134,6 +158,11 @@
    "kind": "prompt_of",
    "from": "fact-001",
    "to": "call-001"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-004",
+   "to": "fact-003"
   }
  ],
  "gaps": [

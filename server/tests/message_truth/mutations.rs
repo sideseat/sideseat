@@ -370,6 +370,11 @@ const CATALOGUE: &[(&str, Expect, Apply)] = &[
         |t, r| restate_prompt(t, r, 2),
     ),
     (
+        "invent a model a metadata gap does not excuse",
+        Expect::Only(&["call.model", "call.response_model"]),
+        invented_model_under_a_gap,
+    ),
+    (
         "declare a restated prompt the reconstruction does not show",
         Expect::Only(&["gap.unused"]),
         |t, r| restate_prompt(t, r, 0),

@@ -6,8 +6,9 @@
   "session_count": 1,
   "span_views": {
     "trace-1/FinalAnswerTool/span-11": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
+        "assistant",
         "tool"
       ],
       "tool_names": [],
@@ -15,6 +16,15 @@
       "messages": [
         {
           "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Paris: sunny both days (highs 21°C and 22°C) with only a 10% chance of rain tomorrow, so no umbrella needed. Tokyo: rain on day 1 (high 21°C, 80% chance of rain) and sunny on day 2…[287 chars]",
+          "content_digest": "ff56695dfc0a2465",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "Paris: sunny both days (highs 21°C and 22°C) with only a 10% chance of rain tomorrow, so no umbrella needed. Tokyo: rain on day 1 (high 21°C, 80% chance of rain) and sunny on day 2 (high 22°C), so pack an umbrella for Tokyo.",
@@ -25,9 +35,11 @@
       ]
     },
     "trace-1/LiteLLMModel.generate/span-10": {
-      "message_count": 1,
+      "message_count": 3,
       "role_sequence": [
-        "assistant"
+        "assistant",
+        "system",
+        "user"
       ],
       "tool_names": [
         "final_answer",
@@ -44,16 +56,34 @@
           "content_digest": "edc979e020c1d5b4",
           "tool_name": "final_answer",
           "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3648 chars]",
+          "content_digest": "369ff510119ffe1f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?",
+          "content_digest": "b9b146b5d68999d0",
+          "observation_type": "generation"
         }
       ]
     },
     "trace-1/LiteLLMModel.generate/span-4": {
-      "message_count": 4,
+      "message_count": 6,
       "role_sequence": [
         "assistant",
         "assistant",
         "assistant",
-        "assistant"
+        "assistant",
+        "system",
+        "user"
       ],
       "tool_names": [
         "final_answer",
@@ -97,12 +127,29 @@
           "content_digest": "02f9f05ad11c1b5b",
           "tool_name": "get_precipitation",
           "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3648 chars]",
+          "content_digest": "369ff510119ffe1f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?",
+          "content_digest": "b9b146b5d68999d0",
+          "observation_type": "generation"
         }
       ]
     },
     "trace-1/SimpleTool/span-5": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
+        "assistant",
         "tool"
       ],
       "tool_names": [],
@@ -110,6 +157,15 @@
       "messages": [
         {
           "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
+          "content_digest": "7ea12665788ee1ee",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"name\":\"get_weather\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
@@ -120,8 +176,9 @@
       ]
     },
     "trace-1/SimpleTool/span-6": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
+        "assistant",
         "tool"
       ],
       "tool_names": [],
@@ -129,6 +186,15 @@
       "messages": [
         {
           "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
+          "content_digest": "8973386b9db4114d",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"name\":\"get_weather\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
@@ -139,8 +205,9 @@
       ]
     },
     "trace-1/SimpleTool/span-7": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
+        "assistant",
         "tool"
       ],
       "tool_names": [],
@@ -148,6 +215,15 @@
       "messages": [
         {
           "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "507cc958be8ddb7f",
+          "tool_name": "get_precipitation",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "10% chance of rain in Paris tomorrow.",
@@ -158,8 +234,9 @@
       ]
     },
     "trace-1/SimpleTool/span-8": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
+        "assistant",
         "tool"
       ],
       "tool_names": [],
@@ -167,6 +244,15 @@
       "messages": [
         {
           "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
+          "content_digest": "1b2090a5133b4bd5",
+          "tool_name": "get_precipitation",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "80% chance of rain in Tokyo tomorrow.",
@@ -207,8 +293,10 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 10,
+      "message_count": 12,
       "role_sequence": [
+        "system",
+        "user",
         "assistant",
         "assistant",
         "assistant",
@@ -229,6 +317,22 @@
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3648 chars]",
+          "content_digest": "369ff510119ffe1f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?",
+          "content_digest": "b9b146b5d68999d0",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_ubYARa0Fj1ZDuEawXuqMPo\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
@@ -237,7 +341,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 3,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_GPVUxrx92VXyLrRnmzi4FR\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
@@ -246,7 +350,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 2,
+          "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_u0n63XX9sZBt7c2ZjR1jy0\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
@@ -255,7 +359,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 5,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_jty4s2wGjXm4hIKiqnwDJu\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
@@ -264,7 +368,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_ubYARa0Fj1ZDuEawXuqMPo\",\"name\":\"get_weather\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
@@ -273,7 +377,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 5,
+          "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_GPVUxrx92VXyLrRnmzi4FR\",\"name\":\"get_weather\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
@@ -282,7 +386,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 6,
+          "index": 8,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "10% chance of rain in Paris tomorrow.",
@@ -291,7 +395,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 7,
+          "index": 9,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "80% chance of rain in Tokyo tomorrow.",
@@ -300,7 +404,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 8,
+          "index": 10,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_zy7Ne2ROgVbe4UxlWEGk8I\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Paris: sunny both days (highs 21°C and 22°C) with only a 10% chance of rain tomorrow, so no umbrella needed. Tokyo: rain on day 1 (high 21°C, …[325 chars]",
@@ -309,7 +413,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 9,
+          "index": 11,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "Paris: sunny both days (highs 21°C and 22°C) with only a 10% chance of rain tomorrow, so no umbrella needed. Tokyo: rain on day 1 (high 21°C, 80% chance of rain) and sunny on day 2 (high 22°C), so pack an umbrella for Tokyo.",
@@ -322,8 +426,10 @@
   },
   "session_views": {
     "smolagents-tool_use": {
-      "message_count": 10,
+      "message_count": 12,
       "role_sequence": [
+        "system",
+        "user",
         "assistant",
         "assistant",
         "assistant",
@@ -344,6 +450,22 @@
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3648 chars]",
+          "content_digest": "369ff510119ffe1f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "New task: What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?",
+          "content_digest": "b9b146b5d68999d0",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_ubYARa0Fj1ZDuEawXuqMPo\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
@@ -352,7 +474,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 3,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_GPVUxrx92VXyLrRnmzi4FR\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
@@ -361,7 +483,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 2,
+          "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_u0n63XX9sZBt7c2ZjR1jy0\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
@@ -370,7 +492,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 5,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_jty4s2wGjXm4hIKiqnwDJu\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
@@ -379,7 +501,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_ubYARa0Fj1ZDuEawXuqMPo\",\"name\":\"get_weather\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
@@ -388,7 +510,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 5,
+          "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_GPVUxrx92VXyLrRnmzi4FR\",\"name\":\"get_weather\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
@@ -397,7 +519,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 6,
+          "index": 8,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "10% chance of rain in Paris tomorrow.",
@@ -406,7 +528,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 7,
+          "index": 9,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "80% chance of rain in Tokyo tomorrow.",
@@ -415,7 +537,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 8,
+          "index": 10,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_zy7Ne2ROgVbe4UxlWEGk8I\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Paris: sunny both days (highs 21°C and 22°C) with only a 10% chance of rain tomorrow, so no umbrella needed. Tokyo: rain on day 1 (high 21°C, …[325 chars]",
@@ -424,7 +546,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 9,
+          "index": 11,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "Paris: sunny both days (highs 21°C and 22°C) with only a 10% chance of rain tomorrow, so no umbrella needed. Tokyo: rain on day 1 (high 21°C, 80% chance of rain) and sunny on day 2 (high 22°C), so pack an umbrella for Tokyo.",
@@ -436,7 +558,7 @@
     }
   },
   "feed_view": {
-    "message_count": 10,
+    "message_count": 12,
     "role_sequence": [
       "tool",
       "assistant",
@@ -444,6 +566,8 @@
       "tool",
       "tool",
       "tool",
+      "system",
+      "user",
       "assistant",
       "assistant",
       "assistant",
@@ -512,6 +636,22 @@
       },
       {
         "index": 6,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3648 chars]",
+        "content_digest": "369ff510119ffe1f",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "user",
+        "entry_type": "text",
+        "content": "New task: What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?",
+        "content_digest": "b9b146b5d68999d0",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_ubYARa0Fj1ZDuEawXuqMPo\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
@@ -520,7 +660,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 7,
+        "index": 9,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_GPVUxrx92VXyLrRnmzi4FR\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
@@ -529,7 +669,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 8,
+        "index": 10,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_u0n63XX9sZBt7c2ZjR1jy0\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
@@ -538,7 +678,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 9,
+        "index": 11,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_jty4s2wGjXm4hIKiqnwDJu\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",

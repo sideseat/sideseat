@@ -141,6 +141,22 @@ pub(crate) fn try_parse_python_constructor_repr(s: &str) -> Option<JsonValue> {
     (parser.position == source.len()).then_some(value)
 }
 
+/// Parse text that is several constructor `repr`s written back to back, into an array of their trees.
+///
+/// What a log of Python objects looks like when each was printed without a separator. All or nothing: text
+/// between the reprs that is not whitespace means the carrier is some other shape. A single repr is a
+/// sequence of one.
+pub(crate) fn try_parse_python_constructor_repr_sequence(s: &str) -> Option<JsonValue> {
+    let mut parser = PythonConstructorParser::new(s);
+    let mut items = Vec::new();
+    parser.skip_whitespace();
+    while parser.position < s.len() {
+        items.push(parser.parse_constructor(0)?);
+        parser.skip_whitespace();
+    }
+    (!items.is_empty()).then_some(JsonValue::Array(items))
+}
+
 /// Parse the Python `str()` of a dict, list or tuple - strings in either quote, numbers, `True`, `False`,
 /// `None`, nested containers - into a JSON tree, through the same sealed and depth-bounded parser as
 /// constructor reprs with constructors, enum reprs and bare names refused. The whole text must be one

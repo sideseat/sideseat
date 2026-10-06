@@ -20,7 +20,10 @@ use provider_formats::{
 use provider_formats::{try_gemini_function_format, try_vercel_format};
 use python_repr::try_normalize_python_constructor_content;
 pub(crate) use python_repr::try_parse_python_repr;
-pub(crate) use python_repr::{try_parse_python_constructor_repr, try_parse_python_literal};
+pub(crate) use python_repr::{
+    try_parse_python_constructor_repr, try_parse_python_constructor_repr_sequence,
+    try_parse_python_literal,
+};
 pub use tool_result::convert_to_tool_result;
 
 /// FNV-1a hash constants (32-bit).

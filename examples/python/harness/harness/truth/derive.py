@@ -263,10 +263,14 @@ class Framework:
     #: Actions that end the turn; the first is the turn's answer.
     turn_ending_actions: frozenset[str] = frozenset()
     #: Action -> the argument members whose value the framework reports as the action's result, the
-    #: first present one deciding (a ``done`` action's result is its answer).
+    #: first present one deciding (a ``done`` action's result is its answer). Also read for a terminal
+    #: tool the framework reports a result for (smolagents' ``final_answer``).
     action_results: dict[str, tuple[str, ...]] = field(default_factory=dict)
     #: The framework re-sends the task inside a state message of its own on every step of a turn.
     restates_prompt: bool = False
+    #: A turn the model ends with text is ended by the framework through this tool, called with the text
+    #: under this argument: ``{tool, argument}`` (smolagents runs ``final_answer(answer=...)`` itself).
+    text_answer_action: dict[str, str] = field(default_factory=dict)
     #: Scenario -> actions the framework performs before the model's first call (opening a URL the task
     #: names), each ``{action_name: arguments}``.
     initial_actions: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
@@ -275,7 +279,8 @@ class Framework:
     #: ``tool_call_ids`` - the model's tool-call ids (``id_not_exported``); ``tool_calling_rounds`` - the
     #: responses that only call tools, whose parts are recorded one execution at a time
     #: (``call_not_exported``); ``model``, ``response_model``, ``response_id``, ``finish`` - a call's
-    #: metadata the producer states wrongly with the right value in no payload
+    #: metadata the producer states wrongly with the right value in no payload; ``reasoning_kind`` -
+    #: visible reasoning the producer records as plain text (``kind_not_exported``)
     #: (``metadata_not_exported``; ``values`` limits it to calls whose truth has one of them). Each
     #: value is the reason, or ``{reason, scenarios, modes}`` when only
     #: some scenarios' - or, by scenario, some releases' (``modes = {streaming = ["native@1.0b1"]}``) -
@@ -298,6 +303,7 @@ class Framework:
                 for scenario, actions in table.get("initial_actions", {}).items()
             },
             unexported=dict(table.get("unexported", {})),
+            text_answer_action=dict(table.get("text_answer_action", {})),
         )
 
     def actions(self, name: str, arguments: Any) -> list[tuple[str, Any]] | None:
@@ -620,6 +626,10 @@ def assemble(
                 continue
             value = fact["value"]
             if value["name"] in TERMINAL_TOOLS:
+                # A terminal tool has no result, unless the framework reports one it declares.
+                declared = framework.action_result(value["name"], value["arguments"])
+                if declared is not None and add_result(conversation, fact_id, declared):
+                    results_seen = True
                 continue
             actions = framework.actions(value["name"], value["arguments"])
             if actions is not None:
@@ -634,6 +644,19 @@ def assemble(
                 conversation, fact_id, run_tool(value["name"], value["arguments"])
             ):
                 results_seen = True
+        # A turn the model ends in text that the framework then answers through a tool of its own.
+        if (
+            framework.text_answer_action
+            and not call.tool_calls
+            and (answer := _final_answer(builder, call_facts))
+        ):
+            text = builder.facts[int(answer.split("-")[1]) - 1]["value"]["text"]
+            turn_answer = add_action(
+                conversation,
+                framework.text_answer_action["tool"],
+                _text_action_arguments(text, framework.text_answer_action),
+                evidence,
+            )
         terminal = turn_answer is not None or all(
             part["name"] in TERMINAL_TOOLS for part in call.tool_calls
         )
@@ -659,7 +682,9 @@ def assemble(
 
 #: Call metadata a producer may state wrongly with the right value in no payload.
 METADATA = ("model", "response_model", "response_id", "finish")
-UNEXPORTED = frozenset({"tool_call_ids", "tool_calling_rounds", *METADATA})
+UNEXPORTED = frozenset(
+    {"tool_call_ids", "tool_calling_rounds", "reasoning_kind", *METADATA}
+)
 
 
 def _unexported(builder: Builder, framework: Framework) -> None:
@@ -706,6 +731,14 @@ def _unexported(builder: Builder, framework: Framework) -> None:
                 continue
             if limited is None or value in limited:
                 gap(field_name, "metadata_not_exported", detail, record["id"])
+    if detail := declared("reasoning_kind"):
+        for fact in builder.facts:
+            if (
+                fact["kind"] == "reasoning"
+                and fact["value"].get("text")
+                and fact["require"] is not None
+            ):
+                gap("reasoning", "kind_not_exported", detail, fact["id"])
     if detail := declared("tool_calling_rounds"):
         for record in builder.calls:
             outputs = [facts[output] for output in record["outputs"]]
@@ -715,6 +748,27 @@ def _unexported(builder: Builder, framework: Framework) -> None:
         for fact in builder.facts:
             if fact["kind"] == "tool_call" and isinstance(fact["value"].get("id"), str):
                 gap("tool_call", "id_not_exported", detail, fact["id"])
+
+
+def _text_action_arguments(text: str, action: dict[str, str]) -> dict[str, Any]:
+    """The arguments a framework calls its answering tool with, for a turn the model ended in text.
+
+    A model that writes the call as a JSON action in its text (``Action: {"name": ..., "arguments":
+    ...}``, which smolagents parses) is answered with those arguments; any other text is the answer.
+    """
+    start, end = text.find("{"), text.rfind("}")
+    if 0 <= start < end:
+        try:
+            parsed = json.loads(text[start : end + 1])
+        except json.JSONDecodeError:
+            parsed = None
+        if (
+            isinstance(parsed, dict)
+            and parsed.get("name") == action["tool"]
+            and isinstance(parsed.get("arguments"), dict)
+        ):
+            return parsed["arguments"]
+    return {action["argument"]: text}
 
 
 def _joined_text(parts: list[dict[str, Any]]) -> list[dict[str, Any]]:

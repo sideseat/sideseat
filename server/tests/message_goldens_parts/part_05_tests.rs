@@ -285,6 +285,19 @@ fn local_only_samples_are_actually_gitignored() {
 /// suppressed parent copies across ten fixtures, since an ancestor re-reports its descendant's failure.
 /// Telling that suppression from a false equivalence needs `parent_span_id`, which `InvariantRow` does
 /// not carry - so the check is stated over what the harness can actually prove.
+/// The message of an exception row: after its `Type: ` prefix, read out of the error result it was
+/// composed as when a tool span failed.
+fn exception_text(r: &InvariantRow) -> String {
+    let composed = (r.entry_type == "tool_result")
+        .then(|| serde_json::from_str::<serde_json::Value>(&r.full_content).ok())
+        .flatten()
+        .and_then(|block| block.get("content")?.as_str().map(str::to_owned));
+    let text = composed.unwrap_or_else(|| r.content.clone());
+    text.split_once(": ")
+        .map_or(text.as_str(), |(_, m)| m)
+        .to_string()
+}
+
 fn exception_conservation_violations(built: &Built) -> Vec<String> {
     let mut out = Vec::new();
     for (name, scope, trace_rows) in &built.invariants {
@@ -295,6 +308,9 @@ fn exception_conservation_violations(built: &Built) -> Vec<String> {
         // so an exception propagating up a hierarchy is told from the same failure reported by
         // independent siblings.
         let mut reported: HashMap<&str, Vec<(&str, &[String])>> = HashMap::new();
+        // (path, message) of each failure a tool span answered as its call's result.
+        let mut answered: Vec<(&[String], String)> = Vec::new();
+        let mut texts: HashMap<&str, &str> = HashMap::new();
         for (_, other_scope, rows) in &built.invariants {
             let Scope::Span {
                 trace_id: span_trace,
@@ -309,25 +325,40 @@ fn exception_conservation_violations(built: &Built) -> Vec<String> {
             // A failure the trace already shows as the result the model read is not lost: the
             // production rule leaves the exception out there because the result says the same thing.
             // The block reads `Type: message`, and the result quotes the message.
+            //
+            // A tool span's exception is itself composed as its call's error result; its text is that
+            // result's content.
             let reported_as_result = |r: &InvariantRow| {
-                let message = r
-                    .content
-                    .split_once(": ")
-                    .map_or(r.content.as_str(), |(_, m)| m);
-                trace_rows
-                    .iter()
-                    .any(|t| t.entry_type == "tool_result" && t.full_content.contains(message))
+                let message = exception_text(r);
+                trace_rows.iter().any(|t| {
+                    t.entry_type == "tool_result" && t.full_content.contains(message.as_str())
+                })
             };
-            for r in rows
-                .iter()
-                .filter(|r| r.carrier == "attr:exception" && !reported_as_result(r))
-            {
+            for r in rows.iter().filter(|r| r.carrier == "attr:exception") {
+                if reported_as_result(r) {
+                    answered.push((r.span_path.as_slice(), exception_text(r)));
+                    continue;
+                }
+                texts.insert(r.content_digest.as_str(), r.full_content.as_str());
                 reported
                     .entry(r.content_digest.as_str())
                     .or_default()
                     .push((span_id.as_str(), r.span_path.as_slice()));
             }
         }
+        // An enclosing span re-reporting a failure its descendant already answered as a result is
+        // that same failure: the production leaf rule keeps it out of the trace for that reason.
+        for (digest, reporters) in reported.iter_mut() {
+            let text = texts.get(digest).copied().unwrap_or_default();
+            reporters.retain(|(id, _)| {
+                !answered.iter().any(|(path, message)| {
+                    path.iter().any(|a| a == id)
+                        && !message.is_empty()
+                        && text.contains(message.as_str())
+                })
+            });
+        }
+        reported.retain(|_, reporters| !reporters.is_empty());
         if reported.is_empty() {
             continue;
         }

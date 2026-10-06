@@ -592,9 +592,24 @@ pub(super) fn terminal_answer_without_result(truth: &mut Truth, recon: &mut Reco
         return false;
     };
     let id = call.value["id"].as_str().map(str::to_owned);
+    let call_id = call.id.clone();
     for view in &mut recon.views {
         view.blocks
             .retain(|b| !(b.is_tool_result() && b.result_call_id().map(str::to_owned) == id));
+    }
+    // A framework that reports no result for the answer: the truth, declaring none, asserts none.
+    let results: Vec<String> = truth
+        .edges
+        .iter()
+        .filter(|e| e.kind == "result_of" && e.to.as_deref() == Some(call_id.as_str()))
+        .filter_map(|e| e.from.clone())
+        .collect();
+    truth.facts.retain(|f| !results.contains(&f.id));
+    truth
+        .edges
+        .retain(|e| !e.from.as_ref().is_some_and(|f| results.contains(f)));
+    for conversation in &mut truth.conversations {
+        conversation.sequence.retain(|f| !results.contains(f));
     }
     true
 }

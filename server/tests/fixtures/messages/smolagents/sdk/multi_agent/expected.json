@@ -6,8 +6,9 @@
   "session_count": 1,
   "span_views": {
     "trace-1/FinalAnswerTool/span-11": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
+        "assistant",
         "tool"
       ],
       "tool_names": [],
@@ -15,6 +16,15 @@
       "messages": [
         {
           "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"name\":\"final_answer\",\"input\":{\"answer\":\"### 1. Task outcome (short version):\\nBarcelona, Spain is forecast to be sunny on both of the next two days. The high is 21°C on Day 1 and 22°C on Day 2. The weather tool did not r…[1987 chars]",
+          "content_digest": "20b027f3640f89d6",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "### 1. Task outcome (short version): Barcelona, Spain is forecast to be sunny on both of the next two days. The high is 21°C on Day 1 and 22°C on Day 2. The weather tool did not return low temperatures, precipitation/rain chance, wind, or h…[1886 chars]",
@@ -25,8 +35,9 @@
       ]
     },
     "trace-1/FinalAnswerTool/span-14": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
+        "assistant",
         "tool"
       ],
       "tool_names": [],
@@ -34,6 +45,15 @@
       "messages": [
         {
           "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Packing list for Barcelona (next two days): The forecast shows sunny skies both days, with highs of about 21°C on Day 1 and 22°C on Day 2. The weather tool didn't provide lows, rai…[871 chars]",
+          "content_digest": "2d38a70ab29066c6",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "Packing list for Barcelona (next two days): The forecast shows sunny skies both days, with highs of about 21°C on Day 1 and 22°C on Day 2. The weather tool didn't provide lows, rain chance, wind or humidity, so pack a little flexibly. Bring…[808 chars]",
@@ -202,8 +222,9 @@
       ]
     },
     "trace-1/SimpleTool/span-8": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
+        "assistant",
         "tool"
       ],
       "tool_names": [],
@@ -211,6 +232,15 @@
       "messages": [
         {
           "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
+          "content_digest": "0715e22d26479252",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"name\":\"get_weather\",\"content\":{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",

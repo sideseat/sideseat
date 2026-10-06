@@ -87,7 +87,8 @@
     "fact-007",
     "fact-008",
     "fact-009",
-    "fact-010"
+    "fact-010",
+    "fact-011"
    ],
    "final_answers": [
     "fact-010"
@@ -366,6 +367,29 @@
     "match": "semantic"
    },
    "call": "call-002"
+  },
+  {
+   "id": "fact-011",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": "tooluse_zy7Ne2ROgVbe4UxlWEGk8I",
+    "name": "final_answer",
+    "value": "Paris: sunny both days (highs 21°C and 22°C) with only a 10% chance of rain tomorrow, so no umbrella needed. Tokyo: rain on day 1 (high 21°C, 80% chance of rain) and sunny on day 2 (high 22°C), so pack an umbrella for Tokyo.",
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
   }
  ],
  "edges": [
@@ -398,6 +422,11 @@
    "kind": "call_order",
    "before": "call-001",
    "after": "call-002"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-011",
+   "to": "fact-010"
   }
  ],
  "gaps": [

@@ -135,11 +135,19 @@ pub(in crate::sideml::feed) fn resolve(
     };
     let mut from_emission: HashMap<usize, DateTime<Utc>> = HashMap::new();
     let mut from_any_observation: HashMap<usize, DateTime<Utc>> = HashMap::new();
+    let mut from_direct_observation: HashMap<usize, DateTime<Utc>> = HashMap::new();
     for (observation, seen) in evidence.iter().enumerate() {
         let Some(survivor) = survivor_of(observation) else {
             continue;
         };
         record(unit_of[survivor], seen.effective, &mut from_any_observation);
+        if !seen.history {
+            record(
+                unit_of[survivor],
+                seen.effective,
+                &mut from_direct_observation,
+            );
+        }
         if !seen.credible {
             continue;
         }
@@ -158,6 +166,10 @@ pub(in crate::sideml::feed) fn resolve(
         let time = from_emission
             .get(&unit)
             .copied()
+            // A history copy's time is when it was assembled - an agent re-listing its run carries the
+            // run's start - so it speaks only for a unit nothing observed directly. Which observations are
+            // history is settled before dedup, so this does not depend on the copy that survived.
+            .or_else(|| from_direct_observation.get(&unit).copied())
             .or_else(|| from_any_observation.get(&unit).copied())
             .unwrap_or_else(|| effective_timestamp(block, span_timestamps));
         unit_priority

@@ -78,7 +78,8 @@
     "fact-001",
     "fact-002",
     "fact-003",
-    "fact-004"
+    "fact-004",
+    "fact-005"
    ],
    "final_answers": [
     "fact-004"
@@ -190,6 +191,29 @@
     "match": "semantic"
    },
    "call": "call-002"
+  },
+  {
+   "id": "fact-005",
+   "kind": "tool_result",
+   "role": "tool",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "call_id": "tooluse_fxXvbuUiFnXzqhEazxk8Qr",
+    "name": "final_answer",
+    "value": "Tomorrow in Rome will be sunny with a high of 21°C. Wear light, breathable layers like a t-shirt and light trousers, and bring a light jacket for the cooler morning and evening. Sunglasses and sunscreen are a good idea too.",
+    "is_error": false
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "semantic"
+   }
   }
  ],
  "edges": [
@@ -207,6 +231,11 @@
    "kind": "call_order",
    "before": "call-001",
    "after": "call-002"
+  },
+  {
+   "kind": "result_of",
+   "from": "fact-005",
+   "to": "fact-004"
   }
  ],
  "gaps": [

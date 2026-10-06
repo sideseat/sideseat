@@ -6,8 +6,9 @@
   "session_count": 1,
   "span_views": {
     "trace-1/FinalAnswerTool/span-5": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
+        "assistant",
         "tool"
       ],
       "tool_names": [],
@@ -15,6 +16,15 @@
       "messages": [
         {
           "index": 0,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Kyoto is best known for its well-preserved classical Japanese culture, including thousands of temples and shrines, traditional geisha districts, and its history as Japan's imperial…[278 chars]",
+          "content_digest": "d525146c853eaf09",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        },
+        {
+          "index": 1,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "Kyoto is best known for its well-preserved classical Japanese culture, including thousands of temples and shrines, traditional geisha districts, and its history as Japan's imperial capital for over a thousand years.",
@@ -86,10 +96,11 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 4,
+      "message_count": 5,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant",
         "tool"
       ],
@@ -124,6 +135,15 @@
         },
         {
           "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Kyoto is best known for its well-preserved classical Japanese culture, including thousands of temples and shrines, traditional geisha districts, and its history as Japan's imperial…[278 chars]",
+          "content_digest": "d525146c853eaf09",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "Kyoto is best known for its well-preserved classical Japanese culture, including thousands of temples and shrines, traditional geisha districts, and its history as Japan's imperial capital for over a thousand years.",
@@ -136,10 +156,11 @@
   },
   "session_views": {
     "smolagents-chat": {
-      "message_count": 4,
+      "message_count": 5,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant",
         "tool"
       ],
@@ -174,6 +195,15 @@
         },
         {
           "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Kyoto is best known for its well-preserved classical Japanese culture, including thousands of temples and shrines, traditional geisha districts, and its history as Japan's imperial…[278 chars]",
+          "content_digest": "d525146c853eaf09",
+          "tool_name": "final_answer",
+          "observation_type": "tool"
+        },
+        {
+          "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "Kyoto is best known for its well-preserved classical Japanese culture, including thousands of temples and shrines, traditional geisha districts, and its history as Japan's imperial capital for over a thousand years.",
@@ -185,9 +215,10 @@
     }
   },
   "feed_view": {
-    "message_count": 4,
+    "message_count": 5,
     "role_sequence": [
       "tool",
+      "assistant",
       "system",
       "user",
       "assistant"
@@ -208,6 +239,15 @@
       },
       {
         "index": 1,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Kyoto is best known for its well-preserved classical Japanese culture, including thousands of temples and shrines, traditional geisha districts, and its history as Japan's imperial…[278 chars]",
+        "content_digest": "d525146c853eaf09",
+        "tool_name": "final_answer",
+        "observation_type": "tool"
+      },
+      {
+        "index": 2,
         "role": "system",
         "entry_type": "text",
         "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3203 chars]",
@@ -215,7 +255,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 2,
+        "index": 3,
         "role": "user",
         "entry_type": "text",
         "content": "New task: In one sentence, what is Kyoto best known for?",
@@ -223,7 +263,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 3,
+        "index": 4,
         "role": "assistant",
         "entry_type": "text",
         "content": "Action: { \"name\": \"final_answer\", \"arguments\": {\"answer\": \"Kyoto is best known for its well-preserved classical Japanese culture, including thousands of temples and shrines, traditional geisha districts, and its history as Japan's imperial …[278 chars]",

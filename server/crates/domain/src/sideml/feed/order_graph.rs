@@ -110,6 +110,8 @@ pub(super) struct OrderEvidence {
     effective: DateTime<Utc>,
     /// Usable as evidence of when the message happened: a credible emission, not a history re-send.
     credible: bool,
+    /// Classified as a history copy before dedup: a re-send or re-listing of something observed elsewhere.
+    history: bool,
     /// Which span carried this observation, interned.
     span: usize,
     /// Which carrier of that span, interned - the event or attribute it was read from.
@@ -282,6 +284,7 @@ pub(super) fn collect_order_evidence(
                 entry_index: block.entry_index,
                 effective: effective_timestamp(block, span_timestamps),
                 credible: credible && !block.is_history,
+                history: block.is_history,
                 span,
                 carrier,
                 carrier_ordered: semantics.position_provides_sequence_order

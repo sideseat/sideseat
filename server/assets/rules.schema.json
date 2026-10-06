@@ -1186,6 +1186,11 @@
           "const": "python_constructor_repr_array"
         },
         {
+          "description": "Parse text that is several Python constructor `repr`s written back to back, into an array of their trees.\n\nA framework that records a stream of its own objects by concatenating their reprs. All or nothing: any\ntext between them that is not whitespace means the carrier is some other shape.",
+          "type": "string",
+          "const": "python_constructor_repr_sequence"
+        },
+        {
           "description": "Parse the Python `str()` of a dict or a list - single-quoted strings, `True`, `False`, `None` -\ninto a JSON tree; the carrier is skipped when the whole text is not one.\n\nA container at the top level only: `str(1)` and `str(\"1\")` are indistinguishable from text a tool\ngenuinely returned. No constructors - that is `python_constructor_repr`. For a producer that renders a\ntool's returned value with `str()` where the conventions expect JSON; opt-in per rule, because the\nsame text from anyone else may be prose.",
           "type": "string",
           "const": "python_literal"
@@ -2011,6 +2016,17 @@
             "null"
           ],
           "default": null
+        },
+        "parse": {
+          "description": "Decode the selected element when it is text: a list whose members are themselves serialised\n(`{\"messages\": [\"ChatMessage(role=..., content=...)\"]}`). An element that is not text, or does not\ndecode, is not this shape and the reading moves on.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ParseMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "lift": {
           "description": "Members copied into the value being emitted, from the element or from the value it was selected out of.\n\n**One primitive with a declared conflict policy**, where there were two members with opposite and\nunstated ones: `lift` overwrote the target's member and `lift_from_parent` preserved it, and neither the\nnames nor `lift`'s own documentation said so. A payload carrying `finish_reason` outside a message *and*\ninside it therefore got the outer value under one member name and the inner under the other, decided by\nwhich member an asset happened to use.\n\nThe source is a real distinction and stays: `element` is the value the selection landed on, `parent` the\nvalue it came out of. The policy is now a statement rather than a consequence of that choice.",
