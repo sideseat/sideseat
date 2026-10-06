@@ -15,8 +15,12 @@ make --no-print-directory secret-scan-staged
 
 staged() { git diff --cached --name-only --diff-filter=ACMR -- "$@"; }
 
-if [ -n "$(staged '*.rs')" ]; then
-    cargo fmt --all -- --check
+# The staged Rust files only, as `make quick` checks them: formatting the whole workspace would fail a
+# commit on someone else's unformatted work in progress, which says nothing about this change.
+rust_files="$(staged '*.rs')"
+if [ -n "$rust_files" ]; then
+    # shellcheck disable=SC2086
+    rustfmt --check --edition 2024 $rust_files
 fi
 
 python_files="$(staged '*.py')"
