@@ -230,3 +230,12 @@ opt-level = 3
 lto = true
 codegen-units = 1
 strip = true
+
+# The release build with symbols, for profilers. Same optimisation as release so a flamegraph describes the
+# code that ships; thin LTO because the profile is rebuilt while iterating.
+[profile.profiling]
+inherits = "release"
+lto = "thin"
+codegen-units = 16
+strip = false
+debug = "line-tables-only"

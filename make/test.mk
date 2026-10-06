@@ -3,7 +3,7 @@
 # nextest runs the workspace in parallel processes; plain `cargo test` is the fallback.
 CARGO_TEST := $(if $(shell command -v cargo-nextest 2>/dev/null),cargo nextest run --locked,cargo test --locked)
 
-.PHONY: test test-rust test-server test-backup-restore test-clickhouse test-clickhouse-replicated test-clickhouse-two-shard test-postgres test-redis test-redpanda bench-http bench-http-distributed footprint test-web test-sdk-js test-sdk-python test-python-frameworks test-sdk-dotnet coverage
+.PHONY: test test-rust test-server test-backup-restore test-clickhouse test-clickhouse-replicated test-clickhouse-two-shard test-postgres test-redis test-redpanda bench-http bench-http-distributed bench-ingest footprint footprint-storage footprint-storage-distributed test-web test-sdk-js test-sdk-python test-python-frameworks test-sdk-dotnet coverage
 
 test: test-rust test-web test-sdk-js test-sdk-python test-sdk-dotnet ## Run all regular test suites
 
@@ -93,6 +93,20 @@ bench-http: ## Benchmark embedded HTTP latency
 
 bench-http-distributed: ## Benchmark distributed HTTP latency
 	$(call run-with-disk-guard,scripts/perf/bench-http-latency.sh distributed)
+
+# Sustained trace-ingest throughput at rising offered rates. `BENCH_INGEST_ARGS` passes flags through, e.g.
+# `container --cores 1,2,4,8 --memory 2g` for the hard-limited aarch64 container.
+BENCH_INGEST_ARGS ?= local
+bench-ingest: ## Measure sustained trace-ingest throughput
+	$(call run-with-disk-guard,uv run --locked --script scripts/perf/ingest-throughput.py $(BENCH_INGEST_ARGS))
+
+# What the backends store for the whole fixture corpus, per signal, against raw OTLP protobuf, and the floor
+# that fails the run when compression regresses.
+footprint-storage: ## Measure and gate stored bytes per signal (embedded)
+	$(call run-with-disk-guard,uv run --locked --script scripts/perf/storage-footprint.py embedded --gate)
+
+footprint-storage-distributed: ## Measure and gate stored bytes per signal (ClickHouse, in containers)
+	$(call run-with-disk-guard,uv run --locked --script scripts/perf/storage-footprint.py distributed --gate)
 
 # RSS gates run against the release server; in-process gates use allocation
 # counters because system allocators may retain freed pages.

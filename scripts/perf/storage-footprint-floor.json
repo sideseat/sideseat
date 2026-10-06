@@ -1,0 +1,4 @@
+{
+  "embedded": { "traces": 0.4, "logs": 0.12 },
+  "distributed": {}
+}
