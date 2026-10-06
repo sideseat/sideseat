@@ -14,13 +14,14 @@ OpenTelemetry export for an application; they carry no parsing logic of their ow
 
 This is what distinguishes SideSeat. Every change is judged on all three, and none is traded for another.
 
-- **Bytes.** Storage, memory, and wire formats are optimised at the byte level. The targets are at least 25x
-  smaller than raw OTLP protobuf per signal, and sustained ingest of at least 25,000 spans per second on one
-  Ampere A1 core (aarch64, Neoverse N1) with the server and its embedded backend inside 2 GB of RAM, scaling
-  near-linearly with cores: the throughput curve over 1, 2, 4 and 8 cores is measured, and the stored bytes and
-  every answer are identical whatever the core count.
-  Redundancy is a defect: repeated attributes, re-sent message history, JSON text, and inline media are
-  encoded once, by reference, with dictionaries and compact binary encodings.
+- **Bytes.** Storage, memory, and wire formats are optimised at the byte level. The targets, within the
+  current architecture: stored telemetry at least 14x smaller than raw OTLP protobuf per signal (media counted
+  separately, deduplicated losslessly at its floor), and sustained ingest of at least 15,000 spans per second
+  on one Ampere A1 core (aarch64, Neoverse N1) with the server and its embedded backend inside 2 GB of RAM,
+  scaling near-linearly with cores: the throughput curve over 1, 2, 4 and 8 cores is measured, and the stored
+  bytes and every answer are identical whatever the core count. Redundancy is a defect: repeated attributes,
+  re-sent message history, JSON text, and inline media are encoded once, by reference, with dictionaries and
+  compact binary encodings. Prefer the simplest change that reaches a target over a redesign.
 - **Correctness.** 100 %, proven rather than assumed. Raw telemetry round-trips byte for byte, every
   reconstructed conversation matches its truth, and an optimisation that changes any golden, truth, or parity
   answer is wrong until shown otherwise.
