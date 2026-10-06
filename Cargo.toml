@@ -167,6 +167,7 @@ opentelemetry-proto = { version = "0.28", features = [
   "with-serde",
 ] }
 prost = "0.13"
+zstd = "0.13"
 tonic = { version = "0.12", features = ["transport"] }
 base64 = "0.22"
 hex = "0.4"

@@ -72,3 +72,5 @@ sha2 = { workspace = true }
 # Keep compressed-fixture privacy checks cross-platform.
 flate2 = "1"
 memchr = "2"
+# The ingest hot-path benchmark measures the entropy coder the raw store uses.
+zstd = { workspace = true }
