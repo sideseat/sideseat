@@ -23,6 +23,15 @@ from harness.matrix.spec import Matrix
 
 CENTRAL = "https://repo1.maven.org/maven2"
 CATALOG = Path("gradle") / "libs.versions.toml"
+#: Every variant build and run: a census builds dozens of variants, and Gradle's defaults (a worker per core,
+#: a Kotlin compile daemon, a build daemon per variant's copy) would saturate the machine it shares.
+GRADLE_FLAGS = (
+    "-q",
+    "--console=plain",
+    "--no-daemon",
+    "--max-workers=2",
+    "-Pkotlin.compiler.execution.strategy=in-process",
+)
 #: Never copied: build output, Gradle's and Kotlin's state, and the captures' own artefacts.
 _SKIPPED = {"build", ".gradle", ".kotlin", "cassettes"}
 
@@ -73,12 +82,7 @@ def ensure(matrix: Matrix, environment: Path, requirements: list[str]) -> Path:
         catalog = pin(catalog, *split(requirement))
     (environment / CATALOG).write_text(catalog)
     result = subprocess.run(
-        [
-            str(environment / "gradlew"),
-            "-q",
-            "--console=plain",
-            f":{matrix.suite.name}:classes",
-        ],
+        [str(environment / "gradlew"), *GRADLE_FLAGS, f":{matrix.suite.name}:classes"],
         cwd=environment,
         capture_output=True,
         text=True,

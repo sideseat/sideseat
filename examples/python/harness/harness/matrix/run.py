@@ -128,10 +128,11 @@ def replay(
         command = ["go", "run", ".", *arguments]
         workdir = environment / suite.root.name
     elif suite.language == "java":
+        from harness.matrix.gradle import GRADLE_FLAGS
+
         command = [
             str(environment / "gradlew"),
-            "-q",
-            "--console=plain",
+            *GRADLE_FLAGS,
             "run",
             f"--args={shlex.join(arguments)}",
         ]
