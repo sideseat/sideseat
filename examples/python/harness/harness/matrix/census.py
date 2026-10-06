@@ -114,12 +114,20 @@ def classify(
 
 
 def run(
-    matrix: Matrix, suite: Suite, *, jobs: int = 2, retry: bool = False, log: Any = None
+    matrix: Matrix,
+    suite: Suite,
+    *,
+    jobs: int = 2,
+    retry: bool = False,
+    adaptive: bool = False,
+    log: Any = None,
 ) -> dict[str, Any]:
     """Classify every release of the window under every profile, and write the census.
 
     ``retry`` keeps the classified entries of the existing census and runs only the releases it has no
-    shape for. Each environment is deleted once classified: a window holds dozens of releases, and their
+    shape for. ``adaptive`` measures a sparse sample (``initial_sample``) and bisects every gap whose two
+    ends fall in different classes until each class boundary is found; the releases in between are
+    recorded as ``inferred`` from the measured releases around them. Each environment is deleted once classified: a window holds dozens of releases, and their
     environments together are gigabytes.
     """
     log = log or partial(print, flush=True)
@@ -137,7 +145,12 @@ def run(
         if retry and path.exists()
         else {"releases": [], "shapes": {}}
     )
-    kept = {(e["version"], e["profile"]): e for e in previous["releases"] if e["shape"]}
+    # An inferred entry was never measured, so a retry measures it if the bisection needs it.
+    kept = {
+        (e["version"], e["profile"]): e
+        for e in previous["releases"]
+        if e["shape"] and not e.get("inferred")
+    }
     shapes: dict[str, list[str]] = {
         e["shape"]: previous["shapes"][e["shape"]] for e in kept.values()
     }
@@ -163,43 +176,130 @@ def run(
             return release, None, f"does not resolve beside the harness: {error}"
 
     results: dict[tuple[str, str], dict[str, Any]] = dict(kept)
-    with ThreadPoolExecutor(jobs) as pool:
-        # Built at most ``jobs`` ahead and deleted once classified, so the window never holds more than
-        # a few environments; classified one at a time, because the recorder is one per process.
-        ahead = deque(pool.submit(build, r) for r in todo[:jobs])
-        queued = iter(todo[jobs:])
-        while ahead:
-            release, env_path, failure = ahead.popleft().result()
-            if (following := next(queued, None)) is not None:
-                ahead.append(pool.submit(build, following))
-            for profile in profiles:
-                if (release.version, profile) in kept:
-                    continue
-                entry: dict[str, Any] = {
-                    "version": release.version,
-                    "date": release.date,
-                    "profile": profile,
-                    "shape": None,
-                    "failure": _anonymised(failure),
-                }
-                if env_path is not None:
-                    lines, entry["failure"] = classify(
-                        suite, env_path, matrix, release.version, profile
+
+    def measure(batch: list[Release]) -> None:
+        with ThreadPoolExecutor(jobs) as pool:
+            # Built at most ``jobs`` ahead and deleted once classified, so the window never holds more
+            # than a few environments; classified one at a time, because the recorder is one per process.
+            ahead = deque(pool.submit(build, r) for r in batch[:jobs])
+            queued = iter(batch[jobs:])
+            while ahead:
+                release, env_path, failure = ahead.popleft().result()
+                if (following := next(queued, None)) is not None:
+                    ahead.append(pool.submit(build, following))
+                for profile in profiles:
+                    if (release.version, profile) in kept:
+                        continue
+                    entry: dict[str, Any] = {
+                        "version": release.version,
+                        "date": release.date,
+                        "profile": profile,
+                        "shape": None,
+                        "failure": _anonymised(failure),
+                    }
+                    if adaptive:
+                        entry["inferred"] = False
+                    if env_path is not None:
+                        lines, entry["failure"] = classify(
+                            suite, env_path, matrix, release.version, profile
+                        )
+                        entry["failure"] = _anonymised(entry["failure"])
+                        if entry["failure"] is None:
+                            entry["shape"] = digest(lines)
+                            shapes[entry["shape"]] = lines
+                    log(
+                        f"[census] {release.version} ({profile}): "
+                        + (entry["shape"] or f"FAILED - {entry['failure'][:160]}")
                     )
-                    entry["failure"] = _anonymised(entry["failure"])
-                    if entry["failure"] is None:
-                        entry["shape"] = digest(lines)
-                        shapes[entry["shape"]] = lines
-                log(
-                    f"[census] {release.version} ({profile}): "
-                    + (entry["shape"] or f"FAILED - {entry['failure'][:160]}")
-                )
-                results[(release.version, profile)] = entry
-            if env_path is not None:
-                environment.remove(env_path)
-            # Written after every release, so an interrupted census resumes with --retry.
-            _write(path, matrix, window, results, shapes)
+                    results[(release.version, profile)] = entry
+                if env_path is not None:
+                    environment.remove(env_path)
+                # Written after every release, so an interrupted census resumes with --retry.
+                _write(path, matrix, window, results, shapes)
+
+    if not adaptive:
+        measure(todo)
+        return _write(path, matrix, window, results, shapes)
+
+    def signature(version: str) -> tuple[str, ...]:
+        return tuple(results[(version, p)]["shape"] or "FAILED" for p in profiles)
+
+    measured = {
+        r.version
+        for r in window
+        if all(
+            (r.version, p) in results and not results[(r.version, p)].get("inferred")
+            for p in profiles
+        )
+    }
+    batch = [r for r in window if r.version in initial_sample(window) - measured]
+    while batch:
+        log(
+            f"[census] sampling {len(batch)} release(s): {', '.join(r.version for r in batch)}"
+        )
+        measure(batch)
+        measured |= {r.version for r in batch}
+        batch = [window[i] for i in boundaries(window, measured, signature)]
+    for (version, profile), entry in infer(window, measured, results, profiles).items():
+        results[(version, profile)] = entry
     return _write(path, matrix, window, results, shapes)
+
+
+def initial_sample(window: list[Release], every: int = 10) -> set[str]:
+    """The releases an adaptive census measures first: every ``every``-th, and the first and last of each
+    minor line, where formats most often change."""
+    from packaging.version import Version
+
+    chosen = {r.version for i, r in enumerate(window) if i % every == 0}
+    lines: dict[tuple[int, ...], list[str]] = {}
+    for release in window:
+        lines.setdefault(Version(release.version).release[:2], []).append(
+            release.version
+        )
+    for versions in lines.values():
+        chosen |= {versions[0], versions[-1]}
+    if window:
+        chosen |= {window[0].version, window[-1].version}
+    return chosen
+
+
+def boundaries(window: list[Release], measured: set[str], signature: Any) -> list[int]:
+    """The midpoint of every gap between two adjacent measured releases that fall in different classes."""
+    indices = [i for i, r in enumerate(window) if r.version in measured]
+    return sorted(
+        {
+            (i + j) // 2
+            for i, j in zip(indices, indices[1:])
+            if j - i > 1
+            and signature(window[i].version) != signature(window[j].version)
+        }
+    )
+
+
+def infer(
+    window: list[Release],
+    measured: set[str],
+    results: dict[tuple[str, str], dict[str, Any]],
+    profiles: list[str],
+) -> dict[tuple[str, str], dict[str, Any]]:
+    """Entries for the releases between two measured ones of the same class, marked ``inferred``.
+
+    Bisection leaves no gap between measured releases of different classes, so every unmeasured
+    release lies between two that agree, and takes their class (or their failure).
+    """
+    indices = [i for i, r in enumerate(window) if r.version in measured]
+    found = {}
+    for i, j in zip(indices, indices[1:]):
+        for k in range(i + 1, j):
+            for profile in profiles:
+                source = results[(window[i].version, profile)]
+                found[(window[k].version, profile)] = {
+                    **source,
+                    "version": window[k].version,
+                    "date": window[k].date,
+                    "inferred": True,
+                }
+    return found
 
 
 def _write(

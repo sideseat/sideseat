@@ -345,6 +345,11 @@ def main(argv: list[str] | None = None) -> None:
         "--retry", action="store_true", help="--census: run only unclassified releases"
     )
     parser.add_argument(
+        "--adaptive",
+        action="store_true",
+        help="--census: measure a sample and bisect between classes instead of every release",
+    )
+    parser.add_argument(
         "--live",
         action="store_true",
         help="record the [[recording]] releases' own cassettes on Bedrock (variant: release versions)",
@@ -392,7 +397,9 @@ def main(argv: list[str] | None = None) -> None:
         )
         return
     if args.census:
-        census.run(matrix, suite, jobs=args.jobs, retry=args.retry)
+        census.run(
+            matrix, suite, jobs=args.jobs, retry=args.retry, adaptive=args.adaptive
+        )
         problems = census.coverage(matrix, census_of(matrix) or {"releases": []})
         for problem in problems:
             print(f"[census] {problem}")

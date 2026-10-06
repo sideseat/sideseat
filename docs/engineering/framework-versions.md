@@ -245,8 +245,16 @@ the model map it downloads at import).
 - **TypeScript suites:** a `versions.toml` beside a suite under `examples/javascript` makes its variants copies
   of the npm project, installed once as of `resolved-before` and cloned copy-on-write per release with only
   the pinned packages moved (`npm install --before`). Not yet covered: the AI SDK's 5.x and 6.x lines, which
-  predate the `@ai-sdk/otel` package the suite is written against, and the Claude Agent SDK, whose 300
-  releases each bundle a CLI.
+  predate the `@ai-sdk/otel` package the suite is written against.
+- **The Claude Agent SDK for TypeScript has no matrix, deliberately.** An adaptive census over its 307
+  releases (121 measured) classified 216 of them into 31 shapes: every release from 0.2.33 runs, and the
+  classes change every few releases as the bundled Claude Code CLI adds or renames its own diagnostic log
+  events. Those events also report the machine: the installed Claude Code plugins by name, the terminal
+  type, and whether managed settings applied, so two of the 31 "classes" differ only in which plugins the
+  capturing account had. A census of this producer therefore classifies the environment as much as the
+  release, and committing a fixture per class would put local configuration in the corpus. The suite keeps
+  its ordinary capture of the locked release; the CLI's own format history is tracked by the static
+  fingerprint in the catalogue above.
 - **Go and JVM suites:** a `versions.toml` beside a suite under `examples/go` or `examples/java` makes its
   variants copies of the Go module (`go get <module>@v<version>`) or of the Gradle build with a version catalog
   entry replaced (`pin = "<catalog key>={version}"`); releases come from the go command and Maven Central.
@@ -298,7 +306,7 @@ Commands, run from `examples/python/harness` (or through `make`):
 | Command | Network | What it does |
 | --- | --- | --- |
 | `make matrix P=<producer> [V=<variant>]` | package index only, for a missing environment | Builds each variant's environment under `$SIDESEAT_MATRIX_CACHE` (default: the user cache directory), replays every variant scenario offline from the suite's cassettes, writes `server/tests/fixtures/messages/<producer>/native@<variant>/<scenario>/` and `<producer>/versions.json` (provenance), then deletes the environments. |
-| `make matrix-census P=<producer>` | yes | Classifies every release of the window under every profile and writes `<suite>/versions.census.json`. |
+| `make matrix-census P=<producer>` | yes | Classifies every release of the window under every profile and writes `<suite>/versions.census.json`. `--adaptive` instead measures a sparse sample (every tenth release, and the first and last of each minor line) and bisects every gap whose ends fall in different classes until the boundary release is found, so a long window costs about *classes* x log(*releases*) runs; the releases between two measured ones of the same class are recorded as `inferred` from them, and a retry re-measures an inferred release when a bisection needs it. |
 | `make matrix-check` | no | Every classified release has a variant with its shape, no variant is redundant or aged out, every unclassified release is exempt, and each variant's committed probe fixtures still have the shape the census recorded. Also run by the harness tests. |
 
 Replay matches an identical request to its recorded answer and otherwise falls back to arrival order on the

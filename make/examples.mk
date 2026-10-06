@@ -38,9 +38,10 @@ matrix: ## Replay a suite against its historical releases, offline (P=producer [
 	@UPDATE_GOLDENS=1 $(CARGO_TEST) -p sideseat-server --test message_goldens -E 'test(=message_goldens)'
 	@uv run --locked --directory examples/python/harness python -m harness truth $(P)
 
-matrix-census: ## Classify every release of a suite's support window by telemetry shape (P=producer; network)
-	@[ -n "$(P)" ] || { echo "usage: make matrix-census P=<producer>"; exit 2; }
-	@$(MATRIX) $(P) --census $(if $(RETRY),--retry)
+# ADAPTIVE=1 samples and bisects between classes instead of running every release.
+matrix-census: ## Classify a suite's support window by telemetry shape (P=producer [ADAPTIVE=1]; network)
+	@[ -n "$(P)" ] || { echo "usage: make matrix-census P=<producer> [ADAPTIVE=1] [RETRY=1]"; exit 2; }
+	@$(MATRIX) $(P) --census $(if $(RETRY),--retry) $(if $(ADAPTIVE),--adaptive)
 
 matrix-check: ## Check every suite's census coverage and variant fixtures, offline
 	@$(MATRIX) --check

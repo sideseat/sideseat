@@ -188,6 +188,40 @@ def test_a_timed_out_scenario_stops_the_children_it_started(tmp_path: Path) -> N
         pytest.fail("the scenario's grandchild outlived the timeout")
 
 
+def test_an_adaptive_census_finds_every_class_boundary_and_infers_between() -> None:
+    window = [census.Release(f"1.{i // 10}.{i % 10}", "2026-01-01") for i in range(47)]
+    # Three classes, changing at 1.1.3 and 1.3.8, with no sample landing on either boundary.
+    truth = {
+        r.version: ("a" if i < 13 else "b" if i < 38 else "c")
+        for i, r in enumerate(window)
+    }
+    results = {}
+    measured: set[str] = set()
+    batch = census.initial_sample(window)
+    while batch:
+        for version in batch:
+            results[(version, "default")] = {
+                "version": version,
+                "shape": truth[version],
+                "inferred": False,
+            }
+        measured |= set(batch)
+        batch = {
+            window[i].version
+            for i in census.boundaries(
+                window, measured, lambda v: (results[(v, "default")]["shape"],)
+            )
+        }
+
+    inferred = census.infer(window, measured, results, ["default"])
+
+    assert {"1.1.2", "1.1.3", "1.3.7", "1.3.8"} <= measured
+    assert len(measured) < len(window)
+    for (version, _), entry in inferred.items():
+        assert entry["inferred"] and entry["shape"] == truth[version]
+    assert len(measured) + len(inferred) == len(window)
+
+
 def test_the_census_window_ends_where_environments_resolve(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
