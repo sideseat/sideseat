@@ -274,7 +274,10 @@ class Framework:
     #: absence gap the Rust rubric proves against every fixture (``message_truth::absence``):
     #: ``tool_call_ids`` - the model's tool-call ids (``id_not_exported``); ``tool_calling_rounds`` - the
     #: responses that only call tools, whose parts are recorded one execution at a time
-    #: (``call_not_exported``). Each value is the reason, or ``{reason, scenarios, modes}`` when only
+    #: (``call_not_exported``); ``model``, ``response_model``, ``response_id``, ``finish`` - a call's
+    #: metadata the producer states wrongly with the right value in no payload
+    #: (``metadata_not_exported``; ``values`` limits it to calls whose truth has one of them). Each
+    #: value is the reason, or ``{reason, scenarios, modes}`` when only
     #: some scenarios' - or, by scenario, some releases' (``modes = {streaming = ["native@1.0b1"]}``) -
     #: telemetry leaves it out.
     unexported: dict[str, Any] = field(default_factory=dict)
@@ -654,7 +657,9 @@ def assemble(
     return builder
 
 
-UNEXPORTED = frozenset({"tool_call_ids", "tool_calling_rounds"})
+#: Call metadata a producer may state wrongly with the right value in no payload.
+METADATA = ("model", "response_model", "response_id", "finish")
+UNEXPORTED = frozenset({"tool_call_ids", "tool_calling_rounds", *METADATA})
 
 
 def _unexported(builder: Builder, framework: Framework) -> None:
@@ -690,6 +695,17 @@ def _unexported(builder: Builder, framework: Framework) -> None:
             builder.gaps.append(entry)
 
     facts = {fact["id"]: fact for fact in builder.facts}
+    for field_name in METADATA:
+        if not (detail := declared(field_name)):
+            continue
+        entry = framework.unexported[field_name]
+        limited = entry.get("values") if isinstance(entry, dict) else None
+        for record in builder.calls:
+            value = record.get(field_name)
+            if record["outcome"] != "success" or value is None:
+                continue
+            if limited is None or value in limited:
+                gap(field_name, "metadata_not_exported", detail, record["id"])
     if detail := declared("tool_calling_rounds"):
         for record in builder.calls:
             outputs = [facts[output] for output in record["outputs"]]

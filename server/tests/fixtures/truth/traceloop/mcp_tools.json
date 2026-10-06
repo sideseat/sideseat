@@ -197,6 +197,18 @@
    "fact": "system_prompt",
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "model",
+   "reason": "metadata_not_exported",
+   "detail": "the model the call addressed: Traceloop records the Bedrock model id without the inference profile's region prefix (`global.`), in every attribute",
+   "subject": "call-001"
+  },
+  {
+   "fact": "model",
+   "reason": "metadata_not_exported",
+   "detail": "the model the call addressed: Traceloop records the Bedrock model id without the inference profile's region prefix (`global.`), in every attribute",
+   "subject": "call-002"
   }
  ]
 }

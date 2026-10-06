@@ -327,6 +327,13 @@ pub(super) fn check_metadata(
         .filter(|g| g.reason == "call_not_exported")
         .filter_map(|g| g.subject.as_deref())
         .collect();
+    // Metadata a gap proves absent from every payload: the span cannot state it.
+    let not_exported: BTreeSet<(&str, String)> = truth
+        .gaps
+        .iter()
+        .filter(|g| g.reason == "metadata_not_exported")
+        .filter_map(|g| Some((g.subject.as_deref()?, format!("call.{}", g.fact))))
+        .collect();
     for call in truth.calls.iter().filter(|c| c.succeeded()) {
         let Some(&index) = matching.span_of.get(&call.id) else {
             continue;
@@ -337,6 +344,9 @@ pub(super) fn check_metadata(
         // of which model answered, even when the two values coincide.
         let answered = Carried::of_answer(generation.raw.as_deref());
         let mut differ = |assertion: &str, expected: &str, actual: String| {
+            if not_exported.contains(&(call.id.as_str(), assertion.to_string())) {
+                return;
+            }
             out.push(Violation::new(
                 ViolationView::Call,
                 assertion,
@@ -394,7 +404,7 @@ pub(super) fn check_metadata(
             let words = [Some(finish), call.stop_reason.as_deref()];
             if !agrees
                 && (!generation.finish.is_empty()
-                    || words.iter().flatten().any(|w| carried.string(w)))
+                    || words.iter().flatten().any(|w| carried.finish_word(w)))
             {
                 let stated = if generation.finish.is_empty() {
                     "states none".to_string()
@@ -490,6 +500,9 @@ pub(super) fn check_metadata(
 struct Carried {
     strings: BTreeSet<String>,
     numbers: BTreeSet<i64>,
+    /// The strings under a member that names a finish (`finish_reason`, `stopReason`): a finish word
+    /// elsewhere - an output item's own `status`, a sentence - is not the span stating the call's.
+    finish_words: BTreeSet<String>,
     skip_requests: bool,
 }
 
@@ -516,12 +529,12 @@ impl Carried {
             ..Carried::default()
         };
         if let Some(value) = raw.and_then(|r| serde_json::from_str::<serde_json::Value>(r).ok()) {
-            carried.walk(&value, 0);
+            carried.walk(&value, 0, false);
         }
         carried
     }
 
-    fn walk(&mut self, value: &serde_json::Value, depth: usize) {
+    fn walk(&mut self, value: &serde_json::Value, depth: usize, finish: bool) {
         use serde_json::Value;
         match value {
             Value::String(text) => {
@@ -532,7 +545,10 @@ impl Carried {
                     && matches!(text.trim_start().chars().next(), Some('{' | '['))
                     && let Ok(inner) = serde_json::from_str::<Value>(text)
                 {
-                    self.walk(&inner, depth + 1);
+                    self.walk(&inner, depth + 1, finish);
+                }
+                if finish {
+                    self.finish_words.insert(text.clone());
                 }
                 self.strings.insert(text.clone());
             }
@@ -543,11 +559,13 @@ impl Carried {
                     self.numbers.insert(f as i64);
                 }
             }
-            Value::Array(items) => items.iter().for_each(|v| self.walk(v, depth)),
+            Value::Array(items) => items.iter().for_each(|v| self.walk(v, depth, finish)),
             Value::Object(map) => {
                 for (key, member) in map {
                     if !(self.skip_requests && states_a_request(key)) {
-                        self.walk(member, depth);
+                        let lower = key.to_ascii_lowercase();
+                        let names_finish = lower.contains("finish") || lower.contains("stop");
+                        self.walk(member, depth, finish || names_finish);
                     }
                 }
             }
@@ -557,6 +575,10 @@ impl Carried {
 
     fn string(&self, value: &str) -> bool {
         self.strings.contains(value)
+    }
+
+    fn finish_word(&self, value: &str) -> bool {
+        self.finish_words.contains(value)
     }
 
     fn number(&self, value: i64) -> bool {

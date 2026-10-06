@@ -215,6 +215,18 @@
    "reason": "reasoning_text_omitted",
    "detail": "the provider returned a signed reasoning block with no visible text; whether a reconstruction shows a placeholder for it is a product decision, not a fidelity fact",
    "subject": "fact-004"
+  },
+  {
+   "fact": "model",
+   "reason": "metadata_not_exported",
+   "detail": "the model the call addressed: LangChain4j's OpenInference instrumentation records the model name as `unknown` for its Bedrock chat model, and no payload names it",
+   "subject": "call-001"
+  },
+  {
+   "fact": "model",
+   "reason": "metadata_not_exported",
+   "detail": "the model the call addressed: LangChain4j's OpenInference instrumentation records the model name as `unknown` for its Bedrock chat model, and no payload names it",
+   "subject": "call-002"
   }
  ]
 }

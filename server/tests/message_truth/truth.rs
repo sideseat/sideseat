@@ -226,6 +226,9 @@ pub(super) struct GapEffects {
     pub needs_absence_proof: bool,
 }
 
+/// The call metadata a `metadata_not_exported` gap may name, as `call.<field>` assertions spell it.
+pub(super) const METADATA_FIELDS: &[&str] = &["model", "response_model", "response_id", "finish"];
+
 /// The closed vocabulary of gap reasons and their effects; an unknown reason is a document defect.
 pub(super) fn gap_effects(reason: &str) -> Option<GapEffects> {
     let effects = |subject, withdraws, explains_extra, needs_absence_proof| GapEffects {
@@ -253,6 +256,9 @@ pub(super) fn gap_effects(reason: &str) -> Option<GapEffects> {
         // A model call's response is missing as a unit: its parts are asserted where the conversation
         // shows them, but no span records the call and the response's own grouping is unknown.
         "call_not_exported" => effects(GapSubject::Call, false, false, true),
+        // A call's model or finish the producer states wrongly, where the right one is in no payload:
+        // the span cannot state what the telemetry never carried.
+        "metadata_not_exported" => effects(GapSubject::Call, false, false, true),
         "request_body_unrecorded"
         | "request_modelled"
         | "fake_model_echoes_request"
@@ -551,6 +557,12 @@ pub(super) fn document_defects(key: &str, truth: &Truth) -> Vec<String> {
             (Some(_), GapSubject::None) => {
                 bad(format!("gap {} must not name a subject", gap.reason))
             }
+        }
+        if gap.reason == "metadata_not_exported" && !METADATA_FIELDS.contains(&gap.fact.as_str()) {
+            bad(format!(
+                "gap metadata_not_exported names {}, not one of {METADATA_FIELDS:?}",
+                gap.fact
+            ));
         }
         let modes: BTreeSet<&str> = truth
             .fixtures

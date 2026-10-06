@@ -242,6 +242,9 @@ pub(super) enum Claim<'t> {
     /// A model call's response as a unit (`call_not_exported`): none of its outputs is in any payload in
     /// the form the response would give it.
     Response(Vec<&'t Fact>),
+    /// One of a call's metadata (`metadata_not_exported`): the field and the values that would state
+    /// it - the model, a response id, or the finish as a category and as the provider's own word.
+    Metadata(&'static str, Vec<String>),
 }
 
 impl Claim<'_> {
@@ -250,6 +253,11 @@ impl Claim<'_> {
             Claim::Fact(fact) => kind_label(&fact.kind),
             Claim::Id(_) => "tool call id",
             Claim::Response(_) => "model response",
+            Claim::Metadata(field, _) => match *field {
+                "finish" => "finish reason",
+                "response_id" => "response id",
+                _ => "model name",
+            },
         }
     }
 }
@@ -277,6 +285,19 @@ pub(super) fn absence_gaps(truth: &Truth) -> Vec<(&truth::Gap, Claim<'_>)> {
                     let call = truth.calls.iter().find(|c| c.id == subject)?;
                     Claim::Response(call.outputs.iter().filter_map(|id| fact(id)).collect())
                 }
+                "metadata_not_exported" => {
+                    let call = truth.calls.iter().find(|c| c.id == subject)?;
+                    let field = truth::METADATA_FIELDS
+                        .iter()
+                        .find(|f| **f == gap.fact.as_str())?;
+                    let values = match *field {
+                        "model" => vec![call.model.clone()],
+                        "response_model" => vec![call.response_model.clone()],
+                        "response_id" => vec![call.response_id.clone()],
+                        _ => vec![call.finish.clone(), call.stop_reason.clone()],
+                    };
+                    Claim::Metadata(field, values.into_iter().flatten().collect())
+                }
                 _ => Claim::Fact(fact(subject)?),
             };
             Some((gap, claim))
@@ -289,6 +310,7 @@ pub(super) fn prove_claim(claim: &Claim<'_>, haystack: &Haystack) -> Proof {
     match claim {
         Claim::Fact(fact) => prove(fact, haystack),
         Claim::Id(fact) => prove_id(fact, haystack),
+        Claim::Metadata(field, values) => prove_metadata(field, values, haystack),
         // A response is absent when every one of its parts is a tool call whose id is absent - the one
         // member no other carrier repeats - and no carrier holds two of its calls' arguments together,
         // which only a copy of the response would. A response with any other part, or a call with no
@@ -350,6 +372,32 @@ pub(super) fn prove_claim(claim: &Claim<'_>, haystack: &Haystack) -> Proof {
             Proof::Absent
         }
     }
+}
+
+/// A model name or response id is absent when no payload contains it; a finish when no member naming a
+/// finish (`finish_reason`, `stopReason`) holds the category or the provider's word, in any case - a
+/// finish word elsewhere, a block's `type: tool_use` or a sentence, is not a finish stated.
+fn prove_metadata(field: &str, values: &[String], haystack: &Haystack) -> Proof {
+    if values.iter().all(|v| v.trim().is_empty()) {
+        return Proof::Unprovable(format!("the truth states no {field}"));
+    }
+    for carrier in &haystack.carriers {
+        for (at, text) in &carrier.strings {
+            let found = values.iter().filter(|v| !v.is_empty()).any(|value| {
+                if field == "finish" {
+                    let key = at.to_ascii_lowercase();
+                    (key.contains("finish") || key.contains("stop"))
+                        && text.eq_ignore_ascii_case(value)
+                } else {
+                    text.contains(value.as_str())
+                }
+            });
+            if found {
+                return Proof::Present(at.clone());
+            }
+        }
+    }
+    Proof::Absent
 }
 
 fn prove_id(fact: &Fact, haystack: &Haystack) -> Proof {

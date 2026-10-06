@@ -461,3 +461,29 @@ fn an_id_is_not_unexported_where_the_call_carries_another() {
         Proof::Absent
     );
 }
+
+/// A call's model is absent only where no payload contains it; its finish only where no member naming a
+/// finish holds it - the same word in a sentence or a block type is not a finish stated.
+#[test]
+fn metadata_is_absent_only_where_no_payload_states_it() {
+    let model = Claim::Metadata("model", vec!["global.anthropic.claude".to_string()]);
+    assert!(present(prove_claim(
+        &model,
+        &attribute(string("bedrock/global.anthropic.claude"))
+    )));
+    assert_eq!(
+        prove_claim(&model, &attribute(string("anthropic.claude"))),
+        Proof::Absent
+    );
+    let finish = Claim::Metadata("finish", vec!["tool_use".to_string()]);
+    let stated = span(|s| {
+        s.attributes
+            .push(kv("gen_ai.response.finish_reasons", string("TOOL_USE")));
+    });
+    assert!(present(prove_claim(&finish, &stated)));
+    let block = serde_json::json!({"content": [{"type": "tool_use", "name": "get_weather"}]});
+    assert_eq!(
+        prove_claim(&finish, &attribute(string(&block.to_string()))),
+        Proof::Absent
+    );
+}

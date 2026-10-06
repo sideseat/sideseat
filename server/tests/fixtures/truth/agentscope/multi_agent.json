@@ -320,6 +320,18 @@
    "reason": "tool_not_deterministic",
    "detail": "TeamAssign is not one of the shared deterministic tools",
    "subject": "fact-002"
+  },
+  {
+   "fact": "finish",
+   "reason": "metadata_not_exported",
+   "detail": "why a response that called tools ended: AgentScope records every response's finish as `stop`, and no payload keeps the provider's `tool_use`",
+   "subject": "call-001"
+  },
+  {
+   "fact": "finish",
+   "reason": "metadata_not_exported",
+   "detail": "why a response that called tools ended: AgentScope records every response's finish as `stop`, and no payload keeps the provider's `tool_use`",
+   "subject": "call-002"
   }
  ]
 }

@@ -15,6 +15,12 @@ integrations = ["agentscope"]
 # AgentScope has no Bedrock model; its Anthropic model reaches Claude through the Anthropic SDK.
 default-model = "claude"
 
+# What AgentScope's telemetry states wrongly with the right value in no payload, for the truth derivation
+# (`python -m harness truth`); proven absent from every capture by the rubric.
+[tool.sideseat-example.truth.unexported.finish]
+reason = "why a response that called tools ended: AgentScope records every response's finish as `stop`, and no payload keeps the provider's `tool_use`"
+values = ["tool_use"]
+
 [tool.uv]
 required-version = "==0.12.13"
 package = false

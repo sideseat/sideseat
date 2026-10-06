@@ -221,6 +221,12 @@
    "reason": "reasoning_text_omitted",
    "detail": "the provider returned a signed reasoning block with no visible text; whether a reconstruction shows a placeholder for it is a product decision, not a fidelity fact",
    "subject": "fact-004"
+  },
+  {
+   "fact": "finish",
+   "reason": "metadata_not_exported",
+   "detail": "why a response that called tools ended: AgentScope records every response's finish as `stop`, and no payload keeps the provider's `tool_use`",
+   "subject": "call-001"
   }
  ]
 }

@@ -197,6 +197,12 @@
    "fact": "system_prompt",
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "finish",
+   "reason": "metadata_not_exported",
+   "detail": "why a response that called tools ended: AgentScope records every response's finish as `stop`, and no payload keeps the provider's `tool_use`",
+   "subject": "call-001"
   }
  ]
 }

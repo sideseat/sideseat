@@ -261,6 +261,24 @@
    "fact": "routing",
    "reason": "multi_agent_routing",
    "detail": "which agent made each call, and what one agent passed another, is the framework's; only each call's own output and the shared tools' results are asserted"
+  },
+  {
+   "fact": "model",
+   "reason": "metadata_not_exported",
+   "detail": "the model the call addressed: Traceloop records the Bedrock model id without the inference profile's region prefix (`global.`), in every attribute",
+   "subject": "call-001"
+  },
+  {
+   "fact": "model",
+   "reason": "metadata_not_exported",
+   "detail": "the model the call addressed: Traceloop records the Bedrock model id without the inference profile's region prefix (`global.`), in every attribute",
+   "subject": "call-002"
+  },
+  {
+   "fact": "model",
+   "reason": "metadata_not_exported",
+   "detail": "the model the call addressed: Traceloop records the Bedrock model id without the inference profile's region prefix (`global.`), in every attribute",
+   "subject": "call-003"
   }
  ]
 }

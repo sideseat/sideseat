@@ -17,6 +17,11 @@ dependencies = [
 producer = "traceloop"
 integrations = ["traceloop"]
 
+# What Traceloop's telemetry states wrongly with the right value in no payload, for the truth derivation
+# (`python -m harness truth`); proven absent from every capture by the rubric.
+[tool.sideseat-example.truth.unexported]
+model = "the model the call addressed: Traceloop records the Bedrock model id without the inference profile's region prefix (`global.`), in every attribute"
+
 [tool.uv]
 required-version = "==0.12.13"
 package = false

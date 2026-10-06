@@ -1,5 +1,12 @@
 {
   "producer": "langchain4j",
-  "integrations": ["openinference"],
-  "service-name": "langchain4j"
+  "integrations": [
+    "openinference"
+  ],
+  "service-name": "langchain4j",
+  "truth": {
+    "unexported": {
+      "model": "the model the call addressed: LangChain4j's OpenInference instrumentation records the model name as `unknown` for its Bedrock chat model, and no payload names it"
+    }
+  }
 }

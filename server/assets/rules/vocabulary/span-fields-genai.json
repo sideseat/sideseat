@@ -483,6 +483,24 @@
           },
           "on_malformed": "continue",
           "doc": "Why a Genkit model action stopped, which Genkit states beside its response."
+        },
+        {
+          "id": "agents_response_status",
+          "json": {
+            "attribute": "response",
+            "path": "$.status",
+            "scalar_only": true
+          },
+          "when": {
+            "attr_equals": [
+              {
+                "key": "logfire.msg_template",
+                "value": "Responses API with {gen_ai.request.model!r}"
+              }
+            ]
+          },
+          "on_malformed": "continue",
+          "doc": "The status of a Responses API response, on the one span known to serialise it whole: the provider's own word for how the response ended (`completed`, `incomplete`)."
         }
       ]
     },

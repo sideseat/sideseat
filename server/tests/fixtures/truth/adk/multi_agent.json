@@ -270,6 +270,18 @@
    "reason": "tool_not_deterministic",
    "detail": "transfer_to_agent is not one of the shared deterministic tools",
    "subject": "fact-004"
+  },
+  {
+   "fact": "finish",
+   "reason": "metadata_not_exported",
+   "detail": "why a response that called tools ended: ADK records every response's finish as `stop`, and no payload keeps the provider's `tool_use`",
+   "subject": "call-001"
+  },
+  {
+   "fact": "finish",
+   "reason": "metadata_not_exported",
+   "detail": "why a response that called tools ended: ADK records every response's finish as `stop`, and no payload keeps the provider's `tool_use`",
+   "subject": "call-002"
   }
  ]
 }

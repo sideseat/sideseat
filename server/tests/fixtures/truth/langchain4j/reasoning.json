@@ -111,6 +111,12 @@
    "fact": "system_prompt",
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "model",
+   "reason": "metadata_not_exported",
+   "detail": "the model the call addressed: LangChain4j's OpenInference instrumentation records the model name as `unknown` for its Bedrock chat model, and no payload names it",
+   "subject": "call-001"
   }
  ]
 }
