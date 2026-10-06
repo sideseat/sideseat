@@ -98,10 +98,22 @@ def log(message: str) -> None:
 # --- corpus ------------------------------------------------------------------------------------------
 
 
+def tracked_files() -> set[Path]:
+    """Every file git tracks under the fixture trees: the only inputs another checkout also has."""
+    listed = subprocess.run(
+        ["git", "ls-files", "-z", "--", str(CORPUS), str(METRIC_CORPUS)],
+        cwd=ROOT,
+        capture_output=True,
+        check=True,
+    ).stdout
+    return {ROOT / name for name in listed.decode().split("\0") if name}
+
+
 def corpus_paths() -> list[Path]:
-    """Every export file the fixture trees hold now."""
+    """Every tracked export file the fixture trees hold now. Local-only (ignored) captures are left out, so
+    a figure measured here is one any checkout reproduces."""
     paths = []
-    for path in sorted([*CORPUS.rglob("*"), *METRIC_CORPUS.rglob("*")]):
+    for path in sorted(tracked_files()):
         prefix = path.name.split("-", 1)[0]
         if (
             prefix in ("req", "logs", "metrics")
@@ -124,10 +136,13 @@ def write_manifest() -> None:
 def manifest_paths() -> list[Path]:
     """The pinned exports, refusing a run whose files changed since the manifest was written."""
     entries = json.loads(MANIFEST.read_text())
+    tracked = tracked_files()
     paths, drift = [], []
     for relative, digest in sorted(entries.items()):
         path = ROOT / relative
-        if not path.is_file():
+        if path not in tracked:
+            drift.append(f"untracked {relative}")
+        elif not path.is_file():
             drift.append(f"missing {relative}")
         elif hashlib.sha256(path.read_bytes()).hexdigest() != digest:
             drift.append(f"changed {relative}")
@@ -543,6 +558,94 @@ def duckdb_rows(path: Path) -> dict[str, int]:
     return rows
 
 
+def decode_ssr1(record: bytes, media) -> bytes:
+    """The received body back from an SSR1 record; `media(hash_hex)` answers an object's decoded bytes."""
+    import base64
+
+    if record[:4] != b"SSR1":
+        raise ValueError("not an SSR1 record")
+    at = 5
+
+    def varint() -> int:
+        nonlocal at
+        value, shift = 0, 0
+        while True:
+            byte = record[at]
+            at += 1
+            value |= (byte & 0x7F) << shift
+            shift += 7
+            if byte < 0x80:
+                return value
+
+    runs = []
+    for _ in range(varint()):
+        gap, length = varint(), varint()
+        runs.append((gap, length, record[at : at + 32].hex()))
+        at += 32
+    body, cursor, out = record[at:], 0, bytearray()
+    for gap, length, digest in runs:
+        out += body[cursor : cursor + gap]
+        cursor += gap
+        text = base64.b64encode(media(digest))
+        if len(text) != length:
+            raise ValueError(
+                f"media {digest} does not re-encode to {length} characters"
+            )
+        out += text
+    out += body[cursor:]
+    return bytes(out)
+
+
+def verify_raw_embedded(
+    work: Path, exports: list[dict], projects: dict[str, str]
+) -> int:
+    """Every stored raw record decodes to the exact bytes of an export its project was sent, and every trace
+    export is stored. Media comes back from the file store, as a re-derivation would read it."""
+    import duckdb
+
+    sent = collections.defaultdict(set)
+    for export in exports:
+        if export["signal"] == "traces":
+            sent[projects[export["tenant"]]].add(export["body"])
+    files = work / "files"
+
+    def media_of(project: str):
+        def lookup(digest: str) -> bytes:
+            return (files / project / digest[:2] / digest[2:4] / digest).read_bytes()
+
+        return lookup
+
+    connection = duckdb.connect(str(work / "duckdb/sideseat.duckdb"), read_only=True)
+    rows = connection.execute(
+        "SELECT project_id, record FROM otel_raw QUALIFY ROW_NUMBER() OVER "
+        "(PARTITION BY project_id, raw_id ORDER BY rowid DESC) = 1"
+    ).fetchall()
+    connection.close()
+    failures, stored = [], collections.defaultdict(set)
+    for project, record in rows:
+        try:
+            body = decode_ssr1(bytes(record), media_of(project))
+        except (ValueError, OSError) as error:
+            failures.append(f"{project}: {error}")
+            continue
+        if body not in sent[project]:
+            failures.append(
+                f"{project}: a record decodes to bytes no export of the project had"
+            )
+        stored[project].add(body)
+    for project, bodies in sent.items():
+        missing = len(bodies - stored[project])
+        if missing:
+            failures.append(f"{project}: {missing} trace exports have no raw record")
+    for failure in failures[:20]:
+        log(f"FAIL raw: {failure}")
+    log(
+        f"raw round trip: {len(rows)} records, {sum(len(v) for v in sent.values())} distinct exports, "
+        f"{len(failures)} failures"
+    )
+    return 1 if failures else 0
+
+
 def measure_embedded(work: Path) -> dict:
     columns, _used = duckdb_columns(work / "duckdb/sideseat.duckdb")
     rows = duckdb_rows(work / "duckdb/sideseat.duckdb")
@@ -775,6 +878,11 @@ def main() -> int:
     parser.add_argument("--json", type=Path)
     parser.add_argument("--gate", action="store_true")
     parser.add_argument(
+        "--verify-raw",
+        action="store_true",
+        help="decode every stored raw record and require the exact bytes each export was sent as",
+    )
+    parser.add_argument(
         "--update-manifest",
         action="store_true",
         help="pin the fixture set as it is now, then measure it",
@@ -817,6 +925,11 @@ def main() -> int:
         measured = (
             measure_embedded(work) if args.mode == "embedded" else measure_distributed()
         )
+        raw_failed = (
+            verify_raw_embedded(work, exports, projects)
+            if args.mode == "embedded" and args.verify_raw
+            else 0
+        )
     finally:
         if server is not None:
             stop_server(server)
@@ -829,7 +942,7 @@ def main() -> int:
     result = report(exports, measured, args.mode)
     if args.json:
         args.json.write_text(json.dumps(result, indent=1, default=str))
-    return gate(result) if args.gate else 0
+    return max(gate(result) if args.gate else 0, raw_failed)
 
 
 if __name__ == "__main__":

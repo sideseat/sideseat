@@ -103,7 +103,7 @@ bench-ingest: ## Measure sustained trace-ingest throughput
 # What the backends store for the whole fixture corpus, per signal, against raw OTLP protobuf, and the floor
 # that fails the run when compression regresses.
 footprint-storage: ## Measure and gate stored bytes per signal (embedded)
-	$(call run-with-disk-guard,uv run --locked --script scripts/perf/storage-footprint.py embedded --gate)
+	$(call run-with-disk-guard,uv run --locked --script scripts/perf/storage-footprint.py embedded --gate --verify-raw)
 
 footprint-storage-distributed: ## Measure and gate stored bytes per signal (ClickHouse, in containers)
 	$(call run-with-disk-guard,uv run --locked --script scripts/perf/storage-footprint.py distributed --gate)
