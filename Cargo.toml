@@ -242,3 +242,6 @@ lto = "thin"
 codegen-units = 16
 strip = false
 debug = "line-tables-only"
+# Packed: the line tables go into a .dSYM beside the binary. Unpacked, the macOS default, keeps every codegen
+# unit's object file in deps for the debugger, and rebuilds never remove the superseded ones.
+split-debuginfo = "packed"
