@@ -56,7 +56,7 @@ cli/                    the npm distribution wrapper
 config/                 configuration JSON schema and examples
 make/                   Makefile fragments, one per area; `make help` lists every target
 scripts/                automation grouped by purpose; scripts/README.md maps it
-  check/ test/ perf/ fixtures/ dev/ release/ ops/ deploy/ tools/
+  check/ hooks/ test/ perf/ fixtures/ dev/ release/ ops/ deploy/ tools/
 ```
 
 Where a new thing goes:
@@ -198,11 +198,12 @@ The developer loop is a product requirement, not a convenience. Every change mus
   golden (`cargo nextest run -p sideseat-server message_goldens -E 'test(<suite>)'`). Never start a
   workspace-wide build or test run to check a local change.
 - Tests are deterministic and offline by default: replay captured OTLP fixtures and use the fake model
-  servers. Live model calls happen only in `make capture`, never in `make quick`, `make test`, or CI.
+  servers. Live model calls happen only in `make capture`, never in `make quick`, `make test`, or a hook.
 - A new test, gate, hook, or dependency that makes `make quick` slower than the budget belongs in
   `make test` or an opt-in target instead. Measure it before adding it.
 - Git hooks stay cheap: pre-commit runs formatting, the file-length check, and the secret scan only; heavier
-  checks belong to pre-push and CI. Never bypass them (`--no-verify`): a hook that fails on someone else's
+  checks belong to pre-push, which runs `make check`. There is no hosted CI: the hooks and the make targets
+  are the gates. Never bypass them (`--no-verify`): a hook that fails on someone else's
   work in progress is a reason to wait for or fix that work, not to commit unchecked.
 - If the loop has become slow, fixing that takes priority over the feature you are working on.
 
@@ -236,6 +237,8 @@ make footprint
 make bench-http
 make bench-http-distributed
 make harden-spec
+make audit        # supply-chain advisories; needs the network; before a release and periodically
+make msrv         # the whole workspace on the minimum supported Rust version
 ```
 
 Choose checks proportionally:

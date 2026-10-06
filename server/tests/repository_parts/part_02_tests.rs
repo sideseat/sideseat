@@ -1,4 +1,3 @@
-
 #[test]
 fn every_tree_diagram_names_things_that_exist() {
     let repo = repo_root();
@@ -711,21 +710,19 @@ fn every_uv_project_requires_the_same_resolver() {
         silent.join("\n  ")
     );
 
-    // CI installs the version the tree requires, or the pin holds in one place and not the other.
+    // mise installs the version the tree requires, or the pin holds in one place and not the other.
     let required = declared
         .keys()
         .next()
         .expect("one value")
         .trim_start_matches("==")
         .to_string();
-    let workflow = std::fs::read_to_string(repo.join(".github/workflows/ci.yml"))
-        .expect("the workflow is committed");
-    let pins = workflow.matches(&format!("version: '{required}'")).count();
-    let setups = workflow.matches("astral-sh/setup-uv@").count();
-    assert_eq!(
-        pins, setups,
-        "{setups} job(s) install uv and {pins} pin `{required}` - a job without the version input installs \
-         whatever is newest, which is the resolver writing this repository's lockfiles in CI"
+    let mise = std::fs::read_to_string(repo.join("mise.toml")).expect("mise.toml is committed");
+    assert!(
+        mise.lines()
+            .any(|line| line.trim() == format!("uv = \"{required}\"")),
+        "mise.toml must pin uv to `{required}`, the version uv.toml requires - otherwise `mise install` \
+         provides a resolver the tree refuses"
     );
 }
 

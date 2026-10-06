@@ -3,7 +3,7 @@
 Docker Compose server-mode stack with SideSeat, PostgreSQL, ClickHouse, Valkey, RedPanda, and Vault.
 
 The distributed analytics profile requires ClickHouse 26.4 or newer; the Compose stack pins the
-exact patch used by CI and the parity suite.
+exact patch the parity suite uses.
 
 All data is stored in `./data/` via bind mounts. Delete it to reset everything.
 

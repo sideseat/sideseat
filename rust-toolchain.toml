@@ -1,5 +1,5 @@
-# The development toolchain. The supported floor is `rust-version` in Cargo.toml, which CI checks
-# separately by overriding this file with RUSTUP_TOOLCHAIN.
+# The development toolchain. The supported floor is `rust-version` in Cargo.toml, which `make msrv`
+# checks separately by overriding this file with RUSTUP_TOOLCHAIN.
 [toolchain]
 channel = "1.95.0"
 components = ["rustfmt", "clippy"]

@@ -37,6 +37,9 @@ fi
 
 echo "[release] Running pre-release checks..."
 make --no-print-directory check
+# With no hosted CI, the release is where the network-dependent and floor gates run.
+make --no-print-directory audit
+make --no-print-directory msrv
 
 if [[ -n "$(git status --porcelain)" ]]; then
   echo "Error: pre-release checks modified the working tree" >&2

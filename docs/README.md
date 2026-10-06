@@ -13,7 +13,7 @@ make preview-docs  # serve what was built
 
 Each of those installs through `npm ci` when the lockfile is newer than the install. Running `npm install`
 here instead can *change* the lockfile to resolve an inconsistency, so the site you build locally and the
-site CI builds would come from different versions with nothing saying so. The underlying scripts are
+site the deployment workflow builds would come from different versions with nothing saying so. The underlying scripts are
 `npm run dev`, `npm run build` and `npm run preview`.
 
 Mermaid diagrams (```` ```mermaid ````) are rendered to **static SVG at build time** by `rehype-mermaid`,

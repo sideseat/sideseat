@@ -393,7 +393,7 @@ fn the_image_gate_reads_the_shapes_that_defeated_it() {
         "scripts/deploy/compose.yaml",
         "scripts/deploy/Dockerfile",
         "scripts/deploy/Dockerfile.dev",
-        ".github/workflows/ci.yml",
+        ".github/workflows/docs.yml",
         "some/action.yml",
     ] {
         assert!(

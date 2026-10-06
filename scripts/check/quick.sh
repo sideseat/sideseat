@@ -241,7 +241,7 @@ if grep -qE '^sdk/dotnet/' <<<"$changed"; then
 fi
 
 # --- Shell ------------------------------------------------------------------------------------
-sh_files="$(pick '\.sh$|^\.githooks/')"
+sh_files="$(pick '\.sh$|^scripts/hooks/')"
 if [ -n "$sh_files" ]; then
     step "shell syntax"
     while IFS= read -r f; do bash -n "$f"; done <<<"$sh_files"

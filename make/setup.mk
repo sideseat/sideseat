@@ -38,9 +38,9 @@ setup: ## Install development dependencies and hooks
 
 setup-hooks: ## Configure repository Git hooks
 	@git rev-parse --git-dir >/dev/null 2>&1 || { echo "Error: Not a git repository"; exit 1; }
-	@for hook in .githooks/pre-commit .githooks/pre-push; do \
+	@for hook in scripts/hooks/pre-commit scripts/hooks/pre-push; do \
 		[ -f "$$hook" ] || { echo "Error: Missing $$hook"; exit 1; }; \
 		chmod +x "$$hook"; \
 	done
-	@git config --local core.hooksPath .githooks
+	@git config --local core.hooksPath scripts/hooks
 	@echo "[setup-hooks] Git hooks installed"

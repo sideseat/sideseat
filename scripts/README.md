@@ -6,7 +6,8 @@ its own location, so it works from any directory.
 
 | Directory   | Purpose                                                     | Entry points                                  |
 | ----------- | ----------------------------------------------------------- | --------------------------------------------- |
-| `check/`    | The inner loop and static gates                             | `make quick`, `make file-length-check`, `make deps-check`, `make node-floor` |
+| `check/`    | The inner loop, static gates and the supply-chain audit     | `make quick`, `make file-length-check`, `make deps-check`, `make node-floor`, `make audit` |
+| `hooks/`    | Git hooks: pre-commit (format, file length, secrets), pre-push (`make check`) | `make setup-hooks` |
 | `test/`     | Suites that need containers, SDK toolchains or sample envs  | `make test-postgres` and the other `test-*` targets |
 | `perf/`     | Latency and ingest benchmarks, footprint ceilings, storage  | `make bench-http`, `make bench-ingest`, `make footprint`, `make footprint-storage`, `storage-entropy.py` |
 | `fixtures/` | Capturing and reviewing the message golden fixtures         | `make capture`, `make capture-sdk-*`          |

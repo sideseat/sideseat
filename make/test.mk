@@ -30,7 +30,7 @@ DOCKER_SCOPE := $(shell printf '%s' '$(CURDIR)' | cksum | awk '{print $$1}')
 CH_TEST_CONTAINER := sideseat-clickhouse-test-$(DOCKER_SCOPE)
 CH_TEST_PORT ?= 8124
 # Search text indexes require ClickHouse 26.4; pin the patch for reproducible
-# local and CI runs. Override the variable to test another release.
+# runs. Override the variable to test another release.
 CH_TEST_IMAGE ?= clickhouse/clickhouse-server:26.4.3.37
 
 test-clickhouse: ## Test ClickHouse parity in Docker

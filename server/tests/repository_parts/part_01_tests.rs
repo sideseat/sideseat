@@ -423,7 +423,9 @@ fn every_action_is_pinned_to_a_commit_and_every_image_to_a_tag() {
         }
     }
 
-    assert!(actions > 20, "only found {actions} action references");
+    // The docs deployment is the one remaining workflow; its checkout, Node, Pages and artifact steps are
+    // what a parse failure would silently lose.
+    assert!(actions >= 4, "only found {actions} action references");
     assert!(images > 4, "only found {images} image references");
     assert!(
         dockerfiles > 0,

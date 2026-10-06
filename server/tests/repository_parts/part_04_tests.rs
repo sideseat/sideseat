@@ -34,8 +34,8 @@ fn container_tests_share_trapped_cleanup() {
 
 #[test]
 fn pre_commit_stays_cheap() {
-    let hook =
-        std::fs::read_to_string(repo_root().join(".githooks/pre-commit")).expect("pre-commit hook");
+    let hook = std::fs::read_to_string(repo_root().join("scripts/hooks/pre-commit"))
+        .expect("pre-commit hook");
     for required in [
         "make --no-print-directory secret-scan-staged",
         "scripts/check/file-lengths.sh --cached",
@@ -52,20 +52,29 @@ fn pre_commit_stays_cheap() {
     ] {
         assert!(
             !hook.contains(forbidden),
-            "pre-commit must not run `{forbidden}`: tests and lint belong to make quick, pre-push, and CI"
+            "pre-commit must not run `{forbidden}`: tests and lint belong to make quick and pre-push"
         );
     }
 }
 
+/// Unused dependencies fail `make lint`, with a pinned tool, rather than being reported when installed.
 #[test]
-fn ci_rejects_unused_rust_dependencies() {
-    let workflow =
-        std::fs::read_to_string(repo_root().join(".github/workflows/ci.yml")).expect("CI workflow");
+fn lint_rejects_unused_rust_dependencies() {
+    let repo = repo_root();
+    let quality = std::fs::read_to_string(repo.join("make/quality.mk")).expect("quality fragment");
+    let lint = quality
+        .split("\nlint:")
+        .nth(1)
+        .and_then(|rest| rest.split("\n\n").next())
+        .expect("the lint target is declared");
     assert!(
-        workflow.contains("cargo-machete@0.9.2")
-            && workflow.contains("run: cargo machete")
-            && !workflow.contains("continue-on-error: true\n        run: cargo machete"),
-        "CI must install a pinned cargo-machete and run it as a blocking gate"
+        lint.contains("@cargo machete") && !lint.contains("SKIPPED"),
+        "make lint must run cargo machete as a blocking gate"
+    );
+    let mise = std::fs::read_to_string(repo.join("mise.toml")).expect("mise.toml");
+    assert!(
+        mise.contains("\"cargo:cargo-machete\" = \"0.9.2\""),
+        "mise.toml must pin cargo-machete so every checkout runs the same gate"
     );
 }
 

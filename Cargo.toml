@@ -24,7 +24,7 @@ members = [
 ]
 resolver = "2"
 
-# Keep the exact patch version: resolved AWS crates require 1.94.1. CI builds the
+# Keep the exact patch version: resolved AWS crates require 1.94.1. `make msrv` builds the
 # workspace on this floor, and Clippy checks source APIs against it. Re-measure
 # dependency requirements after lockfile updates with:
 #   cargo metadata --locked --format-version 1 |

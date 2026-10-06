@@ -2,7 +2,7 @@
 #
 # Cheap by design: a commit must never wait for a test suite. This hook stops the two mistakes that
 # are expensive to undo once committed - a secret, and an oversized file - and checks formatting.
-# Lint and tests run in `make quick` while iterating, in the pre-push hook, and in CI.
+# Lint and tests run in `make quick` while iterating and in the pre-push hook.
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"

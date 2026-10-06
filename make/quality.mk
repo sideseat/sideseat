@@ -1,6 +1,6 @@
 ##@ Format, lint, and hardening
 
-.PHONY: fmt fmt-check file-length-check lint lint-advisory secret-scan-tree secret-scan-staged secret-scan-range fmt-check-python lint-python harden harden-supply harden-spec
+.PHONY: fmt fmt-check file-length-check lint lint-advisory secret-scan-tree secret-scan-staged secret-scan-range fmt-check-python lint-python harden harden-supply harden-spec audit msrv
 
 fmt: ## Format all source code
 	@echo "[fmt] Formatting code..."
@@ -24,6 +24,8 @@ lint: ## Run all linters
 	@echo "[lint] Running linters..."
 	@$(MAKE) --no-print-directory file-length-check
 	$(call run-with-disk-guard,cargo clippy --locked --all-targets -- -D warnings)
+	@command -v cargo-machete >/dev/null 2>&1 || { echo "[lint] cargo-machete is required: mise install"; exit 1; }
+	@cargo machete
 	@cd $(WEB_DIR) && npm run lint
 	@cd sdk/js && npm run lint
 	@cd examples/javascript && npm run lint
@@ -34,7 +36,7 @@ lint: ## Run all linters
 
 # Advisory clippy lints, kept out of `lint` because that gate runs -D warnings and these
 # are suggestions rather than defects. Non-blocking by design: review the output, do not
-# gate CI on it. Keep this list identical to the advisory block in Cargo.toml.
+# gate on it. Keep this list identical to the advisory block in Cargo.toml.
 lint-advisory: ## Run informational Clippy lints
 	@echo "[lint-advisory] Advisory clippy lints (informational, does not fail)..."
 	$(call run-with-disk-guard,cargo clippy --locked --all-targets -- \
@@ -86,8 +88,8 @@ secret-scan-range:
 # =============================================================================
 # Hardening gates
 #
-# Classes the compiler and test suite cannot see. Optional local tools report
-# explicit skips; CI runs the blocking equivalents.
+# Classes the compiler and test suite cannot see. Every gate here is blocking; the tools come from
+# mise.toml (`mise install`).
 # =============================================================================
 
 # Python source roots covered by the shared format and lint gates.
@@ -102,21 +104,19 @@ lint-python:
 harden: harden-supply harden-spec ## Run supply-chain and specification gates
 	@echo "[harden] All hardening gates passed"
 
-# Local skips are visible; CI installs and enforces cargo-deny and cargo-machete.
-harden-supply: ## Audit dependencies and secrets
-	@echo "[harden-supply] Vulnerable / banned / unlicensed dependencies..."
-	@if command -v cargo-deny >/dev/null 2>&1; then \
-		cargo deny check; \
-	else \
-		echo "  SKIPPED locally: cargo-deny not installed (cargo install cargo-deny). CI runs it blocking."; \
-	fi
-	@$(MAKE) --no-print-directory secret-scan-tree
-	@echo "[harden-supply] Unused dependencies..."
-	@if command -v cargo-machete >/dev/null 2>&1; then \
-		cargo machete; \
-	else \
-		echo "  SKIPPED locally: cargo-machete not installed (cargo install cargo-machete). CI runs it blocking."; \
-	fi
+harden-supply: audit secret-scan-tree ## Audit dependencies and secrets
+
+# Needs the network, and its answer changes without the code changing, so it is not part of `check`: run it
+# before a release and periodically.
+audit: ## Audit every dependency graph for advisories, licences and bans
+	@./scripts/check/audit.sh
+
+# The floor `rust-version` in Cargo.toml promises. Declaring it refuses an older toolchain and clippy's
+# incompatible_msrv catches an item that is too new, but neither compiles the workspace on that version.
+MSRV := 1.94.1
+msrv: ## Compile the whole workspace on the minimum supported Rust version
+	@rustup toolchain install $(MSRV) --profile minimal >/dev/null
+	@RUSTUP_TOOLCHAIN=$(MSRV) cargo check --locked --workspace --all-targets
 
 # Every specification must have a matching configuration and pass TLC. The
 # versioned tool archive is digest-checked on every run. Model checking remains
