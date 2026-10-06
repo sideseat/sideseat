@@ -190,6 +190,9 @@ class ModelProxy:
                 for name, value in item["headers"].items():
                     self.send_header(name, value)
                 self.send_header("Content-Length", str(len(payload)))
+                # The handler speaks HTTP/1.0 and closes every connection; a client that pools
+                # connections (OkHttp does) would otherwise send its next request into the closed one.
+                self.send_header("Connection", "close")
                 self.end_headers()
                 self.wfile.write(payload)
 
