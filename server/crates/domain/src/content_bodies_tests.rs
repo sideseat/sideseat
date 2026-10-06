@@ -93,6 +93,14 @@ struct BackfillRows(Vec<SpanBodySource>);
 
 #[async_trait]
 impl SurvivorReferences for BackfillRows {
+    async fn survivor_raw_records(
+        &self,
+        _project_id: &ProjectId,
+        _trace_ids: &[String],
+    ) -> Result<Vec<Vec<u8>>, DataError> {
+        Ok(Vec::new())
+    }
+
     async fn file_reference_fields_for_traces(
         &self,
         _project_id: &ProjectId,

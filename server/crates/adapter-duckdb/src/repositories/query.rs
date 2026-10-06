@@ -435,6 +435,9 @@ pub fn delete_traces(
     };
 
     in_transaction(conn, |conn| {
+        let enqueue = dml::raw::enqueue_raw_for_traces(Backend::Duckdb, project_id, trace_ids)
+            .expect("non-empty trace set produces a raw enqueue");
+        conn.execute(enqueue.sql(), duckdb_values(enqueue.params()).as_slice())?;
         super::search::delete_for_traces(conn, project_id, trace_ids)?;
         let values = duckdb_values(query.params());
         let deleted = conn.execute(query.sql(), values.as_slice())?;
@@ -554,6 +557,9 @@ pub fn delete_sessions(
     )
     .expect("non-empty trace set produces a delete");
     in_transaction(conn, |conn| {
+        let enqueue = dml::raw::enqueue_raw_for_traces(Backend::Duckdb, project_id, &trace_ids)
+            .expect("non-empty trace set produces a raw enqueue");
+        conn.execute(enqueue.sql(), duckdb_values(enqueue.params()).as_slice())?;
         let values = duckdb_values(statement.params());
         conn.execute(statement.sql(), values.as_slice())?;
         let logs = dml::delete_logs_for_traces(
@@ -582,6 +588,9 @@ pub fn delete_spans(
     };
 
     in_transaction(conn, |conn| {
+        let enqueue = dml::raw::enqueue_raw_for_spans(Backend::Duckdb, project_id, spans)
+            .expect("non-empty span set produces a raw enqueue");
+        conn.execute(enqueue.sql(), duckdb_values(enqueue.params()).as_slice())?;
         super::search::delete_for_spans(conn, project_id, spans)?;
         let values = duckdb_values(query.params());
         let deleted = conn.execute(query.sql(), values.as_slice())?;
@@ -605,10 +614,23 @@ pub fn delete_project_data(conn: &Connection, project_id: &str) -> Result<u64, D
         dml::MutationTarget::duckdb("otel_spans"),
         dml::MutationTarget::duckdb("otel_metrics"),
         dml::MutationTarget::duckdb("otel_logs"),
+        dml::MutationTarget::duckdb("otel_raw"),
+        dml::MutationTarget::duckdb("otel_raw_pending"),
+        dml::MutationTarget::duckdb("otel_raw_traces"),
         project_id,
     );
     in_transaction(conn, |conn| {
         super::search::delete_for_project(conn, project_id)?;
+        for statement in [
+            &plan.delete_raw,
+            &plan.delete_raw_pending,
+            &plan.delete_raw_traces,
+        ] {
+            conn.execute(
+                statement.sql(),
+                duckdb_values(statement.params()).as_slice(),
+            )?;
+        }
         let span_values = duckdb_values(plan.delete_spans.params());
         let deleted = conn.execute(plan.delete_spans.sql(), span_values.as_slice())?;
         let metric_values = duckdb_values(plan.delete_metrics.params());
@@ -642,6 +664,8 @@ pub fn patch_project_hold(
         dml::MutationTarget::duckdb("otel_spans"),
         dml::MutationTarget::duckdb("otel_metrics"),
         dml::MutationTarget::duckdb("otel_logs"),
+        dml::MutationTarget::duckdb("otel_raw"),
+        dml::MutationTarget::duckdb("otel_raw_traces"),
         project_id,
         hold_until,
     );

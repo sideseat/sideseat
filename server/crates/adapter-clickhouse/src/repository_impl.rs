@@ -733,6 +733,9 @@ impl AnalyticsMaintenance for ClickhouseRepository {
         let spans_table = self.0.delete_table("otel_spans");
         let metrics_table = self.0.delete_table("otel_metrics");
         let logs_table = self.0.delete_table("otel_logs");
+        let raw_table = self.0.delete_table("otel_raw");
+        let raw_pending_table = self.0.delete_table("otel_raw_pending");
+        let raw_traces_table = self.0.delete_table("otel_raw_traces");
         let on_cluster = self.0.on_cluster_clause();
         tenant_query!(
             self,
@@ -741,6 +744,9 @@ impl AnalyticsMaintenance for ClickhouseRepository {
             &spans_table,
             &metrics_table,
             &logs_table,
+            &raw_table,
+            &raw_pending_table,
+            &raw_traces_table,
             &on_cluster,
             project_id,
         )
@@ -785,6 +791,8 @@ impl AnalyticsMaintenance for ClickhouseRepository {
         let spans_table = self.0.delete_table("otel_spans");
         let metrics_table = self.0.delete_table("otel_metrics");
         let logs_table = self.0.delete_table("otel_logs");
+        let raw_table = self.0.delete_table("otel_raw");
+        let raw_traces_table = self.0.delete_table("otel_raw_traces");
         tenant_query!(
             self,
             project_id,
@@ -792,6 +800,8 @@ impl AnalyticsMaintenance for ClickhouseRepository {
             &spans_table,
             &metrics_table,
             &logs_table,
+            &raw_table,
+            &raw_traces_table,
             &self.0.on_cluster_clause(),
             project_id,
             hold_until,
@@ -843,6 +853,20 @@ impl AnalyticsMaintenance for ClickhouseRepository {
 
 #[async_trait]
 impl SurvivorReferences for ClickhouseRepository {
+    async fn survivor_raw_records(
+        &self,
+        project_id: &ProjectId,
+        trace_ids: &[String],
+    ) -> Result<Vec<Vec<u8>>, DataError> {
+        tenant_query!(
+            self,
+            project_id,
+            crate::repositories::raw::survivor_records,
+            project_id,
+            trace_ids
+        )
+    }
+
     async fn file_reference_fields_for_traces(
         &self,
         project_id: &ProjectId,

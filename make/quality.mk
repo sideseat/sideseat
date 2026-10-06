@@ -157,20 +157,13 @@ harden-spec: ## Model-check every TLA+ specification
 		echo "[harden-spec] Add the missing file, or delete the one left over."; \
 		exit 1; \
 	fi
+	@# Each model runs capped (disk, time, heap): see scripts/check/model-check.sh.
 	@failed=0; \
 	for tla in server/specs/*.tla; do \
 		[ "$${tla#*_TTrace_}" = "$$tla" ] || continue; \
 		spec=$$(basename $$tla .tla); \
-		printf "[harden-spec] %-16s " "$$spec"; \
-		out=$$(cd server/specs && java -XX:+UseParallelGC -cp $(CURDIR)/$(TLA_JAR) tlc2.TLC \
-			-workers auto -config $$spec.cfg $$spec.tla 2>&1); \
-		if echo "$$out" | grep -q "Model checking completed. No error has been found"; then \
-			echo "$$out" | grep -oE "[0-9]+ distinct states found" | head -1; \
-		else \
-			echo "FAILED"; \
-			echo "$$out" | tail -25; \
-			failed=1; \
-		fi; \
+		printf "[harden-spec] %-22s " "$$spec"; \
+		./scripts/check/model-check.sh $(CURDIR)/$(TLA_JAR) server/specs $$spec || failed=1; \
 	done; \
 	rm -rf server/specs/states server/specs/*_TTrace_*.bin server/specs/*_TTrace_*.tla; \
 	exit $$failed

@@ -16,10 +16,10 @@ use crate::types::{
     ListSessionsParams, ListSpansParams, ListTracesParams, LogRow, MemberWithUser, MembershipRow,
     MessageQueryParams, MessageQueryResult, MetricAggregateRow, MetricRow, NormalizedLog,
     NormalizedMetric, NormalizedSpan, OrgWithRole, OrganizationRow, PressureSpanCandidate,
-    ProjectHold, ProjectId, ProjectRow, ProjectStorageUsage, RawRecordRow, SearchBackfillDocument,
-    SearchBackfillSource, SearchCursor, SearchPage, SearchQuery, SearchSignal, SessionRow,
-    SpanBodyAssociation, SpanBodyField, SpanBodySource, SpanCounts, SpanRow, StagedPayload,
-    TraceRow, UserRow,
+    ProjectHold, ProjectId, ProjectRow, ProjectStorageUsage, RawPending, RawRecordRow,
+    SearchBackfillDocument, SearchBackfillSource, SearchCursor, SearchPage, SearchQuery,
+    SearchSignal, SessionRow, SpanBodyAssociation, SpanBodyField, SpanBodySource, SpanCounts,
+    SpanRow, StagedPayload, TraceRow, UserRow,
 };
 
 mod analytics;

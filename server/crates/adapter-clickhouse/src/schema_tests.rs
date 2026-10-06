@@ -51,8 +51,8 @@ fn test_generate_schema_distributed() {
     };
     let statements = generate_schema(&config);
 
-    // Eleven tables followed by five policies on the physical `_local` tables.
-    assert_eq!(statements.len(), 16);
+    // Fifteen tables followed by seven policies on the physical `_local` tables.
+    assert_eq!(statements.len(), 22);
     // The anomaly table needs a front end in distributed mode or the report is per-shard: a pass on shard A
     // records there and a read reaching shard B returns nothing.
     assert!(
@@ -100,7 +100,7 @@ fn test_get_insert_table_distributed() {
 #[test]
 fn tenant_policies_are_fail_closed_and_target_physical_tables() {
     let single = tenant_row_policies(&default_config());
-    assert_eq!(single.len(), 5);
+    assert_eq!(single.len(), 7);
     assert!(single.iter().all(|policy| {
         policy.contains("getSettingOrDefault('SQL_sideseat_project_id', '')")
             && policy.contains("getSettingOrDefault('SQL_sideseat_maintenance', 0) = 1")

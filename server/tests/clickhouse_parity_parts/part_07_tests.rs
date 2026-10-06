@@ -291,8 +291,8 @@ async fn a_two_shard_cluster_reports_anomalies_from_every_shard() {
         .await
         .expect("inspect every shard's local row policies");
     assert_eq!(
-        policy_count, 10,
-        "five physical-table policies must exist on each of the two shards"
+        policy_count, 14,
+        "seven physical-table policies must exist on each of the two shards"
     );
 
     let tenant_client = client.clone().with_option(

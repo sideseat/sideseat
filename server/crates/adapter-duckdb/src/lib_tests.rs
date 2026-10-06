@@ -190,8 +190,8 @@ async fn files_are_created_in_the_compressing_storage_format() {
         .unwrap();
     assert_eq!(version, format!("{DUCKDB_STORAGE_VERSION}+"));
     conn.execute_batch(
-        "INSERT INTO otel_raw SELECT 'p', 'r' || i, 'traces', TIMESTAMP '2026-01-01', false,
-             encode(repeat('history ', 300) || i) FROM range(3000) t(i);
+        "INSERT INTO otel_raw SELECT 'p', 'r' || i, 'traces', TIMESTAMP '2026-01-01', 'received', 1,
+             TIMESTAMP '2026-01-01', NULL, encode(repeat('history ', 300) || i) FROM range(3000) t(i);
          CHECKPOINT;",
     )
     .unwrap();

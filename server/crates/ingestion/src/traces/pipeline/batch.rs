@@ -16,10 +16,24 @@ impl TracePipeline {
     /// [`Self::run_batch`], for a benchmark that needs the whole write path rather than its CPU half.
     #[cfg(any(test, feature = "test-support"))]
     pub async fn run_batch_for_test(&self, requests: &[ExportTraceServiceRequest]) -> bool {
-        self.run_batch(requests).await
+        let received: Vec<ReceivedPayload> = requests
+            .iter()
+            .map(|request| {
+                ReceivedPayload::new(
+                    request.encode_to_vec(),
+                    sideseat_domain::raw_payload::RawContent::Protobuf,
+                )
+            })
+            .collect();
+        self.run_batch(requests, &received).await
     }
 
-    pub(super) async fn run_batch(&self, requests: &[ExportTraceServiceRequest]) -> bool {
+    /// `received[i]` is the body `requests[i]` was decoded from: each request's raw record.
+    pub(super) async fn run_batch(
+        &self,
+        requests: &[ExportTraceServiceRequest],
+        received: &[ReceivedPayload],
+    ) -> bool {
         let t_batch_start = std::time::Instant::now();
 
         let pricing = &self.pricing;
@@ -104,9 +118,22 @@ impl TracePipeline {
         // Short results mean a worker thread died with its whole chunk, which no per-request outcome can
         // report - so cardinality is checked, not just the outcomes.
         let mut lost_requests = requests.len().saturating_sub(results.len());
-        for result in results {
+        // Each request's raw record, and which request each span came from, so the rows can name their record.
+        let mut drafts: Vec<(usize, RawDraft)> = Vec::new();
+        let mut span_request: HashMap<(String, String, String), usize> = HashMap::new();
+        for (index, result) in results.into_iter().enumerate() {
             match result {
                 Prepared::Ready(db_spans, pending_files, incoming) => {
+                    let project_id = db_spans
+                        .first()
+                        .and_then(|span| span.project_id.clone())
+                        .unwrap_or_else(|| DEFAULT_PROJECT_ID.to_string());
+                    let draft = RawDraft::new(&project_id, &received[index], files_enabled);
+                    all_pending_files.extend(draft.media_writes(&requests[index]));
+                    for span in &db_spans {
+                        span_request.insert(span_identity(span), index);
+                    }
+                    drafts.push((index, draft));
                     all_db_spans.extend(db_spans);
                     all_pending_files.extend(pending_files);
                     all_incoming.extend(incoming);
@@ -231,6 +258,10 @@ impl TracePipeline {
         // References that arrived already formed are claims about storage that nothing verified. Checked
         // here, with the ones that hold getting an association and the rest joining the quota-rejected
         // set - both are "a reference a reader cannot resolve", and both are replaced with a note.
+        // Media the store refused stays in the records, which must decode whatever the files' fate.
+        for (_, draft) in &mut drafts {
+            draft.keep_inline(&files.quota_skipped);
+        }
         let mut unresolvable = files.quota_skipped;
         let (unbacked, reconcile_failed, incoming_associations) = reconcile_incoming_references(
             &all_incoming,
@@ -367,6 +398,9 @@ impl TracePipeline {
             }
         }
 
+        // What each raw record must keep: everything that survived the deletion fences. See `RawDraft::row`.
+        let kept_for_raw: HashSet<(String, String, String)> =
+            all_db_spans.iter().map(span_identity).collect();
         if self.drop_exact_redeliveries(&mut all_db_spans).await > 0 {
             self.release_associations_of_dropped(&mut created_associations, &all_db_spans)
                 .await;
@@ -396,6 +430,62 @@ impl TracePipeline {
                 None
             }
         };
+
+        // The raw records before the rows derived from them; a batch whose records cannot be stored stores
+        // nothing, and is redelivered.
+        let now = chrono::Utc::now();
+        // Per draft: what its fences kept, and the hold its rows carry.
+        let mut kept_by_draft: HashMap<usize, HashSet<(String, String)>> = HashMap::new();
+        for identity in &kept_for_raw {
+            if let Some(index) = span_request.get(identity) {
+                kept_by_draft
+                    .entry(*index)
+                    .or_default()
+                    .insert((identity.1.clone(), identity.2.clone()));
+            }
+        }
+        let mut hold_by_project: HashMap<String, Option<chrono::DateTime<chrono::Utc>>> =
+            HashMap::new();
+        for span in &all_db_spans {
+            hold_by_project
+                .entry(
+                    span.project_id
+                        .clone()
+                        .unwrap_or_else(|| DEFAULT_PROJECT_ID.to_string()),
+                )
+                .or_insert(span.hold_until);
+        }
+        let hold_of = |draft: &RawDraft| hold_by_project.get(draft.project_id()).copied().flatten();
+        let raw_rows = drafts
+            .iter()
+            .filter_map(|(index, draft)| {
+                // A request whose every span a fence refused stores no record: no row would name it.
+                let keep = kept_by_draft.get(index)?;
+                Some(draft.row(&requests[*index], keep, now, hold_of(draft)))
+            })
+            .collect::<Result<Vec<_>, _>>();
+        let raw_rows = match raw_rows {
+            Ok(rows) => rows,
+            Err(error) => {
+                tracing::error!(%error, "Could not encode the batch's raw records; refusing the batch");
+                self.release_created_associations(&created_associations)
+                    .await;
+                return false;
+            }
+        };
+        if let Err(error) = self.analytics.insert_raw_records(&raw_rows).await {
+            tracing::error!(%error, "Could not store the batch's raw records; refusing the batch");
+            self.release_created_associations(&created_associations)
+                .await;
+            return false;
+        }
+        for span in &mut all_db_spans {
+            if let Some(index) = span_request.get(&span_identity(span))
+                && let Some((_, draft)) = drafts.iter().find(|(i, _)| i == index)
+            {
+                span.raw_id = Some(draft.raw_id().to_string());
+            }
+        }
 
         // Captured before the write consumes the spans: the compensating re-check below needs to know
         // exactly what was written, and only those rows may be removed.
@@ -485,6 +575,34 @@ impl TracePipeline {
             // The rows are in, so the store can answer authoritatively - which the batch cannot.
             self.stamp_stored_sessions(&mut sse_events).await;
             publish_sse_events(&sse_events, &self.topics).await;
+            // The rows are written: each latest record must hold them. A failure fails the batch, and the
+            // redelivery - idempotent for rows and records alike - repeats the check.
+            let mut written_by_draft: HashMap<usize, HashSet<(String, String)>> = HashMap::new();
+            for (project, trace, span) in &surviving {
+                let identity = (project.to_string(), trace.to_string(), span.to_string());
+                if let Some(index) = span_request.get(&identity) {
+                    written_by_draft
+                        .entry(*index)
+                        .or_default()
+                        .insert((identity.1, identity.2));
+                }
+            }
+            let repairs: Vec<WrittenRecord<'_>> = drafts
+                .iter()
+                .filter_map(|(index, draft)| {
+                    Some(WrittenRecord {
+                        draft,
+                        request: &requests[*index],
+                        kept: kept_by_draft.get(index)?.clone(),
+                        written: written_by_draft.remove(index)?,
+                        hold_until: hold_of(draft),
+                    })
+                })
+                .collect();
+            if let Err(error) = self.repair_raw_records(&repairs).await {
+                tracing::error!(%error, "Could not check the raw records against the rows written");
+                return false;
+            }
         } else {
             if let Some(staged) = staged_bodies.as_mut() {
                 self.content_bodies.release_all(staged).await;
@@ -511,4 +629,15 @@ impl TracePipeline {
 
         db_ok
     }
+}
+
+/// The identity a batch keys a span's request by.
+fn span_identity(span: &NormalizedSpan) -> (String, String, String) {
+    (
+        span.project_id
+            .clone()
+            .unwrap_or_else(|| DEFAULT_PROJECT_ID.to_string()),
+        span.trace_id.clone(),
+        span.span_id.clone(),
+    )
 }

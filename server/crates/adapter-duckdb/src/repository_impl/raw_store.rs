@@ -1,17 +1,31 @@
 use super::*;
 use crate::repositories::raw;
 use sideseat_ports::traits::RawStore;
-use sideseat_ports::types::RawRecordRow;
+use sideseat_ports::types::{RawPending, RawRecordRow};
+
+/// Run one raw-store call on the DuckDB worker pool.
+async fn run<T, F>(db: &Arc<DuckdbService>, call: F) -> Result<T, DataError>
+where
+    T: Send + 'static,
+    F: FnOnce(&duckdb::Connection) -> Result<T, crate::DuckdbError> + Send + 'static,
+{
+    let db = Arc::clone(db);
+    DuckdbService::run_query(move || call(&db.conn()))
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
+}
 
 #[async_trait]
 impl RawStore for DuckdbRepository {
     async fn insert_raw_records(&self, records: &[RawRecordRow]) -> Result<(), DataError> {
-        let db = Arc::clone(&self.0);
         let records = records.to_vec();
-        DuckdbService::run_query(move || raw::insert(&db.conn(), &records))
-            .await
-            .map_err(DataError::from)?
-            .map_err(Into::into)
+        run(&self.0, move |conn| raw::insert(conn, &records)).await
+    }
+
+    async fn append_raw_records(&self, records: &[RawRecordRow]) -> Result<(), DataError> {
+        let records = records.to_vec();
+        run(&self.0, move |conn| raw::append_versions(conn, &records)).await
     }
 
     async fn get_raw_records(
@@ -19,13 +33,8 @@ impl RawStore for DuckdbRepository {
         project_id: &ProjectId,
         raw_ids: &[String],
     ) -> Result<Vec<RawRecordRow>, DataError> {
-        let db = Arc::clone(&self.0);
-        let project_id = project_id.clone();
-        let raw_ids = raw_ids.to_vec();
-        DuckdbService::run_query(move || raw::get(&db.conn(), &project_id, &raw_ids))
-            .await
-            .map_err(DataError::from)?
-            .map_err(Into::into)
+        let (project_id, raw_ids) = (project_id.clone(), raw_ids.to_vec());
+        run(&self.0, move |conn| raw::get(conn, &project_id, &raw_ids)).await
     }
 
     async fn raw_records_page(
@@ -34,42 +43,52 @@ impl RawStore for DuckdbRepository {
         after: Option<(DateTime<Utc>, String)>,
         limit: usize,
     ) -> Result<Vec<RawRecordRow>, DataError> {
-        let db = Arc::clone(&self.0);
         let project_id = project_id.clone();
-        DuckdbService::run_query(move || raw::page(&db.conn(), &project_id, after, limit))
-            .await
-            .map_err(DataError::from)?
-            .map_err(Into::into)
-    }
-
-    async fn rewrite_raw_record(
-        &self,
-        project_id: &ProjectId,
-        raw_id: &str,
-        record: &[u8],
-    ) -> Result<(), DataError> {
-        let db = Arc::clone(&self.0);
-        let project_id = project_id.clone();
-        let raw_id = raw_id.to_string();
-        let record = record.to_vec();
-        DuckdbService::run_query(move || raw::rewrite(&db.conn(), &project_id, &raw_id, &record))
-            .await
-            .map_err(DataError::from)?
-            .map_err(Into::into)
-    }
-
-    async fn delete_unreferenced_raw_records(
-        &self,
-        project_id: &ProjectId,
-        received_before: DateTime<Utc>,
-    ) -> Result<u64, DataError> {
-        let db = Arc::clone(&self.0);
-        let project_id = project_id.clone();
-        DuckdbService::run_query(move || {
-            raw::delete_unreferenced(&db.conn(), &project_id, received_before)
+        run(&self.0, move |conn| {
+            raw::page(conn, &project_id, after, limit)
         })
         .await
-        .map_err(DataError::from)?
-        .map_err(Into::into)
+    }
+
+    async fn delete_raw_records(
+        &self,
+        project_id: &ProjectId,
+        raw_ids: &[String],
+    ) -> Result<(), DataError> {
+        let (project_id, raw_ids) = (project_id.clone(), raw_ids.to_vec());
+        run(&self.0, move |conn| {
+            raw::delete(conn, &project_id, &raw_ids)
+        })
+        .await
+    }
+
+    async fn raw_records_named(
+        &self,
+        project_id: &ProjectId,
+        raw_ids: &[String],
+    ) -> Result<std::collections::HashSet<String>, DataError> {
+        let (project_id, raw_ids) = (project_id.clone(), raw_ids.to_vec());
+        run(&self.0, move |conn| raw::named(conn, &project_id, &raw_ids)).await
+    }
+
+    async fn enqueue_raw_records(
+        &self,
+        project_id: &ProjectId,
+        raw_ids: &[String],
+    ) -> Result<(), DataError> {
+        let (project_id, raw_ids) = (project_id.clone(), raw_ids.to_vec());
+        run(&self.0, move |conn| {
+            raw::enqueue(conn, &project_id, &raw_ids)
+        })
+        .await
+    }
+
+    async fn pending_raw_records(&self, limit: usize) -> Result<Vec<RawPending>, DataError> {
+        run(&self.0, move |conn| raw::pending(conn, limit)).await
+    }
+
+    async fn clear_raw_pending(&self, entries: &[RawPending]) -> Result<(), DataError> {
+        let entries = entries.to_vec();
+        run(&self.0, move |conn| raw::clear(conn, &entries)).await
     }
 }

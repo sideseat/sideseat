@@ -46,7 +46,11 @@ use super::persist::{
     persist_extracted_files, prepare_batch, publish_sse_events, reconcile_incoming_references,
     write_to_duckdb,
 };
+use crate::received::ReceivedPayload;
 use crate::staging::{StagedPayloadRef, StagingDisposition, StagingService};
+use raw::RawDraft;
+pub use raw_lifecycle::Reconciled;
+use raw_lifecycle::WrittenRecord;
 use sideseat_core::constants::{DEFAULT_PROJECT_ID, PIPELINE_CPU_PHASE_MAX_INFLIGHT_BYTES};
 use sideseat_core::utils::time::is_storable;
 use sideseat_domain::content_bodies::ContentBodyService;
@@ -283,6 +287,8 @@ mod batch;
 mod consumer;
 mod fences_early;
 mod fences_late;
+mod raw;
+mod raw_lifecycle;
 mod single;
 
 // ============================================================================
@@ -610,6 +616,8 @@ mod association_leak_tests;
 mod fan_out_tests;
 #[cfg(test)]
 mod pipeline_tests;
+#[cfg(test)]
+mod raw_lifecycle_tests;
 #[cfg(test)]
 mod storable_timestamp_tests;
 #[cfg(test)]

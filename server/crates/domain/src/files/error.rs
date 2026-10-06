@@ -26,6 +26,9 @@ pub enum FileServiceError {
     #[error("Invalid hash format: expected 64 hex characters")]
     InvalidHash,
 
+    #[error("A surviving span's raw record is unreadable: {0}")]
+    UnreadableRawRecord(#[from] crate::raw_payload::RawPayloadError),
+
     #[error("File too large: {size} bytes (max: {max})")]
     TooLarge { size: usize, max: usize },
 

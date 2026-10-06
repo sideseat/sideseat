@@ -19,25 +19,27 @@ pub async fn run_retention(
     cutoff: DateTime<Utc>,
     now: DateTime<Utc>,
 ) -> Result<(), ClickhouseError> {
-    let statement = dml::retention_delete_expired_clickhouse(
+    let statement = dml::retention::retention_delete_expired_clickhouse(
         MutationTarget::clickhouse(spans_table, on_cluster),
         project_id,
         cutoff,
         now,
     );
-    let metrics = dml::retention_delete_expired_metrics_clickhouse(
+    let metrics = dml::retention::retention_delete_expired_metrics_clickhouse(
         MutationTarget::clickhouse(metrics_table, on_cluster),
         project_id,
         cutoff,
         now,
     );
-    let logs = dml::retention_delete_expired_logs_clickhouse(
+    let logs = dml::retention::retention_delete_expired_logs_clickhouse(
         MutationTarget::clickhouse(logs_table, on_cluster),
         project_id,
         cutoff,
         now,
     );
-    for statement in [&statement, &metrics, &logs] {
+    // The records the expiring rows name, enqueued first with the same predicate.
+    let enqueue = dml::raw::enqueue_raw_for_expired_clickhouse(project_id, cutoff, now);
+    for statement in [&enqueue, &statement, &metrics, &logs] {
         let mut query = client.query(statement.sql());
         for value in statement.params() {
             query = match value {

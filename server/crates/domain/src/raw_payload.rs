@@ -6,8 +6,9 @@
 //! and a parsing defect discovered later could then not be re-parsed from what was actually sent.
 //!
 //! Media is the one thing that is not stored inline. A base64 run long enough to be an attachment is cut out and
-//! stored once per project as its decoded bytes (the file store's content addressing, so a file a span already
-//! extracted is the same object), and the record keeps where it was:
+//! stored once per project as its decoded bytes, addressed exactly as the file store addresses an extracted
+//! file - BLAKE3 of the base64 text - so the object a span's extraction already stored is the same object, and
+//! the record keeps where it was:
 //!
 //! ```text
 //! "SSR1"  magic and version
@@ -16,7 +17,7 @@
 //! per run, in order:
 //!   varint  bytes of the original between the previous run's end and this run's start
 //!   varint  length of the base64 run
-//!   [32]    SHA-256 of the decoded bytes
+//!   [32]    BLAKE3 of the base64 text, the file store's content address for the object
 //! ...     every byte of the original that is not inside a run
 //! ```
 //!
@@ -30,7 +31,6 @@ use std::collections::BTreeMap;
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
-use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 const MAGIC: &[u8; 4] = b"SSR1";
@@ -63,17 +63,17 @@ impl RawContent {
     }
 }
 
-/// One media object cut out of a payload: its SHA-256 and decoded bytes.
+/// One media object cut out of a payload: its content address and decoded bytes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RawMedia {
-    pub sha256: [u8; 32],
+    pub hash: [u8; 32],
     pub bytes: Vec<u8>,
 }
 
 impl RawMedia {
     /// The hash as the file store spells it.
     pub fn hash_hex(&self) -> String {
-        hex::encode(self.sha256)
+        hex::encode(self.hash)
     }
 }
 
@@ -98,7 +98,21 @@ pub enum RawPayloadError {
 
 /// Cut the media out of a received payload.
 pub fn encode(raw: &[u8], content: RawContent) -> EncodedRaw {
-    let runs = media_runs(raw);
+    encode_with(raw, content, |_| true)
+}
+
+/// Cut out only the media `cut` accepts; the rest stays inline.
+///
+/// For a store that could not keep every object - a project over its quota - so that the record never
+/// references media nothing holds: whatever happens to the files, the record stays decodable.
+pub fn encode_with<F>(raw: &[u8], content: RawContent, cut: F) -> EncodedRaw
+where
+    F: Fn(&[u8; 32]) -> bool,
+{
+    let runs: Vec<MediaRun> = media_runs(raw)
+        .into_iter()
+        .filter(|run| cut(&run.hash))
+        .collect();
     let mut record = Vec::with_capacity(raw.len() + 16);
     record.extend_from_slice(MAGIC);
     record.push(content.tag());
@@ -108,10 +122,8 @@ pub fn encode(raw: &[u8], content: RawContent) -> EncodedRaw {
     for run in &runs {
         put_varint(&mut record, (run.start - cursor) as u64);
         put_varint(&mut record, (run.end - run.start) as u64);
-        record.extend_from_slice(&run.sha256);
-        media
-            .entry(run.sha256)
-            .or_insert_with(|| run.decoded.clone());
+        record.extend_from_slice(&run.hash);
+        media.entry(run.hash).or_insert_with(|| run.decoded.clone());
         cursor = run.end;
     }
     let mut cursor = 0usize;
@@ -124,7 +136,7 @@ pub fn encode(raw: &[u8], content: RawContent) -> EncodedRaw {
         record,
         media: media
             .into_iter()
-            .map(|(sha256, bytes)| RawMedia { sha256, bytes })
+            .map(|(hash, bytes)| RawMedia { hash, bytes })
             .collect(),
     }
 }
@@ -142,18 +154,13 @@ pub fn wrap(raw: &[u8], content: RawContent) -> Vec<u8> {
     record
 }
 
-/// Whether bytes are a raw record, as opposed to a payload staged before raw records existed.
-pub fn is_record(bytes: &[u8]) -> bool {
-    bytes.len() > MAGIC.len() && &bytes[..MAGIC.len()] == MAGIC
-}
-
 /// The media hashes a record references, in order of first appearance, without decoding the payload.
 pub fn media_hashes(record: &[u8]) -> Result<Vec<[u8; 32]>, RawPayloadError> {
     let header = Header::parse(record)?;
     let mut seen = Vec::with_capacity(header.runs.len());
     for run in &header.runs {
-        if !seen.contains(&run.sha256) {
-            seen.push(run.sha256);
+        if !seen.contains(&run.hash) {
+            seen.push(run.hash);
         }
     }
     Ok(seen)
@@ -176,11 +183,11 @@ where
             .ok_or(RawPayloadError::Malformed)?;
         out.extend_from_slice(&body[cursor..end]);
         cursor = end;
-        let bytes = media(&run.sha256)
-            .ok_or_else(|| RawPayloadError::MissingMedia(hex::encode(run.sha256)))?;
+        let bytes =
+            media(&run.hash).ok_or_else(|| RawPayloadError::MissingMedia(hex::encode(run.hash)))?;
         let text = STANDARD.encode(bytes.as_ref());
         if text.len() != run.length {
-            return Err(RawPayloadError::MediaMismatch(hex::encode(run.sha256)));
+            return Err(RawPayloadError::MediaMismatch(hex::encode(run.hash)));
         }
         out.extend_from_slice(text.as_bytes());
     }
@@ -188,10 +195,35 @@ where
     Ok((header.content, out))
 }
 
+/// The payload with every medium replaced by base64 of zero bytes of the same length.
+///
+/// Its framing is the received framing - every length prefix and offset is unchanged - so it parses exactly as
+/// the original does, with the media's text replaced. For reading what a record holds (span identities,
+/// timestamps) without fetching its media; never a substitute for [`decode`] where the content matters.
+pub fn decode_shape(record: &[u8]) -> Result<(RawContent, Vec<u8>), RawPayloadError> {
+    let lengths = blank_lengths(record)?;
+    decode(record, |hash| {
+        lengths
+            .get(hash)
+            .map(|length| Cow::Owned(vec![0u8; *length]))
+    })
+}
+
+/// For each medium, the number of zero bytes whose base64 has the medium's recorded length: the blank
+/// [`decode_shape`] splices in, for a caller that blanks only the media it cannot fetch.
+pub fn blank_lengths(record: &[u8]) -> Result<BTreeMap<[u8; 32], usize>, RawPayloadError> {
+    let header = Header::parse(record)?;
+    Ok(header
+        .runs
+        .iter()
+        .map(|run| (run.hash, run.length / 4 * 3))
+        .collect())
+}
+
 struct RecordedRun {
     gap: usize,
     length: usize,
-    sha256: [u8; 32],
+    hash: [u8; 32],
 }
 
 struct Header {
@@ -220,15 +252,11 @@ impl Header {
                 .map_err(|_| RawPayloadError::Malformed)?;
             let length = usize::try_from(get_varint(record, &mut at)?)
                 .map_err(|_| RawPayloadError::Malformed)?;
-            let hash = record.get(at..at + 32).ok_or(RawPayloadError::Malformed)?;
+            let stored = record.get(at..at + 32).ok_or(RawPayloadError::Malformed)?;
             at += 32;
-            let mut sha256 = [0u8; 32];
-            sha256.copy_from_slice(hash);
-            runs.push(RecordedRun {
-                gap,
-                length,
-                sha256,
-            });
+            let mut hash = [0u8; 32];
+            hash.copy_from_slice(stored);
+            runs.push(RecordedRun { gap, length, hash });
         }
         Ok(Self {
             content,
@@ -238,10 +266,22 @@ impl Header {
     }
 }
 
+/// The media objects [`encode`] would cut out of `text`: what a span's attribute value contributes, used to know
+/// which trace owns which object.
+pub fn media_in(text: &[u8]) -> Vec<RawMedia> {
+    media_runs(text)
+        .into_iter()
+        .map(|run| RawMedia {
+            hash: run.hash,
+            bytes: run.decoded,
+        })
+        .collect()
+}
+
 struct MediaRun {
     start: usize,
     end: usize,
-    sha256: [u8; 32],
+    hash: [u8; 32],
     decoded: Vec<u8>,
 }
 
@@ -288,11 +328,11 @@ fn media_runs(raw: &[u8]) -> Vec<MediaRun> {
         if STANDARD.encode(&decoded).as_bytes() != text {
             continue;
         }
-        let sha256: [u8; 32] = Sha256::digest(&decoded).into();
+        let hash: [u8; 32] = *blake3::hash(text).as_bytes();
         runs.push(MediaRun {
             start,
             end,
-            sha256,
+            hash,
             decoded,
         });
     }
@@ -331,7 +371,7 @@ mod tests {
             encoded
                 .media
                 .iter()
-                .find(|m| &m.sha256 == hash)
+                .find(|m| &m.hash == hash)
                 .map(|m| Cow::Borrowed(m.bytes.as_slice()))
         };
         let (decoded_content, decoded) = decode(&encoded.record, lookup).unwrap();
@@ -358,6 +398,40 @@ mod tests {
         );
         assert!(encoded.record.len() < raw.len() / 2);
         assert_eq!(media_hashes(&encoded.record).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn media_left_inline_is_kept_in_the_record() {
+        let kept = STANDARD.encode(image(1, 900));
+        let stored = STANDARD.encode(image(2, 900));
+        let raw = format!("\x0a{kept}\x22{stored}\x2a");
+        let kept_hash = *blake3::hash(kept.as_bytes()).as_bytes();
+        let encoded = encode_with(raw.as_bytes(), RawContent::Protobuf, |hash| {
+            *hash != kept_hash
+        });
+        assert_eq!(encoded.media.len(), 1);
+        assert_ne!(encoded.media[0].hash, kept_hash);
+        let media = encoded.media.clone();
+        let (_, back) = decode(&encoded.record, |hash| {
+            media
+                .iter()
+                .find(|m| &m.hash == hash)
+                .map(|m| Cow::Owned(m.bytes.clone()))
+        })
+        .unwrap();
+        assert_eq!(back, raw.as_bytes());
+    }
+
+    #[test]
+    fn a_shape_keeps_the_framing_and_blanks_the_media() {
+        let picture = STANDARD.encode(image(3, 1200));
+        let raw = format!("\x0a\x12head {picture}\x22 tail");
+        let encoded = encode(raw.as_bytes(), RawContent::Protobuf);
+        let (content, shape) = decode_shape(&encoded.record).unwrap();
+        assert_eq!(content, RawContent::Protobuf);
+        assert_eq!(shape.len(), raw.len());
+        let blank = "A".repeat(picture.len());
+        assert_eq!(shape, format!("\x0a\x12head {blank}\x22 tail").into_bytes());
     }
 
     #[test]
@@ -405,8 +479,6 @@ mod tests {
     fn a_wrapped_payload_is_a_record_without_media() {
         let raw = format!("x{}", STANDARD.encode(image(5, 900)));
         let wrapped = wrap(raw.as_bytes(), RawContent::Json);
-        assert!(is_record(&wrapped));
-        assert!(!is_record(raw.as_bytes()));
         assert!(media_hashes(&wrapped).unwrap().is_empty());
         assert_eq!(
             decode(&wrapped, |_| None).unwrap(),

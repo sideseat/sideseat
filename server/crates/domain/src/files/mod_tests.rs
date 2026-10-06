@@ -603,6 +603,14 @@ async fn a_span_committing_between_the_scan_and_the_release_keeps_its_file() {
 
     #[async_trait::async_trait]
     impl sideseat_ports::traits::SurvivorReferences for RacingAnalytics {
+        async fn survivor_raw_records(
+            &self,
+            _project_id: &ProjectId,
+            _trace_ids: &[String],
+        ) -> Result<Vec<Vec<u8>>, sideseat_ports::error::DataError> {
+            Ok(Vec::new())
+        }
+
         async fn file_reference_fields_for_traces(
             &self,
             _project_id: &ProjectId,

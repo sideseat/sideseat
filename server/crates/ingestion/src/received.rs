@@ -7,8 +7,7 @@
 //! are confirmed stored, as before.
 //!
 //! The mutations are deterministic, so the reader of a staged payload re-applies them: decode, inject the
-//! staging row's project, strip what cannot be stored. A payload staged by an earlier version is a bare
-//! protobuf of the already-mutated request, which the same steps leave unchanged.
+//! staging row's project, strip what cannot be stored.
 
 use opentelemetry_proto::tonic::collector::logs::v1::ExportLogsServiceRequest;
 use opentelemetry_proto::tonic::collector::metrics::v1::ExportMetricsServiceRequest;
@@ -45,9 +44,6 @@ pub fn decode_staged<T>(bytes: &[u8]) -> Result<T, String>
 where
     T: Message + Default + DeserializeOwned,
 {
-    if !raw_payload::is_record(bytes) {
-        return T::decode(bytes).map_err(|error| format!("staged protobuf is invalid: {error}"));
-    }
     let (content, raw) = raw_payload::decode(bytes, |_| None).map_err(|error| error.to_string())?;
     match content {
         RawContent::Protobuf => T::decode(raw.as_slice())
@@ -57,12 +53,21 @@ where
     }
 }
 
-/// A staged trace export, prepared exactly as the request path prepared it.
-pub fn staged_traces(bytes: &[u8], project_id: &str) -> Result<ExportTraceServiceRequest, String> {
+/// The body a staged payload carries, as it was received.
+pub fn staged_received(bytes: &[u8]) -> Result<ReceivedPayload, String> {
+    let (content, raw) = raw_payload::decode(bytes, |_| None).map_err(|error| error.to_string())?;
+    Ok(ReceivedPayload::new(raw, content))
+}
+
+/// A staged trace export, prepared exactly as the request path prepared it, with the body it was received as.
+pub fn staged_traces(
+    bytes: &[u8],
+    project_id: &str,
+) -> Result<(ExportTraceServiceRequest, ReceivedPayload), String> {
     let mut request = decode_staged::<ExportTraceServiceRequest>(bytes)?;
     inject_project_id_traces(&mut request, project_id);
     crate::traces::strip_unstorable_spans(&mut request);
-    Ok(request)
+    Ok((request, staged_received(bytes)?))
 }
 
 /// A staged metric export, prepared exactly as the request path prepared it.
@@ -138,22 +143,12 @@ mod tests {
         );
         assert_eq!(
             staged_traces(&staged, "project").unwrap(),
-            prepared("project")
+            (prepared("project"), received)
         );
 
         let protobuf = ReceivedPayload::new(export().encode_to_vec(), RawContent::Protobuf);
         assert_eq!(
-            staged_traces(&protobuf.staged(), "project").unwrap(),
-            prepared("project")
-        );
-    }
-
-    /// A payload staged before this version holds the already-prepared request; preparing it again is a no-op.
-    #[test]
-    fn a_payload_staged_by_an_earlier_version_still_decodes() {
-        let legacy = prepared("project").encode_to_vec();
-        assert_eq!(
-            staged_traces(&legacy, "project").unwrap(),
+            staged_traces(&protobuf.staged(), "project").unwrap().0,
             prepared("project")
         );
     }

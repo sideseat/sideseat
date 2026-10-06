@@ -98,7 +98,7 @@ pub fn run_retention(
     if result.deleted_count > 0 {
         // CHECKPOINT ensures deleted data is flushed
         // Note: DuckDB doesn't shrink the file - freed space is reused internally
-        execute_statement(conn, &dml::retention_checkpoint())?;
+        execute_statement(conn, &dml::retention::retention_checkpoint())?;
         tracing::debug!(
             deleted = result.deleted_count,
             projects = result.trace_ids_by_project.len(),
@@ -170,7 +170,7 @@ pub fn run_retention_for_project_with_pressure(
     }
 
     if result.deleted_count > 0 {
-        execute_statement(conn, &dml::retention_checkpoint())?;
+        execute_statement(conn, &dml::retention::retention_checkpoint())?;
     }
 
     Ok(result)
@@ -523,7 +523,7 @@ fn projects_over_limit(
     conn: &Connection,
     max_spans: i64,
 ) -> Result<Vec<(String, i64)>, DuckdbError> {
-    let query = dml::retention_projects_over_limit(max_spans);
+    let query = dml::retention::retention_projects_over_limit(max_spans);
     let values = duckdb_values(query.params());
     let mut stmt = conn.prepare(query.sql())?;
     let rows = stmt.query_map(values.as_slice(), |row| {
@@ -541,7 +541,7 @@ fn project_over_limit(
     project_id: &str,
     max_spans: i64,
 ) -> Result<Option<(String, i64)>, DuckdbError> {
-    let query = dml::retention_project_over_limit(project_id, max_spans);
+    let query = dml::retention::retention_project_over_limit(project_id, max_spans);
     let values = duckdb_values(query.params());
     let mut stmt = conn.prepare(query.sql())?;
     let mut rows = stmt.query(values.as_slice())?;
@@ -571,7 +571,7 @@ fn delete_spans_before(
     limit: i64,
     record_intent: CleanupRecorder<'_>,
 ) -> Result<BatchOutcome, DuckdbError> {
-    let query = dml::retention_select_expired(cutoff, now, limit);
+    let query = dml::retention::retention_select_expired(cutoff, now, limit);
     delete_spans_with_query(conn, &query, record_intent, None)
 }
 
@@ -583,7 +583,8 @@ fn delete_project_spans_before(
     limit: i64,
     record_intent: CleanupRecorder<'_>,
 ) -> Result<BatchOutcome, DuckdbError> {
-    let query = dml::retention_select_expired_for_project(project_id, cutoff, now, limit);
+    let query =
+        dml::retention::retention_select_expired_for_project(project_id, cutoff, now, limit);
     delete_spans_with_query(conn, &query, record_intent, None)
 }
 
@@ -620,7 +621,8 @@ fn delete_oldest_spans_for_project(
     now: chrono::DateTime<Utc>,
 ) -> Result<BatchOutcome, DuckdbError> {
     let budget = i64::try_from(row_budget).unwrap_or(i64::MAX);
-    let query = dml::retention_select_oldest(project_id, now, limit, budget, allow_overshoot);
+    let query =
+        dml::retention::retention_select_oldest(project_id, now, limit, budget, allow_overshoot);
     delete_spans_with_query(conn, &query, record_intent, Some(record_pressure))
 }
 
@@ -644,8 +646,8 @@ fn delete_spans_with_query(
     record_pressure: Option<PressureRecorder<'_>>,
 ) -> Result<BatchOutcome, DuckdbError> {
     in_transaction(conn, |conn| {
-        execute_statement(conn, &dml::retention_prepare_batch())?;
-        execute_statement(conn, &dml::retention_clear_batch())?;
+        execute_statement(conn, &dml::retention::retention_prepare_batch())?;
+        execute_statement(conn, &dml::retention::retention_clear_batch())?;
 
         let identities = execute_statement(conn, insert)?;
 
@@ -665,9 +667,11 @@ fn delete_spans_with_query(
             record_intent(&trace_ids_by_project)?;
         }
 
+        // The records those rows name go to reconciliation in the same transaction as the delete.
+        execute_statement(conn, &dml::raw::enqueue_raw_for_retention_batch())?;
         // Removes every revision of each selected identity (events, links and messages are
         // embedded in the span row).
-        let rows = execute_statement(conn, &dml::retention_delete_selected_spans())?;
+        let rows = execute_statement(conn, &dml::retention::retention_delete_selected_spans())?;
 
         Ok(BatchOutcome {
             identities,
@@ -711,7 +715,7 @@ fn collect_trace_ids_for_cleanup(
     conn: &Connection,
 ) -> Result<HashMap<String, Vec<String>>, DuckdbError> {
     let limit = MAX_TRACE_IDS_PER_CYCLE as i64;
-    let query = dml::retention_selected_traces(limit);
+    let query = dml::retention::retention_selected_traces(limit);
     let values = duckdb_values(query.params());
     let mut stmt = conn.prepare(query.sql())?;
     let rows = stmt.query_map(values.as_slice(), |row| {
@@ -770,7 +774,7 @@ fn cleanup_project_metrics_by_time(
     for _ in 0..MAX_METRICS_CLEANUP_BATCHES {
         let deleted = execute_statement(
             conn,
-            &dml::retention_delete_expired_metrics_for_project(
+            &dml::retention::retention_delete_expired_metrics_for_project(
                 project_id,
                 cutoff,
                 now,
@@ -795,7 +799,7 @@ fn delete_metrics_before(
 ) -> Result<u64, DuckdbError> {
     execute_statement(
         conn,
-        &dml::retention_delete_expired_metrics(cutoff, now, limit),
+        &dml::retention::retention_delete_expired_metrics(cutoff, now, limit),
     )
 }
 
@@ -811,7 +815,7 @@ pub fn cleanup_logs_by_time(
     for _ in 0..MAX_METRICS_CLEANUP_BATCHES {
         let deleted = execute_statement(
             conn,
-            &dml::retention_delete_expired_logs(cutoff, now, RETENTION_BATCH_SIZE),
+            &dml::retention::retention_delete_expired_logs(cutoff, now, RETENTION_BATCH_SIZE),
         )?;
         if deleted == 0 {
             break;
@@ -833,7 +837,7 @@ fn cleanup_project_logs_by_time(
     for _ in 0..MAX_METRICS_CLEANUP_BATCHES {
         let deleted = execute_statement(
             conn,
-            &dml::retention_delete_expired_logs_for_project(
+            &dml::retention::retention_delete_expired_logs_for_project(
                 project_id,
                 cutoff,
                 now,

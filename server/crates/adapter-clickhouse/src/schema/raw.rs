@@ -1,10 +1,12 @@
-//! The raw-record table: every received export as an SSR1 record, the authority the other tables are derived
-//! from.
+//! The raw-record table, every received export as an SSR1 record, the authority the other tables are derived
+//! from, and the queue of records waiting for reconciliation with their rows.
 //!
-//! `ReplacingMergeTree` versioned by `version`: a deletion that removes part of a record writes the rewrite
-//! as a higher version of the same `(project_id, raw_id)`. Its lifetime follows the rows derived from it -
-//! the same 90-day TTL, held by `hold_until` like them - and records no row names are deleted by the raw
-//! sweep before then.
+//! `ReplacingMergeTree(version)`: every write of a record - a repair, a rewrite after a deletion, a record
+//! restored by the reconciler - is a version of the same `(project_id, raw_id)`, and the merge keeps the latest,
+//! which is also what `FINAL` reads. The lifecycle is `server/specs/RawRecordOwnership.tla`. The time to live is
+//! the latest of its rows': `signal_until` is the latest span start the record carries, and the span rows
+//! expire 90 days after their own start, so no row can outlive its record; `hold_until` holds it like them.
+//! The trace index lives exactly as long as the record version that wrote it.
 
 use sideseat_core::config::ClickhouseConfig;
 
@@ -15,21 +17,45 @@ const COLUMNS: &str = "
     raw_id       String,
     signal       LowCardinality(String),
     received_at  DateTime64(6, 'UTC') CODEC(DoubleDelta, ZSTD(1)),
-    rewritten    UInt8 DEFAULT 0,
-    version      UInt32 DEFAULT 0,
+    origin       LowCardinality(String),
+    version      Int64,
+    signal_until DateTime64(6, 'UTC'),
     hold_until   Nullable(DateTime64(6, 'UTC')),
     record       String CODEC(ZSTD(3))";
 
-const TTL: &str = "TTL greatest(received_at + INTERVAL 90 DAY, \
+const TTL: &str = "TTL greatest(signal_until + INTERVAL 90 DAY, \
                    coalesce(hold_until, toDateTime64(0, 6, 'UTC'))) DELETE";
+
+const TRACE_COLUMNS: &str = "
+    project_id   LowCardinality(String),
+    trace_id     String,
+    raw_id       String,
+    signal_until DateTime64(6, 'UTC'),
+    hold_until   Nullable(DateTime64(6, 'UTC'))";
+
+const PENDING_COLUMNS: &str = "
+    project_id   LowCardinality(String),
+    raw_id       String,
+    token        String,
+    enqueued_at  DateTime64(6, 'UTC')";
 
 pub fn raw_tables(config: &ClickhouseConfig) -> Vec<String> {
     if !config.distributed {
-        return vec![format!(
-            "CREATE TABLE IF NOT EXISTS otel_raw ({COLUMNS}) \
-             ENGINE = ReplacingMergeTree(version) PARTITION BY toYYYYMM(received_at) \
-             ORDER BY (project_id, raw_id) {TTL}"
-        )];
+        return vec![
+            format!(
+                "CREATE TABLE IF NOT EXISTS otel_raw ({COLUMNS}) \
+                 ENGINE = ReplacingMergeTree(version) PARTITION BY toYYYYMM(received_at) \
+                 ORDER BY (project_id, raw_id) {TTL}"
+            ),
+            format!(
+                "CREATE TABLE IF NOT EXISTS otel_raw_traces ({TRACE_COLUMNS}) \
+                 ENGINE = ReplacingMergeTree ORDER BY (project_id, trace_id, raw_id) {TTL}"
+            ),
+            format!(
+                "CREATE TABLE IF NOT EXISTS otel_raw_pending ({PENDING_COLUMNS}) \
+                 ENGINE = MergeTree ORDER BY (project_id, raw_id, token)"
+            ),
+        ];
     }
     let cluster = safe_cluster_name(config);
     let db = &config.database;
@@ -43,6 +69,24 @@ pub fn raw_tables(config: &ClickhouseConfig) -> Vec<String> {
         format!(
             "CREATE TABLE IF NOT EXISTS otel_raw ON CLUSTER {cluster} AS otel_raw_local \
              ENGINE = Distributed('{cluster}', '{db}', 'otel_raw_local', sipHash64(project_id))"
+        ),
+        format!(
+            "CREATE TABLE IF NOT EXISTS otel_raw_traces_local ON CLUSTER {cluster} ({TRACE_COLUMNS}) \
+             ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{{shard}}/{db}/otel_raw_traces', '{{replica}}') \
+             ORDER BY (project_id, trace_id, raw_id) {TTL}"
+        ),
+        format!(
+            "CREATE TABLE IF NOT EXISTS otel_raw_traces ON CLUSTER {cluster} AS otel_raw_traces_local \
+             ENGINE = Distributed('{cluster}', '{db}', 'otel_raw_traces_local', sipHash64(project_id))"
+        ),
+        format!(
+            "CREATE TABLE IF NOT EXISTS otel_raw_pending_local ON CLUSTER {cluster} ({PENDING_COLUMNS}) \
+             ENGINE = ReplicatedMergeTree('/clickhouse/tables/{{shard}}/{db}/otel_raw_pending', '{{replica}}') \
+             ORDER BY (project_id, raw_id, token)"
+        ),
+        format!(
+            "CREATE TABLE IF NOT EXISTS otel_raw_pending ON CLUSTER {cluster} AS otel_raw_pending_local \
+             ENGINE = Distributed('{cluster}', '{db}', 'otel_raw_pending_local', sipHash64(project_id))"
         ),
     ]
 }

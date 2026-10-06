@@ -1,3 +1,7 @@
+use super::raw::{enqueue_raw_for_spans, enqueue_raw_for_traces, enqueue_raw_records};
+use super::retention::{
+    retention_delete_expired_clickhouse, retention_select_expired, retention_select_oldest,
+};
 use super::*;
 
 #[test]
@@ -63,9 +67,20 @@ fn project_delete_plan_covers_every_backend_table() {
         MutationTarget::duckdb("otel_spans"),
         MutationTarget::duckdb("otel_metrics"),
         MutationTarget::duckdb("otel_logs"),
+        MutationTarget::duckdb("otel_raw"),
+        MutationTarget::duckdb("otel_raw_pending"),
+        MutationTarget::duckdb("otel_raw_traces"),
         "tenant-'quoted",
     );
     assert!(duckdb.count_spans.is_none());
+    assert_eq!(
+        duckdb.delete_raw.sql(),
+        "DELETE FROM otel_raw WHERE project_id = ?"
+    );
+    assert_eq!(
+        duckdb.delete_raw_pending.sql(),
+        "DELETE FROM otel_raw_pending WHERE project_id = ?"
+    );
     assert!(duckdb.metrics_table_exists.is_none());
     assert_eq!(
         duckdb.delete_spans.sql(),
@@ -84,6 +99,9 @@ fn project_delete_plan_covers_every_backend_table() {
         MutationTarget::clickhouse("otel_spans_local", " ON CLUSTER prod"),
         MutationTarget::clickhouse("otel_metrics_local", " ON CLUSTER prod"),
         MutationTarget::clickhouse("otel_logs_local", " ON CLUSTER prod"),
+        MutationTarget::clickhouse("otel_raw_local", " ON CLUSTER prod"),
+        MutationTarget::clickhouse("otel_raw_pending_local", " ON CLUSTER prod"),
+        MutationTarget::clickhouse("otel_raw_traces_local", " ON CLUSTER prod"),
         "tenant-'quoted",
     );
     assert!(clickhouse.count_spans.is_some());
@@ -97,6 +115,9 @@ fn project_delete_plan_covers_every_backend_table() {
             .expect("table check"),
         &clickhouse.delete_metrics,
         &clickhouse.delete_logs,
+        &clickhouse.delete_raw,
+        &clickhouse.delete_raw_pending,
+        &clickhouse.delete_raw_traces,
     ] {
         assert_eq!(
             statement.sql().matches('?').count(),
@@ -230,4 +251,47 @@ fn mutation_target_rejects_sql_in_table_name() {
 #[should_panic(expected = "invalid ClickHouse mutation cluster")]
 fn mutation_target_rejects_sql_in_cluster_name() {
     MutationTarget::clickhouse("otel_spans", " ON CLUSTER prod; DROP TABLE users");
+}
+
+/// The enqueue before a trace delete reaches the records holding exactly the traces the delete removes: the
+/// same predicate, bound to the same values, read from the trace index - so no deleted span's record can miss
+/// reconciliation, whether or not a row still names it. A span delete reaches its spans' traces.
+#[test]
+fn raw_enqueue_uses_the_predicate_of_the_delete_it_precedes() {
+    let traces = vec!["t1".to_string(), "t'2".to_string()];
+    for backend in [Backend::Duckdb, Backend::Clickhouse] {
+        let target = match backend {
+            Backend::Duckdb => MutationTarget::duckdb("otel_spans"),
+            Backend::Clickhouse => MutationTarget::clickhouse("otel_spans_local", ""),
+        };
+        let delete = delete_traces(target, "p", &traces).unwrap();
+        let enqueue = enqueue_raw_for_traces(backend, "p", &traces).unwrap();
+        assert_eq!(delete.params(), enqueue.params());
+        let predicate = delete
+            .sql()
+            .split(" WHERE ")
+            .nth(1)
+            .unwrap()
+            .trim_end_matches(" SETTINGS mutations_sync = 2");
+        assert!(enqueue.sql().contains("FROM otel_raw_traces"));
+        assert!(
+            enqueue.sql().ends_with(&format!("AND {predicate})")),
+            "{} does not end with the delete's predicate {predicate}",
+            enqueue.sql()
+        );
+        assert_eq!(enqueue.sql().matches('?').count(), enqueue.params().len());
+
+        let spans = vec![
+            ("t1".to_string(), "s1".to_string()),
+            ("t1".to_string(), "s2".to_string()),
+        ];
+        assert_eq!(
+            enqueue_raw_for_spans(backend, "p", &spans).unwrap(),
+            enqueue_raw_for_traces(backend, "p", &["t1".to_string()]).unwrap()
+        );
+        assert!(enqueue_raw_for_traces(backend, "p", &[]).is_none());
+        assert!(enqueue_raw_records(backend, "p", &[]).is_none());
+        let by_id = enqueue_raw_records(backend, "p", &["r1".to_string()]).unwrap();
+        assert_eq!(by_id.sql().matches('?').count(), by_id.params().len());
+    }
 }

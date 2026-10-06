@@ -494,6 +494,12 @@ pub async fn delete_traces(
         return Ok(0);
     };
 
+    // The records the rows name are enqueued before the rows go; see `dml::raw::enqueue_raw_for_traces`.
+    let enqueue = dml::raw::enqueue_raw_for_traces(Backend::Clickhouse, project_id, trace_ids)
+        .expect("non-empty trace set produces a raw enqueue");
+    bind_analytics_values(client.query(enqueue.sql()), enqueue.params())
+        .execute()
+        .await?;
     let query = bind_analytics_values(client.query(statement.sql()), statement.params());
     query.execute().await?;
     let logs = dml::delete_logs_for_traces(
@@ -530,6 +536,11 @@ pub async fn delete_spans(
         return Ok(0);
     };
 
+    let enqueue = dml::raw::enqueue_raw_for_spans(Backend::Clickhouse, project_id, spans)
+        .expect("non-empty span set produces a raw enqueue");
+    bind_analytics_values(client.query(enqueue.sql()), enqueue.params())
+        .execute()
+        .await?;
     let query = bind_analytics_values(client.query(statement.sql()), statement.params());
     query.execute().await?;
     let logs = dml::delete_logs_for_spans(
@@ -573,6 +584,11 @@ pub async fn delete_sessions(
         &trace_ids,
     )
     .expect("non-empty trace set produces a delete");
+    let enqueue = dml::raw::enqueue_raw_for_traces(Backend::Clickhouse, project_id, &trace_ids)
+        .expect("non-empty trace set produces a raw enqueue");
+    bind_analytics_values(client.query(enqueue.sql()), enqueue.params())
+        .execute()
+        .await?;
     bind_analytics_values(client.query(statement.sql()), statement.params())
         .execute()
         .await?;
@@ -592,11 +608,15 @@ pub async fn delete_sessions(
 ///
 /// In distributed mode, `spans_table` and `metrics_table` should be local table names
 /// and `on_cluster` should be the ON CLUSTER clause.
+#[allow(clippy::too_many_arguments)]
 pub async fn delete_project_data(
     client: &Client,
     spans_table: &str,
     metrics_table: &str,
     logs_table: &str,
+    raw_table: &str,
+    raw_pending_table: &str,
+    raw_traces_table: &str,
     on_cluster: &str,
     project_id: &str,
 ) -> Result<u64, ClickhouseError> {
@@ -604,6 +624,9 @@ pub async fn delete_project_data(
         dml::MutationTarget::clickhouse(spans_table, on_cluster),
         dml::MutationTarget::clickhouse(metrics_table, on_cluster),
         dml::MutationTarget::clickhouse(logs_table, on_cluster),
+        dml::MutationTarget::clickhouse(raw_table, on_cluster),
+        dml::MutationTarget::clickhouse(raw_pending_table, on_cluster),
+        dml::MutationTarget::clickhouse(raw_traces_table, on_cluster),
         project_id,
     );
     let count_statement = plan
@@ -643,12 +666,16 @@ pub async fn delete_project_data(
         .await?;
     }
 
-    bind_analytics_values(
-        client.query(plan.delete_logs.sql()),
-        plan.delete_logs.params(),
-    )
-    .execute()
-    .await?;
+    for statement in [
+        &plan.delete_logs,
+        &plan.delete_raw,
+        &plan.delete_raw_pending,
+        &plan.delete_raw_traces,
+    ] {
+        bind_analytics_values(client.query(statement.sql()), statement.params())
+            .execute()
+            .await?;
+    }
 
     Ok(count)
 }
@@ -689,11 +716,14 @@ pub async fn count_project_rows(
     Ok(spans + metrics + logs)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn patch_project_hold(
     client: &Client,
     spans_table: &str,
     metrics_table: &str,
     logs_table: &str,
+    raw_table: &str,
+    raw_traces_table: &str,
     on_cluster: &str,
     project_id: &str,
     hold_until: chrono::DateTime<Utc>,
@@ -702,6 +732,8 @@ pub async fn patch_project_hold(
         dml::MutationTarget::clickhouse(spans_table, on_cluster),
         dml::MutationTarget::clickhouse(metrics_table, on_cluster),
         dml::MutationTarget::clickhouse(logs_table, on_cluster),
+        dml::MutationTarget::clickhouse(raw_table, on_cluster),
+        dml::MutationTarget::clickhouse(raw_traces_table, on_cluster),
         project_id,
         hold_until,
     );

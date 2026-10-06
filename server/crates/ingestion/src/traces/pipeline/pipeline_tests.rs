@@ -30,6 +30,18 @@ async fn pipeline_over_a_temp_store() -> (
     Arc<dyn sideseat_ports::traits::TransactionalRepository + Send + Sync>,
     TracePipeline,
 ) {
+    pipeline_over_a_temp_store_with(false).await
+}
+
+/// As [`pipeline_over_a_temp_store`], with file storage on or off.
+pub(super) async fn pipeline_over_a_temp_store_with(
+    files_enabled: bool,
+) -> (
+    tempfile::TempDir,
+    Arc<dyn AnalyticsRepository + Send + Sync>,
+    Arc<dyn sideseat_ports::traits::TransactionalRepository + Send + Sync>,
+    TracePipeline,
+) {
     use chrono::{TimeZone, Utc};
     use sideseat_adapter_blob_storage::FilesystemStorage;
     use sideseat_adapter_cache::CacheService;
@@ -83,12 +95,16 @@ async fn pipeline_over_a_temp_store() -> (
         .expect("memory cache"),
     );
     let file_config = FilesConfig {
-        enabled: false,
+        enabled: files_enabled,
         storage: StorageBackend::Filesystem,
         quota_bytes: 0,
         filesystem_path: Some(temp.path().join("files").display().to_string()),
         s3: None,
     };
+    let temp_files = storage.subdir(sideseat_core::storage::DataSubdir::FilesTemp);
+    tokio::fs::create_dir_all(&temp_files)
+        .await
+        .expect("files temp dir");
     let files = Arc::new(
         FileService::new(
             file_config,

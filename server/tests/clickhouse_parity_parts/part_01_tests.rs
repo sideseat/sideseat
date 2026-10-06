@@ -699,6 +699,9 @@ async fn clickhouse_row_policies_are_per_query_and_fail_closed() {
         vec![
             "otel_logs",
             "otel_metrics",
+            "otel_raw",
+            "otel_raw_pending",
+            "otel_raw_traces",
             "otel_spans",
             "span_partition_anomalies",
         ]

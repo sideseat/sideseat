@@ -404,18 +404,40 @@ CREATE INDEX IF NOT EXISTS idx_logs_service
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- Raw telemetry: every received export as an SSR1 record, the authority the other tables are derived from.
--- Append-only and idempotent by (project_id, raw_id); readers take the latest row of a raw_id, which is the
--- rewrite after a deletion when there is one.
+-- Append-only by (project_id, raw_id, version); readers take the latest version, which is the repair or the
+-- rewrite after a deletion when there is one. The lifecycle is server/specs/RawRecordOwnership.tla.
 -- ═══════════════════════════════════════════════════════════════════════════════
 CREATE TABLE IF NOT EXISTS otel_raw (
     project_id   VARCHAR NOT NULL,
     raw_id       VARCHAR NOT NULL,
     signal       VARCHAR NOT NULL,
     received_at  TIMESTAMP NOT NULL,
-    rewritten    BOOLEAN NOT NULL DEFAULT false,
+    origin       VARCHAR NOT NULL,
+    version      BIGINT NOT NULL,
+    signal_until TIMESTAMP NOT NULL,
+    hold_until   TIMESTAMP,
     record       BLOB NOT NULL USING COMPRESSION zstd
 );
 CREATE INDEX IF NOT EXISTS idx_raw_identity ON otel_raw(project_id, raw_id);
+
+-- Which records hold spans of which trace: how a deletion finds a record no row names any more.
+CREATE TABLE IF NOT EXISTS otel_raw_traces (
+    project_id   VARCHAR NOT NULL,
+    trace_id     VARCHAR NOT NULL,
+    raw_id       VARCHAR NOT NULL,
+    signal_until TIMESTAMP NOT NULL,
+    hold_until   TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_raw_traces ON otel_raw_traces(project_id, trace_id);
+
+-- Records whose rows were deleted, expired or repaired, waiting for the reconciler. Each entry has a token so a
+-- reconciler removes exactly the entries it read.
+CREATE TABLE IF NOT EXISTS otel_raw_pending (
+    project_id   VARCHAR NOT NULL,
+    raw_id       VARCHAR NOT NULL,
+    token        VARCHAR NOT NULL,
+    enqueued_at  TIMESTAMP NOT NULL
+);
 
 -- Current-version search terms. Corrections replace these rows in the same transaction as
 -- appending the new source revision. An empty term is a field marker, not a searchable token.
@@ -467,6 +489,8 @@ mod tests {
             "span_terms",
             "log_terms",
             "otel_raw",
+            "otel_raw_pending",
+            "otel_raw_traces",
         ];
 
         for table in required_tables {

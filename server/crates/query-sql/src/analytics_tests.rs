@@ -78,6 +78,7 @@ fn registry_is_derived_from_real_typed_operations() {
             QueryOperation::EnforceRetention,
             QueryOperation::DeleteSessions,
             QueryOperation::Search,
+            QueryOperation::RawReconciliation,
         ]
     );
     assert_eq!(
@@ -132,6 +133,7 @@ fn registry_is_derived_from_real_typed_operations() {
             "enforce_retention",
             "delete_sessions",
             "search",
+            "raw_reconciliation",
         ]
     );
 }

@@ -35,6 +35,17 @@ pub trait SurvivorReferences: Send + Sync {
         trace_ids: &[String],
     ) -> Result<Vec<String>, DataError>;
 
+    /// The latest raw records the surviving winning spans of these traces name.
+    ///
+    /// A record references media the derived fields may not: a run too short to extract, an attribute no rule
+    /// reads. Those objects are owned exactly as extracted files are, so survivor reconciliation must keep
+    /// what these records reference, or a record a surviving row names could no longer be decoded.
+    async fn survivor_raw_records(
+        &self,
+        project_id: &ProjectId,
+        trace_ids: &[String],
+    ) -> Result<Vec<Vec<u8>>, DataError>;
+
     /// Inline body fields of the current winning spans for exact body-ownership reconciliation.
     async fn span_body_fields_for_traces(
         &self,
@@ -534,23 +545,30 @@ pub trait AnalyticsMaintenance: Send + Sync {
     }
 }
 
-/// Stored raw exports, keyed per project by `raw_id`.
+/// Stored raw exports, keyed per project by `raw_id`, each with its versions.
 ///
-/// Raw records are written before the rows derived from them and are idempotent by `raw_id`: a redelivery of
-/// the same body is the same record. A record no derived row names any more is removed by
-/// [`RawStore::delete_unreferenced_raw_records`], after a grace period that covers the window between a record's
-/// write and its rows'.
+/// A record is written before the rows derived from it and lives as long as a row names it. The protocol that
+/// keeps the two agreeing - under redelivery, deletion, retention, legal hold and restore - is modelled in
+/// `server/specs/RawRecordOwnership.tla`: every deletion or expiry of rows enqueues the records they named
+/// ([`RawStore::pending_raw_records`]), and a reconciler rewrites each without its deleted spans, or deletes
+/// it when no row names it.
 #[async_trait]
 pub trait RawStore: Send + Sync {
+    /// Store the records whose `raw_id` is not stored yet; a record already present is left as it is.
     async fn insert_raw_records(&self, records: &[RawRecordRow]) -> Result<(), DataError>;
 
+    /// Store these versions unconditionally: a repair, a rewrite, or a record restored after a delete.
+    async fn append_raw_records(&self, records: &[RawRecordRow]) -> Result<(), DataError>;
+
+    /// The latest version of each requested record that exists.
     async fn get_raw_records(
         &self,
         project_id: &ProjectId,
         raw_ids: &[String],
     ) -> Result<Vec<RawRecordRow>, DataError>;
 
-    /// One page in `(received_at, raw_id)` order, after the given position: the order a re-derivation replays.
+    /// One page of latest versions in `(received_at, raw_id)` order, after the given position: the order a
+    /// re-derivation replays.
     async fn raw_records_page(
         &self,
         project_id: &ProjectId,
@@ -558,19 +576,30 @@ pub trait RawStore: Send + Sync {
         limit: usize,
     ) -> Result<Vec<RawRecordRow>, DataError>;
 
-    /// Replace a record's bytes after a deletion removed some of what it held, keeping its `raw_id`.
-    async fn rewrite_raw_record(
+    /// Delete every version of these records.
+    async fn delete_raw_records(
         &self,
         project_id: &ProjectId,
-        raw_id: &str,
-        record: &[u8],
+        raw_ids: &[String],
     ) -> Result<(), DataError>;
 
-    /// Delete a project's records received before `received_before` that no span, log or metric row names.
-    /// Returns how many went.
-    async fn delete_unreferenced_raw_records(
+    /// Which of these records a stored row still names.
+    async fn raw_records_named(
         &self,
         project_id: &ProjectId,
-        received_before: DateTime<Utc>,
-    ) -> Result<u64, DataError>;
+        raw_ids: &[String],
+    ) -> Result<std::collections::HashSet<String>, DataError>;
+
+    /// Enqueue records for reconciliation.
+    async fn enqueue_raw_records(
+        &self,
+        project_id: &ProjectId,
+        raw_ids: &[String],
+    ) -> Result<(), DataError>;
+
+    /// Up to `limit` queued entries, oldest first, across projects.
+    async fn pending_raw_records(&self, limit: usize) -> Result<Vec<RawPending>, DataError>;
+
+    /// Remove exactly these entries; one enqueued since they were read stays.
+    async fn clear_raw_pending(&self, entries: &[RawPending]) -> Result<(), DataError>;
 }

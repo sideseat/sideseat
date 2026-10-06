@@ -288,8 +288,8 @@ impl StagingService {
             let write_ok = match current.signal {
                 StagedSignal::Traces => {
                     match crate::received::staged_traces(&bytes, current.project_id.as_str()) {
-                        Ok(request) => !matches!(
-                            trace_pipeline.ingest_now(&request).await,
+                        Ok((request, received)) => !matches!(
+                            trace_pipeline.ingest_now(&request, &received).await,
                             IngestOutcome::Failed
                         ),
                         Err(error) => {

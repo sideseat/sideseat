@@ -64,7 +64,7 @@ fn every_captured_export_round_trips_byte_exactly() {
         };
         let encoded = raw_payload::encode(&raw, content);
         for object in encoded.media {
-            media.entry(object.sha256).or_insert(object.bytes);
+            media.entry(object.hash).or_insert(object.bytes);
         }
         original += raw.len();
         records += encoded.record.len();

@@ -93,6 +93,8 @@ pub enum QueryOperation {
     DeleteSessions,
     /// Chronological text search, completeness probes, arrivals and historical backfill.
     Search,
+    /// Enqueue raw records for reconciliation with their rows.
+    RawReconciliation,
 }
 
 impl QueryOperation {
@@ -144,6 +146,7 @@ impl QueryOperation {
             Self::EnforceRetention => "enforce_retention",
             Self::DeleteSessions => "delete_sessions",
             Self::Search => "search",
+            Self::RawReconciliation => "raw_reconciliation",
         }
     }
 
@@ -152,6 +155,7 @@ impl QueryOperation {
         match self {
             Self::UpsertSpans | Self::UpsertMetrics | Self::UpsertLogs => "insert_batch",
             Self::EnforceRetention => "run_retention",
+            Self::RawReconciliation => "enqueue",
             _ => self.name(),
         }
     }
@@ -172,6 +176,7 @@ impl QueryOperation {
             Self::GetProjectStats => "stats.rs",
             Self::EnforceRetention => "../retention.rs",
             Self::Search => "search.rs",
+            Self::RawReconciliation => "raw.rs",
             _ => "query.rs",
         }
     }
@@ -227,7 +232,7 @@ impl QueryOperation {
             Self::ListLogs | Self::GetLog | Self::GetLogFilterOptions => "log_sql::",
             Self::MaxIngestedAtUs => "analytics::",
             Self::EnforceRetention => "dml::",
-            Self::DeleteSessions => "dml::",
+            Self::DeleteSessions | Self::RawReconciliation => "dml::",
             Self::Search => "search_sql::",
             Self::DeleteTraces
             | Self::DeleteSpans
@@ -291,4 +296,5 @@ pub const MIGRATED_OPERATIONS: &[QueryOperation] = &[
     QueryOperation::EnforceRetention,
     QueryOperation::DeleteSessions,
     QueryOperation::Search,
+    QueryOperation::RawReconciliation,
 ];

@@ -86,6 +86,10 @@ impl CoreApp {
         self.shutdown
             .register(Arc::clone(&pipeline).start(traces_topic, self.shutdown.subscribe()))
             .await;
+        // Removes deleted content from the raw records and collects records no row names.
+        self.shutdown
+            .register(Arc::clone(&pipeline).start_raw_reconciler(self.shutdown.subscribe()))
+            .await;
         self.shutdown
             .register(sideseat_ingestion::staging::start_staging_sweep(
                 Arc::clone(&self.staging),

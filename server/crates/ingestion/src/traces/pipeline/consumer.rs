@@ -241,8 +241,8 @@ impl TracePipeline {
                 let mut ack_ids = Vec::new();
                 for (msg_id, payload_ref) in batch {
                     match self.load_staged_trace(&payload_ref).await {
-                        Ok(Some((payload, request))) => {
-                            ready.push((msg_id, payload, request));
+                        Ok(Some((payload, request, received))) => {
+                            ready.push((msg_id, payload, request, received));
                         }
                         Ok(None) => ack_ids.push(msg_id),
                         Err(error) => {
@@ -261,10 +261,14 @@ impl TracePipeline {
                 if !ready.is_empty() {
                     let requests = ready
                         .iter()
-                        .map(|(_, _, request)| request.clone())
+                        .map(|(_, _, request, _)| request.clone())
                         .collect::<Vec<_>>();
-                    let db_ok = self.run_batch(&requests).await;
-                    for (msg_id, payload, _) in ready {
+                    let received = ready
+                        .iter()
+                        .map(|(_, _, _, received)| received.clone())
+                        .collect::<Vec<_>>();
+                    let db_ok = self.run_batch(&requests, &received).await;
+                    for (msg_id, payload, _, _) in ready {
                         if db_ok && self.settle_staged_trace(&payload).await {
                             ack_ids.push(msg_id);
                         } else if self.note_staging_failure(&payload.id).await {
@@ -354,7 +358,7 @@ impl TracePipeline {
     async fn load_staged_trace(
         &self,
         payload_ref: &StagedPayloadRef,
-    ) -> Result<Option<(StagedPayload, ExportTraceServiceRequest)>, String> {
+    ) -> Result<Option<(StagedPayload, ExportTraceServiceRequest, ReceivedPayload)>, String> {
         let Some((payload, bytes)) = self
             .staging
             .load(&payload_ref.id)
@@ -369,8 +373,9 @@ impl TracePipeline {
                 payload.signal
             ));
         }
-        let request = crate::received::staged_traces(&bytes, payload.project_id.as_str())?;
-        Ok(Some((payload, request)))
+        let (request, received) =
+            crate::received::staged_traces(&bytes, payload.project_id.as_str())?;
+        Ok(Some((payload, request, received)))
     }
 
     async fn settle_staged_trace(&self, payload: &StagedPayload) -> bool {
@@ -410,7 +415,7 @@ impl TracePipeline {
     }
 
     async fn process_staged_reference(&self, payload_ref: &StagedPayloadRef) -> bool {
-        let (payload, request) = match self.load_staged_trace(payload_ref).await {
+        let (payload, request, received) = match self.load_staged_trace(payload_ref).await {
             Ok(Some(loaded)) => loaded,
             Ok(None) => return true,
             Err(error) => {
@@ -422,7 +427,7 @@ impl TracePipeline {
                 return self.note_staging_failure(&payload_ref.id).await;
             }
         };
-        if !self.run(&request).await.is_final() {
+        if !self.run(&request, &received).await.is_final() {
             return self.note_staging_failure(&payload.id).await;
         }
         if self.settle_staged_trace(&payload).await {

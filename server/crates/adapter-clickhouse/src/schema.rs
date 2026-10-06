@@ -872,6 +872,8 @@ pub fn tenant_row_policies(config: &ClickhouseConfig) -> Vec<String> {
         "otel_metrics",
         "otel_logs",
         "otel_raw",
+        "otel_raw_pending",
+        "otel_raw_traces",
         "span_partition_anomalies",
     ]
     .into_iter()

@@ -422,6 +422,9 @@ impl FileService {
                         .or_insert_with(|| parsed.media_type.map(str::to_owned));
                 }
             }
+            for hash in raw_media_of_survivors(project_id, trace_id, analytics).await? {
+                references.entry(hash).or_insert(None);
+            }
             report.references_scanned += references.len() as u64;
 
             let associated = self
@@ -606,6 +609,7 @@ impl FileService {
             .iter()
             .filter_map(|uri| parse_file_uri(uri).map(|parsed| parsed.hash.to_string()))
             .collect();
+        hashes.extend(raw_media_of_survivors(project_id, trace_id, analytics).await?);
         hashes.sort_unstable();
         hashes.dedup();
         Ok(hashes)
@@ -854,6 +858,27 @@ impl FileService {
     pub fn database(&self) -> &Arc<dyn TransactionalRepository + Send + Sync> {
         &self.database
     }
+}
+
+/// The media hashes of the raw records the surviving spans of one trace name.
+///
+/// A record the reader cannot read is reported rather than skipped: skipping it would release media a
+/// surviving row's record needs.
+async fn raw_media_of_survivors(
+    project_id: &ProjectId,
+    trace_id: &str,
+    analytics: &dyn sideseat_ports::traits::SurvivorReferences,
+) -> Result<Vec<String>, FileServiceError> {
+    let records = analytics
+        .survivor_raw_records(project_id, std::slice::from_ref(&trace_id.to_string()))
+        .await
+        .map_err(FileServiceError::from)?;
+    let mut hashes = Vec::new();
+    for record in &records {
+        let media = crate::raw_payload::media_hashes(record)?;
+        hashes.extend(media.iter().map(hex::encode));
+    }
+    Ok(hashes)
 }
 
 #[async_trait::async_trait]

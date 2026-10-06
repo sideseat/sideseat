@@ -2,6 +2,22 @@ use super::*;
 
 #[async_trait]
 impl SurvivorReferences for DuckdbRepository {
+    async fn survivor_raw_records(
+        &self,
+        project_id: &ProjectId,
+        trace_ids: &[String],
+    ) -> Result<Vec<Vec<u8>>, DataError> {
+        let db = Arc::clone(&self.0);
+        let pid = project_id.clone();
+        let tids = trace_ids.to_vec();
+        DuckdbService::run_query(move || {
+            crate::repositories::raw::survivor_records(&db.conn(), &pid, &tids)
+        })
+        .await
+        .map_err(DataError::from)?
+        .map_err(Into::into)
+    }
+
     async fn file_reference_fields_for_traces(
         &self,
         project_id: &ProjectId,

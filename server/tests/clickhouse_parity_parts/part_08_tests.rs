@@ -113,7 +113,11 @@ async fn a_replicated_database_is_created_with_the_whole_schema() {
             raw_id: "raw-1".to_string(),
             signal: sideseat_ports::types::StagedSignal::Traces,
             received_at: ts(10),
-            rewritten: false,
+            origin: sideseat_ports::types::RawOrigin::Received,
+            version: 1,
+            signal_until: ts(10),
+            hold_until: None,
+            trace_ids: vec!["trace".to_string()],
             record: b"SSR1\0\0payload".to_vec(),
         }],
     )

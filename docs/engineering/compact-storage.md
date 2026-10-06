@@ -49,8 +49,11 @@ user is), excluding the coding-agent CLIs, which are measured separately below. 
 | **Total without media**                                   | **303** |
 | Media (images, PDFs), decoded binary                      |  2,375 |
 
-That is about 20x below raw OTLP, losslessly, before media. Per unit (spans plus traces) it is about **250-260 B**
-for framework applications.
+That ratio compares unlike quantities: the raw figure includes the base64 media (79% of the trace corpus' bytes)
+while the stored figure excludes it. Against raw bytes without media the same layers are about 4x; with media stored
+once per project at its floor, traces cannot be stored losslessly at better than ~4.8x (see
+[Measured in the real backends](#measured-in-the-real-backends)). Per unit (spans plus traces) the estimate is about
+**250-260 B** for framework applications.
 
 The table is the framework applications (every native suite except the coding-agent CLIs), whose
 generations carry whole conversations. The workloads differ by an order of magnitude, so the script reports
@@ -83,6 +86,83 @@ A shared zstd dictionary trained on *other* frameworks' captures cut small tenan
 (1,414 to 974 B/span on held-out frameworks), which matters because most Hobby tenants are small and have
 no history of their own to compress against. A dictionary must be trained on public or synthetic data,
 never on another tenant's telemetry.
+
+## Measured in the real backends
+
+`scripts/perf/storage-footprint.py` (`make footprint-storage`, and `-distributed`) loads the whole corpus into a real
+server, one project per producer, and reads the backends' own accounting. Its gate is **stored bytes per item
+excluding media** - media is stored once per project at its floor (the unique decoded bytes) and reported beside
+it - against the ruled ceilings of 480 B per span, 300 B per log record and 150 B per metric point, plus a regression
+ceiling at the last measured figure. Baseline, embedded backend, 2026-10-06:
+
+| Signal  | Items  | Raw OTLP | Stored, excluding media | Per item |
+| ------- | -----: | -------: | ----------------------: | -------: |
+| traces  | 13,315 | 74.6 MB  | 215.1 MB                | 16,152 B |
+| logs    |  1,392 | 1.42 MB  | 17.3 MB                 | 12,448 B |
+| metrics |    480 | 0.19 MB  | 0.56 MB                 |  1,164 B |
+
+Where the trace bytes were: DuckDB free blocks and indexes 5,340 B/span, `otel_spans` 4,430 (of which the `raw_span`
+JSON copy is the largest column), the content-body copies of `messages`, `tool_definitions`, `tool_names` and
+`raw_span` 3,526 in blobs plus 2,562 of registry rows, media files 1,012, search terms 287. DuckDB in its default
+storage format (`v0.10.2`) does not compress long strings at all.
+
+**Arithmetic for media.** Media cannot be compressed losslessly: six generated PNGs, a JPEG, a PDF and encrypted
+reasoning signatures, 15.3 MB unique per project out of 74.6 MB. However well everything else is stored, traces
+including media are bounded at about 4.8x and logs at about 3.7x, which is why the gate counts media separately.
+
+### The raw record
+
+Raw telemetry is the single authority; everything else is a cache that a re-derivation rebuilds from it. The raw form
+is the **SSR1 record** (`sideseat_domain::raw_payload`): the received body byte for byte, with every base64 run of 256
+or more characters that re-encodes exactly cut out and stored once per project under the file store's own address -
+the BLAKE3 of the base64 text - and `(gap, length, hash)` recorded in its place, so an image a span's extraction
+already stored is the same object. Decoding splices the text back, so non-canonical protobuf, OTLP/JSON
+and runs that touch framing bytes all round-trip; `server/tests/raw_round_trip.rs` proves it for all 1,549 exports
+(76.9 MB received, 18.5 MB of records, 63 media objects of 11.7 MB). Compressed with zstd in 256 KB segments - what a
+DuckDB column in storage format v1.5 does - the trace records are about 146 B per span.
+
+### The record's life
+
+A record is written before the rows derived from it and lives as long as a row names it. Three tables carry that:
+`otel_raw` holds the versions of each record, `otel_raw_traces` says which records hold spans of which trace, and
+`otel_raw_pending` is the reconciliation queue. Every version records its **origin** - `received` (the body as it
+arrived), `fenced` (the received export re-encoded without spans the ingest's deletion fences refused) or `deleted`
+(rewritten after a deletion took some of what it held) - so "byte for byte" is a claim only about the first, and a
+re-derivation can tell the two apart.
+
+Keeping the record and its rows agreeing is a protocol, not an invariant one statement can hold, because nothing is
+atomic across the record, the rows and the tombstones:
+
+- every deletion and expiry of span rows enqueues the records holding those traces, in the same transaction as the
+  delete, and finds them through the trace index rather than through the rows - a record whose rows already expired,
+  or whose only naming row was a superseded revision a ClickHouse merge removed, is named by nothing and must still
+  be reached;
+- the reconciler then rewrites each queued record without the spans the deletion fences refuse, or deletes it when no
+  row names it, and looks again afterwards, re-enqueueing anything still unsettled, so whichever reconciler acts last
+  sees its own effect;
+- an ingest whose rows the latest record does not hold appends the union of the two, at least two versions above what
+  it read, so a concurrent reconciler's rewrite of an older version cannot win over it whatever the writers' clocks
+  say;
+- a legal hold stops both: the records and the index carry `hold_until` exactly as the span rows do, retention and
+  deletion skip a held row, and the reconciler leaves a held record queued.
+
+Media follows the same ownership as an extracted file (`trace_files`, `pending_writers`, `durable`), owned by every
+trace whose span text carries it; survivor reconciliation therefore keeps what a surviving record references, not
+only what its derived columns do. Media the file store refused - a project over its quota - stays inline, so a record
+is decodable whatever happened to the files.
+
+`server/specs/RawRecordOwnership.tla` models the protocol and `RawRecordReconcilers.cfg` the races between two
+reconcilers; four invariants are checked over every interleaving - every row's content is in the latest record, a
+settled record holds nothing deleted, a record no row names is collected, and a hold loses nothing.
+
+### Deferred: content-defined chunking of re-sent history
+
+Every model call re-sends the conversation so far. Storing repeated text once per project by content-defined
+chunking (FastCDC over the media-stripped records, a per-project chunk store, references in the record) was measured
+on the trace corpus: 145.5 B/span without it, 126.1 / 123.8 / 123.6 B/span with 1, 2 and 4 KB average chunks. zstd
+within a segment already removes most of the repetition, so chunking saves about 22 B/span (15%) - at the cost of a
+store whose objects are shared across exports and therefore need reference counting under retention, deletion, legal
+hold and restore. It is kept as a measured lever, to be used only if the per-span budget needs it.
 
 ## How far from the limit
 

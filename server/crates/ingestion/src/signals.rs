@@ -503,7 +503,7 @@ impl Signal for TraceSignal {
             .pipeline
             .as_ref()
             .ok_or_else(|| "trace persistence lifecycle has no pipeline".to_string())?;
-        match pipeline.ingest_now(request).await {
+        match pipeline.ingest_now(request, _context.received).await {
             IngestOutcome::Stored => Ok(PersistOutcome::Stored),
             IngestOutcome::Dropped { spans, reason } => Ok(PersistOutcome::Dropped {
                 records: spans,

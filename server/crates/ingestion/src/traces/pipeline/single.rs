@@ -7,13 +7,21 @@ impl TracePipeline {
     /// acknowledgement before the write is a promise the process cannot keep, so the request writes
     /// first. Measured at roughly nine milliseconds per request against four when batched - which for an
     /// exporter that ships every few seconds is not a cost worth a lost trace.
-    pub async fn ingest_now(&self, request: &ExportTraceServiceRequest) -> IngestOutcome {
-        self.run(request).await
+    pub async fn ingest_now(
+        &self,
+        request: &ExportTraceServiceRequest,
+        received: &ReceivedPayload,
+    ) -> IngestOutcome {
+        self.run(request, received).await
     }
 
     /// Run the complete pipeline for a single request (used during shutdown drain
     /// and claimed message recovery). File I/O is done inline for reliability.
-    pub(super) async fn run(&self, request: &ExportTraceServiceRequest) -> IngestOutcome {
+    pub(super) async fn run(
+        &self,
+        request: &ExportTraceServiceRequest,
+        received: &ReceivedPayload,
+    ) -> IngestOutcome {
         // Wrapped, like every call on the batch path. This one was not, and it is the path that
         // handles *recovery* - so a message the batch path refused for panicking could be claimed here
         // and take down the whole pipeline task rather than one request.
@@ -100,6 +108,13 @@ impl TracePipeline {
             // Ordered, exactly as the batch path is: this path ran the two concurrently, so it could
             // commit a row referencing a file whose write had failed - the same defect, in the path
             // that runs at shutdown and recovery, where it is least likely to be noticed.
+            // The raw record first, so its media joins the files this request stores, under the same ownership.
+            let project_id = db_spans
+                .first()
+                .and_then(|span| span.project_id.clone())
+                .unwrap_or_else(|| DEFAULT_PROJECT_ID.to_string());
+            let mut raw = RawDraft::new(&project_id, received, self.file_service.is_enabled());
+            pending_files.extend(raw.media_writes(request));
             let files = persist_extracted_files(pending_files, &self.file_service).await;
             if files.failed > 0 {
                 self.file_cache.invalidate_all();
@@ -114,6 +129,8 @@ impl TracePipeline {
                 );
                 return IngestOutcome::Failed;
             }
+            // Media the store refused stays in the record, which must decode whatever the files' fate.
+            raw.keep_inline(&files.quota_skipped);
             let mut unresolvable = files.quota_skipped;
             let (unbacked, reconcile_failed, incoming_associations) =
                 reconcile_incoming_references(
@@ -226,6 +243,11 @@ impl TracePipeline {
                 }
             }
 
+            // What the raw record must keep: everything that survived the deletion fences. See `RawDraft::row`.
+            let kept_for_raw: HashSet<(String, String)> = db_spans
+                .iter()
+                .map(|span| (span.trace_id.clone(), span.span_id.clone()))
+                .collect();
             if self.drop_exact_redeliveries(&mut db_spans).await > 0 {
                 self.release_associations_of_dropped(&mut created_associations, &db_spans)
                     .await;
@@ -259,6 +281,32 @@ impl TracePipeline {
                     None
                 }
             };
+
+            // The raw record is the authority the rows are derived from, so it is stored before them; a request
+            // whose raw record cannot be stored stores nothing.
+            let hold_until = db_spans.first().and_then(|span| span.hold_until);
+            let raw_row = match raw.row(request, &kept_for_raw, chrono::Utc::now(), hold_until) {
+                Ok(row) => row,
+                Err(error) => {
+                    tracing::error!(%error, "Could not encode the request's raw record; refusing it");
+                    self.release_created_associations(&created_associations)
+                        .await;
+                    return IngestOutcome::Failed;
+                }
+            };
+            if let Err(error) = self
+                .analytics
+                .insert_raw_records(std::slice::from_ref(&raw_row))
+                .await
+            {
+                tracing::error!(%error, "Could not store the request's raw record; refusing it");
+                self.release_created_associations(&created_associations)
+                    .await;
+                return IngestOutcome::Failed;
+            }
+            for span in &mut db_spans {
+                span.raw_id = Some(raw.raw_id().to_string());
+            }
 
             // Same capture as the batch path, for the same compensating re-check.
             let written: Vec<(String, String, String)> = db_spans
@@ -325,6 +373,22 @@ impl TracePipeline {
                 // Same as the batch path: resolved from the store, now that the rows are there.
                 self.stamp_stored_sessions(&mut sse_events).await;
                 publish_sse_events(&sse_events, &self.topics).await;
+                // The rows are written: the latest record must hold them. A failure here is answered as a
+                // failure, and the retry - idempotent for rows and record alike - repeats the check.
+                let repair = WrittenRecord {
+                    draft: &raw,
+                    request,
+                    kept: kept_for_raw.clone(),
+                    written: surviving
+                        .iter()
+                        .map(|(_, trace, span)| ((*trace).to_string(), (*span).to_string()))
+                        .collect(),
+                    hold_until,
+                };
+                if let Err(error) = self.repair_raw_records(std::slice::from_ref(&repair)).await {
+                    tracing::error!(%error, "Could not check the raw record against the rows written");
+                    return IngestOutcome::Failed;
+                }
                 if partly_dropped > 0 {
                     IngestOutcome::PartlyDropped {
                         spans: partly_dropped,

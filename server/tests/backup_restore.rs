@@ -23,7 +23,8 @@ use sideseat_ports::traits::{
     AnalyticsRepository, DeletionCause, DeletionRecord, DeletionScope, TransactionalRepository,
 };
 use sideseat_ports::types::{
-    ListLogsParams, MessageQueryParams, NormalizedLog, NormalizedSpan, ProjectId,
+    ListLogsParams, MessageQueryParams, NormalizedLog, NormalizedSpan, ProjectId, RawOrigin,
+    RawRecordRow, StagedSignal,
 };
 use tempfile::TempDir;
 
@@ -119,6 +120,15 @@ async fn backup_destroy_restore_repair_preserves_only_the_right_data() {
             .expect("missing ref count");
 
         let now = Utc::now();
+        // The authority the rows are derived from: one record per trace, so the restore's journal replay has
+        // raw content to reach as well as rows.
+        analytics
+            .insert_raw_records(&[
+                raw_record("survivor", now),
+                raw_record("requested-delete", now),
+            ])
+            .await
+            .expect("raw records");
         analytics
             .insert_spans(vec![
                 span(
@@ -340,6 +350,60 @@ async fn backup_destroy_restore_repair_preserves_only_the_right_data() {
         .expect("restored associations");
     associations.sort();
     assert_eq!(associations, vec![present, missing]);
+
+    // The restore replayed a trace deletion, so the raw record holding that trace is queued for
+    // reconciliation - the only way deleted content leaves the authority. The survivor's record is not
+    // touched by the replay, and remains readable.
+    let project = ProjectId::from("default");
+    let queued: Vec<String> = analytics
+        .pending_raw_records(usize::MAX)
+        .await
+        .expect("reconciliation queue")
+        .into_iter()
+        .map(|entry| entry.raw_id)
+        .collect();
+    assert!(
+        queued.contains(&"raw-requested-delete".to_owned()),
+        "the replayed deletion must enqueue the record holding its trace: {queued:?}"
+    );
+    let survivor_record = analytics
+        .get_raw_records(&project, &["raw-survivor".to_owned()])
+        .await
+        .expect("survivor raw record");
+    assert_eq!(survivor_record.len(), 1);
+    assert_eq!(survivor_record[0].origin, RawOrigin::Received);
+
+    // A legal hold reaches the authority as it reaches the rows, so a restored record cannot expire while
+    // the hold stands.
+    let until = Utc::now() + Duration::days(30);
+    analytics
+        .patch_project_hold(&project, until)
+        .await
+        .expect("patch the hold");
+    let held = analytics
+        .get_raw_records(&project, &["raw-survivor".to_owned()])
+        .await
+        .expect("held raw record");
+    assert!(
+        held[0].hold_until.is_some(),
+        "a legal hold must reach the raw records"
+    );
+}
+
+/// One stored record for a trace, as ingestion would write it.
+fn raw_record(trace_id: &str, at: chrono::DateTime<Utc>) -> RawRecordRow {
+    RawRecordRow {
+        project_id: ProjectId::from("default"),
+        raw_id: format!("raw-{trace_id}"),
+        signal: StagedSignal::Traces,
+        received_at: at,
+        origin: RawOrigin::Received,
+        version: at.timestamp_micros(),
+        signal_until: at,
+        hold_until: None,
+        trace_ids: vec![trace_id.to_owned()],
+        record: b"SSR1\0\0body".to_vec(),
+    }
 }
 
 fn span(
