@@ -129,6 +129,11 @@ spellings, or "if this producer then" branches. All of that lives in the JSON as
 
 - Preserve raw telemetry during ingestion. SideML role derivation, normalization, history detection, and
   deduplication happen at read time.
+- Raw telemetry is the authority and is stored exactly once, completely and losslessly (byte-exact round
+  trip, media by content hash). Everything derived from it - extracted columns, message views, search terms -
+  is a cache that a re-derivation rebuilds identically from the raw store, so a parsing defect is fixed by
+  re-parsing rather than lost. Storage is minimised by never keeping a second copy of raw content, not by
+  keeping less of it.
 - Every reconstructed conversation must satisfy the rubric in `server/tests/fixtures/messages/README.md`:
   complete messages, correct roles, no duplicates, tool calls before their results, and the same order for
   spans, traces, and sessions. The native and SDK modes of a framework must reconstruct identically. Since
