@@ -54,6 +54,8 @@ updates:
   - package-ecosystem: "docker"
     directories:
       - "/scripts/deploy"
+      # The ingest benchmark image pins its Rust builder and Debian runtime the same way.
+      - "/scripts/deploy/bench"
     schedule:
       interval: "weekly"
     commit-message:

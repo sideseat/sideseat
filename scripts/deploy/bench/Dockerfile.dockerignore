@@ -1,0 +1,16 @@
+# The bench image builds the workspace, so unlike the release image it needs every workspace member
+# (`sdk/rust`) and nothing else from the SDKs, examples, docs or the web app.
+target/
+.git/
+**/node_modules/
+**/.venv/
+web/
+docs/
+examples/
+cli/
+sdk/python/
+sdk/js/
+sdk/dotnet/
+scripts/tools/
+*.duckdb
+*.db
