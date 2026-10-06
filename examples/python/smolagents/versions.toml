@@ -1,0 +1,64 @@
+# The historical openinference-instrumentation-smolagents releases this suite is replayed against; see `python -m harness matrix --help`
+# and docs/engineering/framework-versions.md. The OpenInference smolagents instrumentor writes the spans, so its release history is the window.
+[matrix]
+package = "openinference-instrumentation-smolagents"
+since = "2025-10-05"
+resolved-before = "2026-10-05T00:00:00Z"
+# LiteLLM routes a Bedrock model by the model map it downloads at import; without it, it routes current Claude
+# models to InvokeModel instead of the Converse calls the suite (and its cassettes) make.
+allow-hosts = ["raw.githubusercontent.com"]
+probes = ["tool_use", "streaming"]
+scenarios = ["tool_use", "streaming"]
+
+# Each variant is the newest release of one telemetry class in `versions.census.json`.
+[[variant]]
+version = "0.1.26"
+doc = "0.1.26: model spans record no input messages."
+
+[[variant]]
+version = "0.1.27"
+doc = "0.1.27: llm.input_messages with text content and system, user, tool-call and tool-response roles."
+
+[[variant]]
+version = "0.1.32"
+doc = "0.1.28-0.1.32: input message content moves to llm.input_messages.#.message.contents.#.message_content.*, and assistant turns appear."
+
+[[variant]]
+version = "0.1.42"
+current = true
+doc = "0.1.33 onwards: streamed model calls get their own LiteLLMModel.generate_stream span. The suite's locked release; its fixtures are the ordinary capture."
+
+[[exempt]]
+version = "0.1.19"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.20"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.21"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.22"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.23"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.24"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.25"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"

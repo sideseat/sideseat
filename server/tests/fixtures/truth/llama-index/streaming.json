@@ -4,6 +4,8 @@
  "scenario": "streaming",
  "fixtures": [
   "llama-index/native/streaming",
+  "llama-index/native@4.3.10/streaming",
+  "llama-index/native@4.5.2/streaming",
   "llama-index/sdk/streaming"
  ],
  "source": {

@@ -4,6 +4,8 @@
  "scenario": "tool_use",
  "fixtures": [
   "llama-index/native/tool_use",
+  "llama-index/native@4.3.10/tool_use",
+  "llama-index/native@4.5.2/tool_use",
   "llama-index/sdk/tool_use"
  ],
  "source": {

@@ -190,6 +190,12 @@ accept the harness's httpx2 client.
 `gen_ai.tool.name` on tool spans, 0.62.1 drops `traceloop.workflow.name`. 0.47.4 - 0.48.1 import
 `opentelemetry._events`, which OpenTelemetry 1.45 removed, and are exempt.
 
+**OpenInference's smolagents instrumentor** (24 releases, 4 classes): 0.1.27 records input messages,
+0.1.28 moves their content into `message.contents`, 0.1.33 gives streamed calls their own span; 0.1.19 -
+0.1.25 call wrapt 1.x and are exempt. **OpenInference's LlamaIndex instrumentor** (19 releases, 4 classes):
+4.3.9 records tool calls in the model input (the 4.3.6 - 4.3.8 captures are withheld for the empty text block
+their tool-calling turns leave), and 4.4 and 4.5.3 change message JSON.
+
 Replay gives the scenario an HTTP proxy that refuses everything but loopback, so a release that ignores the
 client it is given (AgentScope 2.0.0 - 2.0.5) fails locally instead of reaching a provider's public API. A suite
 that must reach another host declares it with its reason (`allow-hosts`: LiteLLM routes Bedrock models by

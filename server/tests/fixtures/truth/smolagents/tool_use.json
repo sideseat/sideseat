@@ -4,6 +4,9 @@
  "scenario": "tool_use",
  "fixtures": [
   "smolagents/native/tool_use",
+  "smolagents/native@0.1.26/tool_use",
+  "smolagents/native@0.1.27/tool_use",
+  "smolagents/native@0.1.32/tool_use",
   "smolagents/sdk/tool_use"
  ],
  "source": {
