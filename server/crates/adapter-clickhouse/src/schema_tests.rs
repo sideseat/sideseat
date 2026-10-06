@@ -27,8 +27,8 @@ fn test_generate_schema_single_node() {
     let config = default_config();
     let statements = generate_schema(&config);
 
-    // Five tables followed by one policy for each project-scoped physical table.
-    assert_eq!(statements.len(), 9);
+    // Six tables followed by one policy for each project-scoped physical table.
+    assert_eq!(statements.len(), 11);
     // Indexed by name rather than by position, because a count plus a positional assertion is what made
     // adding a table here a two-test edit with a silent window in between.
     let spans = statements
@@ -51,8 +51,8 @@ fn test_generate_schema_distributed() {
     };
     let statements = generate_schema(&config);
 
-    // Nine tables followed by four policies on the physical `_local` tables.
-    assert_eq!(statements.len(), 13);
+    // Eleven tables followed by five policies on the physical `_local` tables.
+    assert_eq!(statements.len(), 16);
     // The anomaly table needs a front end in distributed mode or the report is per-shard: a pass on shard A
     // records there and a read reaching shard B returns nothing.
     assert!(
@@ -100,7 +100,7 @@ fn test_get_insert_table_distributed() {
 #[test]
 fn tenant_policies_are_fail_closed_and_target_physical_tables() {
     let single = tenant_row_policies(&default_config());
-    assert_eq!(single.len(), 4);
+    assert_eq!(single.len(), 5);
     assert!(single.iter().all(|policy| {
         policy.contains("getSettingOrDefault('SQL_sideseat_project_id', '')")
             && policy.contains("getSettingOrDefault('SQL_sideseat_maintenance', 0) = 1")
@@ -179,24 +179,6 @@ fn test_schema_has_ttl() {
 }
 
 #[test]
-fn v5_migration_patches_every_local_ttl_to_the_hold_deadline() {
-    let migration = MIGRATIONS
-        .iter()
-        .find(|migration| migration.version == 5)
-        .expect("v5 migration");
-    for table in ["otel_spans", "otel_metrics", "otel_logs"] {
-        assert!(
-            migration.statements.iter().any(|statement| {
-                statement.contains(&format!("ALTER TABLE {table}{{local}}"))
-                    && statement.contains("MODIFY TTL greatest(")
-                    && statement.contains("coalesce(hold_until")
-            }),
-            "{table} has no hold-aware TTL migration"
-        );
-    }
-}
-
-#[test]
 fn test_schema_has_indices() {
     let spans_schema = single_node_spans_schema();
     assert!(spans_schema.contains("INDEX idx_trace_id"));
@@ -231,91 +213,6 @@ fn test_get_delete_table_distributed() {
 /// `apply_versioned_migration` walks `(current+1)..=SCHEMA_VERSION` and fails on any version it
 /// does not know, so bumping the constant without adding an entry turns every existing database
 /// into a startup error. That failure belongs here, not at a user's first restart after upgrading.
-#[test]
-fn migrations_cover_every_version() {
-    let first_upgradable = MIN_UPGRADABLE_FROM + 1;
-    let current = SCHEMA_VERSION;
-    for version in first_upgradable..=current {
-        assert!(
-            MIGRATIONS.iter().any(|m| m.version == version),
-            "schema v{version} has no entry in MIGRATIONS: a database written by an older build \
-                 would fail to start. Add the migration, or raise MIN_UPGRADABLE_FROM if v{version} \
-                 was never released."
-        );
-    }
-}
-
-/// Entries must be ordered and unique, because they are applied in sequence.
-#[test]
-fn migrations_are_ordered_and_unique() {
-    let versions: Vec<i32> = MIGRATIONS.iter().map(|m| m.version).collect();
-    let mut sorted = versions.clone();
-    sorted.sort_unstable();
-    sorted.dedup();
-    assert_eq!(
-        versions, sorted,
-        "MIGRATIONS must be strictly ascending with no repeats"
-    );
-    for m in MIGRATIONS {
-        let (version, name) = (m.version, m.name);
-        assert!(
-            version > MIN_UPGRADABLE_FROM,
-            "migration v{version} ({name}) is at or below MIN_UPGRADABLE_FROM, so it can never run"
-        );
-        assert!(
-            !m.statements.is_empty(),
-            "migration v{version} ({name}) has no statements"
-        );
-        // A `Distributed` front end has no rows, so a statement aimed at it can only be DDL that
-        // the local table also received - never the sorting-key change, which would be rejected.
-        for statement in m.distributed_statements {
-            assert!(
-                !statement.contains("{local}"),
-                "migration v{version} ({name}) aims a {{local}} statement at the distributed table"
-            );
-        }
-    }
-}
-
-/// Every placeholder a migration uses is one the runner substitutes.
-///
-/// Unknown placeholders would reach ClickHouse verbatim, so migration SQL is checked before deployment.
-#[test]
-fn migrations_use_only_known_placeholders() {
-    // Must match the substitutions `apply_versioned_migration` performs.
-    const KNOWN: [&str; 6] = [
-        "{on_cluster}",
-        "{local}",
-        "{replacement_engine}",
-        "{cluster}",
-        "{database}",
-        "{database_identifier}",
-    ];
-    for m in MIGRATIONS {
-        let all = m
-            .statements
-            .iter()
-            .chain(m.distributed_statements.iter())
-            .chain(m.precondition.iter());
-        for statement in all {
-            let mut rest = *statement;
-            while let Some(start) = rest.find('{') {
-                let end = rest[start..]
-                    .find('}')
-                    .unwrap_or_else(|| panic!("migration v{} has an unclosed '{{'", m.version))
-                    + start;
-                let placeholder = &rest[start..=end];
-                assert!(
-                    KNOWN.contains(&placeholder),
-                    "migration v{} uses unknown placeholder {placeholder}",
-                    m.version
-                );
-                rest = &rest[end + 1..];
-            }
-        }
-    }
-}
-
 #[test]
 fn test_get_on_cluster_clause_single_node() {
     let config = default_config();

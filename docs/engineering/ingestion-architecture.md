@@ -11,7 +11,7 @@ The backend is a Cargo workspace rooted at the repository root. Every backend li
 
 | Layer                  | Responsibility                                                                             |
 | ---------------------- | ------------------------------------------------------------------------------------------ |
-| `sideseat-core`        | Configuration, constants, storage paths, migrations, and generic utilities                 |
+| `sideseat-core`        | Configuration, constants, storage paths, the schema-version check, and generic utilities   |
 | `sideseat-ports`       | Repository, queue, cache, clock, blob, pricing, registration, and secret contracts         |
 | `sideseat-domain`      | SideML, rules, files, pricing, search, storage governance, and restore workflows           |
 | `sideseat-ingestion`   | OTLP decoding, normalization, identity, staging, durability, and persistence orchestration |

@@ -533,3 +533,44 @@ pub trait AnalyticsMaintenance: Send + Sync {
         ))
     }
 }
+
+/// Stored raw exports, keyed per project by `raw_id`.
+///
+/// Raw records are written before the rows derived from them and are idempotent by `raw_id`: a redelivery of
+/// the same body is the same record. A record no derived row names any more is removed by
+/// [`RawStore::delete_unreferenced_raw_records`], after a grace period that covers the window between a record's
+/// write and its rows'.
+#[async_trait]
+pub trait RawStore: Send + Sync {
+    async fn insert_raw_records(&self, records: &[RawRecordRow]) -> Result<(), DataError>;
+
+    async fn get_raw_records(
+        &self,
+        project_id: &ProjectId,
+        raw_ids: &[String],
+    ) -> Result<Vec<RawRecordRow>, DataError>;
+
+    /// One page in `(received_at, raw_id)` order, after the given position: the order a re-derivation replays.
+    async fn raw_records_page(
+        &self,
+        project_id: &ProjectId,
+        after: Option<(DateTime<Utc>, String)>,
+        limit: usize,
+    ) -> Result<Vec<RawRecordRow>, DataError>;
+
+    /// Replace a record's bytes after a deletion removed some of what it held, keeping its `raw_id`.
+    async fn rewrite_raw_record(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+        record: &[u8],
+    ) -> Result<(), DataError>;
+
+    /// Delete a project's records received before `received_before` that no span, log or metric row names.
+    /// Returns how many went.
+    async fn delete_unreferenced_raw_records(
+        &self,
+        project_id: &ProjectId,
+        received_before: DateTime<Utc>,
+    ) -> Result<u64, DataError>;
+}

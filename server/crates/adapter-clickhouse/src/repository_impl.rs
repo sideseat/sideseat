@@ -887,3 +887,6 @@ impl SurvivorReferences for ClickhouseRepository {
         )
     }
 }
+
+// After the query macros, which it uses.
+mod raw_store;

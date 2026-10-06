@@ -3,7 +3,7 @@
 //! Initial schema with all tables. Compatible with SQLite schema structure.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 10;
+pub const SCHEMA_VERSION: i32 = 2;
 
 /// Project-scoped tables protected by PostgreSQL row-level security.
 ///
@@ -84,15 +84,6 @@ CREATE TABLE IF NOT EXISTS schema_version (
     version INTEGER NOT NULL,
     applied_at BIGINT NOT NULL,
     description TEXT
-);
-
-CREATE TABLE IF NOT EXISTS schema_migrations (
-    version INTEGER PRIMARY KEY,
-    name TEXT NOT NULL,
-    applied_at BIGINT NOT NULL,
-    checksum TEXT NOT NULL,
-    execution_time_ms INTEGER,
-    success BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 -- =============================================================================
@@ -603,7 +594,6 @@ mod tests {
     fn test_schema_contains_required_tables() {
         let required_tables = [
             "schema_version",
-            "schema_migrations",
             "organizations",
             "users",
             "organization_members",

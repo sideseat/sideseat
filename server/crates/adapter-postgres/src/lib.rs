@@ -186,7 +186,7 @@ impl PostgresService {
         sqlx::raw_sql(ROLE_BOOTSTRAP_SQL)
             .execute(&owner_pool)
             .await?;
-        migrations::run_migrations(&owner_pool, clock.as_ref()).await?;
+        migrations::ensure_schema(&owner_pool, clock.as_ref()).await?;
         sqlx::raw_sql(ROLE_GRANTS_SQL).execute(&owner_pool).await?;
 
         let pool = Self::connect_pool(

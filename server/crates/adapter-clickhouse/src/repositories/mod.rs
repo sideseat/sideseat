@@ -10,6 +10,7 @@ pub mod log;
 pub mod messages;
 pub mod metric;
 pub mod query;
+pub mod raw;
 pub mod search;
 pub mod span;
 pub mod stats;

@@ -97,6 +97,7 @@ struct SpanRow {
     #[serde(with = "clickhouse::serde::time::datetime64::micros::option")]
     hold_until: Option<time::OffsetDateTime>,
     logical_bytes: u64,
+    raw_id: Option<String>,
     search_indexed: u8,
     search_prompt: Vec<String>,
     search_prompt_truncated: u8,
@@ -221,6 +222,7 @@ impl From<&NormalizedSpan> for SpanRow {
             content_digest: span.content_digest.clone(),
             hold_until: span.hold_until.map(chrono_to_time),
             logical_bytes: span.logical_bytes,
+            raw_id: span.raw_id.clone(),
             search_indexed: u8::from(span.search.indexed),
             search_prompt: search_terms(span, SearchField::Prompt).0,
             search_prompt_truncated: search_terms(span, SearchField::Prompt).1,

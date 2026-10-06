@@ -8,12 +8,8 @@ pub enum ClickhouseError {
     #[error("Database error: {0}")]
     Database(#[from] clickhouse::error::Error),
 
-    #[error("Migration {version} ({name}) failed: {error}")]
-    MigrationFailed {
-        version: i32,
-        name: String,
-        error: String,
-    },
+    #[error(transparent)]
+    UnsupportedSchema(sideseat_core::schema_version::UnsupportedSchema),
 
     #[error("Connection error: {0}")]
     Connection(String),
@@ -47,16 +43,9 @@ impl From<ClickhouseError> for DataError {
                     source: Some(Box::new(e)),
                 }
             }
-            ClickhouseError::MigrationFailed {
-                version,
-                name,
-                error,
-            } => Self::MigrationFailed {
-                backend: "clickhouse",
-                version,
-                name,
-                error,
-            },
+            ClickhouseError::UnsupportedSchema(refusal) => {
+                Self::unsupported_schema("clickhouse", refusal)
+            }
             ClickhouseError::Connection(msg) => Self::Config(msg),
             ClickhouseError::Io(e) => Self::Io(e),
             ClickhouseError::Timeout { timeout_secs } => Self::Timeout {
@@ -70,19 +59,6 @@ impl From<ClickhouseError> for DataError {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_migration_failed_error_display() {
-        let err = ClickhouseError::MigrationFailed {
-            version: 2,
-            name: "add_analytics_table".to_string(),
-            error: "syntax error".to_string(),
-        };
-        assert_eq!(
-            err.to_string(),
-            "Migration 2 (add_analytics_table) failed: syntax error"
-        );
-    }
 
     #[test]
     fn test_connection_error_display() {
@@ -101,17 +77,5 @@ mod tests {
         let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
         let ch_err: ClickhouseError = io_err.into();
         assert!(ch_err.to_string().contains("file not found"));
-    }
-
-    #[test]
-    fn test_error_debug() {
-        let err = ClickhouseError::MigrationFailed {
-            version: 1,
-            name: "test".to_string(),
-            error: "error".to_string(),
-        };
-        let debug_str = format!("{:?}", err);
-        assert!(debug_str.contains("MigrationFailed"));
-        assert!(debug_str.contains("version: 1"));
     }
 }

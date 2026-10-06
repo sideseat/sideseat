@@ -7,6 +7,6 @@ pub mod banner;
 pub mod cli;
 pub mod config;
 pub mod constants;
-pub mod migration;
+pub mod schema_version;
 pub mod storage;
 pub mod utils;

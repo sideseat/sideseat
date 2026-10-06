@@ -1,12 +1,15 @@
 //! DuckDB schema definitions.
 //!
+//! Long text columns are declared `USING COMPRESSION zstd`, which DuckDB honours in the storage format every
+//! file is created in (`DUCKDB_STORAGE_VERSION` in the adapter).
+//!
 //! Append-only storage with no PRIMARY KEY constraints.
 //! Deduplication happens at read time: SpanRow/MessageSpanRow queries
 //! are deduped in Rust (DedupAnalyticsRepository), aggregation queries
 //! use an inline DEDUP_SPANS subquery.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 7;
+pub const SCHEMA_VERSION: i32 = 2;
 
 /// Complete schema SQL
 pub const SCHEMA: &str = r#"
@@ -48,7 +51,7 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     status_message      VARCHAR,            -- Error message if status=ERROR
     exception_type      VARCHAR,            -- Exception class/type name
     exception_message   VARCHAR,            -- Exception message text
-    exception_stacktrace VARCHAR,           -- Exception stacktrace
+    exception_stacktrace VARCHAR USING COMPRESSION zstd,           -- Exception stacktrace
 
     -- ═══════════════════════════════════════════════════════════════════
     -- CLASSIFICATION (Extracted at ingestion)
@@ -114,7 +117,7 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     gen_ai_usage_cache_read_tokens  BIGINT NOT NULL DEFAULT 0,  -- Anthropic/OpenAI cache
     gen_ai_usage_cache_write_tokens BIGINT NOT NULL DEFAULT 0,
     gen_ai_usage_reasoning_tokens   BIGINT NOT NULL DEFAULT 0,  -- o1/o3/thinking
-    gen_ai_usage_details            JSON,   -- Overflow: provider-specific usage
+    gen_ai_usage_details            JSON USING COMPRESSION zstd,   -- Overflow: provider-specific usage
 
     -- ═══════════════════════════════════════════════════════════════════
     -- GEN AI: COSTS (NOT NULL DEFAULT 0, DECIMAL for precision)
@@ -158,7 +161,7 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     -- USER-DEFINED DATA
     -- ═══════════════════════════════════════════════════════════════════
     tags                        VARCHAR,    -- User-defined tags (JSON array)
-    metadata                    JSON,       -- User-defined key-value pairs
+    metadata                    JSON USING COMPRESSION zstd,       -- User-defined key-value pairs
     input_preview               VARCHAR,    -- Truncated input for UI display
     output_preview              VARCHAR,    -- Truncated output for UI display
 
@@ -166,15 +169,15 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     -- RAW MESSAGES, TOOL DEFINITIONS, TOOL NAMES
     -- Stored as JSON array; converted to SideML on query
     -- ═══════════════════════════════════════════════════════════════════
-    messages                    JSON NOT NULL DEFAULT '[]',
-    tool_definitions            JSON NOT NULL DEFAULT '[]',
-    tool_names                  JSON NOT NULL DEFAULT '[]',
+    messages                    JSON NOT NULL DEFAULT '[]' USING COMPRESSION zstd,
+    tool_definitions            JSON NOT NULL DEFAULT '[]' USING COMPRESSION zstd,
+    tool_names                  JSON NOT NULL DEFAULT '[]' USING COMPRESSION zstd,
 
     -- ═══════════════════════════════════════════════════════════════════
     -- RAW SPAN (original OTLP span for reconstruction/debugging)
     -- Stored as JSON for direct querying; includes attributes and resource.attributes
     -- ═══════════════════════════════════════════════════════════════════
-    raw_span                    JSON,
+    raw_span                    JSON USING COMPRESSION zstd,
 
     -- Instrumentation scope (v2). Declared last, deliberately: the span writer is a positional
     -- Appender and a migration can only append, so fresh and upgraded databases must agree on the
@@ -186,6 +189,8 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     content_digest              VARCHAR NOT NULL DEFAULT '',
     hold_until                 TIMESTAMP,
     logical_bytes              UBIGINT NOT NULL DEFAULT 0,
+    -- The stored raw record this row was derived from (otel_raw.raw_id).
+    raw_id                     VARCHAR
 );
 
 -- Indexes for spans (minimal - DuckDB columnar scans are efficient for low-cardinality filters)
@@ -264,7 +269,7 @@ CREATE TABLE IF NOT EXISTS otel_metrics (
     exemplar_value_int      BIGINT,             -- Exemplar integer value
     exemplar_value_double   DOUBLE,             -- Exemplar double value
     exemplar_timestamp      TIMESTAMP,          -- Exemplar timestamp
-    exemplar_attributes     JSON,               -- Exemplar filtered attributes
+    exemplar_attributes     JSON USING COMPRESSION zstd,               -- Exemplar filtered attributes
 
     -- ═══════════════════════════════════════════════════════════════════
     -- CONTEXT (extracted from attributes)
@@ -290,14 +295,14 @@ CREATE TABLE IF NOT EXISTS otel_metrics (
     -- ═══════════════════════════════════════════════════════════════════
     -- ATTRIBUTES
     -- ═══════════════════════════════════════════════════════════════════
-    attributes              JSON,               -- Data point attributes
-    resource_attributes     JSON,               -- Resource attributes
+    attributes              JSON USING COMPRESSION zstd,               -- Data point attributes
+    resource_attributes     JSON USING COMPRESSION zstd,               -- Resource attributes
 
     -- ═══════════════════════════════════════════════════════════════════
     -- FLAGS & RAW
     -- ═══════════════════════════════════════════════════════════════════
     flags                   INTEGER,            -- OTLP data point flags
-    raw_metric              JSON,               -- Raw metric JSON for debugging
+    raw_metric              JSON USING COMPRESSION zstd,               -- Raw metric JSON for debugging
 
     -- ═══════════════════════════════════════════════════════════════════
     -- IDENTITY (last, deliberately)
@@ -312,13 +317,13 @@ CREATE TABLE IF NOT EXISTS otel_metrics (
     datapoint_id            VARCHAR NOT NULL,
     -- Instrumentation scope attributes and the schema URLs, which OTel counts as part of what names a
     -- stream. Appended, like `datapoint_id`, for the reason above.
-    scope_attributes        JSON,
+    scope_attributes        JSON USING COMPRESSION zstd,
     scope_schema_url        VARCHAR,
     resource_schema_url     VARCHAR,
     -- Every exemplar, not just the first. A histogram carries one per bucket, so the six flat
     -- `exemplar_*` columns above - which the trace-correlation index is built on - held one trace link
     -- out of however many the exporter sent. Appended, for the positional-Appender reason above.
-    exemplars               JSON,
+    exemplars               JSON USING COMPRESSION zstd,
     -- Server receipt time, and the version that decides which re-delivery of a datapoint wins.
     -- ClickHouse sorts its replacing engine by it; this side compares it before replacing, so both
     -- backends answer that question the same way. Appended, for the positional-Appender reason above.
@@ -359,9 +364,9 @@ CREATE TABLE IF NOT EXISTS otel_logs (
     observed_time            TIMESTAMP,
     severity_number          INTEGER NOT NULL,
     severity_text            VARCHAR,
-    body                     JSON,
-    body_text                VARCHAR,
-    attributes               JSON,
+    body                     JSON USING COMPRESSION zstd,
+    body_text                VARCHAR USING COMPRESSION zstd,
+    attributes               JSON USING COMPRESSION zstd,
     dropped_attributes_count UINTEGER NOT NULL,
     flags                     UINTEGER NOT NULL,
     trace_id                  VARCHAR,
@@ -374,19 +379,19 @@ CREATE TABLE IF NOT EXISTS otel_logs (
     service_version           VARCHAR,
     service_namespace         VARCHAR,
     service_instance_id       VARCHAR,
-    resource_attributes       JSON,
+    resource_attributes       JSON USING COMPRESSION zstd,
     scope_name                VARCHAR,
     scope_version             VARCHAR,
-    scope_attributes          JSON,
+    scope_attributes          JSON USING COMPRESSION zstd,
     scope_schema_url          VARCHAR,
     resource_schema_url       VARCHAR,
-    raw_log                   JSON,
+    raw_log                   JSON USING COMPRESSION zstd,
     ingested_at               TIMESTAMP NOT NULL,
     hold_until                TIMESTAMP,
     logical_bytes             UBIGINT NOT NULL DEFAULT 0,
     -- Raw messages a declared log event carries, derived at ingest and joined to the span it names at
     -- read time. Not identity: `log_digest` covers the record, not this.
-    messages                  VARCHAR DEFAULT '[]'
+    messages                  VARCHAR DEFAULT '[]' USING COMPRESSION zstd
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_logs_identity
     ON otel_logs(project_id, log_digest, ordinal);
@@ -396,6 +401,21 @@ CREATE INDEX IF NOT EXISTS idx_logs_trace_span
     ON otel_logs(project_id, trace_id, span_id);
 CREATE INDEX IF NOT EXISTS idx_logs_service
     ON otel_logs(project_id, service_name);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Raw telemetry: every received export as an SSR1 record, the authority the other tables are derived from.
+-- Append-only and idempotent by (project_id, raw_id); readers take the latest row of a raw_id, which is the
+-- rewrite after a deletion when there is one.
+-- ═══════════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS otel_raw (
+    project_id   VARCHAR NOT NULL,
+    raw_id       VARCHAR NOT NULL,
+    signal       VARCHAR NOT NULL,
+    received_at  TIMESTAMP NOT NULL,
+    rewritten    BOOLEAN NOT NULL DEFAULT false,
+    record       BLOB NOT NULL USING COMPRESSION zstd
+);
+CREATE INDEX IF NOT EXISTS idx_raw_identity ON otel_raw(project_id, raw_id);
 
 -- Current-version search terms. Corrections replace these rows in the same transaction as
 -- appending the new source revision. An empty term is a field marker, not a searchable token.
@@ -446,6 +466,7 @@ mod tests {
             "otel_logs",
             "span_terms",
             "log_terms",
+            "otel_raw",
         ];
 
         for table in required_tables {

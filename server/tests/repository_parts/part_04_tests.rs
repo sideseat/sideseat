@@ -619,12 +619,6 @@ fn every_detector_is_actually_started_in_production() {
             "traces_without_spans",
             "a favourited trace with one expired span would lose its favourite while still being visible",
         ),
-        (
-            "server/crates/adapter-clickhouse/src/lib.rs",
-            "report_unidentified_metric_rows",
-            "an upgrade would not report pre-identity metric rows, so an operator would have no way to learn \
-             that a released row and its correction are both being served",
-        ),
     ] {
         let text = std::fs::read_to_string(repo.join(file))
             .unwrap_or_else(|e| panic!("{file} is readable: {e}"));

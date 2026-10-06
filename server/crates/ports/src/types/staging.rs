@@ -22,6 +22,15 @@ impl StagedSignal {
             Self::Logs => "logs",
         }
     }
+
+    pub fn from_stored(value: &str) -> Option<Self> {
+        match value {
+            "traces" => Some(Self::Traces),
+            "metrics" => Some(Self::Metrics),
+            "logs" => Some(Self::Logs),
+            _ => None,
+        }
+    }
 }
 
 /// One row a delivery must either confirm or prove deliberately absent.

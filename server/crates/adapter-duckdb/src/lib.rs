@@ -63,6 +63,36 @@ impl Drop for DuckdbService {
     }
 }
 
+/// The DuckDB storage format analytics files are created in: the first that compresses a column with zstd.
+const DUCKDB_STORAGE_VERSION: &str = "v1.5.0";
+
+/// Open the analytics file with the session settings every connection needs.
+fn open_configured(
+    db_path: &std::path::Path,
+    temp_dir: &std::path::Path,
+) -> Result<Connection, DuckdbError> {
+    // New files in the storage format that honours the schema's `USING COMPRESSION zstd`; DuckDB's default
+    // (`v0.10.2`) stores long strings uncompressed.
+    let config =
+        duckdb::Config::default().with("storage_compatibility_version", DUCKDB_STORAGE_VERSION)?;
+    let conn = Connection::open_with_flags(db_path, config)?;
+    // Doubled single quotes, because a path is not a literal until it is escaped and a user's data
+    // directory may contain an apostrophe. `SET` takes no bind parameters, so this is the escape.
+    let temp_dir_literal = temp_dir.display().to_string().replace('\'', "''");
+    conn.execute_batch(&format!(
+        "SET autoinstall_known_extensions = false;
+         SET autoload_known_extensions = false;
+         SET extension_directory = '';
+         SET force_compression = 'auto';
+         SET memory_limit = '{limit}B';
+         SET temp_directory = '{temp_dir_literal}';
+         PRAGMA enable_checkpoint_on_shutdown;
+         LOAD json;",
+        limit = DUCKDB_MEMORY_LIMIT_BYTES,
+    ))?;
+    Ok(conn)
+}
+
 impl DuckdbService {
     /// Physical metric row count for a project. Test-only: production counts through
     /// `count_project_rows`, and the point of this is to see the rows *behind* that answer - a count that
@@ -116,28 +146,14 @@ impl DuckdbService {
         // those run. If it proves too tight, the fix is a configuration key rather than a larger constant,
         // since the right value depends on the corpus.
         let temp_dir = storage.subdir(DataSubdir::Duckdb);
+        let migration_clock = Arc::clone(&clock);
         let conn = tokio::task::spawn_blocking(move || {
-            let conn = Connection::open(&db_path)?;
-            // Doubled single quotes, because a path is not a literal until it is escaped and a user's data
-            // directory may contain an apostrophe. `SET` takes no bind parameters, so this is the escape.
-            let temp_dir_literal = temp_dir.display().to_string().replace('\'', "''");
-            conn.execute_batch(&format!(
-                "SET autoinstall_known_extensions = false;
-                 SET autoload_known_extensions = false;
-                 SET extension_directory = '';
-                 SET force_compression = 'auto';
-                 SET memory_limit = '{limit}B';
-                 SET temp_directory = '{temp_dir_literal}';
-                 PRAGMA enable_checkpoint_on_shutdown;
-                 LOAD json;",
-                limit = DUCKDB_MEMORY_LIMIT_BYTES,
-            ))?;
-            Ok::<_, duckdb::Error>(conn)
+            let conn = open_configured(&db_path, &temp_dir)?;
+            migrations::ensure_schema(&conn, migration_clock.as_ref())?;
+            Ok::<_, DuckdbError>(conn)
         })
         .await
         .map_err(|e| DuckdbError::Io(std::io::Error::other(e)))??;
-
-        migrations::run_migrations(&conn, clock.as_ref())?;
 
         tracing::debug!(path = %storage.subdir(DataSubdir::Duckdb).join(DUCKDB_DB_FILENAME).display(), "DuckdbService initialized");
         Ok(Self {

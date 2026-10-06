@@ -676,10 +676,10 @@ fn migrated_analytics_operations_hold_no_adapter_sql_literal() {
     }
 }
 
-/// All database adapters share the same version-state machine. SQL and transaction mechanics stay
-/// local, but no adapter may reintroduce its own `(current + 1)..=target` loop or too-new policy.
+/// Every database adapter decides about an existing store through the one shared check, so none can grow its
+/// own upgrade path: a store is created, kept at the current version, or refused.
 #[test]
-fn every_database_adapter_uses_the_shared_migration_runner() {
+fn every_database_adapter_uses_the_shared_schema_check() {
     let files = [
         "server/crates/adapter-duckdb/src/migrations.rs",
         "server/crates/adapter-sqlite/src/migrations.rs",
@@ -699,12 +699,12 @@ fn every_database_adapter_uses_the_shared_migration_runner() {
         }
 
         assert!(
-            code.contains("plan_migrations("),
-            "{relative} bypasses sideseat_core::migration::plan_migrations"
+            code.contains("check(found, "),
+            "{relative} bypasses sideseat_core::schema_version::check"
         );
         assert!(
-            !code.contains("current_version + 1") && !code.contains("(v + 1)..="),
-            "{relative} has reintroduced a local migration-version loop"
+            !code.contains("ALTER TABLE"),
+            "{relative} upgrades a store in place; stores are created at the current version or refused"
         );
     }
 }

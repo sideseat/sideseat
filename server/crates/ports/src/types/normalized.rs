@@ -349,4 +349,8 @@ pub struct NormalizedSpan {
     pub logical_bytes: u64,
     /// Server-derived search terms. The same document is consumed by both analytics adapters.
     pub search: SearchDocument,
+    /// The stored raw record this span was derived from (`RawRecordRow::raw_id`). System-managed, so it is not
+    /// part of the span's logical size.
+    #[serde(skip)]
+    pub raw_id: Option<String>,
 }

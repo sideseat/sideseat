@@ -29,7 +29,8 @@ ratio, because it does not grow with telemetry.
 
 The gated figure is **stored bytes per item excluding media**: media (images, documents, audio) is stored once per
 project, losslessly, at its floor - the unique decoded bytes - and is reported beside it, not inside it.
-`--gate` fails the run when any signal exceeds its ceiling in `scripts/perf/storage-footprint-ceiling.json`: the
+The corpus is the pinned set in `scripts/perf/storage-footprint-corpus.json`, so a fixture added by another
+change cannot move the figure; `--update-manifest` pins the current fixtures deliberately. `--gate` fails the run when any signal exceeds its ceiling in `scripts/perf/storage-footprint-ceiling.json`: the
 `target` the product promises, and a `regression` ceiling - the last measured figure plus a margin - so a change
 that makes storage worse fails even while the target is still out of reach.
 """
@@ -38,6 +39,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import hashlib
 import json
 import os
 import shutil
@@ -56,9 +58,15 @@ CORPUS = ROOT / "server/tests/fixtures/messages"
 # Metric exports have no message golden, so they live in their own corpus (`harness capture --metrics`).
 METRIC_CORPUS = ROOT / "server/tests/fixtures/metrics"
 CEILING = ROOT / "scripts/perf/storage-footprint-ceiling.json"
+# The exact fixture set the gate measures, with each file's SHA-256. Pinned so a growing corpus cannot move the
+# figure: a deliberate change rewrites this file (`--update-manifest`) and re-measures in the same commit.
+MANIFEST = ROOT / "scripts/perf/storage-footprint-corpus.json"
 # Layers that are media objects. Everything else, content-body copies included, is telemetry encoding.
 MEDIA_LAYERS = ("blobs:files",)
 SIGNALS = ("traces", "logs", "metrics")
+# Raw records are the authority; only trace exports are stored as raw records so far.
+RAW_TABLES = {"otel_raw": "traces"}
+RAW_LAYERS = tuple(f"analytics:{table}" for table in RAW_TABLES)
 SPAN_TABLES = {
     "otel_spans": "traces",
     "span_terms": "traces",
@@ -66,7 +74,7 @@ SPAN_TABLES = {
 }
 LOG_TABLES = {"otel_logs": "logs", "log_terms": "logs"}
 METRIC_TABLES = {"otel_metrics": "metrics"}
-ANALYTICS_OWNER = {**SPAN_TABLES, **LOG_TABLES, **METRIC_TABLES}
+ANALYTICS_OWNER = {**RAW_TABLES, **SPAN_TABLES, **LOG_TABLES, **METRIC_TABLES}
 # Transactional tables whose rows exist per stored span or file. Everything else there is fixed.
 TRANSACTIONAL_OWNER = {
     "content_bodies": "traces",
@@ -90,8 +98,51 @@ def log(message: str) -> None:
 # --- corpus ------------------------------------------------------------------------------------------
 
 
+def corpus_paths() -> list[Path]:
+    """Every export file the fixture trees hold now."""
+    paths = []
+    for path in sorted([*CORPUS.rglob("*"), *METRIC_CORPUS.rglob("*")]):
+        prefix = path.name.split("-", 1)[0]
+        if (
+            prefix in ("req", "logs", "metrics")
+            and path.suffix in (".pb", ".json")
+            and path.is_file()
+        ):
+            paths.append(path)
+    return paths
+
+
+def write_manifest() -> None:
+    entries = {
+        str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in corpus_paths()
+    }
+    MANIFEST.write_text(json.dumps(entries, indent=0, sort_keys=True) + "\n")
+    log(f"manifest: {len(entries)} exports pinned in {MANIFEST.relative_to(ROOT)}")
+
+
+def manifest_paths() -> list[Path]:
+    """The pinned exports, refusing a run whose files changed since the manifest was written."""
+    entries = json.loads(MANIFEST.read_text())
+    paths, drift = [], []
+    for relative, digest in sorted(entries.items()):
+        path = ROOT / relative
+        if not path.is_file():
+            drift.append(f"missing {relative}")
+        elif hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+            drift.append(f"changed {relative}")
+        else:
+            paths.append(path)
+    if drift:
+        sys.exit(
+            "[storage] the pinned corpus no longer matches the fixtures; pin it again deliberately "
+            "with --update-manifest and re-measure:\n  " + "\n  ".join(drift[:20])
+        )
+    return paths
+
+
 def corpus() -> list[dict]:
-    """Every export in the corpus, with its signal, tenant and protobuf size."""
+    """Every pinned export, with its signal, tenant and protobuf size."""
     from google.protobuf import json_format
     from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import (
         ExportLogsServiceRequest,
@@ -109,14 +160,8 @@ def corpus() -> list[dict]:
         "metrics": ("metrics", ExportMetricsServiceRequest),
     }
     exports = []
-    for path in sorted([*CORPUS.rglob("*"), *METRIC_CORPUS.rglob("*")]):
+    for path in manifest_paths():
         prefix = path.name.split("-", 1)[0]
-        if (
-            prefix not in kinds
-            or path.suffix not in (".pb", ".json")
-            or not path.is_file()
-        ):
-            continue
         signal_name, message_type = kinds[prefix]
         body = path.read_bytes()
         message = message_type()
@@ -479,8 +524,28 @@ def blob_bytes(roots: list[Path], bodies: set[str]) -> dict[str, int]:
     return dict(sizes)
 
 
+def duckdb_rows(path: Path) -> dict[str, int]:
+    """Rows per analytics table."""
+    import duckdb
+
+    connection = duckdb.connect(str(path), read_only=True)
+    tables = [
+        row[0]
+        for row in connection.execute(
+            "SELECT table_name FROM duckdb_tables()"
+        ).fetchall()
+    ]
+    rows = {
+        table: connection.execute(f'SELECT count(*) FROM "{table}"').fetchone()[0]
+        for table in tables
+    }
+    connection.close()
+    return rows
+
+
 def measure_embedded(work: Path) -> dict:
     columns, _used = duckdb_columns(work / "duckdb/sideseat.duckdb")
+    rows = duckdb_rows(work / "duckdb/sideseat.duckdb")
     # What the disk pays: the file, free blocks included (DuckDB reuses them but does not return them), and
     # any WAL not yet checkpointed.
     duck_total = sum(
@@ -495,6 +560,7 @@ def measure_embedded(work: Path) -> dict:
     return {
         "analytics_columns": {f"{t}.{c}": b for (t, c), b in columns.items()},
         "analytics_total": duck_total,
+        "analytics_rows": rows,
         "transactional": sqlite_tables(sqlite_path),
         "blobs": blob_bytes([work / "files"], bodies),
     }
@@ -584,15 +650,32 @@ def attribute(measured: dict) -> dict[str, collections.Counter]:
     for key, size in columns.items():
         table = key.split(".", 1)[0]
         layers[ANALYTICS_OWNER.get(table, "fixed")][f"analytics:{table}"] += size
-    # The exact total minus the attributed columns is per-file overhead (headers, free blocks, primary
-    # indexes, marks). Spread over the signals in proportion to their column bytes.
+    # The exact total minus the attributed columns is per-file overhead: headers, free blocks, ART indexes,
+    # and the unused tail of each table's last block. ClickHouse reports it per table (a part's bytes minus its
+    # columns'). DuckDB cannot, so it is spread over the signals by **rows**: indexes and churn scale with rows,
+    # while spreading by column bytes would charge a small table more whenever a large one compressed better.
     overhead = measured["analytics_total"] - sum(columns.values())
-    signal_columns = {s: sum(v for k, v in layers[s].items()) for s in SIGNALS}
-    total_columns = sum(signal_columns.values()) or 1
-    for s in SIGNALS:
-        layers[s]["analytics:overhead"] += round(
-            overhead * signal_columns[s] / total_columns
-        )
+    parts = measured.get("analytics_parts")
+    if parts:
+        for table, size in parts.items():
+            if table in ANALYTICS_OWNER:
+                table_columns = sum(
+                    v for k, v in columns.items() if k.split(".", 1)[0] == table
+                )
+                layers[ANALYTICS_OWNER[table]]["analytics:overhead"] += max(
+                    size - table_columns, 0
+                )
+    else:
+        rows = measured.get("analytics_rows", {})
+        signal_rows = {
+            s: sum(n for t, n in rows.items() if ANALYTICS_OWNER.get(t) == s)
+            for s in SIGNALS
+        }
+        total_rows = sum(signal_rows.values()) or 1
+        for s in SIGNALS:
+            layers[s]["analytics:overhead"] += round(
+                overhead * signal_rows[s] / total_rows
+            )
     for table, size in measured["transactional"].items():
         layers[TRANSACTIONAL_OWNER.get(table, "fixed")][f"transactional:{table}"] += (
             size
@@ -647,6 +730,16 @@ def report(exports: list[dict], measured: dict, mode: str) -> dict:
         per = max(items[s], 1)
         for layer, size in layers[s].most_common():
             print(f"  {layer:44s} {size:>12,} B  {size / per:9.1f} B/item")
+        # Raw records are the authority; everything else excluding media is a cache rebuilt from them.
+        raw_bytes = sum(v for k, v in layers[s].items() if k in RAW_LAYERS)
+        media = sum(layers[s].get(layer, 0) for layer in MEDIA_LAYERS)
+        derived = sum(layers[s].values()) - raw_bytes - media
+        result["signals"][s]["raw_authority_per_item"] = raw_bytes / per
+        result["signals"][s]["derived_cache_per_item"] = derived / per
+        print(
+            f"  raw (authority) {raw_bytes / per:,.1f} B/item, derived (cache) {derived / per:,.1f} B/item, "
+            f"media {media / per:,.1f} B/item"
+        )
     print("\nlargest analytics columns")
     for key, size in sorted(
         measured["analytics_columns"].items(), key=lambda kv: -kv[1]
@@ -682,9 +775,16 @@ def main() -> int:
     parser.add_argument("--json", type=Path)
     parser.add_argument("--gate", action="store_true")
     parser.add_argument(
+        "--update-manifest",
+        action="store_true",
+        help="pin the fixture set as it is now, then measure it",
+    )
+    parser.add_argument(
         "--keep", action="store_true", help="keep the data directory for inspection"
     )
     args = parser.parse_args()
+    if args.update_manifest:
+        write_manifest()
     target = Path(
         subprocess.run(
             ["bash", str(ROOT / "scripts/dev/cargo-target-dir.sh")],

@@ -1,6 +1,3 @@
-#[path = "../clickhouse_parity/released_v2.rs"]
-mod released_v2;
-
 use sideseat_ports::traits::{
     AnalyticsMaintenance, AnalyticsRepository, EntityQuery, LogStore, MessageStore, MetricStore,
     SearchIndex, SpanStore, SurvivorReferences,
@@ -582,9 +579,8 @@ async fn clickhouse_backend(
 
 /// A service in **distributed** mode against the replicated fixture.
 ///
-/// The single-node helper hardcodes `distributed: false`, which is what left every migration assertion blind to
-/// the `ON CLUSTER` path, the `Replicated*` engines, the `{uuid}` Keeper paths and the `Distributed` front
-/// tables - the four hardest parts of the v3 rebuild.
+/// The single-node helper hardcodes `distributed: false`, which would leave the `ON CLUSTER` path, the
+/// `Replicated*` engines and the `Distributed` front tables of schema creation unexercised.
 async fn replicated_backend(
     url: &str,
     database: &str,

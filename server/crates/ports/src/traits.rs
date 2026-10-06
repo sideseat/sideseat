@@ -16,7 +16,7 @@ use crate::types::{
     ListSessionsParams, ListSpansParams, ListTracesParams, LogRow, MemberWithUser, MembershipRow,
     MessageQueryParams, MessageQueryResult, MetricAggregateRow, MetricRow, NormalizedLog,
     NormalizedMetric, NormalizedSpan, OrgWithRole, OrganizationRow, PressureSpanCandidate,
-    ProjectHold, ProjectId, ProjectRow, ProjectStorageUsage, SearchBackfillDocument,
+    ProjectHold, ProjectId, ProjectRow, ProjectStorageUsage, RawRecordRow, SearchBackfillDocument,
     SearchBackfillSource, SearchCursor, SearchPage, SearchQuery, SearchSignal, SessionRow,
     SpanBodyAssociation, SpanBodyField, SpanBodySource, SpanCounts, SpanRow, StagedPayload,
     TraceRow, UserRow,
@@ -49,6 +49,7 @@ pub trait AnalyticsRepository:
     + MessageStore
     + AnalyticsMaintenance
     + SurvivorReferences
+    + RawStore
 {
 }
 
@@ -61,6 +62,7 @@ impl<T> AnalyticsRepository for T where
         + MessageStore
         + AnalyticsMaintenance
         + SurvivorReferences
+        + RawStore
 {
 }
 

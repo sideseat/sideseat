@@ -309,6 +309,8 @@ fn to_normalized_span(
         hold_until: None,
         logical_bytes: 0,
         search: Default::default(),
+        // Stamped by the pipeline once the request's raw record exists.
+        raw_id: None,
     };
     normalized.logical_bytes = crate::accounting::span_logical_bytes(&mut normalized);
     normalized

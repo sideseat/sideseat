@@ -8,12 +8,8 @@ pub enum DuckdbError {
     #[error("Database error: {0}")]
     Database(#[from] duckdb::Error),
 
-    #[error("Migration {version} ({name}) failed: {error}")]
-    MigrationFailed {
-        version: i32,
-        name: String,
-        error: String,
-    },
+    #[error(transparent)]
+    UnsupportedSchema(sideseat_core::schema_version::UnsupportedSchema),
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
@@ -36,16 +32,7 @@ impl From<DuckdbError> for DataError {
                 transient: false,
                 source: Some(Box::new(e)),
             },
-            DuckdbError::MigrationFailed {
-                version,
-                name,
-                error,
-            } => Self::MigrationFailed {
-                backend: "duckdb",
-                version,
-                name,
-                error,
-            },
+            DuckdbError::UnsupportedSchema(refusal) => Self::unsupported_schema("duckdb", refusal),
             DuckdbError::Io(e) => Self::Io(e),
             DuckdbError::Timeout { timeout_secs } => Self::Timeout {
                 backend: "duckdb",
@@ -60,35 +47,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_migration_failed_error_display() {
-        let err = DuckdbError::MigrationFailed {
-            version: 2,
-            name: "add_analytics_table".to_string(),
-            error: "syntax error".to_string(),
-        };
-        assert_eq!(
-            err.to_string(),
-            "Migration 2 (add_analytics_table) failed: syntax error"
-        );
-    }
-
-    #[test]
     fn test_io_error_from() {
         let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
         let duckdb_err: DuckdbError = io_err.into();
         assert!(duckdb_err.to_string().contains("file not found"));
-    }
-
-    #[test]
-    fn test_error_debug() {
-        let err = DuckdbError::MigrationFailed {
-            version: 1,
-            name: "test".to_string(),
-            error: "error".to_string(),
-        };
-        let debug_str = format!("{:?}", err);
-        assert!(debug_str.contains("MigrationFailed"));
-        assert!(debug_str.contains("version: 1"));
     }
 
     #[test]

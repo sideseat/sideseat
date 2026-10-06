@@ -3,7 +3,7 @@
 //! Initial schema with all tables. No migrations needed for first version.
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 9;
+pub const SCHEMA_VERSION: i32 = 2;
 
 /// Complete schema SQL
 pub const SCHEMA: &str = r#"
@@ -15,15 +15,6 @@ CREATE TABLE IF NOT EXISTS schema_version (
     version INTEGER NOT NULL,
     applied_at INTEGER NOT NULL,
     description TEXT
-);
-
-CREATE TABLE IF NOT EXISTS schema_migrations (
-    version INTEGER PRIMARY KEY,
-    name TEXT NOT NULL,
-    applied_at INTEGER NOT NULL,
-    checksum TEXT NOT NULL,
-    execution_time_ms INTEGER,
-    success INTEGER NOT NULL DEFAULT 1
 );
 
 -- =============================================================================
@@ -553,7 +544,6 @@ mod tests {
     fn test_schema_contains_required_tables() {
         let required_tables = [
             "schema_version",
-            "schema_migrations",
             "organizations",
             "users",
             "organization_members",

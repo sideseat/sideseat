@@ -135,6 +135,7 @@ fn insert_spans(
             span.content_digest.as_str(),
             SqlOptTimestamp(span.hold_until),
             i64::try_from(span.logical_bytes).unwrap_or(i64::MAX),
+            span.raw_id.as_deref(),
         ])?;
     }
 

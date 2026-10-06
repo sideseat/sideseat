@@ -14,7 +14,7 @@
 use sideseat_core::config::ClickhouseConfig;
 
 /// Current schema version
-pub const SCHEMA_VERSION: i32 = 8;
+pub const SCHEMA_VERSION: i32 = 2;
 
 pub const TENANT_PROJECT_SETTING: &str = "SQL_sideseat_project_id";
 pub const TENANT_MAINTENANCE_SETTING: &str = "SQL_sideseat_maintenance";
@@ -23,31 +23,8 @@ const TENANT_POLICY_EXPRESSION: &str = "project_id = \
 getSettingOrDefault('SQL_sideseat_project_id', '') OR \
 getSettingOrDefault('SQL_sideseat_maintenance', 0) = 1";
 
-/// The oldest schema version this build can migrate *from*.
-///
-/// The ClickHouse backend was introduced already at v2, so no released database exists below it and
-/// there is nothing to migrate from v1. A database older than this has to be recreated.
-pub const MIN_UPGRADABLE_FROM: i32 = 2;
-
-mod migrations;
-pub use migrations::{MIGRATIONS, Migration};
-
-/// The engine a v3 rebuild's replacement table uses.
-///
-/// Replicated mode needs a Keeper path **distinct from the table being replaced**, because
-/// `CREATE TABLE ... AS <old>` copies the old engine including its path, and two tables cannot share
-/// one. `{uuid}` is the path: an Atomic database expands it to the table's own UUID, and
-/// `EXCHANGE TABLES` swaps names while UUIDs stay with their tables - so the live table keeps a path
-/// that is unique by construction and no later rebuild has to invent a `_v4` suffix.
-pub fn replacement_engine(config: &ClickhouseConfig, version_column: &str) -> String {
-    if config.distributed {
-        format!(
-            "ReplicatedReplacingMergeTree('/clickhouse/tables/{{shard}}/{{uuid}}', '{{replica}}', {version_column})"
-        )
-    } else {
-        format!("ReplacingMergeTree({version_column})")
-    }
-}
+mod raw;
+pub use raw::raw_tables;
 
 /// Validate and return a cluster name safe for SQL interpolation.
 ///
@@ -83,7 +60,7 @@ pub(crate) fn database_identifier(config: &ClickhouseConfig) -> String {
 /// Where the cross-partition consistency check keeps its findings and its place.
 ///
 /// **Why a durable record and not a log line.** The check reports identities whose revisions sit in more than
-/// one partition, which is the residual v3 leaves (see [`MIGRATIONS`]). The state that produces the finding can
+/// one partition. The state that produces the finding can
 /// disappear while the damage persists: when a correction moves *backward* across a month, the newer revision
 /// expires first and the obsolete one is left alone in its partition - a current-state query then sees one row
 /// per identity and reports clean, having permanently served the wrong revision. Only a record written at the
@@ -313,6 +290,7 @@ CREATE TABLE IF NOT EXISTS otel_spans_local ON CLUSTER {cluster} (
     content_digest              String DEFAULT '',
     hold_until                 Nullable(DateTime64(6, 'UTC')),
     logical_bytes              UInt64 DEFAULT 0,
+    raw_id                     Nullable(String),
     search_indexed             UInt8 DEFAULT 0,
     search_prompt              Array(String) DEFAULT [],
     search_prompt_truncated    UInt8 DEFAULT 0,
@@ -495,6 +473,7 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     content_digest              String DEFAULT '',
     hold_until                 Nullable(DateTime64(6, 'UTC')),
     logical_bytes              UInt64 DEFAULT 0,
+    raw_id                     Nullable(String),
     search_indexed             UInt8 DEFAULT 0,
     search_prompt              Array(String) DEFAULT [],
     search_prompt_truncated    UInt8 DEFAULT 0,
@@ -869,11 +848,13 @@ pub fn generate_schema(config: &ClickhouseConfig) -> Vec<String> {
         statements.push(otel_metrics_distributed_table(config));
         statements.push(otel_logs_local_table(config));
         statements.push(otel_logs_distributed_table(config));
+        statements.extend(raw_tables(config));
     } else {
         // Single-node mode
         statements.push(otel_spans_single_table());
         statements.push(otel_metrics_single_table());
         statements.push(otel_logs_single_table());
+        statements.extend(raw_tables(config));
     }
 
     statements.extend(tenant_row_policies(config));
@@ -890,6 +871,7 @@ pub fn tenant_row_policies(config: &ClickhouseConfig) -> Vec<String> {
         "otel_spans",
         "otel_metrics",
         "otel_logs",
+        "otel_raw",
         "span_partition_anomalies",
     ]
     .into_iter()

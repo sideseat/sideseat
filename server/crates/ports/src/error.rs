@@ -70,13 +70,13 @@ pub enum DataError {
         source: Option<BoxedSource>,
     },
 
-    /// Migration failed
-    #[error("Migration {version} ({name}) failed on {backend}: {error}")]
-    MigrationFailed {
+    /// The store is at a schema version this build does not read; see `sideseat_core::schema_version`.
+    #[error("{backend}: {detail}")]
+    UnsupportedSchema {
         backend: &'static str,
-        version: i32,
-        name: String,
-        error: String,
+        found: i32,
+        supported: i32,
+        detail: String,
     },
 
     /// Configuration error
@@ -145,13 +145,16 @@ impl DataError {
         }
     }
 
-    /// Create a migration failed error
-    pub fn migration_failed(backend: &'static str, version: i32, name: &str, error: &str) -> Self {
-        Self::MigrationFailed {
+    /// A store this build refuses to open, with the operator guidance the refusal carries.
+    pub fn unsupported_schema(
+        backend: &'static str,
+        refusal: sideseat_core::schema_version::UnsupportedSchema,
+    ) -> Self {
+        Self::UnsupportedSchema {
             backend,
-            version,
-            name: name.to_string(),
-            error: error.to_string(),
+            found: refusal.found,
+            supported: refusal.supported,
+            detail: refusal.to_string(),
         }
     }
 
@@ -200,7 +203,7 @@ impl DataError {
             Self::Postgres { .. } => "postgres",
             Self::Duckdb { .. } => "duckdb",
             Self::Clickhouse { .. } => "clickhouse",
-            Self::MigrationFailed { backend, .. } => backend,
+            Self::UnsupportedSchema { backend, .. } => backend,
             Self::Timeout { backend, .. } => backend,
             Self::PoolExhausted { backend } => backend,
             Self::BackendUnavailable { backend, .. } => backend,
@@ -214,15 +217,6 @@ impl DataError {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_migration_failed_error_display() {
-        let err = DataError::migration_failed("postgres", 2, "add_users_table", "syntax error");
-        assert_eq!(
-            err.to_string(),
-            "Migration 2 (add_users_table) failed on postgres: syntax error"
-        );
-    }
 
     #[test]
     fn test_timeout_error_display() {
@@ -250,7 +244,14 @@ mod tests {
         assert_eq!(DataError::timeout("duckdb", 30).backend(), "duckdb");
         assert_eq!(DataError::pool_exhausted("postgres").backend(), "postgres");
         assert_eq!(
-            DataError::migration_failed("sqlite", 1, "test", "error").backend(),
+            DataError::unsupported_schema(
+                "sqlite",
+                sideseat_core::schema_version::UnsupportedSchema {
+                    found: 1,
+                    supported: 2
+                }
+            )
+            .backend(),
             "sqlite"
         );
     }
@@ -260,6 +261,15 @@ mod tests {
         assert!(DataError::timeout("duckdb", 30).is_transient());
         assert!(DataError::pool_exhausted("postgres").is_transient());
         assert!(!DataError::Config("bad config".into()).is_transient());
-        assert!(!DataError::migration_failed("sqlite", 1, "test", "error").is_transient());
+        assert!(
+            !DataError::unsupported_schema(
+                "sqlite",
+                sideseat_core::schema_version::UnsupportedSchema {
+                    found: 1,
+                    supported: 2
+                }
+            )
+            .is_transient()
+        );
     }
 }

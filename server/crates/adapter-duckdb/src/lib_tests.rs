@@ -171,3 +171,37 @@ async fn test_checkpoint_after_close_is_noop() {
         "Checkpoint after close should succeed as no-op"
     );
 }
+
+/// New files are created in the storage format that honours `USING COMPRESSION zstd`, and long text is
+/// compressed with it once checkpointed.
+#[tokio::test]
+async fn files_are_created_in_the_compressing_storage_format() {
+    let (_temp_dir, storage) = create_test_storage().await;
+    let service = DuckdbService::init(&storage, std::sync::Arc::new(crate::TestClock))
+        .await
+        .unwrap();
+    let conn = service.conn();
+    let version: String = conn
+        .query_row(
+            "SELECT tags['storage_version'] FROM duckdb_databases() WHERE database_name = current_database()",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(version, format!("{DUCKDB_STORAGE_VERSION}+"));
+    conn.execute_batch(
+        "INSERT INTO otel_raw SELECT 'p', 'r' || i, 'traces', TIMESTAMP '2026-01-01', false,
+             encode(repeat('history ', 300) || i) FROM range(3000) t(i);
+         CHECKPOINT;",
+    )
+    .unwrap();
+    let compression: String = conn
+        .query_row(
+            "SELECT string_agg(DISTINCT compression, ',') FROM pragma_storage_info('otel_raw') \
+             WHERE column_name = 'record' AND segment_type = 'BLOB'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(compression, "ZSTD");
+}

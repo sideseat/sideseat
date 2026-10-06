@@ -8,12 +8,8 @@ pub enum PostgresError {
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
 
-    #[error("Migration {version} ({name}) failed: {error}")]
-    MigrationFailed {
-        version: i32,
-        name: String,
-        error: String,
-    },
+    #[error(transparent)]
+    UnsupportedSchema(sideseat_core::schema_version::UnsupportedSchema),
 
     #[error("Configuration error: {0}")]
     Config(String),
@@ -41,16 +37,9 @@ impl From<PostgresError> for DataError {
                 message: e.to_string(),
                 source: Some(Box::new(e)),
             },
-            PostgresError::MigrationFailed {
-                version,
-                name,
-                error,
-            } => Self::MigrationFailed {
-                backend: "postgres",
-                version,
-                name,
-                error,
-            },
+            PostgresError::UnsupportedSchema(refusal) => {
+                Self::unsupported_schema("postgres", refusal)
+            }
             PostgresError::Config(msg) => Self::Config(msg),
             PostgresError::Io(e) => Self::Io(e),
             PostgresError::Conflict(msg) => Self::Conflict(msg),
@@ -61,19 +50,6 @@ impl From<PostgresError> for DataError {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_migration_failed_error_display() {
-        let err = PostgresError::MigrationFailed {
-            version: 2,
-            name: "add_users_table".to_string(),
-            error: "syntax error".to_string(),
-        };
-        assert_eq!(
-            err.to_string(),
-            "Migration 2 (add_users_table) failed: syntax error"
-        );
-    }
 
     #[test]
     fn test_config_error_display() {

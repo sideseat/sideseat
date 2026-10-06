@@ -91,7 +91,7 @@ impl SqliteService {
             .connect_with(options)
             .await?;
 
-        migrations::run_migrations(&pool, clock.as_ref()).await?;
+        migrations::ensure_schema(&pool, clock.as_ref()).await?;
 
         tracing::debug!(path = %db_path.display(), "SqliteService initialized");
         Ok(Self {

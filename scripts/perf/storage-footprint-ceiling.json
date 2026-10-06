@@ -2,15 +2,15 @@
   "embedded": {
     "traces": {
       "target": 480,
-      "regression": 16500
+      "regression": 9100
     },
     "logs": {
       "target": 300,
-      "regression": 13000
+      "regression": 6000
     },
     "metrics": {
       "target": 150,
-      "regression": 1200
+      "regression": 620
     }
   },
   "distributed": {

@@ -8,6 +8,7 @@
 //! so we need to clone the Arc and get the connection inside the spawn_blocking closure.
 
 mod maintenance;
+mod raw_store;
 mod survivor_references;
 
 use std::collections::{HashMap, HashSet};

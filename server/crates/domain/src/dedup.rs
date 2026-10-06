@@ -508,3 +508,51 @@ impl SurvivorReferences for DedupAnalyticsRepository {
             .await
     }
 }
+
+#[async_trait]
+impl sideseat_ports::traits::RawStore for DedupAnalyticsRepository {
+    async fn insert_raw_records(
+        &self,
+        records: &[sideseat_ports::types::RawRecordRow],
+    ) -> Result<(), DataError> {
+        self.inner.insert_raw_records(records).await
+    }
+
+    async fn get_raw_records(
+        &self,
+        project_id: &ProjectId,
+        raw_ids: &[String],
+    ) -> Result<Vec<sideseat_ports::types::RawRecordRow>, DataError> {
+        self.inner.get_raw_records(project_id, raw_ids).await
+    }
+
+    async fn raw_records_page(
+        &self,
+        project_id: &ProjectId,
+        after: Option<(chrono::DateTime<chrono::Utc>, String)>,
+        limit: usize,
+    ) -> Result<Vec<sideseat_ports::types::RawRecordRow>, DataError> {
+        self.inner.raw_records_page(project_id, after, limit).await
+    }
+
+    async fn rewrite_raw_record(
+        &self,
+        project_id: &ProjectId,
+        raw_id: &str,
+        record: &[u8],
+    ) -> Result<(), DataError> {
+        self.inner
+            .rewrite_raw_record(project_id, raw_id, record)
+            .await
+    }
+
+    async fn delete_unreferenced_raw_records(
+        &self,
+        project_id: &ProjectId,
+        received_before: chrono::DateTime<chrono::Utc>,
+    ) -> Result<u64, DataError> {
+        self.inner
+            .delete_unreferenced_raw_records(project_id, received_before)
+            .await
+    }
+}
