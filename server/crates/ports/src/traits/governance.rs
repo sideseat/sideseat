@@ -6,9 +6,10 @@ use super::*;
 /// predicate, so a restored database recomputes exactly the same verdict from the timestamps it holds, and an
 /// entry per aged-out record would be an unbounded write for a fact that is already derivable. What is *not*
 /// derivable is a caller's request and a limit having been reached, and those are what the journal holds.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, strum::IntoStaticStr, strum::EnumString)]
 pub enum DeletionCause {
     /// A caller asked for it - a trace, session, project or organization deletion.
+    #[strum(serialize = "requested")]
     Requested,
     /// A limit was reached: count retention (`max_spans`) or quota reclamation. Not reproducible, because it
     /// happened *because* a limit was hit, and a restored database is not at that limit.
@@ -26,63 +27,51 @@ pub enum DeletionCause {
     /// So the cautious error is taken until the mechanism that reads it exists. The variant is declared because
     /// the *stored* vocabulary has to be settled before rows are written under it, and the `CHECK` constraint in
     /// both schemas already admits it.
+    #[strum(serialize = "pressure")]
     Pressure,
 }
 
 impl DeletionCause {
-    /// The stored spelling. Explicit rather than derived from the variant name, so renaming a variant cannot
-    /// silently orphan every row already written under the old name.
+    /// The stored spelling. Declared per variant through `#[strum(serialize = ...)]` rather than derived
+    /// from the variant name, so renaming a variant cannot silently orphan every row already written
+    /// under the old name.
     pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Requested => "requested",
-            Self::Pressure => "pressure",
-        }
+        self.into()
     }
 
-    /// Parse a stored spelling. Named `from_stored` rather than `from_str` because it is not `FromStr`: an
-    /// unknown spelling is `None` rather than an error, since only a newer writer can produce one.
+    /// Parse a stored spelling. Named `from_stored` rather than being the `FromStr` impl because the
+    /// contract differs: an unknown spelling is `None` rather than an error, since only a newer writer
+    /// can produce one.
     pub fn from_stored(value: &str) -> Option<Self> {
-        match value {
-            "requested" => Some(Self::Requested),
-            "pressure" => Some(Self::Pressure),
-            _ => None,
-        }
+        <Self as std::str::FromStr>::from_str(value).ok()
     }
 }
 
 /// The kind of thing a journal entry names.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, strum::IntoStaticStr, strum::EnumString)]
 pub enum DeletionScope {
+    #[strum(serialize = "trace")]
     Trace,
+    #[strum(serialize = "session")]
     Session,
+    #[strum(serialize = "project")]
     Project,
+    #[strum(serialize = "organization")]
     Organization,
     /// One span, which only pressure eviction produces: nothing asks to delete a single span.
+    #[strum(serialize = "span")]
     Span,
 }
 
 impl DeletionScope {
-    /// The stored spelling - see [`DeletionCause::as_str`] for why it is written out.
+    /// The stored spelling - see [`DeletionCause::as_str`] for why it is declared per variant.
     pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Trace => "trace",
-            Self::Session => "session",
-            Self::Project => "project",
-            Self::Organization => "organization",
-            Self::Span => "span",
-        }
+        self.into()
     }
 
     /// Parse a stored spelling - see [`DeletionCause::from_stored`] for the name.
     pub fn from_stored(value: &str) -> Option<Self> {
-        match value {
-            "trace" => Some(Self::Trace),
-            "session" => Some(Self::Session),
-            "project" => Some(Self::Project),
-            "organization" => Some(Self::Organization),
-            "span" => Some(Self::Span),
-            _ => None,
-        }
+        <Self as std::str::FromStr>::from_str(value).ok()
     }
 }
 
@@ -389,4 +378,50 @@ pub trait StorageGovernance: Send + Sync {
 
     /// Projects participating in accounting, including projects whose measured usage is still zero.
     async fn storage_project_ids(&self, limit: usize) -> Result<Vec<ProjectId>, DataError>;
+}
+
+#[cfg(test)]
+mod deletion_vocabulary_tests {
+    use super::{DeletionCause, DeletionScope};
+
+    /// The spellings the journal's rows are written under, and the `CHECK` constraints that admit them.
+    ///
+    /// Both schemas spell this vocabulary out - `CHECK(cause IN ('requested', 'pressure'))` and
+    /// `CHECK(scope IN ('trace', 'session', 'project', 'organization', 'span'))` in
+    /// `adapter-sqlite/src/schema.rs` and `adapter-postgres/src/schema.rs` - so a changed spelling is not
+    /// a compile error here; it is a rejected insert there, and permanent restore evidence that never
+    /// gets written. This table is the third copy, and the one a reader of these enums sees.
+    #[test]
+    fn every_stored_spelling_round_trips_and_is_unchanged() {
+        let causes = [
+            (DeletionCause::Requested, "requested"),
+            (DeletionCause::Pressure, "pressure"),
+        ];
+        for (cause, spelling) in causes {
+            assert_eq!(cause.as_str(), spelling);
+            assert_eq!(DeletionCause::from_stored(spelling), Some(cause));
+        }
+
+        let scopes = [
+            (DeletionScope::Trace, "trace"),
+            (DeletionScope::Session, "session"),
+            (DeletionScope::Project, "project"),
+            (DeletionScope::Organization, "organization"),
+            (DeletionScope::Span, "span"),
+        ];
+        for (scope, spelling) in scopes {
+            assert_eq!(scope.as_str(), spelling);
+            assert_eq!(DeletionScope::from_stored(spelling), Some(scope));
+        }
+    }
+
+    /// An unknown spelling is `None`, not an error: only a newer writer can produce one, and a reader
+    /// that refused would stop the sweep rather than skip the row it cannot interpret.
+    #[test]
+    fn an_unknown_spelling_is_none_rather_than_an_error() {
+        assert_eq!(DeletionCause::from_stored("future-cause"), None);
+        assert_eq!(DeletionScope::from_stored("future-scope"), None);
+        assert_eq!(DeletionScope::from_stored("Trace"), None, "case matters");
+        assert_eq!(DeletionCause::from_stored(""), None);
+    }
 }
