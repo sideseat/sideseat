@@ -3,7 +3,7 @@ async fn assert_detail_and_feed_parity(
     ch: &sideseat_adapter_clickhouse::ClickhouseRepository,
     spans: &[NormalizedSpan],
 ) {
-    // --- single span, events, links, bulk counts ---------------------------
+    // --- single span and bulk counts ---------------------------------------
     for (trace_id, span_id) in [("trace-a", "a-root"), ("trace-d", "d-root")] {
         let d = duck
             .get_span(&ProjectId::from(PROJECT), trace_id, span_id)
@@ -25,69 +25,7 @@ async fn assert_detail_and_feed_parity(
                 c.is_some()
             ),
         }
-
-        // Events and links are extracted from the raw OTLP JSON by two different sets of JSON
-        // functions, which is exactly where two dialects drift.
-        let d = duck
-            .get_events_for_span(&ProjectId::from(PROJECT), trace_id, span_id)
-            .await
-            .expect("duckdb events");
-        let c = ch
-            .get_events_for_span(&ProjectId::from(PROJECT), trace_id, span_id)
-            .await
-            .expect("clickhouse events");
-        let describe_event = |e: &sideseat_ports::types::EventRow| {
-            format!(
-                "span={} index={} time={} name={:?} attributes={:?}",
-                e.span_id,
-                e.event_index,
-                e.event_time.timestamp_micros(),
-                e.event_name,
-                e.attributes.as_deref().map(canonical_json),
-            )
-        };
-        assert_eq!(
-            d.iter().map(describe_event).collect::<Vec<_>>(),
-            c.iter().map(describe_event).collect::<Vec<_>>(),
-            "get_events_for_span({span_id}) differs between backends"
-        );
-
-        let d = duck
-            .get_links_for_span(&ProjectId::from(PROJECT), trace_id, span_id)
-            .await
-            .expect("duckdb links");
-        let c = ch
-            .get_links_for_span(&ProjectId::from(PROJECT), trace_id, span_id)
-            .await
-            .expect("clickhouse links");
-        let describe_link = |l: &sideseat_ports::types::LinkRow| {
-            format!(
-                "span={} linked={}/{} attributes={:?}",
-                l.span_id,
-                l.linked_trace_id,
-                l.linked_span_id,
-                l.attributes.as_deref().map(canonical_json),
-            )
-        };
-        assert_eq!(
-            d.iter().map(describe_link).collect::<Vec<_>>(),
-            c.iter().map(describe_link).collect::<Vec<_>>(),
-            "get_links_for_span({span_id}) differs between backends"
-        );
     }
-
-    // The span with raw OTLP must actually produce events and links, or the loop above compares
-    // two empty lists and reports success.
-    let events = duck
-        .get_events_for_span(&ProjectId::from(PROJECT), "trace-d", "d-root")
-        .await
-        .expect("duckdb events");
-    assert_eq!(events.len(), 2, "the fixture's events were not read back");
-    let links = duck
-        .get_links_for_span(&ProjectId::from(PROJECT), "trace-d", "d-root")
-        .await
-        .expect("duckdb links");
-    assert_eq!(links.len(), 1, "the fixture's links were not read back");
 
     let span_keys: Vec<(String, String)> = spans
         .iter()

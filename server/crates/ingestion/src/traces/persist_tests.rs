@@ -204,8 +204,7 @@ fn a_rejected_file_reference_is_replaced_with_a_note() {
         project_id: Some("proj".to_string()),
         messages: Some(format!(r#"[{{"content":"{uri}"}}]"#)),
         tool_definitions: Some(format!(r#"[{{"icon":"{uri}"}}]"#)),
-        raw_span: Some(format!(r#"{{"attr":"{other}"}}"#)),
-        metadata: None,
+        metadata: Some(format!(r#"{{"attr":"{other}"}}"#)),
         ..NormalizedSpan::default()
     }];
 
@@ -225,7 +224,7 @@ fn a_rejected_file_reference_is_replaced_with_a_note() {
         "the note must say what happened and to what: {messages}"
     );
     assert!(
-        spans[0].raw_span.as_deref().unwrap().contains(&other),
+        spans[0].metadata.as_deref().unwrap().contains(&other),
         "a reference to a file that *was* stored must be left alone"
     );
 }

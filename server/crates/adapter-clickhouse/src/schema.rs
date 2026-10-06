@@ -282,7 +282,6 @@ CREATE TABLE IF NOT EXISTS otel_spans_local ON CLUSTER {cluster} (
     tool_names                  String DEFAULT '[]',
 
     -- RAW SPAN (compressed)
-    raw_span                    Nullable(String) CODEC(ZSTD(3)),
 
     -- Instrumentation scope: the library that produced the span, versioned
     scope_name                  Nullable(String) CODEC(ZSTD(1)),
@@ -291,6 +290,8 @@ CREATE TABLE IF NOT EXISTS otel_spans_local ON CLUSTER {cluster} (
     hold_until                 Nullable(DateTime64(6, 'UTC')),
     logical_bytes              UInt64 DEFAULT 0,
     raw_id                     Nullable(String),
+    event_count                UInt32 DEFAULT 0,
+    link_count                 UInt32 DEFAULT 0,
     search_indexed             UInt8 DEFAULT 0,
     search_prompt              Array(String) DEFAULT [],
     search_prompt_truncated    UInt8 DEFAULT 0,
@@ -465,7 +466,6 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     tool_names                  String DEFAULT '[]',
 
     -- RAW SPAN (compressed)
-    raw_span                    Nullable(String) CODEC(ZSTD(3)),
 
     -- Instrumentation scope: the library that produced the span, versioned
     scope_name                  Nullable(String) CODEC(ZSTD(1)),
@@ -474,6 +474,8 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     hold_until                 Nullable(DateTime64(6, 'UTC')),
     logical_bytes              UInt64 DEFAULT 0,
     raw_id                     Nullable(String),
+    event_count                UInt32 DEFAULT 0,
+    link_count                 UInt32 DEFAULT 0,
     search_indexed             UInt8 DEFAULT 0,
     search_prompt              Array(String) DEFAULT [],
     search_prompt_truncated    UInt8 DEFAULT 0,

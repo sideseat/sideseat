@@ -22,7 +22,7 @@ use sideseat_ports::error::DataError;
 use sideseat_ports::traits::{AnalyticsRepository, SurvivorReferences, TransactionalRepository};
 use sideseat_ports::types::{
     ContentBodyBackfillProgress, ContentBodyObject, MessageSpanRow, NormalizedSpan, ProjectId,
-    SearchSignal, SpanBodyAssociation, SpanBodyField, SpanBodySource, SpanRow,
+    SearchSignal, SpanBodyAssociation, SpanBodyField, SpanBodySource,
 };
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
@@ -485,26 +485,6 @@ impl ContentBodyService {
                 }
             }
             row.body_cache_key = Some(cache_hasher.finalize().to_hex().to_string());
-        }
-    }
-
-    pub async fn hydrate_raw_spans(&self, project_id: &ProjectId, rows: &mut [SpanRow]) {
-        let requests = rows
-            .iter()
-            .enumerate()
-            .map(|(index, row)| {
-                (
-                    index,
-                    row.trace_id.clone(),
-                    row.span_id.clone(),
-                    SpanBodyField::RawSpan,
-                )
-            })
-            .collect();
-        for ((index, _), fetched) in self.fetch_bodies(project_id, requests).await {
-            if let Some(body) = fetched.body {
-                rows[index].raw_span = Some(body);
-            }
         }
     }
 

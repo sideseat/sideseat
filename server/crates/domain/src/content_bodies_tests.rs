@@ -313,7 +313,6 @@ async fn backfill_resumes_after_a_full_page_and_marks_cutover_complete() {
                 messages: Some("shared-body".into()),
                 tool_definitions: None,
                 tool_names: None,
-                raw_span: None,
             })
             .collect(),
     );

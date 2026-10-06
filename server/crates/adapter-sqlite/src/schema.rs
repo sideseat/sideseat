@@ -317,7 +317,7 @@ CREATE TABLE IF NOT EXISTS span_bodies (
     project_id TEXT NOT NULL,
     trace_id TEXT NOT NULL,
     span_id TEXT NOT NULL,
-    field TEXT NOT NULL CHECK(field IN ('messages', 'tool_definitions', 'tool_names', 'raw_span')),
+    field TEXT NOT NULL CHECK(field IN ('messages', 'tool_definitions', 'tool_names')),
     body_hash TEXT NOT NULL,
     pending_writers INTEGER NOT NULL DEFAULT 0 CHECK(pending_writers >= 0),
     durable INTEGER NOT NULL DEFAULT 0 CHECK(durable IN (0, 1)),

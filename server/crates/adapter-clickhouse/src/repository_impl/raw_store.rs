@@ -72,6 +72,14 @@ impl RawStore for ClickhouseRepository {
         )
     }
 
+    async fn span_raw_ids(
+        &self,
+        project_id: &ProjectId,
+        spans: &[(String, String)],
+    ) -> Result<std::collections::HashMap<(String, String), String>, DataError> {
+        tenant_query!(self, project_id, raw::span_raw_ids, project_id, spans)
+    }
+
     async fn raw_records_named(
         &self,
         project_id: &ProjectId,

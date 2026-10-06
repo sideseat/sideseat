@@ -29,7 +29,7 @@ use super::extract::files::{
 };
 use super::extract::{RawMessage, RawToolDefinition, RawToolNames, SpanData};
 // The analytics port keeps ingestion independent of concrete adapters.
-use crate::otlp::{build_attributes_json, extract_attributes};
+use crate::otlp::build_attributes_json;
 use sideseat_core::constants::{
     DEFAULT_PROJECT_ID, FILE_HASH_ALGORITHM, FILES_MAX_CONCURRENT_FINALIZATION,
 };
@@ -130,9 +130,9 @@ pub(super) fn prepare_batch(
     };
 
     // Convert SpanData + Enrichment to NormalizedSpan, build raw span JSON.
-    // File extraction from raw_span/tool_definitions/metadata is done inline
+    // File extraction from the tool definitions and the metadata is done inline
     // BEFORE serialization, eliminating the serialize→deserialize→re-serialize round-trip.
-    let (db_spans, raw_span_files) = flatten(
+    let (db_spans, extracted_files) = flatten(
         request,
         input.spans,
         processed_messages,
@@ -142,12 +142,12 @@ pub(super) fn prepare_batch(
         files_enabled,
         file_cache,
     );
-    pending_files.extend(raw_span_files);
+    pending_files.extend(extracted_files);
 
     // References that arrived already formed, read from the rows *about to be written* rather than from
     // any one extraction step.
     //
-    // A reference can appear in messages, tool definitions, raw span JSON or metadata, and each is
+    // A reference can appear in messages, tool definitions or metadata, and each is
     // extracted by a different path - so collecting per path missed whichever path was not covered.
     // Scanning the committed strings states the invariant directly: every reference in a row that is
     // written is either one this batch produced, or one that has been verified.
@@ -173,7 +173,6 @@ pub(super) fn prepare_batch(
         for field in [
             span.messages.as_deref(),
             span.tool_definitions.as_deref(),
-            span.raw_span.as_deref(),
             span.metadata.as_deref(),
         ]
         .into_iter()
@@ -418,7 +417,6 @@ pub(super) fn note_unstored_files(
             for field in [
                 span.messages.as_mut(),
                 span.tool_definitions.as_mut(),
-                span.raw_span.as_mut(),
                 span.metadata.as_mut(),
             ]
             .into_iter()
@@ -848,6 +846,7 @@ pub(super) async fn write_to_duckdb(
 // ============================================================================
 
 mod flattening;
+pub(in crate::traces) use flattening::build_raw_span_json;
 use flattening::flatten;
 pub(crate) use flattening::span_content_digest;
 

@@ -21,9 +21,37 @@ use sideseat_ports::traits::{
     DeletionCause, DeletionRecord, DeletionScope, retention_cleanup_logical_bytes,
 };
 use sideseat_ports::types::{
-    ListSpansParams, filter_observations, get_observation_cost, get_observation_tokens,
-    get_observation_type, is_observation,
+    ListSpansParams, ProjectId, SpanRow, filter_observations, get_observation_cost,
+    get_observation_tokens, get_observation_type, is_observation,
 };
+
+/// Fill `raw_span` on these rows from the raw records they were derived from.
+///
+/// Rendered on demand rather than stored: the column held a second copy of what the raw record already has, and
+/// only a reader that asks for it pays. Shared by the span list, the trace's spans and the span detail; the feed
+/// and the trace route call it too.
+pub(super) async fn hydrate_raw_spans(
+    state: &OtelApiState,
+    project_id: &ProjectId,
+    rows: &mut [SpanRow],
+) {
+    let identities: Vec<(String, String)> = rows
+        .iter()
+        .map(|row| (row.trace_id.clone(), row.span_id.clone()))
+        .collect();
+    let rendered = sideseat_ingestion::traces::raw_views::render_spans(
+        project_id,
+        &identities,
+        state.analytics.as_ref(),
+        &state.file_service,
+    )
+    .await;
+    for row in rows {
+        row.raw_span = rendered
+            .get(&(row.trace_id.clone(), row.span_id.clone()))
+            .cloned();
+    }
+}
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct ListSpansQuery {
@@ -136,10 +164,7 @@ pub async fn list_spans(
         .await
         .map_err(ApiError::from_data)?;
     if query.include_raw_span {
-        state
-            .content_bodies
-            .hydrate_raw_spans(&auth.project_id, &mut rows)
-            .await;
+        hydrate_raw_spans(&state, &auth.project_id, &mut rows).await;
     }
 
     // Bulk fetch event and link counts (avoids N+1 queries)
@@ -252,10 +277,7 @@ pub async fn list_trace_spans(
         .await
         .map_err(ApiError::from_data)?;
     if query.include_raw_span {
-        state
-            .content_bodies
-            .hydrate_raw_spans(project_id, &mut rows)
-            .await;
+        hydrate_raw_spans(&state, project_id, &mut rows).await;
     }
 
     let span_keys: Vec<(String, String)> = rows
@@ -330,10 +352,7 @@ pub async fn get_span(
         )
     })?;
     if include_raw_span {
-        state
-            .content_bodies
-            .hydrate_raw_spans(project_id, std::slice::from_mut(&mut span))
-            .await;
+        hydrate_raw_spans(&state, project_id, std::slice::from_mut(&mut span)).await;
     }
 
     // Fetch event and link counts

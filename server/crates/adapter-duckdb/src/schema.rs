@@ -173,12 +173,6 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     tool_definitions            JSON NOT NULL DEFAULT '[]' USING COMPRESSION zstd,
     tool_names                  JSON NOT NULL DEFAULT '[]' USING COMPRESSION zstd,
 
-    -- ═══════════════════════════════════════════════════════════════════
-    -- RAW SPAN (original OTLP span for reconstruction/debugging)
-    -- Stored as JSON for direct querying; includes attributes and resource.attributes
-    -- ═══════════════════════════════════════════════════════════════════
-    raw_span                    JSON USING COMPRESSION zstd,
-
     -- Instrumentation scope (v2). Declared last, deliberately: the span writer is a positional
     -- Appender and a migration can only append, so fresh and upgraded databases must agree on the
     -- physical order - the invariant `migration_added_columns_are_declared_last` pins.
@@ -190,7 +184,10 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     hold_until                 TIMESTAMP,
     logical_bytes              UBIGINT NOT NULL DEFAULT 0,
     -- The stored raw record this row was derived from (otel_raw.raw_id).
-    raw_id                     VARCHAR
+    raw_id                     VARCHAR,
+    -- How many events and links the span carries. The events and links themselves live in the raw record.
+    event_count                UINTEGER NOT NULL DEFAULT 0,
+    link_count                 UINTEGER NOT NULL DEFAULT 0
 );
 
 -- Indexes for spans (minimal - DuckDB columnar scans are efficient for low-cardinality filters)

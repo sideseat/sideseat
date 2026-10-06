@@ -311,8 +311,28 @@ pub fn process_request_for_test_with_mode(
     pricing: &PricingService,
     mode: ExtractionMode,
 ) -> Option<Vec<NormalizedSpan>> {
-    process_request(request, pricing, false, &FileExtractionCache::new(), mode)
-        .map(|(spans, _, _)| spans)
+    process_request_for_test_with_files(request, pricing, mode, false)
+}
+
+/// As [`process_request_for_test_with_mode`], with file extraction on or off.
+///
+/// Extraction changes what a stored string holds - base64 or a `#!B64!#` reference - so a test comparing a
+/// stored field with something rendered later has to be able to ask for both.
+#[cfg(any(test, feature = "test-support"))]
+pub fn process_request_for_test_with_files(
+    request: &ExportTraceServiceRequest,
+    pricing: &PricingService,
+    mode: ExtractionMode,
+    files_enabled: bool,
+) -> Option<Vec<NormalizedSpan>> {
+    process_request(
+        request,
+        pricing,
+        files_enabled,
+        &FileExtractionCache::new(),
+        mode,
+    )
+    .map(|(spans, _, _)| spans)
 }
 
 /// What became of one request in the CPU phase.

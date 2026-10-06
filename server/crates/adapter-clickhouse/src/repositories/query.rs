@@ -64,10 +64,10 @@ pub async fn spans_with_matching_content(
 /// # SQL Injection Safety
 /// All values that could potentially come from user input are parameterized.
 use crate::ClickhouseError;
-use rows::{ChEventRow, ChLinkRow, ChSessionRow, ChSpanRow, ChTraceRow};
+use rows::{ChSessionRow, ChSpanRow, ChTraceRow};
 use sideseat_ports::types::{
-    EventRow, FeedSpansParams, LinkRow, ListSessionsParams, ListSpansParams, ListTracesParams,
-    ProjectId, SessionRow, SpanRow, TraceRow,
+    FeedSpansParams, ListSessionsParams, ListSpansParams, ListTracesParams, ProjectId, SessionRow,
+    SpanRow, TraceRow,
 };
 
 /// List traces with pagination and filtering
@@ -181,36 +181,6 @@ pub async fn get_session(
             .fetch_optional()
             .await?;
     Ok(row.map(SessionRow::from))
-}
-
-/// Get events for a span (extracted from raw_span JSON)
-pub async fn get_events_for_span(
-    client: &Client,
-    project_id: &str,
-    trace_id: &str,
-    span_id: &str,
-) -> Result<Vec<EventRow>, ClickhouseError> {
-    let query = analytics::events_for_span(project_id, trace_id, span_id, Backend::Clickhouse);
-    let rows: Vec<ChEventRow> = bind_analytics_values(client.query(query.sql()), query.params())
-        .fetch_all()
-        .await?;
-
-    Ok(rows.into_iter().map(EventRow::from).collect())
-}
-
-/// Get links for a span (extracted from raw_span JSON)
-pub async fn get_links_for_span(
-    client: &Client,
-    project_id: &str,
-    trace_id: &str,
-    span_id: &str,
-) -> Result<Vec<LinkRow>, ClickhouseError> {
-    let query = analytics::links_for_span(project_id, trace_id, span_id, Backend::Clickhouse);
-    let rows: Vec<ChLinkRow> = bind_analytics_values(client.query(query.sql()), query.params())
-        .fetch_all()
-        .await?;
-
-    Ok(rows.into_iter().map(LinkRow::from).collect())
 }
 
 /// Get a single trace by ID
@@ -348,8 +318,8 @@ pub async fn get_span_counts_bulk(
     struct CountRow {
         trace_id: String,
         span_id: String,
-        event_count: u64,
-        link_count: u64,
+        event_count: u32,
+        link_count: u32,
     }
 
     let query = bind_analytics_values(client.query(statement.sql()), statement.params());
@@ -359,8 +329,8 @@ pub async fn get_span_counts_bulk(
         counts.insert(
             (row.trace_id, row.span_id),
             SpanCounts {
-                event_count: row.event_count as i64,
-                link_count: row.link_count as i64,
+                event_count: i64::from(row.event_count),
+                link_count: i64::from(row.link_count),
             },
         );
     }
@@ -408,10 +378,10 @@ pub async fn file_reference_fields_for_traces(
         return Ok(Vec::new());
     };
     let query = bind_analytics_values(client.query(statement.sql()), statement.params());
-    let rows: Vec<(String, String, String, String)> = query.fetch_all().await?;
+    let rows: Vec<(String, String, String)> = query.fetch_all().await?;
     Ok(rows
         .into_iter()
-        .flat_map(|(a, b, c, d)| [a, b, c, d])
+        .flat_map(|(messages, tool_definitions, metadata)| [messages, tool_definitions, metadata])
         .filter(|text| !text.is_empty())
         .collect())
 }
@@ -427,18 +397,17 @@ pub async fn span_body_fields_for_traces(
         return Ok(Vec::new());
     };
     let query = bind_analytics_values(client.query(statement.sql()), statement.params());
-    let rows: Vec<(String, String, String, String, String, String)> = query.fetch_all().await?;
+    let rows: Vec<(String, String, String, String, String)> = query.fetch_all().await?;
     Ok(rows
         .into_iter()
         .map(
-            |(trace_id, span_id, messages, tool_definitions, tool_names, raw_span)| {
+            |(trace_id, span_id, messages, tool_definitions, tool_names)| {
                 sideseat_ports::types::SpanBodySource {
                     trace_id,
                     span_id,
                     messages: (!messages.is_empty()).then_some(messages),
                     tool_definitions: (!tool_definitions.is_empty()).then_some(tool_definitions),
                     tool_names: (!tool_names.is_empty()).then_some(tool_names),
-                    raw_span: (!raw_span.is_empty()).then_some(raw_span),
                 }
             },
         )
@@ -460,18 +429,17 @@ pub async fn span_body_backfill_page(
         Backend::Clickhouse,
     );
     let query = bind_analytics_values(client.query(statement.sql()), statement.params());
-    let rows: Vec<(String, String, String, String, String, String)> = query.fetch_all().await?;
+    let rows: Vec<(String, String, String, String, String)> = query.fetch_all().await?;
     Ok(rows
         .into_iter()
         .map(
-            |(trace_id, span_id, messages, tool_definitions, tool_names, raw_span)| {
+            |(trace_id, span_id, messages, tool_definitions, tool_names)| {
                 sideseat_ports::types::SpanBodySource {
                     trace_id,
                     span_id,
                     messages: (!messages.is_empty()).then_some(messages),
                     tool_definitions: (!tool_definitions.is_empty()).then_some(tool_definitions),
                     tool_names: (!tool_names.is_empty()).then_some(tool_names),
-                    raw_span: (!raw_span.is_empty()).then_some(raw_span),
                 }
             },
         )

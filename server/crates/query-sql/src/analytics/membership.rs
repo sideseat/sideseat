@@ -146,7 +146,10 @@ fn membership_source(as_of_us: Option<i64>, backend: Backend) -> (String, Vec<Qu
     }
 }
 
-/// Read event and link counts from the winning row of each requested span identity.
+/// Read the event and link counts of each requested span identity's winning row.
+///
+/// Columns, not a length over the raw span JSON: the counts are two small integers the extraction already knows,
+/// and reading them from a JSON blob was the only reason a list needed that blob at all.
 pub fn span_counts_bulk(
     project_id: &str,
     spans: &[(String, String)],
@@ -156,16 +159,6 @@ pub fn span_counts_bulk(
         return None;
     }
     let source = analytics_dialect(backend).span_page_relation();
-    let (event_count, link_count) = match backend {
-        Backend::Duckdb => (
-            "COALESCE(json_array_length(raw_span->'events'), 0)",
-            "COALESCE(json_array_length(raw_span->'links'), 0)",
-        ),
-        Backend::Clickhouse => (
-            "coalesce(JSONLength(raw_span, 'events'), 0)",
-            "coalesce(JSONLength(raw_span, 'links'), 0)",
-        ),
-    };
     let identities = std::iter::repeat_n("(?, ?)", spans.len())
         .collect::<Vec<_>>()
         .join(", ");
@@ -177,10 +170,37 @@ pub fn span_counts_bulk(
     }
     Some(ParameterizedQuery {
         sql: format!(
-            "SELECT trace_id, span_id, {event_count} AS event_count, \
-             {link_count} AS link_count \
+            "SELECT trace_id, span_id, event_count, link_count \
              FROM {source} \
              WHERE project_id = ? AND (trace_id, span_id) IN ({identities})"
+        ),
+        params,
+    })
+}
+
+/// Read the raw record each requested span identity's winning row names.
+pub fn span_raw_ids(
+    project_id: &str,
+    spans: &[(String, String)],
+    backend: Backend,
+) -> Option<ParameterizedQuery> {
+    if spans.is_empty() {
+        return None;
+    }
+    let source = analytics_dialect(backend).span_page_relation();
+    let identities = std::iter::repeat_n("(?, ?)", spans.len())
+        .collect::<Vec<_>>()
+        .join(", ");
+    let mut params = Vec::with_capacity(1 + spans.len() * 2);
+    params.push(QueryValue::String(project_id.to_string()));
+    for (trace_id, span_id) in spans {
+        params.push(QueryValue::String(trace_id.clone()));
+        params.push(QueryValue::String(span_id.clone()));
+    }
+    Some(ParameterizedQuery {
+        sql: format!(
+            "SELECT trace_id, span_id, raw_id FROM {source} \
+             WHERE project_id = ? AND (trace_id, span_id) IN ({identities}) AND raw_id IS NOT NULL"
         ),
         params,
     })
@@ -208,10 +228,9 @@ pub fn file_reference_fields(
     backend: Backend,
 ) -> Option<ParameterizedQuery> {
     let projection = match backend {
-        Backend::Duckdb => "messages, tool_definitions, raw_span, metadata",
+        Backend::Duckdb => "messages, tool_definitions, metadata",
         Backend::Clickhouse => {
-            "coalesce(messages, ''), coalesce(tool_definitions, ''), \
-             coalesce(raw_span, ''), coalesce(metadata, '')"
+            "coalesce(messages, ''), coalesce(tool_definitions, ''), coalesce(metadata, '')"
         }
     };
     trace_identity_read(
@@ -230,10 +249,10 @@ pub fn span_body_fields(
     backend: Backend,
 ) -> Option<ParameterizedQuery> {
     let projection = match backend {
-        Backend::Duckdb => "trace_id, span_id, messages, tool_definitions, tool_names, raw_span",
+        Backend::Duckdb => "trace_id, span_id, messages, tool_definitions, tool_names",
         Backend::Clickhouse => {
             "trace_id, span_id, coalesce(messages, ''), coalesce(tool_definitions, ''), \
-             coalesce(tool_names, ''), coalesce(raw_span, '')"
+             coalesce(tool_names, '')"
         }
     };
     trace_identity_read(
@@ -253,10 +272,10 @@ pub fn span_body_backfill_page(
 ) -> ParameterizedQuery {
     let source = analytics_dialect(backend).span_page_relation();
     let projection = match backend {
-        Backend::Duckdb => "trace_id, span_id, messages, tool_definitions, tool_names, raw_span",
+        Backend::Duckdb => "trace_id, span_id, messages, tool_definitions, tool_names",
         Backend::Clickhouse => {
             "trace_id, span_id, coalesce(messages, ''), coalesce(tool_definitions, ''), \
-             coalesce(tool_names, ''), coalesce(raw_span, '')"
+             coalesce(tool_names, '')"
         }
     };
     let mut params = vec![QueryValue::String(project_id.to_string())];
@@ -535,99 +554,6 @@ pub fn spans_for_trace(
             QueryValue::String(project_id.to_string()),
             QueryValue::String(trace_id.to_string()),
             QueryValue::Int64(i64::try_from(limit).unwrap_or(i64::MAX)),
-        ],
-    }
-}
-
-/// Expand the ordered events from one winning span row.
-pub fn events_for_span(
-    project_id: &str,
-    trace_id: &str,
-    span_id: &str,
-    backend: Backend,
-) -> ParameterizedQuery {
-    let sql = match backend {
-        Backend::Duckdb => format!(
-            "SELECT _s.span_id, (ordinality - 1)::INTEGER AS event_index, \
-                    event->>'timestamp' AS event_timestamp, \
-                    event->>'name' AS event_name, \
-                    (event->'attributes')::VARCHAR AS attributes \
-             FROM (SELECT span_id, raw_span FROM otel_spans \
-                   WHERE project_id = ? AND trace_id = ? AND span_id = ? \
-                   ORDER BY ingested_at DESC, rowid DESC LIMIT 1) _s, \
-                  UNNEST(CAST(_s.raw_span->'events' AS JSON[])) \
-                  WITH ORDINALITY AS t(event, ordinality) \
-             ORDER BY ordinality LIMIT {QUERY_MAX_SPANS_PER_TRACE}"
-        ),
-        Backend::Clickhouse => format!(
-            "SELECT span_id, \
-                    toInt32(arrayJoin(range(JSONLength(raw_span, 'events')))) AS event_index, \
-                    ifNull(JSONExtractString(JSONExtractRaw(raw_span, 'events', \
-                      arrayJoin(range(JSONLength(raw_span, 'events'))) + 1), 'timestamp'), '') \
-                      AS event_timestamp, \
-                    JSONExtractString(JSONExtractRaw(raw_span, 'events', \
-                      arrayJoin(range(JSONLength(raw_span, 'events'))) + 1), 'name') AS event_name, \
-                    JSONExtractRaw(JSONExtractRaw(raw_span, 'events', \
-                      arrayJoin(range(JSONLength(raw_span, 'events'))) + 1), 'attributes') AS attributes \
-             FROM otel_spans FINAL \
-             WHERE project_id = ? AND trace_id = ? AND span_id = ? \
-               AND JSONLength(raw_span, 'events') > 0 \
-             ORDER BY event_index LIMIT {QUERY_MAX_SPANS_PER_TRACE}"
-        ),
-    };
-    point_span_json_query(sql, project_id, trace_id, span_id)
-}
-
-/// Expand the ordered links from one winning span row.
-pub fn links_for_span(
-    project_id: &str,
-    trace_id: &str,
-    span_id: &str,
-    backend: Backend,
-) -> ParameterizedQuery {
-    let sql = match backend {
-        Backend::Duckdb => format!(
-            "SELECT _s.span_id, link->>'trace_id' AS linked_trace_id, \
-                    link->>'span_id' AS linked_span_id, \
-                    (link->'attributes')::VARCHAR AS attributes \
-             FROM (SELECT span_id, raw_span FROM otel_spans \
-                   WHERE project_id = ? AND trace_id = ? AND span_id = ? \
-                   ORDER BY ingested_at DESC, rowid DESC LIMIT 1) _s, \
-                  UNNEST(CAST(_s.raw_span->'links' AS JSON[])) \
-                  WITH ORDINALITY AS t(link, ordinality) \
-             ORDER BY ordinality LIMIT {QUERY_MAX_SPANS_PER_TRACE}"
-        ),
-        Backend::Clickhouse => format!(
-            "SELECT span_id, \
-                    ifNull(JSONExtractString(JSONExtractRaw(raw_span, 'links', \
-                      arrayJoin(range(JSONLength(raw_span, 'links'))) + 1), 'trace_id'), '') \
-                      AS linked_trace_id, \
-                    ifNull(JSONExtractString(JSONExtractRaw(raw_span, 'links', \
-                      arrayJoin(range(JSONLength(raw_span, 'links'))) + 1), 'span_id'), '') \
-                      AS linked_span_id, \
-                    JSONExtractRaw(JSONExtractRaw(raw_span, 'links', \
-                      arrayJoin(range(JSONLength(raw_span, 'links'))) + 1), 'attributes') AS attributes \
-             FROM otel_spans FINAL \
-             WHERE project_id = ? AND trace_id = ? AND span_id = ? \
-               AND JSONLength(raw_span, 'links') > 0 \
-             LIMIT {QUERY_MAX_SPANS_PER_TRACE}"
-        ),
-    };
-    point_span_json_query(sql, project_id, trace_id, span_id)
-}
-
-fn point_span_json_query(
-    sql: String,
-    project_id: &str,
-    trace_id: &str,
-    span_id: &str,
-) -> ParameterizedQuery {
-    ParameterizedQuery {
-        sql,
-        params: vec![
-            QueryValue::String(project_id.to_string()),
-            QueryValue::String(trace_id.to_string()),
-            QueryValue::String(span_id.to_string()),
         ],
     }
 }

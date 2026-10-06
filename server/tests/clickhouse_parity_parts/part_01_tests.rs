@@ -248,29 +248,13 @@ fn fixture_spans() -> Vec<NormalizedSpan> {
             gen_ai_cost_total: 0.004,
             ..base("trace-j", "j-root", "cost-only", 65)
         },
-        // trace-d: no session, no generation, error status, no tags. Carries the raw OTLP span,
-        // because the event and link reads extract from that JSON and would otherwise compare two
-        // empty lists.
+        // trace-d: no session, no generation, error status, no tags. Two events and one link, as counts:
+        // the events and links themselves are rendered from the raw record, not read from a column.
         NormalizedSpan {
             scope_name: Some("opentelemetry.instrumentation.test".to_string()),
             scope_version: Some("1.2.3".to_string()),
-            raw_span: Some(
-                serde_json::json!({
-                    "attributes": {"custom.attribute": "value"},
-                    "resource": {"attributes": {"service.name": "parity"}},
-                    "events": [
-                        {"timestamp": "2025-01-01T00:00:00Z", "name": "exception",
-                         "attributes": {"exception.type": "ValueError"}},
-                        {"timestamp": "2025-01-01T00:00:01Z", "name": "retry",
-                         "attributes": {"attempt": 2}}
-                    ],
-                    "links": [
-                        {"trace_id": "trace-a", "span_id": "a-root",
-                         "attributes": {"link.kind": "follows"}}
-                    ]
-                })
-                .to_string(),
-            ),
+            event_count: 2,
+            link_count: 1,
             status_code: Some("ERROR".to_string()),
             status_message: Some("boom".to_string()),
             exception_type: Some("ValueError".to_string()),
@@ -292,8 +276,8 @@ fn f(value: f64) -> String {
     format!("{value:.9}")
 }
 
-/// JSON with keys sorted, so a dialect that reorders an object's members while extracting it from
-/// the raw span is not reported as a content difference.
+/// JSON with keys sorted, so a dialect that reorders an object's members while extracting it from a stored
+/// JSON column is not reported as a content difference.
 fn canonical_json(raw: &str) -> String {
     match serde_json::from_str::<serde_json::Value>(raw) {
         Ok(value) => canonical_value(&value),
@@ -393,10 +377,10 @@ fn describe_span(s: &SpanRow) -> String {
     format!(
         "span_id={} trace={} parent={:?} name={:?} kind={:?} category={:?} observation={:?} \
          framework={:?} status={:?} start={} end={:?} duration={:?} env={:?} \
-         resource_attributes={:?} session={:?} user={:?} system={:?} request_model={:?} \
+         session={:?} user={:?} system={:?} request_model={:?} \
          agent_name={:?} finish_reasons={:?} tokens=[{},{},{},{},{},{}] \
-         costs=[{},{},{},{},{},{}] usage_details={:?} metadata={:?} attributes={:?} \
-         input={:?} output={:?} raw_span={:?} scope_name={:?} scope_version={:?}",
+         costs=[{},{},{},{},{},{}] usage_details={:?} metadata={:?} \
+         input={:?} output={:?} scope_name={:?} scope_version={:?}",
         s.span_id,
         s.trace_id,
         s.parent_span_id,
@@ -410,7 +394,6 @@ fn describe_span(s: &SpanRow) -> String {
         s.timestamp_end.map(|e| e.timestamp_micros()),
         s.duration_ms,
         s.environment,
-        s.resource_attributes.as_deref().map(canonical_json),
         s.session_id,
         s.user_id,
         s.gen_ai_system,
@@ -431,10 +414,8 @@ fn describe_span(s: &SpanRow) -> String {
         f(s.gen_ai_cost_total),
         s.gen_ai_usage_details.as_deref().map(canonical_json),
         s.metadata.as_deref().map(canonical_json),
-        s.attributes.as_deref().map(canonical_json),
         s.input_preview,
         s.output_preview,
-        s.raw_span.as_deref().map(canonical_json),
         s.scope_name,
         s.scope_version,
     )

@@ -840,7 +840,7 @@ mod tests {
         let pool = pool().await;
         let messages = association("shared", 100);
         let mut raw = messages.clone();
-        raw.field = SpanBodyField::RawSpan;
+        raw.field = SpanBodyField::ToolNames;
 
         assert_eq!(
             register(

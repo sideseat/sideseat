@@ -35,6 +35,7 @@ type McpError = rmcp::model::ErrorData;
 #[derive(Clone)]
 pub struct McpServer {
     analytics: Arc<crate::dependencies::AnalyticsStore>,
+    files: Arc<sideseat_domain::files::FileService>,
     clock: Arc<dyn Clock>,
     project_id: ProjectId,
 }
@@ -42,11 +43,13 @@ pub struct McpServer {
 impl McpServer {
     pub fn new(
         analytics: Arc<crate::dependencies::AnalyticsStore>,
+        files: Arc<sideseat_domain::files::FileService>,
         clock: Arc<dyn Clock>,
         project_id: String,
     ) -> Self {
         Self {
             analytics,
+            files,
             clock,
             project_id: project_id.into(),
         }
@@ -308,12 +311,21 @@ impl McpServer {
         Parameters(input): Parameters<GetRawSpanInput>,
     ) -> Result<CallToolResult, McpError> {
         let repo = self.analytics.as_ref();
-        let span = repo
+        let mut span = repo
             .get_span(&self.project_id, &input.trace_id, &input.span_id)
             .await
             .map_err(mcp_err)?
             .ok_or_else(|| McpError::invalid_params("span not found", None))?;
 
+        // Rendered from the raw record this span was derived from; nothing stores a second copy of it.
+        span.raw_span = sideseat_ingestion::traces::raw_views::render_spans(
+            &self.project_id,
+            &[(span.trace_id.clone(), span.span_id.clone())],
+            repo,
+            &self.files,
+        )
+        .await
+        .remove(&(span.trace_id.clone(), span.span_id.clone()));
         let dtos = spans_to_dtos(repo, &self.project_id, std::slice::from_ref(&span), true).await?;
         ok_json(&SpanDetailDto {
             summary: dtos.into_iter().next().unwrap(),

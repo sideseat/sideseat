@@ -28,6 +28,8 @@ type McpService = StreamableHttpService<McpServer, LocalSessionManager>;
 #[derive(Clone)]
 struct McpRouterState {
     analytics: Arc<crate::dependencies::AnalyticsStore>,
+    /// Needed to render a span's raw OTLP JSON: the record holds its media by hash.
+    files: Arc<sideseat_domain::files::FileService>,
     clock: Arc<dyn Clock>,
     ct: CancellationToken,
     /// Session IDs are resolved within their authorised project, never across
@@ -37,11 +39,13 @@ struct McpRouterState {
 
 pub fn routes(
     analytics: Arc<crate::dependencies::AnalyticsStore>,
+    files: Arc<sideseat_domain::files::FileService>,
     clock: Arc<dyn Clock>,
     ct: CancellationToken,
 ) -> Router<()> {
     let state = McpRouterState {
         analytics,
+        files,
         clock,
         ct,
         session_managers: Arc::new(dashmap::DashMap::new()),
@@ -57,6 +61,7 @@ async fn mcp_proxy(
 ) -> Response {
     let project_id = access.project_id.into_inner();
     let analytics = state.analytics.clone();
+    let files = state.files.clone();
     let clock = state.clock.clone();
     let session_manager = state
         .session_managers
@@ -67,6 +72,7 @@ async fn mcp_proxy(
         move || {
             Ok(McpServer::new(
                 analytics.clone(),
+                files.clone(),
                 clock.clone(),
                 project_id.clone(),
             ))

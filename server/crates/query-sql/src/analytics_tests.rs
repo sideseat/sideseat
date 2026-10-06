@@ -60,8 +60,6 @@ fn registry_is_derived_from_real_typed_operations() {
             QueryOperation::AnalyticsProjectIds,
             QueryOperation::CountSpansByProject,
             QueryOperation::GetSpansForTrace,
-            QueryOperation::GetEventsForSpan,
-            QueryOperation::GetLinksForSpan,
             QueryOperation::GetTrace,
             QueryOperation::GetTracesForSession,
             QueryOperation::GetSession,
@@ -115,8 +113,6 @@ fn registry_is_derived_from_real_typed_operations() {
             "analytics_project_ids",
             "count_spans_by_project",
             "get_spans_for_trace",
-            "get_events_for_span",
-            "get_links_for_span",
             "get_trace",
             "get_traces_for_session",
             "get_session",
@@ -641,15 +637,15 @@ fn bulk_span_counts_use_winning_rows_and_tuple_bindings() {
         assert_eq!(query.params().len(), 5);
         assert!(!query.sql().contains("tenant-'quoted"));
         assert!(!query.sql().contains("trace-'a"));
+        // The counts are columns, so the only dialect difference left is how the winning row is chosen.
+        assert!(
+            query
+                .sql()
+                .contains("SELECT trace_id, span_id, event_count, link_count")
+        );
         match backend {
-            Backend::Duckdb => {
-                assert!(query.sql().contains("QUALIFY ROW_NUMBER()"));
-                assert!(query.sql().contains("json_array_length"));
-            }
-            Backend::Clickhouse => {
-                assert!(query.sql().contains("FROM otel_spans FINAL"));
-                assert!(query.sql().contains("JSONLength"));
-            }
+            Backend::Duckdb => assert!(query.sql().contains("QUALIFY ROW_NUMBER()")),
+            Backend::Clickhouse => assert!(query.sql().contains("FROM otel_spans FINAL")),
         }
     }
 }
@@ -731,32 +727,6 @@ fn trace_span_detail_read_reuses_projection_and_winner_capabilities() {
             capped.params()[2],
             QueryValue::Int64(i64::from(QUERY_MAX_SPANS_PER_TRACE))
         );
-    }
-}
-
-#[test]
-fn point_span_json_reads_bind_identity_and_preserve_array_order() {
-    for backend in [Backend::Duckdb, Backend::Clickhouse] {
-        let events = events_for_span("tenant-'quoted", "trace-'quoted", "span-'quoted", backend);
-        let links = links_for_span("tenant-'quoted", "trace-'quoted", "span-'quoted", backend);
-        for query in [&events, &links] {
-            assert_eq!(query.sql().matches('?').count(), 3);
-            assert_eq!(query.params().len(), 3);
-            assert!(!query.sql().contains("tenant-'quoted"));
-            assert!(!query.sql().contains("trace-'quoted"));
-            assert!(!query.sql().contains("span-'quoted"));
-        }
-        assert!(events.sql().contains("event_index"));
-        match backend {
-            Backend::Duckdb => {
-                assert!(events.sql().contains("rowid DESC"));
-                assert!(links.sql().contains("WITH ORDINALITY"));
-            }
-            Backend::Clickhouse => {
-                assert!(events.sql().contains("FROM otel_spans FINAL"));
-                assert!(links.sql().contains("JSONLength(raw_span, 'links')"));
-            }
-        }
     }
 }
 

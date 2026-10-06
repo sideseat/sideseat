@@ -13,11 +13,11 @@ use sideseat_ports::traits::{
     MessageStore, MetricStore, SearchIndex, SpanStore, SurvivorReferences,
 };
 use sideseat_ports::types::{
-    EventRow, FeedMessagesParams, FeedSpansParams, LinkRow, ListLogsParams, ListMetricsParams,
-    ListSessionsParams, ListSpansParams, ListTracesParams, LogRow, MessageQueryParams,
-    MessageQueryResult, MetricAggregateRow, MetricRow, NormalizedLog, NormalizedMetric,
-    NormalizedSpan, ProjectId, RawPending, RawRecordRow, SearchPage, SearchQuery, SessionRow,
-    SpanCounts, SpanRow, TraceRow, deduplicate_by_span_identity,
+    FeedMessagesParams, FeedSpansParams, ListLogsParams, ListMetricsParams, ListSessionsParams,
+    ListSpansParams, ListTracesParams, LogRow, MessageQueryParams, MessageQueryResult,
+    MetricAggregateRow, MetricRow, NormalizedLog, NormalizedMetric, NormalizedSpan, ProjectId,
+    RawPending, RawRecordRow, SearchPage, SearchQuery, SessionRow, SpanCounts, SpanRow, TraceRow,
+    deduplicate_by_span_identity,
 };
 
 pub struct DedupAnalyticsRepository {
@@ -59,28 +59,6 @@ impl SpanStore for DedupAnalyticsRepository {
         span_id: &str,
     ) -> Result<Option<SpanRow>, DataError> {
         self.inner.get_span(project_id, trace_id, span_id).await
-    }
-
-    async fn get_events_for_span(
-        &self,
-        project_id: &ProjectId,
-        trace_id: &str,
-        span_id: &str,
-    ) -> Result<Vec<EventRow>, DataError> {
-        self.inner
-            .get_events_for_span(project_id, trace_id, span_id)
-            .await
-    }
-
-    async fn get_links_for_span(
-        &self,
-        project_id: &ProjectId,
-        trace_id: &str,
-        span_id: &str,
-    ) -> Result<Vec<LinkRow>, DataError> {
-        self.inner
-            .get_links_for_span(project_id, trace_id, span_id)
-            .await
     }
 
     async fn get_span_counts_bulk(
@@ -550,6 +528,14 @@ impl sideseat_ports::traits::RawStore for DedupAnalyticsRepository {
         raw_ids: &[String],
     ) -> Result<(), DataError> {
         self.inner.delete_raw_records(project_id, raw_ids).await
+    }
+
+    async fn span_raw_ids(
+        &self,
+        project_id: &ProjectId,
+        spans: &[(String, String)],
+    ) -> Result<HashMap<(String, String), String>, DataError> {
+        self.inner.span_raw_ids(project_id, spans).await
     }
 
     async fn raw_records_named(

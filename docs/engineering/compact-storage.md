@@ -93,18 +93,39 @@ never on another tenant's telemetry.
 server, one project per producer, and reads the backends' own accounting. Its gate is **stored bytes per item
 excluding media** - media is stored once per project at its floor (the unique decoded bytes) and reported beside
 it - against the ruled ceilings of 480 B per span, 300 B per log record and 150 B per metric point, plus a regression
-ceiling at the last measured figure. Baseline, embedded backend, 2026-10-06:
+ceiling at the last measured figure.
 
-| Signal  | Items  | Raw OTLP | Stored, excluding media | Per item |
-| ------- | -----: | -------: | ----------------------: | -------: |
-| traces  | 13,315 | 74.6 MB  | 215.1 MB                | 16,152 B |
-| logs    |  1,392 | 1.42 MB  | 17.3 MB                 | 12,448 B |
-| metrics |    480 | 0.19 MB  | 0.56 MB                 |  1,164 B |
+**How it is measured.** The database is built from scratch by the run, then settled - `FORCE CHECKPOINT` and
+`VACUUM` - so nothing is left in the write-ahead log, and the bytes charged per item are exactly DuckDB's
+`used_blocks`: the per-column attribution from the segment map plus the residue (indexes, headers, the unused tail
+of each last block). Free blocks are reported beside the figure and never charged, because they are capacity the
+file keeps for reuse rather than bytes the corpus stores, and counting them made the same corpus measure
+differently depending on the churn of the run. ClickHouse is read the same way through its own accounting, per
+part.
 
-Where the trace bytes were: DuckDB free blocks and indexes 5,340 B/span, `otel_spans` 4,430 (of which the `raw_span`
-JSON copy is the largest column), the content-body copies of `messages`, `tool_definitions`, `tool_names` and
-`raw_span` 3,526 in blobs plus 2,562 of registry rows, media files 1,012, search terms 287. DuckDB in its default
-storage format (`v0.10.2`) does not compress long strings at all.
+Embedded backend, on the pinned corpus (1,347 trace exports, 127 log, 72 metric), 2026-10-07:
+
+| Signal  |  Items | Raw OTLP | Stored, excluding media | Per item | Before the raw store |
+| ------- | -----: | -------: | ----------------------: | -------: | -------------------: |
+| traces  | 13,384 | 37.3 MB  | 61.7 MB                 |  4,612 B |              8,240 B |
+| logs    |  1,392 | 1.42 MB  | 6.36 MB                 |  4,570 B |              4,467 B |
+| metrics |    480 | 0.19 MB  | 0.28 MB                 |    581 B |                579 B |
+
+Where a trace span's bytes are now: the content-body registry and its blobs 2,556 B/span, DuckDB's indexes and
+block residue 1,263, `otel_spans` 274, search terms 297, the raw record 117.5 and its trace index 19.6, media 296.5
+reported separately. The halving came from retiring the `raw_span` JSON column: it was the largest column *and*
+the largest content-body object, so one copy of each span's OTLP JSON was being kept twice over - 3,628 B/span
+between them - while the raw record already held the whole export. Logs and metrics move by about 100 B and 2 B
+because the shared DuckDB residue is spread over the signals by rows; their own columns are unchanged.
+
+**Metrics are measured on a derived load.** 480 captured points cannot measure a store whose block is 256 KB:
+most of the figure is one partly-filled block per column. `scripts/perf/metrics-load.py` derives a deterministic
+load of about a million points from the captured *shapes* - every series keeps its resource, scope, instrument
+kind, unit, temporality and attribute set, from a fleet of replicas distinguished by `service.instance.id`,
+cumulative every interval, with values that only grow - and `--metrics-load` measures that instead. The parameters
+are committed (`metrics-load.json`), not the data, so the same parameters and the same corpus give the same exports
+byte for byte. On that load a point costs 172 B, against 581 B on the captured corpus; the captured corpus stays as
+the correctness fixture.
 
 **Arithmetic for media.** Media cannot be compressed losslessly: six generated PNGs, a JPEG, a PDF and encrypted
 reasoning signatures, 15.3 MB unique per project out of 74.6 MB. However well everything else is stored, traces

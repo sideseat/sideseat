@@ -15,10 +15,10 @@ use sideseat_ports::traits::{
     SearchIndex, SpanStore, SurvivorReferences,
 };
 use sideseat_ports::types::{
-    EventRow, FeedMessagesParams, FeedSpansParams, LinkRow, ListLogsParams, ListMetricsParams,
-    ListSessionsParams, ListSpansParams, ListTracesParams, LogRow, MessageQueryParams,
-    MessageQueryResult, MetricAggregateRow, MetricRow, NormalizedLog, NormalizedMetric,
-    NormalizedSpan, PressureSpanCandidate, ProjectId, ProjectStatsResult, SearchBackfillDocument,
+    FeedMessagesParams, FeedSpansParams, ListLogsParams, ListMetricsParams, ListSessionsParams,
+    ListSpansParams, ListTracesParams, LogRow, MessageQueryParams, MessageQueryResult,
+    MetricAggregateRow, MetricRow, NormalizedLog, NormalizedMetric, NormalizedSpan,
+    PressureSpanCandidate, ProjectId, ProjectStatsResult, SearchBackfillDocument,
     SearchBackfillSource, SearchPage, SearchQuery, SearchSignal, SessionRow, SpanCounts, SpanRow,
     StatsParams, TraceRow,
 };
@@ -96,38 +96,6 @@ impl SpanStore for ClickhouseRepository {
             self,
             project_id,
             query::get_span,
-            project_id,
-            trace_id,
-            span_id
-        )
-    }
-
-    async fn get_events_for_span(
-        &self,
-        project_id: &ProjectId,
-        trace_id: &str,
-        span_id: &str,
-    ) -> Result<Vec<EventRow>, DataError> {
-        tenant_query!(
-            self,
-            project_id,
-            query::get_events_for_span,
-            project_id,
-            trace_id,
-            span_id
-        )
-    }
-
-    async fn get_links_for_span(
-        &self,
-        project_id: &ProjectId,
-        trace_id: &str,
-        span_id: &str,
-    ) -> Result<Vec<LinkRow>, DataError> {
-        tenant_query!(
-            self,
-            project_id,
-            query::get_links_for_span,
             project_id,
             trace_id,
             span_id

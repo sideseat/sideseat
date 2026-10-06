@@ -127,8 +127,6 @@ fn insert_spans(
             span.messages.as_deref().unwrap_or("[]"),
             span.tool_definitions.as_deref().unwrap_or("[]"),
             span.tool_names.as_deref().unwrap_or("[]"),
-            // Pre-serialized raw span JSON
-            span.raw_span.as_deref(),
             // Instrumentation scope (v4) - appended last, matching the schema's physical order
             span.scope_name.as_deref(),
             span.scope_version.as_deref(),
@@ -136,6 +134,8 @@ fn insert_spans(
             SqlOptTimestamp(span.hold_until),
             i64::try_from(span.logical_bytes).unwrap_or(i64::MAX),
             span.raw_id.as_deref(),
+            span.event_count,
+            span.link_count,
         ])?;
     }
 
@@ -203,8 +203,9 @@ mod tests {
         assert_eq!(count, 1);
     }
 
+    /// The counts a list shows are columns on the row; the events and links themselves live in the raw record.
     #[tokio::test]
-    async fn test_insert_span_with_raw_span() {
+    async fn test_insert_span_with_counts() {
         let (_temp_dir, analytics) = create_test_service().await;
 
         let span = NormalizedSpan {
@@ -212,16 +213,8 @@ mod tests {
             span_id: "span1".to_string(),
             span_name: "test".to_string(),
             timestamp_start: Utc::now(),
-            raw_span: Some(serde_json::to_string(&serde_json::json!({
-                "trace_id": "trace1",
-                "span_id": "span1",
-                "events": [
-                    {"time_unix_nano": 1000000000, "name": "test-event", "attributes": {"key": "value"}}
-                ],
-                "links": [
-                    {"trace_id": "linked_trace", "span_id": "linked_span", "attributes": null}
-                ]
-            })).unwrap()),
+            event_count: 1,
+            link_count: 2,
             ..Default::default()
         };
 
@@ -232,127 +225,13 @@ mod tests {
         }
 
         let conn = analytics.conn();
-        let count: i64 = conn
+        let counts: (u32, u32) = conn
             .query_row(
-                "SELECT COUNT(*) FROM otel_spans WHERE trace_id = 'trace1'",
+                "SELECT event_count, link_count FROM otel_spans WHERE trace_id = 'trace1'",
                 [],
-                |row| row.get(0),
+                |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .expect("Should query");
-        assert_eq!(count, 1);
-    }
-
-    #[tokio::test]
-    async fn test_events_roundtrip_via_raw_span() {
-        use crate::repositories::query::get_events_for_span;
-
-        let (_temp_dir, analytics) = create_test_service().await;
-
-        let span = NormalizedSpan {
-            project_id: Some("test-project".to_string()),
-            trace_id: "trace-rt".to_string(),
-            span_id: "span-rt".to_string(),
-            span_name: "roundtrip-test".to_string(),
-            timestamp_start: Utc::now(),
-            raw_span: Some(serde_json::to_string(&serde_json::json!({
-                "trace_id": "trace-rt",
-                "span_id": "span-rt",
-                "events": [
-                    {"timestamp": "2025-01-01T00:00:01.000000Z", "name": "event-1", "attributes": {"key1": "value1"}},
-                    {"timestamp": "2025-01-01T00:00:02.000000Z", "name": "event-2", "attributes": {"key2": 42}}
-                ],
-                "links": []
-            })).unwrap()),
-            ..Default::default()
-        };
-
-        {
-            let conn = analytics.conn();
-            insert_batch(&conn, &[span]).expect("Insert should succeed");
-        }
-
-        let conn = analytics.conn();
-        let events = get_events_for_span(&conn, "test-project", "trace-rt", "span-rt")
-            .expect("Query should succeed");
-
-        assert_eq!(events.len(), 2);
-        assert_eq!(events[0].event_name, Some("event-1".to_string()));
-        assert_eq!(events[1].event_name, Some("event-2".to_string()));
-    }
-
-    #[tokio::test]
-    async fn test_links_roundtrip_via_raw_span() {
-        use crate::repositories::query::get_links_for_span;
-
-        let (_temp_dir, analytics) = create_test_service().await;
-
-        let span = NormalizedSpan {
-            project_id: Some("test-project".to_string()),
-            trace_id: "trace-rt".to_string(),
-            span_id: "span-rt".to_string(),
-            span_name: "roundtrip-test".to_string(),
-            timestamp_start: Utc::now(),
-            raw_span: Some(serde_json::to_string(&serde_json::json!({
-                "trace_id": "trace-rt",
-                "span_id": "span-rt",
-                "events": [],
-                "links": [
-                    {"trace_id": "linked-trace-1", "span_id": "linked-span-1", "attributes": {"relation": "parent"}},
-                    {"trace_id": "linked-trace-2", "span_id": "linked-span-2", "attributes": null}
-                ]
-            })).unwrap()),
-            ..Default::default()
-        };
-
-        {
-            let conn = analytics.conn();
-            insert_batch(&conn, &[span]).expect("Insert should succeed");
-        }
-
-        let conn = analytics.conn();
-        let links = get_links_for_span(&conn, "test-project", "trace-rt", "span-rt")
-            .expect("Query should succeed");
-
-        assert_eq!(links.len(), 2);
-        assert_eq!(links[0].linked_trace_id, "linked-trace-1");
-        assert_eq!(links[0].linked_span_id, "linked-span-1");
-        assert_eq!(links[1].linked_trace_id, "linked-trace-2");
-        assert_eq!(links[1].linked_span_id, "linked-span-2");
-    }
-
-    #[tokio::test]
-    async fn test_empty_events_returns_empty_vec() {
-        use crate::repositories::query::get_events_for_span;
-
-        let (_temp_dir, analytics) = create_test_service().await;
-
-        let span = NormalizedSpan {
-            project_id: Some("test-project".to_string()),
-            trace_id: "trace-empty".to_string(),
-            span_id: "span-empty".to_string(),
-            span_name: "no-events".to_string(),
-            timestamp_start: Utc::now(),
-            raw_span: Some(
-                serde_json::to_string(&serde_json::json!({
-                    "trace_id": "trace-empty",
-                    "span_id": "span-empty",
-                    "events": [],
-                    "links": []
-                }))
-                .unwrap(),
-            ),
-            ..Default::default()
-        };
-
-        {
-            let conn = analytics.conn();
-            insert_batch(&conn, &[span]).expect("Insert should succeed");
-        }
-
-        let conn = analytics.conn();
-        let events = get_events_for_span(&conn, "test-project", "trace-empty", "span-empty")
-            .expect("Query should succeed");
-
-        assert!(events.is_empty());
+        assert_eq!(counts, (1, 2));
     }
 }

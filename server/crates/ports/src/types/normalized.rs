@@ -336,9 +336,6 @@ pub struct NormalizedSpan {
     // None means "[]" at write time
     pub tool_names: Option<String>,
 
-    // Raw span JSON (includes attributes and resource.attributes, pre-serialized JSON)
-    pub raw_span: Option<String>,
-
     // Ingestion time (server time when span was received, for feed cursor)
     // Note: Not used in insert - populated by DB default (now())
     pub ingested_at: Option<DateTime<Utc>>,
@@ -353,4 +350,8 @@ pub struct NormalizedSpan {
     /// part of the span's logical size.
     #[serde(skip)]
     pub raw_id: Option<String>,
+    /// How many events and links the span carries. Two integers rather than a length over a stored copy of the
+    /// span's JSON: the events and links themselves are read from the raw record.
+    pub event_count: u32,
+    pub link_count: u32,
 }

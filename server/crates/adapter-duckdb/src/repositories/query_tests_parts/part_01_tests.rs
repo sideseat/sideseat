@@ -167,13 +167,6 @@ async fn bulk_span_counts_use_the_latest_delivery() {
     let event_time = DateTime::<Utc>::from_timestamp(1_700_000_000, 0).expect("valid timestamp");
     let first_ingest = DateTime::<Utc>::from_timestamp(1_700_000_001, 0).expect("valid timestamp");
     let second_ingest = DateTime::<Utc>::from_timestamp(1_700_000_002, 0).expect("valid timestamp");
-    let raw = |events: usize, links: usize| {
-        serde_json::json!({
-            "events": vec![serde_json::json!({"name": "event"}); events],
-            "links": vec![serde_json::json!({"trace_id": "linked"}); links],
-        })
-        .to_string()
-    };
     let first = NormalizedSpan {
         project_id: Some("test-project".to_string()),
         trace_id: "trace-counts".to_string(),
@@ -181,13 +174,15 @@ async fn bulk_span_counts_use_the_latest_delivery() {
         span_name: "first".to_string(),
         timestamp_start: event_time,
         ingested_at: Some(first_ingest),
-        raw_span: Some(raw(3, 2)),
+        event_count: 3,
+        link_count: 2,
         ..Default::default()
     };
     let second = NormalizedSpan {
         span_name: "second".to_string(),
         ingested_at: Some(second_ingest),
-        raw_span: Some(raw(1, 4)),
+        event_count: 1,
+        link_count: 4,
         ..first.clone()
     };
 

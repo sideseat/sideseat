@@ -90,7 +90,7 @@ pub(super) fn execute_span_query_values(
 pub(super) fn row_to_span(row: &Row<'_>) -> Result<SpanRow, DuckdbError> {
     let start_time_micros: i64 = row.get(9)?;
     let end_time_micros: Option<i64> = row.get(10)?;
-    let ingested_at_micros: i64 = row.get(38)?;
+    let ingested_at_micros: i64 = row.get(35)?;
 
     Ok(SpanRow {
         trace_id: row.get(0)?,
@@ -106,37 +106,36 @@ pub(super) fn row_to_span(row: &Row<'_>) -> Result<SpanRow, DuckdbError> {
         timestamp_end: end_time_micros.map(micros_to_datetime),
         duration_ms: row.get(11)?,
         environment: row.get(12)?,
-        resource_attributes: row.get(13)?,
-        session_id: row.get(14)?,
-        user_id: row.get(15)?,
-        gen_ai_system: row.get(16)?,
-        gen_ai_request_model: row.get(17)?,
-        gen_ai_agent_name: row.get(18)?,
+        session_id: row.get(13)?,
+        user_id: row.get(14)?,
+        gen_ai_system: row.get(15)?,
+        gen_ai_request_model: row.get(16)?,
+        gen_ai_agent_name: row.get(17)?,
         gen_ai_finish_reasons: row
-            .get::<_, Option<String>>(19)?
+            .get::<_, Option<String>>(18)?
             .and_then(|s| serde_json::from_str(&s).ok())
             .unwrap_or_default(),
-        gen_ai_usage_input_tokens: row.get::<_, Option<i64>>(20)?.unwrap_or(0),
-        gen_ai_usage_output_tokens: row.get::<_, Option<i64>>(21)?.unwrap_or(0),
-        gen_ai_usage_total_tokens: row.get::<_, Option<i64>>(22)?.unwrap_or(0),
-        gen_ai_usage_cache_read_tokens: row.get::<_, Option<i64>>(23)?.unwrap_or(0),
-        gen_ai_usage_cache_write_tokens: row.get::<_, Option<i64>>(24)?.unwrap_or(0),
-        gen_ai_usage_reasoning_tokens: row.get::<_, Option<i64>>(25)?.unwrap_or(0),
-        gen_ai_cost_input: row.get::<_, Option<f64>>(26)?.unwrap_or(0.0),
-        gen_ai_cost_output: row.get::<_, Option<f64>>(27)?.unwrap_or(0.0),
-        gen_ai_cost_cache_read: row.get::<_, Option<f64>>(28)?.unwrap_or(0.0),
-        gen_ai_cost_cache_write: row.get::<_, Option<f64>>(29)?.unwrap_or(0.0),
-        gen_ai_cost_reasoning: row.get::<_, Option<f64>>(30)?.unwrap_or(0.0),
-        gen_ai_cost_total: row.get::<_, Option<f64>>(31)?.unwrap_or(0.0),
-        gen_ai_usage_details: row.get(32)?,
-        metadata: row.get(33)?,
-        attributes: row.get(34)?,
-        input_preview: row.get(35)?,
-        output_preview: row.get(36)?,
-        raw_span: row.get(37)?,
+        gen_ai_usage_input_tokens: row.get::<_, Option<i64>>(19)?.unwrap_or(0),
+        gen_ai_usage_output_tokens: row.get::<_, Option<i64>>(20)?.unwrap_or(0),
+        gen_ai_usage_total_tokens: row.get::<_, Option<i64>>(21)?.unwrap_or(0),
+        gen_ai_usage_cache_read_tokens: row.get::<_, Option<i64>>(22)?.unwrap_or(0),
+        gen_ai_usage_cache_write_tokens: row.get::<_, Option<i64>>(23)?.unwrap_or(0),
+        gen_ai_usage_reasoning_tokens: row.get::<_, Option<i64>>(24)?.unwrap_or(0),
+        gen_ai_cost_input: row.get::<_, Option<f64>>(25)?.unwrap_or(0.0),
+        gen_ai_cost_output: row.get::<_, Option<f64>>(26)?.unwrap_or(0.0),
+        gen_ai_cost_cache_read: row.get::<_, Option<f64>>(27)?.unwrap_or(0.0),
+        gen_ai_cost_cache_write: row.get::<_, Option<f64>>(28)?.unwrap_or(0.0),
+        gen_ai_cost_reasoning: row.get::<_, Option<f64>>(29)?.unwrap_or(0.0),
+        gen_ai_cost_total: row.get::<_, Option<f64>>(30)?.unwrap_or(0.0),
+        gen_ai_usage_details: row.get(31)?,
+        metadata: row.get(32)?,
+        input_preview: row.get(33)?,
+        output_preview: row.get(34)?,
+        // Rendered from the raw record when a reader asks for it; never a column.
+        raw_span: None,
         ingested_at: micros_to_datetime(ingested_at_micros),
-        scope_name: row.get(39)?,
-        scope_version: row.get(40)?,
+        scope_name: row.get(36)?,
+        scope_version: row.get(37)?,
     })
 }
 

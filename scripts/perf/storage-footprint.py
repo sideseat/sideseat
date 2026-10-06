@@ -53,6 +53,9 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import storage_raw  # noqa: E402  (a sibling module, importable once the script's directory is on the path)
+
 ROOT = Path(__file__).resolve().parents[2]
 CORPUS = ROOT / "server/tests/fixtures/messages"
 # Metric exports have no message golden, so they live in their own corpus (`harness capture --metrics`).
@@ -71,6 +74,9 @@ SPAN_TABLES = {
     "otel_spans": "traces",
     "span_terms": "traces",
     "span_partition_anomalies": "traces",
+    # Derived from the records: which hold spans of which trace, so a deletion can find them.
+    "otel_raw_traces": "traces",
+    "otel_raw_pending": "traces",
 }
 LOG_TABLES = {"otel_logs": "logs", "log_terms": "logs"}
 METRIC_TABLES = {"otel_metrics": "metrics"}
@@ -195,6 +201,43 @@ def corpus() -> list[dict]:
                 "json": path.suffix == ".json",
                 "protobuf_bytes": message.ByteSize(),
                 "items": count_items(signal_name, message),
+            }
+        )
+    return exports
+
+
+def derived_metrics(work: Path) -> list[dict]:
+    """The deterministic metric load (`scripts/perf/metrics-load.py`), in place of the 480 captured points."""
+    from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import (
+        ExportMetricsServiceRequest,
+    )
+
+    out = work / "metrics-load"
+    subprocess.run(
+        [
+            "uv",
+            "run",
+            "--locked",
+            "--script",
+            str(ROOT / "scripts/perf/metrics-load.py"),
+            str(out),
+        ],
+        check=True,
+    )
+    exports = []
+    for path in sorted(out.rglob("metrics-*.pb")):
+        body = path.read_bytes()
+        message = ExportMetricsServiceRequest()
+        message.ParseFromString(body)
+        exports.append(
+            {
+                "path": path,
+                "signal": "metrics",
+                "tenant": path.parent.name,
+                "body": body,
+                "json": False,
+                "protobuf_bytes": len(body),
+                "items": count_items("metrics", message),
             }
         )
     return exports
@@ -463,22 +506,38 @@ def settle(projects: dict[str, str]) -> None:
 # --- measurement ---------------------------------------------------------------------------------------
 
 
-def duckdb_columns(path: Path) -> tuple[dict, int]:
-    """Bytes per (table, column) from DuckDB's segment map, and the file's used bytes.
+def duckdb_settle(path: Path) -> None:
+    """Flush everything to blocks, so a measurement does not depend on when it was taken.
+
+    `FORCE CHECKPOINT` writes the write-ahead log into the database file and rewrites partially-filled blocks;
+    without it the same corpus measures differently depending on how much was still in the log. `VACUUM`
+    afterwards is DuckDB's no-op for a freshly written file but keeps the sequence honest if that changes.
+    """
+    import duckdb
+
+    connection = duckdb.connect(str(path))
+    connection.execute("FORCE CHECKPOINT")
+    connection.execute("VACUUM")
+    connection.close()
+
+
+def duckdb_blocks(path: Path) -> tuple[dict, int, int]:
+    """Bytes per (table, column) from DuckDB's segment map, the used bytes, and the free bytes.
 
     DuckDB does not report a segment's size, only where it starts. A segment's extent is therefore the gap to
     the next segment in the same block (or to the block end), plus any overflow blocks it owns. The sum is the
     used blocks, so the per-column split is approximate while the total is exact.
+
+    Free blocks are returned separately and never counted per item: they are capacity the file has already
+    taken from the filesystem and will reuse, not bytes this corpus stores, and counting them made the figure
+    depend on how much churn the ingest happened to leave behind.
     """
     import duckdb
 
     connection = duckdb.connect(str(path), read_only=True)
-    block_size = connection.execute(
-        "SELECT block_size FROM pragma_database_size()"
-    ).fetchone()[0]
-    used = connection.execute(
-        "SELECT used_blocks FROM pragma_database_size()"
-    ).fetchone()[0]
+    block_size, total_blocks, used, free = connection.execute(
+        "SELECT block_size, total_blocks, used_blocks, free_blocks FROM pragma_database_size()"
+    ).fetchone()
     tables = [
         row[0]
         for row in connection.execute(
@@ -507,7 +566,9 @@ def duckdb_columns(path: Path) -> tuple[dict, int]:
             )
             sizes[(table, column)] += end - offset + extra * block_size
     connection.close()
-    return dict(sizes), used * block_size
+    if total_blocks != used + free:
+        log(f"warning: {total_blocks} blocks is not {used} used + {free} free")
+    return dict(sizes), used * block_size, free * block_size
 
 
 def sqlite_tables(path: Path) -> dict[str, int]:
@@ -558,102 +619,24 @@ def duckdb_rows(path: Path) -> dict[str, int]:
     return rows
 
 
-def decode_ssr1(record: bytes, media) -> bytes:
-    """The received body back from an SSR1 record; `media(hash_hex)` answers an object's decoded bytes."""
-    import base64
-
-    if record[:4] != b"SSR1":
-        raise ValueError("not an SSR1 record")
-    at = 5
-
-    def varint() -> int:
-        nonlocal at
-        value, shift = 0, 0
-        while True:
-            byte = record[at]
-            at += 1
-            value |= (byte & 0x7F) << shift
-            shift += 7
-            if byte < 0x80:
-                return value
-
-    runs = []
-    for _ in range(varint()):
-        gap, length = varint(), varint()
-        runs.append((gap, length, record[at : at + 32].hex()))
-        at += 32
-    body, cursor, out = record[at:], 0, bytearray()
-    for gap, length, digest in runs:
-        out += body[cursor : cursor + gap]
-        cursor += gap
-        text = base64.b64encode(media(digest))
-        if len(text) != length:
-            raise ValueError(
-                f"media {digest} does not re-encode to {length} characters"
-            )
-        out += text
-    out += body[cursor:]
-    return bytes(out)
-
-
-def verify_raw_embedded(
-    work: Path, exports: list[dict], projects: dict[str, str]
-) -> int:
-    """Every stored raw record decodes to the exact bytes of an export its project was sent, and every trace
-    export is stored. Media comes back from the file store, as a re-derivation would read it."""
-    import duckdb
-
-    sent = collections.defaultdict(set)
-    for export in exports:
-        if export["signal"] == "traces":
-            sent[projects[export["tenant"]]].add(export["body"])
-    files = work / "files"
-
-    def media_of(project: str):
-        def lookup(digest: str) -> bytes:
-            return (files / project / digest[:2] / digest[2:4] / digest).read_bytes()
-
-        return lookup
-
-    connection = duckdb.connect(str(work / "duckdb/sideseat.duckdb"), read_only=True)
-    rows = connection.execute(
-        "SELECT project_id, record FROM otel_raw QUALIFY ROW_NUMBER() OVER "
-        "(PARTITION BY project_id, raw_id ORDER BY rowid DESC) = 1"
-    ).fetchall()
-    connection.close()
-    failures, stored = [], collections.defaultdict(set)
-    for project, record in rows:
-        try:
-            body = decode_ssr1(bytes(record), media_of(project))
-        except (ValueError, OSError) as error:
-            failures.append(f"{project}: {error}")
-            continue
-        if body not in sent[project]:
-            failures.append(
-                f"{project}: a record decodes to bytes no export of the project had"
-            )
-        stored[project].add(body)
-    for project, bodies in sent.items():
-        missing = len(bodies - stored[project])
-        if missing:
-            failures.append(f"{project}: {missing} trace exports have no raw record")
-    for failure in failures[:20]:
-        log(f"FAIL raw: {failure}")
-    log(
-        f"raw round trip: {len(rows)} records, {sum(len(v) for v in sent.values())} distinct exports, "
-        f"{len(failures)} failures"
-    )
-    return 1 if failures else 0
-
-
 def measure_embedded(work: Path) -> dict:
-    columns, _used = duckdb_columns(work / "duckdb/sideseat.duckdb")
-    rows = duckdb_rows(work / "duckdb/sideseat.duckdb")
-    # What the disk pays: the file, free blocks included (DuckDB reuses them but does not return them), and
-    # any WAL not yet checkpointed.
-    duck_total = sum(
-        p.stat().st_size for p in (work / "duckdb").glob("sideseat.duckdb*")
+    """Measure the embedded store after settling it, so the figure is a property of the corpus.
+
+    Everything counted per item is a used block: the per-column attribution from the segment map plus the
+    residue (indexes, headers, the unused tail of a last block), which is exactly `used_blocks`. Free blocks
+    and any write-ahead log are reported beside it and excluded, since neither is bytes this corpus stores.
+    """
+    database = work / "duckdb/sideseat.duckdb"
+    duckdb_settle(database)
+    columns, used, free = duckdb_blocks(database)
+    rows = duckdb_rows(database)
+    wal = sum(
+        p.stat().st_size
+        for p in (work / "duckdb").glob("sideseat.duckdb*")
+        if p.name != "sideseat.duckdb"
     )
+    if wal:
+        log(f"warning: {wal} bytes of write-ahead log survived the checkpoint")
     sqlite_path = work / "sqlite/sideseat.db"
     connection = sqlite3.connect(f"file:{sqlite_path}?mode=ro", uri=True)
     bodies = {
@@ -662,7 +645,9 @@ def measure_embedded(work: Path) -> dict:
     connection.close()
     return {
         "analytics_columns": {f"{t}.{c}": b for (t, c), b in columns.items()},
-        "analytics_total": duck_total,
+        "analytics_total": used,
+        "analytics_free": free,
+        "analytics_wal": wal,
         "analytics_rows": rows,
         "transactional": sqlite_tables(sqlite_path),
         "blobs": blob_bytes([work / "files"], bodies),
@@ -826,6 +811,17 @@ def report(exports: list[dict], measured: dict, mode: str) -> dict:
             f"{stored - media:,} | {raw[s] / items[s]:,.0f} | {per_item:,.0f} |"
         )
     print(f"\nfixed (not attributed): {sum(layers['fixed'].values()):,} B")
+    # Reported, never charged per item: capacity the file keeps for reuse, and a log the checkpoint should have
+    # emptied. Counting either made the same corpus measure differently depending on the churn of the run.
+    if "analytics_free" in measured:
+        print(
+            f"free blocks (reported, not charged): {measured['analytics_free']:,} B"
+            + (
+                f", write-ahead log {measured['analytics_wal']:,} B"
+                if measured.get("analytics_wal")
+                else ""
+            )
+        )
     for s in SIGNALS:
         if not result["signals"][s]["exports"]:
             continue
@@ -878,6 +874,11 @@ def main() -> int:
     parser.add_argument("--json", type=Path)
     parser.add_argument("--gate", action="store_true")
     parser.add_argument(
+        "--metrics-load",
+        action="store_true",
+        help="measure metrics on the derived load of scripts/perf/metrics-load.json instead of the captures",
+    )
+    parser.add_argument(
         "--verify-raw",
         action="store_true",
         help="decode every stored raw record and require the exact bytes each export was sent as",
@@ -910,8 +911,12 @@ def main() -> int:
             check=True,
         )
     exports = corpus()
-    log(f"corpus: {len(exports)} exports")
     work = Path(tempfile.mkdtemp(prefix="sideseat-storage-"))
+    if args.metrics_load:
+        exports = [e for e in exports if e["signal"] != "metrics"] + derived_metrics(
+            work
+        )
+    log(f"corpus: {len(exports)} exports")
     extra_env = {}
     server = None
     try:
@@ -926,7 +931,7 @@ def main() -> int:
             measure_embedded(work) if args.mode == "embedded" else measure_distributed()
         )
         raw_failed = (
-            verify_raw_embedded(work, exports, projects)
+            storage_raw.verify_raw_embedded(work, exports, projects)
             if args.mode == "embedded" and args.verify_raw
             else 0
         )

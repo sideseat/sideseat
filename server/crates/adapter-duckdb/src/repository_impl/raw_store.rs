@@ -62,6 +62,18 @@ impl RawStore for DuckdbRepository {
         .await
     }
 
+    async fn span_raw_ids(
+        &self,
+        project_id: &ProjectId,
+        spans: &[(String, String)],
+    ) -> Result<std::collections::HashMap<(String, String), String>, DataError> {
+        let (project_id, spans) = (project_id.clone(), spans.to_vec());
+        run(&self.0, move |conn| {
+            raw::span_raw_ids(conn, &project_id, &spans)
+        })
+        .await
+    }
+
     async fn raw_records_named(
         &self,
         project_id: &ProjectId,

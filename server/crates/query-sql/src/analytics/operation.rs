@@ -57,10 +57,6 @@ pub enum QueryOperation {
     CountSpansByProject,
     /// Read all winning spans for one trace.
     GetSpansForTrace,
-    /// Expand events from one winning span row.
-    GetEventsForSpan,
-    /// Expand links from one winning span row.
-    GetLinksForSpan,
     /// Aggregate one trace by id.
     GetTrace,
     /// Aggregate every trace canonically belonging to one session.
@@ -128,8 +124,6 @@ impl QueryOperation {
             Self::AnalyticsProjectIds => "analytics_project_ids",
             Self::CountSpansByProject => "count_spans_by_project",
             Self::GetSpansForTrace => "get_spans_for_trace",
-            Self::GetEventsForSpan => "get_events_for_span",
-            Self::GetLinksForSpan => "get_links_for_span",
             Self::GetTrace => "get_trace",
             Self::GetTracesForSession => "get_traces_for_session",
             Self::GetSession => "get_session",
@@ -212,8 +206,6 @@ impl QueryOperation {
             | Self::AnalyticsProjectIds
             | Self::CountSpansByProject
             | Self::GetSpansForTrace
-            | Self::GetEventsForSpan
-            | Self::GetLinksForSpan
             | Self::GetTrace
             | Self::GetTracesForSession
             | Self::GetSession
@@ -278,8 +270,6 @@ pub const MIGRATED_OPERATIONS: &[QueryOperation] = &[
     QueryOperation::AnalyticsProjectIds,
     QueryOperation::CountSpansByProject,
     QueryOperation::GetSpansForTrace,
-    QueryOperation::GetEventsForSpan,
-    QueryOperation::GetLinksForSpan,
     QueryOperation::GetTrace,
     QueryOperation::GetTracesForSession,
     QueryOperation::GetSession,

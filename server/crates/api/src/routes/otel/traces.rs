@@ -163,10 +163,7 @@ pub async fn get_trace(
     let spans_truncated = spans.len() > MAX_SPANS_PER_TRACE;
     spans.truncate(MAX_SPANS_PER_TRACE);
     if include_raw_span {
-        state
-            .content_bodies
-            .hydrate_raw_spans(project_id, &mut spans)
-            .await;
+        super::spans::hydrate_raw_spans(&state, project_id, &mut spans).await;
     }
 
     // Bulk fetch event and link counts

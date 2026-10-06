@@ -23,10 +23,10 @@ use sideseat_ports::traits::{
     SearchIndex, SpanStore, SurvivorReferences,
 };
 use sideseat_ports::types::{
-    EventRow, FeedMessagesParams, FeedSpansParams, LinkRow, ListLogsParams, ListMetricsParams,
-    ListSessionsParams, ListSpansParams, ListTracesParams, LogRow, MessageQueryParams,
-    MessageQueryResult, MetricAggregateRow, MetricRow, NormalizedLog, NormalizedMetric,
-    NormalizedSpan, PressureSpanCandidate, ProjectId, ProjectStatsResult, SearchBackfillDocument,
+    FeedMessagesParams, FeedSpansParams, ListLogsParams, ListMetricsParams, ListSessionsParams,
+    ListSpansParams, ListTracesParams, LogRow, MessageQueryParams, MessageQueryResult,
+    MetricAggregateRow, MetricRow, NormalizedLog, NormalizedMetric, NormalizedSpan,
+    PressureSpanCandidate, ProjectId, ProjectStatsResult, SearchBackfillDocument,
     SearchBackfillSource, SearchPage, SearchQuery, SearchSignal, SessionRow, SpanCounts, SpanRow,
     StatsParams, TraceRow,
 };
@@ -103,44 +103,6 @@ impl SpanStore for DuckdbRepository {
         DuckdbService::run_query(move || {
             let conn = db.conn();
             query::get_span(&conn, &pid, &tid, &sid)
-        })
-        .await
-        .map_err(DataError::from)?
-        .map_err(Into::into)
-    }
-
-    async fn get_events_for_span(
-        &self,
-        project_id: &ProjectId,
-        trace_id: &str,
-        span_id: &str,
-    ) -> Result<Vec<EventRow>, DataError> {
-        let db = Arc::clone(&self.0);
-        let pid = project_id.to_string();
-        let tid = trace_id.to_string();
-        let sid = span_id.to_string();
-        DuckdbService::run_query(move || {
-            let conn = db.conn();
-            query::get_events_for_span(&conn, &pid, &tid, &sid)
-        })
-        .await
-        .map_err(DataError::from)?
-        .map_err(Into::into)
-    }
-
-    async fn get_links_for_span(
-        &self,
-        project_id: &ProjectId,
-        trace_id: &str,
-        span_id: &str,
-    ) -> Result<Vec<LinkRow>, DataError> {
-        let db = Arc::clone(&self.0);
-        let pid = project_id.to_string();
-        let tid = trace_id.to_string();
-        let sid = span_id.to_string();
-        DuckdbService::run_query(move || {
-            let conn = db.conn();
-            query::get_links_for_span(&conn, &pid, &tid, &sid)
         })
         .await
         .map_err(DataError::from)?

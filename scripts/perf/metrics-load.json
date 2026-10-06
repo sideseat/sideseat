@@ -1,0 +1,7 @@
+{
+  "seed": 20261006,
+  "interval_s": 60,
+  "instances": 50,
+  "points": 1000000,
+  "start_unix_s": 1790000000
+}

@@ -33,7 +33,6 @@ pub(super) fn collect(spans: &[NormalizedSpan]) -> CollectedBodies {
                 span.tool_definitions.as_deref(),
             ),
             (SpanBodyField::ToolNames, span.tool_names.as_deref()),
-            (SpanBodyField::RawSpan, span.raw_span.as_deref()),
         ] {
             let Some(body) = body else {
                 continue;
@@ -88,7 +87,6 @@ pub(super) fn collect_sources(
                 source.tool_definitions.as_deref(),
             ),
             (SpanBodyField::ToolNames, source.tool_names.as_deref()),
-            (SpanBodyField::RawSpan, source.raw_span.as_deref()),
         ] {
             let Some(body) = body else {
                 continue;

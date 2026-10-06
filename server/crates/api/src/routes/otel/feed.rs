@@ -573,10 +573,7 @@ pub async fn get_feed_spans(
     let has_more = spans.len() > limit as usize;
     spans.truncate(limit as usize);
     if include_raw_span {
-        state
-            .content_bodies
-            .hydrate_raw_spans(&project_id, &mut spans)
-            .await;
+        super::spans::hydrate_raw_spans(&state, &project_id, &mut spans).await;
     }
 
     // Compute cursor from last span

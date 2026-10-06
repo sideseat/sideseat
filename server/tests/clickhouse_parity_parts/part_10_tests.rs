@@ -24,7 +24,7 @@ fn raw_row(raw_id: &str, version: i64, traces: &[&str], body: &[u8]) -> RawRecor
     }
 }
 
-fn raw_span(trace_id: &str, span_id: &str, raw_id: &str) -> NormalizedSpan {
+fn span_of(trace_id: &str, span_id: &str, raw_id: &str) -> NormalizedSpan {
     NormalizedSpan {
         project_id: Some(PROJECT.to_string()),
         trace_id: trace_id.to_string(),
@@ -114,7 +114,7 @@ async fn raw_lifecycle_answers(store: &(impl AnalyticsRepository + ?Sized)) -> V
 
     // Only one record has rows, so only one is named; both are still reachable by a deletion.
     store
-        .insert_spans(vec![raw_span("trace-a", "span-a", "raw-a")])
+        .insert_spans(vec![span_of("trace-a", "span-a", "raw-a")])
         .await
         .expect("insert spans");
     let mut named = store

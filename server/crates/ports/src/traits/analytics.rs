@@ -120,22 +120,6 @@ pub trait SpanStore: Send + Sync {
         span_id: &str,
     ) -> Result<Option<SpanRow>, DataError>;
 
-    /// Get span events
-    async fn get_events_for_span(
-        &self,
-        project_id: &ProjectId,
-        trace_id: &str,
-        span_id: &str,
-    ) -> Result<Vec<EventRow>, DataError>;
-
-    /// Get span links
-    async fn get_links_for_span(
-        &self,
-        project_id: &ProjectId,
-        trace_id: &str,
-        span_id: &str,
-    ) -> Result<Vec<LinkRow>, DataError>;
-
     /// Get span counts (events, links) in bulk
     async fn get_span_counts_bulk(
         &self,
@@ -582,6 +566,13 @@ pub trait RawStore: Send + Sync {
         project_id: &ProjectId,
         raw_ids: &[String],
     ) -> Result<(), DataError>;
+
+    /// The record each of these spans was derived from, for the winning row of each identity.
+    async fn span_raw_ids(
+        &self,
+        project_id: &ProjectId,
+        spans: &[(String, String)],
+    ) -> Result<std::collections::HashMap<(String, String), String>, DataError>;
 
     /// Which of these records a stored row still names.
     async fn raw_records_named(

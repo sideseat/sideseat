@@ -69,7 +69,6 @@ pub struct SpanRow {
     pub timestamp_end: Option<DateTime<Utc>>,
     pub duration_ms: Option<i64>,
     pub environment: Option<String>,
-    pub resource_attributes: Option<String>,
     pub session_id: Option<String>,
     pub user_id: Option<String>,
     pub gen_ai_system: Option<String>,
@@ -90,9 +89,10 @@ pub struct SpanRow {
     pub gen_ai_cost_total: f64,
     pub gen_ai_usage_details: Option<String>,
     pub metadata: Option<String>,
-    pub attributes: Option<String>,
     pub input_preview: Option<String>,
     pub output_preview: Option<String>,
+    /// The span's OTLP JSON, rendered from its raw record when a reader asks for it
+    /// (`sideseat_ingestion::traces::raw_views`). Never selected from a column: nothing stores a second copy.
     pub raw_span: Option<String>,
     pub ingested_at: DateTime<Utc>,
     /// Instrumentation scope: the library that produced the span, versioned. `None` on rows written
@@ -108,8 +108,8 @@ pub struct SpanCounts {
     pub link_count: i64,
 }
 
-/// Result row for span events (extracted from raw_span JSON)
-#[derive(Debug, Clone)]
+/// One event of a span, rendered from the raw record it was received in.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EventRow {
     pub span_id: String,
     pub event_index: i32,
@@ -118,8 +118,8 @@ pub struct EventRow {
     pub attributes: Option<String>,
 }
 
-/// Result row for span links (extracted from raw_span JSON)
-#[derive(Debug, Clone)]
+/// One link of a span, rendered from the raw record it was received in.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LinkRow {
     pub span_id: String,
     pub linked_trace_id: String,

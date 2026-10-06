@@ -277,7 +277,6 @@ pub enum SpanBodyField {
     Messages,
     ToolDefinitions,
     ToolNames,
-    RawSpan,
 }
 
 impl SpanBodyField {
@@ -286,7 +285,6 @@ impl SpanBodyField {
             Self::Messages => "messages",
             Self::ToolDefinitions => "tool_definitions",
             Self::ToolNames => "tool_names",
-            Self::RawSpan => "raw_span",
         }
     }
 
@@ -295,7 +293,6 @@ impl SpanBodyField {
             "messages" => Some(Self::Messages),
             "tool_definitions" => Some(Self::ToolDefinitions),
             "tool_names" => Some(Self::ToolNames),
-            "raw_span" => Some(Self::RawSpan),
             _ => None,
         }
     }
@@ -328,7 +325,6 @@ pub struct SpanBodySource {
     pub messages: Option<String>,
     pub tool_definitions: Option<String>,
     pub tool_names: Option<String>,
-    pub raw_span: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,6 +1,6 @@
 //! Stored raw records (`otel_raw`). See `schema::raw` for the table.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use chrono::{DateTime, Utc};
 use clickhouse::{Client, Row};
@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::ClickhouseError;
 use sideseat_ports::types::{ProjectId, RawOrigin, RawPending, RawRecordRow, StagedSignal};
 use sideseat_query_sql::Backend;
+use sideseat_query_sql::analytics;
 use sideseat_query_sql::analytics::QueryValue;
 use sideseat_query_sql::dml;
 
@@ -270,13 +271,18 @@ pub async fn named(
     if raw_ids.is_empty() {
         return Ok(HashSet::new());
     }
-    let rows: Vec<String> = client
-        .query("SELECT DISTINCT raw_id FROM otel_spans WHERE project_id = ? AND raw_id IN ?")
+    // `otel_spans.raw_id` is nullable, so the driver must be told to expect a nullable column even though the
+    // predicate excludes nulls.
+    let rows: Vec<Option<String>> = client
+        .query(
+            "SELECT DISTINCT raw_id FROM otel_spans \
+             WHERE project_id = ? AND raw_id IN ? AND raw_id IS NOT NULL",
+        )
         .bind(project_id.as_str())
         .bind(raw_ids)
         .fetch_all()
         .await?;
-    Ok(rows.into_iter().collect())
+    Ok(rows.into_iter().flatten().collect())
 }
 
 /// Enqueue these records for reconciliation.
@@ -342,6 +348,41 @@ pub async fn clear(
         }
     }
     Ok(())
+}
+
+/// The record each of these spans was derived from, for the winning row of each identity.
+pub async fn span_raw_ids(
+    client: &Client,
+    project_id: &ProjectId,
+    spans: &[(String, String)],
+) -> Result<HashMap<(String, String), String>, ClickhouseError> {
+    let Some(query) = analytics::span_raw_ids(project_id.as_str(), spans, Backend::Clickhouse)
+    else {
+        return Ok(HashMap::new());
+    };
+    #[derive(Row, Deserialize)]
+    struct Found {
+        trace_id: String,
+        span_id: String,
+        // Nullable on the table; the query excludes nulls, but the driver checks the column's type.
+        raw_id: Option<String>,
+    }
+    let mut request = client.query(query.sql());
+    for value in query.params() {
+        request = match value {
+            QueryValue::String(value) => request.bind(value),
+            QueryValue::Int64(value) => request.bind(value),
+            QueryValue::Float64(value) => request.bind(value),
+        };
+    }
+    let rows: Vec<Found> = request.fetch_all().await?;
+    Ok(rows
+        .into_iter()
+        .filter_map(|row| {
+            row.raw_id
+                .map(|raw_id| ((row.trace_id, row.span_id), raw_id))
+        })
+        .collect())
 }
 
 /// The latest records the surviving span rows of these traces name - every physical row, superseded

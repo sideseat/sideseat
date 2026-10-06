@@ -8,10 +8,10 @@ use chrono::{DateTime, Utc};
 use duckdb::{Connection, Row};
 
 use crate::{DuckdbError, in_transaction};
-use sideseat_core::utils::time::{micros_to_datetime, parse_iso_timestamp};
+use sideseat_core::utils::time::micros_to_datetime;
 use sideseat_ports::types::{
-    EventRow, FeedSpansParams, LinkRow, ListSessionsParams, ListSpansParams, ListTracesParams,
-    ProjectId, SessionRow, SpanRow, TraceRow, parse_tags,
+    FeedSpansParams, ListSessionsParams, ListSpansParams, ListTracesParams, ProjectId, SessionRow,
+    SpanRow, TraceRow, parse_tags,
 };
 use sideseat_query_sql::confirmations;
 use sideseat_query_sql::{Backend, analytics, dml};
@@ -137,58 +137,6 @@ pub fn get_span(
     }
 }
 
-/// Get events for a span (from raw_span JSON)
-pub fn get_events_for_span(
-    conn: &Connection,
-    project_id: &str,
-    trace_id: &str,
-    span_id: &str,
-) -> Result<Vec<EventRow>, DuckdbError> {
-    let query = analytics::events_for_span(project_id, trace_id, span_id, Backend::Duckdb);
-    let values = duckdb_values(query.params());
-    let mut stmt = conn.prepare(query.sql())?;
-    let mut query_rows = stmt.query(values.as_slice())?;
-    let mut events = vec![];
-
-    while let Some(row) = query_rows.next()? {
-        let event_timestamp: String = row.get(2)?;
-        events.push(EventRow {
-            span_id: row.get(0)?,
-            event_index: row.get::<_, i32>(1)?,
-            event_time: parse_iso_timestamp(&event_timestamp),
-            event_name: row.get(3)?,
-            attributes: row.get(4)?,
-        });
-    }
-
-    Ok(events)
-}
-
-/// Get links for a span (from raw_span JSON)
-pub fn get_links_for_span(
-    conn: &Connection,
-    project_id: &str,
-    trace_id: &str,
-    span_id: &str,
-) -> Result<Vec<LinkRow>, DuckdbError> {
-    let query = analytics::links_for_span(project_id, trace_id, span_id, Backend::Duckdb);
-    let values = duckdb_values(query.params());
-    let mut stmt = conn.prepare(query.sql())?;
-    let mut query_rows = stmt.query(values.as_slice())?;
-    let mut links = vec![];
-
-    while let Some(row) = query_rows.next()? {
-        links.push(LinkRow {
-            span_id: row.get(0)?,
-            linked_trace_id: row.get(1)?,
-            linked_span_id: row.get(2)?,
-            attributes: row.get(3)?,
-        });
-    }
-
-    Ok(links)
-}
-
 /// List sessions with pagination and filters.
 pub fn list_sessions(
     conn: &Connection,
@@ -237,7 +185,7 @@ pub struct SpanCounts {
     pub link_count: i64,
 }
 
-/// Bulk fetch event and link counts for multiple spans (from raw_span JSON)
+/// The event and link counts of many spans, from the columns the extraction wrote.
 /// Returns a HashMap keyed by (trace_id, span_id)
 pub fn get_span_counts_bulk(
     conn: &Connection,
@@ -384,7 +332,6 @@ pub fn span_body_fields_for_traces(
             messages: row.get(2)?,
             tool_definitions: row.get(3)?,
             tool_names: row.get(4)?,
-            raw_span: row.get(5)?,
         });
     }
     Ok(sources)
@@ -415,7 +362,6 @@ pub fn span_body_backfill_page(
             messages: row.get(2)?,
             tool_definitions: row.get(3)?,
             tool_names: row.get(4)?,
-            raw_span: row.get(5)?,
         });
     }
     Ok(sources)

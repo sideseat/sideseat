@@ -5,10 +5,8 @@ use super::*;
 /// Iterates request in same order as normalize_batch to match spans with OTLP data.
 /// Builds raw span JSON directly from request (no lookup needed).
 ///
-/// When `files_enabled`, extracts base64 files from raw_span, tool_definitions, and
-/// metadata JSON values **in-memory before serialization**. This eliminates the
-/// serialize→deserialize→re-serialize round-trip that previously happened in
-/// `extract_files_cpu_raw_spans`.
+/// When `files_enabled`, extracts base64 files from the tool definitions and the metadata **in-memory before
+/// serialization**, which avoids a serialize-deserialize-re-serialize round trip.
 ///
 /// # Panics
 /// Debug assertion fails if span counts don't match (indicates pipeline bug).
@@ -40,12 +38,6 @@ pub(super) fn flatten(
 
     // Iterate request in same order as normalize_batch
     for resource_spans in &request.resource_spans {
-        let resource_attrs = resource_spans
-            .resource
-            .as_ref()
-            .map(|r| extract_attributes(&r.attributes))
-            .unwrap_or_default();
-
         for scope_spans in &resource_spans.scope_spans {
             for otlp_span in &scope_spans.spans {
                 if let Some(((((mut span, msgs), tools), tnames), enrichment)) = iter.next() {
@@ -61,10 +53,13 @@ pub(super) fn flatten(
                             .expect("JsonValue is always valid JSON"),
                     );
 
-                    let mut raw_span_json = build_raw_span_json(otlp_span, &resource_attrs);
-
                     // Extract files from JSON values in-memory BEFORE serialization.
                     // This avoids the costly serialize→deserialize→re-serialize round-trip.
+                    //
+                    // The span's own OTLP JSON is not among them: it is no longer stored, and the media it
+                    // carries is cut out of the raw record (a longer reach than this extraction's, down to a
+                    // 256-character run), owned by the same traces and kept by the same survivor
+                    // reconciliation. `raw_views` renders the JSON, and these references, when a reader asks.
                     if files_enabled {
                         let project_id = span
                             .project_id
@@ -72,13 +67,6 @@ pub(super) fn flatten(
                             .unwrap_or(DEFAULT_PROJECT_ID)
                             .to_string();
                         let trace_id = &span.trace_id;
-
-                        // raw_span
-                        pending_files.extend(to_pending_files(
-                            extract_fn(&mut raw_span_json).files,
-                            &project_id,
-                            trace_id,
-                        ));
 
                         // tool_definitions
                         pending_files.extend(to_pending_files(
@@ -100,19 +88,14 @@ pub(super) fn flatten(
                         serde_json::to_string(&tool_definitions_json)
                             .expect("JsonValue is always valid JSON"),
                     );
-                    let raw_span_str = Some(
-                        serde_json::to_string(&raw_span_json)
-                            .expect("JsonValue is always valid JSON"),
-                    );
-
                     result.push(to_normalized_span(
                         span,
                         &enrichment,
                         messages_str,
                         tool_definitions_str,
                         tool_names_str,
-                        raw_span_str,
                         content_digest,
+                        otlp_span,
                     ));
                 }
             }
@@ -167,8 +150,10 @@ fn to_normalized_span(
     messages: Option<String>,
     tool_definitions: Option<String>,
     tool_names: Option<String>,
-    raw_span: Option<String>,
     content_digest: String,
+    // The OTLP span this row was extracted from, for its event and link counts only: the events and links
+    // themselves are rendered from the raw record.
+    otlp: &Span,
 ) -> NormalizedSpan {
     let mut normalized = NormalizedSpan {
         // Identity
@@ -301,9 +286,6 @@ fn to_normalized_span(
         // Raw tool names (list of tool names, separate from full definitions)
         tool_names,
 
-        // Raw span JSON (includes attributes and resource.attributes)
-        raw_span,
-
         // Ingestion time (populated by DB default, not set during span creation)
         ingested_at: None,
         hold_until: None,
@@ -311,6 +293,8 @@ fn to_normalized_span(
         search: Default::default(),
         // Stamped by the pipeline once the request's raw record exists.
         raw_id: None,
+        event_count: u32::try_from(otlp.events.len()).unwrap_or(u32::MAX),
+        link_count: u32::try_from(otlp.links.len()).unwrap_or(u32::MAX),
     };
     normalized.logical_bytes = crate::accounting::span_logical_bytes(&mut normalized);
     normalized
@@ -361,7 +345,10 @@ pub(crate) fn span_content_digest(
 
 /// Build a raw JSON representation of an OTLP span for archival.
 /// Uses ordered map for better readability (identity -> timing -> content -> metadata).
-fn build_raw_span_json(span: &Span, resource_attrs: &HashMap<String, String>) -> JsonValue {
+pub(in crate::traces) fn build_raw_span_json(
+    span: &Span,
+    resource_attrs: &HashMap<String, String>,
+) -> JsonValue {
     let mut map = serde_json::Map::new();
 
     // Identity fields first
@@ -475,8 +462,17 @@ fn build_raw_span_json(span: &Span, resource_attrs: &HashMap<String, String>) ->
 }
 
 /// Build JSON from attributes HashMap (for resource attributes)
+/// The resource's attributes, by key.
+///
+/// Sorted, because the source is a `HashMap` and `serde_json` preserves insertion order: an unsorted copy
+/// serialized its keys in a different order on every call, so the same span rendered twice was two different
+/// strings. A derived view has to be a function of the raw telemetry, or re-deriving it is not a no-op.
 fn build_resource_attributes(attrs: &HashMap<String, String>) -> JsonValue {
-    let map: serde_json::Map<String, JsonValue> =
-        attrs.iter().map(|(k, v)| (k.clone(), json!(v))).collect();
-    JsonValue::Object(map)
+    let mut keys: Vec<&String> = attrs.keys().collect();
+    keys.sort_unstable();
+    JsonValue::Object(
+        keys.into_iter()
+            .map(|key| (key.clone(), json!(attrs[key])))
+            .collect(),
+    )
 }

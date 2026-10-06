@@ -88,7 +88,6 @@ mod tests {
             project_id: Some("project".to_string()),
             trace_id: "t".repeat(32),
             span_id: "s".repeat(16),
-            raw_span: Some("{\"producer\":\"payload\"}".to_string()),
             ingested_at: Some(DateTime::UNIX_EPOCH + TimeDelta::days(3)),
             logical_bytes: 77,
             ..Default::default()

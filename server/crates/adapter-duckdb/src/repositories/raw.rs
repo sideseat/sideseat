@@ -3,7 +3,7 @@
 //! Append-only: each write of a record is a version, and readers take the latest by `version`, then by
 //! insertion - the same answer ClickHouse's `ReplacingMergeTree(version)` gives.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use chrono::{DateTime, Utc};
 use duckdb::{Connection, params};
@@ -13,6 +13,7 @@ use crate::sql_types::SqlTimestamp;
 use sideseat_core::utils::time::micros_to_datetime;
 use sideseat_ports::types::{ProjectId, RawOrigin, RawPending, RawRecordRow, StagedSignal};
 use sideseat_query_sql::Backend;
+use sideseat_query_sql::analytics;
 use sideseat_query_sql::dml;
 
 use sideseat_query_sql::analytics::QueryValue;
@@ -295,6 +296,22 @@ pub fn clear(conn: &Connection, entries: &[RawPending]) -> Result<(), DuckdbErro
         }
     }
     Ok(())
+}
+
+/// The record each of these spans was derived from, for the winning row of each identity.
+pub fn span_raw_ids(
+    conn: &Connection,
+    project_id: &ProjectId,
+    spans: &[(String, String)],
+) -> Result<HashMap<(String, String), String>, DuckdbError> {
+    let Some(query) = analytics::span_raw_ids(project_id.as_str(), spans, Backend::Duckdb) else {
+        return Ok(HashMap::new());
+    };
+    let mut statement = conn.prepare(query.sql())?;
+    let rows = statement.query_map(duckdb_values(query.params()).as_slice(), |row| {
+        Ok(((row.get(0)?, row.get(1)?), row.get(2)?))
+    })?;
+    rows.collect::<Result<_, _>>().map_err(Into::into)
 }
 
 /// The latest records the surviving winning spans of these traces name.
