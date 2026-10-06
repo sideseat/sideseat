@@ -84,10 +84,9 @@ pub async fn register(
         );
         touch.push_bind(now_nanos);
         touch.push(
-            " WHERE deleting_at IS NULL AND EXISTS (
-                 SELECT 1 FROM input
-                 WHERE input.project_id = content_bodies.project_id
-                   AND input.body_hash = content_bodies.body_hash
+            // Row-value `IN` for the reason `CONFIRM_DURABLE` gives: a primary-key search per input row.
+            " WHERE deleting_at IS NULL AND (project_id, body_hash) IN (
+                 SELECT project_id, body_hash FROM input
              )",
         );
         touch.build().execute(&mut *tx).await?;
@@ -182,6 +181,29 @@ pub async fn stage(
     Ok(staged)
 }
 
+// Both statements follow a `WITH input(project_id, trace_id, span_id, field, body_hash) AS (VALUES ...)`.
+//
+// Row-value `IN`, never a correlated `EXISTS` over `input`: SQLite plans the `EXISTS` form as a scan of the
+// whole registry for every statement, so each confirmation cost time proportional to every body association
+// ever stored, and under concurrent ingest it held the single writer for seconds. The `IN` form is a
+// primary-key search per input row. `confirm_statements_search_the_registry_by_key` holds this.
+const CONFIRM_DURABLE: &str = ") UPDATE span_bodies
+     SET durable = 1, pending_writers = MAX(pending_writers - 1, 0)
+     WHERE (project_id, trace_id, span_id, field, body_hash) IN (
+         SELECT project_id, trace_id, span_id, field, body_hash FROM input
+     )";
+
+/// Superseded bodies of the confirmed fields: the same identity under a hash the batch did not confirm. Every
+/// column is NOT NULL, so `NOT IN` has no null trap.
+const DELETE_SUPERSEDED: &str = ") DELETE FROM span_bodies
+     WHERE durable = 1 AND pending_writers = 0
+       AND (project_id, trace_id, span_id, field) IN (
+           SELECT project_id, trace_id, span_id, field FROM input
+       )
+       AND (project_id, trace_id, span_id, field, body_hash) NOT IN (
+           SELECT project_id, trace_id, span_id, field, body_hash FROM input
+       )";
+
 pub async fn confirm(
     pool: &SqlitePool,
     associations: &[SpanBodyAssociation],
@@ -201,18 +223,7 @@ pub async fn confirm(
                 .push_bind(row.field.as_str())
                 .push_bind(&row.body_hash);
         });
-        update.push(
-            ") UPDATE span_bodies
-             SET durable = 1, pending_writers = MAX(pending_writers - 1, 0)
-             WHERE EXISTS (
-                 SELECT 1 FROM input
-                 WHERE input.project_id = span_bodies.project_id
-                   AND input.trace_id = span_bodies.trace_id
-                   AND input.span_id = span_bodies.span_id
-                   AND input.field = span_bodies.field
-                   AND input.body_hash = span_bodies.body_hash
-             )",
-        );
+        update.push(CONFIRM_DURABLE);
         confirmed += update.build().execute(&mut *tx).await?.rows_affected();
 
         let mut delete = sqlx::QueryBuilder::<sqlx::Sqlite>::new(
@@ -226,17 +237,7 @@ pub async fn confirm(
                 .push_bind(row.field.as_str())
                 .push_bind(&row.body_hash);
         });
-        delete.push(
-            ") DELETE FROM span_bodies
-             WHERE durable = 1 AND pending_writers = 0 AND EXISTS (
-                 SELECT 1 FROM input
-                 WHERE input.project_id = span_bodies.project_id
-                   AND input.trace_id = span_bodies.trace_id
-                   AND input.span_id = span_bodies.span_id
-                   AND input.field = span_bodies.field
-                   AND input.body_hash <> span_bodies.body_hash
-             )",
-        );
+        delete.push(DELETE_SUPERSEDED);
         delete.build().execute(&mut *tx).await?;
     }
     tx.commit().await?;
@@ -684,6 +685,35 @@ mod tests {
 
     fn now() -> DateTime<Utc> {
         Utc.timestamp_opt(1_700_000_000, 0).single().unwrap()
+    }
+
+    /// Confirmation runs on every ingest, so a statement that scans the registry makes ingest slower with every
+    /// span stored. The plans must search by key.
+    #[tokio::test]
+    async fn confirm_statements_search_the_registry_by_key() {
+        let pool = pool().await;
+        for tail in [CONFIRM_DURABLE, DELETE_SUPERSEDED] {
+            let sql = format!(
+                "EXPLAIN QUERY PLAN WITH input(project_id, trace_id, span_id, field, body_hash) AS \
+                 (VALUES ('p', 't', 's', 'messages', 'h'), ('p', 't', 'u', 'messages', 'h'){tail}"
+            );
+            let plan: Vec<String> = sqlx::query(&sql)
+                .fetch_all(&pool)
+                .await
+                .unwrap()
+                .iter()
+                .map(|row| sqlx::Row::get::<String, _>(row, "detail"))
+                .collect();
+            assert!(
+                plan.iter()
+                    .any(|step| step.starts_with("SEARCH span_bodies")),
+                "{tail}: {plan:?}"
+            );
+            assert!(
+                !plan.iter().any(|step| step.starts_with("SCAN span_bodies")),
+                "{tail}: {plan:?}"
+            );
+        }
     }
 
     #[tokio::test]
