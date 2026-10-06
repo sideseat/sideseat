@@ -1,0 +1,47 @@
+# The historical Google ADK for Java releases this suite is replayed against; see `python -m harness matrix --help`
+# and docs/engineering/framework-versions.md. ADK traces itself, so its release history is the window.
+[matrix]
+package = "com.google.adk:google-adk"
+pin = "adk={version}"
+since = "2025-10-05"
+resolved-before = "2026-10-05T00:00:00Z"
+probes = ["tool_use", "chat"]
+scenarios = ["tool_use", "chat"]
+
+# Each variant is the newest release of one telemetry class in `versions.census.json`.
+[[variant]]
+version = "0.9.0"
+doc = "0.8.0-0.9.0: tool calls and results as tool_call / tool_response spans."
+
+[[variant]]
+version = "1.3.0"
+doc = "1.0.0-1.3.0: execute_tool spans, and model spans carry gen_ai.operation.name call_llm."
+
+[[variant]]
+version = "1.5.0"
+doc = "1.4.0-1.5.0: message JSON changes inside the same carriers."
+
+[[variant]]
+version = "1.11.0"
+current = true
+doc = "1.6.0 onwards: model spans carry gen_ai.usage.input_tokens / output_tokens. The suite's locked release; its fixtures are the ordinary capture."
+
+[[exempt]]
+version = "0.4.0"
+reason = "Its session service takes the initial state as a ConcurrentMap, so the suite, written against the Map overload 0.7 added, does not compile."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.5.0"
+reason = "Its session service takes the initial state as a ConcurrentMap, so the suite, written against the Map overload 0.7 added, does not compile."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.6.0"
+reason = "Its session service takes the initial state as a ConcurrentMap, so the suite, written against the Map overload 0.7 added, does not compile."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.7.0"
+reason = "Throws inside its first agent run with the suite's Claude model and records no trace; 0.8.0 is the earliest release that runs the suite."
+revisit = "2027-01-05"

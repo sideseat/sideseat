@@ -80,6 +80,11 @@ def releases(
     return [release for _, release in sorted(found, key=lambda pair: pair[0])]
 
 
+def _anonymised(text: str | None) -> str | None:
+    """A failure message without the home directory, which names the account that took the census."""
+    return None if text is None else text.replace(str(Path.home()), "~")
+
+
 def _instant(text: str) -> datetime:
     return datetime.fromisoformat(text.replace("Z", "+00:00"))
 
@@ -174,12 +179,13 @@ def run(
                     "date": release.date,
                     "profile": profile,
                     "shape": None,
-                    "failure": failure,
+                    "failure": _anonymised(failure),
                 }
                 if env_path is not None:
                     lines, entry["failure"] = classify(
                         suite, env_path, matrix, release.version, profile
                     )
+                    entry["failure"] = _anonymised(entry["failure"])
                     if entry["failure"] is None:
                         entry["shape"] = digest(lines)
                         shapes[entry["shape"]] = lines

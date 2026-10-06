@@ -13,12 +13,15 @@ import json
 import shutil
 import subprocess
 import sys
+import threading
 import urllib.parse
 import urllib.request
 from pathlib import Path
 
 from harness.matrix.spec import Matrix
 
+#: The census builds environments ahead on several threads, and they share the base.
+_BASE_LOCK = threading.Lock()
 #: Never copied: installed packages, build output and the captures' own artefacts.
 _SKIPPED = {"node_modules", "output", "cassettes", "tsconfig.tsbuildinfo"}
 
@@ -68,7 +71,8 @@ def ensure(
         return environment
     if environment.exists():
         shutil.rmtree(environment)
-    base = _base(matrix, cache_root() / matrix.suite.name / "npm-base")
+    with _BASE_LOCK:
+        base = _base(matrix, cache_root() / matrix.suite.name / "npm-base")
     _clone(base, environment)
     before = matrix.resolved_before
     if released and matrix.era:
@@ -79,7 +83,12 @@ def ensure(
         requirement if split(requirement)[1] is not None else f"{requirement}@*"
         for requirement in requirements
     ]
-    result = _npm(["install", f"--before={before}", *pins], environment)
+    # A historical release's peer ranges (an optional provider SDK, an OpenTelemetry exporter) can exclude
+    # what the rest of the project holds; npm's legacy resolution installs the pin beside it, as an
+    # application that upgrades one package does.
+    result = _npm(
+        ["install", "--legacy-peer-deps", f"--before={before}", *pins], environment
+    )
     if result.returncode != 0:
         shutil.rmtree(environment, ignore_errors=True)
         raise UnresolvableRelease(

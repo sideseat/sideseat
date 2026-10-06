@@ -4,6 +4,7 @@
  "scenario": "streaming",
  "fixtures": [
   "genkit-go/native/streaming",
+  "genkit-go/native@1.12.0/streaming",
   "genkit-go/sdk/streaming"
  ],
  "source": {

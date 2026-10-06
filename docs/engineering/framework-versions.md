@@ -212,6 +212,14 @@ prompt, completion, operation and usage attributes, 0.14.0 `gen_ai.tool.name`, 0
 and `gen_ai.tool.definitions`, 0.14.3 changes their JSON. Only 0.14.3 onwards reconstructs: the historical
 captures are withheld until the asset reads the earlier JSON.
 
+**Google ADK for Go** (17 releases): only 1.7 onwards runs the suite, in one format; 0.1 - 0.5 predate the
+telemetry setup API it configures, and 0.6 - 1.6.1's internal telemetry calls an OpenTelemetry Go log API the
+required `otel/log` no longer has. **Genkit for Go** (15 releases, 2 classes): 1.12 still emits otelhttp HTTP
+client spans, 1.13 does not; before 1.12 the Google AI plugin has no `BaseURL` to reach the fake Gemini.
+**Google ADK for Java** (15 releases, 4 classes): 0.8 - 0.9 write `tool_call` / `tool_response` spans, 1.0
+`execute_tool` spans and `call_llm` operations, 1.4 changes message JSON, 1.6 adds usage tokens; 0.4 - 0.7 do
+not run the suite.
+
 Replay gives the scenario an HTTP proxy that refuses everything but loopback, so a release that ignores the
 client it is given (AgentScope 2.0.0 - 2.0.5) fails locally instead of reaching a provider's public API. A suite
 that must reach another host declares it with its reason (`allow-hosts`: LiteLLM routes Bedrock models by
