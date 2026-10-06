@@ -14,14 +14,16 @@ OpenTelemetry export for an application; they carry no parsing logic of their ow
 
 This is what distinguishes SideSeat. Every change is judged on all three, and none is traded for another.
 
-- **Bytes.** Storage, memory, and wire formats are optimised at the byte level. The targets, within the
-  current architecture: stored telemetry at least 14x smaller than raw OTLP protobuf per signal (media counted
-  separately, deduplicated losslessly at its floor), and sustained ingest of at least 15,000 spans per second
-  on one Ampere A1 core (aarch64, Neoverse N1) with the server and its embedded backend inside 2 GB of RAM,
-  scaling near-linearly with cores: the throughput curve over 1, 2, 4 and 8 cores is measured, and the stored
-  bytes and every answer are identical whatever the core count. Redundancy is a defect: repeated attributes,
-  re-sent message history, JSON text, and inline media are encoded once, by reference, with dictionaries and
-  compact binary encodings. Prefer the simplest change that reaches a target over a redesign.
+- **Bytes.** Storage, memory, and wire formats are optimised at the byte level. Targets are absolute, so a
+  corpus's share of media cannot flatter them: at most 480 bytes stored per span, 300 per log record, and 150
+  per metric point, excluding media, which is stored once per project, losslessly, and reported separately (the
+  baseline was 13,230 bytes per span); and sustained ingest of at least 10,000 spans per second on one Ampere A1
+  core (aarch64, Neoverse N1) with the server and its embedded backend inside 2 GB of RAM, with the throughput
+  curve over 1, 2, 4 and 8 cores measured and the stored bytes and every answer identical whatever the core
+  count. Each figure has a regression gate, and each release should improve on it. Redundancy is a defect:
+  repeated attributes, re-sent message history, JSON text, and inline media are encoded once, by reference,
+  with dictionaries and compact binary encodings. Prefer the simplest change that reaches a target over a
+  redesign.
 - **Correctness.** 100 %, proven rather than assumed. Raw telemetry round-trips byte for byte, every
   reconstructed conversation matches its truth, and an optimisation that changes any golden, truth, or parity
   answer is wrong until shown otherwise.
