@@ -257,6 +257,9 @@ The container-free aggregate does not substitute for live backend parity.
 - Inspect `git status` before editing and preserve unrelated user changes.
 - Use `rg` and `rg --files` for repository searches.
 - Keep commits focused and independently reviewable.
+- When several agents share one working tree, never stage in the shared index: commit from a private one
+  (`GIT_INDEX_FILE=<tmp> git read-tree HEAD`, then `git add` your paths and commit with that variable set), so
+  no commit can sweep in another agent's staged work.
 - Remove dead code instead of suppressing warnings.
 - Add a regression test for every defect whose failure can be reproduced, and check that it fails without
   the fix.
