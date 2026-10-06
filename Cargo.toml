@@ -187,11 +187,13 @@ cuid2 = "0.1"
 utoipa = { version = "5", features = ["axum_extras", "chrono", "uuid"] }
 semver = "1.0"
 
-# AWS SDKs
-aws-sdk-s3 = "1.87"
-aws-sdk-secretsmanager = "1"
-aws-sdk-bedrockruntime = "1"
-aws-sdk-bedrock = "1"
+# AWS SDKs. Default features are off because they include `rustls`, the legacy hyper 0.14 / h2 0.3 /
+# rustls 0.21 client that carries RUSTSEC-2026-0258, -0098, -0099 and -0104; `default-https-client` is the
+# hyper 1 / rustls 0.23 one, and the only client these crates need.
+aws-sdk-s3 = { version = "1.87", default-features = false, features = ["sigv4a", "http-1x", "default-https-client", "rt-tokio"] }
+aws-sdk-secretsmanager = { version = "1", default-features = false, features = ["default-https-client", "rt-tokio"] }
+aws-sdk-bedrockruntime = { version = "1", default-features = false, features = ["default-https-client", "rt-tokio"] }
+aws-sdk-bedrock = { version = "1", default-features = false, features = ["default-https-client", "rt-tokio"] }
 aws-credential-types = "1"
 aws-config = { version = "1.7", features = ["behavior-version-latest"] }
 gcp_auth = "0.12"

@@ -13,16 +13,7 @@ yanked = "warn"
 # dependencies and dropping them is not in this workspace's control.
 unmaintained = "workspace"
 
-ignore = [
-  # --- Reachable only through the AWS SDK's pinned old majors -------------------
-  # aws-smithy-http-client 1.4 still depends on hyper 0.14 / h2 0.3 / rustls 0.21,
-  # which pull rustls-webpki 0.101. None of these can be moved from this workspace;
-  # they clear when the AWS SDK moves to hyper 1.x / rustls 0.23.
-  "RUSTSEC-2026-0258", # h2 0.3: unbounded empty DATA frames
-  "RUSTSEC-2026-0098", # rustls-webpki 0.101: URI name constraints wrongly accepted
-  "RUSTSEC-2026-0099", # rustls-webpki 0.101: wildcard name constraints wrongly accepted
-  "RUSTSEC-2026-0104", # rustls-webpki 0.101: reachable panic parsing a CRL
-]
+ignore = []
 
 [licenses]
 version = 2
