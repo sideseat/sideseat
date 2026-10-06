@@ -5,8 +5,10 @@ import {
   useCallback,
   useRef,
   useLayoutEffect,
+  type CSSProperties,
   type KeyboardEvent,
 } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   AlertCircle,
   MessageSquare,
@@ -24,20 +26,44 @@ import { settings, MARKDOWN_ENABLED_KEY } from "@/lib/settings";
 import { ThreadHeader } from "./thread-header";
 import { TimelineRow } from "./timeline-row";
 import { JsonContent } from "./content";
-import { getBlockKey, getBlockPreview, getBlockCopyText, renderBlockContent } from "./thread-utils";
+import { getBlockKey, renderBlockContent } from "./thread-utils";
+import {
+  getMessageCopyText,
+  getMessagePreview,
+  groupBlocksIntoMessages,
+  messageFinishReason,
+  messageHasError,
+  messageModel,
+  messageRowConfig,
+  type ThreadMessage,
+} from "./messages";
 import { MediaGalleryProvider } from "./image-gallery-context";
 import { useForcedOpenState } from "./use-forced-open-state";
 import { ModelLink } from "@/components/model-link";
 import { SpanErrorRow } from "./span-error-row";
 import { placeSpanErrors } from "./span-errors";
+import type { SpanEnvelope } from "@/api/otel/types";
 import type { ThreadViewProps, ThreadTab } from "./types";
 
 /**
- * Above this many blocks, rows start collapsed. A collapsed row does not mount its Markdown, JSON
+ * Above this many messages, rows start collapsed. A collapsed row does not mount its Markdown, JSON
  * tree or media, which is what makes a long session cheap to open; the rows stay in the DOM so the
  * browser's find-in-page still reaches every header.
  */
 export const LARGE_THREAD_BLOCKS = 200;
+
+/**
+ * Above this many messages the rows are virtualised: only what is near the viewport is in the DOM.
+ *
+ * Collapsing alone stops the bodies from mounting, but ten thousand headers are still ten thousand
+ * cards to lay out and keep. The threshold is well above the collapse threshold because virtualising
+ * costs the browser's find-in-page the rows it has not rendered, which is worth less than opening a
+ * session of tens of thousands of messages at all.
+ */
+export const VIRTUALISED_THREAD_MESSAGES = 400;
+
+/** The height a message row is assumed to have before it is measured. */
+const ESTIMATED_ROW_HEIGHT = 44;
 
 /** Keys the thread handles itself; anything typed into a control keeps its own meaning. */
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -136,6 +162,137 @@ function ToolCard({ tool, index, forceExpanded, onManualToggle }: ToolCardProps)
   );
 }
 
+interface MessageRowsProps extends Omit<MessageRowProps, "message" | "index"> {
+  messages: ThreadMessage[];
+  spanErrorsAfter: Map<number, SpanEnvelope[]>;
+  scrollContainerRef: React.RefObject<HTMLDivElement | null>;
+}
+
+interface MessageRowProps {
+  message: ThreadMessage;
+  index: number;
+  startTime?: string;
+  selectedIndex: number | null;
+  onSelect: (index: number) => void;
+  forceExpanded: boolean | null;
+  openByDefault: boolean;
+  onManualToggle: () => void;
+  markdownEnabled: boolean;
+  projectId?: string;
+  showTraceLinks?: boolean;
+  traceNumberMap: Map<string, number>;
+}
+
+/** One message of the conversation, with every block it is made of inside one card. */
+function MessageRow({
+  message,
+  index,
+  startTime,
+  selectedIndex,
+  onSelect,
+  forceExpanded,
+  openByDefault,
+  onManualToggle,
+  markdownEnabled,
+  projectId,
+  showTraceLinks,
+  traceNumberMap,
+}: MessageRowProps) {
+  return (
+    <TimelineRow
+      block={message.lead}
+      startTime={startTime}
+      isSelected={selectedIndex === index}
+      onSelect={() => onSelect(index)}
+      forceExpanded={forceExpanded ?? undefined}
+      defaultOpen={openByDefault}
+      onManualToggle={onManualToggle}
+      preview={getMessagePreview(message)}
+      copyText={getMessageCopyText(message)}
+      config={messageRowConfig(message)}
+      isError={messageHasError(message)}
+      model={messageModel(message)}
+      finishReason={messageFinishReason(message)}
+      traceNumber={
+        showTraceLinks && message.lead.trace_id
+          ? traceNumberMap.get(message.lead.trace_id)
+          : undefined
+      }
+      projectId={showTraceLinks ? projectId : undefined}
+    >
+      {message.blocks.map((block) => (
+        <Fragment key={getBlockKey(block)}>
+          {renderBlockContent(block, markdownEnabled, projectId)}
+        </Fragment>
+      ))}
+    </TimelineRow>
+  );
+}
+
+/**
+ * The thread's messages, virtualised once there are more than `VIRTUALISED_THREAD_MESSAGES`.
+ *
+ * Both paths render the same rows in the same order; the virtualised one keeps only the rows near the
+ * viewport in the DOM, measuring each as it opens so a row that grows does not overlap the next.
+ */
+function MessageRows({ messages, spanErrorsAfter, scrollContainerRef, ...row }: MessageRowsProps) {
+  const virtualise = messages.length > VIRTUALISED_THREAD_MESSAGES;
+  // TanStack Virtual exposes mutable methods that React Compiler intentionally leaves unmemoized.
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const virtualizer = useVirtualizer({
+    count: virtualise ? messages.length : 0,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => ESTIMATED_ROW_HEIGHT,
+    overscan: 12,
+    // The gap the surrounding `space-y-3` leaves between rows, which the virtualiser must account for.
+    gap: 12,
+    getItemKey: (index) => messages[index].key,
+  });
+
+  if (!virtualise) {
+    return (
+      <>
+        {messages.map((message, index) => (
+          <Fragment key={message.key}>
+            <div data-thread-row-index={index}>
+              <MessageRow {...row} message={message} index={index} />
+            </div>
+            {spanErrorsAfter.get(index)?.map((envelope) => (
+              <SpanErrorRow key={`${envelope.trace_id}-${envelope.span_id}`} envelope={envelope} />
+            ))}
+          </Fragment>
+        ))}
+      </>
+    );
+  }
+
+  const items = virtualizer.getVirtualItems();
+  return (
+    <div
+      className="relative h-(--list-size) w-full"
+      style={{ "--list-size": `${virtualizer.getTotalSize()}px` } as CSSProperties}
+    >
+      {items.map((item) => (
+        <div
+          key={item.key}
+          data-thread-row-index={item.index}
+          data-index={item.index}
+          ref={virtualizer.measureElement}
+          className="absolute top-0 left-0 w-full translate-y-(--row-start)"
+          style={{ "--row-start": `${item.start}px` } as CSSProperties}
+        >
+          <MessageRow {...row} message={messages[item.index]} index={item.index} />
+          {spanErrorsAfter.get(item.index)?.map((envelope) => (
+            <div key={`${envelope.trace_id}-${envelope.span_id}`} className="mt-3">
+              <SpanErrorRow envelope={envelope} />
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function ThreadView({
   blocks,
   metadata,
@@ -183,7 +340,8 @@ export function ThreadView({
     settings.set(MARKDOWN_ENABLED_KEY, newValue);
   }, [markdownEnabled]);
 
-  const openByDefault = blocks.length <= LARGE_THREAD_BLOCKS;
+  const messages = useMemo(() => groupBlocksIntoMessages(blocks), [blocks]);
+  const openByDefault = messages.length <= LARGE_THREAD_BLOCKS;
   const allExpanded = forceExpandedState ?? openByDefault;
   const startTime = metadata?.start_time ?? blocks[0]?.timestamp;
 
@@ -214,7 +372,20 @@ export function ThreadView({
     return map;
   }, [blocks]);
 
-  const spanErrors = useMemo(() => placeSpanErrors(blocks, envelopes ?? []), [blocks, envelopes]);
+  const blockErrors = useMemo(() => placeSpanErrors(blocks, envelopes ?? []), [blocks, envelopes]);
+
+  // The errors a block index carries belong after the message that block ends.
+  const spanErrors = useMemo(() => {
+    const after = new Map<number, SpanEnvelope[]>();
+    messages.forEach((message, index) => {
+      const found = message.blocks.flatMap(
+        (_, offset) =>
+          blockErrors.after.get(message.lastBlockIndex - message.blocks.length + 1 + offset) ?? [],
+      );
+      if (found.length > 0) after.set(index, found);
+    });
+    return { leading: blockErrors.leading, after };
+  }, [messages, blockErrors]);
 
   // Tool names without schemas: some frameworks report which tools were offered but not their
   // definitions, and an empty Tools tab would claim no tools were available at all.
@@ -231,44 +402,44 @@ export function ThreadView({
 
   const selectRow = useCallback((index: number) => {
     setSelectedIndex(index);
-    const triggers = scrollContainerRef.current?.querySelectorAll<HTMLElement>(
-      "[data-thread-row-trigger]",
+    const trigger = scrollContainerRef.current?.querySelector<HTMLElement>(
+      `[data-thread-row-index="${index}"] [data-thread-row-trigger]`,
     );
     // Moving focus also scrolls the row into view and tells assistive technology where the user is.
-    triggers?.[index]?.focus();
+    trigger?.focus();
   }, []);
 
   // Keyboard navigation, scoped to the thread: a window-level handler took the arrow keys from every
-  // other panel on the page and turned a plain Cmd/Ctrl+C into "copy the whole selected block".
+  // other panel on the page and turned a plain Cmd/Ctrl+C into "copy the whole selected message".
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {
       if (e.metaKey || e.ctrlKey || e.altKey || isEditableTarget(e.target)) return;
-      if (blocks.length === 0) return;
+      if (messages.length === 0) return;
       const current =
-        selectedIndex !== null && selectedIndex < blocks.length ? selectedIndex : null;
+        selectedIndex !== null && selectedIndex < messages.length ? selectedIndex : null;
 
       switch (e.key) {
         case "j":
         case "ArrowDown":
           e.preventDefault();
-          selectRow(current === null ? 0 : Math.min(current + 1, blocks.length - 1));
+          selectRow(current === null ? 0 : Math.min(current + 1, messages.length - 1));
           break;
         case "k":
         case "ArrowUp":
           e.preventDefault();
-          selectRow(current === null ? blocks.length - 1 : Math.max(current - 1, 0));
+          selectRow(current === null ? messages.length - 1 : Math.max(current - 1, 0));
           break;
         case "Escape":
           setSelectedIndex(null);
           break;
         case "c":
           if (current !== null) {
-            navigator.clipboard.writeText(getBlockCopyText(blocks[current]));
+            navigator.clipboard.writeText(getMessageCopyText(messages[current]));
           }
           break;
       }
     },
-    [blocks, selectedIndex, selectRow],
+    [messages, selectedIndex, selectRow],
   );
 
   if (isLoading) {
@@ -390,35 +561,21 @@ export function ThreadView({
                   envelope={envelope}
                 />
               ))}
-              {blocks.map((block, index) => (
-                <Fragment key={getBlockKey(block)}>
-                  <TimelineRow
-                    block={block}
-                    startTime={startTime}
-                    isSelected={selectedIndex === index}
-                    onSelect={() => setSelectedIndex(index)}
-                    forceExpanded={forceExpandedState ?? undefined}
-                    defaultOpen={openByDefault}
-                    onManualToggle={() => setForceExpandedState(null)}
-                    preview={getBlockPreview(block)}
-                    copyText={getBlockCopyText(block)}
-                    traceNumber={
-                      showTraceLinks && block.trace_id
-                        ? traceNumberMap.get(block.trace_id)
-                        : undefined
-                    }
-                    projectId={showTraceLinks ? projectId : undefined}
-                  >
-                    {renderBlockContent(block, markdownEnabled, projectId)}
-                  </TimelineRow>
-                  {spanErrors.after.get(index)?.map((envelope) => (
-                    <SpanErrorRow
-                      key={`${envelope.trace_id}-${envelope.span_id}`}
-                      envelope={envelope}
-                    />
-                  ))}
-                </Fragment>
-              ))}
+              <MessageRows
+                messages={messages}
+                startTime={startTime}
+                selectedIndex={selectedIndex}
+                onSelect={setSelectedIndex}
+                forceExpanded={forceExpandedState}
+                openByDefault={openByDefault}
+                onManualToggle={() => setForceExpandedState(null)}
+                markdownEnabled={markdownEnabled}
+                projectId={projectId}
+                showTraceLinks={showTraceLinks}
+                traceNumberMap={traceNumberMap}
+                spanErrorsAfter={spanErrors.after}
+                scrollContainerRef={scrollContainerRef}
+              />
             </div>
           </div>
         </MediaGalleryProvider>

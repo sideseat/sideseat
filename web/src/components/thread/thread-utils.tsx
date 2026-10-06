@@ -6,6 +6,7 @@ import {
   ToolResultContent,
   ThinkingContent,
   ToolDefinitionsContent,
+  JsonContent,
 } from "./content";
 
 /**
@@ -56,6 +57,64 @@ function truncate(text: string, max: number): string {
 }
 
 /**
+ * The longest text parsed to decide whether a block is a structured answer.
+ *
+ * A schema answer is a handful of fields. Beyond this a text block is prose, a transcript or a dump,
+ * and parsing it on every render would cost more than the JSON tree is worth.
+ */
+const MAX_STRUCTURED_TEXT = 64_000;
+
+/** Parsed answers, keyed by the content block they came from, so a re-render re-parses nothing. */
+const parsed = new WeakMap<object, unknown>();
+/** What the cache holds for a text block that is not a structured answer. */
+const PROSE = Symbol("prose");
+
+/**
+ * The structured answer a block carries, or `undefined` when it carries prose.
+ *
+ * A model asked for a schema answers with one object, which reaches SideSeat two ways: as a `json`
+ * content block where the instrumentation reported the shape, and as the text of a message where it
+ * reported only a string. Both are the same answer to a reader, and a JSON tree is how it is read - the
+ * string form rendered as Markdown runs the whole object into one paragraph.
+ */
+export function structuredData(block: Block): unknown | undefined {
+  const { content } = block;
+  if (content.type === "json") return content.data;
+  if (content.type !== "text") return undefined;
+  const cached = parsed.get(content);
+  if (cached !== undefined) return cached === PROSE ? undefined : cached;
+  const answer = parseStructured(content.text);
+  parsed.set(content, answer === undefined ? PROSE : answer);
+  return answer;
+}
+
+function parseStructured(text: string): unknown | undefined {
+  const trimmed = text.trim();
+  // Only an object or an array: a bare number or a quoted word is prose that happens to parse.
+  const first = trimmed[0];
+  if ((first !== "{" && first !== "[") || trimmed.length > MAX_STRUCTURED_TEXT) return undefined;
+  try {
+    const value: unknown = JSON.parse(trimmed);
+    return typeof value === "object" && value !== null ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** A one-line summary of a structured answer: its keys, or its length. */
+export function summariseStructured(data: unknown): string {
+  if (Array.isArray(data)) {
+    return `[${data.length} item${data.length === 1 ? "" : "s"}]`;
+  }
+  if (typeof data === "object" && data !== null) {
+    const keys = Object.keys(data);
+    const shown = keys.slice(0, 6).join(", ");
+    return truncate(`{${shown}${keys.length > 6 ? ", …" : ""}}`, 80);
+  }
+  return truncate(JSON.stringify(data) ?? String(data), 80);
+}
+
+/**
  * The tool a result answers, by the most direct identification available.
  *
  * The result's own name comes first: for Gemini and ADK it is the only identification the source
@@ -74,6 +133,9 @@ export function getToolResultName(block: Block): string | undefined {
  */
 export function getBlockPreview(block: Block): string {
   const { entry_type, content } = block;
+
+  const structured = structuredData(block);
+  if (structured !== undefined) return summariseStructured(structured);
 
   if (entry_type === "tool_use" && content.type === "tool_use") {
     const inputStr = JSON.stringify(content.input) ?? "";
@@ -111,6 +173,10 @@ export function getBlockPreview(block: Block): string {
 export function getBlockCopyText(block: Block): string {
   const { entry_type, content } = block;
 
+  // The answer itself, without SideSeat's `{"type":"json"}` envelope around it.
+  const structured = structuredData(block);
+  if (structured !== undefined) return JSON.stringify(structured, null, 2);
+
   if (entry_type === "tool_use" && content.type === "tool_use") {
     return JSON.stringify(content.input, null, 2);
   }
@@ -145,6 +211,10 @@ export function renderBlockContent(
   projectId?: string,
 ): React.ReactNode {
   const { entry_type, content } = block;
+
+  // A structured answer is read as a tree whichever carrier reported it.
+  const structured = structuredData(block);
+  if (structured !== undefined) return <JsonContent data={structured} />;
 
   if (entry_type === "text" && content.type === "text") {
     return <TextContent text={content.text} markdownEnabled={markdownEnabled} />;

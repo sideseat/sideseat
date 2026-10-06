@@ -1,18 +1,5 @@
 import { useState, useCallback, useMemo } from "react";
-import {
-  Copy,
-  Check,
-  ChevronRight,
-  User,
-  Bot,
-  Settings,
-  Wrench,
-  CornerDownRight,
-  Brain,
-  ListTree,
-  AlertCircle,
-  HelpCircle,
-} from "lucide-react";
+import { Copy, Check, ChevronRight, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
@@ -21,88 +8,7 @@ import { cn } from "@/lib/utils";
 import type { Block } from "@/api/otel/types";
 import { useForcedOpenState } from "./use-forced-open-state";
 import { getIncompleteReason } from "./thread-utils";
-
-// Role-based configuration (primary)
-const ROLE_CONFIG: Record<
-  string,
-  { icon: typeof User; label: string; accent: string; showMetadata: boolean }
-> = {
-  system: {
-    icon: Settings,
-    label: "System",
-    accent: "text-role-system",
-    showMetadata: true,
-  },
-  user: {
-    icon: User,
-    label: "User",
-    accent: "text-role-user",
-    showMetadata: true,
-  },
-  assistant: {
-    icon: Bot,
-    label: "Assistant",
-    accent: "text-role-assistant",
-    showMetadata: true,
-  },
-  tool: {
-    icon: CornerDownRight,
-    label: "Tool Result",
-    accent: "text-role-tool",
-    showMetadata: false,
-  },
-};
-
-// Special entry types that override role-based labels
-const SPECIAL_ENTRY_CONFIG: Record<
-  string,
-  { icon: typeof User; label: string; accent: string; showMetadata: boolean }
-> = {
-  tool_use: {
-    icon: Wrench,
-    label: "Tool Call",
-    accent: "text-role-tool-call",
-    showMetadata: false,
-  },
-  tool_result: {
-    icon: CornerDownRight,
-    label: "Tool Result",
-    accent: "text-role-tool",
-    showMetadata: false,
-  },
-  thinking: {
-    icon: Brain,
-    label: "Thinking",
-    accent: "text-role-thinking",
-    showMetadata: false,
-  },
-  redacted_thinking: {
-    icon: Brain,
-    label: "Thinking",
-    accent: "text-role-thinking/50",
-    showMetadata: false,
-  },
-  tool_definitions: {
-    icon: ListTree,
-    label: "System",
-    accent: "text-role-system",
-    showMetadata: false,
-  },
-  refusal: {
-    icon: AlertCircle,
-    label: "Assistant",
-    accent: "text-destructive",
-    showMetadata: false,
-  },
-};
-
-// Default config for unknown types
-const DEFAULT_CONFIG = {
-  icon: HelpCircle,
-  label: "Assistant",
-  accent: "text-role-assistant",
-  showMetadata: false,
-};
+import { rowConfig, type RowConfig } from "./row-config";
 
 export interface TimelineRowProps {
   block: Block;
@@ -120,6 +26,14 @@ export interface TimelineRowProps {
   traceNumber?: number;
   /** Project ID for building trace URL */
   projectId?: string;
+  /** How the row presents itself; by default, what its block's entry type and role say. */
+  config?: RowConfig;
+  /** Whether the row reports an error; by default, what its block reports. */
+  isError?: boolean;
+  /** The model the row names; by default, its block's. */
+  model?: string;
+  /** The finish reason the row reports; by default, its block's. */
+  finishReason?: string;
 }
 
 export function TimelineRow({
@@ -135,6 +49,10 @@ export function TimelineRow({
   children,
   traceNumber,
   projectId,
+  config: configOverride,
+  isError: isErrorOverride,
+  model: modelOverride,
+  finishReason,
 }: TimelineRowProps) {
   const [copied, setCopied] = useState(false);
   const [isOpen, setIsOpen] = useForcedOpenState(forceExpanded, defaultOpen);
@@ -143,22 +61,14 @@ export function TimelineRow({
     setIsOpen(open);
   };
 
-  const isError = block.is_error;
-  const incompleteReason = getIncompleteReason(block.finish_reason);
+  const isError = isErrorOverride ?? block.is_error;
+  const incompleteReason = getIncompleteReason(finishReason ?? block.finish_reason);
+  const model = modelOverride ?? block.model;
 
-  // Get config based on entry_type and role
-  // Priority: special entry types (tool_use, thinking, etc.) > role-based > default
-  const config = useMemo(() => {
-    // Check for special entry types first
-    const specialConfig = SPECIAL_ENTRY_CONFIG[block.entry_type];
-    if (specialConfig) return specialConfig;
-
-    // Fall back to role-based config
-    const roleConfig = ROLE_CONFIG[block.role];
-    if (roleConfig) return roleConfig;
-
-    return DEFAULT_CONFIG;
-  }, [block.entry_type, block.role]);
+  const config = useMemo(
+    () => configOverride ?? rowConfig(block.entry_type, block.role),
+    [configOverride, block.entry_type, block.role],
+  );
 
   const Icon = isError ? AlertCircle : config.icon;
   const accentClass = isError ? "text-destructive" : config.accent;
@@ -243,9 +153,9 @@ export function TimelineRow({
               {isOpen && <span className="flex-1" />}
 
               {/* Model pill - hidden on small, truncate only when needed */}
-              {config.showMetadata && block.model && (
+              {config.showMetadata && model && (
                 <span className="message-model-pill hidden min-w-0 shrink truncate rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground @[450px]:inline">
-                  {block.model}
+                  {model}
                 </span>
               )}
             </button>

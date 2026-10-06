@@ -7,7 +7,7 @@ import { AppProvider } from "@/lib/app-context";
 import { JsonContent } from "../content/json-content";
 import { getBlockKey, getBlockPreview } from "../thread-utils";
 import { placeSpanErrors } from "../span-errors";
-import { LARGE_THREAD_BLOCKS, ThreadView } from "../thread-view";
+import { LARGE_THREAD_BLOCKS, VIRTUALISED_THREAD_MESSAGES, ThreadView } from "../thread-view";
 import type { ThreadViewProps } from "../types";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -205,6 +205,153 @@ describe("ThreadView rows", () => {
     // Collapsed rows show a one-line preview but do not mount the rendered Markdown body.
     expect(container.querySelector(".prose")).toBeNull();
     expect(container.querySelector('button[aria-label="Expand all"]')).not.toBeNull();
+  });
+});
+
+describe("ThreadView messages", () => {
+  const turn = (overrides: Partial<Block> = {}) => ({
+    span_id: "llm",
+    message_index: 7,
+    ...overrides,
+  });
+
+  it("shows one row for a turn that answered and called two tools", async () => {
+    await renderThread({
+      blocks: [
+        block({ type: "text", text: "Checking both cities." }, turn()),
+        block(
+          { type: "tool_use", id: "c1", name: "get_weather", input: { city: "Paris" } },
+          turn(),
+        ),
+        block(
+          { type: "tool_use", id: "c2", name: "get_weather", input: { city: "Tokyo" } },
+          turn(),
+        ),
+      ],
+    });
+
+    expect(rowTriggers()).toHaveLength(1);
+    const [row] = rowTriggers();
+    expect(row.textContent).toContain("Assistant");
+    // The whole turn is in that one row.
+    expect(container.textContent).toContain("Checking both cities.");
+    expect(container.textContent).toContain("Paris");
+    expect(container.textContent).toContain("Tokyo");
+  });
+
+  it("gives each message of a span its own row", async () => {
+    await renderThread({
+      blocks: [
+        block({ type: "text", text: "the question" }, turn({ role: "user", message_index: 0 })),
+        block({ type: "text", text: "the answer" }, turn({ message_index: 1 })),
+      ],
+    });
+
+    expect(rowTriggers()).toHaveLength(2);
+    expect(rowTriggers()[0].textContent).toContain("User");
+    expect(rowTriggers()[1].textContent).toContain("Assistant");
+  });
+
+  it("copies the whole selected message, not only its first block", async () => {
+    const writeText = vi.fn();
+    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+    await renderThread({
+      blocks: [
+        block({ type: "text", text: "answer" }, turn()),
+        block({ type: "tool_use", id: "c", name: "t", input: { a: 1 } }, turn()),
+      ],
+    });
+
+    press(region(), "j");
+    press(rowTriggers()[0], "c");
+
+    expect(writeText).toHaveBeenCalledWith('answer\n\n{\n  "a": 1\n}');
+  });
+
+  it("places a span's exception after the message its last block ends", async () => {
+    await renderThread({
+      blocks: [
+        block({ type: "text", text: "partial" }, turn()),
+        block({ type: "tool_use", id: "c", name: "t", input: {} }, turn()),
+      ],
+      envelopes: [
+        envelope({ span_id: "llm", status_code: "ERROR", exception_type: "RateLimitError" }),
+      ],
+    });
+
+    expect(container.textContent).toContain("RateLimitError");
+  });
+});
+
+describe("ThreadView structured output", () => {
+  it("labels and summarises a schema answer the instrumentation reported as JSON", async () => {
+    await renderThread({
+      blocks: [
+        block({ type: "json", data: { city: "Vienna", budget_eur: 450 } }),
+        ...Array.from({ length: LARGE_THREAD_BLOCKS + 1 }, (_, i) =>
+          block({ type: "text", text: `filler ${i}` }, { message_index: i + 1 }),
+        ),
+      ],
+    });
+
+    const [row] = rowTriggers();
+    expect(row.textContent).toContain("Structured output");
+    // Collapsed, it says what the answer is about rather than "[json]".
+    expect(row.textContent).toContain("{city, budget_eur}");
+  });
+
+  it("renders an answer reported only as text as a JSON tree, not as prose", async () => {
+    await renderThread({
+      blocks: [block({ type: "text", text: '{"city":"Vienna","budget_eur":450}' })],
+    });
+
+    expect(container.querySelector(".json-viewer")).not.toBeNull();
+    expect(container.querySelector(".prose")).toBeNull();
+  });
+
+  it("leaves prose as prose", async () => {
+    await renderThread({ blocks: [block({ type: "text", text: "Vienna is lovely." })] });
+
+    expect(container.querySelector(".json-viewer")).toBeNull();
+    expect(container.textContent).toContain("Vienna is lovely.");
+  });
+});
+
+describe("ThreadView virtualisation", () => {
+  const manyMessages = (count: number) =>
+    Array.from({ length: count }, (_, i) =>
+      block({ type: "text", text: `message ${i}` }, { message_index: i }),
+    );
+
+  it("hands a long thread to the virtualiser, which reserves the whole height", async () => {
+    const many = manyMessages(VIRTUALISED_THREAD_MESSAGES + 50);
+
+    await renderThread({ blocks: many });
+
+    // The list reserves the height of every message, so the scrollbar is the thread's length even
+    // though only the rows near the viewport are in the DOM. (jsdom lays nothing out, so the
+    // virtualiser measures a zero-high viewport here and renders no rows at all.)
+    const list = container.querySelector<HTMLElement>(".h-\\(--list-size\\)");
+    expect(list).not.toBeNull();
+    expect(list!.style.getPropertyValue("--list-size")).toMatch(/^[1-9]\d*px$/);
+    expect(rowTriggers().length).toBeLessThan(many.length);
+  });
+
+  it("renders every row of a shorter thread, so find-in-page reaches them", async () => {
+    await renderThread({ blocks: manyMessages(VIRTUALISED_THREAD_MESSAGES) });
+
+    expect(container.querySelector(".h-\\(--list-size\\)")).toBeNull();
+    expect(rowTriggers()).toHaveLength(VIRTUALISED_THREAD_MESSAGES);
+  });
+
+  it("marks each row with its index, which is how selection finds a row either way", async () => {
+    await renderThread({ blocks: manyMessages(3) });
+
+    const indices = Array.from(
+      container.querySelectorAll<HTMLElement>("[data-thread-row-index]"),
+      (row) => row.dataset.threadRowIndex,
+    );
+    expect(indices).toEqual(["0", "1", "2"]);
   });
 });
 
