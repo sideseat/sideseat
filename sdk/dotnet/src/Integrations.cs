@@ -175,10 +175,13 @@ public static class SideSeatIntegrations
 
     internal static void EnableContentCapture(SideSeatSettings settings)
     {
-        if (settings.CaptureContent && string.IsNullOrEmpty(Environment.GetEnvironmentVariable(GenAiCaptureContent)))
+        // Read lazily by the instrumented libraries, after Create returns, so it cannot be scoped. An
+        // explicit option wins over the environment, as it does everywhere else, and so does content
+        // turned off, which must mean off. Otherwise SideSeat only fills an unset switch, so an
+        // application that turned it off keeps it off.
+        if (settings.CaptureContentOverrides || string.IsNullOrEmpty(Environment.GetEnvironmentVariable(GenAiCaptureContent)))
         {
-            // Read lazily by the instrumented libraries, after Create returns, so it cannot be scoped.
-            Environment.SetEnvironmentVariable(GenAiCaptureContent, "true");
+            Environment.SetEnvironmentVariable(GenAiCaptureContent, settings.CaptureContent ? "true" : "false");
         }
     }
 

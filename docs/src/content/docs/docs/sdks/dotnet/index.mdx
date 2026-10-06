@@ -92,7 +92,16 @@ using (new SideSeatSession("conversation-42", userId: "user-7"))
 ```
 
 `AddSideSeat` adds correlation, the integrations' sources, the resource, and the trace exporter; the
-application's host owns the pipeline's lifetime, metrics, and logs.
+application's host owns the pipeline's lifetime and logs. A meter provider takes no new reader once
+built, so add SideSeat to its builder too:
+
+```csharp
+builder.Services.AddOpenTelemetry()
+    .WithMetrics(metrics => metrics.AddSideSeat(new SideSeatOptions { Integrations = ["semantic-kernel"] }));
+```
+
+Without hosting this is not needed: .NET meter providers listen to meters independently, so the
+client's provider exports beside any the application built.
 
 ## Configuration
 
@@ -120,8 +129,9 @@ Boolean variables accept `1`/`0`, `true`/`false`, and `yes`/`no` in any case; an
 An endpoint without a path is a SideSeat server: signals go to `{endpoint}/otel/{project}/v1/{signal}`.
 An endpoint with a path is already an OTLP base. The API key is sent as `Authorization: Bearer <key>`;
 headers from `OTEL_EXPORTER_OTLP_HEADERS` are sent too, and the API key replaces an `Authorization`
-header among them. With content capture on, SideSeat sets
-`OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true` unless you chose a value.
+header among them. SideSeat sets `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` to match the
+content setting: content off, or `CaptureContent = true`, replaces a value already there; otherwise
+SideSeat sets `true` only when the variable is unset.
 
 ## Lifecycle
 

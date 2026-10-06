@@ -75,14 +75,11 @@ public sealed class SideSeatClient : IDisposable
 
         if (settings.Export && settings.Metrics)
         {
-            var metrics = Sdk.CreateMeterProviderBuilder().SetResourceBuilder(resource);
-            foreach (var meter in sources)
-            {
-                metrics.AddMeter(meter);
-            }
-            _meterProvider = metrics
-                .AddOtlpExporter((exporter, _) => SideSeatPipeline.ConfigureExporter(exporter, settings, "metrics"))
-                .Build();
+            // Meter providers listen to meters independently, so this one exports beside any the
+            // application built.
+            var metrics = Sdk.CreateMeterProviderBuilder();
+            SideSeatPipeline.ConfigureMetrics(metrics, settings, resource, sources);
+            _meterProvider = metrics.Build();
         }
 
         if (settings.Logs)
@@ -298,6 +295,31 @@ public static class SideSeatTracerProviderBuilderExtensions
     }
 }
 
+/// <summary>Adds SideSeat to a metrics pipeline the application already hosts.</summary>
+public static class SideSeatMeterProviderBuilderExtensions
+{
+    /// <summary>
+    /// Adds the integrations' meters, <see cref="SideSeatOptions.Sources"/>, SideSeat's resource,
+    /// and an OTLP metric exporter. A built meter provider takes no new reader, so this goes where
+    /// the application builds its provider; the application's pipeline owns shutdown.
+    /// </summary>
+    public static MeterProviderBuilder AddSideSeat(this MeterProviderBuilder builder, SideSeatOptions? options = null)
+    {
+        var settings = (options ?? new SideSeatOptions()).Resolve();
+        if (settings.Disabled || !settings.Metrics)
+        {
+            return builder;
+        }
+        var integrations = SideSeatIntegrations.Resolve(settings);
+        SideSeatPipeline.ConfigureMetrics(
+            builder,
+            settings,
+            SideSeatPipeline.Resource(settings, integrations),
+            SideSeatPipeline.Sources(settings, integrations));
+        return builder;
+    }
+}
+
 /// <summary>The parts of the pipeline the client and the hosting extension share.</summary>
 internal static class SideSeatPipeline
 {
@@ -355,6 +377,23 @@ internal static class SideSeatPipeline
         if (settings.Export)
         {
             builder.AddOtlpExporter(exporter => ConfigureExporter(exporter, settings, "traces"));
+        }
+    }
+
+    internal static void ConfigureMetrics(
+        MeterProviderBuilder builder,
+        SideSeatSettings settings,
+        ResourceBuilder resource,
+        IReadOnlyList<string> sources)
+    {
+        builder.SetResourceBuilder(resource);
+        foreach (var meter in sources)
+        {
+            builder.AddMeter(meter);
+        }
+        if (settings.Export)
+        {
+            builder.AddOtlpExporter((exporter, _) => ConfigureExporter(exporter, settings, "metrics"));
         }
     }
 

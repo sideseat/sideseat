@@ -11,6 +11,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OpenTelemetry;
+using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Xunit;
@@ -429,6 +430,41 @@ public sealed class SideSeatClientTests : IDisposable
         Assert.Contains(requests, r => r.Path.EndsWith("/traces", StringComparison.Ordinal) && r.Body.Contains("s-1"));
         Assert.Contains(requests, r => r.Path.EndsWith("/logs", StringComparison.Ordinal) && r.Body.Contains("planned the trip"));
         Assert.Contains(requests, r => r.Path.EndsWith("/metrics", StringComparison.Ordinal) && r.Body.Contains("app.requests"));
+    }
+
+    [Fact]
+    public void AHostedMeterPipelineExportsThroughAddSideSeat()
+    {
+        using var collector = new OtlpCollector();
+        using var meter = new Meter("framework");
+        var options = new SideSeatOptions { Endpoint = collector.Endpoint, Integrations = [] };
+        options.Sources.Add("framework");
+        using (var provider = Sdk.CreateMeterProviderBuilder().AddSideSeat(options).Build())
+        {
+            meter.CreateCounter<long>("app.tokens").Add(1);
+            Assert.True(provider.ForceFlush());
+        }
+        Assert.Contains(
+            collector.Requests,
+            r => r.Path == "/otel/default/v1/metrics" && r.Body.Contains("app.tokens"));
+    }
+
+    [Theory]
+    [InlineData(false, null, "true", "false")]
+    [InlineData(true, null, "false", "true")]
+    [InlineData(null, "false", "true", "false")]
+    [InlineData(null, "true", "false", "false")]
+    [InlineData(null, null, "false", "false")]
+    [InlineData(null, null, null, "true")]
+    public void AnExplicitOrOffContentSettingOverridesTheStandardSwitch(
+        bool? option, string? sideseatEnv, string? preset, string expected)
+    {
+        const string name = "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT";
+        SetEnvironment(name, preset);
+        SetEnvironment("SIDESEAT_CAPTURE_CONTENT", sideseatEnv);
+        using var client = SideSeatClient.Create(
+            new SideSeatOptions { Export = false, Integrations = [], CaptureContent = option });
+        Assert.Equal(expected, Environment.GetEnvironmentVariable(name));
     }
 
     private static string PackageVersion(Type type) =>

@@ -71,6 +71,7 @@ public sealed class SideSeatOptions
             .Select(name => name.Trim())
             .Where(name => name.Length > 0)
             .ToList();
+        var content = CaptureContent ?? Flag("SIDESEAT_CAPTURE_CONTENT", true);
         return new SideSeatSettings(
             endpoint,
             Text(Project, "SIDESEAT_PROJECT_ID") ?? SideSeatSettings.DefaultProject,
@@ -80,7 +81,8 @@ public sealed class SideSeatOptions
             integrations,
             Sources.ToList(),
             new Dictionary<string, object>(ResourceAttributes),
-            CaptureContent ?? Flag("SIDESEAT_CAPTURE_CONTENT", true),
+            content,
+            CaptureContent.HasValue || !content,
             Disabled ?? Flag("SIDESEAT_DISABLED", false),
             Debug ?? Flag("SIDESEAT_DEBUG", false),
             Export,
@@ -153,6 +155,7 @@ public sealed class SideSeatSettings
         IReadOnlyList<string> sources,
         IReadOnlyDictionary<string, object> resourceAttributes,
         bool captureContent,
+        bool captureContentOverrides,
         bool disabled,
         bool debug,
         bool export,
@@ -169,6 +172,7 @@ public sealed class SideSeatSettings
         Sources = sources;
         ResourceAttributes = resourceAttributes;
         CaptureContent = captureContent;
+        CaptureContentOverrides = captureContentOverrides;
         Disabled = disabled;
         Debug = debug;
         Export = export;
@@ -203,6 +207,13 @@ public sealed class SideSeatSettings
 
     /// <summary>Whether message content is recorded.</summary>
     public bool CaptureContent { get; }
+
+    /// <summary>
+    /// Whether <see cref="CaptureContent"/> overrides the instrumentations' own content switch: when
+    /// it was an option, or when it is off. <c>SIDESEAT_CAPTURE_CONTENT=true</c> alone does not turn
+    /// on content an application switched off in another variable.
+    /// </summary>
+    public bool CaptureContentOverrides { get; }
 
     /// <summary>Whether the client is a no-op.</summary>
     public bool Disabled { get; }
@@ -278,6 +289,6 @@ public sealed class SideSeatSettings
             string.Join(",", Sources),
             string.Join(",", ResourceAttributes.OrderBy(kv => kv.Key, StringComparer.Ordinal)
                 .Select(kv => $"{kv.Key}={Convert.ToString(kv.Value, CultureInfo.InvariantCulture)}")),
-            CaptureContent, Disabled, Export, Metrics, Logs,
+            CaptureContent, CaptureContentOverrides, Disabled, Export, Metrics, Logs,
         });
 }
