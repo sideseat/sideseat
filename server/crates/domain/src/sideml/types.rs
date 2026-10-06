@@ -11,8 +11,26 @@ use serde_json::Value as JsonValue;
 // ============================================================================
 
 /// Standard chat roles
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+///
+/// One `strum` declaration for the canonical spelling, which is also the JSON one. The *aliases* are a
+/// different thing and stay in `try_from_str`: they are a semantic folding of many providers' words onto
+/// these four roles, not alternative spellings of a role, and which of them outrank a span's own name is
+/// decided by the declarations `declared_alias_spellings` is checked against.
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    Default,
+    strum::IntoStaticStr,
+    strum::VariantArray,
+)]
 #[serde(rename_all = "lowercase")]
+#[strum(serialize_all = "lowercase")]
 pub enum ChatRole {
     System,
     #[default]
@@ -22,13 +40,9 @@ pub enum ChatRole {
 }
 
 impl ChatRole {
+    /// The canonical spelling, which is what a reconstructed message carries.
     pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::System => "system",
-            Self::User => "user",
-            Self::Assistant => "assistant",
-            Self::Tool => "tool",
-        }
+        self.into()
     }
 
     /// Try to parse a role string, returning None for unknown roles.
@@ -104,9 +118,20 @@ impl std::fmt::Display for ChatRole {
 /// Why a response ended, in this engine's own categories.
 ///
 /// Which provider word means which category is declared in the assets' `finish_reasons` sections, not here.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    strum::IntoStaticStr,
+    strum::VariantArray,
+)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum FinishReason {
     /// The model finished its answer.
     Stop,
@@ -121,14 +146,10 @@ pub enum FinishReason {
 }
 
 impl FinishReason {
+    /// This engine's own spelling, which is also the JSON one. Which provider word means which category
+    /// is declared in the assets, not here, so there is no alias table to keep.
     pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Stop => "stop",
-            Self::Length => "length",
-            Self::ToolUse => "tool_use",
-            Self::ContentFilter => "content_filter",
-            Self::Error => "error",
-        }
+        self.into()
     }
 
     /// The category a producer's finish-reason spelling means, through the declared spellings.
@@ -711,5 +732,100 @@ impl ChatMessage {
     pub fn with_finish_reason(mut self, reason: FinishReason) -> Self {
         self.finish_reason = Some(reason);
         self
+    }
+}
+
+#[cfg(test)]
+mod spelling_tests {
+    use strum::VariantArray;
+
+    use super::{ChatRole, FinishReason};
+
+    /// The canonical spellings a reconstructed message and its finish reason carry.
+    ///
+    /// These reach the goldens, the truth comparison and every API answer, so they are the one set of
+    /// strings in this crate that a reader can see changing without a compile error. `VariantArray`
+    /// makes a new variant without a spelling here fail.
+    #[test]
+    fn every_canonical_spelling_is_unchanged_and_matches_its_json_form() {
+        let roles = [
+            (ChatRole::System, "system"),
+            (ChatRole::User, "user"),
+            (ChatRole::Assistant, "assistant"),
+            (ChatRole::Tool, "tool"),
+        ];
+        for (role, spelling) in roles {
+            assert_eq!(role.as_str(), spelling);
+            assert_eq!(role.to_string(), spelling);
+            assert_eq!(
+                serde_json::to_string(&role).unwrap(),
+                format!("\"{spelling}\"")
+            );
+            assert_eq!(
+                serde_json::from_str::<ChatRole>(&format!("\"{spelling}\"")).unwrap(),
+                role
+            );
+            // The canonical spelling is also an accepted alias, which is what keeps a round trip through
+            // a stored message idempotent.
+            assert_eq!(ChatRole::try_from_str(spelling), Some(role));
+        }
+        assert_eq!(ChatRole::VARIANTS.len(), roles.len());
+
+        let reasons = [
+            (FinishReason::Stop, "stop"),
+            (FinishReason::Length, "length"),
+            (FinishReason::ToolUse, "tool_use"),
+            (FinishReason::ContentFilter, "content_filter"),
+            (FinishReason::Error, "error"),
+        ];
+        for (reason, spelling) in reasons {
+            assert_eq!(reason.as_str(), spelling);
+            assert_eq!(reason.to_string(), spelling);
+            assert_eq!(
+                serde_json::to_string(&reason).unwrap(),
+                format!("\"{spelling}\"")
+            );
+            assert_eq!(
+                serde_json::from_str::<FinishReason>(&format!("\"{spelling}\"")).unwrap(),
+                reason
+            );
+        }
+        assert_eq!(FinishReason::VARIANTS.len(), reasons.len());
+    }
+
+    /// Every alias `try_from_str` folds still folds, to the same role.
+    ///
+    /// The folding table is not a spelling table and did not move to `strum`: it maps many providers'
+    /// words onto four roles. This asserts the mapping rather than just the declaration list that
+    /// `declared_alias_spellings` already guards.
+    #[test]
+    fn every_declared_alias_still_folds_to_the_same_role() {
+        let folding = [
+            ("system", ChatRole::System),
+            ("developer", ChatRole::System),
+            ("user", ChatRole::User),
+            ("human", ChatRole::User),
+            ("data", ChatRole::User),
+            ("context", ChatRole::User),
+            ("assistant", ChatRole::Assistant),
+            ("ai", ChatRole::Assistant),
+            ("bot", ChatRole::Assistant),
+            ("model", ChatRole::Assistant),
+            ("choice", ChatRole::Assistant),
+            ("tool_call", ChatRole::Assistant),
+            ("tool", ChatRole::Tool),
+            ("function", ChatRole::Tool),
+            ("ipython", ChatRole::Tool),
+        ];
+        for (spelling, role) in folding {
+            assert_eq!(ChatRole::try_from_str(spelling), Some(role), "{spelling}");
+            assert_eq!(
+                ChatRole::try_from_str(&spelling.to_uppercase()),
+                Some(role),
+                "folding was case-insensitive: {spelling}"
+            );
+        }
+        assert_eq!(ChatRole::declared_alias_spellings().len(), folding.len());
+        assert!(ChatRole::try_from_str("not-a-role").is_none());
     }
 }
