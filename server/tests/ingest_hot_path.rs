@@ -31,11 +31,9 @@ fn corpus() -> Vec<PathBuf> {
             let path = entry.path();
             if path.is_dir() {
                 walk(&path, out);
-            } else if path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .is_some_and(|n| n.starts_with("req-") && (n.ends_with(".pb") || n.ends_with(".json")))
-            {
+            } else if path.file_name().and_then(|n| n.to_str()).is_some_and(|n| {
+                n.starts_with("req-") && (n.ends_with(".pb") || n.ends_with(".json"))
+            }) {
                 out.push(path);
             }
         }
@@ -132,11 +130,13 @@ fn bench_ingest_hot_path_per_span() {
     let (zstd3, zstd3_bytes) = zstd(3);
     let extract = fastest(iterations, || {
         for request in &decoded {
-            std::hint::black_box(sideseat_ingestion::traces::process_request_for_test_with_mode(
-                request,
-                &pricing,
-                ExtractionMode::PerCarrier,
-            ));
+            std::hint::black_box(
+                sideseat_ingestion::traces::process_request_for_test_with_mode(
+                    request,
+                    &pricing,
+                    ExtractionMode::PerCarrier,
+                ),
+            );
         }
     });
 
@@ -145,7 +145,11 @@ fn bench_ingest_hot_path_per_span() {
         "\n[hot-path] {} exports, {spans} spans, {:.1} MB, fastest of {iterations} passes, one thread{}",
         encoded.len(),
         bytes as f64 / 1e6,
-        if no_media { ", exports > 512 KB left out" } else { "" }
+        if no_media {
+            ", exports > 512 KB left out"
+        } else {
+            ""
+        }
     );
     println!("[hot-path] | Stage | us/span | MB/s |");
     println!("[hot-path] | --- | ---: | ---: |");
