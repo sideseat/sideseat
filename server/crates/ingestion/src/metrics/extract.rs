@@ -96,7 +96,7 @@ pub fn extract_metrics_batch(request: &ExportMetricsServiceRequest) -> Vec<Norma
         .map(|(mut metric, inputs)| {
             metric.datapoint_id = super::identity::datapoint_id(&metric, &inputs);
             metric.content_digest = super::identity::content_digest(&metric);
-            metric.logical_bytes = crate::accounting::metric_logical_bytes(&metric);
+            metric.logical_bytes = crate::accounting::metric_logical_bytes(&mut metric);
             metric
         })
         .collect()

@@ -103,7 +103,7 @@ pub fn extract_logs_batch(
                     messages: (!messages.is_empty())
                         .then(|| serde_json::to_string(&messages).unwrap_or_default()),
                 };
-                log.logical_bytes = crate::accounting::log_logical_bytes(&log);
+                log.logical_bytes = crate::accounting::log_logical_bytes(&mut log);
                 result.push(log);
             }
         }

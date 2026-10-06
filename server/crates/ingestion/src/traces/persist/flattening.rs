@@ -310,7 +310,7 @@ fn to_normalized_span(
         logical_bytes: 0,
         search: Default::default(),
     };
-    normalized.logical_bytes = crate::accounting::span_logical_bytes(&normalized);
+    normalized.logical_bytes = crate::accounting::span_logical_bytes(&mut normalized);
     normalized
 }
 
