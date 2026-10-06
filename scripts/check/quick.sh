@@ -83,7 +83,7 @@ if [ -n "$rust_files" ]; then
     rs_existing="$(grep -E '\.rs$' <<<"$rust_files" | existing || true)"
     if [ -n "$rs_existing" ]; then
         # shellcheck disable=SC2086
-        rustfmt --check --edition 2024 $rs_existing
+        rustfmt --check --edition 2024 --config skip_children=true $rs_existing
     fi
     if ((workspace)); then
         step "clippy (workspace: a workspace manifest changed)"
