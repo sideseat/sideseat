@@ -1,0 +1,182 @@
+{
+  "label": "langchain4j/native@0.1.8/chat",
+  "request_count": 1,
+  "span_count": 3,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/AiService.chat/span-2": {
+      "message_count": 1,
+      "role_sequence": [
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Kyoto is best known as Japan's cultural heartland, famed for its thousands of temples and shrines, traditional geisha districts like Gion, and its well-preserved historic architecture from its centuries as the imperial capital.",
+          "content_digest": "d496510a5325c7e0",
+          "observation_type": "agent"
+        }
+      ]
+    },
+    "trace-1/LLM/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "In one sentence, what is Kyoto best known for?",
+          "content_digest": "0f69e296627452c3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Kyoto is best known as Japan's cultural heartland, famed for its thousands of temples and shrines, traditional geisha districts like Gion, and its well-preserved historic architecture from its centuries as the imperial capital.",
+          "content_digest": "d496510a5325c7e0",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/chat/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "In one sentence, what is Kyoto best known for?",
+          "content_digest": "0f69e296627452c3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Kyoto is best known as Japan's cultural heartland, famed for its thousands of temples and shrines, traditional geisha districts like Gion, and its well-preserved historic architecture from its centuries as the imperial capital.",
+          "content_digest": "d496510a5325c7e0",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "langchain4j-chat": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "In one sentence, what is Kyoto best known for?",
+          "content_digest": "0f69e296627452c3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Kyoto is best known as Japan's cultural heartland, famed for its thousands of temples and shrines, traditional geisha districts like Gion, and its well-preserved historic architecture from its centuries as the imperial capital.",
+          "content_digest": "d496510a5325c7e0",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 3,
+    "role_sequence": [
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "In one sentence, what is Kyoto best known for?",
+        "content_digest": "0f69e296627452c3",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Kyoto is best known as Japan's cultural heartland, famed for its thousands of temples and shrines, traditional geisha districts like Gion, and its well-preserved historic architecture from its centuries as the imperial capital.",
+        "content_digest": "d496510a5325c7e0",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

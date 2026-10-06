@@ -220,6 +220,15 @@ client spans, 1.13 does not; before 1.12 the Google AI plugin has no `BaseURL` t
 `execute_tool` spans and `call_llm` operations, 1.4 changes message JSON, 1.6 adds usage tokens; 0.4 - 0.7 do
 not run the suite.
 
+**Koog** (18 releases): only the suite's 1.3.0 runs it; before 1.0 `SpanAdapter` is internal, and 1.0 - 1.2
+have no Claude Sonnet 5 in their Bedrock catalogue. **OpenInference's LangChain4j instrumentor** (5
+releases, 2 classes): the finish reason moves from `llm.response.finish_reasons` to `llm.finish_reason` in
+0.1.9; 0.1.5 - 0.1.6 lack the AI-service listeners the suite registers. **OpenInference's Spring AI
+instrumentor** (3 releases, 2 classes): 0.1.10 adds `llm.finish_reason`. **Strands Agents for TypeScript**
+(38 releases): without the opt-in 1.2 onwards is one format; opted in, 1.12 adds
+`gen_ai.tool.call.arguments` / `.result`. The 0.x line lacks the `@strands-agents/sdk/telemetry` export the
+suite imports, and 1.0.0 - 1.1.0 call CountTokens before each model call: they wait for a live recording.
+
 Replay gives the scenario an HTTP proxy that refuses everything but loopback, so a release that ignores the
 client it is given (AgentScope 2.0.0 - 2.0.5) fails locally instead of reaching a provider's public API. A suite
 that must reach another host declares it with its reason (`allow-hosts`: LiteLLM routes Bedrock models by

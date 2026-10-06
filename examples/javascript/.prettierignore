@@ -3,4 +3,6 @@ sdk-conformance/
 package-lock.json
 # Written by the capture tool and by the Python harness.
 */cassettes/
+*/cassettes@*/
+*/versions.census.json
 harness/content.json

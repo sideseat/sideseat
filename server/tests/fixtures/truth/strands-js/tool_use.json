@@ -4,6 +4,8 @@
  "scenario": "tool_use",
  "fixtures": [
   "strands-js/native/tool_use",
+  "strands-js/native@1.11.2+semconv-latest/tool_use",
+  "strands-js/native@1.19.0+semconv-latest/tool_use",
   "strands-js/sdk/tool_use"
  ],
  "source": {

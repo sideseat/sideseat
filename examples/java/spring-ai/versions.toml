@@ -1,0 +1,20 @@
+# The historical OpenInference Spring AI instrumentor releases this suite is replayed against; see
+# `python -m harness matrix --help` and docs/engineering/framework-versions.md. The instrumentor writes the
+# spans, so its release history is the window.
+[matrix]
+package = "com.arize:openinference-instrumentation-springAI"
+pin = "openinference-springai={version}"
+since = "2025-10-05"
+resolved-before = "2026-10-05T00:00:00Z"
+probes = ["tool_use", "streaming"]
+scenarios = ["tool_use", "streaming"]
+
+# Each variant is the newest release of one telemetry class in `versions.census.json`.
+[[variant]]
+version = "0.1.9"
+doc = "0.1.8-0.1.9: model spans carry no llm.finish_reason."
+
+[[variant]]
+version = "0.1.10"
+current = true
+doc = "0.1.10: llm.finish_reason. The suite's locked release; its fixtures are the ordinary capture."

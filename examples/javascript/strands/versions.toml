@@ -1,0 +1,118 @@
+# The historical @strands-agents/sdk releases this suite is replayed against; see `python -m harness matrix --help`
+# and docs/engineering/framework-versions.md. Strands writes its own spans, so its release history is the window.
+[matrix]
+package = "@strands-agents/sdk"
+since = "2025-10-05"
+resolved-before = "2026-10-05T00:00:00Z"
+probes = ["tool_use", "streaming"]
+scenarios = ["tool_use", "streaming"]
+
+[matrix.profiles]
+# Strands writes gen_ai.input.messages / output.messages instead of per-message events only when asked to.
+semconv-latest = { OTEL_SEMCONV_STABILITY_OPT_IN = "gen_ai_latest_experimental" }
+
+# Each variant is the newest release of one telemetry class in `versions.census.json`.
+[[variant]]
+version = "1.19.0"
+current = true
+doc = "1.2 onwards without the opt-in: one format. The suite's locked release; its fixtures are the ordinary capture."
+
+[[variant]]
+version = "1.11.2"
+profile = "semconv-latest"
+doc = "1.2-1.11 opted in: gen_ai.input.messages / gen_ai.output.messages instead of per-message events."
+
+[[variant]]
+version = "1.19.0"
+profile = "semconv-latest"
+doc = "1.12 onwards opted in: tool spans carry gen_ai.tool.call.arguments and gen_ai.tool.call.result."
+
+[[exempt]]
+version = "0.0.1"
+reason = "The suite's native setup imports @strands-agents/sdk/telemetry and the 1.x agent API, which the 0.x line does not export."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.0"
+reason = "The suite's native setup imports @strands-agents/sdk/telemetry and the 1.x agent API, which the 0.x line does not export."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.1"
+reason = "The suite's native setup imports @strands-agents/sdk/telemetry and the 1.x agent API, which the 0.x line does not export."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.2"
+reason = "The suite's native setup imports @strands-agents/sdk/telemetry and the 1.x agent API, which the 0.x line does not export."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.3"
+reason = "The suite's native setup imports @strands-agents/sdk/telemetry and the 1.x agent API, which the 0.x line does not export."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.4"
+reason = "The suite's native setup imports @strands-agents/sdk/telemetry and the 1.x agent API, which the 0.x line does not export."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.5"
+reason = "The suite's native setup imports @strands-agents/sdk/telemetry and the 1.x agent API, which the 0.x line does not export."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.6"
+reason = "The suite's native setup imports @strands-agents/sdk/telemetry and the 1.x agent API, which the 0.x line does not export."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.2.0"
+reason = "The suite's native setup imports @strands-agents/sdk/telemetry and the 1.x agent API, which the 0.x line does not export."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.2.1"
+reason = "The suite's native setup imports @strands-agents/sdk/telemetry and the 1.x agent API, which the 0.x line does not export."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.2.2"
+reason = "The suite's native setup imports @strands-agents/sdk/telemetry and the 1.x agent API, which the 0.x line does not export."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.3.0"
+reason = "The suite's native setup imports @strands-agents/sdk/telemetry and the 1.x agent API, which the 0.x line does not export."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.4.0"
+reason = "The suite's native setup imports @strands-agents/sdk/telemetry and the 1.x agent API, which the 0.x line does not export."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.5.0"
+reason = "The suite's native setup imports @strands-agents/sdk/telemetry and the 1.x agent API, which the 0.x line does not export."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.6.0"
+reason = "The suite's native setup imports @strands-agents/sdk/telemetry and the 1.x agent API, which the 0.x line does not export."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.7.0"
+reason = "The suite's native setup imports @strands-agents/sdk/telemetry and the 1.x agent API, which the 0.x line does not export."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "1.0.0"
+reason = "Calls Bedrock CountTokens before each model call, which the suite's cassettes do not hold; it needs a [[recording]] of its own, taken live with `matrix --live`."
+revisit = "2026-11-05"
+
+[[exempt]]
+version = "1.1.0"
+reason = "Calls Bedrock CountTokens before each model call, which the suite's cassettes do not hold; it needs a [[recording]] of its own, taken live with `matrix --live`."
+revisit = "2026-11-05"

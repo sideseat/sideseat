@@ -4,6 +4,8 @@
  "scenario": "streaming",
  "fixtures": [
   "strands-js/native/streaming",
+  "strands-js/native@1.11.2+semconv-latest/streaming",
+  "strands-js/native@1.19.0+semconv-latest/streaming",
   "strands-js/sdk/streaming"
  ],
  "source": {

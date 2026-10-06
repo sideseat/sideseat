@@ -1,0 +1,101 @@
+# The historical Koog releases this suite is replayed against; see `python -m harness matrix --help` and
+# docs/engineering/framework-versions.md. Koog's OpenTelemetry feature writes the spans, so its release history
+# is the window.
+[matrix]
+package = "ai.koog:koog-agents"
+pin = "koog={version}"
+since = "2025-10-05"
+resolved-before = "2026-10-05T00:00:00Z"
+probes = ["tool_use", "chat"]
+scenarios = ["tool_use", "chat"]
+
+# Only the suite's own release runs it.
+[[variant]]
+version = "1.3.0"
+current = true
+doc = "1.3.0: the only runnable release. The suite's locked release; its fixtures are the ordinary capture."
+
+[[exempt]]
+version = "0.5.1"
+reason = "Its OpenTelemetry feature keeps SpanAdapter internal, which the suite extends to stamp the session on every span."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.5.2"
+reason = "Its OpenTelemetry feature keeps SpanAdapter internal, which the suite extends to stamp the session on every span."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.5.3"
+reason = "Its OpenTelemetry feature keeps SpanAdapter internal, which the suite extends to stamp the session on every span."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.5.4"
+reason = "Its OpenTelemetry feature keeps SpanAdapter internal, which the suite extends to stamp the session on every span."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.6.0"
+reason = "Its OpenTelemetry feature keeps SpanAdapter internal, which the suite extends to stamp the session on every span."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.6.1"
+reason = "Its OpenTelemetry feature keeps SpanAdapter internal, which the suite extends to stamp the session on every span."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.6.2"
+reason = "Its OpenTelemetry feature keeps SpanAdapter internal, which the suite extends to stamp the session on every span."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.6.3"
+reason = "Its OpenTelemetry feature keeps SpanAdapter internal, which the suite extends to stamp the session on every span."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.6.4"
+reason = "Its OpenTelemetry feature keeps SpanAdapter internal, which the suite extends to stamp the session on every span."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.7.0"
+reason = "Its OpenTelemetry feature keeps SpanAdapter internal, which the suite extends to stamp the session on every span."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.7.1"
+reason = "Its OpenTelemetry feature keeps SpanAdapter internal, which the suite extends to stamp the session on every span."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.7.2"
+reason = "Its OpenTelemetry feature keeps SpanAdapter internal, which the suite extends to stamp the session on every span."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.7.3"
+reason = "Its OpenTelemetry feature keeps SpanAdapter internal, which the suite extends to stamp the session on every span."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.8.0"
+reason = "Its OpenTelemetry feature keeps SpanAdapter internal, which the suite extends to stamp the session on every span."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "1.0.0"
+reason = "Its Bedrock model catalogue has no Claude Sonnet 5 model, which the suite runs."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "1.1.1"
+reason = "Its Bedrock model catalogue has no Claude Sonnet 5 model, which the suite runs."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "1.2.0"
+reason = "Its Bedrock model catalogue has no Claude Sonnet 5 model, which the suite runs."
+revisit = "2027-01-05"

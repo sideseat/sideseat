@@ -4,6 +4,7 @@
  "scenario": "streaming",
  "fixtures": [
   "spring-ai/native/streaming",
+  "spring-ai/native@0.1.9/streaming",
   "spring-ai/sdk/streaming"
  ],
  "source": {

@@ -4,6 +4,7 @@
  "scenario": "tool_use",
  "fixtures": [
   "spring-ai/native/tool_use",
+  "spring-ai/native@0.1.9/tool_use",
   "spring-ai/sdk/tool_use"
  ],
  "source": {

@@ -1,0 +1,30 @@
+# The historical OpenInference LangChain4j instrumentor releases this suite is replayed against; see
+# `python -m harness matrix --help` and docs/engineering/framework-versions.md. The instrumentor writes the
+# spans, so its release history is the window.
+[matrix]
+package = "com.arize:openinference-instrumentation-langchain4j"
+pin = "openinference-langchain4j={version}"
+since = "2025-10-05"
+resolved-before = "2026-10-05T00:00:00Z"
+probes = ["tool_use", "chat"]
+scenarios = ["tool_use", "chat"]
+
+# Each variant is the newest release of one telemetry class in `versions.census.json`.
+[[variant]]
+version = "0.1.8"
+doc = "0.1.7-0.1.8: the finish reason as llm.response.finish_reasons."
+
+[[variant]]
+version = "0.1.9"
+current = true
+doc = "0.1.9: the finish reason as llm.finish_reason. The suite's locked release; its fixtures are the ordinary capture."
+
+[[exempt]]
+version = "0.1.5"
+reason = "Has no createAiServiceListeners(), the AI-service listeners the suite registers; 0.1.7 introduced them."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.6"
+reason = "Has no createAiServiceListeners(), the AI-service listeners the suite registers; 0.1.7 introduced them."
+revisit = "2027-01-05"

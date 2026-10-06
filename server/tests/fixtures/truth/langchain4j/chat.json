@@ -4,6 +4,7 @@
  "scenario": "chat",
  "fixtures": [
   "langchain4j/native/chat",
+  "langchain4j/native@0.1.8/chat",
   "langchain4j/sdk/chat"
  ],
  "source": {

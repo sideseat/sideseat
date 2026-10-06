@@ -4,6 +4,7 @@
  "scenario": "tool_use",
  "fixtures": [
   "langchain4j/native/tool_use",
+  "langchain4j/native@0.1.8/tool_use",
   "langchain4j/sdk/tool_use"
  ],
  "source": {
