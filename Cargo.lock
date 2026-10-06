@@ -5547,6 +5547,7 @@ dependencies = [
  "subtle",
  "supports-hyperlinks",
  "tempfile",
+ "thiserror",
  "tokio",
  "tracing",
 ]

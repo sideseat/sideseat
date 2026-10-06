@@ -1,9 +1,21 @@
 //! Cryptographic utility functions
 
-use anyhow::{Result, bail};
 use rand::RngCore;
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
+use thiserror::Error;
+
+/// Why a hex string could not be decoded.
+///
+/// Neither variant names the offending text: these decode secret material, and a message quoting the
+/// input would put part of a key in a log line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+pub enum HexDecodeError {
+    #[error("Invalid hex string length")]
+    OddLength,
+    #[error("Invalid hex character")]
+    InvalidCharacter,
+}
 
 /// Generate a cryptographically secure random key
 pub fn generate_key(len: usize) -> Vec<u8> {
@@ -31,15 +43,16 @@ pub fn constant_time_eq(a: &str, b: &str) -> bool {
 }
 
 /// Decode a hex string to bytes
-pub fn decode_hex(hex: &str) -> Result<Vec<u8>> {
+pub fn decode_hex(hex: &str) -> Result<Vec<u8>, HexDecodeError> {
     if !hex.len().is_multiple_of(2) {
-        bail!("Invalid hex string length");
+        return Err(HexDecodeError::OddLength);
     }
 
     let mut bytes = Vec::with_capacity(hex.len() / 2);
     for i in (0..hex.len()).step_by(2) {
-        let byte = u8::from_str_radix(&hex[i..i + 2], 16)
-            .map_err(|_| anyhow::anyhow!("Invalid hex character"))?;
+        // Slicing by two bytes is only a char boundary for ASCII, which non-ASCII input is not.
+        let pair = hex.get(i..i + 2).ok_or(HexDecodeError::InvalidCharacter)?;
+        let byte = u8::from_str_radix(pair, 16).map_err(|_| HexDecodeError::InvalidCharacter)?;
         bytes.push(byte);
     }
     Ok(bytes)
@@ -105,14 +118,36 @@ mod tests {
 
     #[test]
     fn test_decode_hex_invalid_length() {
-        assert!(decode_hex("0").is_err());
-        assert!(decode_hex("abc").is_err());
+        assert_eq!(decode_hex("0"), Err(HexDecodeError::OddLength));
+        assert_eq!(decode_hex("abc"), Err(HexDecodeError::OddLength));
     }
 
     #[test]
     fn test_decode_hex_invalid_char() {
-        assert!(decode_hex("gg").is_err());
-        assert!(decode_hex("0z").is_err());
+        assert_eq!(decode_hex("gg"), Err(HexDecodeError::InvalidCharacter));
+        assert_eq!(decode_hex("0z"), Err(HexDecodeError::InvalidCharacter));
+    }
+
+    /// A multi-byte character used to panic here: `&hex[i..i + 2]` is only a char boundary for ASCII.
+    #[test]
+    fn decode_hex_refuses_non_ascii_instead_of_panicking() {
+        // Both bytes of the character fall in one pair: a boundary, but not a hex digit.
+        assert_eq!(decode_hex("00é"), Err(HexDecodeError::InvalidCharacter));
+        // The pair straddles the character: not a boundary, which is what used to panic.
+        assert_eq!(decode_hex("aéb"), Err(HexDecodeError::InvalidCharacter));
+    }
+
+    /// The wording operators and logs see is the wording the `anyhow` messages had.
+    #[test]
+    fn hex_decode_error_messages_are_unchanged() {
+        assert_eq!(
+            HexDecodeError::OddLength.to_string(),
+            "Invalid hex string length"
+        );
+        assert_eq!(
+            HexDecodeError::InvalidCharacter.to_string(),
+            "Invalid hex character"
+        );
     }
 
     #[test]
