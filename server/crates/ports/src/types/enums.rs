@@ -4,14 +4,28 @@
 //! classification of spans, messages, and metrics.
 
 use serde::{Deserialize, Serialize};
+use strum::{EnumString, IntoStaticStr, VariantArray};
 
 // ============================================================================
 // CLASSIFICATION ENUMS
 // ============================================================================
 
 /// Observation types for LLM telemetry spans
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    Default,
+    IntoStaticStr,
+    EnumString,
+    VariantArray,
+)]
 #[serde(rename_all = "lowercase")]
+#[strum(serialize_all = "lowercase")]
 pub enum ObservationType {
     Generation,
     Embedding,
@@ -26,24 +40,28 @@ pub enum ObservationType {
 }
 
 impl ObservationType {
+    /// The stored spelling, which is also the JSON one.
     pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Generation => "generation",
-            Self::Embedding => "embedding",
-            Self::Agent => "agent",
-            Self::Tool => "tool",
-            Self::Chain => "chain",
-            Self::Retriever => "retriever",
-            Self::Guardrail => "guardrail",
-            Self::Evaluator => "evaluator",
-            Self::Span => "span",
-        }
+        self.into()
     }
 }
 
 /// Span categories for high-level classification
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    Default,
+    IntoStaticStr,
+    EnumString,
+    VariantArray,
+)]
 #[serde(rename_all = "lowercase")]
+#[strum(serialize_all = "lowercase")]
 pub enum SpanCategory {
     LLM,
     Tool,
@@ -60,20 +78,9 @@ pub enum SpanCategory {
 }
 
 impl SpanCategory {
+    /// The stored spelling, which is also the JSON one.
     pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::LLM => "llm",
-            Self::Tool => "tool",
-            Self::Agent => "agent",
-            Self::Chain => "chain",
-            Self::Retriever => "retriever",
-            Self::Embedding => "embedding",
-            Self::DB => "db",
-            Self::Storage => "storage",
-            Self::HTTP => "http",
-            Self::Messaging => "messaging",
-            Self::Other => "other",
-        }
+        self.into()
     }
 }
 
@@ -82,7 +89,18 @@ impl SpanCategory {
 // ============================================================================
 
 /// Message categories for GenAI and other message types
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default, utoipa::ToSchema)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    Default,
+    utoipa::ToSchema,
+    VariantArray,
+)]
 pub enum MessageCategory {
     Log,
     Exception,
@@ -103,28 +121,21 @@ pub enum MessageCategory {
     Other,
 }
 
-impl MessageCategory {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Log => "Log",
-            Self::Exception => "Exception",
-            Self::GenAISystemMessage => "GenAISystemMessage",
-            Self::GenAIUserMessage => "GenAIUserMessage",
-            Self::GenAIAssistantMessage => "GenAIAssistantMessage",
-            Self::GenAIToolMessage => "GenAIToolMessage",
-            Self::GenAIToolInput => "GenAIToolInput",
-            Self::GenAIToolDefinitions => "GenAIToolDefinitions",
-            Self::GenAIChoice => "GenAIChoice",
-            Self::GenAIContext => "GenAIContext",
-            Self::Retrieval => "Retrieval",
-            Self::Observation => "Observation",
-            Self::Other => "Other",
-        }
-    }
-}
-
 /// Source type for GenAI messages
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    Default,
+    IntoStaticStr,
+    EnumString,
+    VariantArray,
+)]
+#[strum(serialize_all = "lowercase")]
 pub enum MessageSourceType {
     /// Extracted from OTEL span events
     #[default]
@@ -134,11 +145,10 @@ pub enum MessageSourceType {
 }
 
 impl MessageSourceType {
+    /// The identity spelling, which is *not* the JSON one: `serde` writes the variant name
+    /// (`"Event"`), and this is lowercase because it is an input to a block's dedup digest.
     pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Event => "event",
-            Self::Attribute => "attribute",
-        }
+        self.into()
     }
 }
 
@@ -147,8 +157,21 @@ impl MessageSourceType {
 // ============================================================================
 
 /// Metric type classification (from OTLP)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    Default,
+    IntoStaticStr,
+    EnumString,
+    VariantArray,
+)]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum MetricType {
     #[default]
     Gauge,
@@ -159,20 +182,28 @@ pub enum MetricType {
 }
 
 impl MetricType {
+    /// The stored spelling, which is also the JSON one.
     pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Gauge => "gauge",
-            Self::Sum => "sum",
-            Self::Histogram => "histogram",
-            Self::ExponentialHistogram => "exponential_histogram",
-            Self::Summary => "summary",
-        }
+        self.into()
     }
 }
 
 /// Aggregation temporality (for Sum/Histogram types)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    Default,
+    IntoStaticStr,
+    EnumString,
+    VariantArray,
+)]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum AggregationTemporality {
     #[default]
     Unspecified,
@@ -181,12 +212,9 @@ pub enum AggregationTemporality {
 }
 
 impl AggregationTemporality {
+    /// The stored spelling, which is also the JSON one.
     pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Unspecified => "unspecified",
-            Self::Delta => "delta",
-            Self::Cumulative => "cumulative",
-        }
+        self.into()
     }
 
     pub fn from_i32(value: i32) -> Self {
@@ -200,53 +228,144 @@ impl AggregationTemporality {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use super::*;
 
+    /// The spelling every one of these variants is stored under, written out.
+    ///
+    /// This is the table the `as_str` match arms used to be, moved from production code into the test
+    /// that proves `strum` reproduces it. These strings are in SQLite, DuckDB, PostgreSQL and
+    /// ClickHouse rows that already exist, so a changed spelling is a silent read failure on old data,
+    /// not a compile error - which is exactly why the list has to live somewhere a test can check it.
     #[test]
-    fn test_observation_type_as_str() {
-        assert_eq!(ObservationType::Generation.as_str(), "generation");
-        assert_eq!(ObservationType::Span.as_str(), "span");
+    fn every_stored_spelling_round_trips_and_is_unchanged() {
+        fn check<T>(expected: &[(T, &str)])
+        where
+            T: Copy + PartialEq + std::fmt::Debug + Into<&'static str> + FromStr + VariantArray,
+            <T as FromStr>::Err: std::fmt::Debug,
+        {
+            for (variant, spelling) in expected {
+                let rendered: &'static str = (*variant).into();
+                assert_eq!(rendered, *spelling, "spelling changed for {variant:?}");
+                assert_eq!(
+                    &T::from_str(spelling).expect("the stored spelling must parse back"),
+                    variant
+                );
+            }
+            assert_eq!(
+                T::VARIANTS.len(),
+                expected.len(),
+                "a variant was added without a spelling in this table"
+            );
+        }
+
+        check(&[
+            (ObservationType::Generation, "generation"),
+            (ObservationType::Embedding, "embedding"),
+            (ObservationType::Agent, "agent"),
+            (ObservationType::Tool, "tool"),
+            (ObservationType::Chain, "chain"),
+            (ObservationType::Retriever, "retriever"),
+            (ObservationType::Guardrail, "guardrail"),
+            (ObservationType::Evaluator, "evaluator"),
+            (ObservationType::Span, "span"),
+        ]);
+        check(&[
+            (SpanCategory::LLM, "llm"),
+            (SpanCategory::Tool, "tool"),
+            (SpanCategory::Agent, "agent"),
+            (SpanCategory::Chain, "chain"),
+            (SpanCategory::Retriever, "retriever"),
+            (SpanCategory::Embedding, "embedding"),
+            (SpanCategory::DB, "db"),
+            (SpanCategory::Storage, "storage"),
+            (SpanCategory::HTTP, "http"),
+            (SpanCategory::Messaging, "messaging"),
+            (SpanCategory::Other, "other"),
+        ]);
+        check(&[
+            (MessageSourceType::Event, "event"),
+            (MessageSourceType::Attribute, "attribute"),
+        ]);
+        check(&[
+            (MetricType::Gauge, "gauge"),
+            (MetricType::Sum, "sum"),
+            (MetricType::Histogram, "histogram"),
+            (MetricType::ExponentialHistogram, "exponential_histogram"),
+            (MetricType::Summary, "summary"),
+        ]);
+        check(&[
+            (AggregationTemporality::Unspecified, "unspecified"),
+            (AggregationTemporality::Delta, "delta"),
+            (AggregationTemporality::Cumulative, "cumulative"),
+        ]);
     }
 
+    /// `MessageCategory` had an `as_str` table too, and nothing outside its own test called it: the
+    /// spellings exist for JSON, where `serde` writes the variant name. This is that table, asserted
+    /// through the direction that actually has users.
     #[test]
-    fn test_span_category_as_str() {
-        assert_eq!(SpanCategory::LLM.as_str(), "llm");
-        assert_eq!(SpanCategory::Other.as_str(), "other");
+    fn message_category_json_spellings_are_unchanged() {
+        let expected = [
+            (MessageCategory::Log, "Log"),
+            (MessageCategory::Exception, "Exception"),
+            (MessageCategory::GenAISystemMessage, "GenAISystemMessage"),
+            (MessageCategory::GenAIUserMessage, "GenAIUserMessage"),
+            (
+                MessageCategory::GenAIAssistantMessage,
+                "GenAIAssistantMessage",
+            ),
+            (MessageCategory::GenAIToolMessage, "GenAIToolMessage"),
+            (MessageCategory::GenAIToolInput, "GenAIToolInput"),
+            (
+                MessageCategory::GenAIToolDefinitions,
+                "GenAIToolDefinitions",
+            ),
+            (MessageCategory::GenAIChoice, "GenAIChoice"),
+            (MessageCategory::GenAIContext, "GenAIContext"),
+            (MessageCategory::Retrieval, "Retrieval"),
+            (MessageCategory::Observation, "Observation"),
+            (MessageCategory::Other, "Other"),
+        ];
+        for (variant, spelling) in expected {
+            assert_eq!(
+                serde_json::to_string(&variant).unwrap(),
+                format!("\"{spelling}\"")
+            );
+            assert_eq!(
+                serde_json::from_str::<MessageCategory>(&format!("\"{spelling}\"")).unwrap(),
+                variant
+            );
+        }
+        assert_eq!(MessageCategory::VARIANTS.len(), expected.len());
     }
 
+    /// The `serde` spelling and the stored one agree for every enum that has both - except
+    /// `MessageSourceType`, whose JSON form is the variant name and whose stored form is lowercase.
     #[test]
-    fn test_message_category_as_str() {
+    fn serde_and_stored_spellings_agree_where_they_are_meant_to() {
+        for variant in ObservationType::VARIANTS {
+            let json = serde_json::to_string(variant).unwrap();
+            assert_eq!(json.trim_matches('"'), variant.as_str());
+        }
+        for variant in SpanCategory::VARIANTS {
+            let json = serde_json::to_string(variant).unwrap();
+            assert_eq!(json.trim_matches('"'), variant.as_str());
+        }
+        for variant in MetricType::VARIANTS {
+            let json = serde_json::to_string(variant).unwrap();
+            assert_eq!(json.trim_matches('"'), variant.as_str());
+        }
+        for variant in AggregationTemporality::VARIANTS {
+            let json = serde_json::to_string(variant).unwrap();
+            assert_eq!(json.trim_matches('"'), variant.as_str());
+        }
         assert_eq!(
-            MessageCategory::GenAIUserMessage.as_str(),
-            "GenAIUserMessage"
+            serde_json::to_string(&MessageSourceType::Event).unwrap(),
+            "\"Event\"",
+            "the JSON form is deliberately not the stored one"
         );
-        assert_eq!(MessageCategory::Exception.as_str(), "Exception");
-        assert_eq!(MessageCategory::GenAIToolInput.as_str(), "GenAIToolInput");
-    }
-
-    #[test]
-    fn test_message_source_type_as_str() {
-        assert_eq!(MessageSourceType::Event.as_str(), "event");
-        assert_eq!(MessageSourceType::Attribute.as_str(), "attribute");
-    }
-
-    #[test]
-    fn test_metric_type_as_str() {
-        assert_eq!(MetricType::Gauge.as_str(), "gauge");
-        assert_eq!(MetricType::Sum.as_str(), "sum");
-        assert_eq!(MetricType::Histogram.as_str(), "histogram");
-        assert_eq!(
-            MetricType::ExponentialHistogram.as_str(),
-            "exponential_histogram"
-        );
-        assert_eq!(MetricType::Summary.as_str(), "summary");
-    }
-
-    #[test]
-    fn test_aggregation_temporality_as_str() {
-        assert_eq!(AggregationTemporality::Unspecified.as_str(), "unspecified");
-        assert_eq!(AggregationTemporality::Delta.as_str(), "delta");
-        assert_eq!(AggregationTemporality::Cumulative.as_str(), "cumulative");
     }
 
     #[test]

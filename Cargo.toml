@@ -133,6 +133,9 @@ async-trait = "0.1"
 futures = "0.3"
 thiserror = "2.0"
 anyhow = "1.0"
+# One declaration of an enum's string form serves every direction: `&'static str`, `Display`, `FromStr`.
+# Already in the lock through duckdb, so it costs no extra compilation.
+strum = { version = "0.27", features = ["derive"] }
 mime_guess = "2.0"
 directories = "6.0.0"
 dirs = "6.0"

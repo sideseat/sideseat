@@ -5639,6 +5639,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sideseat-core",
+ "strum",
  "thiserror",
  "utoipa",
 ]
