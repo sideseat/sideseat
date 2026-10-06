@@ -22,6 +22,14 @@ done
 [ "${1:-}" = "--" ] && shift
 [ ${#messages[@]} -gt 0 ] && [ $# -gt 0 ] || { echo "usage: $0 -m <message> [-m <body>] -- <path>..." >&2; exit 2; }
 
+# Files only: a directory would take every change under it, including another agent's work in progress.
+for path in "$@"; do
+    if [ -d "$path" ]; then
+        echo "[commit-paths] $path is a directory; name the files to commit" >&2
+        exit 2
+    fi
+done
+
 private_index="$(mktemp "${TMPDIR:-/tmp}/sideseat-index.XXXXXX")"
 trap 'rm -f "$private_index"' EXIT
 
