@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -123,11 +124,33 @@ def replay(
         # The suite's directory inside the variant's copy of the npm project; npm passes it as INIT_CWD.
         command = ["npm", "run", "--silent", "sample", "--", *arguments]
         workdir = environment / suite.root.name
+    elif suite.language == "go":
+        command = ["go", "run", ".", *arguments]
+        workdir = environment / suite.root.name
+    elif suite.language == "java":
+        command = [
+            str(environment / "gradlew"),
+            "-q",
+            "--console=plain",
+            "run",
+            f"--args={shlex.join(arguments)}",
+        ]
+        workdir = environment / suite.root.name
     else:
         command = [str(executable(environment, "sample")), *arguments]
         workdir = suite.root
     try:
         if uses_fake_model(suite, None):
+            if suite.language != "python":
+                # A Python suite starts its fake in-process; a suite in another language is pointed at one.
+                from harness import fakes
+                from harness.clients import FAKE_PATHS
+                from harness.models import resolve
+
+                surface = resolve(suite.manifest.get("default-model", "")).surface
+                run_env[f"{surface.upper().replace('-', '_')}_URL"] = (
+                    fakes.start(surface) + FAKE_PATHS[surface]
+                )
             completed = _run(command, workdir, run_env, timeout)
         else:
             cassette = (cassettes or suite.root / "cassettes") / f"{scenario}.json"

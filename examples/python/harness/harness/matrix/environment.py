@@ -79,6 +79,14 @@ def ensure_requirements(
         from harness.matrix import npm
 
         return npm.ensure(matrix, environment, requirements, released=released)
+    if matrix.language == "go":
+        from harness.matrix import go
+
+        return go.ensure(matrix, environment, requirements)
+    if matrix.language == "java":
+        from harness.matrix import gradle
+
+        return gradle.ensure(matrix, environment, requirements)
     wanted = stamp(matrix, requirements, released)
     marker = environment / "sideseat-matrix.json"
     if marker.exists() and json.loads(marker.read_text()) == wanted:
@@ -204,6 +212,14 @@ def installed(environment: Path, *packages: str) -> dict[str, str]:
         from harness.matrix import npm
 
         return npm.installed(environment, *packages)
+    if (environment / "go.mod").exists():
+        from harness.matrix import go
+
+        return go.installed(environment, *packages)
+    if (environment / "gradle" / "libs.versions.toml").exists():
+        from harness.matrix import gradle
+
+        return gradle.installed(environment, *packages)
     script = (
         "import importlib.metadata as m, json, sys\n"
         "out = {}\n"

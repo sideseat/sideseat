@@ -38,7 +38,7 @@ def matrices() -> dict[str, tuple[capture.Suite, Matrix]]:
     found = {}
     for producer, suite in sorted(capture.suites().items()):
         if (
-            suite.language in ("python", "javascript")
+            suite.language in ("python", "javascript", "go", "java")
             and (matrix := load(suite.root)) is not None
         ):
             found[producer] = (suite, matrix)
@@ -90,6 +90,12 @@ def tracked_packages(matrix: Matrix) -> list[str]:
     """What the support matrix row reports: the framework, its instrumentation, and OpenTelemetry."""
     if matrix.language == "javascript":
         return [matrix.package, "@opentelemetry/sdk-trace-base"]
+    if matrix.language == "go":
+        return [matrix.package, "go.opentelemetry.io/otel/sdk"]
+    if matrix.language == "java":
+        from harness.matrix import gradle
+
+        return [gradle.split(p)[0] for p in matrix.pin] + ["opentelemetry"]
     project = (matrix.suite / "pyproject.toml").read_text()
     import re
     import tomllib

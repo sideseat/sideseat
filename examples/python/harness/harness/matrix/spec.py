@@ -81,7 +81,9 @@ class Matrix:
 
     @property
     def registry(self) -> str:
-        return "npm" if self.language == "javascript" else "pypi"
+        return {"javascript": "npm", "go": "go", "java": "maven"}.get(
+            self.language, "pypi"
+        )
 
     def cassettes(self, version: str) -> Path:
         """The cassettes a release replays: its own live recording, or the suite's."""
@@ -148,10 +150,19 @@ def parse(text: str, suite: Path) -> Matrix:
         raise MatrixError(f"[matrix] needs {missing}") from None
     # One requirement, or several: a framework whose companion packages import its internals names them
     # bare, which lifts the suite's lower bound so `era` can resolve them as of the release's day.
-    language = "javascript" if suite.parent.name == "javascript" else "python"
+    language = (
+        suite.parent.name
+        if suite.parent.name in ("javascript", "go", "java")
+        else "python"
+    )
+    if language == "java" and "pin" not in table:
+        # A JVM suite's versions are its Gradle catalog's, named by key, not by Maven coordinates.
+        raise MatrixError(
+            '[matrix] pin names the catalog version: pin = "<key>={version}"'
+        )
     default_pin = (
         f"{package}@{{version}}"
-        if language == "javascript"
+        if language in ("javascript", "go")
         else f"{package}=={{version}}"
     )
     pins = table.get("pin", default_pin)

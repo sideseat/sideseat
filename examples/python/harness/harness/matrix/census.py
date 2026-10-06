@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from harness.capture import Suite
-from harness.matrix import environment, npm
+from harness.matrix import environment, go, gradle, npm
 from harness.matrix.run import replay
 from harness.matrix.shape import digest, shape
 from harness.matrix.spec import CENSUS, Matrix
@@ -50,6 +50,10 @@ def releases(
 
     if registry == "npm":
         uploads = npm.published(package)
+    elif registry == "go":
+        uploads = go.published(package)
+    elif registry == "maven":
+        uploads = gradle.published(package)
     else:
         with urllib.request.urlopen(
             f"https://pypi.org/pypi/{package}/json", timeout=60

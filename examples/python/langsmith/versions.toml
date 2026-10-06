@@ -1,0 +1,35 @@
+# The historical langsmith releases this suite is replayed against; see `python -m harness matrix --help`
+# and docs/engineering/framework-versions.md. LangSmith's OpenTelemetry export writes the spans, so its release history is the window.
+[matrix]
+package = "langsmith"
+pin = "langsmith[otel]=={version}"
+since = "2025-10-05"
+resolved-before = "2026-10-05T00:00:00Z"
+probes = ["tool_use", "streaming"]
+scenarios = ["tool_use", "streaming"]
+
+# Each variant is the newest release of one telemetry class in `versions.census.json`.
+[[variant]]
+version = "0.7.35"
+withheld = { tool_use = "0.4.33-0.7.35 export no gen_ai.* conversation attributes, only LangSmith's own run fields, which no rule reads, so every view is empty; recorded once the asset reads them (rule-language backlog 156).", streaming = "0.4.33-0.7.35 export no gen_ai.* conversation attributes, only LangSmith's own run fields, which no rule reads, so every view is empty; recorded once the asset reads them (rule-language backlog 156)." }
+doc = "0.4.33-0.7.35: OpenTelemetry export without the gen_ai.* attributes later releases add."
+
+[[variant]]
+version = "0.13.0"
+withheld = { tool_use = "These releases write gen_ai.prompt / gen_ai.completion in a JSON shape the LangSmith asset reads only from 0.14.3, so every view is empty; recorded once it reads them (rule-language backlog 156).", streaming = "These releases write gen_ai.prompt / gen_ai.completion in a JSON shape the LangSmith asset reads only from 0.14.3, so every view is empty; recorded once it reads them (rule-language backlog 156)." }
+doc = "0.7.36-0.13.0: gen_ai.prompt, gen_ai.completion, gen_ai.operation.name (chain, chat, execute_tool), model and usage attributes."
+
+[[variant]]
+version = "0.14.0"
+withheld = { tool_use = "These releases write gen_ai.prompt / gen_ai.completion in a JSON shape the LangSmith asset reads only from 0.14.3, so every view is empty; recorded once it reads them (rule-language backlog 156).", streaming = "These releases write gen_ai.prompt / gen_ai.completion in a JSON shape the LangSmith asset reads only from 0.14.3, so every view is empty; recorded once it reads them (rule-language backlog 156)." }
+doc = "0.14.0: gen_ai.tool.name on tool spans."
+
+[[variant]]
+version = "0.14.2"
+withheld = { tool_use = "These releases write gen_ai.prompt / gen_ai.completion in a JSON shape the LangSmith asset reads only from 0.14.3, so every view is empty; recorded once it reads them (rule-language backlog 156).", streaming = "These releases write gen_ai.prompt / gen_ai.completion in a JSON shape the LangSmith asset reads only from 0.14.3, so every view is empty; recorded once it reads them (rule-language backlog 156)." }
+doc = "0.14.1-0.14.2: gen_ai.tool.call.id and gen_ai.tool.definitions."
+
+[[variant]]
+version = "0.14.4"
+current = true
+doc = "0.14.3 onwards: message JSON changes inside the same carriers. The suite's locked release; its fixtures are the ordinary capture."

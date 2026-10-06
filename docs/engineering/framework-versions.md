@@ -207,6 +207,11 @@ newer): 1.1.3 traces the executor's flow nodes, 1.1.4 changes message JSON, 1.1.
 change message JSON. 3.6 - 4.1 are exempt: the suite hands Langfuse the application's exporter through the
 `span_exporter` argument 4.2 introduced.
 
+**LangSmith's OpenTelemetry export** behind `langsmith` (142 releases, 5 classes): 0.7.36 adds the `gen_ai.*`
+prompt, completion, operation and usage attributes, 0.14.0 `gen_ai.tool.name`, 0.14.1 `gen_ai.tool.call.id`
+and `gen_ai.tool.definitions`, 0.14.3 changes their JSON. Only 0.14.3 onwards reconstructs: the historical
+captures are withheld until the asset reads the earlier JSON.
+
 Replay gives the scenario an HTTP proxy that refuses everything but loopback, so a release that ignores the
 client it is given (AgentScope 2.0.0 - 2.0.5) fails locally instead of reaching a provider's public API. A suite
 that must reach another host declares it with its reason (`allow-hosts`: LiteLLM routes Bedrock models by
@@ -221,8 +226,10 @@ the model map it downloads at import).
   the pinned packages moved (`npm install --before`). Not yet covered: the AI SDK's 5.x and 6.x lines, which
   predate the `@ai-sdk/otel` package the suite is written against, and the Claude Agent SDK, whose 300
   releases each bundle a CLI.
-- **Other languages:** the Go and JVM suites have no environment builder yet; Agent Framework's pre-1.0 betas
-  are not covered.
+- **Go and JVM suites:** a `versions.toml` beside a suite under `examples/go` or `examples/java` makes its
+  variants copies of the Go module (`go get <module>@v<version>`) or of the Gradle build with a version catalog
+  entry replaced (`pin = "<catalog key>={version}"`); releases come from the go command and Maven Central.
+  Agent Framework's pre-1.0 betas are not covered.
 
 ## Version variants in the rule language
 

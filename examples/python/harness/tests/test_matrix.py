@@ -11,7 +11,7 @@ from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
 )
 from opentelemetry.proto.common.v1.common_pb2 import AnyValue, KeyValue
 
-from harness.matrix import census, npm
+from harness.matrix import census, go, gradle, npm
 from harness.matrix.cli import check, matrices
 from harness.matrix.shape import digest, shape, skeleton
 from harness.matrix.spec import MatrixError, parse
@@ -126,6 +126,35 @@ def test_a_typescript_suite_pins_npm_versions(tmp_path: Path) -> None:
     assert npm.split("@scope/name@1.2.3") == ("@scope/name", "1.2.3")
     assert npm.split("@scope/name") == ("@scope/name", None)
     assert npm.split("ai") == ("ai", None)
+
+
+def test_go_and_jvm_suites_pin_modules_and_catalog_versions(tmp_path: Path) -> None:
+    go_suite = tmp_path / "go" / "adk"
+    java_suite = tmp_path / "java" / "adk"
+    go_suite.mkdir(parents=True)
+    java_suite.mkdir(parents=True)
+    plain = MINIMAL.replace('pin = "acme[otel]=={version}"\n', "")
+
+    on_go = parse(plain.replace('"acme"', '"example.com/acme"'), go_suite)
+    assert (on_go.registry, on_go.pinned("1.2.0")) == ("go", ["example.com/acme@1.2.0"])
+    assert go.split("example.com/acme@1.2.0") == ("example.com/acme", "1.2.0")
+
+    with pytest.raises(MatrixError, match="catalog"):
+        parse(plain, java_suite)
+    on_jvm = parse(
+        plain.replace(
+            'package = "acme"', 'package = "com.acme:acme"\npin = "acme={version}"'
+        ),
+        java_suite,
+    )
+    assert (on_jvm.registry, on_jvm.pinned("1.2.0")) == ("maven", ["acme=1.2.0"])
+    catalog = '[versions]\nacme = "1.4.0"\nacme-extra = "0.1"\n'
+    assert (
+        gradle.pin(catalog, "acme", "1.2.0")
+        == '[versions]\nacme = "1.2.0"\nacme-extra = "0.1"\n'
+    )
+    with pytest.raises(ValueError, match="no version"):
+        gradle.pin(catalog, "other", "1.0")
 
 
 def test_the_census_window_ends_where_environments_resolve(
