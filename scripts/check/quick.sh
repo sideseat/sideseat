@@ -52,8 +52,8 @@ step() { printf '\n[quick] %s\n' "$*"; }
 # Free space only, which `df` answers at once: sizing the target with `du` would cost seconds on every
 # run. Below the reserve the stale-artifact sweep runs before anything can grow the target further.
 free_mb="$(df -Pm "$ROOT" | awk 'NR == 2 {print $4}')"
-if [ "${free_mb:-0}" -lt "${DISK_FREE_MIN_MB:-10000}" ]; then
-    step "disk: ${free_mb} MB free, below the reserve; reclaiming stale build artifacts"
+if [ "${free_mb:-0}" -lt "${DISK_RECLAIM_MB:-25000}" ]; then
+    step "disk: ${free_mb} MB free; reclaiming stale build artifacts"
     bash "$ROOT/scripts/dev/clean-stale.sh"
 fi
 

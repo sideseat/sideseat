@@ -38,11 +38,13 @@ CARGO_TARGET_DIR ?= target
 override CARGO_TARGET_DIR := $(abspath $(CARGO_TARGET_DIR))
 export CARGO_TARGET_DIR
 
-# The target size `make disk` reports against. Reclaiming runs, and a build is refused, only when free space
-# falls below the reserve: a target over budget on a roomy disk harms nothing, and reclaiming while another
-# build runs would delete the incremental state it is using.
+# The target size `make disk` reports against. Reclaiming runs below DISK_RECLAIM_MB of free space and a build
+# is refused below the DISK_FREE_MIN_MB reserve, never on the target's size: a target over budget on a roomy
+# disk harms nothing. Reclaiming removes only state no running build is using.
 DISK_BUDGET_MB   ?= 12000
 DISK_FREE_MIN_MB ?= 10000
+# Reclaiming starts well above the refusal reserve, so stale state goes before anything has to stop.
+DISK_RECLAIM_MB  ?= 25000
 
 # Run finite commands that can grow the Cargo target directory with checks before and after them. The
 # command runs in a subshell: one that starts with `cd` would otherwise leave the second check in a
