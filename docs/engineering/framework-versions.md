@@ -196,6 +196,9 @@ accept the harness's httpx2 client.
 4.3.9 records tool calls in the model input (the 4.3.6 - 4.3.8 captures are withheld for the empty text block
 their tool-calling turns leave), and 4.4 and 4.5.3 change message JSON.
 
+**OpenInference's LangChain instrumentor** behind `langchain` and `langgraph` (26 releases): every runnable
+release (0.1.63 onwards) emits the suites' own format; 0.1.53 - 0.1.62 call wrapt 1.x and are exempt.
+
 Replay gives the scenario an HTTP proxy that refuses everything but loopback, so a release that ignores the
 client it is given (AgentScope 2.0.0 - 2.0.5) fails locally instead of reaching a provider's public API. A suite
 that must reach another host declares it with its reason (`allow-hosts`: LiteLLM routes Bedrock models by
