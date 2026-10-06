@@ -70,13 +70,27 @@ off, and turning export off sends nothing, which tests use with extra span proce
 SideSeat owns the global tracer, logger, and meter providers unless an integration has to own one. A
 framework that builds its own tracer provider (Logfire, Laminar) owns it; SideSeat then attaches its
 processors to that provider and suppresses the framework's own exporters. At most one integration may own
-a provider.
+a provider. A framework's own exporters honour SideSeat's settings: with export off nothing leaves the
+process, and each signal goes to its own endpoint. Laminar accepts no exporter, so the Python SDK
+substitutes the two exporter classes it builds while it initializes: its span exporter discards when
+export is off, its log exporter always discards, and SideSeat's log processor goes on Laminar's logger
+provider instead, because Laminar's own would post log records to the traces endpoint.
 
 An existing SDK tracer provider set by the application is reused rather than replaced where the
 language's OpenTelemetry SDK can add processors to a built provider (Python). Elsewhere it cannot, so the
 SDK offers a hook into the application's own pipeline instead (`AddSideSeat` in .NET), or warns that
 the global provider was already taken (TypeScript). Rust's global setter cannot tell an SDK provider from
 another, so `init` replaces it.
+
+An application's own meter provider gets SideSeat's metric reader where the platform allows a reader to be
+added to a built provider, and otherwise the application adds it where it builds the provider:
+
+| SDK | Existing meter provider |
+| --- | --- |
+| Python | `MeterProvider.add_metric_reader` (opentelemetry-sdk 1.44 and later) adds SideSeat's reader; shutdown removes it. An older SDK cannot, and `init` warns with the metrics URL. |
+| TypeScript | A built `MeterProvider` takes no reader, and the global one is set once. `init` warns with the metrics URL; the application passes a `PeriodicExportingMetricReader` exporting there in its provider's `readers`. |
+| .NET | Meter providers listen to meters independently, so the client's provider exports beside the application's. A hosted pipeline adds `.AddSideSeat(options)` to its `MeterProviderBuilder`. |
+| Rust | `init` installs its provider as the global one and exposes it as `meter_provider()`. A provider the application keeps gets SideSeat's reader through `with_reader` where it is built. |
 
 Processor order on the tracer provider is fixed:
 
@@ -107,7 +121,13 @@ Content capture is on by default because the point of SideSeat is to read the co
 the standard `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` switch, and each integration enables
 its framework's own equivalent. Rust is the exception: modifying the environment of a running Rust
 program is unsound once other threads may read it, so it exposes the setting as `captures_content()`.
-Turning capture off is honoured by every integration. Binary content is
+Turning capture off is honoured by every integration. Capture off, from the argument or
+`SIDESEAT_CAPTURE_CONTENT`, overrides a value already in the standard variable or a framework's own
+switch, because off must mean off. An explicit argument that turns capture on overrides them too, as an
+explicit argument outranks the environment everywhere else. Otherwise SideSeat only fills an unset
+switch: `SIDESEAT_CAPTURE_CONTENT=true` or the default does not turn on content the application switched
+off in another variable. Instrumentations read these switches on every call, so they stay set after
+`init` rather than being scoped to it. Binary content is
 exported base64-encoded; the server moves it to file storage on ingest.
 
 ## Integrations
