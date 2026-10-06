@@ -4,6 +4,9 @@
  "scenario": "streaming",
  "fixtures": [
   "vercel-ai-js/native/streaming",
+  "vercel-ai-js/native@1.0.43/streaming",
+  "vercel-ai-js/native@1.0.52/streaming",
+  "vercel-ai-js/native@1.0.68/streaming",
   "vercel-ai-js/sdk/streaming"
  ],
  "source": {

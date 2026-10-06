@@ -229,6 +229,9 @@ instrumentor** (3 releases, 2 classes): 0.1.10 adds `llm.finish_reason`. **Stran
 `gen_ai.tool.call.arguments` / `.result`. The 0.x line lacks the `@strands-agents/sdk/telemetry` export the
 suite imports, and 1.0.0 - 1.1.0 call CountTokens before each model call: they wait for a live recording.
 
+**`@ai-sdk/otel`** behind `vercel-ai-js` (119 releases, 4 classes): 1.0.44 adds `gen_ai.response.model`, 1.0.54
+and 1.0.69 change message JSON.
+
 Replay gives the scenario an HTTP proxy that refuses everything but loopback, so a release that ignores the
 client it is given (AgentScope 2.0.0 - 2.0.5) fails locally instead of reaching a provider's public API. A suite
 that must reach another host declares it with its reason (`allow-hosts`: LiteLLM routes Bedrock models by

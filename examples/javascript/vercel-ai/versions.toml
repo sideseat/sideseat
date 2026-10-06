@@ -1,0 +1,27 @@
+# The historical @ai-sdk/otel releases this suite is replayed against; see `python -m harness matrix --help`
+# and docs/engineering/framework-versions.md. Since AI SDK 7 the telemetry is written by @ai-sdk/otel, so its
+# release history is the window; `ai` stays at the suite's 7.x line, which every @ai-sdk/otel release targets.
+[matrix]
+package = "@ai-sdk/otel"
+since = "2025-10-05"
+resolved-before = "2026-10-05T00:00:00Z"
+probes = ["tool_use", "streaming"]
+scenarios = ["tool_use", "streaming"]
+
+# Each variant is the newest release of one telemetry class in `versions.census.json`.
+[[variant]]
+version = "1.0.43"
+doc = "1.0.0-1.0.43: model spans carry no gen_ai.response.model."
+
+[[variant]]
+version = "1.0.52"
+doc = "1.0.44-1.0.52: gen_ai.response.model."
+
+[[variant]]
+version = "1.0.68"
+doc = "1.0.54-1.0.68: message JSON changes inside the same carriers."
+
+[[variant]]
+version = "1.0.127"
+current = true
+doc = "1.0.69 onwards: message JSON changes again. The suite's locked release; its fixtures are the ordinary capture."

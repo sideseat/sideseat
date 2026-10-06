@@ -4,6 +4,9 @@
  "scenario": "tool_use",
  "fixtures": [
   "vercel-ai-js/native/tool_use",
+  "vercel-ai-js/native@1.0.43/tool_use",
+  "vercel-ai-js/native@1.0.52/tool_use",
+  "vercel-ai-js/native@1.0.68/tool_use",
   "vercel-ai-js/sdk/tool_use"
  ],
  "source": {
