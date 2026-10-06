@@ -28,6 +28,9 @@ from pathlib import Path
 from typing import Any
 
 _INDEX = re.compile(r"(?<=\.)\d+(?=\.|$)")
+_UUID = re.compile(
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+)
 _DISCRIMINATOR = re.compile(r"^[a-z][a-z_.\-]{0,39}$")
 _DEPTH = 8
 
@@ -144,7 +147,10 @@ def _span_lines(path: Path) -> Iterator[str]:
                         {f"{e.name}({_attributes(e.attributes)})" for e in span.events}
                     )
                 )
-                name = _INDEX.sub("#", re.sub(r"\d+", "#", span.name))
+                # A UUID in a span name (CrewAI's `Crew_<uuid>.kickoff`) differs on every run.
+                name = _INDEX.sub(
+                    "#", re.sub(r"\d+", "#", _UUID.sub("<uuid>", span.name))
+                )
                 yield f"span {scope} | {name} | {_attributes(span.attributes)} | {events}"
 
 

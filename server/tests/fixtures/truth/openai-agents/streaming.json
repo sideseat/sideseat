@@ -4,6 +4,10 @@
  "scenario": "streaming",
  "fixtures": [
   "openai-agents/native/streaming",
+  "openai-agents/native@0.18.1/streaming",
+  "openai-agents/native@0.19.4/streaming",
+  "openai-agents/native@0.20.0/streaming",
+  "openai-agents/native@0.21.0/streaming",
   "openai-agents/sdk/streaming"
  ],
  "source": {

@@ -1,0 +1,53 @@
+# The historical logfire releases this suite is replayed against; see `python -m harness matrix --help`
+# and docs/engineering/framework-versions.md. Logfire writes the spans, so its release history is the window.
+[matrix]
+package = "logfire"
+since = "2025-10-05"
+resolved-before = "2026-10-05T00:00:00Z"
+probes = ["tool_use", "streaming"]
+scenarios = ["tool_use", "streaming"]
+
+# Each variant is the newest release of one telemetry class in `versions.census.json`; the classes are the
+# ones the openai suite's Logfire matrix found, over Chat Completions and the agent loop instead.
+
+[[variant]]
+version = "4.12.0"
+withheld = { streaming = "Logfire 4.12 reports a streamed call only as request_data and response_data, which no rule reads, so every view is empty; recorded once the asset reads it (rule-language backlog 156)." }
+doc = "4.12: the earliest window format; the request and response are Logfire's own request_data / response_data plus an `events` list."
+
+[[variant]]
+version = "4.18.0"
+doc = "4.13-4.18: response_data is no longer written; message JSON changes."
+
+[[variant]]
+version = "4.20.0"
+doc = "4.19-4.20: semconv gen_ai.operation.name, gen_ai.provider.name and gen_ai.tool.definitions beside Logfire's own carriers."
+
+[[variant]]
+version = "4.28.0"
+doc = "4.21-4.28: gen_ai.response.id."
+
+[[variant]]
+version = "4.31.0"
+doc = "4.29-4.31.0: gen_ai.usage.raw."
+
+[[variant]]
+version = "4.31.1"
+doc = "4.31.1 alone: message JSON changes."
+
+[[variant]]
+version = "4.32.1"
+doc = "4.31.2-4.32: message JSON changes."
+
+[[variant]]
+version = "4.36.0"
+doc = "4.33-4.36: the resource gains logfire.version."
+
+[[variant]]
+version = "4.41.0"
+doc = "4.37-4.41: the resource gains host and OS attributes; the last release of the `events` carrier."
+
+[[variant]]
+version = "5.1.1"
+current = true
+doc = "5.0 onwards: the `events` attribute gives way to gen_ai.input.messages, gen_ai.output.messages and gen_ai.system_instructions. The suite's locked release; its fixtures are the ordinary capture."

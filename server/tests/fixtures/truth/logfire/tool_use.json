@@ -4,6 +4,15 @@
  "scenario": "tool_use",
  "fixtures": [
   "logfire/native/tool_use",
+  "logfire/native@4.12.0/tool_use",
+  "logfire/native@4.18.0/tool_use",
+  "logfire/native@4.20.0/tool_use",
+  "logfire/native@4.28.0/tool_use",
+  "logfire/native@4.31.0/tool_use",
+  "logfire/native@4.31.1/tool_use",
+  "logfire/native@4.32.1/tool_use",
+  "logfire/native@4.36.0/tool_use",
+  "logfire/native@4.41.0/tool_use",
   "logfire/sdk/tool_use"
  ],
  "source": {

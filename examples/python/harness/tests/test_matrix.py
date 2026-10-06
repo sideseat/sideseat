@@ -243,6 +243,21 @@ def test_a_shape_ignores_values_ids_and_indices_but_keeps_discriminators(
     assert any("llm.input_messages.#.content=str" in line for line in shape(one))
 
 
+def test_a_shape_ignores_a_uuid_in_a_span_name(tmp_path: Path) -> None:
+    runs = []
+    for name in (
+        "Crew_3f2b9c1e-8d4a-4b6e-9f0a-1c2d3e4f5a6b.kickoff",
+        "Crew_a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d.kickoff",
+    ):
+        directory = tmp_path / name
+        directory.mkdir()
+        _export(directory / "req-001.pb", [(name, {"gen_ai.operation.name": "chat"})])
+        runs.append(shape(directory))
+
+    assert runs[0] == runs[1]
+    assert any("Crew_<uuid>.kickoff" in line for line in runs[0])
+
+
 def _interaction(path: str, body: bytes, answer: str) -> dict:
     return {
         "method": "POST",

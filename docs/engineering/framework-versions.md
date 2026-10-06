@@ -177,6 +177,14 @@ withheld; 0.1.6 onwards is the suite's format.
 Agno instrumentor, the releases before 0.1.46 (OpenAI) and 0.1.35 (Bedrock) call wrapt 1.x's
 `wrap_function_wrapper(module=...)` and are exempt.
 
+**Logfire behind the `logfire` suite** (Chat Completions and an agent loop; 41 releases): the same 10 classes
+as behind the OpenAI suite. 4.12's streamed call is withheld, as there.
+
+**The OpenAI Agents SDK** behind `openai-agents` (76 releases, 5 classes from 0.18.1, differing in the JSON of
+Logfire's `events` carrier). 0.4.0 - 0.18.0 are exempt: with the current OpenAI SDK they cannot build their
+usage record, the current Logfire imports span types they lack, and the OpenAI SDK of their day does not
+accept the harness's httpx2 client.
+
 Replay gives the scenario an HTTP proxy that refuses everything but loopback, so a release that ignores the
 client it is given (AgentScope 2.0.0 - 2.0.5) fails locally instead of reaching a provider's public API. A suite
 that must reach another host declares it with its reason (`allow-hosts`: LiteLLM routes Bedrock models by

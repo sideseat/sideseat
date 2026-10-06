@@ -4,6 +4,10 @@
  "scenario": "tool_use",
  "fixtures": [
   "openai-agents/native/tool_use",
+  "openai-agents/native@0.18.1/tool_use",
+  "openai-agents/native@0.19.4/tool_use",
+  "openai-agents/native@0.20.0/tool_use",
+  "openai-agents/native@0.21.0/tool_use",
   "openai-agents/sdk/tool_use"
  ],
  "source": {
