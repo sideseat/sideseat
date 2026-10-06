@@ -224,6 +224,9 @@ fn every_module_path_cited_anywhere_resolves() {
         // Lock files record dependency coordinates, not paths in this repository: `go.sum` lists every module
         // as `github.com/...`, which reads like a citation and resolves to nothing here by design.
         .filter(|f| !LOCK_FILES.iter().any(|lock| f.ends_with(lock)))
+        // A version census records what each historical release printed when the matrix ran it - toolchain
+        // errors full of module and package paths - so it is captured output, like the fixtures above.
+        .filter(|f| !f.ends_with("versions.census.json"))
         // Text detection covers documentation, configuration, scripts, specifications, and extensionless hooks.
         .filter(|f| is_text(&repo.join(f)))
         .collect();
