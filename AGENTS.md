@@ -139,6 +139,11 @@ spellings, or "if this producer then" branches. All of that lives in the JSON as
   spans, traces, and sessions. The native and SDK modes of a framework must reconstruct identically. Since
   rubric v2 each fixture is also checked against its parser-independent truth (`fixtures/truth/`) on full
   content; a remaining violation lives in the shrink-only `known-violations.json`, never in a new exemption.
+- No new databases or storage systems. Data lives in the ones SideSeat already has: SQLite and DuckDB
+  embedded; PostgreSQL and ClickHouse distributed; the blob store (filesystem or S3-compatible) for files,
+  media and raw content; Redis or Redpanda for the ingestion queue; and the existing secret backends. New
+  tables, columns, encodings and blob layouts inside them are fine; a new engine, file format with its own
+  server, or external service is not.
 - Tenant-scoped APIs use `ProjectId`; client-provided trace and span IDs are not globally unique.
 - Analytics writes and transactional writes are not one transaction. Preserve the existing fences,
   tombstones, journal, confirmation, and compensation protocols when changing either side.
