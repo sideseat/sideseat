@@ -2,6 +2,12 @@
 //!
 //! Stores files on the local filesystem with a sharded directory structure:
 //! `{base_path}/{project_id}/{hash[0:2]}/{hash[2:4]}/{hash}`
+//!
+//! **Publication is atomic and durable.** An object is written to a unique temporary file beside its final
+//! path, fsynced, renamed into place, and the directory is fsynced, so the final path never names a partial
+//! object and a successful `store` survives a crash or power loss. The callers acknowledge telemetry after
+//! `store` returns; writing straight to the final path without a sync let a crash leave a truncated object
+//! that the existence check then accepted as complete, and lost recently acknowledged content outright.
 
 use std::path::{Path, PathBuf};
 
@@ -43,10 +49,51 @@ impl FilesystemStorage {
         self.base_path.join(project_id)
     }
 
-    /// Ensure parent directories exist for a file path
+    /// Ensure parent directories exist for a file path, durably.
+    ///
+    /// A directory created here is only durable once the directory holding its entry is fsynced, so every
+    /// level this call creates has its parent synced, deepest last.
     async fn ensure_parent_dirs(&self, path: &Path) -> Result<(), FileStorageError> {
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).await?;
+        let Some(parent) = path.parent() else {
+            return Ok(());
+        };
+        let mut missing = Vec::new();
+        let mut cursor = Some(parent);
+        while let Some(dir) = cursor {
+            if fs::try_exists(dir).await.unwrap_or(false) {
+                break;
+            }
+            missing.push(dir.to_path_buf());
+            cursor = dir.parent();
+        }
+        fs::create_dir_all(parent).await?;
+        for dir in missing.iter().rev() {
+            if let Some(holder) = dir.parent() {
+                sync_dir(holder).await?;
+            }
+        }
+        Ok(())
+    }
+
+    /// A unique sibling of `dest` to write into before the atomic rename.
+    ///
+    /// Unique per call, so concurrent writers of the same content-addressed hash never share a file.
+    fn temp_sibling(dest: &Path) -> PathBuf {
+        dest.with_extension(format!(
+            "{}.{}.tmp",
+            std::process::id(),
+            uuid::Uuid::new_v4()
+        ))
+    }
+
+    /// Rename a fully written, fsynced `temp` onto `dest` and make the rename durable.
+    async fn publish(temp: &Path, dest: &Path) -> Result<(), FileStorageError> {
+        if let Err(error) = fs::rename(temp, dest).await {
+            fs::remove_file(temp).await.ok();
+            return Err(FileStorageError::Io(error));
+        }
+        if let Some(parent) = dest.parent() {
+            sync_dir(parent).await?;
         }
         Ok(())
     }
@@ -86,7 +133,12 @@ impl FileStorage for FilesystemStorage {
         }
 
         self.ensure_parent_dirs(&path).await?;
-        fs::write(&path, data).await?;
+        let temp = Self::temp_sibling(&path);
+        if let Err(error) = write_synced(&temp, data).await {
+            fs::remove_file(&temp).await.ok();
+            return Err(error);
+        }
+        Self::publish(&temp, &path).await?;
 
         tracing::debug!(
             project_id = %project_id,
@@ -181,9 +233,14 @@ impl FileStorage for FilesystemStorage {
 
         self.ensure_parent_dirs(&dest_path).await?;
 
+        // The temp file is the caller's; its bytes must be on disk before the rename publishes them.
+        sync_file(temp_path).await?;
         // Try atomic rename first (works if same filesystem)
         match fs::rename(temp_path, &dest_path).await {
             Ok(_) => {
+                if let Some(parent) = dest_path.parent() {
+                    sync_dir(parent).await?;
+                }
                 tracing::debug!(
                     project_id = %project_id,
                     hash,
@@ -192,20 +249,14 @@ impl FileStorage for FilesystemStorage {
                 );
             }
             Err(_) => {
-                // Cross-filesystem: copy to a unique staging file in dest dir,
-                // then atomic rename. The staging name includes PID + random suffix
-                // to prevent collision between concurrent workers finalizing the
-                // same content-addressed hash.
-                let staging = dest_path.with_extension(format!(
-                    "{}.{}.tmp",
-                    std::process::id(),
-                    uuid::Uuid::new_v4()
-                ));
+                // Cross-filesystem: copy to a unique staging file in dest dir, sync it, then atomic rename.
+                let staging = Self::temp_sibling(&dest_path);
                 fs::copy(temp_path, &staging).await?;
-                if let Err(e) = fs::rename(&staging, &dest_path).await {
+                if let Err(error) = sync_file(&staging).await {
                     fs::remove_file(&staging).await.ok();
-                    return Err(FileStorageError::Io(e));
+                    return Err(error);
                 }
+                Self::publish(&staging, &dest_path).await?;
                 fs::remove_file(temp_path).await.ok();
                 tracing::debug!(
                     project_id = %project_id,
@@ -272,6 +323,67 @@ impl FilesystemStorage {
     }
 }
 
+/// Write `data` to a new file at `path` and fsync it.
+async fn write_synced(path: &Path, data: &[u8]) -> Result<(), FileStorageError> {
+    use tokio::io::AsyncWriteExt;
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .await?;
+    file.write_all(data).await?;
+    file.flush().await?;
+    let file = file.into_std().await;
+    tokio::task::spawn_blocking(move || sync_handle(&file))
+        .await
+        .map_err(|error| FileStorageError::Backend(error.to_string()))??;
+    Ok(())
+}
+
+/// Fsync an existing file's contents.
+async fn sync_file(path: &Path) -> Result<(), FileStorageError> {
+    let path = path.to_path_buf();
+    tokio::task::spawn_blocking(move || {
+        sync_handle(&std::fs::OpenOptions::new().write(true).open(path)?)
+    })
+    .await
+    .map_err(|error| FileStorageError::Backend(error.to_string()))??;
+    Ok(())
+}
+
+/// Fsync a directory, making the entries created or renamed in it durable.
+///
+/// POSIX only: Windows cannot open a directory as a file, and NTFS journals the rename itself.
+async fn sync_dir(path: &Path) -> Result<(), FileStorageError> {
+    #[cfg(unix)]
+    {
+        let path = path.to_path_buf();
+        tokio::task::spawn_blocking(move || sync_handle(&std::fs::File::open(path)?))
+            .await
+            .map_err(|error| FileStorageError::Backend(error.to_string()))??;
+    }
+    #[cfg(not(unix))]
+    let _ = path;
+    Ok(())
+}
+
+/// The durability the rest of the store gets, and no more.
+///
+/// On Apple platforms std's `sync_all` is `F_FULLFSYNC`, which flushes the whole drive cache and measured
+/// ~15 ms per object; SQLite and DuckDB, which hold the rows that reference these objects, use plain `fsync`
+/// there. A blob more durable than the row naming it buys nothing, so this matches them. Elsewhere `sync_all`
+/// is already `fsync` (Linux) or `FlushFileBuffers` (Windows).
+fn sync_handle(file: &std::fs::File) -> std::io::Result<()> {
+    #[cfg(target_vendor = "apple")]
+    {
+        rustix::fs::fsync(file).map_err(std::io::Error::from)
+    }
+    #[cfg(not(target_vendor = "apple"))]
+    {
+        file.sync_all()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -297,6 +409,66 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(retrieved, data);
+    }
+
+    /// Publication goes through a temporary sibling; none may be left behind, and two writers racing on one
+    /// content-addressed hash must both succeed with one complete object.
+    #[tokio::test]
+    async fn store_publishes_atomically_and_leaves_no_temporary_files() {
+        let temp_dir = TempDir::new().unwrap();
+        let storage = FilesystemStorage::new(temp_dir.path().to_path_buf());
+        let project = ProjectId::from("project1");
+        let data = vec![7u8; 256 * 1024];
+        let (a, b) = tokio::join!(
+            storage.store(&project, test_hash(), &data),
+            storage.store(&project, test_hash(), &data)
+        );
+        a.unwrap();
+        b.unwrap();
+        assert_eq!(storage.get(&project, test_hash()).await.unwrap(), data);
+        let dir = storage
+            .file_path(&project, test_hash())
+            .parent()
+            .unwrap()
+            .to_path_buf();
+        let names: Vec<String> = std::fs::read_dir(dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(names, vec![test_hash().to_string()]);
+    }
+
+    /// A reader that sees the object must see all of it: the existence check is what content addressing
+    /// trusts, so a partially written object at the final path would be accepted as complete.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn an_object_is_never_visible_partially_written() {
+        let temp_dir = TempDir::new().unwrap();
+        let storage = FilesystemStorage::new(temp_dir.path().to_path_buf());
+        let project = ProjectId::from("project1");
+        let data = vec![9u8; 64 * 1024 * 1024];
+        let path = storage.file_path(&project, test_hash());
+        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        // A plain thread polling the final path as fast as it can: every size it observes must be complete.
+        let poller = {
+            let stop = stop.clone();
+            let expected = data.len() as u64;
+            std::thread::spawn(move || {
+                let mut partial = 0u32;
+                while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+                    if std::fs::metadata(&path).is_ok_and(|meta| meta.len() != expected) {
+                        partial += 1;
+                    }
+                }
+                partial
+            })
+        };
+        storage.store(&project, test_hash(), &data).await.unwrap();
+        stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        assert_eq!(
+            poller.join().unwrap(),
+            0,
+            "a reader saw a partially written object"
+        );
     }
 
     #[tokio::test]

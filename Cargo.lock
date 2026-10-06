@@ -5427,6 +5427,7 @@ dependencies = [
  "async-trait",
  "aws-config",
  "aws-sdk-s3",
+ "rustix 1.1.5",
  "sideseat-ports",
  "tempfile",
  "tokio",
