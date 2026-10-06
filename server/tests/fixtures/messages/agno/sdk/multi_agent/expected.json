@@ -311,25 +311,61 @@
       ]
     },
     "trace-1/delegate_task_to_member/span-10": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
       "tool_names": [],
       "tool_definition_count": 1,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "For your two days in Barcelona, pack for mild, sunny weather with highs of 21-22°C (70-72°F). Bring lightweight, breathable clothing such as two or three T-shirts or short-sleeve tops, a pair of comfortable pants or jeans, and perhaps a pai…[935 chars]",
+          "content_digest": "0eb7404f59f68892",
+          "tool_name": "delegate_task_to_member",
+          "observation_type": "tool"
+        }
+      ]
     },
     "trace-1/delegate_task_to_member/span-4": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
       "tool_names": [],
       "tool_definition_count": 1,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "**Barcelona, Spain: 2-day forecast** | | Day 1 | Day 2 | |---|---|---| | **Conditions** | Sunny | Sunny | | **High** | 21°C (70°F) | 22°C (72°F) | | **Low** | Not provided | Not provided | | **Precipitation chance** | Not provided | Not pro…[682 chars]",
+          "content_digest": "9c035c5bbd439bb5",
+          "tool_name": "delegate_task_to_member",
+          "observation_type": "tool"
+        }
+      ]
     },
     "trace-1/get_weather/span-7": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
       "tool_names": [],
       "tool_definition_count": 1,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"name\":\"get_weather\",\"content\":{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "d2439622f3ceefff",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        }
+      ]
     },
     "trace-1/multi-agent/span-1": {
       "message_count": 0,
@@ -500,9 +536,10 @@
           "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01ARE2hvjy7pjaNbt5HAiHRQ\",\"content\":{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
-          "content_digest": "448b9dbfc00d901e",
-          "observation_type": "generation"
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01ARE2hvjy7pjaNbt5HAiHRQ\",\"name\":\"get_weather\",\"content\":{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "0bc4d454a84bafa4",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
         },
         {
           "index": 7,
@@ -517,8 +554,9 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "**Barcelona, Spain: 2-day forecast** | | Day 1 | Day 2 | |---|---|---| | **Conditions** | Sunny | Sunny | | **High** | 21°C (70°F) | 22°C (72°F) | | **Low** | Not provided | Not provided | | **Precipitation chance** | Not provided | Not pro…[682 chars]",
-          "content_digest": "25dd9b0b702e0cdb",
-          "observation_type": "generation"
+          "content_digest": "301176859e4c32ef",
+          "tool_name": "delegate_task_to_member",
+          "observation_type": "tool"
         },
         {
           "index": 9,
@@ -558,8 +596,9 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "For your two days in Barcelona, pack for mild, sunny weather with highs of 21-22°C (70-72°F). Bring lightweight, breathable clothing such as two or three T-shirts or short-sleeve tops, a pair of comfortable pants or jeans, and perhaps a pai…[935 chars]",
-          "content_digest": "7cb15c62d062862c",
-          "observation_type": "generation"
+          "content_digest": "f5b6e99837eccdcb",
+          "tool_name": "delegate_task_to_member",
+          "observation_type": "tool"
         },
         {
           "index": 14,
@@ -652,9 +691,10 @@
           "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01ARE2hvjy7pjaNbt5HAiHRQ\",\"content\":{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
-          "content_digest": "448b9dbfc00d901e",
-          "observation_type": "generation"
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01ARE2hvjy7pjaNbt5HAiHRQ\",\"name\":\"get_weather\",\"content\":{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "0bc4d454a84bafa4",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
         },
         {
           "index": 7,
@@ -669,8 +709,9 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "**Barcelona, Spain: 2-day forecast** | | Day 1 | Day 2 | |---|---|---| | **Conditions** | Sunny | Sunny | | **High** | 21°C (70°F) | 22°C (72°F) | | **Low** | Not provided | Not provided | | **Precipitation chance** | Not provided | Not pro…[682 chars]",
-          "content_digest": "25dd9b0b702e0cdb",
-          "observation_type": "generation"
+          "content_digest": "301176859e4c32ef",
+          "tool_name": "delegate_task_to_member",
+          "observation_type": "tool"
         },
         {
           "index": 9,
@@ -710,8 +751,9 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "For your two days in Barcelona, pack for mild, sunny weather with highs of 21-22°C (70-72°F). Bring lightweight, breathable clothing such as two or three T-shirts or short-sleeve tops, a pair of comfortable pants or jeans, and perhaps a pai…[935 chars]",
-          "content_digest": "7cb15c62d062862c",
-          "observation_type": "generation"
+          "content_digest": "f5b6e99837eccdcb",
+          "tool_name": "delegate_task_to_member",
+          "observation_type": "tool"
         },
         {
           "index": 14,
@@ -727,15 +769,15 @@
   "feed_view": {
     "message_count": 15,
     "role_sequence": [
-      "tool",
       "assistant",
+      "tool",
       "system",
       "assistant",
       "user",
-      "tool",
       "assistant",
       "tool",
       "assistant",
+      "tool",
       "system",
       "assistant",
       "user",
@@ -751,19 +793,20 @@
     "messages": [
       {
         "index": 0,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "For your two days in Barcelona, pack for mild, sunny weather with highs of 21-22°C (70-72°F). Bring lightweight, breathable clothing such as two or three T-shirts or short-sleeve tops, a pair of comfortable pants or jeans, and perhaps a pai…[935 chars]",
-        "content_digest": "7cb15c62d062862c",
-        "observation_type": "generation"
-      },
-      {
-        "index": 1,
         "role": "assistant",
         "entry_type": "text",
         "content": "**Barcelona forecast (next two days):** Both days should be sunny. Highs are 21°C (70°F) on Day 1 and 22°C (72°F) on Day 2. The forecast didn't include lows, chance of rain, or wind. AEMET, Spain's national weather service, is a good place …[1035 chars]",
         "content_digest": "72a352952ade18e4",
         "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "For your two days in Barcelona, pack for mild, sunny weather with highs of 21-22°C (70-72°F). Bring lightweight, breathable clothing such as two or three T-shirts or short-sleeve tops, a pair of comfortable pants or jeans, and perhaps a pai…[935 chars]",
+        "content_digest": "f5b6e99837eccdcb",
+        "tool_name": "delegate_task_to_member",
+        "observation_type": "tool"
       },
       {
         "index": 2,
@@ -791,14 +834,6 @@
       },
       {
         "index": 5,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "**Barcelona, Spain: 2-day forecast** | | Day 1 | Day 2 | |---|---|---| | **Conditions** | Sunny | Sunny | | **High** | 21°C (70°F) | 22°C (72°F) | | **Low** | Not provided | Not provided | | **Precipitation chance** | Not provided | Not pro…[682 chars]",
-        "content_digest": "25dd9b0b702e0cdb",
-        "observation_type": "generation"
-      },
-      {
-        "index": 6,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01SAUhXAHQya4MQAz53YVoYD\",\"name\":\"delegate_task_to_member\",\"input\":{\"member_id\":\"writer\",\"task\":\"Write a one-paragraph packing list for a two-day trip to Barcelona based on this forecast: Day 1 sunny, hig…[420 chars]",
@@ -807,20 +842,30 @@
         "observation_type": "generation"
       },
       {
-        "index": 7,
+        "index": 6,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01ARE2hvjy7pjaNbt5HAiHRQ\",\"content\":{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
-        "content_digest": "448b9dbfc00d901e",
-        "observation_type": "generation"
+        "content": "**Barcelona, Spain: 2-day forecast** | | Day 1 | Day 2 | |---|---|---| | **Conditions** | Sunny | Sunny | | **High** | 21°C (70°F) | 22°C (72°F) | | **Low** | Not provided | Not provided | | **Precipitation chance** | Not provided | Not pro…[682 chars]",
+        "content_digest": "301176859e4c32ef",
+        "tool_name": "delegate_task_to_member",
+        "observation_type": "tool"
       },
       {
-        "index": 8,
+        "index": 7,
         "role": "assistant",
         "entry_type": "text",
         "content": "**Barcelona, Spain: 2-day forecast** | | Day 1 | Day 2 | |---|---|---| | **Conditions** | Sunny | Sunny | | **High** | 21°C (70°F) | 22°C (72°F) | | **Low** | Not provided | Not provided | | **Precipitation chance** | Not provided | Not pro…[682 chars]",
         "content_digest": "1a83ab5b5928a75d",
         "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_01ARE2hvjy7pjaNbt5HAiHRQ\",\"name\":\"get_weather\",\"content\":{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+        "content_digest": "0bc4d454a84bafa4",
+        "tool_name": "get_weather",
+        "observation_type": "tool"
       },
       {
         "index": 9,

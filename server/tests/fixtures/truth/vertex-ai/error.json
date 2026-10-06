@@ -197,6 +197,18 @@
    "subject": "fact-004"
   },
   {
+   "fact": "response",
+   "reason": "call_not_exported",
+   "detail": "the model responses that only call functions: automatic function calling records one generate_content span for the whole run, carrying the final answer, so a round's calls appear one execution at a time",
+   "subject": "call-001"
+  },
+  {
+   "fact": "tool_call",
+   "reason": "id_not_exported",
+   "detail": "the model's function-call ids: each execute_tool span records the function, its arguments and its result, never the id the model gave the call",
+   "subject": "fact-002"
+  },
+  {
    "fact": "request",
    "reason": "request_modelled",
    "detail": "a fake model answers the request it receives, and that request was not recorded: the one modelled here declares the scenario's shared tools and schema as the scripts do, so a fact is only as certain as that model of the framework's request"

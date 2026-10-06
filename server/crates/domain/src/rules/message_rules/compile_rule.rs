@@ -45,14 +45,29 @@ pub(super) fn compile_rule(
     let non_empty = require_non_empty.unwrap_or(false);
     let non_blank = require_non_blank.unwrap_or(false);
     let tool_spans = reads_tool_spans.unwrap_or(false);
-    if instrumentation_scope
-        .as_ref()
-        .is_some_and(|scope| scope.name.is_empty())
+    if instrumentation_scope.as_ref().is_some_and(|scope| {
+        (scope.name.is_some() != scope.one_of.is_empty()) || scope.names().any(str::is_empty)
+    }) {
+        return Err(MessageCompileError::Inexpressible {
+            rule: id.clone(),
+            detail: "an instrumentation scope must name exactly one of `name` or `one_of`, none empty, or it \
+                     would match no meaningful producer scope",
+        });
+    }
+    // A family is already an object: there is no text to parse, split or test for blankness.
+    if let Some(family) = read.family.as_deref()
+        && (family.len() < 2
+            || !family.ends_with('.')
+            || parse.is_some()
+            || elements.is_some()
+            || sections.is_some()
+            || require_non_empty.is_some()
+            || require_non_blank.is_some())
     {
         return Err(MessageCompileError::Inexpressible {
             rule: id.clone(),
-            detail: "an instrumentation scope name or version prefix is empty, which would match no \
-                     meaningful producer scope",
+            detail: "a `family` read names a dotted prefix ending in `.` and is read as an object, so \
+                     `parse`, `elements`, `sections` and the blankness requirements would be ignored",
         });
     }
     if compose.is_none() && branch_set.is_none() && read.named_count() != 1 {

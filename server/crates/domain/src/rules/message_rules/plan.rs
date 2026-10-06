@@ -181,7 +181,11 @@ impl MessagePlan {
             // Whether the rule's carrier was **there**, asked whatever the reading produced. This is what
             // separates "the container was unreadable" from "the container held nothing this rule wanted",
             // which the two cases below need to answer differently.
-            carrier_present |= resolve_attribute(&rule.read, ctx.span_attrs).is_some();
+            carrier_present |=
+                resolve_attribute(&rule.read, ctx.span_attrs).is_some()
+                    || rule.read.family.as_deref().is_some_and(|prefix| {
+                        ctx.span_attrs.keys().any(|key| key.starts_with(prefix))
+                    });
             for owned in kept.iter().flat_map(|e| &e.owns).filter(|o| !o.is_event) {
                 if !owned_attributes.contains(&owned.name) {
                     owned_attributes.push(owned.name.clone());

@@ -18,8 +18,8 @@
           "index": 0,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"code.function.parameters.city.type\":\"str\",\"code.function.parameters.city.value\":\"Rome\",\"code.function.parameters.days.type\":\"int\",\"code.function.parameters.days.value\":1}}",
-          "content_digest": "de6b022fb0ded9e7",
+          "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+          "content_digest": "0aea3913a97f0952",
           "tool_name": "get_weather",
           "observation_type": "tool"
         },
@@ -112,8 +112,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"code.function.parameters.city.type\":\"str\",\"code.function.parameters.city.value\":\"Rome\",\"code.function.parameters.days.type\":\"int\",\"code.function.parameters.days.value\":1}}",
-          "content_digest": "de6b022fb0ded9e7",
+          "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+          "content_digest": "0aea3913a97f0952",
           "tool_name": "get_weather",
           "observation_type": "tool"
         },
@@ -171,8 +171,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"code.function.parameters.city.type\":\"str\",\"code.function.parameters.city.value\":\"Rome\",\"code.function.parameters.days.type\":\"int\",\"code.function.parameters.days.value\":1}}",
-          "content_digest": "de6b022fb0ded9e7",
+          "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+          "content_digest": "0aea3913a97f0952",
           "tool_name": "get_weather",
           "observation_type": "tool"
         },
@@ -231,8 +231,8 @@
         "index": 2,
         "role": "assistant",
         "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"code.function.parameters.city.type\":\"str\",\"code.function.parameters.city.value\":\"Rome\",\"code.function.parameters.days.type\":\"int\",\"code.function.parameters.days.value\":1}}",
-        "content_digest": "de6b022fb0ded9e7",
+        "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+        "content_digest": "0aea3913a97f0952",
         "tool_name": "get_weather",
         "observation_type": "tool"
       },

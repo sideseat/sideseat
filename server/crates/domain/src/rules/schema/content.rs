@@ -631,13 +631,25 @@ pub struct ThinkingBlock {
     pub signature: Vec<JsonPath>,
 }
 
-/// One OpenTelemetry instrumentation scope accepted by a message rule.
+/// The OpenTelemetry instrumentation scopes accepted by a message rule: exactly one of `name` or `one_of`.
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct InstrumentationScopeMatch {
     /// Exact scope name. Empty names are refused when the rule is compiled.
-    pub name: String,
+    #[serde(default)]
+    pub name: Option<String>,
+    /// Several exact scope names, any of which admits the rule: one producer's spans emitted under the
+    /// scope of a shared handler in some releases and under its own in others.
+    #[serde(default)]
+    pub one_of: Vec<String>,
+}
+
+impl InstrumentationScopeMatch {
+    /// Every scope name the gate admits.
+    pub fn names(&self) -> impl Iterator<Item = &str> {
+        self.name.iter().chain(&self.one_of).map(String::as_str)
+    }
 }
 
 /// A wrapper: the block's content is *inside* a member, and the member is normalised in its place.

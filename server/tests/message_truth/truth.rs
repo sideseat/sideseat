@@ -146,6 +146,48 @@ pub(super) struct Gap {
     pub detail: String,
     #[serde(default)]
     pub subject: Option<String>,
+    /// The capture modes (`native@1.0b1`) the gap holds for; empty for every fixture of the truth. A
+    /// release that exports what another omits is told apart here, never by weakening the fact.
+    #[serde(default)]
+    pub modes: Vec<String>,
+}
+
+impl Gap {
+    /// Whether the gap holds for this fixture label.
+    pub fn holds_for(&self, fixture: &str) -> bool {
+        self.modes.is_empty()
+            || fixture
+                .split('/')
+                .nth(1)
+                .is_some_and(|mode| self.modes.iter().any(|m| m == mode))
+    }
+}
+
+impl Truth {
+    /// The truth as one fixture is checked against it: only the gaps that hold for it, and a tool call
+    /// whose id that fixture's telemetry does not carry (`id_not_exported`) asserted without it - its
+    /// wire id kept aside as `wire_id`.
+    pub fn for_fixture(&self, fixture: &str) -> Truth {
+        let mut truth = self.clone();
+        truth.gaps.retain(|gap| gap.holds_for(fixture));
+        let unexported: BTreeSet<String> = truth
+            .gaps
+            .iter()
+            .filter(|g| g.reason == "id_not_exported")
+            .filter_map(|g| g.subject.clone())
+            .collect();
+        for fact in truth
+            .facts
+            .iter_mut()
+            .filter(|f| unexported.contains(&f.id))
+        {
+            if let Some(id) = fact.value.get("id").cloned() {
+                fact.value["wire_id"] = id;
+                fact.value["id"] = Value::Null;
+            }
+        }
+        truth
+    }
 }
 
 impl Gap {
@@ -156,6 +198,7 @@ impl Gap {
             reason: "answer_quotes_framework_rendering".to_string(),
             detail: "made unknowable by a test".to_string(),
             subject: Some(fact.to_string()),
+            modes: Vec::new(),
         }
     }
 }
@@ -205,6 +248,11 @@ pub(super) fn gap_effects(reason: &str) -> Option<GapEffects> {
         "framework_restates_prompt" => effects(GapSubject::Call, false, true, false),
         // The telemetry does not carry the fact: proven, never assumed.
         "not_exported" => effects(GapSubject::Fact, true, false, true),
+        // Only a tool call's wire id is missing: the call is still asserted, under whatever id it is shown.
+        "id_not_exported" => effects(GapSubject::Fact, false, false, true),
+        // A model call's response is missing as a unit: its parts are asserted where the conversation
+        // shows them, but no span records the call and the response's own grouping is unknown.
+        "call_not_exported" => effects(GapSubject::Call, false, false, true),
         "request_body_unrecorded"
         | "request_modelled"
         | "fake_model_echoes_request"
@@ -504,6 +552,26 @@ pub(super) fn document_defects(key: &str, truth: &Truth) -> Vec<String> {
                 bad(format!("gap {} must not name a subject", gap.reason))
             }
         }
+        let modes: BTreeSet<&str> = truth
+            .fixtures
+            .iter()
+            .filter_map(|f| f.split('/').nth(1))
+            .collect();
+        for mode in &gap.modes {
+            if !modes.contains(mode.as_str()) {
+                bad(format!(
+                    "gap {} names mode {mode}, which no fixture has",
+                    gap.reason
+                ));
+            }
+        }
+        // A withdrawn fact is unasserted everywhere, so its gap cannot hold for only some captures.
+        if effects.withdraws && !gap.modes.is_empty() {
+            bad(format!(
+                "gap {} withdraws a fact for some modes only",
+                gap.reason
+            ));
+        }
         let Some(fact) = gap.subject.as_deref().and_then(|s| facts.get(s)) else {
             continue;
         };
@@ -516,8 +584,17 @@ pub(super) fn document_defects(key: &str, truth: &Truth) -> Vec<String> {
                 ));
             }
         }
+        // An unexported id is a tool call's wire id; the fact keeps it, and checking moves it aside.
+        if gap.reason == "id_not_exported"
+            && !(fact.kind == "tool_call" && fact.value.get("id").is_some_and(Value::is_string))
+        {
+            bad(format!(
+                "gap id_not_exported on {} needs a tool call with its wire id",
+                fact.id
+            ));
+        }
         // An absence is proven by searching for the fact's content, so the fact keeps all of it.
-        if effects.needs_absence_proof && gap.fact != fact.kind {
+        if effects.needs_absence_proof && effects.withdraws && gap.fact != fact.kind {
             bad(format!(
                 "gap {} on {} names category {}, not its kind {}",
                 gap.reason, fact.id, gap.fact, fact.kind

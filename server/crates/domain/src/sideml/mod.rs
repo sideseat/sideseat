@@ -368,12 +368,21 @@ pub fn normalize(raw: &JsonValue) -> ChatMessage {
                 }
                 let input = tc
                     .get("arguments")
-                    .map(|a| {
-                        if let Some(s) = a.as_str() {
-                            serde_json::from_str(s).unwrap_or_else(|_| json!(s))
-                        } else {
-                            a.clone()
-                        }
+                    .map(|a| match a.as_str() {
+                        Some(s) => match serde_json::from_str::<JsonValue>(s) {
+                            // Arguments JSON-encoded twice - a JSON string whose text is the object - are
+                            // that object: a serialiser that encodes an already encoded payload says
+                            // nothing more by it.
+                            Ok(JsonValue::String(inner)) => {
+                                serde_json::from_str::<JsonValue>(&inner)
+                                    .ok()
+                                    .filter(|v| v.is_object() || v.is_array())
+                                    .unwrap_or(JsonValue::String(inner))
+                            }
+                            Ok(parsed) => parsed,
+                            Err(_) => json!(s),
+                        },
+                        None => a.clone(),
                     })
                     .unwrap_or(json!({}));
 

@@ -70,7 +70,7 @@ impl<'a> Context<'a> {
     /// The call a fact belongs to: its own; the call a prompt was sent to; the call a result answers;
     /// for anything else, the nearest call before it in its conversation, then after it.
     pub fn home_call(&self, fact: &'a Fact) -> Option<&'a str> {
-        if let Some(call) = &fact.call {
+        if let Some(call) = fact.call.as_deref().filter(|c| !self.unexported(c)) {
             return Some(call);
         }
         for edge in &self.truth.edges {
@@ -78,11 +78,15 @@ impl<'a> Context<'a> {
                 match edge.kind.as_str() {
                     "prompt_of" => return edge.to.as_deref(),
                     "result_of" => {
-                        return edge
+                        let call = edge
                             .to
                             .as_deref()
                             .and_then(|t| self.fact(t))
                             .and_then(|t| t.call.as_deref());
+                        if call.is_some_and(|c| self.unexported(c)) {
+                            break;
+                        }
+                        return call;
                     }
                     _ => {}
                 }
@@ -112,10 +116,42 @@ impl<'a> Context<'a> {
         }
         let before = conversation.sequence[..at].iter().rev();
         let after = conversation.sequence[at + 1..].iter();
+        // An unexported response's parts belong to the nearest call that has a span: the run that
+        // carried them. Searched forward first for them, since the run's span is the one answering.
+        if fact.call.as_deref().is_some_and(|c| self.unexported(c)) || self.answers_unexported(fact)
+        {
+            return after
+                .chain(before)
+                .filter_map(|id| self.fact(id))
+                .filter_map(|f| f.call.as_deref())
+                .find(|c| !self.unexported(c));
+        }
         before
             .chain(after)
             .filter_map(|id| self.fact(id))
-            .find_map(|f| f.call.as_deref())
+            .filter_map(|f| f.call.as_deref())
+            .find(|c| !self.unexported(c))
+    }
+
+    /// Whether a call's response is proven absent from the telemetry (`call_not_exported`).
+    pub fn unexported(&self, call: &str) -> bool {
+        self.truth
+            .gaps
+            .iter()
+            .any(|g| g.reason == "call_not_exported" && g.subject.as_deref() == Some(call))
+    }
+
+    /// Whether a fact is the result of a call an unexported response made.
+    fn answers_unexported(&self, fact: &Fact) -> bool {
+        self.truth.edges.iter().any(|e| {
+            e.kind == "result_of"
+                && e.from.as_deref() == Some(fact.id.as_str())
+                && e.to
+                    .as_deref()
+                    .and_then(|t| self.fact(t))
+                    .and_then(|t| t.call.as_deref())
+                    .is_some_and(|c| self.unexported(c))
+        })
     }
 
     fn asserted_in(&self, fact: &Fact, view: &str) -> bool {
@@ -494,7 +530,7 @@ fn report_assignment(
         // another call's too, when the two results can no longer tell their calls apart.
         let framework_named = fact.value.get("id").is_some_and(serde_json::Value::is_null);
         if framework_named
-            && let Some(id) = assigned.rewritten.get(&fact.id)
+            && let Some(id) = assigned.rewritten.get(&fact.id).filter(|id| !id.is_empty())
             && let Some(other) = assigned
                 .rewritten
                 .iter()

@@ -149,7 +149,7 @@ fn truth_adversarial_fixtures_fire_their_checks() {
         });
         // Exactly which view, check and subject: a check that stops firing in one view, or fires on
         // another subject, changes the record.
-        let violations = super::check(&truth, recon);
+        let violations = super::check(&truth.for_fixture(fixture), recon);
         fired.extend(violations.iter().map(|v| super::family(&v.assertion)));
         let observed: BTreeSet<String> = violations
             .iter()

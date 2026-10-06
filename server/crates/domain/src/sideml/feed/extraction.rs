@@ -305,6 +305,43 @@ pub(in crate::sideml::feed) fn append_error_messages(
             continue;
         }
 
+        // A failing span that recorded a tool call is that tool failing: its exception is the call's
+        // error result, answering the call under its id and name, rather than something the assistant said.
+        // Only a tool execution span, and only one call on it: anywhere else a recorded call may be
+        // history the span re-lists, and the failure is not that call's.
+        // A span delivered twice holds its call twice; that is still one call.
+        let mut calls: Vec<(Option<String>, String)> = messages
+            .iter()
+            .filter(|m| m.span_id == row.span_id && m.trace_id == row.trace_id)
+            .flat_map(|m| &m.message.content)
+            .filter_map(|block| match block {
+                ContentBlock::ToolUse { id, name, .. } => Some((id.clone(), name.clone())),
+                _ => None,
+            })
+            .collect();
+        calls.sort();
+        calls.dedup();
+        let tool_span = row.observation_type.as_deref() == Some(super::obs_type::TOOL);
+        let own_call = match calls.as_slice() {
+            [call] if tool_span => Some(call.clone()),
+            _ => None,
+        };
+        let (role, block) = match own_call {
+            Some((tool_use_id, name)) => (
+                crate::sideml::types::ChatRole::Tool,
+                ContentBlock::ToolResult {
+                    tool_use_id: tool_use_id.filter(|id| !id.is_empty()),
+                    name: Some(name).filter(|n| !n.is_empty()),
+                    content: JsonValue::String(error_msg),
+                    is_error: true,
+                },
+            ),
+            None => (
+                crate::sideml::types::ChatRole::Assistant,
+                ContentBlock::Text { text: error_msg },
+            ),
+        };
+
         let timestamp = row.span_end_timestamp.unwrap_or(row.span_timestamp);
         let max_msg_idx = messages
             .iter()
@@ -328,8 +365,8 @@ pub(in crate::sideml::feed) fn append_error_messages(
                 time: timestamp,
             },
             message: crate::sideml::types::ChatMessage {
-                role: crate::sideml::types::ChatRole::Assistant,
-                content: vec![ContentBlock::Text { text: error_msg }],
+                role,
+                content: vec![block],
                 finish_reason: Some(crate::sideml::types::FinishReason::Error),
                 ..Default::default()
             },

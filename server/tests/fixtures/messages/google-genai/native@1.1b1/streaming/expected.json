@@ -18,8 +18,8 @@
           "index": 0,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"code.function.parameters.city.type\":\"str\",\"code.function.parameters.city.value\":\"Rome\",\"code.function.parameters.days.type\":\"int\",\"code.function.parameters.days.value\":1}}",
-          "content_digest": "de6b022fb0ded9e7",
+          "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+          "content_digest": "0aea3913a97f0952",
           "tool_name": "get_weather",
           "observation_type": "tool"
         },
@@ -92,11 +92,10 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 6,
+      "message_count": 5,
       "role_sequence": [
         "system",
         "user",
-        "assistant",
         "assistant",
         "tool",
         "assistant"
@@ -132,15 +131,6 @@
         },
         {
           "index": 3,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"code.function.parameters.city.type\":\"str\",\"code.function.parameters.city.value\":\"Rome\",\"code.function.parameters.days.type\":\"int\",\"code.function.parameters.days.value\":1}}",
-          "content_digest": "de6b022fb0ded9e7",
-          "tool_name": "get_weather",
-          "observation_type": "tool"
-        },
-        {
-          "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_get_weather_caad21d8fe08\",\"name\":\"get_weather\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
@@ -149,7 +139,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 5,
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "Rome: day 1 sunny at 21°C. Wear light layers and sunglasses.",
@@ -162,11 +152,10 @@
   },
   "session_views": {
     "google-genai-streaming": {
-      "message_count": 6,
+      "message_count": 5,
       "role_sequence": [
         "system",
         "user",
-        "assistant",
         "assistant",
         "tool",
         "assistant"
@@ -202,15 +191,6 @@
         },
         {
           "index": 3,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"code.function.parameters.city.type\":\"str\",\"code.function.parameters.city.value\":\"Rome\",\"code.function.parameters.days.type\":\"int\",\"code.function.parameters.days.value\":1}}",
-          "content_digest": "de6b022fb0ded9e7",
-          "tool_name": "get_weather",
-          "observation_type": "tool"
-        },
-        {
-          "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_get_weather_caad21d8fe08\",\"name\":\"get_weather\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
@@ -219,7 +199,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 5,
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "Rome: day 1 sunny at 21°C. Wear light layers and sunglasses.",
@@ -231,11 +211,10 @@
     }
   },
   "feed_view": {
-    "message_count": 6,
+    "message_count": 5,
     "role_sequence": [
       "assistant",
       "tool",
-      "assistant",
       "system",
       "user",
       "assistant"
@@ -263,15 +242,6 @@
       },
       {
         "index": 2,
-        "role": "assistant",
-        "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"code.function.parameters.city.type\":\"str\",\"code.function.parameters.city.value\":\"Rome\",\"code.function.parameters.days.type\":\"int\",\"code.function.parameters.days.value\":1}}",
-        "content_digest": "de6b022fb0ded9e7",
-        "tool_name": "get_weather",
-        "observation_type": "tool"
-      },
-      {
-        "index": 3,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -279,7 +249,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 4,
+        "index": 3,
         "role": "user",
         "entry_type": "text",
         "content": "Check the weather in Rome for the next day and tell me what to wear.",
@@ -287,7 +257,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 5,
+        "index": 4,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"call_get_weather_caad21d8fe08\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",

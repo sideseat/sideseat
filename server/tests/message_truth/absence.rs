@@ -233,17 +233,184 @@ fn prove_tool_result(value: &Value, haystack: &Haystack) -> Proof {
     })
 }
 
-/// Every absence gap of one truth with the fact it withdraws.
-pub(super) fn absence_gaps(truth: &Truth) -> Vec<(&truth::Gap, &Fact)> {
+/// What an absence gap claims the telemetry does not carry.
+pub(super) enum Claim<'t> {
+    /// The whole fact (`not_exported`).
+    Fact(&'t Fact),
+    /// Only a tool call's wire id (`id_not_exported`); the call itself is still asserted.
+    Id(&'t Fact),
+    /// A model call's response as a unit (`call_not_exported`): none of its outputs is in any payload in
+    /// the form the response would give it.
+    Response(Vec<&'t Fact>),
+}
+
+impl Claim<'_> {
+    fn label(&self) -> &'static str {
+        match self {
+            Claim::Fact(fact) => kind_label(&fact.kind),
+            Claim::Id(_) => "tool call id",
+            Claim::Response(_) => "model response",
+        }
+    }
+}
+
+/// A tool call's id on the wire: the fact's own, or the one an `id_not_exported` gap moved aside.
+pub(super) fn wire_id(fact: &Fact) -> Option<&str> {
+    fact.value
+        .get("wire_id")
+        .or_else(|| fact.value.get("id"))
+        .and_then(Value::as_str)
+}
+
+/// Every absence gap of one truth with what it claims.
+pub(super) fn absence_gaps(truth: &Truth) -> Vec<(&truth::Gap, Claim<'_>)> {
+    let fact = |id: &str| truth.facts.iter().find(|f| f.id == id);
     truth
         .gaps
         .iter()
         .filter(|gap| truth::gap_effects(&gap.reason).is_some_and(|e| e.needs_absence_proof))
         .filter_map(|gap| {
             let subject = gap.subject.as_deref()?;
-            Some((gap, truth.facts.iter().find(|f| f.id == subject)?))
+            let claim = match gap.reason.as_str() {
+                "id_not_exported" => Claim::Id(fact(subject)?),
+                "call_not_exported" => {
+                    let call = truth.calls.iter().find(|c| c.id == subject)?;
+                    Claim::Response(call.outputs.iter().filter_map(|id| fact(id)).collect())
+                }
+                _ => Claim::Fact(fact(subject)?),
+            };
+            Some((gap, claim))
         })
         .collect()
+}
+
+/// Searches one fixture's payloads for what an absence gap says is not in them.
+pub(super) fn prove_claim(claim: &Claim<'_>, haystack: &Haystack) -> Proof {
+    match claim {
+        Claim::Fact(fact) => prove(fact, haystack),
+        Claim::Id(fact) => prove_id(fact, haystack),
+        // A response is absent when every one of its parts is a tool call whose id is absent - the one
+        // member no other carrier repeats - and no carrier holds two of its calls' arguments together,
+        // which only a copy of the response would. A response with any other part, or a call with no
+        // id, cannot be proven absent.
+        Claim::Response(outputs) => {
+            if outputs.is_empty() {
+                return Proof::Unprovable("a response with no outputs".to_string());
+            }
+            for fact in outputs {
+                if fact.kind != "tool_call" {
+                    return Proof::Unprovable(format!(
+                        "{} is a {}, which only a whole-fact gap can withdraw",
+                        fact.id, fact.kind
+                    ));
+                }
+                match prove_id(fact, haystack) {
+                    Proof::Absent => {}
+                    other => return other,
+                }
+            }
+            // A message: any JSON object stating a role and holding one of the calls' arguments is the
+            // response, or a later request re-sending it, whatever happened to its ids.
+            for fact in outputs {
+                let arguments = &fact.value["arguments"];
+                if !identifying(arguments) {
+                    continue;
+                }
+                for carrier in &haystack.carriers {
+                    if let Some(at) = find_node(carrier, |node| {
+                        node.get("role").is_some_and(Value::is_string) && holds(node, arguments)
+                    }) {
+                        return Proof::Present(format!(
+                            "{at} is a message holding the arguments of {}",
+                            fact.id
+                        ));
+                    }
+                }
+            }
+            let arguments: Vec<&Value> = outputs
+                .iter()
+                .map(|f| &f.value["arguments"])
+                .filter(|a| identifying(a))
+                .collect();
+            if arguments.len() > 1 {
+                for carrier in &haystack.carriers {
+                    let held: Vec<&str> = arguments
+                        .iter()
+                        .filter_map(|a| find_node(carrier, |node| json_eq(node, a)))
+                        .collect();
+                    if held.len() > 1 {
+                        return Proof::Present(format!(
+                            "{} holds the arguments of {} of its calls",
+                            held[0],
+                            held.len()
+                        ));
+                    }
+                }
+            }
+            Proof::Absent
+        }
+    }
+}
+
+fn prove_id(fact: &Fact, haystack: &Haystack) -> Proof {
+    if let Some(at) = haystack.undecoded.first() {
+        return Proof::Unprovable(format!(
+            "{at} is encoded deeper than the search decodes ({MAX_DEPTH} layers)"
+        ));
+    }
+    let Some(id) = wire_id(fact).filter(|id| id.len() >= MIN_ID) else {
+        return Proof::Unprovable(format!("{} has no wire id to search for", fact.id));
+    };
+    if let Some(at) = haystack.carriers.iter().find_map(|c| find_string(c, id)) {
+        return Proof::Present(at.to_string());
+    }
+    // Absent is the model's id. A carrier recording the call under an id of its own would let the
+    // call be shown under that one, so the gap - which accepts it shown under none - would hide
+    // dropping it: the proof is refused instead.
+    let arguments = &fact.value["arguments"];
+    if identifying(arguments) {
+        for carrier in &haystack.carriers {
+            if find_node(carrier, |node| json_eq(node, arguments)).is_none() {
+                continue;
+            }
+            if let Some((at, _)) = carrier.strings.iter().find(|(at, value)| {
+                !value.is_empty()
+                    && CORRELATION_KEYS
+                        .iter()
+                        .any(|key| at.ends_with(key) && !at.contains('|'))
+            }) {
+                return Proof::Partial(format!("{at} gives the call another id"));
+            }
+        }
+    }
+    Proof::Absent
+}
+
+/// Member names that hold a tool call's correlation id in some payload; a value under one of them
+/// beside the call's arguments is an id the telemetry carries for the call.
+const CORRELATION_KEYS: &[&str] = &[
+    ".call.id",
+    "call_id",
+    "tool_call_id",
+    "tool_use_id",
+    "toolUseId",
+    "tool.id",
+];
+
+/// Whether a JSON value holds `needle` at or below it.
+fn holds(value: &Value, needle: &Value) -> bool {
+    if json_eq(value, needle) {
+        return true;
+    }
+    match value {
+        Value::Object(map) => map.values().any(|v| holds(v, needle)),
+        Value::Array(items) => items.iter().any(|v| holds(v, needle)),
+        Value::String(text) => serde_json::from_str::<Value>(text)
+            .ok()
+            .filter(|v| v.is_object() || v.is_array())
+            .is_some_and(|v| holds(&v, needle)),
+        _ => false,
+    }
 }
 
 /// Where the documentation lists the proven limitations, between these markers.
@@ -271,15 +438,15 @@ pub(super) fn limitations_section(truths: &BTreeMap<String, Truth>) -> String {
     // (producer, kind, detail) -> fixture -> facts withdrawn there.
     let mut rows: BTreeMap<(String, String, String), BTreeMap<String, usize>> = BTreeMap::new();
     for truth in truths.values() {
-        for (gap, fact) in absence_gaps(truth) {
+        for (gap, claim) in absence_gaps(truth) {
             let fixtures = rows
                 .entry((
                     truth.producer.clone(),
-                    kind_label(&fact.kind).to_string(),
+                    claim.label().to_string(),
                     gap.detail.clone(),
                 ))
                 .or_default();
-            for fixture in &truth.fixtures {
+            for fixture in truth.fixtures.iter().filter(|f| gap.holds_for(f)) {
                 *fixtures.entry(fixture.clone()).or_default() += 1;
             }
         }
@@ -341,12 +508,14 @@ fn every_absence_gap_is_proven() {
             };
             searched += 1;
             let haystack = Haystack::of_fixture(paths);
-            for (gap, fact) in &gaps {
-                match prove(fact, &haystack) {
+            for (gap, claim) in gaps.iter().filter(|(gap, _)| gap.holds_for(fixture)) {
+                match prove_claim(claim, &haystack) {
                     Proof::Absent => proven += 1,
                     refused => defects.push(format!(
-                        "{key}: {} {} ({}) is declared {} but {fixture}: {refused:?}",
-                        fact.kind, fact.id, gap.detail, gap.reason
+                        "{key}: {} ({}) is declared {} but {fixture}: {refused:?}",
+                        gap.subject.as_deref().unwrap_or(""),
+                        gap.detail,
+                        gap.reason
                     )),
                 }
             }

@@ -108,7 +108,7 @@
       "message_count": 2,
       "role_sequence": [
         "assistant",
-        "assistant"
+        "tool"
       ],
       "tool_names": [],
       "tool_definition_count": 1,
@@ -124,10 +124,11 @@
         },
         {
           "index": 1,
-          "role": "assistant",
-          "entry_type": "text",
+          "role": "tool",
+          "entry_type": "tool_result",
           "content": "ai.koog.agents.core.tools.ToolException$ValidationFailure: BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
-          "content_digest": "6a404c7867b36d2a",
+          "content_digest": "99b53d147507735e",
+          "tool_name": "book_flight",
           "finish_reason": "Error",
           "observation_type": "tool"
         }

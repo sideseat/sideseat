@@ -252,6 +252,15 @@ pub struct ReadSpec {
     /// downstream.
     #[serde(default)]
     pub indexed_family: Option<String>,
+    /// A dotted attribute *family* read as one object: every key under the prefix (which ends in `.`),
+    /// named by what follows it - `code.function.parameters.city.value = "Paris"` is `{"city.value":
+    /// "Paris"}` - with each value read as the JSON it spells or as its text.
+    ///
+    /// The flat encoding of one object, where `indexed_family` is the flat encoding of a list of them: an
+    /// instrumentation that writes a call's arguments as attributes of its span rather than as one JSON
+    /// attribute. The rule then selects from the object like any parsed carrier; it owns every key it read.
+    #[serde(default)]
+    pub family: Option<String>,
     /// A predicate applied to each fully assembled indexed entry.
     ///
     /// `require_members` decides whether the flattened carrier contains enough physical members to form an
@@ -463,6 +472,7 @@ impl ReadSpec {
     pub fn named_count(&self) -> usize {
         usize::from(self.attribute.is_some())
             + usize::from(self.indexed_family.is_some())
+            + usize::from(self.family.is_some())
             + usize::from(!self.first_present.is_empty())
             + usize::from(!self.each.is_empty())
     }

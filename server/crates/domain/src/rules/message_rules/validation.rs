@@ -803,6 +803,9 @@ pub(super) fn consumed_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
             },
         );
     }
+    if let Some(family) = rule.read.family.as_deref() {
+        out.push(always(CarrierPattern::Prefix(family.to_string())));
+    }
     if let Some(overlay) = &rule.read.overlay {
         // The payload a positional overlay joins against is read too, and it is not beneath the family.
         //

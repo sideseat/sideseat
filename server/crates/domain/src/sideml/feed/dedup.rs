@@ -429,7 +429,16 @@ fn tool_result_aliases(blocks: &[(usize, BlockEntry, u32)]) -> HashMap<DedupKey,
 
     let mut with_id: HashMap<Group, Vec<(String, MessageIdentity)>> = HashMap::new();
     let mut without_id: HashMap<Group, Vec<MessageIdentity>> = HashMap::new();
-    for (_, block, ordinal) in blocks {
+    // By content alone, for a copy that names neither id nor tool: a framework re-sending a result
+    // in a later request without anything that identifies it. Such a copy is the one *named* result of
+    // that content, when there is exactly one; it never decides between two.
+    // Each named observation with where it was read: a span and a payload position, or - for a block
+    // composed rather than read, which has no position - its own index, so it is never taken for
+    // another's re-delivery.
+    type Observation = (String, PositionPath, Option<usize>, MessageIdentity);
+    let mut named: HashMap<Group, Vec<Observation>> = HashMap::new();
+    let mut anonymous: HashMap<Group, Vec<MessageIdentity>> = HashMap::new();
+    for (index, block, ordinal) in blocks {
         let ContentBlock::ToolResult {
             tool_use_id,
             name,
@@ -445,6 +454,24 @@ fn tool_result_aliases(blocks: &[(usize, BlockEntry, u32)]) -> HashMap<DedupKey,
             compute_tool_result_hash(name.as_deref(), *is_error, content),
         );
         let identity = MessageIdentity::from_block(block);
+        let unnamed = (
+            block.trace_id.clone(),
+            *ordinal,
+            compute_tool_result_hash(None, *is_error, content),
+        );
+        let has_id = tool_use_id.as_deref().is_some_and(|id| !id.is_empty());
+        if name.as_deref().is_some_and(|n| !n.is_empty()) {
+            named.entry(unnamed).or_default().push((
+                block.span_id.clone(),
+                block.position.clone(),
+                block.position.is_empty().then_some(*index),
+                identity.clone(),
+            ));
+        } else if !has_id && (block.is_history || block.is_input_source()) {
+            // Only a re-send: a copy in a later request's input, never an anonymous result a span
+            // produced itself.
+            anonymous.entry(unnamed).or_default().push(identity.clone());
+        }
         match tool_use_id.as_deref().filter(|id| !id.is_empty()) {
             Some(id) => with_id
                 .entry(group)
@@ -469,6 +496,27 @@ fn tool_result_aliases(blocks: &[(usize, BlockEntry, u32)]) -> HashMap<DedupKey,
         let canonical = candidates[0].1.clone();
         for identity in idless {
             aliases.insert((identity, group.1), canonical.clone());
+        }
+    }
+    for (group, copies) in anonymous {
+        let Some(candidates) = named.get(&group) else {
+            continue;
+        };
+        // One named observation, not one identity: two results alike under one name are two results,
+        // and a copy of either names neither. A span delivered twice is still one observation.
+        let observations: std::collections::HashSet<(&str, &PositionPath, Option<usize>)> =
+            candidates
+                .iter()
+                .map(|(span, position, index, _)| (span.as_str(), position, *index))
+                .collect();
+        let (1, Some((_, _, _, canonical))) = (observations.len(), candidates.first()) else {
+            continue;
+        };
+        // A copy already mapped to an id-bearing result keeps that mapping.
+        for identity in copies {
+            aliases
+                .entry((identity, group.1))
+                .or_insert_with(|| canonical.clone());
         }
     }
     aliases

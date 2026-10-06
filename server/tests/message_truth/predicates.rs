@@ -125,6 +125,11 @@ fn tool_call_shows(value: &Value, block: &Block) -> Shows {
     // A call the framework executed on the model's behalf has no wire id (`null`): the framework names
     // it, and its result pairs by that name, so the id is carried without being a rewrite.
     if value.get("id").is_some_and(Value::is_null) {
+        // A wire id the telemetry never carried (`id_not_exported`, proven absent): whatever the
+        // reconstruction shows, an empty id included, is the best it can show.
+        if value.get("wire_id").is_some_and(Value::is_string) {
+            return Shows::Assigned(block.call_id().unwrap_or("").to_string());
+        }
         // The framework must name it: without an id its result cannot pair, which is a rewrite to "".
         return match block.call_id().filter(|id| !id.is_empty()) {
             Some(id) => Shows::Assigned(id.to_string()),

@@ -195,58 +195,73 @@ pub(super) fn emit_rule<'p>(
         }
         return out;
     }
-    // Event carriers are read from a span's events, not its attributes; no declared rule needs
-    // one yet, and probing the attribute map for an event name would silently match nothing.
-    let Some((attribute, raw)) = resolve_attribute(&rule.read, ctx.span_attrs) else {
-        return out;
-    };
-    if rule.require_non_empty && raw.is_empty() {
-        return out;
-    }
-    if rule.require_non_blank && raw.trim().is_empty() {
-        return out;
-    }
-    // An array-valued carrier read element by element, in declared passes.
-    if let Some(elements) = &rule.elements {
-        let Some(parsed) = parse_value(raw, rule.parse.unwrap_or(ParseMode::Json)) else {
-            return out;
-        };
-        for (carrier, value, clause) in element_passes(&parsed, elements) {
-            // An event carrier is kept as one: carrier semantics are looked up by kind, so reporting an
-            // event as an attribute changes what the pipeline reads it as evidence of.
-            let tagged = if elements.tags_are_events {
-                EmittedCarrier::OwnedEvent(carrier)
-            } else {
-                EmittedCarrier::Owned(carrier)
+    let (attribute, parsed, owns) = match rule.read.family.as_deref() {
+        Some(prefix) => match family_object(ctx.span_attrs, prefix) {
+            Some((object, keys)) => (
+                prefix,
+                object,
+                keys.into_iter().map(OwnedCarrier::attribute).collect(),
+            ),
+            None => return out,
+        },
+        None => {
+            // Event carriers are read from a span's events, not its attributes; no declared rule needs
+            // one yet, and probing the attribute map for an event name would silently match nothing.
+            let Some((attribute, raw)) = resolve_attribute(&rule.read, ctx.span_attrs) else {
+                return out;
             };
-            out.push(Emission {
-                rule_id: &rule.rule_id,
-                evidence: rule_evidence(rule, &clause),
-                // The array attribute is what was read; each element's tag is a name for one of its parts.
-                owns: OwnedCarrier::just(attribute),
-                carrier: tagged,
-                target: rule.target,
-                value,
-            });
+            if rule.require_non_empty && raw.is_empty() {
+                return out;
+            }
+            if rule.require_non_blank && raw.trim().is_empty() {
+                return out;
+            }
+            // An array-valued carrier read element by element, in declared passes.
+            if let Some(elements) = &rule.elements {
+                let Some(parsed) = parse_value(raw, rule.parse.unwrap_or(ParseMode::Json)) else {
+                    return out;
+                };
+                for (carrier, value, clause) in element_passes(&parsed, elements) {
+                    // An event carrier is kept as one: carrier semantics are looked up by kind, so reporting an
+                    // event as an attribute changes what the pipeline reads it as evidence of.
+                    let tagged = if elements.tags_are_events {
+                        EmittedCarrier::OwnedEvent(carrier)
+                    } else {
+                        EmittedCarrier::Owned(carrier)
+                    };
+                    out.push(Emission {
+                        rule_id: &rule.rule_id,
+                        evidence: rule_evidence(rule, &clause),
+                        // The array attribute is what was read; each element's tag is a name for one of its parts.
+                        owns: OwnedCarrier::just(attribute),
+                        carrier: tagged,
+                        target: rule.target,
+                        value,
+                    });
+                }
+                return out;
+            }
+            // A text carrier read as tagged sections, each emitted on its own.
+            if let Some(sections) = &rule.sections {
+                for (route, value) in sectioned(raw, sections) {
+                    out.push(Emission {
+                        rule_id: &rule.rule_id,
+                        evidence: rule_evidence(rule, &[vec![route]]),
+                        carrier: EmittedCarrier::Attribute(
+                            rule.tag_as.as_deref().unwrap_or(attribute),
+                        ),
+                        owns: OwnedCarrier::just(attribute),
+                        target: rule.target,
+                        value,
+                    });
+                }
+                return out;
+            }
+            let Some(parsed) = parse_value(raw, rule.parse.unwrap_or(ParseMode::Json)) else {
+                return out;
+            };
+            (attribute, parsed, OwnedCarrier::just(attribute))
         }
-        return out;
-    }
-    // A text carrier read as tagged sections, each emitted on its own.
-    if let Some(sections) = &rule.sections {
-        for (route, value) in sectioned(raw, sections) {
-            out.push(Emission {
-                rule_id: &rule.rule_id,
-                evidence: rule_evidence(rule, &[vec![route]]),
-                carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
-                owns: OwnedCarrier::just(attribute),
-                target: rule.target,
-                value,
-            });
-        }
-        return out;
-    }
-    let Some(parsed) = parse_value(raw, rule.parse.unwrap_or(ParseMode::Json)) else {
-        return out;
     };
     // A state object its nodes write into: the readings are applied at every node of a bounded walk, so a
     // conversation nested a level or two down is found without trawling the payload for anything
@@ -296,7 +311,7 @@ pub(super) fn emit_rule<'p>(
             rule_id: &rule.rule_id,
             evidence: rule_evidence(rule, &contributing),
             carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
-            owns: OwnedCarrier::just(attribute),
+            owns: owns.clone(),
             target: rule.target,
             value,
         });
@@ -327,11 +342,44 @@ pub(super) fn emit_rule<'p>(
             rule_id: &rule.rule_id,
             evidence: rule_evidence(rule, std::slice::from_ref(&clause)),
             carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
-            owns: OwnedCarrier::just(attribute),
+            owns: owns.clone(),
             target: per_reading_target.unwrap_or(rule.target),
             value,
         });
     }
 
     out
+}
+
+/// A dotted family of span attributes as one object, keyed by what follows the prefix, with the keys it
+/// read; `None` when the span has none of them.
+///
+/// Members are not sniffed by shape: a string attribute that happens to spell a number reads as that
+/// number. The flattening instrumentations write each value's type beside it, and a reading that needs
+/// the distinction can select it.
+fn family_object<'s>(
+    attrs: &'s HashMap<String, String>,
+    prefix: &str,
+) -> Option<(JsonValue, Vec<&'s str>)> {
+    let mut keys: Vec<&str> = attrs
+        .keys()
+        .map(String::as_str)
+        .filter(|key| key.len() > prefix.len() && key.starts_with(prefix))
+        .collect();
+    if keys.is_empty() {
+        return None;
+    }
+    keys.sort_unstable();
+    let object = keys
+        .iter()
+        .map(|key| {
+            // Attribute values arrive as text, an integer included, so a member that spells JSON - a
+            // number, a boolean, an object - is that value; anything else is the text it is.
+            let raw = &attrs[*key];
+            let value = serde_json::from_str::<JsonValue>(raw)
+                .unwrap_or_else(|_| JsonValue::String(raw.clone()));
+            (key[prefix.len()..].to_string(), value)
+        })
+        .collect();
+    Some((JsonValue::Object(object), keys))
 }

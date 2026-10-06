@@ -297,6 +297,10 @@ fn check_attribution(
         {
             continue;
         }
+        // An unexported response has no span of its own to be attributed to.
+        if fact.call.as_deref().is_some_and(|c| context.unexported(c)) {
+            continue;
+        }
         let Some(generation) = context.home_call(fact).and_then(span_of_call) else {
             continue;
         };

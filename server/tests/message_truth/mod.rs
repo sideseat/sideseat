@@ -243,7 +243,10 @@ impl Truths {
         else {
             return Vec::new();
         };
-        check(truth, &recon::from_built(fixture, built, spans))
+        check(
+            &truth.for_fixture(fixture),
+            &recon::from_built(fixture, built, spans),
+        )
     }
 }
 
@@ -481,7 +484,10 @@ fn truth_explain() {
                 continue;
             };
             matched += 1;
-            for violation in check(&truths.documents[key], &recon::build(label, paths)) {
+            for violation in check(
+                &truths.documents[key].for_fixture(label),
+                &recon::build(label, paths),
+            ) {
                 eprintln!("{} - {}", violation.id(), violation.detail);
             }
         }
@@ -527,7 +533,7 @@ fn truth_explain() {
             );
         }
     }
-    for violation in check(&truths.documents[key], &recon) {
+    for violation in check(&truths.documents[key].for_fixture(&fixture), &recon) {
         eprintln!("{} - {}", violation.id(), violation.detail);
     }
 }

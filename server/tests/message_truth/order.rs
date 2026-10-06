@@ -20,14 +20,22 @@ fn constraints(context: &Context<'_>, feed: bool) -> Vec<Constraint> {
             .unwrap_or_default()
     };
     let mut out: Vec<Constraint> = Vec::new();
-    // Part order within one response holds in every view, the feed included.
+    // Part order within one response holds in every view, the feed included - for an unexported
+    // response too, since its calls are executed, and recorded, in the order it lists them. Each of
+    // those is recorded on its own, so the feed, newest first, lists them in reverse.
     for call in &truth.calls {
+        let reversed = feed && context.unexported(&call.id);
         for pair in call.outputs.windows(2) {
+            let (first, second) = if reversed {
+                (&pair[1], &pair[0])
+            } else {
+                (&pair[0], &pair[1])
+            };
             out.push((
                 "order.parts",
                 format!("{}<{}", pair[0], pair[1]),
-                vec![pair[0].clone()],
-                vec![pair[1].clone()],
+                vec![first.clone()],
+                vec![second.clone()],
             ));
         }
     }
@@ -71,12 +79,16 @@ fn constraints(context: &Context<'_>, feed: bool) -> Vec<Constraint> {
                 if !feed {
                     let mut between = inputs_of(b);
                     between.extend(results_of(a));
-                    out.push((
-                        "order.inputs_after_previous",
-                        format!("{a}<inputs({b})"),
-                        outputs(a),
-                        between.clone(),
-                    ));
+                    // An unexported response's calls are known only one by one, each beside its result,
+                    // so nothing places all of them before the results.
+                    if !context.unexported(a) {
+                        out.push((
+                            "order.inputs_after_previous",
+                            format!("{a}<inputs({b})"),
+                            outputs(a),
+                            between,
+                        ));
+                    }
                     out.push((
                         "order.inputs_before_next",
                         format!("inputs({b})<{b}"),
@@ -175,7 +187,12 @@ fn check_sequence(
         let mut group = 0usize;
         let mut in_inputs = false;
         for id in &conversation.sequence {
-            let output = context.fact(id).is_some_and(|f| f.call.is_some());
+            // An unexported response's parts are not a response anyone recorded: with their results they
+            // form one run of inputs, which may permute.
+            let output = context
+                .fact(id)
+                .and_then(|f| f.call.as_deref())
+                .is_some_and(|c| !context.unexported(c));
             if output || !in_inputs {
                 group += 1;
             }

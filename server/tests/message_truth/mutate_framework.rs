@@ -65,6 +65,7 @@ pub(super) fn restate_prompt(truth: &mut Truth, recon: &mut Recon, copies: usize
         reason: "framework_restates_prompt".to_string(),
         detail: "restated by a test".to_string(),
         subject: Some(second),
+        modes: Vec::new(),
     });
     let trace = recon.views[view].blocks[at].trace.clone();
     let text = format!(

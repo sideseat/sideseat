@@ -387,7 +387,7 @@ fn truth_rubric_rejects_each_mutation() {
             let paths = fixtures
                 .get(*fixture)
                 .unwrap_or_else(|| panic!("mutation pool fixture {fixture} is missing"));
-            let truth = truths.documents[&truths.of_fixture[*fixture]].clone();
+            let truth = truths.documents[&truths.of_fixture[*fixture]].for_fixture(fixture);
             let recon = super::recon::build(fixture, paths);
             let baseline = observed(&truth, &recon);
             (truth, recon, baseline)

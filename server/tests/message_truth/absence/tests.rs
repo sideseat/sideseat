@@ -409,3 +409,55 @@ fn a_gap_on_a_fact_the_capture_shows_is_refused() {
         );
     }
 }
+
+/// A response with one call is still present when a message holds its arguments, whatever became of
+/// the id; an execution span holding only the arguments does not make it so.
+#[test]
+fn a_response_is_present_when_a_message_holds_its_call() {
+    let fact = call_fact();
+    let response = Claim::Response(vec![&fact]);
+    let message = serde_json::json!([{"role": "assistant", "parts": [
+        {"type": "tool_call", "name": "get_weather", "arguments": {"city": "Paris", "days": 2}}]}]);
+    assert!(present(prove_claim(
+        &response,
+        &attribute(string(&message.to_string()))
+    )));
+    let execution = span(|s| {
+        s.attributes
+            .push(kv("gen_ai.tool.name", string("get_weather")));
+        s.attributes.push(kv(
+            "gen_ai.tool.call.arguments",
+            string(r#"{"city": "Paris", "days": 2}"#),
+        ));
+    });
+    assert_eq!(prove_claim(&response, &execution), Proof::Absent);
+}
+
+/// The model's id for a call is absent, but the span executing it names the call under another: the
+/// call could be shown under that one, so its id cannot be declared unexported.
+#[test]
+fn an_id_is_not_unexported_where_the_call_carries_another() {
+    let fact = call_fact();
+    let execution = |with_id: bool| {
+        span(|s| {
+            s.attributes
+                .push(kv("gen_ai.tool.name", string("get_weather")));
+            s.attributes.push(kv(
+                "gen_ai.tool.call.arguments",
+                string(r#"{"city": "Paris", "days": 2}"#),
+            ));
+            if with_id {
+                s.attributes
+                    .push(kv("gen_ai.tool.call.id", string("framework-7")));
+            }
+        })
+    };
+    assert!(matches!(
+        prove_claim(&Claim::Id(&fact), &execution(true)),
+        Proof::Partial(_)
+    ));
+    assert_eq!(
+        prove_claim(&Claim::Id(&fact), &execution(false)),
+        Proof::Absent
+    );
+}

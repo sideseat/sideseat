@@ -24,5 +24,133 @@
       "slug": "agno",
       "label": "Agno"
     }
+  ],
+  "messages": [
+    {
+      "id": "agno.llm_output_messages",
+      "doc": "A model call's response as Agno's instrumentor wrote it before it emitted `llm.output_messages`: the `output.value` of the LLM span holds the turns the call produced, as `{\"messages\": [...]}` or as the bare list. Read only where the indexed output family is absent, since later releases write both and the family is the richer copy.",
+      "instrumentation_scope": {
+        "name": "openinference.instrumentation.agno"
+      },
+      "when": {
+        "attr_equals": [
+          {
+            "key": "openinference.span.kind",
+            "value": "LLM"
+          }
+        ]
+      },
+      "unless": {
+        "attr_exists": [
+          "llm.output_messages.0.message.role"
+        ]
+      },
+      "read": {
+        "attribute": "output.value"
+      },
+      "parse": "json",
+      "alternatives": [
+        {
+          "id": "messages",
+          "doc": "One message each.",
+          "select": "$.messages",
+          "each": true,
+          "require": {
+            "all": [
+              {
+                "path": "$.role",
+                "kind": "string",
+                "non_empty": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "list",
+          "doc": "A call that only called tools writes the bare list.",
+          "select": "$",
+          "require": {
+            "all": [
+              {
+                "path": "$.role",
+                "kind": "string",
+                "non_empty": true
+              }
+            ]
+          },
+          "each": true
+        }
+      ],
+      "emit": "message",
+      "legacy_rank": 2020
+    },
+    {
+      "id": "agno.tool_output_literal",
+      "doc": "A TOOL span's result as Agno records it: the Python `str()` of what the tool returned, so a dict arrives single-quoted. Read as the value it renders, with the tool's name - the span carries no call id, and query-time correlation pairs the result with the oldest unclaimed call of that name. A result that is not a whole Python container falls through to `agno.tool_output`.",
+      "instrumentation_scope": {
+        "name": "openinference.instrumentation.agno"
+      },
+      "when": {
+        "attr_equals_ignore_case": [
+          {
+            "key": "openinference.span.kind",
+            "value": "tool"
+          }
+        ]
+      },
+      "read": {
+        "attribute": "output.value"
+      },
+      "parse": "python_literal",
+      "wrap": {
+        "role": "tool",
+        "block": {
+          "type": "tool_result",
+          "attach": [
+            {
+              "from": "tool.name",
+              "as": "name"
+            }
+          ]
+        }
+      },
+      "emit": "message",
+      "legacy_rank": 2021,
+      "reads_tool_spans": true
+    },
+    {
+      "id": "agno.tool_output",
+      "doc": "The same result when it is JSON or text, with the tool's name.",
+      "instrumentation_scope": {
+        "name": "openinference.instrumentation.agno"
+      },
+      "when": {
+        "attr_equals_ignore_case": [
+          {
+            "key": "openinference.span.kind",
+            "value": "tool"
+          }
+        ]
+      },
+      "read": {
+        "attribute": "output.value"
+      },
+      "parse": "json_or_string",
+      "wrap": {
+        "role": "tool",
+        "block": {
+          "type": "tool_result",
+          "attach": [
+            {
+              "from": "tool.name",
+              "as": "name"
+            }
+          ]
+        }
+      },
+      "emit": "message",
+      "legacy_rank": 2022,
+      "reads_tool_spans": true
+    }
   ]
 }

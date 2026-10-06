@@ -157,11 +157,23 @@
       "messages": []
     },
     "trace-1/calculate/span-7": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
       "tool_names": [],
       "tool_definition_count": 1,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"name\":\"calculate\",\"content\":395.0}",
+          "content_digest": "3b7619b4735216e4",
+          "tool_name": "calculate",
+          "observation_type": "tool"
+        }
+      ]
     },
     "trace-1/mcp-tools/span-1": {
       "message_count": 0,
@@ -229,9 +241,10 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "395.0",
-          "content_digest": "a12a9351f3f49694",
-          "observation_type": "generation"
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_017fLAaw5AFeVhkDGUKXnRcJ\",\"name\":\"calculate\",\"content\":395.0}",
+          "content_digest": "1e6dd1c6f002666c",
+          "tool_name": "calculate",
+          "observation_type": "tool"
         },
         {
           "index": 4,
@@ -288,9 +301,10 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "395.0",
-          "content_digest": "a12a9351f3f49694",
-          "observation_type": "generation"
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_017fLAaw5AFeVhkDGUKXnRcJ\",\"name\":\"calculate\",\"content\":395.0}",
+          "content_digest": "1e6dd1c6f002666c",
+          "tool_name": "calculate",
+          "observation_type": "tool"
         },
         {
           "index": 4,
@@ -306,8 +320,8 @@
   "feed_view": {
     "message_count": 5,
     "role_sequence": [
-      "tool",
       "assistant",
+      "tool",
       "system",
       "assistant",
       "user"
@@ -319,19 +333,20 @@
     "messages": [
       {
         "index": 0,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "395.0",
-        "content_digest": "a12a9351f3f49694",
-        "observation_type": "generation"
-      },
-      {
-        "index": 1,
         "role": "assistant",
         "entry_type": "text",
         "content": "(17 × 23) + 4 = **395**.",
         "content_digest": "52aaa6c961cd0f52",
         "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_bdrk_017fLAaw5AFeVhkDGUKXnRcJ\",\"name\":\"calculate\",\"content\":395.0}",
+        "content_digest": "1e6dd1c6f002666c",
+        "tool_name": "calculate",
+        "observation_type": "tool"
       },
       {
         "index": 2,

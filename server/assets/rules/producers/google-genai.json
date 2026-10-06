@@ -2,7 +2,29 @@
   "$schema": "../../rules.schema.json",
   "id": "google-genai",
   "doc": "OpenTelemetry's Google Gen AI instrumentation, which serves both the Gemini Developer API and Vertex AI modes of the `google-genai` client. Identity lives in `vertex-ai.json`; this asset holds the instrumentation's own message shapes.",
-  "carriers": [],
+  "carriers": [
+    {
+      "id": "google-genai.attr.tool_call_parameters",
+      "doc": "The arguments an `execute_tool` span was handed, read from its flattened `code.function.parameters` family: the span's input, like the conventions' arguments attribute.",
+      "match": {
+        "attribute": "google_genai.tool_call.parameters"
+      },
+      "facts": {
+        "preset": "emission",
+        "carrier_holds_span_output": false
+      }
+    },
+    {
+      "id": "google-genai.attr.tool_call_return",
+      "doc": "That span's own result in the same releases: one emission, as the conventions' result attribute is.",
+      "match": {
+        "attribute": "code.function.return.value"
+      },
+      "facts": {
+        "preset": "emission"
+      }
+    }
+  ],
   "content_blocks": [
     {
       "id": "google-genai.blob_part",
@@ -38,9 +60,12 @@
   "messages": [
     {
       "id": "google-genai.tool_call_arguments",
-      "doc": "A function the client called itself, recorded on its `execute_tool` span. The instrumentation writes each argument as `code.function.parameters.<name>.value` beside its Python type, so the arguments the model sent are those members, not the object; read as written, the call matched no copy of itself on the model span and appeared twice. Arguments in any other shape fall through to the semantic-conventions rule.",
+      "doc": "A function the client called itself, recorded on its `execute_tool` span. The instrumentation writes each argument as `code.function.parameters.<name>.value` beside its Python type, so the arguments the model sent are those members, not the object; read as written, the call matched no copy of itself on the model span and appeared twice. Arguments in any other shape fall through to the semantic-conventions rule. Releases before 1.1 emit the same spans through OpenTelemetry's shared GenAI handler, under that handler's scope.",
       "instrumentation_scope": {
-        "name": "opentelemetry.instrumentation.google_genai"
+        "one_of": [
+          "opentelemetry.instrumentation.google_genai",
+          "opentelemetry.util.genai.handler"
+        ]
       },
       "read": {
         "attribute": "gen_ai.tool.call.arguments"
@@ -76,6 +101,85 @@
       },
       "emit": "message",
       "legacy_rank": 155,
+      "reads_tool_spans": true
+    },
+    {
+      "id": "google-genai.tool_call_parameters",
+      "doc": "The same call as written by releases before 0.8, which put each argument on the `execute_tool` span itself as `code.function.parameters.<name>.value` instead of in `gen_ai.tool.call.arguments`. The family is read as one object and the `.value` members are the arguments.",
+      "instrumentation_scope": {
+        "one_of": [
+          "opentelemetry.instrumentation.google_genai",
+          "opentelemetry.util.genai.handler"
+        ]
+      },
+      "read": {
+        "family": "code.function.parameters."
+      },
+      "alternatives": [
+        {
+          "id": "flattened_parameters",
+          "collect_members": {
+            "prefix": "",
+            "suffix": ".value"
+          }
+        }
+      ],
+      "wrap": {
+        "role": "assistant",
+        "block": {
+          "type": "tool_use",
+          "content_as": "input",
+          "attach": [
+            {
+              "from": "gen_ai.tool.name",
+              "as": "name",
+              "or_span_name_after": "execute_tool ",
+              "default": ""
+            },
+            {
+              "from": "gen_ai.tool.call.id",
+              "as": "id"
+            }
+          ]
+        }
+      },
+      "emit": "message",
+      "legacy_rank": 156,
+      "reads_tool_spans": true,
+      "tag_as": "google_genai.tool_call.parameters"
+    },
+    {
+      "id": "google-genai.tool_call_return",
+      "doc": "Its result in those releases: `code.function.return.value`, the function's return value as JSON text or a plain string, on the same span. A `tool_result` block named like the semantic-conventions result.",
+      "instrumentation_scope": {
+        "one_of": [
+          "opentelemetry.instrumentation.google_genai",
+          "opentelemetry.util.genai.handler"
+        ]
+      },
+      "read": {
+        "attribute": "code.function.return.value"
+      },
+      "parse": "json_or_string",
+      "wrap": {
+        "role": "tool",
+        "block": {
+          "type": "tool_result",
+          "attach": [
+            {
+              "from": "gen_ai.tool.name",
+              "as": "name",
+              "or_span_name_after": "execute_tool "
+            },
+            {
+              "from": "gen_ai.tool.call.id",
+              "as": "tool_use_id"
+            }
+          ]
+        }
+      },
+      "emit": "message",
+      "legacy_rank": 171,
       "reads_tool_spans": true
     }
   ]

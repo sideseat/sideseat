@@ -147,6 +147,10 @@ describes those captures, not every release of the framework.
 | --- | --- | --- | --- |
 | codex | assistant text (4 in 3 captures) | Codex exports a turn's final reply (codex.agent_response) and nothing the model wrote between tool calls | `native`: error, multi_agent, tool_use |
 | codex | system prompt (4 in 4 captures) | Codex exports no system prompt or instructions, in any signal | `native`: error, multi_agent, multi_turn, tool_use |
+| google-genai | model response (17 in 11 captures) | the model responses that only call functions: automatic function calling records one generate_content span for the whole run, carrying the final answer, so a round's calls appear one execution at a time | `native`: error, tool_use; `native@0.6b0+semconv-latest`: streaming, tool_use; `native@0.7b1+semconv-latest`: streaming, tool_use; `native@1.0b1`: streaming, tool_use; `native@1.1b1`: tool_use; `sdk`: error, tool_use |
+| google-genai | tool call id (29 in 11 captures) | the model's function-call ids: each execute_tool span records the function, its arguments and its result, never the id the model gave the call | `native`: error, tool_use; `native@0.6b0+semconv-latest`: streaming, tool_use; `native@0.7b1+semconv-latest`: streaming, tool_use; `native@1.0b1`: streaming, tool_use; `native@1.1b1`: tool_use; `sdk`: error, tool_use |
+| vertex-ai | model response (14 in 9 captures) | the model responses that only call functions: automatic function calling records one generate_content span for the whole run, carrying the final answer, so a round's calls appear one execution at a time | `native`: error, tool_use; `native@0.7b1+semconv-latest`: streaming, tool_use; `native@1.0b1`: streaming, tool_use; `native@1.1b1`: tool_use; `sdk`: error, tool_use |
+| vertex-ai | tool call id (24 in 9 captures) | the model's function-call ids: each execute_tool span records the function, its arguments and its result, never the id the model gave the call | `native`: error, tool_use; `native@0.7b1+semconv-latest`: streaming, tool_use; `native@1.0b1`: streaming, tool_use; `native@1.1b1`: tool_use; `sdk`: error, tool_use |
 
 {/* END framework-limitations */}
 

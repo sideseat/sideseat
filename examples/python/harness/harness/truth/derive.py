@@ -270,6 +270,14 @@ class Framework:
     #: Scenario -> actions the framework performs before the model's first call (opening a URL the task
     #: names), each ``{action_name: arguments}``.
     initial_actions: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    #: What the framework's telemetry leaves out, by a closed vocabulary, with the reason. Each becomes an
+    #: absence gap the Rust rubric proves against every fixture (``message_truth::absence``):
+    #: ``tool_call_ids`` - the model's tool-call ids (``id_not_exported``); ``tool_calling_rounds`` - the
+    #: responses that only call tools, whose parts are recorded one execution at a time
+    #: (``call_not_exported``). Each value is the reason, or ``{reason, scenarios, modes}`` when only
+    #: some scenarios' - or, by scenario, some releases' (``modes = {streaming = ["native@1.0b1"]}``) -
+    #: telemetry leaves it out.
+    unexported: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def of(cls, table: dict[str, Any] | None) -> "Framework":
@@ -286,6 +294,7 @@ class Framework:
                 scenario: list(actions)
                 for scenario, actions in table.get("initial_actions", {}).items()
             },
+            unexported=dict(table.get("unexported", {})),
         )
 
     def actions(self, name: str, arguments: Any) -> list[tuple[str, Any]] | None:
@@ -641,7 +650,55 @@ def assemble(
                 "prompt_without_model_call",
                 f"the script sends {prompt!r}, but no recorded call answers it",
             )
+    _unexported(builder, framework)
     return builder
+
+
+UNEXPORTED = frozenset({"tool_call_ids", "tool_calling_rounds"})
+
+
+def _unexported(builder: Builder, framework: Framework) -> None:
+    """The suite's declared telemetry omissions as absence gaps, which the rubric proves or refuses."""
+    unknown = set(framework.unexported) - UNEXPORTED
+    if unknown:
+        raise ValueError(f"unknown unexported content {sorted(unknown)}")
+
+    def declared(content: str) -> tuple[str, list[str]] | None:
+        """The reason and the capture modes it holds for (all when none are named)."""
+        entry = framework.unexported.get(content)
+        if isinstance(entry, dict):
+            if "scenarios" in entry and builder.scenario not in entry["scenarios"]:
+                return None
+            modes = entry.get("modes", {})
+            if isinstance(modes, dict):
+                modes = modes.get(builder.scenario, [])
+            return entry["reason"], list(modes)
+        return (entry, []) if entry else None
+
+    def gap(
+        fact: str, reason: str, detail: tuple[str, list[str]], subject: str
+    ) -> None:
+        entry: dict[str, Any] = {
+            "fact": fact,
+            "reason": reason,
+            "detail": detail[0],
+            "subject": subject,
+        }
+        if detail[1]:
+            entry["modes"] = detail[1]
+        if entry not in builder.gaps:
+            builder.gaps.append(entry)
+
+    facts = {fact["id"]: fact for fact in builder.facts}
+    if detail := declared("tool_calling_rounds"):
+        for record in builder.calls:
+            outputs = [facts[output] for output in record["outputs"]]
+            if outputs and all(fact["kind"] == "tool_call" for fact in outputs):
+                gap("response", "call_not_exported", detail, record["id"])
+    if detail := declared("tool_call_ids"):
+        for fact in builder.facts:
+            if fact["kind"] == "tool_call" and isinstance(fact["value"].get("id"), str):
+                gap("tool_call", "id_not_exported", detail, fact["id"])
 
 
 def _joined_text(parts: list[dict[str, Any]]) -> list[dict[str, Any]]:

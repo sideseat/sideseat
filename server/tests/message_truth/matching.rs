@@ -57,7 +57,18 @@ pub(super) fn match_calls(truth: &Truth, recon: &Recon, out: &mut Vec<Violation>
         .collect();
 
     let mut candidates: BTreeMap<String, BTreeSet<usize>> = BTreeMap::new();
-    for call in truth.calls.iter().filter(|c| c.succeeded()) {
+    // A response proven absent from the telemetry has no span to find.
+    let unexported: BTreeSet<&str> = truth
+        .gaps
+        .iter()
+        .filter(|g| g.reason == "call_not_exported")
+        .filter_map(|g| g.subject.as_deref())
+        .collect();
+    for call in truth
+        .calls
+        .iter()
+        .filter(|c| c.succeeded() && !unexported.contains(c.id.as_str()))
+    {
         let signature = signature(truth, call);
         if signature.is_empty() {
             matching.unmatchable.insert(call.id.clone());
@@ -296,12 +307,26 @@ fn match_failed_attempts(
 /// carried the value - somewhere in the raw span, as an attribute or inside a JSON payload - and the
 /// pipeline did not read it; a value the producer never exported is not a parsing defect. The span
 /// schema stores an absent count as 0, so for usage "states none" means 0.
+/// One usage count: its assertion, the truth's value, the span's, and how to read it from a call.
+type UsageField = (
+    &'static str,
+    Option<i64>,
+    i64,
+    fn(&super::truth::Usage) -> Option<i64>,
+);
+
 pub(super) fn check_metadata(
     truth: &Truth,
     recon: &Recon,
     matching: &Matching,
     out: &mut Vec<Violation>,
 ) {
+    let unexported: BTreeSet<&str> = truth
+        .gaps
+        .iter()
+        .filter(|g| g.reason == "call_not_exported")
+        .filter_map(|g| g.subject.as_deref())
+        .collect();
     for call in truth.calls.iter().filter(|c| c.succeeded()) {
         let Some(&index) = matching.span_of.get(&call.id) else {
             continue;
@@ -376,6 +401,26 @@ pub(super) fn check_metadata(
         let Some(usage) = &call.usage else {
             continue;
         };
+        // A span that records a run of model calls whose earlier responses the telemetry does not carry
+        // (`call_not_exported`) may report the run's usage: the sum over this call and the unexported
+        // calls immediately before it in its conversation.
+        let run_total = |count: fn(&super::truth::Usage) -> Option<i64>| -> Option<i64> {
+            let position = truth.calls.iter().position(|c| c.id == call.id)?;
+            let earlier: Vec<&Call> = truth.calls[..position]
+                .iter()
+                .rev()
+                .filter(|c| c.conversation == call.conversation && c.succeeded())
+                .take_while(|c| unexported.contains(c.id.as_str()))
+                .collect();
+            if earlier.is_empty() {
+                return None;
+            }
+            earlier
+                .iter()
+                .chain(std::iter::once(&call))
+                .map(|c| c.usage.as_ref().and_then(count))
+                .sum()
+        };
         let cache = usage.cache_read.unwrap_or(0) + usage.cache_write.unwrap_or(0);
         if let Some(input) = usage.input {
             // Providers disagree on whether input counts cached tokens; either convention is a
@@ -386,7 +431,12 @@ pub(super) fn check_metadata(
                 input + cache
             };
             let reported = generation.input != 0 || carried.number(input) || carried.number(other);
-            if generation.input != input && generation.input != other && reported {
+            if generation.input != input
+                && generation.input != other
+                && !(run_total(|u| u.input) == Some(generation.input)
+                    && carried.number(generation.input))
+                && reported
+            {
                 differ(
                     "call.usage.input",
                     &input.to_string(),
@@ -394,27 +444,33 @@ pub(super) fn check_metadata(
                 );
             }
         }
-        let fields = [
-            ("call.usage.output", usage.output, generation.output),
+        let fields: [UsageField; 4] = [
+            ("call.usage.output", usage.output, generation.output, |u| {
+                u.output
+            }),
             (
                 "call.usage.cache_read",
                 usage.cache_read,
                 generation.cache_read,
+                |u| u.cache_read,
             ),
             (
                 "call.usage.cache_write",
                 usage.cache_write,
                 generation.cache_write,
+                |u| u.cache_write,
             ),
             (
                 "call.usage.reasoning",
                 usage.reasoning,
                 generation.reasoning,
+                |u| u.reasoning,
             ),
         ];
-        for (assertion, expected, actual) in fields {
+        for (assertion, expected, actual, count) in fields {
             if let Some(e) = expected
                 && actual != e
+                && !(run_total(count) == Some(actual) && carried.number(actual))
                 && (actual != 0 || carried.number(e))
             {
                 differ(assertion, &e.to_string(), actual.to_string());

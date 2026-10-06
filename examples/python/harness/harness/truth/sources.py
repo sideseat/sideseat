@@ -175,7 +175,9 @@ def build(target: Target) -> dict[str, Any]:
     fixtures = fixtures_of(target.producer, target.scenario)
     if capture.uses_fake_model(suite, None):
         surface = models.resolve(suite.manifest["default-model"]).surface
-        return fake(target, surface, fixtures)
+        return fake(
+            target, surface, fixtures, Framework.of(suite.manifest.get("truth"))
+        )
     cassette = suite.root / "cassettes" / f"{target.scenario}.json"
     if not cassette.exists():
         raise Underivable(f"no cassette at {_relative(cassette)}")
@@ -468,13 +470,22 @@ def fake_calls(surface: str, scenario: str) -> list[ModelCall]:
     return calls
 
 
-def fake(target: Target, surface: str, fixtures: list[str]) -> dict[str, Any]:
+def fake(
+    target: Target,
+    surface: str,
+    fixtures: list[str],
+    framework: Framework | None = None,
+) -> dict[str, Any]:
     calls = fake_calls(surface, target.scenario)
     builder = assemble(
         target.producer,
         target.scenario,
         calls,
-        options=Options(metadata_from_wire=False, answers_follow_results=True),
+        options=Options(
+            metadata_from_wire=False,
+            answers_follow_results=True,
+            framework=framework or Framework(),
+        ),
     )
     for record in builder.calls:
         if record["api"] != "gemini.generate_content":

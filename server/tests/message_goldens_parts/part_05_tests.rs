@@ -811,14 +811,6 @@ fn no_declared_rule_is_dead_across_the_corpus() {
             "pydantic-ai.tool_response",
             "Pydantic AI 2.50 emits gen_ai.tool.call.result instead of this legacy key",
         ),
-        (
-            "semconv.indexed_completion",
-            "no captured producer uses the indexed convention spelling",
-        ),
-        (
-            "semconv.indexed_prompt",
-            "no captured producer uses the indexed convention spelling",
-        ),
     ];
 
     let declared = declared_rule_ids();

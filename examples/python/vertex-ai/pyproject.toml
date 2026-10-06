@@ -17,6 +17,22 @@ integrations = ["vertex-ai"]
 # which serves the Vertex AI publisher-model routes.
 default-model = "fake-gemini"
 
+# What the Google Gen AI instrumentation leaves out of its telemetry, for the truth derivation
+# (`python -m harness truth`); each is proven absent from every capture by the rubric. With automatic
+# function calling the client runs several model calls inside one `generate_content`, and the
+# instrumentation records one span for the run - its final answer - and one `execute_tool` span per
+# function it ran, without the model's call id. A streamed run records each model call.
+[tool.sideseat-example.truth.unexported.tool_call_ids]
+reason = "the model's function-call ids: each execute_tool span records the function, its arguments and its result, never the id the model gave the call"
+scenarios = ["tool_use", "error", "streaming"]
+# Releases before 1.1 record a streamed call's functions the same way; later ones keep the model's ids.
+modes = { streaming = ["native@0.7b1+semconv-latest", "native@1.0b1"] }
+
+[tool.sideseat-example.truth.unexported.tool_calling_rounds]
+reason = "the model responses that only call functions: automatic function calling records one generate_content span for the whole run, carrying the final answer, so a round's calls appear one execution at a time"
+scenarios = ["tool_use", "error", "streaming"]
+modes = { streaming = ["native@0.7b1+semconv-latest", "native@1.0b1"] }
+
 [tool.uv]
 required-version = "==0.12.13"
 package = false
