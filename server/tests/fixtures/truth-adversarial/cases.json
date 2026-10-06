@@ -298,11 +298,17 @@
      "op": "replace",
      "path": "/calls/1/finish",
      "value": "length"
+    },
+    {
+     "op": "replace",
+     "path": "/calls/1/stop_reason",
+     "value": "max_tokens"
     }
    ],
    "fires": [
     "call:call.finish:call-002"
-   ]
+   ],
+   "why": "the span's finish agrees with neither the normalised category nor the provider's own word"
   },
   {
    "name": "input usage differs",

@@ -202,8 +202,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
-          "content_digest": "7ea12665788ee1ee",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_get_weather_dd57980a1fd3\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
+          "content_digest": "83ddc41001380384",
           "tool_name": "get_weather",
           "observation_type": "generation"
         },
@@ -211,8 +211,8 @@
           "index": 3,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
-          "content_digest": "8973386b9db4114d",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_get_weather_dfbbe93c6080\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
+          "content_digest": "6c24443e4834b3f9",
           "tool_name": "get_weather",
           "observation_type": "generation"
         }
@@ -289,8 +289,8 @@
           "index": 6,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "507cc958be8ddb7f",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_get_precipitation_9fdb3833e046\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "835d5c9e7bfd4796",
           "tool_name": "get_precipitation",
           "observation_type": "generation"
         },
@@ -298,8 +298,8 @@
           "index": 7,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
-          "content_digest": "1b2090a5133b4bd5",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_get_precipitation_d402837ea33e\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
+          "content_digest": "ea2db8180a1aeaf0",
           "tool_name": "get_precipitation",
           "observation_type": "generation"
         }
@@ -352,8 +352,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
-          "content_digest": "7ea12665788ee1ee",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_get_weather_dd57980a1fd3\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
+          "content_digest": "83ddc41001380384",
           "tool_name": "get_weather",
           "observation_type": "generation"
         },
@@ -361,8 +361,8 @@
           "index": 3,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
-          "content_digest": "8973386b9db4114d",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_get_weather_dfbbe93c6080\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
+          "content_digest": "6c24443e4834b3f9",
           "tool_name": "get_weather",
           "observation_type": "generation"
         },
@@ -371,7 +371,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}",
-          "content_digest": "b70441c4e83b7b52",
+          "content_digest": "72b97b8e1b2a342f",
           "tool_name": "get_weather",
           "observation_type": "generation"
         },
@@ -380,7 +380,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}",
-          "content_digest": "4bb3f18dac7a08cb",
+          "content_digest": "5743d3ff525cc398",
           "tool_name": "get_weather",
           "observation_type": "generation"
         },
@@ -388,8 +388,8 @@
           "index": 6,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "507cc958be8ddb7f",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_get_precipitation_9fdb3833e046\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "835d5c9e7bfd4796",
           "tool_name": "get_precipitation",
           "observation_type": "generation"
         },
@@ -397,8 +397,8 @@
           "index": 7,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
-          "content_digest": "1b2090a5133b4bd5",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_get_precipitation_d402837ea33e\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
+          "content_digest": "ea2db8180a1aeaf0",
           "tool_name": "get_precipitation",
           "observation_type": "generation"
         },
@@ -407,7 +407,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "10% chance of rain in Paris tomorrow.",
-          "content_digest": "dbf0a83d98c24c41",
+          "content_digest": "fa04924be764d0fd",
           "tool_name": "get_precipitation",
           "observation_type": "generation"
         },
@@ -416,7 +416,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "80% chance of rain in Tokyo tomorrow.",
-          "content_digest": "1f78000ee68a7e8a",
+          "content_digest": "375be2d57aa16576",
           "tool_name": "get_precipitation",
           "observation_type": "generation"
         },
@@ -471,8 +471,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
-          "content_digest": "7ea12665788ee1ee",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_get_weather_dd57980a1fd3\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
+          "content_digest": "83ddc41001380384",
           "tool_name": "get_weather",
           "observation_type": "generation"
         },
@@ -480,8 +480,8 @@
           "index": 3,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
-          "content_digest": "8973386b9db4114d",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_get_weather_dfbbe93c6080\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
+          "content_digest": "6c24443e4834b3f9",
           "tool_name": "get_weather",
           "observation_type": "generation"
         },
@@ -490,7 +490,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}",
-          "content_digest": "b70441c4e83b7b52",
+          "content_digest": "72b97b8e1b2a342f",
           "tool_name": "get_weather",
           "observation_type": "generation"
         },
@@ -499,7 +499,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}",
-          "content_digest": "4bb3f18dac7a08cb",
+          "content_digest": "5743d3ff525cc398",
           "tool_name": "get_weather",
           "observation_type": "generation"
         },
@@ -507,8 +507,8 @@
           "index": 6,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "507cc958be8ddb7f",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_get_precipitation_9fdb3833e046\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "835d5c9e7bfd4796",
           "tool_name": "get_precipitation",
           "observation_type": "generation"
         },
@@ -516,8 +516,8 @@
           "index": 7,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
-          "content_digest": "1b2090a5133b4bd5",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_get_precipitation_d402837ea33e\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
+          "content_digest": "ea2db8180a1aeaf0",
           "tool_name": "get_precipitation",
           "observation_type": "generation"
         },
@@ -526,7 +526,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "10% chance of rain in Paris tomorrow.",
-          "content_digest": "dbf0a83d98c24c41",
+          "content_digest": "fa04924be764d0fd",
           "tool_name": "get_precipitation",
           "observation_type": "generation"
         },
@@ -535,7 +535,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "80% chance of rain in Tokyo tomorrow.",
-          "content_digest": "1f78000ee68a7e8a",
+          "content_digest": "375be2d57aa16576",
           "tool_name": "get_precipitation",
           "observation_type": "generation"
         },
@@ -583,7 +583,7 @@
         "role": "tool",
         "entry_type": "tool_result",
         "content": "10% chance of rain in Paris tomorrow.",
-        "content_digest": "dbf0a83d98c24c41",
+        "content_digest": "fa04924be764d0fd",
         "tool_name": "get_precipitation",
         "observation_type": "generation"
       },
@@ -592,7 +592,7 @@
         "role": "tool",
         "entry_type": "tool_result",
         "content": "80% chance of rain in Tokyo tomorrow.",
-        "content_digest": "1f78000ee68a7e8a",
+        "content_digest": "375be2d57aa16576",
         "tool_name": "get_precipitation",
         "observation_type": "generation"
       },
@@ -601,7 +601,7 @@
         "role": "tool",
         "entry_type": "tool_result",
         "content": "{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}",
-        "content_digest": "b70441c4e83b7b52",
+        "content_digest": "72b97b8e1b2a342f",
         "tool_name": "get_weather",
         "observation_type": "generation"
       },
@@ -610,7 +610,7 @@
         "role": "tool",
         "entry_type": "tool_result",
         "content": "{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}",
-        "content_digest": "4bb3f18dac7a08cb",
+        "content_digest": "5743d3ff525cc398",
         "tool_name": "get_weather",
         "observation_type": "generation"
       },
@@ -618,8 +618,8 @@
         "index": 5,
         "role": "assistant",
         "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
-        "content_digest": "507cc958be8ddb7f",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call_get_precipitation_9fdb3833e046\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
+        "content_digest": "835d5c9e7bfd4796",
         "tool_name": "get_precipitation",
         "observation_type": "generation"
       },
@@ -627,8 +627,8 @@
         "index": 6,
         "role": "assistant",
         "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
-        "content_digest": "1b2090a5133b4bd5",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call_get_precipitation_d402837ea33e\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
+        "content_digest": "ea2db8180a1aeaf0",
         "tool_name": "get_precipitation",
         "observation_type": "generation"
       },
@@ -652,8 +652,8 @@
         "index": 9,
         "role": "assistant",
         "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
-        "content_digest": "7ea12665788ee1ee",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call_get_weather_dd57980a1fd3\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
+        "content_digest": "83ddc41001380384",
         "tool_name": "get_weather",
         "observation_type": "generation"
       },
@@ -661,8 +661,8 @@
         "index": 10,
         "role": "assistant",
         "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
-        "content_digest": "8973386b9db4114d",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call_get_weather_dfbbe93c6080\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
+        "content_digest": "6c24443e4834b3f9",
         "tool_name": "get_weather",
         "observation_type": "generation"
       }

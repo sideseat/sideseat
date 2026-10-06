@@ -90,6 +90,23 @@
           },
           "on_malformed": "continue",
           "doc": "The usage object a generation records, whose member names follow whichever API answered."
+        },
+        {
+          "id": "genkit_output_input_tokens",
+          "json": {
+            "attribute": "genkit:output",
+            "path": "$.usage.inputTokens"
+          },
+          "when": {
+            "attr_equals": [
+              {
+                "key": "genkit:metadata:subtype",
+                "value": "model"
+              }
+            ]
+          },
+          "on_malformed": "continue",
+          "doc": "The usage a Genkit model action reports beside its response, in Genkit's own spelling."
         }
       ]
     },
@@ -175,6 +192,23 @@
             ]
           },
           "on_malformed": "continue"
+        },
+        {
+          "id": "genkit_output_output_tokens",
+          "json": {
+            "attribute": "genkit:output",
+            "path": "$.usage.outputTokens"
+          },
+          "when": {
+            "attr_equals": [
+              {
+                "key": "genkit:metadata:subtype",
+                "value": "model"
+              }
+            ]
+          },
+          "on_malformed": "continue",
+          "doc": "The usage a Genkit model action reports beside its response, in Genkit's own spelling."
         }
       ]
     },

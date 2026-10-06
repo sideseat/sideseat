@@ -56,8 +56,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"name\":\"weather_specialist\",\"input\":{\"request\":\"deterministic request\"}}",
-          "content_digest": "4077c5c6053374ff",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\",\"input\":{\"request\":\"deterministic request\"}}",
+          "content_digest": "897ed4451c5640b7",
           "tool_name": "weather_specialist",
           "finish_reason": "Stop",
           "observation_type": "generation"
@@ -209,8 +209,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"name\":\"weather_specialist\",\"input\":{\"request\":\"deterministic request\"}}",
-          "content_digest": "4077c5c6053374ff",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\",\"input\":{\"request\":\"deterministic request\"}}",
+          "content_digest": "897ed4451c5640b7",
           "tool_name": "weather_specialist",
           "finish_reason": "Stop",
           "observation_type": "generation"
@@ -245,7 +245,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "This is a deterministic local response.",
-          "content_digest": "7c6ae846cde000d2",
+          "content_digest": "a7f3058517379106",
           "tool_name": "weather_specialist",
           "observation_type": "generation"
         },
@@ -297,8 +297,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"name\":\"weather_specialist\",\"input\":{\"request\":\"deterministic request\"}}",
-          "content_digest": "4077c5c6053374ff",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\",\"input\":{\"request\":\"deterministic request\"}}",
+          "content_digest": "897ed4451c5640b7",
           "tool_name": "weather_specialist",
           "finish_reason": "Stop",
           "observation_type": "generation"
@@ -333,7 +333,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "This is a deterministic local response.",
-          "content_digest": "7c6ae846cde000d2",
+          "content_digest": "a7f3058517379106",
           "tool_name": "weather_specialist",
           "observation_type": "generation"
         },
@@ -378,7 +378,7 @@
         "role": "tool",
         "entry_type": "tool_result",
         "content": "This is a deterministic local response.",
-        "content_digest": "7c6ae846cde000d2",
+        "content_digest": "a7f3058517379106",
         "tool_name": "weather_specialist",
         "observation_type": "generation"
       },
@@ -427,8 +427,8 @@
         "index": 7,
         "role": "assistant",
         "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"name\":\"weather_specialist\",\"input\":{\"request\":\"deterministic request\"}}",
-        "content_digest": "4077c5c6053374ff",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call_weather_specialist_63d74bb0a4c7\",\"name\":\"weather_specialist\",\"input\":{\"request\":\"deterministic request\"}}",
+        "content_digest": "897ed4451c5640b7",
         "tool_name": "weather_specialist",
         "finish_reason": "Stop",
         "observation_type": "generation"

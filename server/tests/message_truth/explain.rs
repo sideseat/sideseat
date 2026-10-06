@@ -185,7 +185,11 @@ fn check_unexplained(
     let mut allowance = Allowance::of(context, assigned);
     let mut system_seen: BTreeSet<(&str, &str)> = BTreeSet::new();
     let mut unexplained: BTreeMap<&str, (usize, &Block)> = BTreeMap::new();
-    for (at, (_, _, block)) in scope.blocks.iter().enumerate() {
+    // The block an unknowable answer's slot explained last, as (view, index, span): the next block of
+    // the same span is that answer's next segment when it is assistant text too - a streamed answer
+    // arrives as consecutive text parts, and the truth cannot know where it was split.
+    let mut answer_run: Option<(usize, usize, &str, &str)> = None;
+    for (at, (view, index, block)) in scope.blocks.iter().enumerate() {
         if claimed.contains(&at) || claimed_digests.contains(block.identity.as_str()) {
             continue;
         }
@@ -205,6 +209,17 @@ fn check_unexplained(
                     ))
             }
             ("assistant", "thinking" | "redacted_thinking") => allowance.take("reasoning", trace),
+            // A segment, not a copy: a block repeating the one before it is a duplicate.
+            ("assistant", "text")
+                if answer_run.is_some_and(|(v, i, span, digest)| {
+                    v == *view
+                        && i + 1 == *index
+                        && span == block.span.as_str()
+                        && digest != block.digest.as_str()
+                }) =>
+            {
+                true
+            }
             ("assistant", "text" | "json") => allowance.take("text", trace),
             ("tool", "tool_result") => {
                 routed
@@ -221,6 +236,12 @@ fn check_unexplained(
             }
             _ => false,
         };
+        answer_run = (explained && block.role == "assistant" && block.kind == "text").then_some((
+            *view,
+            *index,
+            block.span.as_str(),
+            block.digest.as_str(),
+        ));
         if !explained {
             unexplained
                 .entry(block.digest.as_str())

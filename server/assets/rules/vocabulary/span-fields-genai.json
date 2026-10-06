@@ -465,6 +465,24 @@
           },
           "on_malformed": "continue",
           "doc": "The same generation result under the conventions' old completion key, which is where LangSmith's OpenTelemetry mode writes a chat model run: each generation keeps the provider's response metadata, Bedrock Converse's `stopReason` there."
+        },
+        {
+          "id": "genkit_output_finish_reason",
+          "json": {
+            "attribute": "genkit:output",
+            "path": "$.finishReason",
+            "scalar_only": true
+          },
+          "when": {
+            "attr_equals": [
+              {
+                "key": "genkit:metadata:subtype",
+                "value": "model"
+              }
+            ]
+          },
+          "on_malformed": "continue",
+          "doc": "Why a Genkit model action stopped, which Genkit states beside its response."
         }
       ]
     },

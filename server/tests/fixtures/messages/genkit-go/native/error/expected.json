@@ -63,8 +63,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"name\":\"book_flight\",\"input\":{\"date\":\"2026-11-14\",\"destination\":\"Oslo\",\"origin\":\"London\"}}",
-          "content_digest": "880cc17aa4855e61",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_book_flight_ce9747242522\",\"name\":\"book_flight\",\"input\":{\"date\":\"2026-11-14\",\"destination\":\"Oslo\",\"origin\":\"London\"}}",
+          "content_digest": "782f05d1146f168e",
           "tool_name": "book_flight",
           "finish_reason": "Stop",
           "observation_type": "generation"
@@ -162,8 +162,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"name\":\"book_flight\",\"input\":{\"date\":\"2026-11-14\",\"destination\":\"Oslo\",\"origin\":\"London\"}}",
-          "content_digest": "880cc17aa4855e61",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_book_flight_ce9747242522\",\"name\":\"book_flight\",\"input\":{\"date\":\"2026-11-14\",\"destination\":\"Oslo\",\"origin\":\"London\"}}",
+          "content_digest": "782f05d1146f168e",
           "tool_name": "book_flight",
           "finish_reason": "Stop",
           "observation_type": "generation"
@@ -173,7 +173,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
-          "content_digest": "12bc3675ccb0ab80",
+          "content_digest": "5575d94ae8b4eda5",
           "tool_name": "book_flight",
           "observation_type": "generation"
         },
@@ -222,8 +222,8 @@
           "index": 2,
           "role": "assistant",
           "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"name\":\"book_flight\",\"input\":{\"date\":\"2026-11-14\",\"destination\":\"Oslo\",\"origin\":\"London\"}}",
-          "content_digest": "880cc17aa4855e61",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_book_flight_ce9747242522\",\"name\":\"book_flight\",\"input\":{\"date\":\"2026-11-14\",\"destination\":\"Oslo\",\"origin\":\"London\"}}",
+          "content_digest": "782f05d1146f168e",
           "tool_name": "book_flight",
           "finish_reason": "Stop",
           "observation_type": "generation"
@@ -233,7 +233,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
-          "content_digest": "12bc3675ccb0ab80",
+          "content_digest": "5575d94ae8b4eda5",
           "tool_name": "book_flight",
           "observation_type": "generation"
         },
@@ -275,7 +275,7 @@
         "role": "tool",
         "entry_type": "tool_result",
         "content": "BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
-        "content_digest": "12bc3675ccb0ab80",
+        "content_digest": "5575d94ae8b4eda5",
         "tool_name": "book_flight",
         "observation_type": "generation"
       },
@@ -299,8 +299,8 @@
         "index": 4,
         "role": "assistant",
         "entry_type": "tool_use",
-        "content": "{\"type\":\"tool_use\",\"name\":\"book_flight\",\"input\":{\"date\":\"2026-11-14\",\"destination\":\"Oslo\",\"origin\":\"London\"}}",
-        "content_digest": "880cc17aa4855e61",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call_book_flight_ce9747242522\",\"name\":\"book_flight\",\"input\":{\"date\":\"2026-11-14\",\"destination\":\"Oslo\",\"origin\":\"London\"}}",
+        "content_digest": "782f05d1146f168e",
         "tool_name": "book_flight",
         "finish_reason": "Stop",
         "observation_type": "generation"

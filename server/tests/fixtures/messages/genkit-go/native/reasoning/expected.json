@@ -13,10 +13,11 @@
       "messages": []
     },
     "trace-1/googleai/gemini-flash-latest/span-3": {
-      "message_count": 3,
+      "message_count": 4,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -40,6 +41,15 @@
         },
         {
           "index": 2,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "The two slowest should cross together so the 10 absorbs the 5. Shuttling the torch with the two fastest costs 1 + 2 + 2, so the total is 2 + 1 + 10 + 2 + 2.",
+          "content_digest": "2f0893064e8f5a4c",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
           "role": "assistant",
           "entry_type": "text",
           "content": "The fastest crossing takes 17 minutes: 1 and 2 cross (2), 1 returns (1), 5 and 10 cross (10), 2 returns (2), and 1 and 2 cross again (2).",
@@ -59,10 +69,11 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 3,
+      "message_count": 4,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -86,6 +97,15 @@
         },
         {
           "index": 2,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "The two slowest should cross together so the 10 absorbs the 5. Shuttling the torch with the two fastest costs 1 + 2 + 2, so the total is 2 + 1 + 10 + 2 + 2.",
+          "content_digest": "2f0893064e8f5a4c",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
           "role": "assistant",
           "entry_type": "text",
           "content": "The fastest crossing takes 17 minutes: 1 and 2 cross (2), 1 returns (1), 5 and 10 cross (10), 2 returns (2), and 1 and 2 cross again (2).",
@@ -98,10 +118,11 @@
   },
   "session_views": {
     "genkit-go-reasoning": {
-      "message_count": 3,
+      "message_count": 4,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -126,6 +147,15 @@
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "The two slowest should cross together so the 10 absorbs the 5. Shuttling the torch with the two fastest costs 1 + 2 + 2, so the total is 2 + 1 + 10 + 2 + 2.",
+          "content_digest": "2f0893064e8f5a4c",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
           "entry_type": "text",
           "content": "The fastest crossing takes 17 minutes: 1 and 2 cross (2), 1 returns (1), 5 and 10 cross (10), 2 returns (2), and 1 and 2 cross again (2).",
           "content_digest": "b40de4157ba61eb5",
@@ -136,8 +166,9 @@
     }
   },
   "feed_view": {
-    "message_count": 3,
+    "message_count": 4,
     "role_sequence": [
+      "assistant",
       "assistant",
       "system",
       "user"
@@ -148,6 +179,15 @@
       {
         "index": 0,
         "role": "assistant",
+        "entry_type": "thinking",
+        "content": "The two slowest should cross together so the 10 absorbs the 5. Shuttling the torch with the two fastest costs 1 + 2 + 2, so the total is 2 + 1 + 10 + 2 + 2.",
+        "content_digest": "2f0893064e8f5a4c",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
         "entry_type": "text",
         "content": "The fastest crossing takes 17 minutes: 1 and 2 cross (2), 1 returns (1), 5 and 10 cross (10), 2 returns (2), and 1 and 2 cross again (2).",
         "content_digest": "b40de4157ba61eb5",
@@ -155,7 +195,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 1,
+        "index": 2,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -163,7 +203,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 2,
+        "index": 3,
         "role": "user",
         "entry_type": "text",
         "content": "Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the schedule?",

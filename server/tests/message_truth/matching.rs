@@ -380,11 +380,17 @@ pub(super) fn check_metadata(
             }
         }
         if let Some(finish) = call.finish.as_deref() {
-            let expected = FinishReason::from_str_normalized(finish);
+            // The normalised category, or the provider's own word: Gemini answers a function call
+            // with `STOP`, and a span stating `stop` reports exactly what the wire said.
+            let expected: Vec<Option<FinishReason>> = [Some(finish), call.stop_reason.as_deref()]
+                .into_iter()
+                .flatten()
+                .map(FinishReason::from_str_normalized)
+                .collect();
             let agrees = generation
                 .finish
                 .iter()
-                .any(|f| FinishReason::from_str_normalized(f) == expected);
+                .any(|f| expected.contains(&FinishReason::from_str_normalized(f)));
             let words = [Some(finish), call.stop_reason.as_deref()];
             if !agrees
                 && (!generation.finish.is_empty()

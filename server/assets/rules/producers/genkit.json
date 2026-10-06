@@ -105,6 +105,34 @@
       "legacy_rank": 1940,
       "alternatives": [
         {
+          "id": "provider_content",
+          "doc": "The provider's own response, which Genkit keeps under `custom` when the plugin passes it through: the model API's message with the ids the model gave its calls, which Genkit's normalised `message` drops. Read first, with the finish reason Genkit states.",
+          "select": "$.custom.candidates[0].content",
+          "lift": [
+            {
+              "doc": "The finish reason Genkit states beside the response.",
+              "from": "parent",
+              "members": [
+                "finishReason"
+              ],
+              "on_conflict": "keep_target"
+            }
+          ],
+          "require": {
+            "all": [
+              {
+                "path": "$.role",
+                "kind": "string",
+                "non_empty": true
+              },
+              {
+                "path": "$.parts",
+                "kind": "array"
+              }
+            ]
+          }
+        },
+        {
           "id": "message",
           "doc": "The response message.",
           "select": "$.message",
