@@ -32,7 +32,7 @@ for project in web sdk/js examples/javascript docs; do
     (cd "$project" && npm audit --audit-level=high)
 done
 
-# The Python SDK is published. `--all-extras`, because pip-audit examines the installed environment and would
+# The Python SDK is published. Every extra, because pip-audit examines the installed environment and would
 # otherwise never see the optional framework instrumentation. Once per lockfile resolution branch: the lock
 # splits on python_full_version, so one interpreter leaves the other branches unexamined. The branches are read
 # from the lock rather than listed here, so a moved floor or a new split cannot leave one unaudited; a branch
@@ -52,11 +52,32 @@ print(" ".join(f"3.{minor}" for minor in sorted(versions)))
 PY
 )"
 [ -n "$branches" ] || { echo "[audit] no resolution branches found in sdk/python/uv.lock" >&2; exit 1; }
+# Every extra, but not all at once when the project declares extras that cannot be installed together: one
+# environment per member of the conflict groups, each holding every other extra, so together they cover all.
+extra_sets="$(python3 - <<'PY'
+import tomllib
+project = tomllib.load(open("sdk/python/pyproject.toml", "rb"))
+extras = sorted(project["project"].get("optional-dependencies", {}))
+groups = [[item["extra"] for item in group if "extra" in item]
+          for group in project.get("tool", {}).get("uv", {}).get("conflicts", [])]
+conflicting = {extra for group in groups for extra in group}
+free = [extra for extra in extras if extra not in conflicting]
+width = max((len(group) for group in groups), default=1)
+for index in range(width):
+    chosen = free + [group[min(index, len(group) - 1)] for group in groups]
+    print(",".join(sorted(set(chosen))))
+PY
+)"
 for python in $branches; do
-    step "pip-audit (sdk/python, python $python)"
-    (cd sdk/python && uv sync --locked --all-extras --python "$python")
-    uv run --locked --project scripts/tools/audit pip-audit \
-        --path "$(echo sdk/python/.venv/lib/python*/site-packages)"
+    while IFS= read -r extra_set; do
+        step "pip-audit (sdk/python, python $python, extras: $extra_set)"
+        extra_args=()
+        IFS=, read -r -a chosen <<<"$extra_set"
+        for extra in "${chosen[@]}"; do extra_args+=(--extra "$extra"); done
+        (cd sdk/python && uv sync --locked --python "$python" "${extra_args[@]}")
+        uv run --locked --project scripts/tools/audit pip-audit \
+            --path "$(echo sdk/python/.venv/lib/python*/site-packages)"
+    done <<<"$extra_sets"
 done
 
 for tool in scripts/tools/otel-replay scripts/tools/mcp-calculator; do
