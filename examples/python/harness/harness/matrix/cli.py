@@ -154,6 +154,7 @@ def record(
                     env=matrix.profiles[variant.profile],
                     cassettes=matrix.cassettes(variant.version),
                     allow_hosts=matrix.allow_hosts,
+                    timeout=matrix.timeout,
                 )
                 if not result.ok:
                     print(f"[matrix] {label}: FAILED - {'; '.join(result.problems)}")

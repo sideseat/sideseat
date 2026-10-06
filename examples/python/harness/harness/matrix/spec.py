@@ -78,6 +78,9 @@ class Matrix:
     #: Hosts a scenario may reach besides the local proxy and recorder, each declared in ``versions.toml``
     #: with its reason: replay is otherwise offline.
     allow_hosts: tuple[str, ...] = ()
+    #: Seconds a scenario may run; a release that hangs instead of failing would otherwise hold the
+    #: census for the default ten minutes per probe.
+    timeout: float = 600
 
     @property
     def registry(self) -> str:
@@ -136,6 +139,7 @@ def parse(text: str, suite: Path) -> Matrix:
         "modes",
         "era",
         "allow-hosts",
+        "timeout",
     }
     if extra := set(table) - allowed:
         raise MatrixError(f"unknown [matrix] keys {sorted(extra)}")
@@ -267,4 +271,5 @@ def parse(text: str, suite: Path) -> Matrix:
         recordings=recordings,
         language=language,
         allow_hosts=tuple(table.get("allow-hosts", ())),
+        timeout=float(table.get("timeout", 600)),
     )

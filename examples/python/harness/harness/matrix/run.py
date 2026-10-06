@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shlex
 import shutil
+import signal
 import subprocess
 import tempfile
 import threading
@@ -177,13 +178,31 @@ def replay(
 def _run(
     command: list[str], cwd: Path, env: dict[str, str], timeout: float
 ) -> tuple[int, str]:
+    """Run a scenario, and on timeout stop everything it started.
+
+    A scenario starts its own children (npm starts tsx, which starts the Claude Code CLI); killing only the
+    direct child leaves them holding the output pipes, so the wait for its output would never end. The
+    scenario runs in a session of its own, and a timeout kills the whole process group.
+    """
+    process = subprocess.Popen(
+        command,
+        cwd=cwd,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=os.name != "nt",
+    )
     try:
-        completed = subprocess.run(
-            command, cwd=cwd, env=env, capture_output=True, text=True, timeout=timeout
-        )
+        stdout, stderr = process.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
+        if os.name != "nt":
+            os.killpg(process.pid, signal.SIGKILL)
+        else:
+            process.kill()
+        process.communicate()
         return -9, f"timed out after {timeout:.0f}s"
-    return completed.returncode, (completed.stdout + completed.stderr)[-4000:]
+    return process.returncode, (stdout + stderr)[-4000:]
 
 
 def commit(result: Replay, target: Path) -> int:

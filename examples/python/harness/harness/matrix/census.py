@@ -101,6 +101,7 @@ def classify(
             probe,
             env=matrix.profiles[profile],
             cassettes=matrix.cassettes(version),
+            timeout=matrix.timeout,
             allow_hosts=matrix.allow_hosts,
         )
         try:
@@ -196,6 +197,19 @@ def run(
                 results[(release.version, profile)] = entry
             if env_path is not None:
                 environment.remove(env_path)
+            # Written after every release, so an interrupted census resumes with --retry.
+            _write(path, matrix, window, results, shapes)
+    return _write(path, matrix, window, results, shapes)
+
+
+def _write(
+    path: Path,
+    matrix: Matrix,
+    window: list[Release],
+    results: dict[tuple[str, str], dict[str, Any]],
+    shapes: dict[str, list[str]],
+) -> dict[str, Any]:
+    """The census document of what is classified so far, written to ``path``."""
     order = {r.version: i for i, r in enumerate(window)}
     entries = sorted(
         (e for e in results.values() if e["version"] in order),

@@ -1,3 +1,5 @@
+import sys
+import os
 import base64
 import hashlib
 import json
@@ -155,6 +157,35 @@ def test_go_and_jvm_suites_pin_modules_and_catalog_versions(tmp_path: Path) -> N
     )
     with pytest.raises(ValueError, match="no version"):
         gradle.pin(catalog, "other", "1.0")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="process groups are POSIX")
+def test_a_timed_out_scenario_stops_the_children_it_started(tmp_path: Path) -> None:
+    import time
+
+    from harness.matrix.run import _run
+
+    # The scenario starts a grandchild (as npm starts the Claude Code CLI) that would outlive it.
+    pid_file = tmp_path / "grandchild.pid"
+    grandchild = f"import os, time; open({str(pid_file)!r}, 'w').write(str(os.getpid())); time.sleep(60)"
+    command = [
+        sys.executable,
+        "-c",
+        f"import subprocess, sys, time; subprocess.Popen([sys.executable, '-c', {grandchild!r}]); time.sleep(60)",
+    ]
+
+    code, output = _run(command, tmp_path, dict(os.environ), timeout=2)
+
+    assert code == -9 and "timed out" in output
+    pid = int(pid_file.read_text())
+    for _ in range(50):
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            break
+        time.sleep(0.1)
+    else:
+        pytest.fail("the scenario's grandchild outlived the timeout")
 
 
 def test_the_census_window_ends_where_environments_resolve(
