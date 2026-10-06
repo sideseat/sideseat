@@ -203,6 +203,10 @@ release (0.1.63 onwards) emits the suites' own format; 0.1.53 - 0.1.62 call wrap
 newer): 1.1.3 traces the executor's flow nodes, 1.1.4 changes message JSON, 1.1.8 drops the flow-node spans,
 1.1.11 adds a `<tool>.run` span per tool run; 0.1.14 - 1.1.2 call wrapt 1.x and are exempt.
 
+**Langfuse** (69 releases, 4 classes from 4.2): 4.7 adds `langfuse.internal.is_app_root`, 4.9.1 and 4.14
+change message JSON. 3.6 - 4.1 are exempt: the suite hands Langfuse the application's exporter through the
+`span_exporter` argument 4.2 introduced.
+
 Replay gives the scenario an HTTP proxy that refuses everything but loopback, so a release that ignores the
 client it is given (AgentScope 2.0.0 - 2.0.5) fails locally instead of reaching a provider's public API. A suite
 that must reach another host declares it with its reason (`allow-hosts`: LiteLLM routes Bedrock models by

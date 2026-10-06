@@ -4,6 +4,9 @@
  "scenario": "tool_use",
  "fixtures": [
   "langfuse/native/tool_use",
+  "langfuse/native@4.13.2/tool_use",
+  "langfuse/native@4.6.1/tool_use",
+  "langfuse/native@4.9.0/tool_use",
   "langfuse/sdk/tool_use"
  ],
  "source": {

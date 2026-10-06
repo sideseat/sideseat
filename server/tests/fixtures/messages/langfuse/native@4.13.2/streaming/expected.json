@@ -1,0 +1,291 @@
+{
+  "label": "langfuse/native@4.13.2/streaming",
+  "request_count": 1,
+  "span_count": 5,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/OpenAI-generation/span-3": {
+      "message_count": 3,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Check the weather in Rome for the next day and tell me what to wear.",
+          "content_digest": "3801edeb34a2cb29",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_4a0aa0089dd554dbadcf2c8f277c849b\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+          "content_digest": "c2fd1bc4171c4f87",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/OpenAI-generation/span-5": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Check the weather in Rome for the next day and tell me what to wear.",
+          "content_digest": "3801edeb34a2cb29",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_4a0aa0089dd554dbadcf2c8f277c849b\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+          "content_digest": "c2fd1bc4171c4f87",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_4a0aa0089dd554dbadcf2c8f277c849b\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "1b3c7363c161c07b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Rome’s forecast for the next day is sunny with a high of 21°C (70°F). Wear a light top, comfortable trousers or a skirt, and walking shoes; bring a light jacket for cooler hours, plus sunglasses and sunscreen.",
+          "content_digest": "25980b609f4770c4",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/_run_tool/span-4": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/agent/span-2": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/streaming/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Check the weather in Rome for the next day and tell me what to wear.",
+          "content_digest": "3801edeb34a2cb29",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_4a0aa0089dd554dbadcf2c8f277c849b\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+          "content_digest": "c2fd1bc4171c4f87",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_4a0aa0089dd554dbadcf2c8f277c849b\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "1b3c7363c161c07b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Rome’s forecast for the next day is sunny with a high of 21°C (70°F). Wear a light top, comfortable trousers or a skirt, and walking shoes; bring a light jacket for cooler hours, plus sunglasses and sunscreen.",
+          "content_digest": "25980b609f4770c4",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "langfuse-streaming": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 1,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Check the weather in Rome for the next day and tell me what to wear.",
+          "content_digest": "3801edeb34a2cb29",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"call_4a0aa0089dd554dbadcf2c8f277c849b\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+          "content_digest": "c2fd1bc4171c4f87",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_4a0aa0089dd554dbadcf2c8f277c849b\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "1b3c7363c161c07b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Rome’s forecast for the next day is sunny with a high of 21°C (70°F). Wear a light top, comfortable trousers or a skirt, and walking shoes; bring a light jacket for cooler hours, plus sunglasses and sunscreen.",
+          "content_digest": "25980b609f4770c4",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 5,
+    "role_sequence": [
+      "tool",
+      "assistant",
+      "system",
+      "user",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 1,
+    "messages": [
+      {
+        "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_4a0aa0089dd554dbadcf2c8f277c849b\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+        "content_digest": "1b3c7363c161c07b",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Rome’s forecast for the next day is sunny with a high of 21°C (70°F). Wear a light top, comfortable trousers or a skirt, and walking shoes; bring a light jacket for cooler hours, plus sunglasses and sunscreen.",
+        "content_digest": "25980b609f4770c4",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Check the weather in Rome for the next day and tell me what to wear.",
+        "content_digest": "3801edeb34a2cb29",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"call_4a0aa0089dd554dbadcf2c8f277c849b\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+        "content_digest": "c2fd1bc4171c4f87",
+        "tool_name": "get_weather",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

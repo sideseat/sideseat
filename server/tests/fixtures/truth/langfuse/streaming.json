@@ -4,6 +4,9 @@
  "scenario": "streaming",
  "fixtures": [
   "langfuse/native/streaming",
+  "langfuse/native@4.13.2/streaming",
+  "langfuse/native@4.6.1/streaming",
+  "langfuse/native@4.9.0/streaming",
   "langfuse/sdk/streaming"
  ],
  "source": {
