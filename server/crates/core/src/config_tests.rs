@@ -751,3 +751,58 @@ fn a_rejected_setting_keeps_the_configuration_error_prefix() {
         "Configuration error: server.host must not be empty"
     );
 }
+
+/// Every spelling of a secrets backend, in all three directions one `strum` declaration now serves.
+///
+/// The config file's JSON, the `--secrets-backend` flag, and the sentence a startup refusal prints were
+/// three separate tables before - `serde(rename_all)`, `parse_secrets_backend` in `cli.rs`, and an
+/// `as_str` match feeding `Display`. They are asserted together because that is the property that
+/// matters: a backend named in a config file, on the command line and in an error message is the same
+/// backend, spelled the same way.
+#[test]
+fn every_secrets_backend_spelling_is_unchanged_in_every_direction() {
+    use std::str::FromStr;
+
+    let expected = [
+        (SecretsBackend::Keychain, "keychain"),
+        (SecretsBackend::CredentialManager, "credential-manager"),
+        (SecretsBackend::SecretService, "secret-service"),
+        (SecretsBackend::Keyutils, "keyutils"),
+        (SecretsBackend::File, "file"),
+        (SecretsBackend::Env, "env"),
+        (SecretsBackend::Aws, "aws"),
+        (SecretsBackend::Vault, "vault"),
+    ];
+
+    for (backend, spelling) in expected {
+        assert_eq!(backend.to_string(), spelling, "Display changed");
+        assert_eq!(
+            serde_json::from_str::<SecretsBackend>(&format!("\"{spelling}\"")).unwrap(),
+            backend,
+            "the config file spelling changed"
+        );
+        assert_eq!(
+            serde_json::to_string(&backend).unwrap(),
+            format!("\"{spelling}\""),
+        );
+        assert_eq!(
+            SecretsBackend::from_str(spelling).unwrap(),
+            backend,
+            "the CLI spelling changed"
+        );
+        // The CLI parser lowercased its input before matching, so it still has to.
+        assert_eq!(
+            SecretsBackend::from_str(&spelling.to_uppercase()).unwrap(),
+            backend,
+            "the CLI parser was case-insensitive"
+        );
+    }
+
+    // The legacy alias the CLI has always taken, and which is not what `Display` prints.
+    assert_eq!(
+        SecretsBackend::from_str("hashicorp").unwrap(),
+        SecretsBackend::Vault
+    );
+    assert_eq!(SecretsBackend::Vault.to_string(), "vault");
+    assert!(SecretsBackend::from_str("ftp").is_err());
+}

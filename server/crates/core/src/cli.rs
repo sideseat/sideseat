@@ -261,22 +261,18 @@ fn parse_analytics_backend(s: &str) -> Result<AnalyticsBackend, String> {
 }
 
 /// Parse secrets backend from CLI/env string
+///
+/// The spellings are the enum's own `FromStr`; only the refusal wording is this function's.
 fn parse_secrets_backend(s: &str) -> Result<SecretsBackend, String> {
-    match s.to_lowercase().as_str() {
-        "keychain" => Ok(SecretsBackend::Keychain),
-        "credential-manager" => Ok(SecretsBackend::CredentialManager),
-        "secret-service" => Ok(SecretsBackend::SecretService),
-        "keyutils" => Ok(SecretsBackend::Keyutils),
-        "file" => Ok(SecretsBackend::File),
-        "env" => Ok(SecretsBackend::Env),
-        "aws" => Ok(SecretsBackend::Aws),
-        "vault" | "hashicorp" => Ok(SecretsBackend::Vault),
-        _ => Err(format!(
+    use std::str::FromStr;
+
+    SecretsBackend::from_str(s).map_err(|_| {
+        format!(
             "Invalid secrets backend '{}'. Valid: keychain, \
              credential-manager, secret-service, keyutils, file, env, aws, vault",
             s
-        )),
-    }
+        )
+    })
 }
 
 #[derive(Subcommand, Clone, Debug)]

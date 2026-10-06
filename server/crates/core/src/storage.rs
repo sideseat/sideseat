@@ -9,6 +9,7 @@
 use std::path::{Path, PathBuf};
 
 use directories::ProjectDirs;
+use strum::{IntoStaticStr, VariantArray};
 use thiserror::Error;
 
 use super::config::AppConfig;
@@ -33,7 +34,8 @@ pub enum StorageError {
 }
 
 /// Data subdirectories
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, IntoStaticStr, VariantArray)]
+#[strum(serialize_all = "snake_case")]
 pub enum DataSubdir {
     Sqlite,
     Duckdb,
@@ -43,14 +45,9 @@ pub enum DataSubdir {
 }
 
 impl DataSubdir {
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            DataSubdir::Sqlite => "sqlite",
-            DataSubdir::Duckdb => "duckdb",
-            DataSubdir::Debug => "debug",
-            DataSubdir::Files => "files",
-            DataSubdir::FilesTemp => "files_temp",
-        }
+    /// The directory's name on disk.
+    pub fn as_str(&self) -> &'static str {
+        self.into()
     }
 
     /// Returns subdirectories that should always be created.
@@ -200,13 +197,24 @@ async fn create_dir(what: &'static str, path: PathBuf) -> Result<(), StorageErro
 mod tests {
     use super::*;
 
+    /// The directory names on disk, written out.
+    ///
+    /// A changed spelling does not fail to compile; it makes an existing installation's databases
+    /// invisible and silently creates empty ones beside them. `VariantArray` makes a new variant without
+    /// a name here fail instead.
     #[test]
     fn test_data_subdir_as_str() {
-        assert_eq!(DataSubdir::Sqlite.as_str(), "sqlite");
-        assert_eq!(DataSubdir::Duckdb.as_str(), "duckdb");
-        assert_eq!(DataSubdir::Debug.as_str(), "debug");
-        assert_eq!(DataSubdir::Files.as_str(), "files");
-        assert_eq!(DataSubdir::FilesTemp.as_str(), "files_temp");
+        let expected = [
+            (DataSubdir::Sqlite, "sqlite"),
+            (DataSubdir::Duckdb, "duckdb"),
+            (DataSubdir::Debug, "debug"),
+            (DataSubdir::Files, "files"),
+            (DataSubdir::FilesTemp, "files_temp"),
+        ];
+        for (subdir, name) in expected {
+            assert_eq!(subdir.as_str(), name);
+        }
+        assert_eq!(DataSubdir::VARIANTS.len(), expected.len());
     }
 
     #[test]

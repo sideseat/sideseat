@@ -137,8 +137,17 @@ impl fmt::Display for EvictionPolicy {
 // =============================================================================
 
 /// Secrets storage backend type
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+///
+/// One `strum` declaration carries the kebab-case spelling in every direction it is needed: the config
+/// file's JSON (through `serde`), the `--secrets-backend` flag and `SIDESEAT_SECRETS_BACKEND` variable
+/// (through `FromStr`, case-insensitively, as the CLI parser always was), and the name the startup
+/// refusals print (through `Display`). `hashicorp` is accepted as a second spelling of `vault`, and
+/// `vault` is the one printed.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, strum::Display, strum::EnumString,
+)]
 #[serde(rename_all = "kebab-case")]
+#[strum(serialize_all = "kebab-case", ascii_case_insensitive)]
 pub enum SecretsBackend {
     Keychain,
     CredentialManager,
@@ -147,6 +156,8 @@ pub enum SecretsBackend {
     File,
     Env,
     Aws,
+    /// `hashicorp` is the legacy spelling the CLI has always accepted.
+    #[strum(to_string = "vault", serialize = "hashicorp")]
     Vault,
 }
 
@@ -181,25 +192,6 @@ impl SecretsBackend {
                 | Self::Keyutils
                 | Self::File
         )
-    }
-
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Keychain => "keychain",
-            Self::CredentialManager => "credential-manager",
-            Self::SecretService => "secret-service",
-            Self::Keyutils => "keyutils",
-            Self::File => "file",
-            Self::Env => "env",
-            Self::Aws => "aws",
-            Self::Vault => "vault",
-        }
-    }
-}
-
-impl fmt::Display for SecretsBackend {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.as_str())
     }
 }
 
