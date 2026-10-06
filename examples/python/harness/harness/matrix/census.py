@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from harness.capture import Suite
-from harness.matrix import environment
+from harness.matrix import environment, npm
 from harness.matrix.run import replay
 from harness.matrix.shape import digest, shape
 from harness.matrix.spec import CENSUS, Matrix
@@ -33,30 +33,41 @@ class Release:
 
 
 def releases(
-    package: str, since: str, *, prereleases: bool, before: str | None = None
+    package: str,
+    since: str,
+    *,
+    prereleases: bool,
+    before: str | None = None,
+    registry: str = "pypi",
 ) -> list[Release]:
     """Every non-yanked release of ``package`` uploaded on or after ``since``, oldest first.
 
     ``before`` (an ISO 8601 instant) ends the window: a release uploaded at or after the instant every
-    environment resolves as of cannot be installed, and belongs to the next census.
+    environment resolves as of cannot be installed, and belongs to the next census. ``registry`` is
+    ``pypi`` or ``npm``.
     """
     from packaging.version import InvalidVersion, Version
 
-    with urllib.request.urlopen(
-        f"https://pypi.org/pypi/{package}/json", timeout=60
-    ) as response:
-        document = json.load(response)
+    if registry == "npm":
+        uploads = npm.published(package)
+    else:
+        with urllib.request.urlopen(
+            f"https://pypi.org/pypi/{package}/json", timeout=60
+        ) as response:
+            document = json.load(response)
+        uploads = {
+            version: min(f["upload_time_iso_8601"] for f in files)
+            for version, files in document["releases"].items()
+            if files and not all(f.get("yanked") for f in files)
+        }
     found = []
-    for version, files in document["releases"].items():
-        if not files or all(f.get("yanked") for f in files):
-            continue
+    for version, uploaded in uploads.items():
         try:
             parsed = Version(version)
         except InvalidVersion:
             continue
         if parsed.is_devrelease or (parsed.is_prerelease and not prereleases):
             continue
-        uploaded = min(f["upload_time_iso_8601"] for f in files)
         date = uploaded[:10]
         if before is not None and _instant(uploaded) >= _instant(before):
             continue
@@ -81,6 +92,7 @@ def classify(
             probe,
             env=matrix.profiles[profile],
             cassettes=matrix.cassettes(version),
+            allow_hosts=matrix.allow_hosts,
         )
         try:
             if not result.ok:
@@ -106,6 +118,7 @@ def run(
         matrix.since,
         prereleases=matrix.prereleases,
         before=matrix.resolved_before,
+        registry=matrix.registry,
     )
     profiles = sorted(matrix.profiles)
     path = matrix.suite / CENSUS

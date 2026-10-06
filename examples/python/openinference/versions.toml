@@ -1,0 +1,47 @@
+# The historical openinference-instrumentation-bedrock releases this suite is replayed against; see `python -m harness matrix --help`
+# and docs/engineering/framework-versions.md. The OpenInference Bedrock instrumentor writes the spans, so its release history is the window.
+[matrix]
+package = "openinference-instrumentation-bedrock"
+since = "2025-10-05"
+resolved-before = "2026-10-05T00:00:00Z"
+probes = ["tool_use", "streaming"]
+scenarios = ["tool_use", "streaming"]
+
+# Each variant is the newest release of one telemetry class in `versions.census.json`.
+[[variant]]
+version = "0.1.35"
+withheld = { tool_use = "0.1.35 writes a tool-calling turn's output with no message content, which the reconstruction shows as an empty text block that the golden invariants refuse; recorded once the asset drops it (rule-language backlog 156)." }
+doc = "0.1.35: tool-call names are not recorded on input and output messages, and there is no llm.provider or cache token count."
+
+[[variant]]
+version = "0.1.42"
+doc = "0.1.36-0.1.42: tool-call function names on input and output messages, llm.provider aws, and llm.token_count.prompt_details.cache_read / cache_write."
+
+[[variant]]
+version = "0.1.49"
+doc = "0.1.43-0.1.49: message JSON changes inside the same carriers."
+
+[[variant]]
+version = "0.1.56"
+current = true
+doc = "0.1.50 onwards: llm.finish_reason. The suite's locked release; its fixtures are the ordinary capture."
+
+[[exempt]]
+version = "0.1.31"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.32"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.33"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.1.34"
+reason = "Calls wrapt.wrap_function_wrapper(module=...), the wrapt 1.x signature, without bounding wrapt below 2, which renamed it; it fails at instrumentation."
+revisit = "2027-01-05"

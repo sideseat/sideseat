@@ -75,6 +75,10 @@ def ensure_requirements(
     rather than constraints, because a historical release may sit below the suite's lower bound.
     """
     environment = cache_root() / key
+    if matrix.language == "javascript":
+        from harness.matrix import npm
+
+        return npm.ensure(matrix, environment, requirements, released=released)
     wanted = stamp(matrix, requirements, released)
     marker = environment / "sideseat-matrix.json"
     if marker.exists() and json.loads(marker.read_text()) == wanted:
@@ -196,6 +200,10 @@ def remove(environment: Path) -> None:
 
 def installed(environment: Path, *packages: str) -> dict[str, str]:
     """The versions an environment actually holds, for the support matrix row."""
+    if (environment / "package.json").exists():
+        from harness.matrix import npm
+
+        return npm.installed(environment, *packages)
     script = (
         "import importlib.metadata as m, json, sys\n"
         "out = {}\n"

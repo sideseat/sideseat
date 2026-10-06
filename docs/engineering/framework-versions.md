@@ -166,17 +166,33 @@ httpx without declaring it, so the pin adds it. Logfire 4.x reports Anthropic ca
 withheld; the suite records SDK mode only, because native Logfire 5.1.1 abandons the span of a call made
 without tools.
 
+**OpenInference's AgentChat instrumentor** behind the `autogen` suite (17 releases, 2 classes): 0.1.5 records
+no `llm.output_messages`, model name or token counts, so the reply is in no view and its captures are
+withheld; 0.1.6 onwards is the suite's format.
+
+**OpenInference's OpenAI instrumentor** behind `azure-openai` (28 releases, 2 classes): 0.1.46 adds
+`llm.finish_reason`. **OpenInference's Bedrock instrumentor** behind `openinference` (26 releases, 4 classes):
+0.1.36 adds tool-call names on messages, `llm.provider` and cache token counts, 0.1.43 changes message JSON,
+0.1.50 adds `llm.finish_reason`; 0.1.35's tool-calling turn is withheld (an empty text block). Like the
+Agno instrumentor, the releases before 0.1.46 (OpenAI) and 0.1.35 (Bedrock) call wrapt 1.x's
+`wrap_function_wrapper(module=...)` and are exempt.
+
 Replay gives the scenario an HTTP proxy that refuses everything but loopback, so a release that ignores the
-client it is given (AgentScope 2.0.0 - 2.0.5) fails locally instead of reaching a provider's public API.
+client it is given (AgentScope 2.0.0 - 2.0.5) fails locally instead of reaching a provider's public API. A suite
+that must reach another host declares it with its reason (`allow-hosts`: LiteLLM routes Bedrock models by
+the model map it downloads at import).
 
 ### Not yet covered by the matrix
 
 - **Live captures needed:** any release whose model traffic differs from the committed cassettes in call
   count or API gets a `[[recording]]` and `--live`, as Strands 1.38.0 and 1.39.0 have.
-- **No matrix yet:** the JavaScript suites (`ai` 5.x / 6.x / 7.x with `@ai-sdk/otel`, `@strands-agents/sdk`,
-  the Claude Agent SDK, whose format is the bundled Claude Code CLI's) need an npm variant of the environment
-  builder; Agent Framework's pre-1.0 betas, the OpenInference instrumentors and the remaining Python
-  suites need only a `versions.toml` and a census.
+- **TypeScript suites:** a `versions.toml` beside a suite under `examples/javascript` makes its variants copies
+  of the npm project, installed once as of `resolved-before` and cloned copy-on-write per release with only
+  the pinned packages moved (`npm install --before`). Not yet covered: the AI SDK's 5.x and 6.x lines, which
+  predate the `@ai-sdk/otel` package the suite is written against, and the Claude Agent SDK, whose 300
+  releases each bundle a CLI.
+- **Other languages:** the Go and JVM suites have no environment builder yet; Agent Framework's pre-1.0 betas
+  are not covered.
 
 ## Version variants in the rule language
 

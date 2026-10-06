@@ -4,6 +4,7 @@
  "scenario": "tool_use",
  "fixtures": [
   "azure-openai/native/tool_use",
+  "azure-openai/native@0.1.45/tool_use",
   "azure-openai/sdk/tool_use"
  ],
  "source": {

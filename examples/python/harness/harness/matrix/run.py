@@ -68,6 +68,7 @@ def replay(
     timeout: float = 600,
     cassettes: Path | None = None,
     live: bool = False,
+    allow_hosts: tuple[str, ...] = (),
 ) -> Replay:
     """Run ``scenario`` from ``environment`` against the suite's committed cassette, offline.
 
@@ -113,13 +114,21 @@ def replay(
             )
         }
     )
-    run_env["NO_PROXY"] = run_env["no_proxy"] = "127.0.0.1,localhost"
+    run_env["NO_PROXY"] = run_env["no_proxy"] = ",".join(
+        ["127.0.0.1", "localhost", *allow_hosts]
+    )
     # The variant's interpreter, not the one running the harness: VIRTUAL_ENV would point uv elsewhere.
     run_env.pop("VIRTUAL_ENV", None)
-    command = [str(executable(environment, "sample")), *arguments]
+    if suite.language == "javascript":
+        # The suite's directory inside the variant's copy of the npm project; npm passes it as INIT_CWD.
+        command = ["npm", "run", "--silent", "sample", "--", *arguments]
+        workdir = environment / suite.root.name
+    else:
+        command = [str(executable(environment, "sample")), *arguments]
+        workdir = suite.root
     try:
         if uses_fake_model(suite, None):
-            completed = _run(command, suite.root, run_env, timeout)
+            completed = _run(command, workdir, run_env, timeout)
         else:
             cassette = (cassettes or suite.root / "cassettes") / f"{scenario}.json"
             if not live and not cassette.exists():
@@ -128,7 +137,7 @@ def replay(
                 return result
             with ModelProxy(cassette, record=live) as proxy:
                 run_env.update(client_environment(proxy.url))
-                completed = _run(command, suite.root, run_env, timeout)
+                completed = _run(command, workdir, run_env, timeout)
             result.exact, result.by_order = proxy.exact, proxy.by_order
             result.misses, result.unanswered = proxy.misses, proxy.unanswered()
         result.returncode, result.output = completed

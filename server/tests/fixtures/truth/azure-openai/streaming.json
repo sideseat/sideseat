@@ -4,6 +4,7 @@
  "scenario": "streaming",
  "fixtures": [
   "azure-openai/native/streaming",
+  "azure-openai/native@0.1.45/streaming",
   "azure-openai/sdk/streaming"
  ],
  "source": {

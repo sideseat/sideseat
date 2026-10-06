@@ -1,0 +1,19 @@
+# The historical openinference-instrumentation-autogen-agentchat releases this suite is replayed against; see `python -m harness matrix --help`
+# and docs/engineering/framework-versions.md. The OpenInference AgentChat instrumentor writes the spans, so its release history is the window.
+[matrix]
+package = "openinference-instrumentation-autogen-agentchat"
+since = "2025-10-05"
+resolved-before = "2026-10-05T00:00:00Z"
+probes = ["tool_use", "streaming"]
+scenarios = ["tool_use", "streaming"]
+
+# Each variant is the newest release of one telemetry class in `versions.census.json`.
+[[variant]]
+version = "0.1.5"
+withheld = { tool_use = "0.1.5 records no llm.output_messages, so the final reply appears in no view and the golden invariants refuse the capture; the format carries no reply to read.", streaming = "0.1.5 records no llm.output_messages, so the final reply appears in no view and the golden invariants refuse the capture; the format carries no reply to read." }
+doc = "0.1.5: model client spans carry the input messages only - no llm.output_messages, llm.model_name or token counts."
+
+[[variant]]
+version = "0.1.21"
+current = true
+doc = "0.1.6 onwards: model client spans gain llm.output_messages, llm.model_name and llm.token_count.*. The suite's locked release; its fixtures are the ordinary capture."

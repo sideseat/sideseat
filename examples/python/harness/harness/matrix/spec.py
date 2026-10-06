@@ -73,6 +73,15 @@ class Matrix:
     #: Releases whose model traffic differs from the suite's cassettes (another API, an extra call), each
     #: with the reason: they replay cassettes of their own, recorded live with ``--live``.
     recordings: dict[str, str] = field(default_factory=dict)
+    #: ``python`` (a uv project under ``examples/python``) or ``javascript`` (a suite of the npm project).
+    language: str = "python"
+    #: Hosts a scenario may reach besides the local proxy and recorder, each declared in ``versions.toml``
+    #: with its reason: replay is otherwise offline.
+    allow_hosts: tuple[str, ...] = ()
+
+    @property
+    def registry(self) -> str:
+        return "npm" if self.language == "javascript" else "pypi"
 
     def cassettes(self, version: str) -> Path:
         """The cassettes a release replays: its own live recording, or the suite's."""
@@ -124,6 +133,7 @@ def parse(text: str, suite: Path) -> Matrix:
         "prereleases",
         "modes",
         "era",
+        "allow-hosts",
     }
     if extra := set(table) - allowed:
         raise MatrixError(f"unknown [matrix] keys {sorted(extra)}")
@@ -138,7 +148,13 @@ def parse(text: str, suite: Path) -> Matrix:
         raise MatrixError(f"[matrix] needs {missing}") from None
     # One requirement, or several: a framework whose companion packages import its internals names them
     # bare, which lifts the suite's lower bound so `era` can resolve them as of the release's day.
-    pins = table.get("pin", f"{package}=={{version}}")
+    language = "javascript" if suite.parent.name == "javascript" else "python"
+    default_pin = (
+        f"{package}@{{version}}"
+        if language == "javascript"
+        else f"{package}=={{version}}"
+    )
+    pins = table.get("pin", default_pin)
     pin = tuple([pins] if isinstance(pins, str) else pins)
     if not any("{version}" in p for p in pin):
         raise MatrixError("[matrix] pin must contain {version}")
@@ -238,4 +254,6 @@ def parse(text: str, suite: Path) -> Matrix:
         variants=tuple(variants),
         exemptions=exemptions,
         recordings=recordings,
+        language=language,
+        allow_hosts=tuple(table.get("allow-hosts", ())),
     )

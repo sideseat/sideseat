@@ -11,7 +11,7 @@ from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
 )
 from opentelemetry.proto.common.v1.common_pb2 import AnyValue, KeyValue
 
-from harness.matrix import census
+from harness.matrix import census, npm
 from harness.matrix.cli import check, matrices
 from harness.matrix.shape import digest, shape, skeleton
 from harness.matrix.spec import MatrixError, parse
@@ -112,6 +112,20 @@ def test_a_recorded_release_replays_its_own_cassettes(tmp_path: Path) -> None:
     exempt = '\n[[exempt]]\nversion = "1.3.0"\nreason = "x"\nrevisit = "2027-01-01"\n'
     with pytest.raises(MatrixError, match="both"):
         parse(recorded + exempt, tmp_path)
+
+
+def test_a_typescript_suite_pins_npm_versions(tmp_path: Path) -> None:
+    suite = tmp_path / "javascript" / "strands"
+    suite.mkdir(parents=True)
+
+    matrix = parse(MINIMAL.replace('pin = "acme[otel]=={version}"\n', ""), suite)
+
+    assert matrix.language == "javascript"
+    assert matrix.registry == "npm"
+    assert matrix.pinned("1.2.0") == ["acme@1.2.0"]
+    assert npm.split("@scope/name@1.2.3") == ("@scope/name", "1.2.3")
+    assert npm.split("@scope/name") == ("@scope/name", None)
+    assert npm.split("ai") == ("ai", None)
 
 
 def test_the_census_window_ends_where_environments_resolve(

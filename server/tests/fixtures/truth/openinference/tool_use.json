@@ -4,6 +4,8 @@
  "scenario": "tool_use",
  "fixtures": [
   "openinference/native/tool_use",
+  "openinference/native@0.1.42/tool_use",
+  "openinference/native@0.1.49/tool_use",
   "openinference/sdk/tool_use"
  ],
  "source": {

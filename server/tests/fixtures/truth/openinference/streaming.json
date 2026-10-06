@@ -4,6 +4,9 @@
  "scenario": "streaming",
  "fixtures": [
   "openinference/native/streaming",
+  "openinference/native@0.1.35/streaming",
+  "openinference/native@0.1.42/streaming",
+  "openinference/native@0.1.49/streaming",
   "openinference/sdk/streaming"
  ],
  "source": {

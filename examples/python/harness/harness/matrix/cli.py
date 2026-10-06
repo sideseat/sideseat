@@ -37,7 +37,10 @@ PROVENANCE_FORMAT = "sideseat.fixture-versions/1"
 def matrices() -> dict[str, tuple[capture.Suite, Matrix]]:
     found = {}
     for producer, suite in sorted(capture.suites().items()):
-        if suite.language == "python" and (matrix := load(suite.root)) is not None:
+        if (
+            suite.language in ("python", "javascript")
+            and (matrix := load(suite.root)) is not None
+        ):
             found[producer] = (suite, matrix)
     return found
 
@@ -85,6 +88,8 @@ def provenance(
 
 def tracked_packages(matrix: Matrix) -> list[str]:
     """What the support matrix row reports: the framework, its instrumentation, and OpenTelemetry."""
+    if matrix.language == "javascript":
+        return [matrix.package, "@opentelemetry/sdk-trace-base"]
     project = (matrix.suite / "pyproject.toml").read_text()
     import re
     import tomllib
@@ -142,6 +147,7 @@ def record(
                     mode=mode,
                     env=matrix.profiles[variant.profile],
                     cassettes=matrix.cassettes(variant.version),
+                    allow_hosts=matrix.allow_hosts,
                 )
                 if not result.ok:
                     print(f"[matrix] {label}: FAILED - {'; '.join(result.problems)}")
@@ -183,6 +189,7 @@ def record_live(suite: capture.Suite, matrix: Matrix, versions: list[str]) -> li
             matrix.since,
             prereleases=matrix.prereleases,
             before=matrix.resolved_before,
+            registry=matrix.registry,
         )
     }
     for version in chosen:
@@ -198,7 +205,14 @@ def record_live(suite: capture.Suite, matrix: Matrix, versions: list[str]) -> li
             continue
         target = matrix.cassettes(version)
         for scenario in matrix.scenarios:
-            result = replay(suite, env_path, scenario, cassettes=target, live=True)
+            result = replay(
+                suite,
+                env_path,
+                scenario,
+                cassettes=target,
+                live=True,
+                allow_hosts=matrix.allow_hosts,
+            )
             label = f"{suite.manifest['producer']}@{version}/{scenario}"
             if not result.ok:
                 print(f"[matrix] {label}: FAILED - {'; '.join(result.problems)}")
