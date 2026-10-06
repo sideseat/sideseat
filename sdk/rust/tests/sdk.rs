@@ -430,6 +430,14 @@ fn signals_can_be_switched_off_and_logs_need_no_export() {
 
     let without_logs = sideseat::init(Options::new().export(false).logs(false)).unwrap();
     assert!(without_logs.logger_provider().is_none());
+    assert!(without_logs.meter_provider().is_none());
+}
+
+#[test]
+fn the_meter_provider_is_exposed_for_libraries_that_take_one() {
+    let client = sideseat::init(Options::new().endpoint("http://127.0.0.1:1").logs(false)).unwrap();
+    assert!(client.meter_provider().is_some());
+    let _ = client.shutdown(Duration::from_millis(100));
 }
 
 trait WithContextOf: Sized {

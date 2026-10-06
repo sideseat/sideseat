@@ -246,6 +246,14 @@ impl SideSeat {
         self.inner.providers.as_ref()?.logger.as_ref()
     }
 
+    /// The meter provider `init` installed as the global one, for libraries that take one
+    /// explicitly. A built `SdkMeterProvider` takes no further reader, so an application that keeps
+    /// a provider of its own adds SideSeat's reader where it builds it instead. `None` when disabled,
+    /// when metrics are off, or without export.
+    pub fn meter_provider(&self) -> Option<&SdkMeterProvider> {
+        self.inner.providers.as_ref()?.meter.as_ref()
+    }
+
     /// Runs `work` in a new root span, even when another span is active. The current session is
     /// kept unless `options` names another.
     pub async fn trace<T, E, F, Fut>(

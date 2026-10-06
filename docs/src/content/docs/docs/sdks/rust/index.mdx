@@ -42,6 +42,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 `init` points OpenTelemetry at `http://127.0.0.1:5388` and the `default` project, and installs the
 global tracer and meter providers, replacing any installed before. Call it before any library creates
 its first span, and keep the client: the pipeline shuts down when its last clone drops.
+`meter_provider()` returns the meter provider for libraries that take one. A built `SdkMeterProvider`
+takes no new reader, so a provider the application keeps gets SideSeat's where it is built, with
+`metrics(false)` on SideSeat:
+
+```rust
+use opentelemetry_otlp::{MetricExporter, WithExportConfig as _};
+use opentelemetry_sdk::metrics::{PeriodicReader, SdkMeterProvider};
+
+let exporter = MetricExporter::builder()
+    .with_http()
+    .with_endpoint("http://127.0.0.1:5388/otel/default/v1/metrics")
+    .build()?;
+let provider = SdkMeterProvider::builder()
+    .with_reader(PeriodicReader::builder(exporter).build())
+    .build();
+```
 
 ## Sessions and users
 
