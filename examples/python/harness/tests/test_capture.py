@@ -6,7 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from harness.capture import Pins, _Recorder, anonymise, recorded_prefix
+from harness.capture import (
+    METRIC_SIGNALS,
+    Pins,
+    _Recorder,
+    anonymise,
+    recorded_prefix,
+)
 
 
 def test_the_cli_attachment_directory_is_pinned_at_its_length() -> None:
@@ -48,6 +54,11 @@ def test_traces_and_logs_are_recorded_and_metrics_are_not() -> None:
     assert recorded_prefix("/v1/traces") == "req"
     assert recorded_prefix("/v1/logs") == "logs"
     assert recorded_prefix("/v1/metrics") is None
+
+
+def test_a_metrics_capture_also_records_metric_exports() -> None:
+    assert recorded_prefix("/v1/metrics", METRIC_SIGNALS) == "metrics"
+    assert recorded_prefix("/v1/traces", METRIC_SIGNALS) == "req"
 
 
 def test_a_log_export_is_written_beside_the_requests_and_anonymised(

@@ -51,7 +51,9 @@ class SdkTelemetry:
         import sideseat
 
         self._sideseat = sideseat
-        self.client = sideseat.init(integrations=list(integrations), metrics=False)
+        # Metrics stay off except in a `capture --metrics` run, which records them for the storage corpus.
+        metrics = os.environ.get("SIDESEAT_CAPTURE_METRICS") == "1"
+        self.client = sideseat.init(integrations=list(integrations), metrics=metrics)
 
     def trace(self, name: str, *, session_id: str, user_id: str) -> Any:
         return self._sideseat.trace(name, session_id=session_id, user_id=user_id)

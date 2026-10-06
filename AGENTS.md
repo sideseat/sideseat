@@ -43,6 +43,7 @@ server/                 Rust workspace root for the backend
     vocabulary/         cross-framework tables: span fields, content blocks, roles, categories
   tests/                message goldens, backend parity suites, repository invariants
     fixtures/messages/  captured OTLP per <framework>/<mode>/<scenario>, with the parsing rubric (README.md)
+    fixtures/metrics/   captured metric exports for the storage corpus (`harness capture --metrics`)
   specs/                TLA+ models of ordering, carrier claiming and invocation flow
 web/                    React UI; web/src/components/ui is the shadcn design system
 sdk/                    python/ js/ dotnet/ rust/

@@ -50,6 +50,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 CORPUS = ROOT / "server/tests/fixtures/messages"
+# Metric exports have no message golden, so they live in their own corpus (`harness capture --metrics`).
+METRIC_CORPUS = ROOT / "server/tests/fixtures/metrics"
 FLOOR = ROOT / "scripts/perf/storage-footprint-floor.json"
 SIGNALS = ("traces", "logs", "metrics")
 SPAN_TABLES = {
@@ -102,7 +104,7 @@ def corpus() -> list[dict]:
         "metrics": ("metrics", ExportMetricsServiceRequest),
     }
     exports = []
-    for path in sorted(CORPUS.rglob("*")):
+    for path in sorted([*CORPUS.rglob("*"), *METRIC_CORPUS.rglob("*")]):
         prefix = path.name.split("-", 1)[0]
         if (
             prefix not in kinds
@@ -121,7 +123,9 @@ def corpus() -> list[dict]:
             {
                 "path": path,
                 "signal": signal_name,
-                "tenant": path.relative_to(CORPUS).parts[0],
+                "tenant": path.relative_to(
+                    METRIC_CORPUS if path.is_relative_to(METRIC_CORPUS) else CORPUS
+                ).parts[0],
                 "body": body,
                 "json": path.suffix == ".json",
                 "protobuf_bytes": message.ByteSize(),

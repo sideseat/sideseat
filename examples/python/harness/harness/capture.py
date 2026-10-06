@@ -23,7 +23,12 @@ export to ``server/tests/fixtures/messages/<producer>/<mode>/<scenario>/req-NNN.
 export beside them as ``logs-NNN.*`` - instrumentations that report the conversation as log events
 linked to a span need both halves. The previous payloads of that scenario are replaced only when the
 run succeeds, so a failed capture never leaves a half-written fixture behind. Metrics are acknowledged
-and not recorded.
+and not recorded, except by ``--metrics``.
+
+``--metrics`` captures the storage corpus's metric exports instead: the SDK's meter provider is switched on,
+every metric export is written to ``server/tests/fixtures/metrics/<producer>/<mode>/<scenario>/metrics-NNN.*``,
+and the run's traces and logs are discarded, so the message fixtures and their goldens are untouched. It
+always replays the committed cassette and never records one, for the same reason.
 
 Capture needs the credentials the scenario's model needs. Regenerate the expectations afterwards and
 read them before committing::
@@ -56,6 +61,11 @@ from harness.scrub import scrub_account
 
 REPO = Path(__file__).resolve().parents[4]
 FIXTURES = REPO / "server" / "tests" / "fixtures" / "messages"
+METRIC_FIXTURES = REPO / "server" / "tests" / "fixtures" / "metrics"
+#: Seconds between metric exports in a ``--metrics`` capture. The SDK default is a minute, which a scenario
+#: never reaches, so every run would record a single final export; a short interval records the cumulative
+#: series a long-running service actually sends.
+METRIC_EXPORT_INTERVAL_MS = "1000"
 PYTHON_SUITES = REPO / "examples" / "python"
 JAVASCRIPT_EXAMPLES = REPO / "examples" / "javascript"
 GO_EXAMPLES = REPO / "examples" / "go"
@@ -161,11 +171,15 @@ def anonymise(raw: bytes, pins: Pins | None = None) -> bytes:
 
 #: The OTLP/HTTP paths that are recorded, and the file prefix each export is written under.
 RECORDED_SIGNALS = {"/v1/traces": "req", "/v1/logs": "logs"}
+#: What a ``--metrics`` run records in addition.
+METRIC_SIGNALS = {**RECORDED_SIGNALS, "/v1/metrics": "metrics"}
 
 
-def recorded_prefix(path: str) -> str | None:
+def recorded_prefix(
+    path: str, signals: dict[str, str] = RECORDED_SIGNALS
+) -> str | None:
     """The fixture prefix an export to ``path`` is recorded under, or ``None`` if it is not recorded."""
-    for signal, prefix in RECORDED_SIGNALS.items():
+    for signal, prefix in signals.items():
         if signal in path:
             return prefix
     return None
@@ -174,6 +188,7 @@ def recorded_prefix(path: str) -> str | None:
 class _Recorder(BaseHTTPRequestHandler):
     out: Path
     forward: str | None
+    signals: dict[str, str] = RECORDED_SIGNALS
     count = 0
     counts: dict[str, int] = {}
     pins = Pins()
@@ -198,7 +213,7 @@ class _Recorder(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
         body = self._body()
-        prefix = recorded_prefix(self.path)
+        prefix = recorded_prefix(self.path, _Recorder.signals)
         if prefix and body:
             raw = body
             if self.headers.get("Content-Encoding") == "gzip":
@@ -411,6 +426,7 @@ def capture_one(
     model: str | None,
     forward: str | None,
     record: bool,
+    metrics: bool = False,
 ) -> bool:
     from harness.proxy import ModelProxy, client_environment
 
@@ -425,6 +441,7 @@ def capture_one(
     staging = Path(tempfile.mkdtemp(prefix=f"capture-{producer}-{scenario}-"))
     _Recorder.out, _Recorder.forward, _Recorder.count = staging, forward, 0
     _Recorder.counts = {}
+    _Recorder.signals = METRIC_SIGNALS if metrics else RECORDED_SIGNALS
     _Recorder.pins = Pins()
     server = ThreadingHTTPServer(("127.0.0.1", 0), _Recorder)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -440,6 +457,9 @@ def capture_one(
         "SIDESEAT_PROJECT_ID": "default",
     }
     env.pop("OTEL_EXPORTER_OTLP_ENDPOINT", None)
+    if metrics:
+        env["SIDESEAT_CAPTURE_METRICS"] = "1"
+        env["OTEL_METRIC_EXPORT_INTERVAL"] = METRIC_EXPORT_INTERVAL_MS
     action = (
         "fake model"
         if deterministic
@@ -482,10 +502,11 @@ def capture_one(
         server.shutdown()
     recorded = sorted(staging.glob("req-*"))
     log_exports = sorted(staging.glob("logs-*"))
+    metric_exports = sorted(staging.glob("metrics-*"))
     leaked = next(
         (
             (path.name, kind)
-            for path in recorded + log_exports
+            for path in recorded + log_exports + metric_exports
             if (kind := credential_in(path.read_bytes()))
         ),
         None,
@@ -509,6 +530,8 @@ def capture_one(
         )
         shutil.rmtree(staging)
         return False
+    if metrics:
+        return _keep_metrics(producer, mode, scenario, staging, metric_exports)
     target = FIXTURES / producer / mode / scenario
     target.mkdir(parents=True, exist_ok=True)
     for pattern in ("req-*", "logs-*"):
@@ -519,6 +542,27 @@ def capture_one(
     shutil.rmtree(staging)
     logged = f", {len(log_exports)} log export(s)" if log_exports else ""
     print(f"[capture] {producer}/{mode}/{scenario}: {len(recorded)} request(s){logged}")
+    return True
+
+
+def _keep_metrics(
+    producer: str, mode: str, scenario: str, staging: Path, exports: list[Path]
+) -> bool:
+    """Move a ``--metrics`` run's metric exports into the metric corpus; its traces and logs are dropped."""
+    if not exports:
+        print(
+            f"[capture] {producer}/{mode}/{scenario}: FAILED (no metric export recorded)"
+        )
+        shutil.rmtree(staging)
+        return False
+    target = METRIC_FIXTURES / producer / mode / scenario
+    target.mkdir(parents=True, exist_ok=True)
+    for stale in target.glob("metrics-*"):
+        stale.unlink()
+    for payload in exports:
+        shutil.move(payload, target / payload.name)
+    shutil.rmtree(staging)
+    print(f"[capture] {producer}/{mode}/{scenario}: {len(exports)} metric export(s)")
     return True
 
 
@@ -541,6 +585,11 @@ def main(argv: list[str] | None = None) -> None:
         "--offline",
         action="store_true",
         help="replay the committed model cassettes in both modes; needs no credentials",
+    )
+    parser.add_argument(
+        "--metrics",
+        action="store_true",
+        help="record metric exports into the storage corpus instead of message fixtures",
     )
     parser.add_argument(
         "--export-content",
@@ -574,9 +623,16 @@ def main(argv: list[str] | None = None) -> None:
         for mode in modes:
             # The first live run of a scenario records the model traffic; every other run replays it,
             # so native and SDK telemetry describe the same conversation.
-            record = not args.offline and mode == modes[0]
+            record = not args.offline and not args.metrics and mode == modes[0]
             if not capture_one(
-                args.producer, suite, scenario, mode, args.model, args.forward, record
+                args.producer,
+                suite,
+                scenario,
+                mode,
+                args.model,
+                args.forward,
+                record,
+                metrics=args.metrics,
             ):
                 failed.append(f"{args.producer}/{mode}/{scenario}")
     if failed:
