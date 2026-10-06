@@ -287,6 +287,8 @@ The container-free aggregate does not substitute for live backend parity.
   `scripts/dev/commit-paths.sh -m "<message>" -- <paths>`, which builds the commit in a private index from HEAD
   (so it cannot sweep in another agent's work) and then refreshes the shared index for those paths (so it
   never lags HEAD). Restore a file with `git checkout HEAD -- <path>`, never `git checkout -- <path>`.
+  Before reporting a commit as green, run `make verify-head` (`ARGS=--test` for the goldens): a green run in
+  the shared tree includes everyone else's uncommitted work and says nothing about HEAD.
 - Remove dead code instead of suppressing warnings.
 - Add a regression test for every defect whose failure can be reproduced, and check that it fails without
   the fix.

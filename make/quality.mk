@@ -1,6 +1,6 @@
 ##@ Format, lint, and hardening
 
-.PHONY: fmt fmt-check file-length-check lint lint-advisory secret-scan-tree secret-scan-staged secret-scan-range fmt-check-python lint-python harden harden-supply harden-spec audit msrv
+.PHONY: fmt fmt-check file-length-check lint lint-advisory secret-scan-tree secret-scan-staged secret-scan-range fmt-check-python lint-python harden harden-supply harden-spec audit msrv verify-head
 
 fmt: ## Format all source code
 	@echo "[fmt] Formatting code..."
@@ -167,3 +167,8 @@ harden-spec: ## Model-check every TLA+ specification
 	done; \
 	rm -rf server/specs/states server/specs/*_TTrace_*.bin server/specs/*_TTrace_*.tla; \
 	exit $$failed
+
+# A shared working tree holds other agents' work in progress, so a green run there proves nothing about the
+# commit. This checks HEAD itself in a persistent clean worktree whose build stays warm between runs.
+verify-head: ## Check that HEAD builds, independent of uncommitted work (ARGS=--test adds goldens)
+	@./scripts/check/verify-head.sh $(ARGS)
