@@ -171,9 +171,9 @@ def test_the_transcript_keeps_requests_in_order_scrubbed(
 ) -> None:
     log = tmp_path / "log.jsonl"
     monkeypatch.setenv(transcript.ENV, str(log))
-    monkeypatch.setattr("harness.scrub.account_names", lambda: [b"alice"])
+    monkeypatch.setattr("harness.scrub.account_names", lambda: [b"someone"])
     transcript.record(
-        "POST", "/a", b'{"path": "/Users/alice/x"}', "application/json", answered_by=3
+        "POST", "/a", b'{"path": "/Users/someone/x"}', "application/json", answered_by=3
     )
     transcript.record("POST", "/b", b"{}", "application/json")
     document = transcript.finish(log)
@@ -183,9 +183,9 @@ def test_the_transcript_keeps_requests_in_order_scrubbed(
         "/a",
         3,
     ) and "answered_by" not in second
-    assert b"alice" not in base64.b64decode(first["body"])
+    assert b"someone" not in base64.b64decode(first["body"])
     assert first["request_sha256"] == transcript.digest(
-        "POST", "/a", b'{"path": "/Users/alice/x"}'
+        "POST", "/a", b'{"path": "/Users/someone/x"}'
     )
     out = tmp_path / transcript.FILENAME
     out.write_text(json.dumps(document))
