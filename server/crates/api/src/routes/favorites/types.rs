@@ -6,8 +6,23 @@ use utoipa::ToSchema;
 use sideseat_core::constants::MAX_CHECK_BATCH;
 
 /// Entity type for favorites (trace, session, span)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, ToSchema)]
+///
+/// One `strum` declaration for the two directions this has: the request body and path segment it is
+/// parsed from, and the `entity_type` column the favourites rows are keyed by.
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Deserialize,
+    ToSchema,
+    strum::IntoStaticStr,
+    strum::EnumString,
+    strum::VariantArray,
+)]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum EntityType {
     Trace,
     Session,
@@ -15,12 +30,9 @@ pub enum EntityType {
 }
 
 impl EntityType {
+    /// The stored spelling, which is also the one the path and the request body use.
     pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Trace => "trace",
-            Self::Session => "session",
-            Self::Span => "span",
-        }
+        self.into()
     }
 }
 
@@ -109,4 +121,44 @@ pub struct AddFavoriteResponse {
 pub struct RemoveFavoriteResponse {
     /// Whether a favorite was actually removed (vs didn't exist)
     pub removed: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use strum::VariantArray;
+
+    use super::*;
+
+    /// The spelling a favourite is stored under, parsed from, and asked for by path.
+    ///
+    /// The `entity_type` column holds these strings, so a changed one orphans every row a user has
+    /// already favourited rather than failing to compile.
+    #[test]
+    fn every_entity_type_spelling_round_trips_and_is_unchanged() {
+        let expected = [
+            (EntityType::Trace, "trace"),
+            (EntityType::Session, "session"),
+            (EntityType::Span, "span"),
+        ];
+        for (entity, spelling) in expected {
+            assert_eq!(entity.as_str(), spelling);
+            assert_eq!(EntityType::from_str(spelling).unwrap(), entity);
+            assert_eq!(
+                serde_json::from_str::<EntityType>(&format!("\"{spelling}\"")).unwrap(),
+                entity,
+                "the request body spelling changed"
+            );
+        }
+        assert_eq!(EntityType::VARIANTS.len(), expected.len());
+    }
+
+    /// The path parser matched exactly, with no case folding, and still does.
+    #[test]
+    fn an_unknown_or_miscased_entity_type_is_refused() {
+        assert!(EntityType::from_str("Trace").is_err());
+        assert!(EntityType::from_str("traces").is_err());
+        assert!(EntityType::from_str("").is_err());
+    }
 }

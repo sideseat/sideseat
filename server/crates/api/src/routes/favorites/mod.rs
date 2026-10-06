@@ -47,16 +47,17 @@ pub fn routes(database: Arc<crate::dependencies::TransactionalStore>) -> Router<
 }
 
 /// Validate entity type string
+///
+/// The spellings are the enum's own `FromStr`; only the refusal is this function's.
 fn parse_entity_type(s: &str) -> Result<EntityType, ApiError> {
-    match s {
-        "trace" => Ok(EntityType::Trace),
-        "session" => Ok(EntityType::Session),
-        "span" => Ok(EntityType::Span),
-        _ => Err(ApiError::bad_request(
+    use std::str::FromStr;
+
+    EntityType::from_str(s).map_err(|_| {
+        ApiError::bad_request(
             "INVALID_ENTITY_TYPE",
             "entity_type must be one of: trace, session, span",
-        )),
-    }
+        )
+    })
 }
 
 /// Path parameters for simple entity routes

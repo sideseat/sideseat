@@ -5512,6 +5512,7 @@ dependencies = [
  "sideseat-ingestion",
  "sideseat-messaging",
  "sideseat-ports",
+ "strum",
  "thiserror",
  "time",
  "tokio",
