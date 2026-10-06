@@ -279,6 +279,9 @@ The container-free aggregate does not substitute for live backend parity.
 - Inspect `git status` before editing and preserve unrelated user changes.
 - Use `rg` and `rg --files` for repository searches.
 - Keep commits focused and independently reviewable.
+- When several agents share one working tree, keep it compiling: work in slices that build, run
+  `cargo check --workspace --all-targets` before pausing, and park a slice that cannot compile yet outside the
+  tree rather than leaving it in place - everyone else's checks run in the same tree.
 - When several agents share one working tree, never stage in the shared index: commit with
   `scripts/dev/commit-paths.sh -m "<message>" -- <paths>`, which builds the commit in a private index from HEAD
   (so it cannot sweep in another agent's work) and then refreshes the shared index for those paths (so it
