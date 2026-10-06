@@ -427,7 +427,9 @@ def capture_one(
     forward: str | None,
     record: bool,
     metrics: bool = False,
+    transcript_only: bool = False,
 ) -> bool:
+    from harness import transcript
     from harness.proxy import ModelProxy, client_environment
 
     cassette = suite.root / "cassettes" / f"{scenario}.json"
@@ -457,6 +459,12 @@ def capture_one(
         "SIDESEAT_PROJECT_ID": "default",
     }
     env.pop("OTEL_EXPORTER_OTLP_ENDPOINT", None)
+    # Every process that serves the model - this one's proxy or fake, or a fake inside the suite - appends
+    # the requests it receives here.
+    request_log = staging / "model-requests.jsonl"
+    env[transcript.ENV] = str(request_log)
+    previous_log = os.environ.get(transcript.ENV)
+    os.environ[transcript.ENV] = str(request_log)
     if metrics:
         env["SIDESEAT_CAPTURE_METRICS"] = "1"
         env["OTEL_METRIC_EXPORT_INTERVAL"] = METRIC_EXPORT_INTERVAL_MS
@@ -500,6 +508,11 @@ def capture_one(
             ok = False
     finally:
         server.shutdown()
+        if previous_log is None:
+            os.environ.pop(transcript.ENV, None)
+        else:
+            os.environ[transcript.ENV] = previous_log
+    requests_document = json.dumps(transcript.finish(request_log), indent=1) + "\n"
     recorded = sorted(staging.glob("req-*"))
     log_exports = sorted(staging.glob("logs-*"))
     metric_exports = sorted(staging.glob("metrics-*"))
@@ -510,6 +523,10 @@ def capture_one(
             if (kind := credential_in(path.read_bytes()))
         ),
         None,
+    ) or (
+        (transcript.FILENAME, kind)
+        if (kind := credential_in(requests_document.encode()))
+        else None
     )
     if leaked:
         print(
@@ -533,7 +550,21 @@ def capture_one(
     if metrics:
         return _keep_metrics(producer, mode, scenario, staging, metric_exports)
     target = FIXTURES / producer / mode / scenario
+    if transcript_only:
+        if not any(target.glob("req-*")):
+            # No committed fixture for this mode: there is no telemetry its requests would belong to.
+            shutil.rmtree(staging)
+            print(
+                f"[capture] {producer}/{mode}/{scenario}: no fixture, nothing recorded"
+            )
+            return True
+        (target / transcript.FILENAME).write_text(requests_document)
+        # The committed telemetry stays: only what the framework sent the model is refreshed.
+        shutil.rmtree(staging)
+        print(f"[capture] {producer}/{mode}/{scenario}: model requests recorded")
+        return True
     target.mkdir(parents=True, exist_ok=True)
+    (target / transcript.FILENAME).write_text(requests_document)
     for pattern in ("req-*", "logs-*"):
         for stale in target.glob(pattern):
             stale.unlink()
@@ -587,6 +618,11 @@ def main(argv: list[str] | None = None) -> None:
         help="replay the committed model cassettes in both modes; needs no credentials",
     )
     parser.add_argument(
+        "--transcript-only",
+        action="store_true",
+        help="replay offline and refresh only each fixture's model-requests.json, keeping its telemetry",
+    )
+    parser.add_argument(
         "--metrics",
         action="store_true",
         help="record metric exports into the storage corpus instead of message fixtures",
@@ -623,7 +659,12 @@ def main(argv: list[str] | None = None) -> None:
         for mode in modes:
             # The first live run of a scenario records the model traffic; every other run replays it,
             # so native and SDK telemetry describe the same conversation.
-            record = not args.offline and not args.metrics and mode == modes[0]
+            record = (
+                not args.offline
+                and not args.metrics
+                and not args.transcript_only
+                and mode == modes[0]
+            )
             if not capture_one(
                 args.producer,
                 suite,
@@ -633,6 +674,7 @@ def main(argv: list[str] | None = None) -> None:
                 args.forward,
                 record,
                 metrics=args.metrics,
+                transcript_only=args.transcript_only,
             ):
                 failed.append(f"{args.producer}/{mode}/{scenario}")
     if failed:

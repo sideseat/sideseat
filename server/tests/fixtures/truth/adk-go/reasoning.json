@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "adk-go",
  "scenario": "reasoning",
  "fixtures": [
@@ -148,5 +148,73 @@
    "reason": "fake_model_echoes_request",
    "detail": "a fake model echoes the request's model and derives response ids from the request body; neither is recorded, so neither is asserted"
   }
- ]
+ ],
+ "requests": {
+  "adk-go/native/reasoning": {
+   "transcript": "server/tests/fixtures/messages/adk-go/native/reasoning/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\n\nYou are an agent. Your internal name is \"assistant\"."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the schedule?"
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  },
+  "adk-go/sdk/reasoning": {
+   "transcript": "server/tests/fixtures/messages/adk-go/sdk/reasoning/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\n\nYou are an agent. Your internal name is \"assistant\"."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Four travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the schedule?"
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

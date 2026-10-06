@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "agent-framework",
  "scenario": "session",
  "fixtures": [
@@ -216,5 +216,127 @@
    "detail": "the provider returned a signed reasoning block with no visible text; whether a reconstruction shows a placeholder for it is a product decision, not a fidelity fact",
    "subject": "fact-004"
   }
- ]
+ ],
+ "requests": {
+  "agent-framework/native/session": {
+   "transcript": "server/tests/fixtures/messages/agent-framework/native/session/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Suggest one museum to visit in Madrid."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    },
+    "call-002": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Suggest one park to visit in Madrid."
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  },
+  "agent-framework/sdk/session": {
+   "transcript": "server/tests/fixtures/messages/agent-framework/sdk/session/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Suggest one museum to visit in Madrid."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    },
+    "call-002": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Suggest one park to visit in Madrid."
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

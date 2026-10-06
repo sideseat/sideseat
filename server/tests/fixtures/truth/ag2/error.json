@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "ag2",
  "scenario": "error",
  "fixtures": [
@@ -200,5 +200,209 @@
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
   }
- ]
+ ],
+ "requests": {
+  "ag2/native/error": {
+   "transcript": "server/tests/fixtures/messages/ag2/native/error/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Book me a flight from London to Oslo on 2026-11-14."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "book_flight"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Book me a flight from London to Oslo on 2026-11-14."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_KUZ7rm0dVILf88uZHepOlz",
+          "name": "book_flight",
+          "arguments": {
+           "origin": "London",
+           "destination": "Oslo",
+           "date": "2026-11-14"
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_KUZ7rm0dVILf88uZHepOlz",
+          "content": [
+           {
+            "type": "text",
+            "text": "Traceback (most recent call last):\n  File \"/Users/sideseat/Desktop/dev/sideseat/examples/python/ag2/.venv/lib/python3.12/site-packages/ag2/tools/final/function_tool.py\", line 144, in __call__\n    result = await self.model.asolve(\n             ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/sideseat/Desktop/dev/sideseat/examples/python/ag2/.venv/lib/python3.12/site-packages/fast_depends/core/model.py\", line 351, in asolve\n    response = await run_async(self.call, *final_args, **final_kwargs)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/sideseat/Desktop/dev/sideseat/examples/python/ag2/.venv/lib/python3.12/site-packages/fast_depends/utils.py\", line 64, in run_async\n    return await cast(Callable[P, Awaitable[T]], func)(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/sideseat/Desktop/dev/sideseat/examples/python/ag2/.venv/lib/python3.12/site-packages/ag2/utils.py\", line 48, in async_wrapper\n    return await run_in_threadpool(func, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/sideseat/Desktop/dev/sideseat/examples/python/ag2/.venv/lib/python3.12/site-packages/fast_depends/utils.py\", line 76, in run_in_threadpool\n    return await anyio.to_thread.run_sync(func, *args)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/sideseat/Desktop/dev/sideseat/examples/python/ag2/.venv/lib/python3.12/site-packages/anyio/to_thread.py\", line 65, in run_sync\n    return await get_async_backend().run_sync_in_worker_thread(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/sideseat/Desktop/dev/sideseat/examples/python/ag2/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py\", line 2706, in run_sync_in_worker_thread\n    return await future\n           ^^^^^^^^^^^^\n  File \"/Users/sideseat/Desktop/dev/sideseat/examples/python/ag2/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py\", line 1100, in run\n    result = context.run(func, *args)\n             ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/sideseat/Desktop/dev/sideseat/examples/python/harness/harness/content.py\", line 111, in book_flight\n    raise BookingUnavailable(\nharness.content.BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.\n"
+           }
+          ],
+          "is_error": true
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "book_flight"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  },
+  "ag2/sdk/error": {
+   "transcript": "server/tests/fixtures/messages/ag2/sdk/error/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Book me a flight from London to Oslo on 2026-11-14."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "book_flight"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Book me a flight from London to Oslo on 2026-11-14."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_KUZ7rm0dVILf88uZHepOlz",
+          "name": "book_flight",
+          "arguments": {
+           "origin": "London",
+           "destination": "Oslo",
+           "date": "2026-11-14"
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_KUZ7rm0dVILf88uZHepOlz",
+          "content": [
+           {
+            "type": "text",
+            "text": "Traceback (most recent call last):\n  File \"/Users/sideseat/Desktop/dev/sideseat/examples/python/ag2/.venv/lib/python3.12/site-packages/ag2/tools/final/function_tool.py\", line 144, in __call__\n    result = await self.model.asolve(\n             ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/sideseat/Desktop/dev/sideseat/examples/python/ag2/.venv/lib/python3.12/site-packages/fast_depends/core/model.py\", line 351, in asolve\n    response = await run_async(self.call, *final_args, **final_kwargs)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/sideseat/Desktop/dev/sideseat/examples/python/ag2/.venv/lib/python3.12/site-packages/fast_depends/utils.py\", line 64, in run_async\n    return await cast(Callable[P, Awaitable[T]], func)(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/sideseat/Desktop/dev/sideseat/examples/python/ag2/.venv/lib/python3.12/site-packages/ag2/utils.py\", line 48, in async_wrapper\n    return await run_in_threadpool(func, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/sideseat/Desktop/dev/sideseat/examples/python/ag2/.venv/lib/python3.12/site-packages/fast_depends/utils.py\", line 76, in run_in_threadpool\n    return await anyio.to_thread.run_sync(func, *args)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/sideseat/Desktop/dev/sideseat/examples/python/ag2/.venv/lib/python3.12/site-packages/anyio/to_thread.py\", line 65, in run_sync\n    return await get_async_backend().run_sync_in_worker_thread(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/sideseat/Desktop/dev/sideseat/examples/python/ag2/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py\", line 2706, in run_sync_in_worker_thread\n    return await future\n           ^^^^^^^^^^^^\n  File \"/Users/sideseat/Desktop/dev/sideseat/examples/python/ag2/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py\", line 1100, in run\n    result = context.run(func, *args)\n             ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/sideseat/Desktop/dev/sideseat/examples/python/harness/harness/content.py\", line 111, in book_flight\n    raise BookingUnavailable(\nharness.content.BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.\n"
+           }
+          ],
+          "is_error": true
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "book_flight"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "langfuse",
  "scenario": "session",
  "fixtures": [
@@ -194,5 +194,127 @@
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
   }
- ]
+ ],
+ "requests": {
+  "langfuse/native/session": {
+   "transcript": "server/tests/fixtures/messages/langfuse/native/session/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "openai.chat",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Suggest one museum to visit in Madrid."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    },
+    "call-002": {
+     "api": "openai.chat",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Suggest one park to visit in Madrid."
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  },
+  "langfuse/sdk/session": {
+   "transcript": "server/tests/fixtures/messages/langfuse/sdk/session/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "openai.chat",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Suggest one museum to visit in Madrid."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    },
+    "call-002": {
+     "api": "openai.chat",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Suggest one park to visit in Madrid."
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

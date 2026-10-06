@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "llama-index",
  "scenario": "multi_agent",
  "fixtures": [
@@ -294,5 +294,413 @@
    "detail": "the provider returned a signed reasoning block with no visible text; whether a reconstruction shows a placeholder for it is a product decision, not a fidelity fact",
    "subject": "fact-005"
   }
- ]
+ ],
+ "requests": {
+  "llama-index/native/multi_agent": {
+   "transcript": "server/tests/fixtures/messages/llama-index/native/multi_agent/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You research weather with the tool, then hand off to the writer."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather",
+      "handoff"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You research weather with the tool, then hand off to the writer."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_GitBUWNqI17S60rd0YsmTP",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Barcelona",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_GitBUWNqI17S60rd0YsmTP",
+          "content": [
+           {
+            "type": "text",
+            "text": "{'city': 'Barcelona', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather",
+      "handoff"
+     ]
+    },
+    "call-003": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You write the final packing list from the researcher's findings."
+       },
+       "new": "rq-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_GitBUWNqI17S60rd0YsmTP",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Barcelona",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_GitBUWNqI17S60rd0YsmTP",
+          "content": [
+           {
+            "type": "text",
+            "text": "{'city': 'Barcelona', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_bJPWsniWeo3dYjF7578oYA",
+          "name": "handoff",
+          "arguments": {
+           "to_agent": "writer",
+           "reason": "Write a one-paragraph packing list for Barcelona based on the forecast: Day 1 rain with a high of 21°C; Day 2 sunny with a high of 22°C."
+          }
+         },
+         "replay_of": "fact-004"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_bJPWsniWeo3dYjF7578oYA",
+          "content": [
+           {
+            "type": "text",
+            "text": "Agent writer is now handling the request due to the following reason: Write a one-paragraph packing list for Barcelona based on the forecast: Day 1 rain with a high of 21°C; Day 2 sunny with a high of 22°C..\nPlease continue with the current request."
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "handoff"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  },
+  "llama-index/sdk/multi_agent": {
+   "transcript": "server/tests/fixtures/messages/llama-index/sdk/multi_agent/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You research weather with the tool, then hand off to the writer."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather",
+      "handoff"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You research weather with the tool, then hand off to the writer."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_GitBUWNqI17S60rd0YsmTP",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Barcelona",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_GitBUWNqI17S60rd0YsmTP",
+          "content": [
+           {
+            "type": "text",
+            "text": "{'city': 'Barcelona', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather",
+      "handoff"
+     ]
+    },
+    "call-003": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You write the final packing list from the researcher's findings."
+       },
+       "new": "rq-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_GitBUWNqI17S60rd0YsmTP",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Barcelona",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_GitBUWNqI17S60rd0YsmTP",
+          "content": [
+           {
+            "type": "text",
+            "text": "{'city': 'Barcelona', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_bJPWsniWeo3dYjF7578oYA",
+          "name": "handoff",
+          "arguments": {
+           "to_agent": "writer",
+           "reason": "Write a one-paragraph packing list for Barcelona based on the forecast: Day 1 rain with a high of 21°C; Day 2 sunny with a high of 22°C."
+          }
+         },
+         "replay_of": "fact-004"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_bJPWsniWeo3dYjF7578oYA",
+          "content": [
+           {
+            "type": "text",
+            "text": "Agent writer is now handling the request due to the following reason: Write a one-paragraph packing list for Barcelona based on the forecast: Day 1 rain with a high of 21°C; Day 2 sunny with a high of 22°C..\nPlease continue with the current request."
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "handoff"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "vercel-ai-js",
  "scenario": "multi_agent",
  "fixtures": [
@@ -284,5 +284,261 @@
    "detail": "the provider returned a signed reasoning block with no visible text; whether a reconstruction shows a placeholder for it is a product decision, not a fidelity fact",
    "subject": "fact-005"
   }
- ]
+ ],
+ "requests": {
+  "vercel-ai-js/native/multi_agent": {
+   "transcript": "server/tests/fixtures/messages/vercel-ai-js/native/multi_agent/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You research weather with the tool and report the forecast."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You research weather with the tool and report the forecast."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_q10jK5oNvO49Pre3ll26n4",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Barcelona",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_q10jK5oNvO49Pre3ll26n4",
+          "content": [
+           {
+            "type": "text",
+            "text": "{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-003": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You write the final packing list from the researcher's findings."
+       },
+       "new": "rq-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nResearch:\nBarcelona's forecast for the next two days is rain on day 1 with a high of 21°C, then sunshine on day 2 with a high of 22°C.\n\n**Packing list:** Bring light, layerable clothes for the mild 21–22°C days. Pack a few T-shirts or short-sleeve tops, plus a light sweater or long-sleeve shirt for the cooler, damp hours on the rainy first day. A compact umbrella or a packable waterproof jacket will help on day 1. Water-resistant shoes or sneakers that can get wet are a good idea. Sunglasses, a hat, and sunscreen will be useful on the sunny second day. Add a small daypack to carry the layers you take off as the weather changes."
+         },
+         "new": "rq-003"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  },
+  "vercel-ai-js/sdk/multi_agent": {
+   "transcript": "server/tests/fixtures/messages/vercel-ai-js/sdk/multi_agent/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You research weather with the tool and report the forecast."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You research weather with the tool and report the forecast."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_q10jK5oNvO49Pre3ll26n4",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Barcelona",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_q10jK5oNvO49Pre3ll26n4",
+          "content": [
+           {
+            "type": "text",
+            "text": "{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-003": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You write the final packing list from the researcher's findings."
+       },
+       "new": "rq-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nResearch:\nBarcelona's forecast for the next two days is rain on day 1 with a high of 21°C, then sunshine on day 2 with a high of 22°C.\n\n**Packing list:** Bring light, layerable clothes for the mild 21–22°C days. Pack a few T-shirts or short-sleeve tops, plus a light sweater or long-sleeve shirt for the cooler, damp hours on the rainy first day. A compact umbrella or a packable waterproof jacket will help on day 1. Water-resistant shoes or sneakers that can get wet are a good idea. Sunglasses, a hat, and sunscreen will be useful on the sunny second day. Add a small daypack to carry the layers you take off as the weather changes."
+         },
+         "new": "rq-003"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

@@ -1,4 +1,4 @@
-//! The `sideseat.truth/2` document and its internal consistency.
+//! The `sideseat.truth/3` document and its internal consistency.
 //!
 //! The document is written by `python -m harness truth` (examples/python/harness/harness/truth) from the
 //! recorded model responses and the scenario scripts; nothing here derives truth, it only reads it. The
@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 use serde_json::Value;
 
-pub(super) const FORMAT: &str = "sideseat.truth/2";
+pub(super) const FORMAT: &str = "sideseat.truth/3";
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -29,6 +29,113 @@ pub(super) struct Truth {
     pub facts: Vec<Fact>,
     pub edges: Vec<Edge>,
     pub gaps: Vec<Gap>,
+    /// What each fixture's calls were sent, from that fixture's request transcript (rubric v3). A fixture
+    /// without one has no entry.
+    #[serde(default)]
+    pub requests: BTreeMap<String, FixtureRequests>,
+}
+
+/// One fixture's recorded requests, by the call each answered.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct FixtureRequests {
+    pub transcript: String,
+    pub calls: BTreeMap<String, CallRequest>,
+    /// Model requests no truth call answered: a retry the cassette does not hold, or a course change.
+    pub unpaired_requests: Vec<String>,
+}
+
+impl FixtureRequests {
+    /// What makes the recorded requests unusable as a truth: a missing transcript, a call the document
+    /// does not have or under another API, a part without exactly one lineage or naming no fact.
+    pub fn defects(&self, fixture: &str, truth: &Truth) -> Vec<String> {
+        let mut out = Vec::new();
+        if !repo_root().join(&self.transcript).exists() {
+            out.push(format!(
+                "{fixture}: transcript {} is missing",
+                self.transcript
+            ));
+        }
+        if !self.unpaired_requests.is_empty() {
+            out.push(format!(
+                "{fixture}: {} recorded request(s) no call answered",
+                self.unpaired_requests.len()
+            ));
+        }
+        let facts: BTreeSet<&str> = truth.facts.iter().map(|f| f.id.as_str()).collect();
+        for (id, request) in &self.calls {
+            match truth.calls.iter().find(|c| &c.id == id) {
+                None => out.push(format!("{fixture}: request for unknown call {id}")),
+                Some(call) if call.api.split('.').next() != request.api.split('.').next() => out
+                    .push(format!(
+                        "{fixture}: {id} was answered over {} but sent over {}",
+                        call.api, request.api
+                    )),
+                Some(_) => {}
+            }
+            if request.tools.iter().any(String::is_empty) {
+                out.push(format!("{fixture}: {id} offers a tool without a name"));
+            }
+            let parts = request
+                .system
+                .iter()
+                .chain(request.messages.iter().flat_map(|m| m.parts.iter()));
+            for occurrence in parts {
+                let lineages = [
+                    &occurrence.new_fact,
+                    &occurrence.replay_of,
+                    &occurrence.new,
+                    &occurrence.lineage_unknown,
+                ];
+                if lineages.iter().filter(|l| l.is_some()).count() != 1 {
+                    out.push(format!(
+                        "{fixture}: {id} has a part without exactly one lineage"
+                    ));
+                }
+                for named in [&occurrence.new_fact, &occurrence.replay_of]
+                    .into_iter()
+                    .flatten()
+                {
+                    if named.starts_with("fact-") && !facts.contains(named.as_str()) {
+                        out.push(format!("{fixture}: {id} names unknown {named}"));
+                    }
+                }
+            }
+        }
+        out
+    }
+}
+
+/// What one call was sent: system parts and messages, each part an occurrence with its lineage.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct CallRequest {
+    pub api: String,
+    pub system: Vec<Occurrence>,
+    pub messages: Vec<RequestMessage>,
+    pub tools: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct RequestMessage {
+    pub role: String,
+    pub parts: Vec<Occurrence>,
+}
+
+/// One part of a request and where it came from. Exactly one lineage member is set.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Occurrence {
+    pub part: Value,
+    #[serde(default)]
+    pub new_fact: Option<String>,
+    #[serde(default)]
+    pub replay_of: Option<String>,
+    #[serde(default)]
+    pub new: Option<String>,
+    #[serde(default)]
+    pub lineage_unknown: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -713,6 +820,19 @@ pub(super) fn document_defects(key: &str, truth: &Truth) -> Vec<String> {
         if !resolves {
             bad(format!("edge {edge:?} does not resolve"));
         }
+    }
+    for (fixture, recorded) in &truth.requests {
+        if !truth.fixtures.contains(fixture) {
+            defects.push(format!(
+                "{key}: requests for {fixture}, which is not one of its fixtures"
+            ));
+        }
+        defects.extend(
+            recorded
+                .defects(fixture, truth)
+                .into_iter()
+                .map(|d| format!("{key}: {d}")),
+        );
     }
     defects
 }

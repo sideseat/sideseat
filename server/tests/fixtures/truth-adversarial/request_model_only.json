@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "_synthetic",
  "scenario": "adversarial_request_model_only",
  "fixtures": [

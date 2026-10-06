@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shlex
 import shutil
@@ -13,6 +14,7 @@ from dataclasses import dataclass, field
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
+from harness import transcript
 from harness.capture import Pins, Suite, _Recorder, credential_in, uses_fake_model
 from harness.matrix.environment import executable
 from harness.proxy import ModelProxy, client_environment
@@ -87,6 +89,11 @@ def replay(
         tempfile.mkdtemp(prefix=f"matrix-{suite.manifest['producer']}-{scenario}-")
     )
     result = Replay(scenario, staging)
+    # What this release's run sent the model, beside its telemetry: the request truth is per fixture, and
+    # a historical release serialises the same conversation its own way.
+    request_log = staging / "model-requests.jsonl"
+    previous_log = os.environ.get(transcript.ENV)
+    os.environ[transcript.ENV] = str(request_log)
     _Recorder.out, _Recorder.forward, _Recorder.count = staging, None, 0
     _Recorder.counts = {}
     _Recorder.pins = Pins()
@@ -96,6 +103,7 @@ def replay(
     run_env = {
         **os.environ,
         **(env or {}),
+        transcript.ENV: str(request_log),
         "SIDESEAT_ENDPOINT": f"http://127.0.0.1:{recorder.server_address[1]}",
         "SIDESEAT_PROJECT_ID": "default",
     }
@@ -168,6 +176,14 @@ def replay(
         result.returncode, result.output = completed
     finally:
         recorder.shutdown()
+        if previous_log is None:
+            os.environ.pop(transcript.ENV, None)
+        else:
+            os.environ[transcript.ENV] = previous_log
+    (staging / transcript.FILENAME).write_text(
+        json.dumps(transcript.finish(request_log), indent=1) + "\n"
+    )
+    request_log.unlink(missing_ok=True)
     for path in sorted(staging.iterdir()):
         if kind := credential_in(path.read_bytes()):
             result.leaked = f"{kind} ({path.name})"

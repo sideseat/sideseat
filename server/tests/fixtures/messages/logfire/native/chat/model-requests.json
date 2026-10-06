@@ -1,0 +1,13 @@
+{
+ "format": "sideseat.transcript/1",
+ "interactions": [
+  {
+   "answered_by": 0,
+   "body": "eyJtb2RlbCI6Imdsb2JhbC5vcGVuYWkuZ3B0LTYuMS1zb2wiLCJpbnB1dCI6W3sicm9sZSI6InVzZXIiLCJjb250ZW50IjoiSW4gb25lIHNlbnRlbmNlLCB3aGF0IGlzIEt5b3RvIGJlc3Qga25vd24gZm9yPyJ9XSwiaW5zdHJ1Y3Rpb25zIjoiWW91IGFyZSBhIGNvbmNpc2UgdHJhdmVsIGFzc2lzdGFudC4gVXNlIHRoZSB0b29scyBmb3Igd2VhdGhlciBhbmQgYm9va2luZ3MgaW5zdGVhZCBvZiBndWVzc2luZywgYW5kIGFuc3dlciBpbiBhdCBtb3N0IHRocmVlIHNlbnRlbmNlcy4ifQ==",
+   "content_type": "application/json",
+   "method": "POST",
+   "path": "/openai/v1/responses",
+   "request_sha256": "38e8940120309643df93b421d15de110405a3d8c0087d488ca85a5559bc74a73"
+  }
+ ]
+}

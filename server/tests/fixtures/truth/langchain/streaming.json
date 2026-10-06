@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "langchain",
  "scenario": "streaming",
  "fixtures": [
@@ -208,5 +208,207 @@
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
   }
- ]
+ ],
+ "requests": {
+  "langchain/native/streaming": {
+   "transcript": "server/tests/fixtures/messages/langchain/native/streaming/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Check the weather in Rome for the next day and tell me what to wear."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Check the weather in Rome for the next day and tell me what to wear."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_mzoHAC0lHiDC5lMRxsiMLW",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Rome",
+           "days": 1
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_mzoHAC0lHiDC5lMRxsiMLW",
+          "content": [
+           {
+            "type": "text",
+            "text": "{\"city\": \"Rome\", \"forecast\": [{\"day\": 1, \"condition\": \"sunny\", \"high_c\": 21}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  },
+  "langchain/sdk/streaming": {
+   "transcript": "server/tests/fixtures/messages/langchain/sdk/streaming/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Check the weather in Rome for the next day and tell me what to wear."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Check the weather in Rome for the next day and tell me what to wear."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_mzoHAC0lHiDC5lMRxsiMLW",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Rome",
+           "days": 1
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_mzoHAC0lHiDC5lMRxsiMLW",
+          "content": [
+           {
+            "type": "text",
+            "text": "{\"city\": \"Rome\", \"forecast\": [{\"day\": 1, \"condition\": \"sunny\", \"high_c\": 21}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

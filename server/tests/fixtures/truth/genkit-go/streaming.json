@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "genkit-go",
  "scenario": "streaming",
  "fixtures": [
@@ -215,5 +215,213 @@
    "reason": "fake_model_echoes_request",
    "detail": "a fake model echoes the request's model and derives response ids from the request body; neither is recorded, so neither is asserted"
   }
- ]
+ ],
+ "requests": {
+  "genkit-go/native/streaming": {
+   "transcript": "server/tests/fixtures/messages/genkit-go/native/streaming/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Check the weather in Rome for the next day and tell me what to wear."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-002": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Check the weather in Rome for the next day and tell me what to wear."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "model",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": null,
+          "name": "get_weather",
+          "arguments": {
+           "city": "Rome",
+           "days": 1
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": null,
+          "content": [
+           {
+            "type": "json",
+            "value": {
+             "content": "{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}",
+             "name": "get_weather"
+            }
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-002"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  },
+  "genkit-go/sdk/streaming": {
+   "transcript": "server/tests/fixtures/messages/genkit-go/sdk/streaming/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Check the weather in Rome for the next day and tell me what to wear."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-002": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Check the weather in Rome for the next day and tell me what to wear."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "model",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": null,
+          "name": "get_weather",
+          "arguments": {
+           "city": "Rome",
+           "days": 1
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": null,
+          "content": [
+           {
+            "type": "json",
+            "value": {
+             "content": "{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}",
+             "name": "get_weather"
+            }
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-002"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

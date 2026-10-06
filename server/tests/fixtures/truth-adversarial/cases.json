@@ -990,6 +990,97 @@
     "trace:gap.unused:call-002"
    ],
    "why": "a declaration that the framework restates the prompt is an allowance only the capture can use; unused, it is contradicted"
+  },
+  {
+   "name": "a sent message the span omits",
+   "truth": "calculator",
+   "patch": [
+    {
+     "op": "add",
+     "path": "/requests/_synthetic~1tool_use/calls/call-002/messages/-",
+     "value": {
+      "role": "assistant",
+      "parts": [
+       {
+        "part": {
+         "type": "tool_call",
+         "id": "tooluse_abc123",
+         "name": "calculator",
+         "arguments": {
+          "expression": "17 * 23"
+         }
+        },
+        "replay_of": "fact-003"
+       }
+      ]
+     }
+    }
+   ],
+   "fires": [
+    "request:request.missing:call-002:m1.0"
+   ],
+   "why": "the second call was sent the first call's tool use, and its span's input does not show it"
+  },
+  {
+   "name": "an input the request did not send",
+   "truth": "calculator",
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/requests/_synthetic~1tool_use/calls/call-001/messages",
+     "value": []
+    }
+   ],
+   "fires": [
+    "request:request.extra:call-001:in1:user/text"
+   ],
+   "why": "the span shows a user turn the recorded request does not hold"
+  },
+  {
+   "name": "a sent message out of order",
+   "truth": "calculator",
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/requests/_synthetic~1tool_use/calls/call-001/system",
+     "value": []
+    },
+    {
+     "op": "add",
+     "path": "/requests/_synthetic~1tool_use/calls/call-001/messages/-",
+     "value": {
+      "role": "system",
+      "parts": [
+       {
+        "part": {
+         "type": "text",
+         "text": "You are a precise calculator."
+        },
+        "new": "rq-001"
+       }
+      ]
+     }
+    }
+   ],
+   "fires": [
+    "request:request.order:call-001:m0.0"
+   ],
+   "why": "the request put the instruction after the question; the span shows it before"
+  },
+  {
+   "name": "a sent message under another role",
+   "truth": "calculator",
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/requests/_synthetic~1tool_use/calls/call-001/messages/0/role",
+     "value": "assistant"
+    }
+   ],
+   "fires": [
+    "request:request.role:call-001:m0.0"
+   ],
+   "why": "the request sent the question as the assistant's turn; the span shows it as the user's"
   }
  ]
 }

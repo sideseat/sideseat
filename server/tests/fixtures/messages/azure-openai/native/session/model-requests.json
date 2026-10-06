@@ -1,0 +1,19 @@
+{
+ "format": "sideseat.transcript/1",
+ "interactions": [
+  {
+   "body": "eyJtb2RlbCI6ImdwdC02LjEtc29sIiwibWVzc2FnZXMiOlt7InJvbGUiOiJzeXN0ZW0iLCJjb250ZW50IjoiWW91IGFyZSBhIGNvbmNpc2UgdHJhdmVsIGFzc2lzdGFudC4gVXNlIHRoZSB0b29scyBmb3Igd2VhdGhlciBhbmQgYm9va2luZ3MgaW5zdGVhZCBvZiBndWVzc2luZywgYW5kIGFuc3dlciBpbiBhdCBtb3N0IHRocmVlIHNlbnRlbmNlcy4ifSx7InJvbGUiOiJ1c2VyIiwiY29udGVudCI6IlN1Z2dlc3Qgb25lIG11c2V1bSB0byB2aXNpdCBpbiBNYWRyaWQuIn1dfQ==",
+   "content_type": "application/json",
+   "method": "POST",
+   "path": "/openai/deployments/gpt-6.1-sol/chat/completions?api-version=2025-04-01-preview",
+   "request_sha256": "1a1e2f2d55c41837b606a4924a1fc68cdd4b98a48c3df08c29fb57ff833eca77"
+  },
+  {
+   "body": "eyJtb2RlbCI6ImdwdC02LjEtc29sIiwibWVzc2FnZXMiOlt7InJvbGUiOiJzeXN0ZW0iLCJjb250ZW50IjoiWW91IGFyZSBhIGNvbmNpc2UgdHJhdmVsIGFzc2lzdGFudC4gVXNlIHRoZSB0b29scyBmb3Igd2VhdGhlciBhbmQgYm9va2luZ3MgaW5zdGVhZCBvZiBndWVzc2luZywgYW5kIGFuc3dlciBpbiBhdCBtb3N0IHRocmVlIHNlbnRlbmNlcy4ifSx7InJvbGUiOiJ1c2VyIiwiY29udGVudCI6IlN1Z2dlc3Qgb25lIHBhcmsgdG8gdmlzaXQgaW4gTWFkcmlkLiJ9XX0=",
+   "content_type": "application/json",
+   "method": "POST",
+   "path": "/openai/deployments/gpt-6.1-sol/chat/completions?api-version=2025-04-01-preview",
+   "request_sha256": "b8cadf5d2bc930dd57a62cc415554e856066a64cb5628093ee2f3aa102710e60"
+  }
+ ]
+}

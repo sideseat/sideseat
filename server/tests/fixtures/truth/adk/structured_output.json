@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "adk",
  "scenario": "structured_output",
  "fixtures": [
@@ -186,5 +186,215 @@
    "detail": "why a response that called tools ended: ADK records every response's finish as `stop`, and no payload keeps the provider's `tool_use`",
    "subject": "call-001"
   }
- ]
+ ],
+ "requests": {
+  "adk/native/structured_output": {
+   "transcript": "server/tests/fixtures/messages/adk/native/structured_output/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Hand the finished plan to trip_plan.\n\nYou are an agent. Your internal name is \"planner\"."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Plan a two-day trip to Vienna."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "trip_plan"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Hand the finished plan to trip_plan.\n\nYou are an agent. Your internal name is \"planner\"."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Plan a two-day trip to Vienna."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_viNhKxyUQPIEtmWJ39j3mp",
+          "name": "trip_plan",
+          "arguments": {
+           "city": "Vienna",
+           "days": [
+            "Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and Graben; coffee and Sachertorte at a classic café; evening at the Vienna State Opera or a Heuriger dinner.",
+            "Day 2: Tour Schönbrunn Palace and gardens in the morning; afternoon at the Belvedere (Klimt's The Kiss) and a stroll through Naschmarkt before departure."
+           ],
+           "budget_eur": 450
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_viNhKxyUQPIEtmWJ39j3mp",
+          "content": [
+           {
+            "type": "text",
+            "text": "{\"result\": \"Plan recorded.\"}"
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-002"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "trip_plan"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  },
+  "adk/sdk/structured_output": {
+   "transcript": "server/tests/fixtures/messages/adk/sdk/structured_output/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Hand the finished plan to trip_plan.\n\nYou are an agent. Your internal name is \"planner\"."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Plan a two-day trip to Vienna."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "trip_plan"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Hand the finished plan to trip_plan.\n\nYou are an agent. Your internal name is \"planner\"."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Plan a two-day trip to Vienna."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_viNhKxyUQPIEtmWJ39j3mp",
+          "name": "trip_plan",
+          "arguments": {
+           "city": "Vienna",
+           "days": [
+            "Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and Graben; coffee and Sachertorte at a classic café; evening at the Vienna State Opera or a Heuriger dinner.",
+            "Day 2: Tour Schönbrunn Palace and gardens in the morning; afternoon at the Belvedere (Klimt's The Kiss) and a stroll through Naschmarkt before departure."
+           ],
+           "budget_eur": 450
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_viNhKxyUQPIEtmWJ39j3mp",
+          "content": [
+           {
+            "type": "text",
+            "text": "{\"result\": \"Plan recorded.\"}"
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-002"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "trip_plan"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

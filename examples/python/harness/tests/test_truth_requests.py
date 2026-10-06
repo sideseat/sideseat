@@ -1,0 +1,317 @@
+"""The request side of the wire: what a framework sent a model, decoded strictly and recorded per fixture."""
+
+from __future__ import annotations
+
+import base64
+import hashlib
+import json
+from pathlib import Path
+
+import pytest
+
+from harness import fakes, transcript
+from harness.truth.requests import decode_request
+from harness.truth.wire import DecodeError
+
+PNG = b"\x89PNG\r\n\x1a\nfake"
+
+
+def test_converse_keeps_system_boundaries_media_and_tool_pairing() -> None:
+    body = {
+        "system": [{"text": "Be brief."}, {"cachePoint": {"type": "default"}}],
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"text": "What is this?"},
+                    {
+                        "image": {
+                            "format": "png",
+                            "source": {"bytes": base64.b64encode(PNG).decode()},
+                        }
+                    },
+                ],
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {"toolUse": {"toolUseId": "t1", "name": "look", "input": {"x": 1}}}
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "toolResult": {
+                            "toolUseId": "t1",
+                            "content": [{"json": {"ok": True}}],
+                            "status": "error",
+                        }
+                    }
+                ],
+            },
+        ],
+        "toolConfig": {"tools": [{"toolSpec": {"name": "look"}}]},
+    }
+    request = decode_request("POST", "/model/m/converse", json.dumps(body).encode())
+    assert request is not None
+    assert request.system == [{"type": "text", "text": "Be brief."}]
+    assert [m["role"] for m in request.messages] == ["user", "assistant", "user"]
+    image = request.messages[0]["parts"][1]
+    assert image["sha256"] == hashlib.sha256(PNG).hexdigest()
+    assert image["size"] == len(PNG) and image["media_type"] == "image/png"
+    assert request.messages[1]["parts"] == [
+        {"type": "tool_call", "id": "t1", "name": "look", "arguments": {"x": 1}}
+    ]
+    result = request.messages[2]["parts"][0]
+    assert result["id"] == "t1" and result["is_error"]
+    assert request.tools == ["look"]
+
+
+def test_chat_moves_system_out_of_the_conversation_and_parses_arguments() -> None:
+    body = {
+        "model": "gpt",
+        "messages": [
+            {"role": "system", "content": "Be brief."},
+            {"role": "user", "content": [{"type": "text", "text": "Hi"}]},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "c1",
+                        "type": "function",
+                        "function": {"name": "f", "arguments": '{"a": 2}'},
+                    }
+                ],
+            },
+            {"role": "tool", "tool_call_id": "c1", "content": "done"},
+        ],
+    }
+    request = decode_request("POST", "/v1/chat/completions", json.dumps(body).encode())
+    assert request is not None
+    assert request.system == [{"type": "text", "text": "Be brief."}]
+    assert request.messages[1]["parts"][0]["arguments"] == {"a": 2}
+    assert request.messages[2]["parts"][0]["id"] == "c1"
+
+
+def test_responses_and_gemini_requests_decode() -> None:
+    responses = {
+        "instructions": "Be brief.",
+        "input": [
+            {"role": "user", "content": [{"type": "input_text", "text": "Hi"}]},
+            {"type": "function_call", "call_id": "c1", "name": "f", "arguments": "{}"},
+            {"type": "function_call_output", "call_id": "c1", "output": "ok"},
+        ],
+    }
+    request = decode_request("POST", "/v1/responses", json.dumps(responses).encode())
+    assert request is not None
+    assert request.system[0]["text"] == "Be brief."
+    assert [m["role"] for m in request.messages] == ["user", "assistant", "tool"]
+    gemini = {
+        "systemInstruction": {"parts": [{"text": "Be brief."}]},
+        "contents": [
+            {"role": "user", "parts": [{"text": "Hi"}]},
+            {"role": "model", "parts": [{"functionCall": {"name": "f", "args": {}}}]},
+        ],
+        "tools": [{"functionDeclarations": [{"name": "f"}]}],
+    }
+    request = decode_request(
+        "POST", "/v1beta/models/gemini-x:generateContent", json.dumps(gemini).encode()
+    )
+    assert request is not None
+    assert request.tools == ["f"] and request.messages[1]["parts"][0]["id"] is None
+
+
+@pytest.mark.parametrize(
+    ("path", "body"),
+    [
+        (
+            "/model/m/converse",
+            {"messages": [{"role": "user", "content": [{"weird": {}}]}]},
+        ),
+        (
+            "/v1/messages",
+            {"messages": [{"role": "user", "content": [{"type": "weird"}]}]},
+        ),
+        (
+            "/v1/chat/completions",
+            {"messages": [{"role": "user", "content": [{"type": "weird"}]}]},
+        ),
+        ("/v1/responses", {"input": [{"type": "weird"}]}),
+        (
+            "/v1/chat/completions",
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": "https://x/y.png"},
+                            }
+                        ],
+                    }
+                ]
+            },
+        ),
+    ],
+)
+def test_an_unknown_or_remote_part_is_an_error(path: str, body: dict) -> None:
+    with pytest.raises(DecodeError):
+        decode_request("POST", path, json.dumps(body).encode())
+
+
+def test_a_request_to_no_model_is_none() -> None:
+    assert decode_request("GET", "/health", b"") is None
+
+
+def test_the_transcript_keeps_requests_in_order_scrubbed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    log = tmp_path / "log.jsonl"
+    monkeypatch.setenv(transcript.ENV, str(log))
+    monkeypatch.setattr("harness.scrub.account_names", lambda: [b"alice"])
+    transcript.record(
+        "POST", "/a", b'{"path": "/Users/alice/x"}', "application/json", answered_by=3
+    )
+    transcript.record("POST", "/b", b"{}", "application/json")
+    document = transcript.finish(log)
+    assert document["format"] == transcript.FORMAT
+    first, second = document["interactions"]
+    assert (first["path"], first["answered_by"]) == (
+        "/a",
+        3,
+    ) and "answered_by" not in second
+    assert b"alice" not in base64.b64decode(first["body"])
+    assert first["request_sha256"] == transcript.digest(
+        "POST", "/a", b'{"path": "/Users/alice/x"}'
+    )
+    out = tmp_path / transcript.FILENAME
+    out.write_text(json.dumps(document))
+    assert [e["path"] for e in transcript.load(out)] == ["/a", "/b"]
+
+
+def test_a_fake_model_records_what_it_was_sent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import urllib.request
+
+    log = tmp_path / "log.jsonl"
+    monkeypatch.setenv(transcript.ENV, str(log))
+    url = fakes.start("fake-openai")
+    body = json.dumps(
+        {"model": "fake", "messages": [{"role": "user", "content": "Hello"}]}
+    ).encode()
+    request = urllib.request.Request(
+        url + "/v1/chat/completions",
+        data=body,
+        headers={"Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(request, timeout=10) as response:
+        assert response.status == 200
+    (entry,) = transcript.finish(log)["interactions"]
+    assert base64.b64decode(entry["body"]) == body
+    assert entry["path"] == "/v1/chat/completions"
+
+
+def _converse(messages: list[dict], system: str = "Be brief.") -> bytes:
+    return json.dumps({"system": [{"text": system}], "messages": messages}).encode()
+
+
+def test_lineage_comes_from_the_requests_and_the_outputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from harness.truth import request_truth
+
+    monkeypatch.setattr(request_truth, "FIXTURES", tmp_path)
+    monkeypatch.setattr(request_truth, "REPO", tmp_path)
+    fixture = tmp_path / "p" / "native" / "s"
+    fixture.mkdir(parents=True)
+    user = {"role": "user", "content": [{"text": "Hi"}]}
+    call = {
+        "role": "assistant",
+        "content": [{"toolUse": {"toolUseId": "t1", "name": "f", "input": {}}}],
+    }
+    result = {
+        "role": "user",
+        "content": [{"toolResult": {"toolUseId": "t1", "content": [{"text": "ok"}]}}],
+    }
+    summary = {"role": "assistant", "content": [{"text": "A summary nobody said."}]}
+    log = tmp_path / "log.jsonl"
+    for index, messages in enumerate([[user], [user, call, result], [summary, user]]):
+        transcript.record(
+            "POST",
+            "/model/m/converse",
+            _converse(messages),
+            "application/json",
+            answered_by=index,
+            log=str(log),
+        )
+    (fixture / transcript.FILENAME).write_text(json.dumps(transcript.finish(log)))
+    truth = {
+        "calls": [
+            {"id": "call-001", "conversation": "c", "outputs": ["fact-002"]},
+            {"id": "call-002", "conversation": "c", "outputs": []},
+            {"id": "call-003", "conversation": "c", "outputs": []},
+        ],
+        "facts": [
+            {
+                "id": "fact-001",
+                "kind": "user_text",
+                "conversation": "c",
+                "value": {"text": "Hi"},
+            },
+            {
+                "id": "fact-002",
+                "kind": "tool_call",
+                "conversation": "c",
+                "value": {"id": "t1", "name": "f", "arguments": {}},
+            },
+            {
+                "id": "fact-003",
+                "kind": "tool_result",
+                "conversation": "c",
+                "value": {"call_id": "t1", "name": "f", "value": "ok"},
+            },
+        ],
+    }
+    recorded = request_truth.fixture_requests(
+        truth, "p/native/s", {0: "call-001", 1: "call-002", 2: "call-003"}
+    )
+    assert recorded is not None and recorded["unpaired_requests"] == []
+    calls = recorded["calls"]
+
+    def lineage(call: str) -> list[dict]:
+        return [
+            {k: v for k, v in part.items() if k != "part"}
+            for message in calls[call]["messages"]
+            for part in message["parts"]
+        ]
+
+    assert calls["call-001"]["system"][0]["new"] == "rq-001"
+    assert lineage("call-001") == [{"new_fact": "fact-001"}]
+    assert lineage("call-002") == [
+        {"replay_of": "fact-001"},
+        {"replay_of": "fact-002"},
+        {"new_fact": "fact-003"},
+    ]
+    assert calls["call-003"]["system"][0] == {
+        "part": {"type": "text", "text": "Be brief."},
+        "replay_of": "rq-001",
+    }
+    # The summary is model-side content no output holds: its lineage is unknown, never "new".
+    assert "lineage_unknown" in lineage("call-003")[0]
+    assert lineage("call-003")[1] == {"replay_of": "fact-001"}
+
+
+def test_a_fixture_without_a_transcript_has_no_request_truth(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from harness.truth import request_truth
+
+    monkeypatch.setattr(request_truth, "FIXTURES", tmp_path)
+    assert (
+        request_truth.fixture_requests({"calls": [], "facts": []}, "p/native/s", None)
+        is None
+    )

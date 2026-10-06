@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "langchain",
  "scenario": "structured_output",
  "fixtures": [
@@ -125,5 +125,77 @@
    "detail": "TripPlan is not one of the shared deterministic tools",
    "subject": "fact-002"
   }
- ]
+ ],
+ "requests": {
+  "langchain/native/structured_output": {
+   "transcript": "server/tests/fixtures/messages/langchain/native/structured_output/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Plan a two-day trip to Vienna."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "TripPlan"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  },
+  "langchain/sdk/structured_output": {
+   "transcript": "server/tests/fixtures/messages/langchain/sdk/structured_output/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Plan a two-day trip to Vienna."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "TripPlan"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

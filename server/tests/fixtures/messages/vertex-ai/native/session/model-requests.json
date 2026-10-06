@@ -1,0 +1,19 @@
+{
+ "format": "sideseat.transcript/1",
+ "interactions": [
+  {
+   "body": "eyJjb250ZW50cyI6IFt7InBhcnRzIjogW3sidGV4dCI6ICJTdWdnZXN0IG9uZSBtdXNldW0gdG8gdmlzaXQgaW4gTWFkcmlkLiJ9XSwgInJvbGUiOiAidXNlciJ9XSwgInN5c3RlbUluc3RydWN0aW9uIjogeyJwYXJ0cyI6IFt7InRleHQiOiAiWW91IGFyZSBhIGNvbmNpc2UgdHJhdmVsIGFzc2lzdGFudC4gVXNlIHRoZSB0b29scyBmb3Igd2VhdGhlciBhbmQgYm9va2luZ3MgaW5zdGVhZCBvZiBndWVzc2luZywgYW5kIGFuc3dlciBpbiBhdCBtb3N0IHRocmVlIHNlbnRlbmNlcy4ifV0sICJyb2xlIjogInVzZXIifSwgImdlbmVyYXRpb25Db25maWciOiB7fX0=",
+   "content_type": "application/json",
+   "method": "POST",
+   "path": "/v1beta1/projects/sideseat-example/locations/us-central1/publishers/google/models/gemini-flash-latest:generateContent",
+   "request_sha256": "d408b894619bb6496703a6207208bde658295f5a6cb5656c3b451222c031e500"
+  },
+  {
+   "body": "eyJjb250ZW50cyI6IFt7InBhcnRzIjogW3sidGV4dCI6ICJTdWdnZXN0IG9uZSBwYXJrIHRvIHZpc2l0IGluIE1hZHJpZC4ifV0sICJyb2xlIjogInVzZXIifV0sICJzeXN0ZW1JbnN0cnVjdGlvbiI6IHsicGFydHMiOiBbeyJ0ZXh0IjogIllvdSBhcmUgYSBjb25jaXNlIHRyYXZlbCBhc3Npc3RhbnQuIFVzZSB0aGUgdG9vbHMgZm9yIHdlYXRoZXIgYW5kIGJvb2tpbmdzIGluc3RlYWQgb2YgZ3Vlc3NpbmcsIGFuZCBhbnN3ZXIgaW4gYXQgbW9zdCB0aHJlZSBzZW50ZW5jZXMuIn1dLCAicm9sZSI6ICJ1c2VyIn0sICJnZW5lcmF0aW9uQ29uZmlnIjoge319",
+   "content_type": "application/json",
+   "method": "POST",
+   "path": "/v1beta1/projects/sideseat-example/locations/us-central1/publishers/google/models/gemini-flash-latest:generateContent",
+   "request_sha256": "2c0a6f1731d61f3173e7ed07f07d55d5aa7070461cbd29aff464b8773bfb3d79"
+  }
+ ]
+}

@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "google-genai",
  "scenario": "error",
  "fixtures": [
@@ -218,5 +218,213 @@
    "reason": "fake_model_echoes_request",
    "detail": "a fake model echoes the request's model and derives response ids from the request body; neither is recorded, so neither is asserted"
   }
- ]
+ ],
+ "requests": {
+  "google-genai/native/error": {
+   "transcript": "server/tests/fixtures/messages/google-genai/native/error/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Book me a flight from London to Oslo on 2026-11-14."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "book_flight"
+     ]
+    },
+    "call-002": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Book me a flight from London to Oslo on 2026-11-14."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "model",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "call_book_flight_ce9747242522",
+          "name": "book_flight",
+          "arguments": {
+           "origin": "London",
+           "destination": "Oslo",
+           "date": "2026-11-14"
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": null,
+          "content": [
+           {
+            "type": "json",
+            "value": {
+             "error": "Failed to invoke function book_flight with converted arguments {'origin': 'London', 'destination': 'Oslo', 'date': '2026-11-14'} from model returned function call argument {'origin': 'London', 'destination': 'Oslo', 'date': '2026-11-14'} because of error No seats from London to Oslo on 2026-11-14: the booking system is offline."
+            }
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-002"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "book_flight"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  },
+  "google-genai/sdk/error": {
+   "transcript": "server/tests/fixtures/messages/google-genai/sdk/error/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Book me a flight from London to Oslo on 2026-11-14."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "book_flight"
+     ]
+    },
+    "call-002": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Book me a flight from London to Oslo on 2026-11-14."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "model",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "call_book_flight_ce9747242522",
+          "name": "book_flight",
+          "arguments": {
+           "origin": "London",
+           "destination": "Oslo",
+           "date": "2026-11-14"
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": null,
+          "content": [
+           {
+            "type": "json",
+            "value": {
+             "error": "Failed to invoke function book_flight with converted arguments {'origin': 'London', 'destination': 'Oslo', 'date': '2026-11-14'} from model returned function call argument {'origin': 'London', 'destination': 'Oslo', 'date': '2026-11-14'} because of error No seats from London to Oslo on 2026-11-14: the booking system is offline."
+            }
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-002"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "book_flight"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

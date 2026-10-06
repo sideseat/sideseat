@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "adk-go",
  "scenario": "streaming",
  "fixtures": [
@@ -214,5 +214,225 @@
    "reason": "fake_model_echoes_request",
    "detail": "a fake model echoes the request's model and derives response ids from the request body; neither is recorded, so neither is asserted"
   }
- ]
+ ],
+ "requests": {
+  "adk-go/native/streaming": {
+   "transcript": "server/tests/fixtures/messages/adk-go/native/streaming/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\n\nYou are an agent. Your internal name is \"assistant\"."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Check the weather in Rome for the next day and tell me what to wear."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-002": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\n\nYou are an agent. Your internal name is \"assistant\"."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Check the weather in Rome for the next day and tell me what to wear."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "model",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "call_get_weather_caad21d8fe08",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Rome",
+           "days": 1
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "call_get_weather_caad21d8fe08",
+          "content": [
+           {
+            "type": "json",
+            "value": {
+             "city": "Rome",
+             "forecast": [
+              {
+               "condition": "sunny",
+               "day": 1,
+               "high_c": 21
+              }
+             ]
+            }
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  },
+  "adk-go/sdk/streaming": {
+   "transcript": "server/tests/fixtures/messages/adk-go/sdk/streaming/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\n\nYou are an agent. Your internal name is \"assistant\"."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Check the weather in Rome for the next day and tell me what to wear."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-002": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\n\nYou are an agent. Your internal name is \"assistant\"."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Check the weather in Rome for the next day and tell me what to wear."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "model",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "call_get_weather_caad21d8fe08",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Rome",
+           "days": 1
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "call_get_weather_caad21d8fe08",
+          "content": [
+           {
+            "type": "json",
+            "value": {
+             "city": "Rome",
+             "forecast": [
+              {
+               "condition": "sunny",
+               "day": 1,
+               "high_c": 21
+              }
+             ]
+            }
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

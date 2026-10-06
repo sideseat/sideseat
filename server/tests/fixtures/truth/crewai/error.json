@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "crewai",
  "scenario": "error",
  "fixtures": [
@@ -200,5 +200,209 @@
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
   }
- ]
+ ],
+ "requests": {
+  "crewai/native/error": {
+   "transcript": "server/tests/fixtures/messages/crewai/native/error/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "\nCurrent Task: Book me a flight from London to Oslo on 2026-11-14.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
+         },
+         "new": "rq-002"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "book_flight"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "\nCurrent Task: Book me a flight from London to Oslo on 2026-11-14.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
+         },
+         "replay_of": "rq-002"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_BhmDU8uFeB9rNI3rkBpbks",
+          "name": "book_flight",
+          "arguments": {
+           "origin": "London",
+           "destination": "Oslo",
+           "date": "2026-11-14"
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_BhmDU8uFeB9rNI3rkBpbks",
+          "content": [
+           {
+            "type": "text",
+            "text": "Error executing tool: No seats from London to Oslo on 2026-11-14: the booking system is offline."
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "book_flight"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  },
+  "crewai/sdk/error": {
+   "transcript": "server/tests/fixtures/messages/crewai/sdk/error/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "\nCurrent Task: Book me a flight from London to Oslo on 2026-11-14.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
+         },
+         "new": "rq-002"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "book_flight"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "\nCurrent Task: Book me a flight from London to Oslo on 2026-11-14.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
+         },
+         "replay_of": "rq-002"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_BhmDU8uFeB9rNI3rkBpbks",
+          "name": "book_flight",
+          "arguments": {
+           "origin": "London",
+           "destination": "Oslo",
+           "date": "2026-11-14"
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_BhmDU8uFeB9rNI3rkBpbks",
+          "content": [
+           {
+            "type": "text",
+            "text": "Error executing tool: No seats from London to Oslo on 2026-11-14: the booking system is offline."
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "book_flight"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

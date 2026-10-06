@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "claude-agent-sdk",
  "scenario": "tool_use",
  "fixtures": [
@@ -399,5 +399,491 @@
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
   }
- ]
+ ],
+ "requests": {
+  "claude-agent-sdk/native/tool_use": {
+   "transcript": "server/tests/fixtures/messages/claude-agent-sdk/native/tool_use/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "x-anthropic-billing-header: cc_version=2.1.286.802; cc_entrypoint=sdk-py;"
+       },
+       "new": "rq-001"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+       },
+       "new": "rq-002"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-003"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?"
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "system",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "# Environment\nYou have been invoked in the following environment: \n - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk\n - Is a git repository: false\n - Additional working directories:\n  - /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk\n - Platform: darwin\n - Shell: zsh\n - OS Version: Darwin 25.6.0\n\nYou are powered by the model named Sonnet 5.5. The exact model ID is global.anthropic.claude-sonnet-5-5. Assistant knowledge cutoff is June 2026.\n\n<total_tokens>15000000 tokens left</total_tokens>\n\nToday's date is 2026-10-06."
+         },
+         "new": "rq-004"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "mcp__travel__get_precipitation",
+      "mcp__travel__get_weather"
+     ]
+    },
+    "call-002": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "x-anthropic-billing-header: cc_version=2.1.286.802; cc_entrypoint=sdk-py;"
+       },
+       "replay_of": "rq-001"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+       },
+       "replay_of": "rq-002"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-003"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?"
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "system",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "# Environment\nYou have been invoked in the following environment: \n - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk\n - Is a git repository: false\n - Additional working directories:\n  - /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk\n - Platform: darwin\n - Shell: zsh\n - OS Version: Darwin 25.6.0\n\nYou are powered by the model named Sonnet 5.5. The exact model ID is global.anthropic.claude-sonnet-5-5. Assistant knowledge cutoff is June 2026.\n\n<total_tokens>15000000 tokens left</total_tokens>\n\nToday's date is 2026-10-06."
+         },
+         "replay_of": "rq-004"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_01BEX7b7bcTA4i9WLuhnNLqb",
+          "name": "mcp__travel__get_weather",
+          "arguments": {
+           "city": "Paris",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-002"
+        },
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_013YomZyENQYy6XZurejeKwk",
+          "name": "mcp__travel__get_weather",
+          "arguments": {
+           "city": "Tokyo",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-003"
+        },
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_01Ws9ZNTW9AwgZFAihYi2SkW",
+          "name": "mcp__travel__get_precipitation",
+          "arguments": {
+           "city": "Paris"
+          }
+         },
+         "replay_of": "fact-004"
+        },
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_01Rj72c3xHLAwmaHfcf6P1T7",
+          "name": "mcp__travel__get_precipitation",
+          "arguments": {
+           "city": "Tokyo"
+          }
+         },
+         "replay_of": "fact-005"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_01BEX7b7bcTA4i9WLuhnNLqb",
+          "content": [
+           {
+            "type": "text",
+            "text": "{\"city\": \"Paris\", \"forecast\": [{\"day\": 1, \"condition\": \"sunny\", \"high_c\": 21}, {\"day\": 2, \"condition\": \"sunny\", \"high_c\": 22}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-006"
+        },
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_013YomZyENQYy6XZurejeKwk",
+          "content": [
+           {
+            "type": "text",
+            "text": "{\"city\": \"Tokyo\", \"forecast\": [{\"day\": 1, \"condition\": \"rain\", \"high_c\": 21}, {\"day\": 2, \"condition\": \"sunny\", \"high_c\": 22}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-007"
+        },
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_01Ws9ZNTW9AwgZFAihYi2SkW",
+          "content": [
+           {
+            "type": "text",
+            "text": "10% chance of rain in Paris tomorrow."
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-008"
+        },
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_01Rj72c3xHLAwmaHfcf6P1T7",
+          "content": [
+           {
+            "type": "text",
+            "text": "80% chance of rain in Tokyo tomorrow."
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-009"
+        }
+       ]
+      },
+      {
+       "role": "system",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "<total_tokens>14998818 tokens left</total_tokens>"
+         },
+         "new": "rq-005"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "mcp__travel__get_precipitation",
+      "mcp__travel__get_weather"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  },
+  "claude-agent-sdk/sdk/tool_use": {
+   "transcript": "server/tests/fixtures/messages/claude-agent-sdk/sdk/tool_use/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "x-anthropic-billing-header: cc_version=2.1.286.802; cc_entrypoint=sdk-py;"
+       },
+       "new": "rq-001"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+       },
+       "new": "rq-002"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-003"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?"
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "system",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "# Environment\nYou have been invoked in the following environment: \n - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk\n - Is a git repository: false\n - Additional working directories:\n  - /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk\n - Platform: darwin\n - Shell: zsh\n - OS Version: Darwin 25.6.0\n\nYou are powered by the model named Sonnet 5.5. The exact model ID is global.anthropic.claude-sonnet-5-5. Assistant knowledge cutoff is June 2026.\n\n<total_tokens>15000000 tokens left</total_tokens>\n\nToday's date is 2026-10-06."
+         },
+         "new": "rq-004"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "mcp__travel__get_precipitation",
+      "mcp__travel__get_weather"
+     ]
+    },
+    "call-002": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "x-anthropic-billing-header: cc_version=2.1.286.802; cc_entrypoint=sdk-py;"
+       },
+       "replay_of": "rq-001"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+       },
+       "replay_of": "rq-002"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-003"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?"
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "system",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "# Environment\nYou have been invoked in the following environment: \n - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk\n - Is a git repository: false\n - Additional working directories:\n  - /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk\n - Platform: darwin\n - Shell: zsh\n - OS Version: Darwin 25.6.0\n\nYou are powered by the model named Sonnet 5.5. The exact model ID is global.anthropic.claude-sonnet-5-5. Assistant knowledge cutoff is June 2026.\n\n<total_tokens>15000000 tokens left</total_tokens>\n\nToday's date is 2026-10-06."
+         },
+         "replay_of": "rq-004"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_01BEX7b7bcTA4i9WLuhnNLqb",
+          "name": "mcp__travel__get_weather",
+          "arguments": {
+           "city": "Paris",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-002"
+        },
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_013YomZyENQYy6XZurejeKwk",
+          "name": "mcp__travel__get_weather",
+          "arguments": {
+           "city": "Tokyo",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-003"
+        },
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_01Ws9ZNTW9AwgZFAihYi2SkW",
+          "name": "mcp__travel__get_precipitation",
+          "arguments": {
+           "city": "Paris"
+          }
+         },
+         "replay_of": "fact-004"
+        },
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_01Rj72c3xHLAwmaHfcf6P1T7",
+          "name": "mcp__travel__get_precipitation",
+          "arguments": {
+           "city": "Tokyo"
+          }
+         },
+         "replay_of": "fact-005"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_01BEX7b7bcTA4i9WLuhnNLqb",
+          "content": [
+           {
+            "type": "text",
+            "text": "{\"city\": \"Paris\", \"forecast\": [{\"day\": 1, \"condition\": \"sunny\", \"high_c\": 21}, {\"day\": 2, \"condition\": \"sunny\", \"high_c\": 22}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-006"
+        },
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_013YomZyENQYy6XZurejeKwk",
+          "content": [
+           {
+            "type": "text",
+            "text": "{\"city\": \"Tokyo\", \"forecast\": [{\"day\": 1, \"condition\": \"rain\", \"high_c\": 21}, {\"day\": 2, \"condition\": \"sunny\", \"high_c\": 22}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-007"
+        },
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_01Ws9ZNTW9AwgZFAihYi2SkW",
+          "content": [
+           {
+            "type": "text",
+            "text": "10% chance of rain in Paris tomorrow."
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-008"
+        },
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_01Rj72c3xHLAwmaHfcf6P1T7",
+          "content": [
+           {
+            "type": "text",
+            "text": "80% chance of rain in Tokyo tomorrow."
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-009"
+        }
+       ]
+      },
+      {
+       "role": "system",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "<total_tokens>14998818 tokens left</total_tokens>"
+         },
+         "new": "rq-005"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "mcp__travel__get_precipitation",
+      "mcp__travel__get_weather"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

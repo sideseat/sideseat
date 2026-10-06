@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "anthropic",
  "scenario": "tool_use",
  "fixtures": [
@@ -398,5 +398,185 @@
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
   }
- ]
+ ],
+ "requests": {
+  "anthropic/sdk/tool_use": {
+   "transcript": "server/tests/fixtures/messages/anthropic/sdk/tool_use/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?"
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather",
+      "get_precipitation"
+     ]
+    },
+    "call-002": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?"
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_01QgmDNdKAXDWU398poPMxny",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Paris",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-002"
+        },
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_01HV5Uzc469e5Xmkmx4bgX1w",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Tokyo",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-003"
+        },
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_01499ypdfuBh4xpi5p5Gta1i",
+          "name": "get_precipitation",
+          "arguments": {
+           "city": "Paris"
+          }
+         },
+         "replay_of": "fact-004"
+        },
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_016kso9qBwhDShh3UY4zRSdE",
+          "name": "get_precipitation",
+          "arguments": {
+           "city": "Tokyo"
+          }
+         },
+         "replay_of": "fact-005"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_01QgmDNdKAXDWU398poPMxny",
+          "content": [
+           {
+            "type": "text",
+            "text": "{\"city\": \"Paris\", \"forecast\": [{\"day\": 1, \"condition\": \"sunny\", \"high_c\": 21}, {\"day\": 2, \"condition\": \"sunny\", \"high_c\": 22}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-006"
+        },
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_01HV5Uzc469e5Xmkmx4bgX1w",
+          "content": [
+           {
+            "type": "text",
+            "text": "{\"city\": \"Tokyo\", \"forecast\": [{\"day\": 1, \"condition\": \"rain\", \"high_c\": 21}, {\"day\": 2, \"condition\": \"sunny\", \"high_c\": 22}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-007"
+        },
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_01499ypdfuBh4xpi5p5Gta1i",
+          "content": [
+           {
+            "type": "text",
+            "text": "10% chance of rain in Paris tomorrow."
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-008"
+        },
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_016kso9qBwhDShh3UY4zRSdE",
+          "content": [
+           {
+            "type": "text",
+            "text": "80% chance of rain in Tokyo tomorrow."
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-009"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather",
+      "get_precipitation"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

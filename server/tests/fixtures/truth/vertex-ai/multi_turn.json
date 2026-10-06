@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "vertex-ai",
  "scenario": "multi_turn",
  "fixtures": [
@@ -282,5 +282,325 @@
    "reason": "fake_model_echoes_request",
    "detail": "a fake model echoes the request's model and derives response ids from the request body; neither is recorded, so neither is asserted"
   }
- ]
+ ],
+ "requests": {
+  "vertex-ai/native/multi_turn": {
+   "transcript": "server/tests/fixtures/messages/vertex-ai/native/multi_turn/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    },
+    "call-002": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "model",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Stay in Alfama, Lisbon's oldest neighbourhood."
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What is one dish I should try there?"
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    },
+    "call-003": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "model",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Stay in Alfama, Lisbon's oldest neighbourhood."
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What is one dish I should try there?"
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "model",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Try pastel de nata, the custard tart Lisbon is famous for."
+         },
+         "replay_of": "fact-004"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Summarise your two suggestions in one sentence."
+         },
+         "new_fact": "fact-005"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  },
+  "vertex-ai/sdk/multi_turn": {
+   "transcript": "server/tests/fixtures/messages/vertex-ai/sdk/multi_turn/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    },
+    "call-002": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "model",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Stay in Alfama, Lisbon's oldest neighbourhood."
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What is one dish I should try there?"
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    },
+    "call-003": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "model",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Stay in Alfama, Lisbon's oldest neighbourhood."
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What is one dish I should try there?"
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "model",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Try pastel de nata, the custard tart Lisbon is famous for."
+         },
+         "replay_of": "fact-004"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Summarise your two suggestions in one sentence."
+         },
+         "new_fact": "fact-005"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

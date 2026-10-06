@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "crewai",
  "scenario": "tool_use",
  "fixtures": [
@@ -402,5 +402,363 @@
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
   }
- ]
+ ],
+ "requests": {
+  "crewai/native/tool_use": {
+   "transcript": "server/tests/fixtures/messages/crewai/native/tool_use/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "\nCurrent Task: What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
+         },
+         "new": "rq-002"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather",
+      "get_precipitation"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "\nCurrent Task: What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
+         },
+         "replay_of": "rq-002"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_4WMf9PaGKwzYfTvCdYhKHU",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Paris",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-002"
+        },
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_8qQEwyWqE9I9kLtWh4S0Vu",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Tokyo",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-003"
+        },
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_ibfCjB97rZJTLVls9aoKPy",
+          "name": "get_precipitation",
+          "arguments": {
+           "city": "Paris"
+          }
+         },
+         "replay_of": "fact-004"
+        },
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_Ift8bLWxCMsIYpOWiXHntq",
+          "name": "get_precipitation",
+          "arguments": {
+           "city": "Tokyo"
+          }
+         },
+         "replay_of": "fact-005"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_4WMf9PaGKwzYfTvCdYhKHU",
+          "content": [
+           {
+            "type": "text",
+            "text": "{'city': 'Paris', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-006"
+        },
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_8qQEwyWqE9I9kLtWh4S0Vu",
+          "content": [
+           {
+            "type": "text",
+            "text": "{'city': 'Tokyo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-007"
+        },
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_ibfCjB97rZJTLVls9aoKPy",
+          "content": [
+           {
+            "type": "text",
+            "text": "10% chance of rain in Paris tomorrow."
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-008"
+        },
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_Ift8bLWxCMsIYpOWiXHntq",
+          "content": [
+           {
+            "type": "text",
+            "text": "80% chance of rain in Tokyo tomorrow."
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-009"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather",
+      "get_precipitation"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  },
+  "crewai/sdk/tool_use": {
+   "transcript": "server/tests/fixtures/messages/crewai/sdk/tool_use/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "\nCurrent Task: What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
+         },
+         "new": "rq-002"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather",
+      "get_precipitation"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "\nCurrent Task: What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
+         },
+         "replay_of": "rq-002"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_4WMf9PaGKwzYfTvCdYhKHU",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Paris",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-002"
+        },
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_8qQEwyWqE9I9kLtWh4S0Vu",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Tokyo",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-003"
+        },
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_ibfCjB97rZJTLVls9aoKPy",
+          "name": "get_precipitation",
+          "arguments": {
+           "city": "Paris"
+          }
+         },
+         "replay_of": "fact-004"
+        },
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_Ift8bLWxCMsIYpOWiXHntq",
+          "name": "get_precipitation",
+          "arguments": {
+           "city": "Tokyo"
+          }
+         },
+         "replay_of": "fact-005"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_4WMf9PaGKwzYfTvCdYhKHU",
+          "content": [
+           {
+            "type": "text",
+            "text": "{'city': 'Paris', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-006"
+        },
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_8qQEwyWqE9I9kLtWh4S0Vu",
+          "content": [
+           {
+            "type": "text",
+            "text": "{'city': 'Tokyo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-007"
+        },
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_ibfCjB97rZJTLVls9aoKPy",
+          "content": [
+           {
+            "type": "text",
+            "text": "10% chance of rain in Paris tomorrow."
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-008"
+        },
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_Ift8bLWxCMsIYpOWiXHntq",
+          "content": [
+           {
+            "type": "text",
+            "text": "80% chance of rain in Tokyo tomorrow."
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-009"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather",
+      "get_precipitation"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

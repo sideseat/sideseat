@@ -1,0 +1,26 @@
+{
+ "format": "sideseat.transcript/1",
+ "interactions": [
+  {
+   "body": "eyJtb2RlbCI6ImdwdC02LjEtc29sIiwibWVzc2FnZXMiOlt7InJvbGUiOiJzeXN0ZW0iLCJjb250ZW50IjoiWW91IGFyZSBhIGNvbmNpc2UgdHJhdmVsIGFzc2lzdGFudC4gVXNlIHRoZSB0b29scyBmb3Igd2VhdGhlciBhbmQgYm9va2luZ3MgaW5zdGVhZCBvZiBndWVzc2luZywgYW5kIGFuc3dlciBpbiBhdCBtb3N0IHRocmVlIHNlbnRlbmNlcy4ifSx7InJvbGUiOiJ1c2VyIiwiY29udGVudCI6IkkgYW0gcGxhbm5pbmcgYSB3ZWVrZW5kIGluIExpc2Jvbi4gTmFtZSBvbmUgbmVpZ2hib3VyaG9vZCB0byBzdGF5IGluLiJ9XX0=",
+   "content_type": "application/json",
+   "method": "POST",
+   "path": "/openai/deployments/gpt-6.1-sol/chat/completions?api-version=2025-04-01-preview",
+   "request_sha256": "e9d9c82da9e54bb607bc96541f31dc1f4670ef0ba42d428517207d3735893e98"
+  },
+  {
+   "body": "eyJtb2RlbCI6ImdwdC02LjEtc29sIiwibWVzc2FnZXMiOlt7InJvbGUiOiJzeXN0ZW0iLCJjb250ZW50IjoiWW91IGFyZSBhIGNvbmNpc2UgdHJhdmVsIGFzc2lzdGFudC4gVXNlIHRoZSB0b29scyBmb3Igd2VhdGhlciBhbmQgYm9va2luZ3MgaW5zdGVhZCBvZiBndWVzc2luZywgYW5kIGFuc3dlciBpbiBhdCBtb3N0IHRocmVlIHNlbnRlbmNlcy4ifSx7InJvbGUiOiJ1c2VyIiwiY29udGVudCI6IkkgYW0gcGxhbm5pbmcgYSB3ZWVrZW5kIGluIExpc2Jvbi4gTmFtZSBvbmUgbmVpZ2hib3VyaG9vZCB0byBzdGF5IGluLiJ9LHsiY29udGVudCI6IlN0YXkgaW4gQWxmYW1hLCBMaXNib24ncyBvbGRlc3QgbmVpZ2hib3VyaG9vZC4iLCJyb2xlIjoiYXNzaXN0YW50In0seyJyb2xlIjoidXNlciIsImNvbnRlbnQiOiJXaGF0IGlzIG9uZSBkaXNoIEkgc2hvdWxkIHRyeSB0aGVyZT8ifV19",
+   "content_type": "application/json",
+   "method": "POST",
+   "path": "/openai/deployments/gpt-6.1-sol/chat/completions?api-version=2025-04-01-preview",
+   "request_sha256": "357629d8307d5257ee23a0a49abe48648db9ee89b504e556490f3ee6f3567ada"
+  },
+  {
+   "body": "eyJtb2RlbCI6ImdwdC02LjEtc29sIiwibWVzc2FnZXMiOlt7InJvbGUiOiJzeXN0ZW0iLCJjb250ZW50IjoiWW91IGFyZSBhIGNvbmNpc2UgdHJhdmVsIGFzc2lzdGFudC4gVXNlIHRoZSB0b29scyBmb3Igd2VhdGhlciBhbmQgYm9va2luZ3MgaW5zdGVhZCBvZiBndWVzc2luZywgYW5kIGFuc3dlciBpbiBhdCBtb3N0IHRocmVlIHNlbnRlbmNlcy4ifSx7InJvbGUiOiJ1c2VyIiwiY29udGVudCI6IkkgYW0gcGxhbm5pbmcgYSB3ZWVrZW5kIGluIExpc2Jvbi4gTmFtZSBvbmUgbmVpZ2hib3VyaG9vZCB0byBzdGF5IGluLiJ9LHsiY29udGVudCI6IlN0YXkgaW4gQWxmYW1hLCBMaXNib24ncyBvbGRlc3QgbmVpZ2hib3VyaG9vZC4iLCJyb2xlIjoiYXNzaXN0YW50In0seyJyb2xlIjoidXNlciIsImNvbnRlbnQiOiJXaGF0IGlzIG9uZSBkaXNoIEkgc2hvdWxkIHRyeSB0aGVyZT8ifSx7ImNvbnRlbnQiOiJUcnkgcGFzdGVsIGRlIG5hdGEsIHRoZSBjdXN0YXJkIHRhcnQgTGlzYm9uIGlzIGZhbW91cyBmb3IuIiwicm9sZSI6ImFzc2lzdGFudCJ9LHsicm9sZSI6InVzZXIiLCJjb250ZW50IjoiU3VtbWFyaXNlIHlvdXIgdHdvIHN1Z2dlc3Rpb25zIGluIG9uZSBzZW50ZW5jZS4ifV19",
+   "content_type": "application/json",
+   "method": "POST",
+   "path": "/openai/deployments/gpt-6.1-sol/chat/completions?api-version=2025-04-01-preview",
+   "request_sha256": "d36b1df0beb225b03150d167ba60ec92216aee412d7221492a7aec0106679b5f"
+  }
+ ]
+}

@@ -14,6 +14,7 @@ use serde_json::{Value, json};
 use super::mutate::*;
 use super::mutate_framework::*;
 use super::mutate_matching::*;
+use super::mutate_requests::*;
 use super::recon::Recon;
 use super::truth::Truth;
 
@@ -381,6 +382,27 @@ const CATALOGUE: &[(&str, Expect, Apply)] = &[
         relist_below_and_corrupt_usage,
     ),
     (
+        "drop a message the call was sent",
+        Expect::Caught,
+        drop_sent_message,
+    ),
+    (
+        "show a sent message twice",
+        Expect::Caught,
+        repeat_sent_message,
+    ),
+    ("swap two sent messages", Expect::Caught, swap_sent_messages),
+    (
+        "show an instruction nobody sent",
+        Expect::Caught,
+        invent_sent_message,
+    ),
+    (
+        "show a sent user message as the assistant's",
+        Expect::Caught,
+        reassign_sent_role,
+    ),
+    (
         "declare a restated prompt the reconstruction does not show",
         Expect::Only(&["gap.unused"]),
         |t, r| restate_prompt(t, r, 0),
@@ -409,10 +431,15 @@ fn truth_rubric_rejects_each_mutation() {
     let mut fired: BTreeSet<String> = BTreeSet::new();
     for (name, expect, apply) in CATALOGUE {
         let mut exercised = false;
-        for (truth, recon, baseline) in &pool {
-            let (mut truth, mut recon) = (truth.clone(), recon.clone());
+        for (baseline_truth, recon, baseline) in &pool {
+            let (mut truth, mut recon) = (baseline_truth.clone(), recon.clone());
             if !apply(&mut truth, &mut recon) {
                 continue;
+            }
+            // The request truth is keyed to the call layout, so a mutation that changes which calls
+            // exist - a retry, a deleted call - invalidates it rather than contradicting it.
+            if layout(&truth) != layout(baseline_truth) {
+                truth.requests.clear();
             }
             exercised = true;
             let new: Vec<String> = observed(&truth, &recon)
@@ -461,6 +488,15 @@ fn truth_rubric_rejects_each_mutation() {
         "the rubric has holes - close them in the checks, never by exempting the mutation:\n  {}",
         failures.join("\n  ")
     );
+}
+
+/// Which calls a truth has, and what each answered: what the request truth is keyed to.
+fn layout(truth: &Truth) -> Vec<(String, Vec<String>)> {
+    truth
+        .calls
+        .iter()
+        .map(|call| (call.id.clone(), call.outputs.clone()))
+        .collect()
 }
 
 /// The assertion of an observed `fixture:view:assertion:subject#fingerprint`.

@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "agent-framework",
  "scenario": "structured_output",
  "fixtures": [
@@ -134,5 +134,73 @@
    "detail": "the provider returned a signed reasoning block with no visible text; whether a reconstruction shows a placeholder for it is a product decision, not a fidelity fact",
    "subject": "fact-002"
   }
- ]
+ ],
+ "requests": {
+  "agent-framework/native/structured_output": {
+   "transcript": "server/tests/fixtures/messages/agent-framework/native/structured_output/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Answer with only a JSON object that matches this schema: {\"description\": \"A short itinerary.\", \"properties\": {\"city\": {\"description\": \"The destination city\", \"title\": \"City\", \"type\": \"string\"}, \"days\": {\"description\": \"One activity per day\", \"items\": {\"type\": \"string\"}, \"title\": \"Days\", \"type\": \"array\"}, \"budget_eur\": {\"description\": \"Estimated total budget in euros\", \"title\": \"Budget Eur\", \"type\": \"integer\"}}, \"required\": [\"city\", \"days\", \"budget_eur\"], \"title\": \"TripPlan\", \"type\": \"object\"}"
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Plan a two-day trip to Vienna."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  },
+  "agent-framework/sdk/structured_output": {
+   "transcript": "server/tests/fixtures/messages/agent-framework/sdk/structured_output/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Answer with only a JSON object that matches this schema: {\"description\": \"A short itinerary.\", \"properties\": {\"city\": {\"description\": \"The destination city\", \"title\": \"City\", \"type\": \"string\"}, \"days\": {\"description\": \"One activity per day\", \"items\": {\"type\": \"string\"}, \"title\": \"Days\", \"type\": \"array\"}, \"budget_eur\": {\"description\": \"Estimated total budget in euros\", \"title\": \"Budget Eur\", \"type\": \"integer\"}}, \"required\": [\"city\", \"days\", \"budget_eur\"], \"title\": \"TripPlan\", \"type\": \"object\"}"
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Plan a two-day trip to Vienna."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

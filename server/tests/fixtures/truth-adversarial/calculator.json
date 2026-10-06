@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "_synthetic",
  "scenario": "tool_use",
  "fixtures": [
@@ -211,5 +211,71 @@
    "after": "call-002"
   }
  ],
- "gaps": []
+ "gaps": [],
+ "requests": {
+  "_synthetic/tool_use": {
+   "transcript": "server/tests/fixtures/messages/_synthetic/tool_use/req-001.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a precise calculator."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What is 17 * 23?"
+         },
+         "new_fact": "fact-002"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "calculator"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a precise calculator."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What is 17 * 23?"
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "calculator"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

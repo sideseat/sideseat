@@ -25,6 +25,12 @@ const FIRED_BY_CAPTURES: &[(&str, &str)] = &[];
 /// Checks no committed fixture can make fire, with the reason; the mutation catalogue still does.
 const FIRED_ONLY_BY_MUTATIONS: &[(&str, &str)] = &[
     (
+        "request.duplicated",
+        "a truth patch cannot add a block to a span's input, and every hand-written payload shows each \
+         message once; a request holding a message once against a span showing it twice needs the \
+         reconstruction to repeat it",
+    ),
+    (
         "order.result",
         "`assert_tool_causality` already rejects every fixture whose result precedes its call by id, so \
          no committed capture can hold the shape",

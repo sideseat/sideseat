@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "vercel-ai-js",
  "scenario": "structured_output",
  "fixtures": [
@@ -180,5 +180,215 @@
    "detail": "trip_plan is not one of the shared deterministic tools",
    "subject": "fact-002"
   }
- ]
+ ],
+ "requests": {
+  "vercel-ai-js/native/structured_output": {
+   "transcript": "server/tests/fixtures/messages/vercel-ai-js/native/structured_output/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Hand the finished plan to trip_plan."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Plan a two-day trip to Vienna."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "trip_plan"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Hand the finished plan to trip_plan."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Plan a two-day trip to Vienna."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_4yA0LToOJ1kFY33SGUgosm",
+          "name": "trip_plan",
+          "arguments": {
+           "city": "Vienna",
+           "days": [
+            "Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a stroll along the Ringstrasse, with Sachertorte at a classic café",
+            "Day 2: Tour Schönbrunn Palace and gardens, then visit the Naschmarkt and enjoy an evening in the MuseumsQuartier"
+           ],
+           "budget_eur": 450
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_4yA0LToOJ1kFY33SGUgosm",
+          "content": [
+           {
+            "type": "text",
+            "text": "Plan recorded."
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-002"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "trip_plan"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  },
+  "vercel-ai-js/sdk/structured_output": {
+   "transcript": "server/tests/fixtures/messages/vercel-ai-js/sdk/structured_output/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Hand the finished plan to trip_plan."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Plan a two-day trip to Vienna."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "trip_plan"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Hand the finished plan to trip_plan."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Plan a two-day trip to Vienna."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_4yA0LToOJ1kFY33SGUgosm",
+          "name": "trip_plan",
+          "arguments": {
+           "city": "Vienna",
+           "days": [
+            "Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a stroll along the Ringstrasse, with Sachertorte at a classic café",
+            "Day 2: Tour Schönbrunn Palace and gardens, then visit the Naschmarkt and enjoy an evening in the MuseumsQuartier"
+           ],
+           "budget_eur": 450
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_4yA0LToOJ1kFY33SGUgosm",
+          "content": [
+           {
+            "type": "text",
+            "text": "Plan recorded."
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-002"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "trip_plan"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

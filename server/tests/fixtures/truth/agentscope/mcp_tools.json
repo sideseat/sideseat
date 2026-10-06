@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "agentscope",
  "scenario": "mcp_tools",
  "fixtures": [
@@ -204,5 +204,205 @@
    "detail": "why a response that called tools ended: AgentScope records every response's finish as `stop`, and no payload keeps the provider's `tool_use`",
    "subject": "call-001"
   }
- ]
+ ],
+ "requests": {
+  "agentscope/native/mcp_tools": {
+   "transcript": "server/tests/fixtures/messages/agentscope/native/mcp_tools/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Use the calculator to compute (17 * 23) + 4, then report the result."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "mcp__calculator__calculate"
+     ]
+    },
+    "call-002": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Use the calculator to compute (17 * 23) + 4, then report the result."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_01G6sb6E1Ph1gFot2wYHJNJv",
+          "name": "mcp__calculator__calculate",
+          "arguments": {
+           "expression": "(17 * 23) + 4"
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_01G6sb6E1Ph1gFot2wYHJNJv",
+          "content": [
+           {
+            "type": "text",
+            "text": "395.0"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "mcp__calculator__calculate"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  },
+  "agentscope/sdk/mcp_tools": {
+   "transcript": "server/tests/fixtures/messages/agentscope/sdk/mcp_tools/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Use the calculator to compute (17 * 23) + 4, then report the result."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "mcp__calculator__calculate"
+     ]
+    },
+    "call-002": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Use the calculator to compute (17 * 23) + 4, then report the result."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_01G6sb6E1Ph1gFot2wYHJNJv",
+          "name": "mcp__calculator__calculate",
+          "arguments": {
+           "expression": "(17 * 23) + 4"
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_01G6sb6E1Ph1gFot2wYHJNJv",
+          "content": [
+           {
+            "type": "text",
+            "text": "395.0"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "mcp__calculator__calculate"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

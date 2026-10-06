@@ -1,0 +1,21 @@
+{
+ "format": "sideseat.transcript/1",
+ "interactions": [
+  {
+   "answered_by": 0,
+   "body": "eyJtYXhfdG9rZW5zIjoxNjAwMCwibWVzc2FnZXMiOlt7InJvbGUiOiJ1c2VyIiwiY29udGVudCI6IlN1Z2dlc3Qgb25lIG11c2V1bSB0byB2aXNpdCBpbiBNYWRyaWQuIn1dLCJzeXN0ZW0iOiJZb3UgYXJlIGEgY29uY2lzZSB0cmF2ZWwgYXNzaXN0YW50LiBVc2UgdGhlIHRvb2xzIGZvciB3ZWF0aGVyIGFuZCBib29raW5ncyBpbnN0ZWFkIG9mIGd1ZXNzaW5nLCBhbmQgYW5zd2VyIGluIGF0IG1vc3QgdGhyZWUgc2VudGVuY2VzLiIsImFudGhyb3BpY192ZXJzaW9uIjoiYmVkcm9jay0yMDIzLTA1LTMxIn0=",
+   "content_type": "application/json",
+   "method": "POST",
+   "path": "/model/global.anthropic.claude-sonnet-5-5/invoke",
+   "request_sha256": "597dba6e09764c6d186d194b3dc54f88ce70733432354af94ccf3f3c67a22a6a"
+  },
+  {
+   "answered_by": 1,
+   "body": "eyJtYXhfdG9rZW5zIjoxNjAwMCwibWVzc2FnZXMiOlt7InJvbGUiOiJ1c2VyIiwiY29udGVudCI6IlN1Z2dlc3Qgb25lIHBhcmsgdG8gdmlzaXQgaW4gTWFkcmlkLiJ9XSwic3lzdGVtIjoiWW91IGFyZSBhIGNvbmNpc2UgdHJhdmVsIGFzc2lzdGFudC4gVXNlIHRoZSB0b29scyBmb3Igd2VhdGhlciBhbmQgYm9va2luZ3MgaW5zdGVhZCBvZiBndWVzc2luZywgYW5kIGFuc3dlciBpbiBhdCBtb3N0IHRocmVlIHNlbnRlbmNlcy4iLCJhbnRocm9waWNfdmVyc2lvbiI6ImJlZHJvY2stMjAyMy0wNS0zMSJ9",
+   "content_type": "application/json",
+   "method": "POST",
+   "path": "/model/global.anthropic.claude-sonnet-5-5/invoke",
+   "request_sha256": "8dc3f763f1a7da6a70e42e9da829c2022d5857047920ee3ae0f0bc473303ff8c"
+  }
+ ]
+}

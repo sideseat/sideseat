@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "langsmith",
  "scenario": "error",
  "fixtures": [
@@ -310,5 +310,431 @@
    "detail": "the provider returned a signed reasoning block with no visible text; whether a reconstruction shows a placeholder for it is a product decision, not a fidelity fact",
    "subject": "fact-004"
   }
- ]
+ ],
+ "requests": {
+  "langsmith/native/error": {
+   "transcript": "server/tests/fixtures/messages/langsmith/native/error/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Book me a flight from London to Oslo on 2026-11-14."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "book_flight"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Book me a flight from London to Oslo on 2026-11-14."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_BGI9ojCQpEhWL2n43aI0rQ",
+          "name": "book_flight",
+          "arguments": {
+           "origin": "London",
+           "destination": "Oslo",
+           "date": "2026-11-14"
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_BGI9ojCQpEhWL2n43aI0rQ",
+          "content": [
+           {
+            "type": "text",
+            "text": "Error: BookingUnavailable('No seats from London to Oslo on 2026-11-14: the booking system is offline.')\n Please fix your mistakes."
+           }
+          ],
+          "is_error": true
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "book_flight"
+     ]
+    },
+    "call-003": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Book me a flight from London to Oslo on 2026-11-14."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_BGI9ojCQpEhWL2n43aI0rQ",
+          "name": "book_flight",
+          "arguments": {
+           "origin": "London",
+           "destination": "Oslo",
+           "date": "2026-11-14"
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_BGI9ojCQpEhWL2n43aI0rQ",
+          "content": [
+           {
+            "type": "text",
+            "text": "Error: BookingUnavailable('No seats from London to Oslo on 2026-11-14: the booking system is offline.')\n Please fix your mistakes."
+           }
+          ],
+          "is_error": true
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "reasoning",
+          "text": "",
+          "signed": true
+         },
+         "lineage_unknown": "model-side content no call's output matches"
+        },
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_ArzCvJ4ihWeDE7rvOT8ySn",
+          "name": "book_flight",
+          "arguments": {
+           "origin": "London",
+           "destination": "Oslo",
+           "date": "2026-11-14"
+          }
+         },
+         "replay_of": "fact-005"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_ArzCvJ4ihWeDE7rvOT8ySn",
+          "content": [
+           {
+            "type": "text",
+            "text": "Error: BookingUnavailable('No seats from London to Oslo on 2026-11-14: the booking system is offline.')\n Please fix your mistakes."
+           }
+          ],
+          "is_error": true
+         },
+         "new_fact": "fact-006"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "book_flight"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  },
+  "langsmith/sdk/error": {
+   "transcript": "server/tests/fixtures/messages/langsmith/sdk/error/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Book me a flight from London to Oslo on 2026-11-14."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "book_flight"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Book me a flight from London to Oslo on 2026-11-14."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_BGI9ojCQpEhWL2n43aI0rQ",
+          "name": "book_flight",
+          "arguments": {
+           "origin": "London",
+           "destination": "Oslo",
+           "date": "2026-11-14"
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_BGI9ojCQpEhWL2n43aI0rQ",
+          "content": [
+           {
+            "type": "text",
+            "text": "Error: BookingUnavailable('No seats from London to Oslo on 2026-11-14: the booking system is offline.')\n Please fix your mistakes."
+           }
+          ],
+          "is_error": true
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "book_flight"
+     ]
+    },
+    "call-003": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Book me a flight from London to Oslo on 2026-11-14."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_BGI9ojCQpEhWL2n43aI0rQ",
+          "name": "book_flight",
+          "arguments": {
+           "origin": "London",
+           "destination": "Oslo",
+           "date": "2026-11-14"
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_BGI9ojCQpEhWL2n43aI0rQ",
+          "content": [
+           {
+            "type": "text",
+            "text": "Error: BookingUnavailable('No seats from London to Oslo on 2026-11-14: the booking system is offline.')\n Please fix your mistakes."
+           }
+          ],
+          "is_error": true
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "reasoning",
+          "text": "",
+          "signed": true
+         },
+         "lineage_unknown": "model-side content no call's output matches"
+        },
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_ArzCvJ4ihWeDE7rvOT8ySn",
+          "name": "book_flight",
+          "arguments": {
+           "origin": "London",
+           "destination": "Oslo",
+           "date": "2026-11-14"
+          }
+         },
+         "replay_of": "fact-005"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_ArzCvJ4ihWeDE7rvOT8ySn",
+          "content": [
+           {
+            "type": "text",
+            "text": "Error: BookingUnavailable('No seats from London to Oslo on 2026-11-14: the booking system is offline.')\n Please fix your mistakes."
+           }
+          ],
+          "is_error": true
+         },
+         "new_fact": "fact-006"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "book_flight"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

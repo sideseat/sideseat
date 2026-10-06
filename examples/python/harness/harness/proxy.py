@@ -27,6 +27,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+from harness import transcript
 from harness.models import region
 from harness.scrub import scrub_body
 
@@ -60,7 +61,10 @@ class ModelProxy:
         self._by_path: dict[str, deque[dict[str, Any]]] = defaultdict(deque)
         self._lock = threading.Lock()
         if not record:
-            for item in json.loads(cassette.read_text())["interactions"]:
+            for index, item in enumerate(
+                json.loads(cassette.read_text())["interactions"]
+            ):
+                item["_index"] = index
                 self._by_digest[item["request_sha256"]].append(item)
                 self._by_path[f"{item['method']} {item['path']}"].append(item)
         self._server = ThreadingHTTPServer(("127.0.0.1", 0), self._handler())
@@ -90,11 +94,14 @@ class ModelProxy:
         digest = hashlib.sha256(
             method.encode() + b" " + path.encode() + b"\n" + body
         ).hexdigest()
+        content_type = headers.get("content-type", "")
         if self.record:
             item = self._forward(method, path, body, headers)
             item["request_sha256"] = digest
             with self._lock:
                 self._recorded.append(item)
+                answered_by = len(self._recorded) - 1
+            transcript.record(method, path, body, content_type, answered_by=answered_by)
             return item
         with self._lock:
             # An identical request gets its own recorded answer, which keeps concurrent requests
@@ -110,6 +117,13 @@ class ModelProxy:
                 if item is not None:
                     self._by_digest[item["request_sha256"]].remove(item)
                     self.by_order += 1
+        transcript.record(
+            method,
+            path,
+            body,
+            content_type,
+            answered_by=None if item is None else item["_index"],
+        )
         if item is None:
             self.misses.append(f"{method} {path}")
             return {

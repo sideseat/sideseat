@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "crewai",
  "scenario": "multi_agent",
  "fixtures": [
@@ -262,5 +262,261 @@
    "reason": "multi_agent_routing",
    "detail": "which agent made each call, and what one agent passed another, is the framework's; only each call's own output and the shared tools' results are asserted"
   }
- ]
+ ],
+ "requests": {
+  "crewai/native/multi_agent": {
+   "transcript": "server/tests/fixtures/messages/crewai/native/multi_agent/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are Weather researcher. You research weather with the tool, then hand off to the writer.\nYour personal goal is: Find the forecast the traveller needs"
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "\nCurrent Task: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nThis is the expected criteria for your final answer: The forecast for each day.\nyou MUST return the actual complete content as the final answer, not a summary."
+         },
+         "new": "rq-002"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are Weather researcher. You research weather with the tool, then hand off to the writer.\nYour personal goal is: Find the forecast the traveller needs"
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "\nCurrent Task: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nThis is the expected criteria for your final answer: The forecast for each day.\nyou MUST return the actual complete content as the final answer, not a summary."
+         },
+         "replay_of": "rq-002"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_O3ewzuYyOQmQhCFHYxLqLY",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Barcelona",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_O3ewzuYyOQmQhCFHYxLqLY",
+          "content": [
+           {
+            "type": "text",
+            "text": "{'city': 'Barcelona', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-003": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are Packing list writer. You write the final packing list from the researcher's findings.\nYour personal goal is: Write the packing list"
+       },
+       "new": "rq-003"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "\nCurrent Task: Write the one-paragraph packing list the request asks for.\n\nThis is the expected criteria for your final answer: A one-paragraph packing list.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nThis is the context you're working with:\n**Barcelona forecast for the next two days**\n- **Day 1:** Rain, with a high of 21°C.\n- **Day 2:** Sunny, with a high of 22°C.\n\n**Packing list:** Pack for mild weather with one wet day followed by a sunny one. Bring a light waterproof jacket or compact umbrella and water-resistant closed shoes for the rain on Day 1. Add breathable layers such as T-shirts and a light long-sleeve top or cardigan, because highs of 21–22°C can still feel cool in the morning and evening. For Day 2, bring sunglasses, sunscreen, and a hat. Comfortable walking shoes or sneakers will work for both days of sightseeing. A small daypack will hold the layers and rain gear as the weather changes.\n\nProvide your complete response:"
+         },
+         "new": "rq-004"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  },
+  "crewai/sdk/multi_agent": {
+   "transcript": "server/tests/fixtures/messages/crewai/sdk/multi_agent/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are Weather researcher. You research weather with the tool, then hand off to the writer.\nYour personal goal is: Find the forecast the traveller needs"
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "\nCurrent Task: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nThis is the expected criteria for your final answer: The forecast for each day.\nyou MUST return the actual complete content as the final answer, not a summary."
+         },
+         "new": "rq-002"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are Weather researcher. You research weather with the tool, then hand off to the writer.\nYour personal goal is: Find the forecast the traveller needs"
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "\nCurrent Task: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nThis is the expected criteria for your final answer: The forecast for each day.\nyou MUST return the actual complete content as the final answer, not a summary."
+         },
+         "replay_of": "rq-002"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_O3ewzuYyOQmQhCFHYxLqLY",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Barcelona",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_O3ewzuYyOQmQhCFHYxLqLY",
+          "content": [
+           {
+            "type": "text",
+            "text": "{'city': 'Barcelona', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-003": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are Packing list writer. You write the final packing list from the researcher's findings.\nYour personal goal is: Write the packing list"
+       },
+       "new": "rq-003"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "\nCurrent Task: Write the one-paragraph packing list the request asks for.\n\nThis is the expected criteria for your final answer: A one-paragraph packing list.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nThis is the context you're working with:\n**Barcelona forecast for the next two days**\n- **Day 1:** Rain, with a high of 21°C.\n- **Day 2:** Sunny, with a high of 22°C.\n\n**Packing list:** Pack for mild weather with one wet day followed by a sunny one. Bring a light waterproof jacket or compact umbrella and water-resistant closed shoes for the rain on Day 1. Add breathable layers such as T-shirts and a light long-sleeve top or cardigan, because highs of 21–22°C can still feel cool in the morning and evening. For Day 2, bring sunglasses, sunscreen, and a hat. Comfortable walking shoes or sneakers will work for both days of sightseeing. A small daypack will hold the layers and rain gear as the weather changes.\n\nProvide your complete response:"
+         },
+         "new": "rq-004"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

@@ -1,0 +1,12 @@
+{
+ "format": "sideseat.transcript/1",
+ "interactions": [
+  {
+   "body": "eyJjb250ZW50cyI6W3sicGFydHMiOlt7InRleHQiOiJJbiBvbmUgc2VudGVuY2UsIHdoYXQgaXMgS3lvdG8gYmVzdCBrbm93biBmb3I/In1dLCJyb2xlIjoidXNlciJ9XSwiZ2VuZXJhdGlvbkNvbmZpZyI6eyJjYW5kaWRhdGVDb3VudCI6MX0sInN5c3RlbUluc3RydWN0aW9uIjp7InBhcnRzIjpbeyJ0ZXh0IjoiWW91IGFyZSBhIGNvbmNpc2UgdHJhdmVsIGFzc2lzdGFudC4gVXNlIHRoZSB0b29scyBmb3Igd2VhdGhlciBhbmQgYm9va2luZ3MgaW5zdGVhZCBvZiBndWVzc2luZywgYW5kIGFuc3dlciBpbiBhdCBtb3N0IHRocmVlIHNlbnRlbmNlcy4ifV0sInJvbGUiOiJzeXN0ZW0ifX0K",
+   "content_type": "application/json",
+   "method": "POST",
+   "path": "/v1beta/models/gemini-flash-latest:generateContent",
+   "request_sha256": "9ad5654f590f58f30162b2dc72d6c43e84d030a1420beb862230e1c500134358"
+  }
+ ]
+}

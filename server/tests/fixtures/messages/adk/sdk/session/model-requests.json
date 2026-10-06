@@ -1,0 +1,21 @@
+{
+ "format": "sideseat.transcript/1",
+ "interactions": [
+  {
+   "answered_by": 0,
+   "body": "eyJtZXNzYWdlcyI6IFt7InJvbGUiOiAidXNlciIsICJjb250ZW50IjogW3sidGV4dCI6ICJTdWdnZXN0IG9uZSBtdXNldW0gdG8gdmlzaXQgaW4gTWFkcmlkLiJ9XX1dLCAiaW5mZXJlbmNlQ29uZmlnIjogeyJtYXhUb2tlbnMiOiAxNjAwMH0sICJzeXN0ZW0iOiBbeyJ0ZXh0IjogIllvdSBhcmUgYSBjb25jaXNlIHRyYXZlbCBhc3Npc3RhbnQuIFVzZSB0aGUgdG9vbHMgZm9yIHdlYXRoZXIgYW5kIGJvb2tpbmdzIGluc3RlYWQgb2YgZ3Vlc3NpbmcsIGFuZCBhbnN3ZXIgaW4gYXQgbW9zdCB0aHJlZSBzZW50ZW5jZXMuXG5cbllvdSBhcmUgYW4gYWdlbnQuIFlvdXIgaW50ZXJuYWwgbmFtZSBpcyBcImFzc2lzdGFudFwiLiJ9XX0=",
+   "content_type": "application/json",
+   "method": "POST",
+   "path": "/model/global.anthropic.claude-sonnet-5-5/converse",
+   "request_sha256": "a10889862035116023075eabd7d1a84aaff0a103a1f5e4f56646504cc9a5696b"
+  },
+  {
+   "answered_by": 1,
+   "body": "eyJtZXNzYWdlcyI6IFt7InJvbGUiOiAidXNlciIsICJjb250ZW50IjogW3sidGV4dCI6ICJTdWdnZXN0IG9uZSBtdXNldW0gdG8gdmlzaXQgaW4gTWFkcmlkLiJ9XX0sIHsicm9sZSI6ICJhc3Npc3RhbnQiLCAiY29udGVudCI6IFt7InRleHQiOiAiSSdkIHN1Z2dlc3QgdGhlICoqTXVzZW8gZGVsIFByYWRvKiosIE1hZHJpZCdzIHByZW1pZXIgYXJ0IG11c2V1bSwgd2l0aCBtYXN0ZXJwaWVjZXMgYnkgVmVsXHUwMGUxenF1ZXogKCpMYXMgTWVuaW5hcyopLCBHb3lhLCBhbmQgRWwgR3JlY28uIFBsYW4gZm9yIDItMyBob3VycywgYW5kIGNoZWNrIGZvciBmcmVlIGV2ZW5pbmcgYWRtaXNzaW9uIGhvdXJzIHRvIHNhdmUgb24gdGlja2V0cy4gSXQncyBhbHNvIGFuIGVhc3kgd2FsayBmcm9tIFJldGlybyBQYXJrLCBzbyB5b3UgY2FuIHBhaXIgdGhlIHR3byBpbiBvbmUgb3V0aW5nLiJ9XX0sIHsicm9sZSI6ICJ1c2VyIiwgImNvbnRlbnQiOiBbeyJ0ZXh0IjogIlN1Z2dlc3Qgb25lIHBhcmsgdG8gdmlzaXQgaW4gTWFkcmlkLiJ9XX1dLCAiaW5mZXJlbmNlQ29uZmlnIjogeyJtYXhUb2tlbnMiOiAxNjAwMH0sICJzeXN0ZW0iOiBbeyJ0ZXh0IjogIllvdSBhcmUgYSBjb25jaXNlIHRyYXZlbCBhc3Npc3RhbnQuIFVzZSB0aGUgdG9vbHMgZm9yIHdlYXRoZXIgYW5kIGJvb2tpbmdzIGluc3RlYWQgb2YgZ3Vlc3NpbmcsIGFuZCBhbnN3ZXIgaW4gYXQgbW9zdCB0aHJlZSBzZW50ZW5jZXMuXG5cbllvdSBhcmUgYW4gYWdlbnQuIFlvdXIgaW50ZXJuYWwgbmFtZSBpcyBcImFzc2lzdGFudFwiLiJ9XX0=",
+   "content_type": "application/json",
+   "method": "POST",
+   "path": "/model/global.anthropic.claude-sonnet-5-5/converse",
+   "request_sha256": "8a87053f2e5af94e9787676a2a6c5df483552b8064de653368dd6666b7667434"
+  }
+ ]
+}

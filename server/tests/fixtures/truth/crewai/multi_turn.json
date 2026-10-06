@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "crewai",
  "scenario": "multi_turn",
  "fixtures": [
@@ -272,5 +272,181 @@
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
   }
- ]
+ ],
+ "requests": {
+  "crewai/native/multi_turn": {
+   "transcript": "server/tests/fixtures/messages/crewai/native/multi_turn/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "\nCurrent Task: I am planning a weekend in Lisbon. Name one neighbourhood to stay in.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nProvide your complete response:"
+         },
+         "new": "rq-002"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "\nCurrent Task: What is one dish I should try there?\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nThis is the context you're working with:\nStay in **Alfama**, Lisbon's oldest neighbourhood. It has winding cobbled streets, traditional fado bars, and sweeping river views, and it's within walking distance of the main sights like the São Jorge Castle and the Sé Cathedral. If you prefer something flatter and more central, Baixa is a good alternative.\n\nProvide your complete response:"
+         },
+         "new": "rq-003"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    },
+    "call-003": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "\nCurrent Task: Summarise your two suggestions in one sentence.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nThis is the context you're working with:\nStay in **Alfama**, Lisbon's oldest neighbourhood. It has winding cobbled streets, traditional fado bars, and sweeping river views, and it's within walking distance of the main sights like the São Jorge Castle and the Sé Cathedral. If you prefer something flatter and more central, Baixa is a good alternative.\n\n----------\n\nTry **pastéis de nata**, Lisbon's famous custard tarts, with a dusting of cinnamon and a coffee. For a heartier local dish, order **bacalhau à Brás**, a comforting mix of shredded salt cod, eggs, and crispy potatoes, at one of Alfama's small tascas.\n\nProvide your complete response:"
+         },
+         "new": "rq-004"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  },
+  "crewai/sdk/multi_turn": {
+   "transcript": "server/tests/fixtures/messages/crewai/sdk/multi_turn/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "\nCurrent Task: I am planning a weekend in Lisbon. Name one neighbourhood to stay in.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nProvide your complete response:"
+         },
+         "new": "rq-002"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "\nCurrent Task: What is one dish I should try there?\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nThis is the context you're working with:\nStay in **Alfama**, Lisbon's oldest neighbourhood. It has winding cobbled streets, traditional fado bars, and sweeping river views, and it's within walking distance of the main sights like the São Jorge Castle and the Sé Cathedral. If you prefer something flatter and more central, Baixa is a good alternative.\n\nProvide your complete response:"
+         },
+         "new": "rq-003"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    },
+    "call-003": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "\nCurrent Task: Summarise your two suggestions in one sentence.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nThis is the context you're working with:\nStay in **Alfama**, Lisbon's oldest neighbourhood. It has winding cobbled streets, traditional fado bars, and sweeping river views, and it's within walking distance of the main sights like the São Jorge Castle and the Sé Cathedral. If you prefer something flatter and more central, Baixa is a good alternative.\n\n----------\n\nTry **pastéis de nata**, Lisbon's famous custard tarts, with a dusting of cinnamon and a coffee. For a heartier local dish, order **bacalhau à Brás**, a comforting mix of shredded salt cod, eggs, and crispy potatoes, at one of Alfama's small tascas.\n\nProvide your complete response:"
+         },
+         "new": "rq-004"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

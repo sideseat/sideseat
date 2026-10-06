@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "traceloop",
  "scenario": "multi_turn",
  "fixtures": [
@@ -312,5 +312,357 @@
    "detail": "the model the call addressed: Traceloop records the Bedrock model id without the inference profile's region prefix (`global.`), in every attribute",
    "subject": "call-003"
   }
- ]
+ ],
+ "requests": {
+  "traceloop/native/multi_turn": {
+   "transcript": "server/tests/fixtures/messages/traceloop/native/multi_turn/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "reasoning",
+          "text": "",
+          "signed": true
+         },
+         "lineage_unknown": "model-side content no call's output matches"
+        },
+        {
+         "part": {
+          "type": "text",
+          "text": "I'd suggest **Alfama**, Lisbon's oldest neighborhood, with winding streets, fado bars, and views from the Miradouro de Santa Luzia. It's walkable to the Sé Cathedral, São Jorge Castle, and the riverfront. If you'd like a flatter, more central base, Baixa is a good alternative."
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What is one dish I should try there?"
+         },
+         "new_fact": "fact-004"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    },
+    "call-003": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "reasoning",
+          "text": "",
+          "signed": true
+         },
+         "lineage_unknown": "model-side content no call's output matches"
+        },
+        {
+         "part": {
+          "type": "text",
+          "text": "I'd suggest **Alfama**, Lisbon's oldest neighborhood, with winding streets, fado bars, and views from the Miradouro de Santa Luzia. It's walkable to the Sé Cathedral, São Jorge Castle, and the riverfront. If you'd like a flatter, more central base, Baixa is a good alternative."
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What is one dish I should try there?"
+         },
+         "replay_of": "fact-004"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Try **pastéis de nata**, the creamy custard tarts with flaky pastry, best eaten warm with a dusting of cinnamon. For a savory option, **bacalhau à Brás** (shredded salt cod with eggs and potatoes) is a classic Lisbon dish."
+         },
+         "replay_of": "fact-005"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Summarise your two suggestions in one sentence."
+         },
+         "new_fact": "fact-006"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  },
+  "traceloop/sdk/multi_turn": {
+   "transcript": "server/tests/fixtures/messages/traceloop/sdk/multi_turn/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "reasoning",
+          "text": "",
+          "signed": true
+         },
+         "lineage_unknown": "model-side content no call's output matches"
+        },
+        {
+         "part": {
+          "type": "text",
+          "text": "I'd suggest **Alfama**, Lisbon's oldest neighborhood, with winding streets, fado bars, and views from the Miradouro de Santa Luzia. It's walkable to the Sé Cathedral, São Jorge Castle, and the riverfront. If you'd like a flatter, more central base, Baixa is a good alternative."
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What is one dish I should try there?"
+         },
+         "new_fact": "fact-004"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    },
+    "call-003": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "reasoning",
+          "text": "",
+          "signed": true
+         },
+         "lineage_unknown": "model-side content no call's output matches"
+        },
+        {
+         "part": {
+          "type": "text",
+          "text": "I'd suggest **Alfama**, Lisbon's oldest neighborhood, with winding streets, fado bars, and views from the Miradouro de Santa Luzia. It's walkable to the Sé Cathedral, São Jorge Castle, and the riverfront. If you'd like a flatter, more central base, Baixa is a good alternative."
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What is one dish I should try there?"
+         },
+         "replay_of": "fact-004"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Try **pastéis de nata**, the creamy custard tarts with flaky pastry, best eaten warm with a dusting of cinnamon. For a savory option, **bacalhau à Brás** (shredded salt cod with eggs and potatoes) is a classic Lisbon dish."
+         },
+         "replay_of": "fact-005"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Summarise your two suggestions in one sentence."
+         },
+         "new_fact": "fact-006"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

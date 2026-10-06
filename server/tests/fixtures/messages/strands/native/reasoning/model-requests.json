@@ -1,0 +1,13 @@
+{
+ "format": "sideseat.transcript/1",
+ "interactions": [
+  {
+   "answered_by": 0,
+   "body": "eyJtZXNzYWdlcyI6IFt7ImNvbnRlbnQiOiBbeyJ0ZXh0IjogIkZvdXIgdHJhdmVsbGVycyBtdXN0IGNyb3NzIGEgYnJpZGdlIGF0IG5pZ2h0IHdpdGggb25lIHRvcmNoLiBBdCBtb3N0IHR3byBjcm9zcyBhdCBhIHRpbWUgYW5kIGEgcGFpciBtb3ZlcyBhdCB0aGUgc2xvd2VyIHBlcnNvbidzIHBhY2UuIFRoZXkgdGFrZSAxLCAyLCA1IGFuZCAxMCBtaW51dGVzLiBXaGF0IGlzIHRoZSBmYXN0ZXN0IHRvdGFsIGNyb3NzaW5nIHRpbWUsIGFuZCB3aGF0IGlzIHRoZSBzY2hlZHVsZT8ifV0sICJyb2xlIjogInVzZXIifV0sICJzeXN0ZW0iOiBbXSwgImFkZGl0aW9uYWxNb2RlbFJlcXVlc3RGaWVsZHMiOiB7InRoaW5raW5nIjogeyJ0eXBlIjogImFkYXB0aXZlIiwgImRpc3BsYXkiOiAic3VtbWFyaXplZCJ9LCAib3V0cHV0X2NvbmZpZyI6IHsiZWZmb3J0IjogIm1heCJ9fSwgImluZmVyZW5jZUNvbmZpZyI6IHsibWF4VG9rZW5zIjogMTYwMDB9fQ==",
+   "content_type": "application/json",
+   "method": "POST",
+   "path": "/model/global.anthropic.claude-sonnet-5-5/converse-stream",
+   "request_sha256": "38898f15db157067cc93dc3e60049a47fffda80354b9733ea6343624303d87fc"
+  }
+ ]
+}

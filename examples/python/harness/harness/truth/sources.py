@@ -29,6 +29,7 @@ from harness.fakes import openai as fake_openai
 from harness.scrub import PLACEHOLDER_USER
 from harness.truth import derive
 from harness.truth.derive import Builder, Framework, Options, assemble, document
+from harness.truth import request_truth
 from harness.truth.wire import ModelCall, decode, decode_cassette
 
 REPO = derive.REPO
@@ -163,6 +164,51 @@ def suite_scenarios(suite: capture.Suite) -> list[str]:
 
 
 def build(target: Target) -> dict[str, Any]:
+    document_ = _build(target)
+    cassette = _cassette_of(target)
+    interaction_calls = (
+        {
+            index: f"call-{n:03d}"
+            for n, index in enumerate(
+                request_truth.model_interactions(cassette), start=1
+            )
+        }
+        if cassette is not None
+        else None
+    )
+    requests = {
+        fixture: recorded
+        for fixture in document_["fixtures"]
+        if (
+            recorded := request_truth.fixture_requests(
+                document_, fixture, interaction_calls
+            )
+        )
+        is not None
+    }
+    if requests:
+        document_["requests"] = requests
+    return document_
+
+
+def _cassette_of(target: Target) -> Path | None:
+    """The cassette that answered a scenario's model calls, if one did."""
+    if target.producer in _cli_driver().CLIS:
+        path = (
+            CLI_DRIVER.parent
+            / target.producer
+            / "cassettes"
+            / f"{target.scenario}.json"
+        )
+        return path if path.exists() else None
+    suite = capture.suites().get(target.producer)
+    if suite is None or capture.uses_fake_model(suite, None):
+        return None
+    path = suite.root / "cassettes" / f"{target.scenario}.json"
+    return path if path.exists() else None
+
+
+def _build(target: Target) -> dict[str, Any]:
     if target.scenario == "canonical" and target.producer in CONFORMANCE_PRODUCERS:
         return conformance(target.producer)
     if target.producer in _cli_driver().CLIS:

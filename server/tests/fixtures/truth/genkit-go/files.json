@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "genkit-go",
  "scenario": "files",
  "fixtures": [
@@ -170,5 +170,113 @@
    "reason": "fake_model_echoes_request",
    "detail": "a fake model echoes the request's model and derives response ids from the request body; neither is recorded, so neither is asserted"
   }
- ]
+ ],
+ "requests": {
+  "genkit-go/native/files": {
+   "transcript": "server/tests/fixtures/messages/genkit-go/native/files/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Describe the image in one sentence, then summarise the document in one sentence."
+         },
+         "new_fact": "fact-001"
+        },
+        {
+         "part": {
+          "type": "media",
+          "modality": "image",
+          "media_type": "image/jpeg",
+          "size": 163966,
+          "sha256": "f78ee523f0b06377fd02117287eb8837b342efa9dd8dd4f0a20111e758521f0a"
+         },
+         "new_fact": "fact-002"
+        },
+        {
+         "part": {
+          "type": "media",
+          "modality": "application",
+          "media_type": "application/pdf",
+          "size": 13207,
+          "sha256": "f65fdaa928f06d024c68c2538805845378efcb51b09abd084728750169541936"
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  },
+  "genkit-go/sdk/files": {
+   "transcript": "server/tests/fixtures/messages/genkit-go/sdk/files/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Describe the image in one sentence, then summarise the document in one sentence."
+         },
+         "new_fact": "fact-001"
+        },
+        {
+         "part": {
+          "type": "media",
+          "modality": "image",
+          "media_type": "image/jpeg",
+          "size": 163966,
+          "sha256": "f78ee523f0b06377fd02117287eb8837b342efa9dd8dd4f0a20111e758521f0a"
+         },
+         "new_fact": "fact-002"
+        },
+        {
+         "part": {
+          "type": "media",
+          "modality": "application",
+          "media_type": "application/pdf",
+          "size": 13207,
+          "sha256": "f65fdaa928f06d024c68c2538805845378efcb51b09abd084728750169541936"
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

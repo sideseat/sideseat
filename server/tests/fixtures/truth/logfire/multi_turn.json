@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "logfire",
  "scenario": "multi_turn",
  "fixtures": [
@@ -315,5 +315,377 @@
    "detail": "the provider returned a signed reasoning block with no visible text; whether a reconstruction shows a placeholder for it is a product decision, not a fidelity fact",
    "subject": "fact-003"
   }
- ]
+ ],
+ "requests": {
+  "logfire/native/multi_turn": {
+   "transcript": "server/tests/fixtures/messages/logfire/native/multi_turn/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "openai.responses",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new_fact": "fact-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    },
+    "call-002": {
+     "api": "openai.responses",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "fact-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "reasoning",
+          "text": null,
+          "signed": true
+         },
+         "lineage_unknown": "model-side content no call's output matches"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Stay in **Chiado**—it’s central, walkable, and well placed for cafés, restaurants, and exploring Lisbon’s historic neighbourhoods."
+         },
+         "replay_of": "fact-004"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What is one dish I should try there?"
+         },
+         "new_fact": "fact-005"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    },
+    "call-003": {
+     "api": "openai.responses",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "fact-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "reasoning",
+          "text": null,
+          "signed": true
+         },
+         "lineage_unknown": "model-side content no call's output matches"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Stay in **Chiado**—it’s central, walkable, and well placed for cafés, restaurants, and exploring Lisbon’s historic neighbourhoods."
+         },
+         "replay_of": "fact-004"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What is one dish I should try there?"
+         },
+         "replay_of": "fact-005"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Try **bacalhau à Brás**—shredded salt cod with thinly cut fried potatoes, onions, and eggs, usually topped with olives."
+         },
+         "replay_of": "fact-006"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Summarise your two suggestions in one sentence."
+         },
+         "new_fact": "fact-007"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  },
+  "logfire/sdk/multi_turn": {
+   "transcript": "server/tests/fixtures/messages/logfire/sdk/multi_turn/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "openai.responses",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new_fact": "fact-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    },
+    "call-002": {
+     "api": "openai.responses",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "fact-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "reasoning",
+          "text": null,
+          "signed": true
+         },
+         "lineage_unknown": "model-side content no call's output matches"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Stay in **Chiado**—it’s central, walkable, and well placed for cafés, restaurants, and exploring Lisbon’s historic neighbourhoods."
+         },
+         "replay_of": "fact-004"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What is one dish I should try there?"
+         },
+         "new_fact": "fact-005"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    },
+    "call-003": {
+     "api": "openai.responses",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "fact-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "reasoning",
+          "text": null,
+          "signed": true
+         },
+         "lineage_unknown": "model-side content no call's output matches"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Stay in **Chiado**—it’s central, walkable, and well placed for cafés, restaurants, and exploring Lisbon’s historic neighbourhoods."
+         },
+         "replay_of": "fact-004"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What is one dish I should try there?"
+         },
+         "replay_of": "fact-005"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Try **bacalhau à Brás**—shredded salt cod with thinly cut fried potatoes, onions, and eggs, usually topped with olives."
+         },
+         "replay_of": "fact-006"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Summarise your two suggestions in one sentence."
+         },
+         "new_fact": "fact-007"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

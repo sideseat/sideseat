@@ -39,7 +39,7 @@ Every reconstruction is held to two independent references. The first is the com
 `expected.json` with the invariants of `message_goldens` (no duplicates within a trace, tool calls
 before and paired with their results, scope, session partition, an answer for every run, identical
 native and SDK conversations). The second, since rubric v2, is the parser-independent **truth** under
-[`../truth/`](../truth): one `sideseat.truth/2` document per producer and scenario, derived by
+[`../truth/`](../truth): one `sideseat.truth/3` document per producer and scenario, derived by
 `python -m harness truth` from the recorded model responses and the scenario scripts, never from a
 reconstruction. `expected.json` keeps a 240-character preview of each block; the truth checks read the
 full content.
@@ -171,6 +171,43 @@ can be verified (and `UPDATE_GOLDENS=1` or `UPDATE_TRUTH_LEDGER=1` run) against 
 captures still being recorded sit untracked in the same tree; a prefix in `TRUTH_FIXTURE` (`haystack/`)
 makes `truth_explain` print the violations of every fixture under it.
 
+## The request truth (rubric v3, slice 1)
+
+A truth describes the conversation that every fixture of a scenario shares. What the framework *sent*
+differs per fixture, because native, SDK and old releases serialise one conversation differently. So
+each fixture's run records its own `model-requests.json`, the transcript of every request the model
+received:
+- written by the recording proxy, whether it records or replays a cassette;
+- written by the fake model servers;
+- scrubbed like a cassette;
+- refreshed without touching the telemetry by
+  `python -m harness capture <producer> --transcript-only`.
+
+The truth's `requests` member holds, for each fixture with a transcript, each call's decoded request.
+That request is the system parts and the messages in order, and every part names its lineage:
+- `new_fact` is the first time a conversation fact reaches a model;
+- `replay_of` is a fact already established;
+- `new` / `replay_of` an `rq-*` id is content no fact holds, such as the system instruction or a
+  framework-composed turn;
+- `lineage_unknown` is a part that is ambiguous, or a model-side part no output matches.
+
+The lineage is derived from the requests and the outputs, never from the reconstruction.
+
+Each call whose span its *output* established - a successful call the matcher tied by content - has its
+request assigned to that span's input blocks. The assignment is exact, injective and ordered across
+messages, through the same predicates the facts use; the parts of one message are a batch, because a
+provider's parallel calls and their results may be shown in completion order. A call id the framework
+reissued consistently is resolved first, so a rewrite is reported once, by `tool_call.id_rewritten`.
+What is left over is a violation:
+- `request.missing`: a part the span does not show;
+- `request.extra`: a block the request did not send;
+- `request.duplicated`: a second copy of a sent part;
+- `request.order`: a sent part shown elsewhere;
+- `request.role`: a sent part shown under another role.
+
+The call itself is found by its output, never by the input under test. A fixture without a transcript
+has no request truth. Its calls are counted as unrecorded, never as passing.
+
 ## Layout
 
 ```
@@ -178,6 +215,7 @@ makes `truth_explain` print the violations of every fixture under it.
 <producer>/<mode>/<scenario>/req-002.pb     one file per exported batch, in capture order
 <producer>/<mode>/<scenario>/logs-001.pb    captured OTLP log export, attached to the spans it names
 <producer>/<mode>/<scenario>/expected.json  committed expectation
+<producer>/<mode>/<scenario>/model-requests.json  what the run sent the model (`sideseat.transcript/1`)
 <producer>/<mode>@<version>[+<profile>]/<scenario>/  the same, captured from a historical release
 <producer>/versions.json                    provenance of each versioned mode (generated)
 _synthetic/<sample>/                        hand-written shapes no producer emits on its own

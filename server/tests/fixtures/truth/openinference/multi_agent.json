@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "openinference",
  "scenario": "multi_agent",
  "fixtures": [
@@ -262,5 +262,261 @@
    "reason": "multi_agent_routing",
    "detail": "which agent made each call, and what one agent passed another, is the framework's; only each call's own output and the shared tools' results are asserted"
   }
- ]
+ ],
+ "requests": {
+  "openinference/native/multi_agent": {
+   "transcript": "server/tests/fixtures/messages/openinference/native/multi_agent/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You research weather with the tool and report the forecast."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You research weather with the tool and report the forecast."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_mfC4ee8OdpnWTTd4FpSDYp",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Barcelona",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_mfC4ee8OdpnWTTd4FpSDYp",
+          "content": [
+           {
+            "type": "text",
+            "text": "{\"city\": \"Barcelona\", \"forecast\": [{\"day\": 1, \"condition\": \"rain\", \"high_c\": 21}, {\"day\": 2, \"condition\": \"sunny\", \"high_c\": 22}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-003": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You write the final packing list from the researcher's findings."
+       },
+       "new": "rq-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nResearcher's findings:\nBarcelona's forecast for the next two days is rain on day 1 with a high of 21°C, then sun on day 2 with a high of 22°C.\n\n**Packing list:** Pack for mild weather with one wet day and one sunny day. Bring layers like a light sweater or long-sleeve shirt, plus a few T-shirts for the warmer, sunny afternoon. A compact umbrella and a light waterproof jacket will keep you dry on day 1. Wear water-resistant, comfortable walking shoes, and bring a second pair or spare socks in case the first pair gets wet. For day 2, add sunglasses, sunscreen, and a hat. Also bring a small day bag with a plastic cover or dry bag to protect your phone and documents from the rain, and a light pair of pants or jeans that will be comfortable in both conditions."
+         },
+         "new": "rq-003"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  },
+  "openinference/sdk/multi_agent": {
+   "transcript": "server/tests/fixtures/messages/openinference/sdk/multi_agent/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You research weather with the tool and report the forecast."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You research weather with the tool and report the forecast."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_mfC4ee8OdpnWTTd4FpSDYp",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Barcelona",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_mfC4ee8OdpnWTTd4FpSDYp",
+          "content": [
+           {
+            "type": "text",
+            "text": "{\"city\": \"Barcelona\", \"forecast\": [{\"day\": 1, \"condition\": \"rain\", \"high_c\": 21}, {\"day\": 2, \"condition\": \"sunny\", \"high_c\": 22}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-003": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You write the final packing list from the researcher's findings."
+       },
+       "new": "rq-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nResearcher's findings:\nBarcelona's forecast for the next two days is rain on day 1 with a high of 21°C, then sun on day 2 with a high of 22°C.\n\n**Packing list:** Pack for mild weather with one wet day and one sunny day. Bring layers like a light sweater or long-sleeve shirt, plus a few T-shirts for the warmer, sunny afternoon. A compact umbrella and a light waterproof jacket will keep you dry on day 1. Wear water-resistant, comfortable walking shoes, and bring a second pair or spare socks in case the first pair gets wet. For day 2, add sunglasses, sunscreen, and a hat. Also bring a small day bag with a plastic cover or dry bag to protect your phone and documents from the rain, and a light pair of pants or jeans that will be comfortable in both conditions."
+         },
+         "new": "rq-003"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "agentscope",
  "scenario": "structured_output",
  "fixtures": [
@@ -131,5 +131,101 @@
    "detail": "why a response that called tools ended: AgentScope records every response's finish as `stop`, and no payload keeps the provider's `tool_use`",
    "subject": "call-001"
   }
- ]
+ ],
+ "requests": {
+  "agentscope/native/structured_output": {
+   "transcript": "server/tests/fixtures/messages/agentscope/native/structured_output/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Plan a two-day trip to Vienna."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "<system-reminder>You're required to generate structured output by calling the 'GenerateStructuredOutput' tool. Call it when you are ready to generate the final structured output.</system-reminder>"
+         },
+         "new": "rq-002"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "GenerateStructuredOutput"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  },
+  "agentscope/sdk/structured_output": {
+   "transcript": "server/tests/fixtures/messages/agentscope/sdk/structured_output/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Plan a two-day trip to Vienna."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "<system-reminder>You're required to generate structured output by calling the 'GenerateStructuredOutput' tool. Call it when you are ready to generate the final structured output.</system-reminder>"
+         },
+         "new": "rq-002"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "GenerateStructuredOutput"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

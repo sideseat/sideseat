@@ -1,0 +1,12 @@
+{
+ "format": "sideseat.transcript/1",
+ "interactions": [
+  {
+   "body": "eyJtb2RlbCI6ImdwdC02LjEtc29sIiwiaW5wdXQiOiJGb3VyIHRyYXZlbGxlcnMgbXVzdCBjcm9zcyBhIGJyaWRnZSBhdCBuaWdodCB3aXRoIG9uZSB0b3JjaC4gQXQgbW9zdCB0d28gY3Jvc3MgYXQgYSB0aW1lIGFuZCBhIHBhaXIgbW92ZXMgYXQgdGhlIHNsb3dlciBwZXJzb24ncyBwYWNlLiBUaGV5IHRha2UgMSwgMiwgNSBhbmQgMTAgbWludXRlcy4gV2hhdCBpcyB0aGUgZmFzdGVzdCB0b3RhbCBjcm9zc2luZyB0aW1lLCBhbmQgd2hhdCBpcyB0aGUgc2NoZWR1bGU/IiwiaW5zdHJ1Y3Rpb25zIjoiWW91IGFyZSBhIGNvbmNpc2UgdHJhdmVsIGFzc2lzdGFudC4gVXNlIHRoZSB0b29scyBmb3Igd2VhdGhlciBhbmQgYm9va2luZ3MgaW5zdGVhZCBvZiBndWVzc2luZywgYW5kIGFuc3dlciBpbiBhdCBtb3N0IHRocmVlIHNlbnRlbmNlcy4iLCJyZWFzb25pbmciOnsiZWZmb3J0IjoiaGlnaCIsInN1bW1hcnkiOiJkZXRhaWxlZCJ9fQ==",
+   "content_type": "application/json",
+   "method": "POST",
+   "path": "/openai/responses?api-version=2025-04-01-preview",
+   "request_sha256": "1af538b4a6950521c95e87d9d2d775e958d9469718dec2ea6d4f14f81d709697"
+  }
+ ]
+}

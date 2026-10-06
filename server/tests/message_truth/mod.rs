@@ -30,10 +30,12 @@ mod matching;
 mod mutate;
 mod mutate_framework;
 mod mutate_matching;
+mod mutate_requests;
 mod mutations;
 mod order;
 mod predicates;
 mod recon;
+mod requests;
 mod truth;
 
 use std::collections::BTreeMap;
@@ -52,6 +54,8 @@ pub(crate) enum ViolationView {
     Call,
     /// A delivery variation changed a fixture's views (`invariance`).
     Delivery,
+    /// A call's recorded request against its span's input (`requests`).
+    Request,
 }
 
 impl ViolationView {
@@ -63,6 +67,7 @@ impl ViolationView {
             ViolationView::Feed => "feed",
             ViolationView::Call => "call",
             ViolationView::Delivery => "delivery",
+            ViolationView::Request => "request",
         }
     }
 }
@@ -154,6 +159,11 @@ pub(crate) const ASSERTION_FAMILIES: &[&str] = &[
     "gap.unused",
     "attribution.span",
     "attribution.call_order",
+    "request.missing",
+    "request.extra",
+    "request.duplicated",
+    "request.order",
+    "request.role",
 ];
 
 /// The delivery variations `invariance` checks, by assertion.
@@ -196,6 +206,7 @@ fn check(truth: &Truth, recon: &Recon) -> Vec<Violation> {
     let mut out = Vec::new();
     let matching = matching::match_calls(truth, recon, &mut out);
     matching::check_metadata(truth, recon, &matching, &mut out);
+    requests::check_requests(truth, recon, &matching, &mut out);
     let context = checks::Context::new(truth, recon, &matching);
     checks::check_placement(&context, &mut out);
     for violation in &mut out {

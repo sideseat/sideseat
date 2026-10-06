@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "openai-agents",
  "scenario": "error",
  "fixtures": [
@@ -221,5 +221,209 @@
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
   }
- ]
+ ],
+ "requests": {
+  "openai-agents/native/error": {
+   "transcript": "server/tests/fixtures/messages/openai-agents/native/error/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "openai.responses",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new_fact": "fact-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Book me a flight from London to Oslo on 2026-11-14."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "book_flight"
+     ]
+    },
+    "call-002": {
+     "api": "openai.responses",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "fact-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Book me a flight from London to Oslo on 2026-11-14."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "call_7008687e3a9a5d269813955e902301c1",
+          "name": "book_flight",
+          "arguments": {
+           "origin": "London",
+           "destination": "Oslo",
+           "date": "2026-11-14"
+          }
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "tool",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "call_7008687e3a9a5d269813955e902301c1",
+          "content": [
+           {
+            "type": "text",
+            "text": "BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline."
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-004"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "book_flight"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  },
+  "openai-agents/sdk/error": {
+   "transcript": "server/tests/fixtures/messages/openai-agents/sdk/error/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "openai.responses",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new_fact": "fact-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Book me a flight from London to Oslo on 2026-11-14."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "book_flight"
+     ]
+    },
+    "call-002": {
+     "api": "openai.responses",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "fact-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Book me a flight from London to Oslo on 2026-11-14."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "call_7008687e3a9a5d269813955e902301c1",
+          "name": "book_flight",
+          "arguments": {
+           "origin": "London",
+           "destination": "Oslo",
+           "date": "2026-11-14"
+          }
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "tool",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "call_7008687e3a9a5d269813955e902301c1",
+          "content": [
+           {
+            "type": "text",
+            "text": "BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline."
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-004"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "book_flight"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

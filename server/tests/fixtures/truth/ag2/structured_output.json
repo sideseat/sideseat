@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "ag2",
  "scenario": "structured_output",
  "fixtures": [
@@ -134,5 +134,73 @@
    "detail": "the provider returned a signed reasoning block with no visible text; whether a reconstruction shows a placeholder for it is a product decision, not a fidelity fact",
    "subject": "fact-002"
   }
- ]
+ ],
+ "requests": {
+  "ag2/native/structured_output": {
+   "transcript": "server/tests/fixtures/messages/ag2/native/structured_output/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYou must respond with valid JSON that conforms to the following JSON schema:\n```json\n{\n  \"properties\": {\n    \"city\": {\n      \"description\": \"The destination city\",\n      \"title\": \"City\",\n      \"type\": \"string\"\n    },\n    \"days\": {\n      \"description\": \"One activity per day\",\n      \"items\": {\n        \"type\": \"string\"\n      },\n      \"title\": \"Days\",\n      \"type\": \"array\"\n    },\n    \"budget_eur\": {\n      \"description\": \"Estimated total budget in euros\",\n      \"title\": \"Budget Eur\",\n      \"type\": \"integer\"\n    }\n  },\n  \"required\": [\n    \"city\",\n    \"days\",\n    \"budget_eur\"\n  ],\n  \"type\": \"object\"\n}\n```\nDo not include any text, markdown formatting, or explanation outside the JSON object."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Plan a two-day trip to Vienna."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  },
+  "ag2/sdk/structured_output": {
+   "transcript": "server/tests/fixtures/messages/ag2/sdk/structured_output/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYou must respond with valid JSON that conforms to the following JSON schema:\n```json\n{\n  \"properties\": {\n    \"city\": {\n      \"description\": \"The destination city\",\n      \"title\": \"City\",\n      \"type\": \"string\"\n    },\n    \"days\": {\n      \"description\": \"One activity per day\",\n      \"items\": {\n        \"type\": \"string\"\n      },\n      \"title\": \"Days\",\n      \"type\": \"array\"\n    },\n    \"budget_eur\": {\n      \"description\": \"Estimated total budget in euros\",\n      \"title\": \"Budget Eur\",\n      \"type\": \"integer\"\n    }\n  },\n  \"required\": [\n    \"city\",\n    \"days\",\n    \"budget_eur\"\n  ],\n  \"type\": \"object\"\n}\n```\nDo not include any text, markdown formatting, or explanation outside the JSON object."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Plan a two-day trip to Vienna."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

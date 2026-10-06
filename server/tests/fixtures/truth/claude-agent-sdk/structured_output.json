@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "claude-agent-sdk",
  "scenario": "structured_output",
  "fixtures": [
@@ -125,5 +125,129 @@
    "detail": "StructuredOutput is not one of the shared deterministic tools",
    "subject": "fact-002"
   }
- ]
+ ],
+ "requests": {
+  "claude-agent-sdk/native/structured_output": {
+   "transcript": "server/tests/fixtures/messages/claude-agent-sdk/native/structured_output/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "x-anthropic-billing-header: cc_version=2.1.286.997; cc_entrypoint=sdk-py;"
+       },
+       "new": "rq-001"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+       },
+       "new": "rq-002"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-003"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Plan a two-day trip to Vienna."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "system",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "# Environment\nYou have been invoked in the following environment: \n - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk\n - Is a git repository: false\n - Additional working directories:\n  - /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk\n - Platform: darwin\n - Shell: zsh\n - OS Version: Darwin 25.6.0\n\nYou are powered by the model named Sonnet 5.5. The exact model ID is global.anthropic.claude-sonnet-5-5. Assistant knowledge cutoff is June 2026.\n\n<total_tokens>15000000 tokens left</total_tokens>\n\nToday's date is 2026-10-06."
+         },
+         "new": "rq-004"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "StructuredOutput"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  },
+  "claude-agent-sdk/sdk/structured_output": {
+   "transcript": "server/tests/fixtures/messages/claude-agent-sdk/sdk/structured_output/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "x-anthropic-billing-header: cc_version=2.1.286.997; cc_entrypoint=sdk-py;"
+       },
+       "new": "rq-001"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+       },
+       "new": "rq-002"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-003"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Plan a two-day trip to Vienna."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "system",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "# Environment\nYou have been invoked in the following environment: \n - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk\n - Is a git repository: false\n - Additional working directories:\n  - /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk\n - Platform: darwin\n - Shell: zsh\n - OS Version: Darwin 25.6.0\n\nYou are powered by the model named Sonnet 5.5. The exact model ID is global.anthropic.claude-sonnet-5-5. Assistant knowledge cutoff is June 2026.\n\n<total_tokens>15000000 tokens left</total_tokens>\n\nToday's date is 2026-10-06."
+         },
+         "new": "rq-004"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "StructuredOutput"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

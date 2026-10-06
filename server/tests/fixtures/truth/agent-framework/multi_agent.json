@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "agent-framework",
  "scenario": "multi_agent",
  "fixtures": [
@@ -320,5 +320,393 @@
    "detail": "researcher is not one of the shared deterministic tools",
    "subject": "fact-002"
   }
- ]
+ ],
+ "requests": {
+  "agent-framework/native/multi_agent": {
+   "transcript": "server/tests/fixtures/messages/agent-framework/native/multi_agent/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You write the final packing list. Ask the researcher for the weather first."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "researcher"
+     ]
+    },
+    "call-002": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You research weather with the tool and report the forecast."
+       },
+       "new": "rq-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Find the weather forecast for Barcelona, Spain for the next two days (temperatures high/low, precipitation chance, wind, humidity, UV, and general conditions)."
+         },
+         "new": "rq-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-003": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You research weather with the tool and report the forecast."
+       },
+       "replay_of": "rq-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Find the weather forecast for Barcelona, Spain for the next two days (temperatures high/low, precipitation chance, wind, humidity, UV, and general conditions)."
+         },
+         "replay_of": "rq-003"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_01S1iThQUVmH3EgGVJnPnM71",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Barcelona, Spain",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_01S1iThQUVmH3EgGVJnPnM71",
+          "content": [
+           {
+            "type": "text",
+            "text": "{\"city\": \"Barcelona, Spain\", \"forecast\": [{\"day\": 1, \"condition\": \"sunny\", \"high_c\": 21}, {\"day\": 2, \"condition\": \"sunny\", \"high_c\": 22}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-004"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-004": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You write the final packing list. Ask the researcher for the weather first."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_01NP1rM9DaCA6ZAM4jz3CGpA",
+          "name": "researcher",
+          "arguments": {
+           "task": "Find the weather forecast for Barcelona, Spain for the next two days (temperatures high/low, precipitation chance, wind, humidity, UV, and general conditions)."
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_01NP1rM9DaCA6ZAM4jz3CGpA",
+          "content": [
+           {
+            "type": "text",
+            "text": "Here's the two-day forecast for Barcelona, Spain. The tool returned only some of the details you asked for.\n\n| | Day 1 | Day 2 |\n|---|---|---|\n| **Conditions** | Sunny | Sunny |\n| **High** | 21 °C (70 °F) | 22 °C (72 °F) |\n| **Low** | Not provided | Not provided |\n| **Precipitation chance** | Not provided | Not provided |\n| **Wind** | Not provided | Not provided |\n| **Humidity** | Not provided | Not provided |\n| **UV index** | Not provided | Not provided |\n\nBoth days should be sunny and mild, with highs in the low 20s °C. The source didn't include lows, precipitation chance, wind, humidity, or UV. I'd rather not guess at those. Sunny skies suggest little rain, but that's an inference and not part of the forecast data. For UV, sunscreen is sensible on clear days. A dedicated source like AEMET (Spain's national weather service) should have the missing details."
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-004"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "researcher"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  },
+  "agent-framework/sdk/multi_agent": {
+   "transcript": "server/tests/fixtures/messages/agent-framework/sdk/multi_agent/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You write the final packing list. Ask the researcher for the weather first."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "researcher"
+     ]
+    },
+    "call-002": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You research weather with the tool and report the forecast."
+       },
+       "new": "rq-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Find the weather forecast for Barcelona, Spain for the next two days (temperatures high/low, precipitation chance, wind, humidity, UV, and general conditions)."
+         },
+         "new": "rq-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-003": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You research weather with the tool and report the forecast."
+       },
+       "replay_of": "rq-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Find the weather forecast for Barcelona, Spain for the next two days (temperatures high/low, precipitation chance, wind, humidity, UV, and general conditions)."
+         },
+         "replay_of": "rq-003"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_01S1iThQUVmH3EgGVJnPnM71",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Barcelona, Spain",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_01S1iThQUVmH3EgGVJnPnM71",
+          "content": [
+           {
+            "type": "text",
+            "text": "{\"city\": \"Barcelona, Spain\", \"forecast\": [{\"day\": 1, \"condition\": \"sunny\", \"high_c\": 21}, {\"day\": 2, \"condition\": \"sunny\", \"high_c\": 22}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-004"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-004": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You write the final packing list. Ask the researcher for the weather first."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_01NP1rM9DaCA6ZAM4jz3CGpA",
+          "name": "researcher",
+          "arguments": {
+           "task": "Find the weather forecast for Barcelona, Spain for the next two days (temperatures high/low, precipitation chance, wind, humidity, UV, and general conditions)."
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_01NP1rM9DaCA6ZAM4jz3CGpA",
+          "content": [
+           {
+            "type": "text",
+            "text": "Here's the two-day forecast for Barcelona, Spain. The tool returned only some of the details you asked for.\n\n| | Day 1 | Day 2 |\n|---|---|---|\n| **Conditions** | Sunny | Sunny |\n| **High** | 21 °C (70 °F) | 22 °C (72 °F) |\n| **Low** | Not provided | Not provided |\n| **Precipitation chance** | Not provided | Not provided |\n| **Wind** | Not provided | Not provided |\n| **Humidity** | Not provided | Not provided |\n| **UV index** | Not provided | Not provided |\n\nBoth days should be sunny and mild, with highs in the low 20s °C. The source didn't include lows, precipitation chance, wind, humidity, or UV. I'd rather not guess at those. Sunny skies suggest little rain, but that's an inference and not part of the forecast data. For UV, sunscreen is sensible on clear days. A dedicated source like AEMET (Spain's national weather service) should have the missing details."
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-004"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "researcher"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "autogen",
  "scenario": "mcp_tools",
  "fixtures": [
@@ -204,5 +204,205 @@
    "reason": "fake_model_echoes_request",
    "detail": "a fake model echoes the request's model and derives response ids from the request body; neither is recorded, so neither is asserted"
   }
- ]
+ ],
+ "requests": {
+  "autogen/native/mcp_tools": {
+   "transcript": "server/tests/fixtures/messages/autogen/native/mcp_tools/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "openai.chat",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Use the calculator to compute (17 * 23) + 4, then report the result."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "calculate"
+     ]
+    },
+    "call-002": {
+     "api": "openai.chat",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Use the calculator to compute (17 * 23) + 4, then report the result."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "call_calculate_d938abb17f0a",
+          "name": "calculate",
+          "arguments": {
+           "expression": "(17 * 23) + 4"
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "tool",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "call_calculate_d938abb17f0a",
+          "content": [
+           {
+            "type": "text",
+            "text": "395.0"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "calculate"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  },
+  "autogen/sdk/mcp_tools": {
+   "transcript": "server/tests/fixtures/messages/autogen/sdk/mcp_tools/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "openai.chat",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Use the calculator to compute (17 * 23) + 4, then report the result."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "calculate"
+     ]
+    },
+    "call-002": {
+     "api": "openai.chat",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Use the calculator to compute (17 * 23) + 4, then report the result."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "call_calculate_d938abb17f0a",
+          "name": "calculate",
+          "arguments": {
+           "expression": "(17 * 23) + 4"
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "tool",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "call_calculate_d938abb17f0a",
+          "content": [
+           {
+            "type": "text",
+            "text": "395.0"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "calculate"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

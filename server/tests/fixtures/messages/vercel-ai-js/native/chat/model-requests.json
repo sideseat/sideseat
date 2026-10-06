@@ -1,0 +1,13 @@
+{
+ "format": "sideseat.transcript/1",
+ "interactions": [
+  {
+   "answered_by": 0,
+   "body": "eyJzeXN0ZW0iOlt7InRleHQiOiJZb3UgYXJlIGEgY29uY2lzZSB0cmF2ZWwgYXNzaXN0YW50LiBVc2UgdGhlIHRvb2xzIGZvciB3ZWF0aGVyIGFuZCBib29raW5ncyBpbnN0ZWFkIG9mIGd1ZXNzaW5nLCBhbmQgYW5zd2VyIGluIGF0IG1vc3QgdGhyZWUgc2VudGVuY2VzLiJ9XSwibWVzc2FnZXMiOlt7InJvbGUiOiJ1c2VyIiwiY29udGVudCI6W3sidGV4dCI6IkluIG9uZSBzZW50ZW5jZSwgd2hhdCBpcyBLeW90byBiZXN0IGtub3duIGZvcj8ifV19XSwiYWRkaXRpb25hbE1vZGVsUmVzcG9uc2VGaWVsZFBhdGhzIjpbIi9kZWx0YS9zdG9wX3NlcXVlbmNlIl19",
+   "content_type": "application/json",
+   "method": "POST",
+   "path": "/model/global.anthropic.claude-sonnet-5-5/converse",
+   "request_sha256": "ad734d13f0f2769d336480c7d5c9452f312d720ec70822e64317f15b17ec2605"
+  }
+ ]
+}

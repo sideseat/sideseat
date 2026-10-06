@@ -28,7 +28,7 @@ from typing import Any
 from harness import content
 from harness.truth.wire import ModelCall
 
-FORMAT = "sideseat.truth/2"
+FORMAT = "sideseat.truth/3"
 
 REPO = Path(__file__).resolve().parents[5]
 ASSETS = REPO / "examples" / "assets"

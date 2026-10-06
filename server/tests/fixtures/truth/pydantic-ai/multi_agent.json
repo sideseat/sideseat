@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "pydantic-ai",
  "scenario": "multi_agent",
  "fixtures": [
@@ -320,5 +320,393 @@
    "detail": "ask_researcher is not one of the shared deterministic tools",
    "subject": "fact-002"
   }
- ]
+ ],
+ "requests": {
+  "pydantic-ai/native/multi_agent": {
+   "transcript": "server/tests/fixtures/messages/pydantic-ai/native/multi_agent/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You write the final packing list. Ask the researcher for the weather first."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "ask_researcher"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You research weather with the tool and report the forecast."
+       },
+       "new": "rq-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humidity, and UV if available."
+         },
+         "new": "rq-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-003": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You research weather with the tool and report the forecast."
+       },
+       "replay_of": "rq-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humidity, and UV if available."
+         },
+         "replay_of": "rq-003"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_uGTu6I8EP6QkocF1QatZu6",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Barcelona, Spain",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_uGTu6I8EP6QkocF1QatZu6",
+          "content": [
+           {
+            "type": "text",
+            "text": "{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-004"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-004": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You write the final packing list. Ask the researcher for the weather first."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_xP4UUWIrPSI2V2aJreX2JR",
+          "name": "ask_researcher",
+          "arguments": {
+           "request": "What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humidity, and UV if available."
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_xP4UUWIrPSI2V2aJreX2JR",
+          "content": [
+           {
+            "type": "text",
+            "text": "Here is the two-day forecast for Barcelona, Spain. The tool returned only conditions and high temperatures.\n\n| Day | Conditions | High | Low |\n|---|---|---|---|\n| Day 1 (today) | Sunny | 21°C (70°F) | Not available |\n| Day 2 (tomorrow) | Sunny | 22°C (72°F) | Not available |\n\nThe tool didn't return any of these, so I can't give you figures for them:\n- Low temperatures\n- Precipitation chances\n- Wind\n- Humidity\n- UV index\n\nBoth days are forecast to be sunny, so rain is unlikely. That's my inference from the conditions, not a precipitation figure. For wind, humidity and UV, check a local source such as AEMET, Spain's national weather service."
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-004"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "ask_researcher"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  },
+  "pydantic-ai/sdk/multi_agent": {
+   "transcript": "server/tests/fixtures/messages/pydantic-ai/sdk/multi_agent/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You write the final packing list. Ask the researcher for the weather first."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "ask_researcher"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You research weather with the tool and report the forecast."
+       },
+       "new": "rq-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humidity, and UV if available."
+         },
+         "new": "rq-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-003": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You research weather with the tool and report the forecast."
+       },
+       "replay_of": "rq-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humidity, and UV if available."
+         },
+         "replay_of": "rq-003"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_uGTu6I8EP6QkocF1QatZu6",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Barcelona, Spain",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_uGTu6I8EP6QkocF1QatZu6",
+          "content": [
+           {
+            "type": "text",
+            "text": "{\"city\":\"Barcelona, Spain\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-004"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-004": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You write the final packing list. Ask the researcher for the weather first."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_xP4UUWIrPSI2V2aJreX2JR",
+          "name": "ask_researcher",
+          "arguments": {
+           "request": "What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humidity, and UV if available."
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_xP4UUWIrPSI2V2aJreX2JR",
+          "content": [
+           {
+            "type": "text",
+            "text": "Here is the two-day forecast for Barcelona, Spain. The tool returned only conditions and high temperatures.\n\n| Day | Conditions | High | Low |\n|---|---|---|---|\n| Day 1 (today) | Sunny | 21°C (70°F) | Not available |\n| Day 2 (tomorrow) | Sunny | 22°C (72°F) | Not available |\n\nThe tool didn't return any of these, so I can't give you figures for them:\n- Low temperatures\n- Precipitation chances\n- Wind\n- Humidity\n- UV index\n\nBoth days are forecast to be sunny, so rain is unlikely. That's my inference from the conditions, not a precipitation figure. For wind, humidity and UV, check a local source such as AEMET, Spain's national weather service."
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-004"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "ask_researcher"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

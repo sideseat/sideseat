@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "claude-agent-sdk",
  "scenario": "mcp_tools",
  "fixtures": [
@@ -198,5 +198,333 @@
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
   }
- ]
+ ],
+ "requests": {
+  "claude-agent-sdk/native/mcp_tools": {
+   "transcript": "server/tests/fixtures/messages/claude-agent-sdk/native/mcp_tools/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "x-anthropic-billing-header: cc_version=2.1.286.417; cc_entrypoint=sdk-py;"
+       },
+       "new": "rq-001"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+       },
+       "new": "rq-002"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-003"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Use the calculator to compute (17 * 23) + 4, then report the result."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "system",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "# Environment\nYou have been invoked in the following environment: \n - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk\n - Is a git repository: false\n - Additional working directories:\n  - /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk\n - Platform: darwin\n - Shell: zsh\n - OS Version: Darwin 25.6.0\n\nYou are powered by the model named Sonnet 5.5. The exact model ID is global.anthropic.claude-sonnet-5-5. Assistant knowledge cutoff is June 2026.\n\n<total_tokens>15000000 tokens left</total_tokens>\n\nToday's date is 2026-10-06."
+         },
+         "new": "rq-004"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "mcp__calculator__calculate"
+     ]
+    },
+    "call-002": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "x-anthropic-billing-header: cc_version=2.1.286.417; cc_entrypoint=sdk-py;"
+       },
+       "replay_of": "rq-001"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+       },
+       "replay_of": "rq-002"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-003"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Use the calculator to compute (17 * 23) + 4, then report the result."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "system",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "# Environment\nYou have been invoked in the following environment: \n - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk\n - Is a git repository: false\n - Additional working directories:\n  - /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk\n - Platform: darwin\n - Shell: zsh\n - OS Version: Darwin 25.6.0\n\nYou are powered by the model named Sonnet 5.5. The exact model ID is global.anthropic.claude-sonnet-5-5. Assistant knowledge cutoff is June 2026.\n\n<total_tokens>15000000 tokens left</total_tokens>\n\nToday's date is 2026-10-06."
+         },
+         "replay_of": "rq-004"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_01P2hMAQZLM2Ttwcpt6h4fjy",
+          "name": "mcp__calculator__calculate",
+          "arguments": {
+           "expression": "(17 * 23) + 4"
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_01P2hMAQZLM2Ttwcpt6h4fjy",
+          "content": [
+           {
+            "type": "text",
+            "text": "{\"result\":395}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "system",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "<total_tokens>14999088 tokens left</total_tokens>"
+         },
+         "new": "rq-005"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "mcp__calculator__calculate"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  },
+  "claude-agent-sdk/sdk/mcp_tools": {
+   "transcript": "server/tests/fixtures/messages/claude-agent-sdk/sdk/mcp_tools/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "x-anthropic-billing-header: cc_version=2.1.286.417; cc_entrypoint=sdk-py;"
+       },
+       "new": "rq-001"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+       },
+       "new": "rq-002"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-003"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Use the calculator to compute (17 * 23) + 4, then report the result."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "system",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "# Environment\nYou have been invoked in the following environment: \n - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk\n - Is a git repository: false\n - Additional working directories:\n  - /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk\n - Platform: darwin\n - Shell: zsh\n - OS Version: Darwin 25.6.0\n\nYou are powered by the model named Sonnet 5.5. The exact model ID is global.anthropic.claude-sonnet-5-5. Assistant knowledge cutoff is June 2026.\n\n<total_tokens>15000000 tokens left</total_tokens>\n\nToday's date is 2026-10-06."
+         },
+         "new": "rq-004"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "mcp__calculator__calculate"
+     ]
+    },
+    "call-002": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "x-anthropic-billing-header: cc_version=2.1.286.417; cc_entrypoint=sdk-py;"
+       },
+       "replay_of": "rq-001"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+       },
+       "replay_of": "rq-002"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-003"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Use the calculator to compute (17 * 23) + 4, then report the result."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "system",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "# Environment\nYou have been invoked in the following environment: \n - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk\n - Is a git repository: false\n - Additional working directories:\n  - /var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk\n - Platform: darwin\n - Shell: zsh\n - OS Version: Darwin 25.6.0\n\nYou are powered by the model named Sonnet 5.5. The exact model ID is global.anthropic.claude-sonnet-5-5. Assistant knowledge cutoff is June 2026.\n\n<total_tokens>15000000 tokens left</total_tokens>\n\nToday's date is 2026-10-06."
+         },
+         "replay_of": "rq-004"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_01P2hMAQZLM2Ttwcpt6h4fjy",
+          "name": "mcp__calculator__calculate",
+          "arguments": {
+           "expression": "(17 * 23) + 4"
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_01P2hMAQZLM2Ttwcpt6h4fjy",
+          "content": [
+           {
+            "type": "text",
+            "text": "{\"result\":395}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "system",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "<total_tokens>14999088 tokens left</total_tokens>"
+         },
+         "new": "rq-005"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "mcp__calculator__calculate"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

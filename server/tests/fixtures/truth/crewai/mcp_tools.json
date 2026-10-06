@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "crewai",
  "scenario": "mcp_tools",
  "fixtures": [
@@ -280,5 +280,395 @@
    "detail": "uv_run_locked_directory_scripts_tools_mcp_calculator_mc_6c1053df is not one of the shared deterministic tools",
    "subject": "fact-005"
   }
- ]
+ ],
+ "requests": {
+  "crewai/native/mcp_tools": {
+   "transcript": "server/tests/fixtures/messages/crewai/native/mcp_tools/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "\nCurrent Task: Use the calculator to compute (17 * 23) + 4, then report the result.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
+         },
+         "new": "rq-002"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "uv_run_locked_directory_scripts_tools_mcp_calculator_mc_6c1053df"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "\nCurrent Task: Use the calculator to compute (17 * 23) + 4, then report the result.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
+         },
+         "replay_of": "rq-002"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_8drru3rBrq9TZgW8J1vVCX",
+          "name": "uv_run_locked_directory_scripts_tools_mcp_calculator_mc_6c1053df",
+          "arguments": {}
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_8drru3rBrq9TZgW8J1vVCX",
+          "content": [
+           {
+            "type": "text",
+            "text": "1 validation error for call[calculate]\nexpression\n  Missing required argument [type=missing_argument, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing_argument"
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "uv_run_locked_directory_scripts_tools_mcp_calculator_mc_6c1053df"
+     ]
+    },
+    "call-003": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "\nCurrent Task: Use the calculator to compute (17 * 23) + 4, then report the result.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
+         },
+         "replay_of": "rq-002"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_8drru3rBrq9TZgW8J1vVCX",
+          "name": "uv_run_locked_directory_scripts_tools_mcp_calculator_mc_6c1053df",
+          "arguments": {}
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_8drru3rBrq9TZgW8J1vVCX",
+          "content": [
+           {
+            "type": "text",
+            "text": "1 validation error for call[calculate]\nexpression\n  Missing required argument [type=missing_argument, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing_argument"
+           }
+          ],
+          "is_error": false
+         },
+         "replay_of": "rq-003"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_gTMwyYLlJn54NjfiCeWG5o",
+          "name": "uv_run_locked_directory_scripts_tools_mcp_calculator_mc_6c1053df",
+          "arguments": {
+           "expression": "(17 * 23) + 4"
+          }
+         },
+         "replay_of": "fact-005"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_gTMwyYLlJn54NjfiCeWG5o",
+          "content": [
+           {
+            "type": "text",
+            "text": "395.0"
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-004"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "uv_run_locked_directory_scripts_tools_mcp_calculator_mc_6c1053df"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  },
+  "crewai/sdk/mcp_tools": {
+   "transcript": "server/tests/fixtures/messages/crewai/sdk/mcp_tools/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "\nCurrent Task: Use the calculator to compute (17 * 23) + 4, then report the result.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
+         },
+         "new": "rq-002"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "uv_run_locked_directory_scripts_tools_mcp_calculator_mc_6c1053df"
+     ]
+    },
+    "call-002": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "\nCurrent Task: Use the calculator to compute (17 * 23) + 4, then report the result.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
+         },
+         "replay_of": "rq-002"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_8drru3rBrq9TZgW8J1vVCX",
+          "name": "uv_run_locked_directory_scripts_tools_mcp_calculator_mc_6c1053df",
+          "arguments": {}
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_8drru3rBrq9TZgW8J1vVCX",
+          "content": [
+           {
+            "type": "text",
+            "text": "1 validation error for call[calculate]\nexpression\n  Missing required argument [type=missing_argument, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing_argument"
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "uv_run_locked_directory_scripts_tools_mcp_calculator_mc_6c1053df"
+     ]
+    },
+    "call-003": {
+     "api": "bedrock.converse",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "\nCurrent Task: Use the calculator to compute (17 * 23) + 4, then report the result.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
+         },
+         "replay_of": "rq-002"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_8drru3rBrq9TZgW8J1vVCX",
+          "name": "uv_run_locked_directory_scripts_tools_mcp_calculator_mc_6c1053df",
+          "arguments": {}
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_8drru3rBrq9TZgW8J1vVCX",
+          "content": [
+           {
+            "type": "text",
+            "text": "1 validation error for call[calculate]\nexpression\n  Missing required argument [type=missing_argument, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing_argument"
+           }
+          ],
+          "is_error": false
+         },
+         "replay_of": "rq-003"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "tooluse_gTMwyYLlJn54NjfiCeWG5o",
+          "name": "uv_run_locked_directory_scripts_tools_mcp_calculator_mc_6c1053df",
+          "arguments": {
+           "expression": "(17 * 23) + 4"
+          }
+         },
+         "replay_of": "fact-005"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "tooluse_gTMwyYLlJn54NjfiCeWG5o",
+          "content": [
+           {
+            "type": "text",
+            "text": "395.0"
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-004"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "uv_run_locked_directory_scripts_tools_mcp_calculator_mc_6c1053df"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

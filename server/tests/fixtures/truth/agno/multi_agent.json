@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "agno",
  "scenario": "multi_agent",
  "fixtures": [
@@ -429,5 +429,651 @@
    "detail": "delegate_task_to_member is not one of the shared deterministic tools",
    "subject": "fact-006"
   }
- ]
+ ],
+ "requests": {
+  "agno/native/multi_agent": {
+   "transcript": "server/tests/fixtures/messages/agno/native/multi_agent/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "Ask the researcher for the forecast, then ask the writer for the packing list.\n\n<team>\nYou coordinate this team to fulfill the user's request. You have a team of specialists, listed below. Delegate to members when their expertise or tools are needed; answer directly — including with your own tools — when they are not.\n\n<team_members>\n<member id=\"researcher\" name=\"researcher\">\n  Role: Researches weather with the tool\n</member>\n<member id=\"writer\" name=\"writer\">\n  Role: Writes the packing list\n</member>\n</team_members>\n\n<delegation>\nYou work in coordinate mode: you hand sub-tasks to members with `delegate_task_to_member` and write the answer yourself.\n\n- Match each sub-task to the member whose role and description fit it best. When sub-tasks do not depend on each other, delegate them in the same turn instead of one per turn.\n- A member's output is evidence, not your answer. When a member fails, refuses, or returns nothing, say so plainly and name what it reported — never supply a cause, source, or finding the member did not state.\n- If a response is off-target, re-delegate with clearer instructions or try a better-suited member. If it still misses, answer with what you have and say what is missing — do not work through the roster.\n- Write one answer. Resolve contradictions, add structure, and fill gaps only where you can state the basis for it. Never concatenate member outputs.\n\nMembers do not see this conversation. Each one gets only the text you write for it, so carry over every name, number and earlier answer it needs, and say what a good result looks like.\nMember ids are the ids shown in the roster above, used exactly as written.\n</delegation>\n</team>\n\nDo not reflect on the quality of the returned search results in your response"
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "delegate_task_to_member"
+     ]
+    },
+    "call-002": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "<your_role>\nResearches weather with the tool\n</your_role>\n\nYou research weather with the tool and report the forecast.\n\nDo not reflect on the quality of the returned search results in your response"
+       },
+       "new": "rq-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather forecast for Barcelona, Spain for the next two days. Report temperatures (highs/lows), precipitation chances, wind, and general conditions for each day."
+         },
+         "new": "rq-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-003": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "<your_role>\nResearches weather with the tool\n</your_role>\n\nYou research weather with the tool and report the forecast.\n\nDo not reflect on the quality of the returned search results in your response"
+       },
+       "replay_of": "rq-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather forecast for Barcelona, Spain for the next two days. Report temperatures (highs/lows), precipitation chances, wind, and general conditions for each day."
+         },
+         "replay_of": "rq-003"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_01ARE2hvjy7pjaNbt5HAiHRQ",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Barcelona, Spain",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_01ARE2hvjy7pjaNbt5HAiHRQ",
+          "content": [
+           {
+            "type": "text",
+            "text": "{'city': 'Barcelona, Spain', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-004"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-004": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "Ask the researcher for the forecast, then ask the writer for the packing list.\n\n<team>\nYou coordinate this team to fulfill the user's request. You have a team of specialists, listed below. Delegate to members when their expertise or tools are needed; answer directly — including with your own tools — when they are not.\n\n<team_members>\n<member id=\"researcher\" name=\"researcher\">\n  Role: Researches weather with the tool\n</member>\n<member id=\"writer\" name=\"writer\">\n  Role: Writes the packing list\n</member>\n</team_members>\n\n<delegation>\nYou work in coordinate mode: you hand sub-tasks to members with `delegate_task_to_member` and write the answer yourself.\n\n- Match each sub-task to the member whose role and description fit it best. When sub-tasks do not depend on each other, delegate them in the same turn instead of one per turn.\n- A member's output is evidence, not your answer. When a member fails, refuses, or returns nothing, say so plainly and name what it reported — never supply a cause, source, or finding the member did not state.\n- If a response is off-target, re-delegate with clearer instructions or try a better-suited member. If it still misses, answer with what you have and say what is missing — do not work through the roster.\n- Write one answer. Resolve contradictions, add structure, and fill gaps only where you can state the basis for it. Never concatenate member outputs.\n\nMembers do not see this conversation. Each one gets only the text you write for it, so carry over every name, number and earlier answer it needs, and say what a good result looks like.\nMember ids are the ids shown in the roster above, used exactly as written.\n</delegation>\n</team>\n\nDo not reflect on the quality of the returned search results in your response"
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_01C6NqZKXcESnVNL8RY5wGND",
+          "name": "delegate_task_to_member",
+          "arguments": {
+           "member_id": "researcher",
+           "task": "Research the weather forecast for Barcelona, Spain for the next two days. Report temperatures (highs/lows), precipitation chances, wind, and general conditions for each day."
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_01C6NqZKXcESnVNL8RY5wGND",
+          "content": [
+           {
+            "type": "text",
+            "text": "**Barcelona, Spain: 2-day forecast**\n\n| | Day 1 | Day 2 |\n|---|---|---|\n| **Conditions** | Sunny | Sunny |\n| **High** | 21°C (70°F) | 22°C (72°F) |\n| **Low** | Not provided | Not provided |\n| **Precipitation chance** | Not provided | Not provided |\n| **Wind** | Not provided | Not provided |\n\n**Summary:** Both days should be sunny and mild. Highs are 21°C on Day 1 and 22°C on Day 2. The forecast source gave only conditions and daily highs. It had no data for lows, precipitation chances, or wind. Sunny skies suggest rain is unlikely, but I don't have a figure to confirm that. For lows, precipitation, or wind, check a local source such as AEMET, Spain's national weather service."
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-004"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "delegate_task_to_member"
+     ]
+    },
+    "call-005": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "<your_role>\nWrites the packing list\n</your_role>\n\nYou write the final packing list from the researcher's findings."
+       },
+       "new": "rq-005"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Write a one-paragraph packing list for a two-day trip to Barcelona based on this forecast: Day 1 sunny, high 21°C (70°F); Day 2 sunny, high 22°C (72°F). Lows, precipitation chance and wind were not available, so suggest a light extra layer for evenings. Keep it to a single paragraph."
+         },
+         "new": "rq-006"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    },
+    "call-006": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "Ask the researcher for the forecast, then ask the writer for the packing list.\n\n<team>\nYou coordinate this team to fulfill the user's request. You have a team of specialists, listed below. Delegate to members when their expertise or tools are needed; answer directly — including with your own tools — when they are not.\n\n<team_members>\n<member id=\"researcher\" name=\"researcher\">\n  Role: Researches weather with the tool\n</member>\n<member id=\"writer\" name=\"writer\">\n  Role: Writes the packing list\n</member>\n</team_members>\n\n<delegation>\nYou work in coordinate mode: you hand sub-tasks to members with `delegate_task_to_member` and write the answer yourself.\n\n- Match each sub-task to the member whose role and description fit it best. When sub-tasks do not depend on each other, delegate them in the same turn instead of one per turn.\n- A member's output is evidence, not your answer. When a member fails, refuses, or returns nothing, say so plainly and name what it reported — never supply a cause, source, or finding the member did not state.\n- If a response is off-target, re-delegate with clearer instructions or try a better-suited member. If it still misses, answer with what you have and say what is missing — do not work through the roster.\n- Write one answer. Resolve contradictions, add structure, and fill gaps only where you can state the basis for it. Never concatenate member outputs.\n\nMembers do not see this conversation. Each one gets only the text you write for it, so carry over every name, number and earlier answer it needs, and say what a good result looks like.\nMember ids are the ids shown in the roster above, used exactly as written.\n</delegation>\n</team>\n\nDo not reflect on the quality of the returned search results in your response"
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_01C6NqZKXcESnVNL8RY5wGND",
+          "name": "delegate_task_to_member",
+          "arguments": {
+           "member_id": "researcher",
+           "task": "Research the weather forecast for Barcelona, Spain for the next two days. Report temperatures (highs/lows), precipitation chances, wind, and general conditions for each day."
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_01C6NqZKXcESnVNL8RY5wGND",
+          "content": [
+           {
+            "type": "text",
+            "text": "**Barcelona, Spain: 2-day forecast**\n\n| | Day 1 | Day 2 |\n|---|---|---|\n| **Conditions** | Sunny | Sunny |\n| **High** | 21°C (70°F) | 22°C (72°F) |\n| **Low** | Not provided | Not provided |\n| **Precipitation chance** | Not provided | Not provided |\n| **Wind** | Not provided | Not provided |\n\n**Summary:** Both days should be sunny and mild. Highs are 21°C on Day 1 and 22°C on Day 2. The forecast source gave only conditions and daily highs. It had no data for lows, precipitation chances, or wind. Sunny skies suggest rain is unlikely, but I don't have a figure to confirm that. For lows, precipitation, or wind, check a local source such as AEMET, Spain's national weather service."
+           }
+          ],
+          "is_error": false
+         },
+         "replay_of": "rq-004"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_01SAUhXAHQya4MQAz53YVoYD",
+          "name": "delegate_task_to_member",
+          "arguments": {
+           "member_id": "writer",
+           "task": "Write a one-paragraph packing list for a two-day trip to Barcelona based on this forecast: Day 1 sunny, high 21°C (70°F); Day 2 sunny, high 22°C (72°F). Lows, precipitation chance and wind were not available, so suggest a light extra layer for evenings. Keep it to a single paragraph."
+          }
+         },
+         "replay_of": "fact-006"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_01SAUhXAHQya4MQAz53YVoYD",
+          "content": [
+           {
+            "type": "text",
+            "text": "For your two days in Barcelona, pack for mild, sunny weather with highs of 21-22°C (70-72°F). Bring lightweight, breathable clothing such as two or three T-shirts or short-sleeve tops, a pair of comfortable pants or jeans, and perhaps a pair of shorts or a skirt for the warmest part of the afternoon. Since lows and wind weren't available in the forecast, add a light extra layer for the evenings, like a thin sweater, cardigan, or light jacket that folds up easily in a day bag. Comfortable walking shoes are essential for exploring the city's streets and hills, and sunglasses, a hat, and sunscreen will help with the strong sun. Round out your bag with a small daypack, a refillable water bottle, a phone charger and a power adapter (Europe uses Type C/F plugs), basic toiletries, and your passport or ID, and since precipitation chances weren't available, you might tuck in a compact umbrella or packable rain jacket just in case."
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-007"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "delegate_task_to_member"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  },
+  "agno/sdk/multi_agent": {
+   "transcript": "server/tests/fixtures/messages/agno/sdk/multi_agent/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "Ask the researcher for the forecast, then ask the writer for the packing list.\n\n<team>\nYou coordinate this team to fulfill the user's request. You have a team of specialists, listed below. Delegate to members when their expertise or tools are needed; answer directly — including with your own tools — when they are not.\n\n<team_members>\n<member id=\"researcher\" name=\"researcher\">\n  Role: Researches weather with the tool\n</member>\n<member id=\"writer\" name=\"writer\">\n  Role: Writes the packing list\n</member>\n</team_members>\n\n<delegation>\nYou work in coordinate mode: you hand sub-tasks to members with `delegate_task_to_member` and write the answer yourself.\n\n- Match each sub-task to the member whose role and description fit it best. When sub-tasks do not depend on each other, delegate them in the same turn instead of one per turn.\n- A member's output is evidence, not your answer. When a member fails, refuses, or returns nothing, say so plainly and name what it reported — never supply a cause, source, or finding the member did not state.\n- If a response is off-target, re-delegate with clearer instructions or try a better-suited member. If it still misses, answer with what you have and say what is missing — do not work through the roster.\n- Write one answer. Resolve contradictions, add structure, and fill gaps only where you can state the basis for it. Never concatenate member outputs.\n\nMembers do not see this conversation. Each one gets only the text you write for it, so carry over every name, number and earlier answer it needs, and say what a good result looks like.\nMember ids are the ids shown in the roster above, used exactly as written.\n</delegation>\n</team>\n\nDo not reflect on the quality of the returned search results in your response"
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "delegate_task_to_member"
+     ]
+    },
+    "call-002": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "<your_role>\nResearches weather with the tool\n</your_role>\n\nYou research weather with the tool and report the forecast.\n\nDo not reflect on the quality of the returned search results in your response"
+       },
+       "new": "rq-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather forecast for Barcelona, Spain for the next two days. Report temperatures (highs/lows), precipitation chances, wind, and general conditions for each day."
+         },
+         "new": "rq-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-003": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "<your_role>\nResearches weather with the tool\n</your_role>\n\nYou research weather with the tool and report the forecast.\n\nDo not reflect on the quality of the returned search results in your response"
+       },
+       "replay_of": "rq-002"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather forecast for Barcelona, Spain for the next two days. Report temperatures (highs/lows), precipitation chances, wind, and general conditions for each day."
+         },
+         "replay_of": "rq-003"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_01ARE2hvjy7pjaNbt5HAiHRQ",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Barcelona, Spain",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_01ARE2hvjy7pjaNbt5HAiHRQ",
+          "content": [
+           {
+            "type": "text",
+            "text": "{'city': 'Barcelona, Spain', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}"
+           }
+          ],
+          "is_error": false
+         },
+         "new_fact": "fact-004"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather"
+     ]
+    },
+    "call-004": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "Ask the researcher for the forecast, then ask the writer for the packing list.\n\n<team>\nYou coordinate this team to fulfill the user's request. You have a team of specialists, listed below. Delegate to members when their expertise or tools are needed; answer directly — including with your own tools — when they are not.\n\n<team_members>\n<member id=\"researcher\" name=\"researcher\">\n  Role: Researches weather with the tool\n</member>\n<member id=\"writer\" name=\"writer\">\n  Role: Writes the packing list\n</member>\n</team_members>\n\n<delegation>\nYou work in coordinate mode: you hand sub-tasks to members with `delegate_task_to_member` and write the answer yourself.\n\n- Match each sub-task to the member whose role and description fit it best. When sub-tasks do not depend on each other, delegate them in the same turn instead of one per turn.\n- A member's output is evidence, not your answer. When a member fails, refuses, or returns nothing, say so plainly and name what it reported — never supply a cause, source, or finding the member did not state.\n- If a response is off-target, re-delegate with clearer instructions or try a better-suited member. If it still misses, answer with what you have and say what is missing — do not work through the roster.\n- Write one answer. Resolve contradictions, add structure, and fill gaps only where you can state the basis for it. Never concatenate member outputs.\n\nMembers do not see this conversation. Each one gets only the text you write for it, so carry over every name, number and earlier answer it needs, and say what a good result looks like.\nMember ids are the ids shown in the roster above, used exactly as written.\n</delegation>\n</team>\n\nDo not reflect on the quality of the returned search results in your response"
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_01C6NqZKXcESnVNL8RY5wGND",
+          "name": "delegate_task_to_member",
+          "arguments": {
+           "member_id": "researcher",
+           "task": "Research the weather forecast for Barcelona, Spain for the next two days. Report temperatures (highs/lows), precipitation chances, wind, and general conditions for each day."
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_01C6NqZKXcESnVNL8RY5wGND",
+          "content": [
+           {
+            "type": "text",
+            "text": "**Barcelona, Spain: 2-day forecast**\n\n| | Day 1 | Day 2 |\n|---|---|---|\n| **Conditions** | Sunny | Sunny |\n| **High** | 21°C (70°F) | 22°C (72°F) |\n| **Low** | Not provided | Not provided |\n| **Precipitation chance** | Not provided | Not provided |\n| **Wind** | Not provided | Not provided |\n\n**Summary:** Both days should be sunny and mild. Highs are 21°C on Day 1 and 22°C on Day 2. The forecast source gave only conditions and daily highs. It had no data for lows, precipitation chances, or wind. Sunny skies suggest rain is unlikely, but I don't have a figure to confirm that. For lows, precipitation, or wind, check a local source such as AEMET, Spain's national weather service."
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-004"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "delegate_task_to_member"
+     ]
+    },
+    "call-005": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "<your_role>\nWrites the packing list\n</your_role>\n\nYou write the final packing list from the researcher's findings."
+       },
+       "new": "rq-005"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Write a one-paragraph packing list for a two-day trip to Barcelona based on this forecast: Day 1 sunny, high 21°C (70°F); Day 2 sunny, high 22°C (72°F). Lows, precipitation chance and wind were not available, so suggest a light extra layer for evenings. Keep it to a single paragraph."
+         },
+         "new": "rq-006"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    },
+    "call-006": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "Ask the researcher for the forecast, then ask the writer for the packing list.\n\n<team>\nYou coordinate this team to fulfill the user's request. You have a team of specialists, listed below. Delegate to members when their expertise or tools are needed; answer directly — including with your own tools — when they are not.\n\n<team_members>\n<member id=\"researcher\" name=\"researcher\">\n  Role: Researches weather with the tool\n</member>\n<member id=\"writer\" name=\"writer\">\n  Role: Writes the packing list\n</member>\n</team_members>\n\n<delegation>\nYou work in coordinate mode: you hand sub-tasks to members with `delegate_task_to_member` and write the answer yourself.\n\n- Match each sub-task to the member whose role and description fit it best. When sub-tasks do not depend on each other, delegate them in the same turn instead of one per turn.\n- A member's output is evidence, not your answer. When a member fails, refuses, or returns nothing, say so plainly and name what it reported — never supply a cause, source, or finding the member did not state.\n- If a response is off-target, re-delegate with clearer instructions or try a better-suited member. If it still misses, answer with what you have and say what is missing — do not work through the roster.\n- Write one answer. Resolve contradictions, add structure, and fill gaps only where you can state the basis for it. Never concatenate member outputs.\n\nMembers do not see this conversation. Each one gets only the text you write for it, so carry over every name, number and earlier answer it needs, and say what a good result looks like.\nMember ids are the ids shown in the roster above, used exactly as written.\n</delegation>\n</team>\n\nDo not reflect on the quality of the returned search results in your response"
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_01C6NqZKXcESnVNL8RY5wGND",
+          "name": "delegate_task_to_member",
+          "arguments": {
+           "member_id": "researcher",
+           "task": "Research the weather forecast for Barcelona, Spain for the next two days. Report temperatures (highs/lows), precipitation chances, wind, and general conditions for each day."
+          }
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_01C6NqZKXcESnVNL8RY5wGND",
+          "content": [
+           {
+            "type": "text",
+            "text": "**Barcelona, Spain: 2-day forecast**\n\n| | Day 1 | Day 2 |\n|---|---|---|\n| **Conditions** | Sunny | Sunny |\n| **High** | 21°C (70°F) | 22°C (72°F) |\n| **Low** | Not provided | Not provided |\n| **Precipitation chance** | Not provided | Not provided |\n| **Wind** | Not provided | Not provided |\n\n**Summary:** Both days should be sunny and mild. Highs are 21°C on Day 1 and 22°C on Day 2. The forecast source gave only conditions and daily highs. It had no data for lows, precipitation chances, or wind. Sunny skies suggest rain is unlikely, but I don't have a figure to confirm that. For lows, precipitation, or wind, check a local source such as AEMET, Spain's national weather service."
+           }
+          ],
+          "is_error": false
+         },
+         "replay_of": "rq-004"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "toolu_bdrk_01SAUhXAHQya4MQAz53YVoYD",
+          "name": "delegate_task_to_member",
+          "arguments": {
+           "member_id": "writer",
+           "task": "Write a one-paragraph packing list for a two-day trip to Barcelona based on this forecast: Day 1 sunny, high 21°C (70°F); Day 2 sunny, high 22°C (72°F). Lows, precipitation chance and wind were not available, so suggest a light extra layer for evenings. Keep it to a single paragraph."
+          }
+         },
+         "replay_of": "fact-006"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": "toolu_bdrk_01SAUhXAHQya4MQAz53YVoYD",
+          "content": [
+           {
+            "type": "text",
+            "text": "For your two days in Barcelona, pack for mild, sunny weather with highs of 21-22°C (70-72°F). Bring lightweight, breathable clothing such as two or three T-shirts or short-sleeve tops, a pair of comfortable pants or jeans, and perhaps a pair of shorts or a skirt for the warmest part of the afternoon. Since lows and wind weren't available in the forecast, add a light extra layer for the evenings, like a thin sweater, cardigan, or light jacket that folds up easily in a day bag. Comfortable walking shoes are essential for exploring the city's streets and hills, and sunglasses, a hat, and sunscreen will help with the strong sun. Round out your bag with a small daypack, a refillable water bottle, a phone charger and a power adapter (Europe uses Type C/F plugs), basic toiletries, and your passport or ID, and since precipitation chances weren't available, you might tuck in a compact umbrella or packable rain jacket just in case."
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-007"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "delegate_task_to_member"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

@@ -1,5 +1,5 @@
 {
- "format": "sideseat.truth/2",
+ "format": "sideseat.truth/3",
  "producer": "google-genai",
  "scenario": "tool_use",
  "fixtures": [
@@ -474,5 +474,703 @@
    "reason": "fake_model_echoes_request",
    "detail": "a fake model echoes the request's model and derives response ids from the request body; neither is recorded, so neither is asserted"
   }
- ]
+ ],
+ "requests": {
+  "google-genai/native/tool_use": {
+   "transcript": "server/tests/fixtures/messages/google-genai/native/tool_use/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?"
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather",
+      "get_precipitation"
+     ]
+    },
+    "call-002": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?"
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "model",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "call_get_weather_dd57980a1fd3",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Paris",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-002"
+        },
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "call_get_weather_dfbbe93c6080",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Tokyo",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": null,
+          "content": [
+           {
+            "type": "json",
+            "value": {
+             "result": {
+              "city": "Paris",
+              "forecast": [
+               {
+                "day": 1,
+                "condition": "sunny",
+                "high_c": 21
+               },
+               {
+                "day": 2,
+                "condition": "sunny",
+                "high_c": 22
+               }
+              ]
+             }
+            }
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-002"
+        },
+        {
+         "part": {
+          "type": "tool_result",
+          "id": null,
+          "content": [
+           {
+            "type": "json",
+            "value": {
+             "result": {
+              "city": "Tokyo",
+              "forecast": [
+               {
+                "day": 1,
+                "condition": "rain",
+                "high_c": 21
+               },
+               {
+                "day": 2,
+                "condition": "sunny",
+                "high_c": 22
+               }
+              ]
+             }
+            }
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather",
+      "get_precipitation"
+     ]
+    },
+    "call-003": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?"
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "model",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "call_get_weather_dd57980a1fd3",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Paris",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-002"
+        },
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "call_get_weather_dfbbe93c6080",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Tokyo",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": null,
+          "content": [
+           {
+            "type": "json",
+            "value": {
+             "result": {
+              "city": "Paris",
+              "forecast": [
+               {
+                "day": 1,
+                "condition": "sunny",
+                "high_c": 21
+               },
+               {
+                "day": 2,
+                "condition": "sunny",
+                "high_c": 22
+               }
+              ]
+             }
+            }
+           }
+          ],
+          "is_error": false
+         },
+         "replay_of": "rq-002"
+        },
+        {
+         "part": {
+          "type": "tool_result",
+          "id": null,
+          "content": [
+           {
+            "type": "json",
+            "value": {
+             "result": {
+              "city": "Tokyo",
+              "forecast": [
+               {
+                "day": 1,
+                "condition": "rain",
+                "high_c": 21
+               },
+               {
+                "day": 2,
+                "condition": "sunny",
+                "high_c": 22
+               }
+              ]
+             }
+            }
+           }
+          ],
+          "is_error": false
+         },
+         "replay_of": "rq-003"
+        }
+       ]
+      },
+      {
+       "role": "model",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "call_get_precipitation_9fdb3833e046",
+          "name": "get_precipitation",
+          "arguments": {
+           "city": "Paris"
+          }
+         },
+         "replay_of": "fact-006"
+        },
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "call_get_precipitation_d402837ea33e",
+          "name": "get_precipitation",
+          "arguments": {
+           "city": "Tokyo"
+          }
+         },
+         "replay_of": "fact-007"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": null,
+          "content": [
+           {
+            "type": "json",
+            "value": {
+             "result": "10% chance of rain in Paris tomorrow."
+            }
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-004"
+        },
+        {
+         "part": {
+          "type": "tool_result",
+          "id": null,
+          "content": [
+           {
+            "type": "json",
+            "value": {
+             "result": "80% chance of rain in Tokyo tomorrow."
+            }
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-005"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather",
+      "get_precipitation"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  },
+  "google-genai/sdk/tool_use": {
+   "transcript": "server/tests/fixtures/messages/google-genai/sdk/tool_use/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?"
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather",
+      "get_precipitation"
+     ]
+    },
+    "call-002": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?"
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "model",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "call_get_weather_dd57980a1fd3",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Paris",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-002"
+        },
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "call_get_weather_dfbbe93c6080",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Tokyo",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": null,
+          "content": [
+           {
+            "type": "json",
+            "value": {
+             "result": {
+              "city": "Paris",
+              "forecast": [
+               {
+                "day": 1,
+                "condition": "sunny",
+                "high_c": 21
+               },
+               {
+                "day": 2,
+                "condition": "sunny",
+                "high_c": 22
+               }
+              ]
+             }
+            }
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-002"
+        },
+        {
+         "part": {
+          "type": "tool_result",
+          "id": null,
+          "content": [
+           {
+            "type": "json",
+            "value": {
+             "result": {
+              "city": "Tokyo",
+              "forecast": [
+               {
+                "day": 1,
+                "condition": "rain",
+                "high_c": 21
+               },
+               {
+                "day": 2,
+                "condition": "sunny",
+                "high_c": 22
+               }
+              ]
+             }
+            }
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-003"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather",
+      "get_precipitation"
+     ]
+    },
+    "call-003": {
+     "api": "gemini.generate_content",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "rq-001"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?"
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "model",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "call_get_weather_dd57980a1fd3",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Paris",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-002"
+        },
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "call_get_weather_dfbbe93c6080",
+          "name": "get_weather",
+          "arguments": {
+           "city": "Tokyo",
+           "days": 2
+          }
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": null,
+          "content": [
+           {
+            "type": "json",
+            "value": {
+             "result": {
+              "city": "Paris",
+              "forecast": [
+               {
+                "day": 1,
+                "condition": "sunny",
+                "high_c": 21
+               },
+               {
+                "day": 2,
+                "condition": "sunny",
+                "high_c": 22
+               }
+              ]
+             }
+            }
+           }
+          ],
+          "is_error": false
+         },
+         "replay_of": "rq-002"
+        },
+        {
+         "part": {
+          "type": "tool_result",
+          "id": null,
+          "content": [
+           {
+            "type": "json",
+            "value": {
+             "result": {
+              "city": "Tokyo",
+              "forecast": [
+               {
+                "day": 1,
+                "condition": "rain",
+                "high_c": 21
+               },
+               {
+                "day": 2,
+                "condition": "sunny",
+                "high_c": 22
+               }
+              ]
+             }
+            }
+           }
+          ],
+          "is_error": false
+         },
+         "replay_of": "rq-003"
+        }
+       ]
+      },
+      {
+       "role": "model",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "call_get_precipitation_9fdb3833e046",
+          "name": "get_precipitation",
+          "arguments": {
+           "city": "Paris"
+          }
+         },
+         "replay_of": "fact-006"
+        },
+        {
+         "part": {
+          "type": "tool_call",
+          "id": "call_get_precipitation_d402837ea33e",
+          "name": "get_precipitation",
+          "arguments": {
+           "city": "Tokyo"
+          }
+         },
+         "replay_of": "fact-007"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "tool_result",
+          "id": null,
+          "content": [
+           {
+            "type": "json",
+            "value": {
+             "result": "10% chance of rain in Paris tomorrow."
+            }
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-004"
+        },
+        {
+         "part": {
+          "type": "tool_result",
+          "id": null,
+          "content": [
+           {
+            "type": "json",
+            "value": {
+             "result": "80% chance of rain in Tokyo tomorrow."
+            }
+           }
+          ],
+          "is_error": false
+         },
+         "new": "rq-005"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "get_weather",
+      "get_precipitation"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }
