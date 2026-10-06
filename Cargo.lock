@@ -5436,6 +5436,7 @@ dependencies = [
  "serde_json",
  "sideseat-core",
  "sideseat-ports",
+ "strum",
  "tempfile",
  "thiserror",
  "tokio",

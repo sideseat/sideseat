@@ -7,43 +7,41 @@ use serde::{Deserialize, Serialize};
 
 // -- Scoping --
 
-#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Serialize, Deserialize)]
+/// The scope half of a secret's key.
+///
+/// One `strum` declaration for a vocabulary that had four: an `as_str` table, a `Display` built on it, a
+/// `FromStr` table, and the `serde` renames. These spellings are the stored key prefix - `global/...`,
+/// `org/<id>/...` - in `secrets.json` and in the OS credential store's vault blob, so they are read back
+/// by exactly the string they were written with. Matching is case-sensitive, as it was.
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Hash,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    strum::Display,
+    strum::EnumString,
+    strum::IntoStaticStr,
+    strum::VariantArray,
+)]
 #[serde(rename_all = "lowercase")]
+#[strum(serialize_all = "lowercase")]
 pub enum SecretScopeKind {
     Global,
     #[serde(rename = "org")]
+    #[strum(to_string = "org")]
     Organization,
     Project,
     User,
 }
 
 impl SecretScopeKind {
+    /// The stored spelling.
     pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Global => "global",
-            Self::Organization => "org",
-            Self::Project => "project",
-            Self::User => "user",
-        }
-    }
-}
-
-impl fmt::Display for SecretScopeKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
-}
-
-impl FromStr for SecretScopeKind {
-    type Err = String;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "global" => Ok(Self::Global),
-            "org" => Ok(Self::Organization),
-            "project" => Ok(Self::Project),
-            "user" => Ok(Self::User),
-            _ => Err(format!("unknown scope kind: {}", s)),
-        }
+        self.into()
     }
 }
 
@@ -115,13 +113,18 @@ impl fmt::Display for SecretKey {
     }
 }
 
+/// The scope kind, with the refusal wording a malformed key has always been answered with.
+fn parse_scope_kind(value: &str) -> Result<SecretScopeKind, String> {
+    SecretScopeKind::from_str(value).map_err(|_| format!("unknown scope kind: {}", value))
+}
+
 impl FromStr for SecretKey {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let parts: Vec<&str> = s.splitn(3, '/').collect();
         match parts.as_slice() {
             [kind_str, name] => {
-                let kind = SecretScopeKind::from_str(kind_str)?;
+                let kind = parse_scope_kind(kind_str)?;
                 if kind != SecretScopeKind::Global {
                     return Err(format!("scope '{}' requires an id", kind_str));
                 }
@@ -131,7 +134,7 @@ impl FromStr for SecretKey {
                 })
             }
             [kind_str, id, name] => {
-                let kind = SecretScopeKind::from_str(kind_str)?;
+                let kind = parse_scope_kind(kind_str)?;
                 if kind == SecretScopeKind::Global {
                     return Err(format!("global scope does not take an id: {}", s));
                 }
@@ -383,6 +386,45 @@ mod tests {
         assert_eq!(
             deserialized.secrets.get("global/key1").unwrap().value,
             "value1"
+        );
+    }
+
+    /// The scope prefixes a stored secret key is written and read back under.
+    ///
+    /// Four tables carried these before - `as_str`, `Display`, `FromStr` and the `serde` renames - so this
+    /// asserts all four directions at once. They are a storage vocabulary: a key written `org/<id>/<name>`
+    /// into `secrets.json` or the OS credential store's vault blob is only found again by the same string,
+    /// and `Organization` is spelled `org`, not `organization`.
+    #[test]
+    fn every_scope_prefix_round_trips_and_is_unchanged() {
+        use strum::VariantArray;
+
+        let expected = [
+            (SecretScopeKind::Global, "global"),
+            (SecretScopeKind::Organization, "org"),
+            (SecretScopeKind::Project, "project"),
+            (SecretScopeKind::User, "user"),
+        ];
+        for (kind, spelling) in expected {
+            assert_eq!(kind.as_str(), spelling);
+            assert_eq!(kind.to_string(), spelling);
+            assert_eq!(SecretScopeKind::from_str(spelling).unwrap(), kind);
+            assert_eq!(
+                serde_json::to_string(&kind).unwrap(),
+                format!("\"{spelling}\"")
+            );
+            assert_eq!(
+                serde_json::from_str::<SecretScopeKind>(&format!("\"{spelling}\"")).unwrap(),
+                kind
+            );
+        }
+        assert_eq!(SecretScopeKind::VARIANTS.len(), expected.len());
+
+        // Case-sensitive, as the hand-written table was, and the refusal wording is unchanged.
+        assert!(SecretScopeKind::from_str("Global").is_err());
+        assert_eq!(
+            super::parse_scope_kind("organization").unwrap_err(),
+            "unknown scope kind: organization"
         );
     }
 }
