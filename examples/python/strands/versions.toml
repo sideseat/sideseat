@@ -79,12 +79,12 @@ version = "1.57.2"
 profile = "semconv-latest"
 doc = "1.55.1 onwards opted in: no `system_prompt` attribute."
 
-[[exempt]]
+# 1.38.0 and 1.39.0 call Bedrock CountTokens before every model call, so the suite's cassettes cannot answer
+# them; their own were recorded live with `python -m harness matrix strands --live`.
+[[recording]]
 version = "1.38.0"
-reason = "Calls Bedrock CountTokens before each model call, which the committed cassettes predate; needs a live capture of its own cassette."
-revisit = "2027-01-05"
+reason = "Calls Bedrock CountTokens before each model call, which the suite's cassettes do not hold."
 
-[[exempt]]
+[[recording]]
 version = "1.39.0"
-reason = "Calls Bedrock CountTokens before each model call, which the committed cassettes predate; needs a live capture of its own cassette."
-revisit = "2027-01-05"
+reason = "Calls Bedrock CountTokens before each model call, which the suite's cassettes do not hold."

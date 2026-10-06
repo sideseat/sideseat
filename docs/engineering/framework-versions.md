@@ -89,8 +89,9 @@ the class's newest release.
 | 1.54 - 1.55.0 | semconv cache token keys beside the older ones | only the semconv cache keys |
 | 1.55.1 - 1.57.2 | the `system_prompt` span attribute, which `strands.system_prompt_message` reads, is gone | the same |
 
-1.38.0 and 1.39.0 call Bedrock CountTokens before every model call, which the cassettes predate; they are
-exempt until captured live. Reconstruction: every default-format class except 1.11 - 1.12 (whose tool results
+1.38.0 and 1.39.0 call Bedrock CountTokens before every model call, so they replay cassettes of their own,
+recorded live on Bedrock (`[[recording]]`); both fall in the 1.36 - 1.53 default class and the 1.36 - 1.46
+opted-in class. Reconstruction: every default-format class except 1.11 - 1.12 (whose tool results
 are the Python `str()` of the result, not JSON) reconstructs the same conversation as the current release, up to the order of parallel tool
 results; the `semconv-latest` profile is not yet read correctly in any release (user and assistant messages
 arrive as raw `unknown` blocks, reasoning is lost), which the truth ledger records under backlog item 156.
@@ -128,8 +129,8 @@ The weekly pre-1.0 betas are not covered.
 
 ### Not yet covered by the matrix
 
-- **Live captures needed:** Strands 1.38.0 and 1.39.0 (Bedrock CountTokens before each call); any release
-  whose model traffic differs from the committed cassettes in call count or API.
+- **Live captures needed:** any release whose model traffic differs from the committed cassettes in call
+  count or API gets a `[[recording]]` and `--live`, as Strands 1.38.0 and 1.39.0 have.
 - **No matrix yet:** the JavaScript suites (`ai` 5.x / 6.x / 7.x with `@ai-sdk/otel`, `@strands-agents/sdk`,
   the Claude Agent SDK, whose format is the bundled Claude Code CLI's) need an npm variant of the environment
   builder; Agent Framework's pre-1.0 betas, the OpenInference instrumentors and the remaining Python
@@ -168,6 +169,13 @@ fixtures are checked by the ordinary goldens and invariants.
   settings such as `OTEL_SEMCONV_STABILITY_OPT_IN`).
 - `[[variant]]`: one release under one profile, recorded as fixture mode `native@<version>[+<profile>]`.
 - `[[exempt]]`: a release the census cannot run, with the reviewed reason and a revisit date.
+- `[[recording]]`: a release whose model traffic the suite's cassettes cannot answer (another API, an extra
+  call), with the reason. It replays `<suite>/cassettes@<version>/`, recorded live once with
+  `python -m harness matrix <producer> --live [<version>]` through the recording proxy on the ambient AWS
+  credentials; the census and the variants then replay it offline like any other.
+
+The window ends at `resolved-before`: a release uploaded after it cannot be installed in an environment
+resolved as of that instant, and waits for the next census, which moves both dates.
 
 Commands, run from `examples/python/harness` (or through `make`):
 

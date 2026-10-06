@@ -5,6 +5,7 @@
     python -m harness matrix strands                      # every variant, every matrix scenario, offline
     python -m harness matrix strands 1.20.0 --scenario tool_use
     python -m harness matrix strands --census             # classify every release of the window (network)
+    python -m harness matrix strands --live 1.38.0        # record a [[recording]] release's cassettes (Bedrock)
     python -m harness matrix --check                      # offline: census coverage and fixture freshness
     python -m harness matrix --list
 
@@ -140,6 +141,7 @@ def record(
                     scenario,
                     mode=mode,
                     env=matrix.profiles[variant.profile],
+                    cassettes=matrix.cassettes(variant.version),
                 )
                 if not result.ok:
                     print(f"[matrix] {label}: FAILED - {'; '.join(result.problems)}")
@@ -158,6 +160,57 @@ def record(
     (capture.FIXTURES / producer / PROVENANCE).write_text(
         json.dumps(document, indent=1, ensure_ascii=False) + "\n"
     )
+    return failed
+
+
+def record_live(suite: capture.Suite, matrix: Matrix, versions: list[str]) -> list[str]:
+    """Record the model traffic of each release in ``[[recording]]`` live, into its own cassettes.
+
+    Every matrix scenario runs once, natively and without a profile, through the recording proxy on the
+    ambient AWS credentials; the telemetry is discarded, because the fixtures are recorded afterwards
+    by the ordinary offline replay of these cassettes, like every other variant's.
+    """
+    failed = []
+    chosen = versions or sorted(matrix.recordings)
+    if stray := [v for v in chosen if v not in matrix.recordings]:
+        raise SystemExit(
+            f"{stray}: not in [[recording]]; say why a release records its own cassettes"
+        )
+    dates = {
+        e.version: e.date
+        for e in census.releases(
+            matrix.package,
+            matrix.since,
+            prereleases=matrix.prereleases,
+            before=matrix.resolved_before,
+        )
+    }
+    for version in chosen:
+        try:
+            env_path = environment.ensure_requirements(
+                matrix,
+                f"{matrix.suite.name}/live/{version}",
+                matrix.pinned(version),
+                released=dates.get(version),
+            )
+        except environment.UnresolvableRelease as error:
+            failed.append(f"{version}: {error}")
+            continue
+        target = matrix.cassettes(version)
+        for scenario in matrix.scenarios:
+            result = replay(suite, env_path, scenario, cassettes=target, live=True)
+            label = f"{suite.manifest['producer']}@{version}/{scenario}"
+            if not result.ok:
+                print(f"[matrix] {label}: FAILED - {'; '.join(result.problems)}")
+                print(result.output[-1500:], file=sys.stderr)
+                (target / f"{scenario}.json").unlink(missing_ok=True)
+                failed.append(label)
+            else:
+                print(
+                    f"[matrix] {label}: recorded live into {target.name}/{scenario}.json"
+                )
+            result.discard()
+        environment.remove(env_path)
     return failed
 
 
@@ -270,6 +323,11 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--retry", action="store_true", help="--census: run only unclassified releases"
     )
+    parser.add_argument(
+        "--live",
+        action="store_true",
+        help="record the [[recording]] releases' own cassettes on Bedrock (variant: release versions)",
+    )
     args = parser.parse_args(argv)
     known = matrices()
     if args.producer and args.producer not in known:
@@ -304,6 +362,14 @@ def main(argv: list[str] | None = None) -> None:
     if not args.producer:
         raise SystemExit("name a producer, or pass --check or --list")
     suite, matrix = selected[args.producer]
+    if args.live:
+        failed = record_live(suite, matrix, args.variant)
+        if failed:
+            raise SystemExit("[matrix] failed: " + ", ".join(failed))
+        print(
+            f"[matrix] next: python -m harness matrix {args.producer} --census --retry"
+        )
+        return
     if args.census:
         census.run(matrix, suite, jobs=args.jobs, retry=args.retry)
         problems = census.coverage(matrix, census_of(matrix) or {"releases": []})

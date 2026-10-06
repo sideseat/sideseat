@@ -406,29 +406,29 @@
    "version": "1.38.0",
    "date": "2026-04-30",
    "profile": "default",
-   "shape": null,
-   "failure": "tool_use: requests the cassette has no answer for: ['POST /model/global.anthropic.claude-sonnet-5-5/count-tokens', 'POST /model/global.anthropic.claude-sonnet-5-5/count-tokens']"
+   "shape": "3e669c734deac9bc",
+   "failure": null
   },
   {
    "version": "1.38.0",
    "date": "2026-04-30",
    "profile": "semconv-latest",
-   "shape": null,
-   "failure": "tool_use: requests the cassette has no answer for: ['POST /model/global.anthropic.claude-sonnet-5-5/count-tokens', 'POST /model/global.anthropic.claude-sonnet-5-5/count-tokens']"
+   "shape": "8ce4930784dcbdab",
+   "failure": null
   },
   {
    "version": "1.39.0",
    "date": "2026-05-08",
    "profile": "default",
-   "shape": null,
-   "failure": "tool_use: requests the cassette has no answer for: ['POST /model/global.anthropic.claude-sonnet-5-5/count-tokens', 'POST /model/global.anthropic.claude-sonnet-5-5/count-tokens']"
+   "shape": "3e669c734deac9bc",
+   "failure": null
   },
   {
    "version": "1.39.0",
    "date": "2026-05-08",
    "profile": "semconv-latest",
-   "shape": null,
-   "failure": "tool_use: requests the cassette has no answer for: ['POST /model/global.anthropic.claude-sonnet-5-5/count-tokens', 'POST /model/global.anthropic.claude-sonnet-5-5/count-tokens']"
+   "shape": "8ce4930784dcbdab",
+   "failure": null
   },
   {
    "version": "1.40.0",

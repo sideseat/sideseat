@@ -70,6 +70,14 @@ class Matrix:
     variants: tuple[Variant, ...] = field(default=())
     #: Releases the census could not run, each with the reviewed reason and the date it must be revisited.
     exemptions: dict[str, tuple[str, str]] = field(default_factory=dict)
+    #: Releases whose model traffic differs from the suite's cassettes (another API, an extra call), each
+    #: with the reason: they replay cassettes of their own, recorded live with ``--live``.
+    recordings: dict[str, str] = field(default_factory=dict)
+
+    def cassettes(self, version: str) -> Path:
+        """The cassettes a release replays: its own live recording, or the suite's."""
+        name = f"cassettes@{version}" if version in self.recordings else "cassettes"
+        return self.suite / name
 
     def requirements(self, variant: Variant) -> list[str]:
         return [*self.pinned(variant.version), *variant.also]
@@ -100,7 +108,7 @@ def load(suite: Path) -> Matrix | None:
 
 def parse(text: str, suite: Path) -> Matrix:
     document = tomllib.loads(text)
-    unknown = set(document) - {"matrix", "variant", "exempt"}
+    unknown = set(document) - {"matrix", "variant", "exempt", "recording"}
     if unknown:
         raise MatrixError(f"unknown tables {sorted(unknown)}")
     table = dict(document.get("matrix") or {})
@@ -202,6 +210,13 @@ def parse(text: str, suite: Path) -> Matrix:
         if set(entry) != {"version", "reason", "revisit"}:
             raise MatrixError("[[exempt]] needs exactly version, reason and revisit")
         exemptions[entry["version"]] = (entry["reason"], entry["revisit"])
+    recordings = {}
+    for entry in document.get("recording", []):
+        if set(entry) != {"version", "reason"} or not str(entry["reason"]).strip():
+            raise MatrixError("[[recording]] needs exactly version and a reason")
+        if entry["version"] in exemptions:
+            raise MatrixError(f"{entry['version']} is both exempt and recorded")
+        recordings[entry["version"]] = entry["reason"].strip()
     if sum(v.current for v in variants) > 1:
         raise MatrixError("at most one variant is the current release")
     names = [v.name for v in variants]
@@ -222,4 +237,5 @@ def parse(text: str, suite: Path) -> Matrix:
         era=tuple(table.get("era", ())),
         variants=tuple(variants),
         exemptions=exemptions,
+        recordings=recordings,
     )

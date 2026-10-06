@@ -66,8 +66,14 @@ def replay(
     mode: str = "native",
     env: dict[str, str] | None = None,
     timeout: float = 600,
+    cassettes: Path | None = None,
+    live: bool = False,
 ) -> Replay:
     """Run ``scenario`` from ``environment`` against the suite's committed cassette, offline.
+
+    ``cassettes`` is the directory to replay from (default: the suite's). ``live`` records into it
+    instead, through the recording proxy on the ambient AWS credentials, for a release whose model
+    traffic no committed cassette holds.
 
     The answer to each request is the recorded one for an identical request, else the next recorded one
     on the same method and path: an older release serialises its requests differently, so most matches are
@@ -98,12 +104,12 @@ def replay(
         if uses_fake_model(suite, None):
             completed = _run(command, suite.root, run_env, timeout)
         else:
-            cassette = suite.root / "cassettes" / f"{scenario}.json"
-            if not cassette.exists():
+            cassette = (cassettes or suite.root / "cassettes") / f"{scenario}.json"
+            if not live and not cassette.exists():
                 result.returncode = -1
                 result.output = f"no cassette at {cassette}"
                 return result
-            with ModelProxy(cassette, record=False) as proxy:
+            with ModelProxy(cassette, record=live) as proxy:
                 run_env.update(client_environment(proxy.url))
                 completed = _run(command, suite.root, run_env, timeout)
             result.exact, result.by_order = proxy.exact, proxy.by_order

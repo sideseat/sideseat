@@ -12,6 +12,7 @@ from collections import deque
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from datetime import datetime
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -31,8 +32,14 @@ class Release:
     date: str
 
 
-def releases(package: str, since: str, *, prereleases: bool) -> list[Release]:
-    """Every non-yanked release of ``package`` uploaded on or after ``since``, oldest first."""
+def releases(
+    package: str, since: str, *, prereleases: bool, before: str | None = None
+) -> list[Release]:
+    """Every non-yanked release of ``package`` uploaded on or after ``since``, oldest first.
+
+    ``before`` (an ISO 8601 instant) ends the window: a release uploaded at or after the instant every
+    environment resolves as of cannot be installed, and belongs to the next census.
+    """
     from packaging.version import InvalidVersion, Version
 
     with urllib.request.urlopen(
@@ -49,19 +56,32 @@ def releases(package: str, since: str, *, prereleases: bool) -> list[Release]:
             continue
         if parsed.is_devrelease or (parsed.is_prerelease and not prereleases):
             continue
-        date = min(f["upload_time_iso_8601"] for f in files)[:10]
+        uploaded = min(f["upload_time_iso_8601"] for f in files)
+        date = uploaded[:10]
+        if before is not None and _instant(uploaded) >= _instant(before):
+            continue
         if date >= since:
             found.append((parsed, Release(version, date)))
     return [release for _, release in sorted(found, key=lambda pair: pair[0])]
 
 
+def _instant(text: str) -> datetime:
+    return datetime.fromisoformat(text.replace("Z", "+00:00"))
+
+
 def classify(
-    suite: Suite, env_path: Path, matrix: Matrix, profile: str
+    suite: Suite, env_path: Path, matrix: Matrix, version: str, profile: str
 ) -> tuple[list[str], str | None]:
     """The shape lines of every probe under ``profile``, or the first probe's failure."""
     lines: list[str] = []
     for probe in matrix.probes:
-        result = replay(suite, env_path, probe, env=matrix.profiles[profile])
+        result = replay(
+            suite,
+            env_path,
+            probe,
+            env=matrix.profiles[profile],
+            cassettes=matrix.cassettes(version),
+        )
         try:
             if not result.ok:
                 return [], f"{probe}: " + "; ".join(result.problems)
@@ -81,7 +101,12 @@ def run(
     environments together are gigabytes.
     """
     log = log or partial(print, flush=True)
-    window = releases(matrix.package, matrix.since, prereleases=matrix.prereleases)
+    window = releases(
+        matrix.package,
+        matrix.since,
+        prereleases=matrix.prereleases,
+        before=matrix.resolved_before,
+    )
     profiles = sorted(matrix.profiles)
     path = matrix.suite / CENSUS
     previous = (
@@ -135,7 +160,9 @@ def run(
                     "failure": failure,
                 }
                 if env_path is not None:
-                    lines, entry["failure"] = classify(suite, env_path, matrix, profile)
+                    lines, entry["failure"] = classify(
+                        suite, env_path, matrix, release.version, profile
+                    )
                     if entry["failure"] is None:
                         entry["shape"] = digest(lines)
                         shapes[entry["shape"]] = lines

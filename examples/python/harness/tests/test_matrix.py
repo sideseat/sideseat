@@ -97,6 +97,56 @@ def test_a_withheld_scenario_needs_a_reason_and_must_be_recorded(
         parse(withheld.replace("{ chat =", "{ multi_turn ="), tmp_path)
 
 
+def test_a_recorded_release_replays_its_own_cassettes(tmp_path: Path) -> None:
+    recorded = (
+        MINIMAL
+        + '\n[[recording]]\nversion = "1.3.0"\nreason = "calls an extra API first"\n'
+    )
+
+    matrix = parse(recorded, tmp_path)
+
+    assert matrix.cassettes("1.3.0") == tmp_path / "cassettes@1.3.0"
+    assert matrix.cassettes("1.2.0") == tmp_path / "cassettes"
+    with pytest.raises(MatrixError, match="reason"):
+        parse(recorded.replace("calls an extra API first", " "), tmp_path)
+    exempt = '\n[[exempt]]\nversion = "1.3.0"\nreason = "x"\nrevisit = "2027-01-01"\n'
+    with pytest.raises(MatrixError, match="both"):
+        parse(recorded + exempt, tmp_path)
+
+
+def test_the_census_window_ends_where_environments_resolve(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def upload(instant: str) -> list[dict[str, object]]:
+        return [{"upload_time_iso_8601": instant, "yanked": False}]
+
+    index = {
+        "releases": {
+            "1.0.0": upload("2025-10-01T00:00:00.000Z"),
+            "1.1.0": upload("2026-10-04T23:59:59.000Z"),
+            "1.2.0": upload("2026-10-05T00:00:01.000Z"),
+        }
+    }
+
+    class Response:
+        def __enter__(self) -> "Response":
+            return self
+
+        def __exit__(self, *exc: object) -> None:
+            pass
+
+        def read(self) -> bytes:
+            return json.dumps(index).encode()
+
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: Response())
+
+    found = census.releases(
+        "acme", "2025-10-05", prereleases=False, before="2026-10-05T00:00:00Z"
+    )
+
+    assert [r.version for r in found] == ["1.1.0"]
+
+
 def test_a_skeleton_keeps_structure_and_drops_values() -> None:
     first = skeleton(
         {"role": "user", "parts": [{"text": "hi"}, {"text": "there", "n": 1}]}
