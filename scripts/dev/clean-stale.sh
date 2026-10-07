@@ -14,8 +14,9 @@ before="$(du -sk "$target_dir" 2>/dev/null | awk '{print $1}')"
 before="${before:-0}"
 
 if command -v cargo-sweep >/dev/null 2>&1; then
-  echo "[clean-stale] Removing artifacts from inactive toolchains..."
-  cargo sweep --installed
+  # Not `--installed`: it decides which artifacts belong to an installed toolchain by fingerprinting every
+  # one, and a toolchain rustup cannot fingerprint (a missing manifest) made it delete the active
+  # toolchain's release and profiling builds while they were being built.
   echo "[clean-stale] Removing artifacts unused for three days..."
   cargo sweep --time 3
 else
