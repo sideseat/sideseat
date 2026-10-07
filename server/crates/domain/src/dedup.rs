@@ -575,3 +575,7 @@ impl sideseat_ports::traits::RawStore for DedupAnalyticsRepository {
         self.inner.clear_raw_pending(entries).await
     }
 }
+
+#[cfg(test)]
+#[path = "dedup_tests.rs"]
+mod tests;
