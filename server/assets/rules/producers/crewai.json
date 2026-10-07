@@ -8,16 +8,32 @@
       "id": "crewai.detect",
       "doc": "CrewAI writes its own identifiers onto the span, and its telemetry service reports a distinctive name.",
       "label": "CrewAI",
-      "match": {
-        "service_name": [
-          "crewAI-telemetry"
-        ],
-        "attr_exists": [
-          "crewai_version",
-          "crew_key",
-          "crew_id",
-          "crew_fingerprint",
-          "task_key"
+      "where": {
+        "any": [
+          {
+            "source": "attr:crewai_version",
+            "exists": true
+          },
+          {
+            "source": "attr:crew_key",
+            "exists": true
+          },
+          {
+            "source": "attr:crew_id",
+            "exists": true
+          },
+          {
+            "source": "attr:crew_fingerprint",
+            "exists": true
+          },
+          {
+            "source": "attr:task_key",
+            "exists": true
+          },
+          {
+            "source": "resource:service.name",
+            "contains": "crewAI-telemetry"
+          }
         ]
       },
       "priority": 30
@@ -33,12 +49,24 @@
     {
       "id": "crewai.crew_tasks",
       "doc": "The crew's task definitions, kept whole.",
-      "when": {
-        "attr_exists": [
-          "crew_key",
-          "crew_id",
-          "crew_tasks",
-          "task_key"
+      "where": {
+        "any": [
+          {
+            "source": "attr:crew_key",
+            "exists": true
+          },
+          {
+            "source": "attr:crew_id",
+            "exists": true
+          },
+          {
+            "source": "attr:crew_tasks",
+            "exists": true
+          },
+          {
+            "source": "attr:task_key",
+            "exists": true
+          }
         ]
       },
       "read": {
@@ -51,12 +79,24 @@
     {
       "id": "crewai.output",
       "doc": "One payload holding the history *and* the answer. The readings are cumulative, not alternatives: the turns live under `messages` (and under each task's own `messages`) while the answer itself is the top-level `raw`, so reading them as alternatives dropped the assistant output of every run that carried history - `crewai/reasoning` recorded three user turns and no answer, and the goldens recorded that as correct because no invariant requires an answer to exist. A turn must look like one (a role, and content or tool calls) so a task's other members are not mistaken for turns. The fallback keeps an unrecognised payload whole rather than leaving the span silently empty.",
-      "when": {
-        "attr_exists": [
-          "crew_key",
-          "crew_id",
-          "crew_tasks",
-          "task_key"
+      "where": {
+        "any": [
+          {
+            "source": "attr:crew_key",
+            "exists": true
+          },
+          {
+            "source": "attr:crew_id",
+            "exists": true
+          },
+          {
+            "source": "attr:crew_tasks",
+            "exists": true
+          },
+          {
+            "source": "attr:task_key",
+            "exists": true
+          }
         ]
       },
       "read": {
@@ -148,13 +188,28 @@
       },
       "emit": "tool_definitions",
       "parse": "json",
-      "when": {
-        "attr_exists": [
-          "crew_key",
-          "crew_id",
-          "crew_tasks",
-          "task_key",
-          "crew_agents"
+      "where": {
+        "any": [
+          {
+            "source": "attr:crew_key",
+            "exists": true
+          },
+          {
+            "source": "attr:crew_id",
+            "exists": true
+          },
+          {
+            "source": "attr:crew_tasks",
+            "exists": true
+          },
+          {
+            "source": "attr:task_key",
+            "exists": true
+          },
+          {
+            "source": "attr:crew_agents",
+            "exists": true
+          }
         ]
       },
       "tool_repr": {
@@ -255,13 +310,28 @@
       },
       "emit": "tool_definitions",
       "parse": "json",
-      "when": {
-        "attr_exists": [
-          "crew_key",
-          "crew_id",
-          "crew_tasks",
-          "task_key",
-          "crew_agents"
+      "where": {
+        "any": [
+          {
+            "source": "attr:crew_key",
+            "exists": true
+          },
+          {
+            "source": "attr:crew_id",
+            "exists": true
+          },
+          {
+            "source": "attr:crew_tasks",
+            "exists": true
+          },
+          {
+            "source": "attr:task_key",
+            "exists": true
+          },
+          {
+            "source": "attr:crew_agents",
+            "exists": true
+          }
         ]
       },
       "tool_repr": {
@@ -361,13 +431,28 @@
         "attribute": "input.value"
       },
       "parse": "json",
-      "when": {
-        "attr_exists": [
-          "crew_key",
-          "crew_id",
-          "crew_tasks",
-          "task_key",
-          "crew_agents"
+      "where": {
+        "any": [
+          {
+            "source": "attr:crew_key",
+            "exists": true
+          },
+          {
+            "source": "attr:crew_id",
+            "exists": true
+          },
+          {
+            "source": "attr:crew_tasks",
+            "exists": true
+          },
+          {
+            "source": "attr:task_key",
+            "exists": true
+          },
+          {
+            "source": "attr:crew_agents",
+            "exists": true
+          }
         ]
       },
       "emit": "claim",

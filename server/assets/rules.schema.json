@@ -402,15 +402,9 @@
           },
           "default": []
         },
-        "match": {
-          "$ref": "#/$defs/DetectMatch"
-        },
-        "all_of": {
-          "description": "Further signal sets that must each match.\n\nA `DetectMatch` is deliberately disjunctive: every signal inside it is independently\nsufficient. Some producer identities need a conjunction instead, such as a shared cloud\nprovider together with the model API used through it. Keeping those as separate sets\npreserves the useful disjunction within each set without hard-coding a producer\ncombination in the engine.",
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/DetectMatch"
-          }
+        "where": {
+          "description": "The evidence for the label. Detection reads the span's name and attributes, its instrumentation scope\nand its resource.",
+          "$ref": "#/$defs/Expr_SpanCondition"
         },
         "alternatives": {
           "description": "Further evidence for the same label, each at its **own** priority.\n\nThe predicates inside one `match` are independently sufficient, so a rule whose signals differ in\n*strength* cannot be ordered by one number. Strands states `gen_ai.system: \"strands-agents\"` - a producer\nnaming itself, the strongest evidence there is - beside a `service.name` the SDK defaults and a phrase in\na span name. One rank for all three has to be placed for the weakest, which put the self-identification\nbehind `openinference.`: a Strands span carrying any OpenInference attribute was labelled OpenInference,\nand moving the whole rule earlier would instead let its defaulted service name claim every framework using\nthe SDK.\n\nEach alternative is compiled into its own ordered rule with the same label, so resolution is unchanged -\nwhat changes is that a rule can place its strong evidence and its weak evidence separately. An explicit\n`id` per alternative rather than one synthesized from the rule's, for the reason every other clause here\nhas one: a synthesized id is not an identity a declaration can be held to.",
@@ -425,148 +419,209 @@
         "id",
         "label",
         "priority",
-        "match"
+        "where"
       ]
     },
-    "DetectMatch": {
-      "description": "The signals a detection rule may use. **Any** satisfied signal matches the rule.\n\nDisjunctive, which is the existing behaviour and worth naming: each dimension is independently\nsufficient. That is why a rule listing a broad `service_name` beside a narrow `attr_prefix` is not\n\"narrow\" at all, and why rank matters.",
-      "type": "object",
-      "properties": {
-        "span_name": {
-          "description": "Span name **starts with** any of these.\n\nPrefix only. It used to mean \"equals *or* starts with\", which is not two operators - a prefix subsumes its\nown equality, so the equality arm could never be the reason a rule matched, and a literal that only differs\nby a separator was dead beside the bare one. Every asset already spells the separator it means\n(`autogen.`, `claude_code.`, `vertexai.`), which is what says this dimension is a prefix; the one that did\nnot is the one whose second literal was dead.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": []
+    "Expr_SpanCondition": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/SpanCondition"
         },
-        "span_name_exact": {
-          "description": "Span name **is** any of these, exactly.\n\nIts own dimension, because a prefix cannot express it: a producer that names one span for its whole graph\nand its steps `Graph.step` needs \"exactly `Graph`\" and \"under `Graph.`\" as two statements. Folded into the\nprefix list, the bare name subsumed the separator form *and* claimed every unrelated span that merely\nstarts with those letters.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": []
-        },
-        "scope_name": {
-          "description": "Instrumentation scope name **is** any of these, exactly.\n\nOpenInference instrumentors expose the concrete framework through the scope while their span\nattributes intentionally stay in the shared `openinference.*` vocabulary. Exact matching keeps\nthat producer signal from turning a shared namespace fragment into a substring heuristic.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": []
-        },
-        "attr_prefix": {
-          "description": "Any span attribute key starts with any of these.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": []
-        },
-        "attr_equals": {
-          "description": "A span attribute equals this value exactly.",
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/KeyValue"
-          }
-        },
-        "attr_equals_ignore_case": {
-          "description": "A span attribute equals this value, whatever its case.\n\nIts own dimension rather than a flag on `attr_equals`, because a flag that changes another field's\nmeaning is dead where that field is absent - and this engine refuses dead declarations. One producer\nwrites its span kind in capitals and another in mixed case, and both mean the same kind.",
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/KeyValue"
-          }
-        },
-        "attr_exists": {
-          "description": "Any of these span attribute keys exists.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": []
-        },
-        "service_name": {
-          "description": "The resource's `service.name` **contains** any of these.\n\nA substring test, which is why no rule may identify a framework by a short common word: `agno` would also\nmatch a service called `diagnostics`.\n\nIt read `equals || contains`, and the equality arm was dead - a substring match subsumes its own equality.\nNarrowing the whole dimension to equality was tried and is **wrong**: the breadth is deliberate. A user\nnames their own service, and `my-app-openai-agents-v1` identifies the SDK inside it\n(`test_openai_agents_framework_detection_from_service_name_contains`). Every `service.name` in the captured\ncorpus that matches a declared literal happens to match it exactly, so the corpus cannot see this - which\nis what makes those two unit tests the evidence.\n\nThe cost is real and accepted: a service called `my-strands-agents-proxy` is attributed to Strands. Telling\nthat from `my-app-openai-agents-v1` needs evidence a resource attribute does not carry.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": []
-        },
-        "span_attr_contains": {
-          "description": "A *span* attribute contains this substring.\n\nGeneric on purpose. This replaced a `metadata_contains` dimension whose key the engine supplied,\nwhich made one framework's attribute name look like part of OpenTelemetry: only one rule ever used\nit. `service.name` stays a structural dimension because it really is OTel's own resource\nattribute; `metadata` is a framework's, so the key belongs in the asset beside the value.",
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/KeyValue"
-          }
-        },
-        "resource_attr_contains": {
-          "description": "A resource attribute contains this substring - how an instrumentation library identifies itself\nthrough `telemetry.sdk.name`.",
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/KeyValue"
-          }
-        },
-        "text_contains": {
-          "description": "A case-insensitive phrase search over the span name or a named attribute.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/TextContains"
+        {
+          "type": "object",
+          "properties": {
+            "all": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Expr_SpanCondition"
+              }
             },
-            {
-              "type": "null"
+            "doc": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
-          ]
-        }
-      },
-      "additionalProperties": false
-    },
-    "KeyValue": {
-      "description": "A pair of strings - an attribute key and the value or substring it must hold.\n\nStrict, like every other type here. It was the one predicate type without it, so\n`{\"key\": …, \"value\": …, \"ignore_case\": true}` parsed and the flag was **discarded** - a comparison an\nauthor had asked to be case-insensitive stayed case-sensitive, silently. Case folding is a *separate\ndimension* (`attr_equals_ignore_case`), which is exactly the mistake this made easy to write.",
-      "type": "object",
-      "properties": {
-        "key": {
-          "type": "string"
+          },
+          "required": [
+            "all"
+          ],
+          "additionalProperties": false
         },
-        "value": {
-          "type": "string"
+        {
+          "type": "object",
+          "properties": {
+            "any": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Expr_SpanCondition"
+              }
+            },
+            "doc": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "any"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "not": {
+              "$ref": "#/$defs/Expr_SpanCondition"
+            },
+            "doc": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "not"
+          ],
+          "additionalProperties": false
         }
-      },
-      "additionalProperties": false,
-      "required": [
-        "key",
-        "value"
       ]
     },
-    "TextContains": {
-      "description": "A case-insensitive text search over named sources.\n\nThe one signal that is neither a prefix nor an equality: a framework whose spans are identified by a\nphrase appearing somewhere in a name, in any of several spellings.",
+    "SpanCondition": {
+      "description": "One question about one source of the span: a selector and the tests asked of the value it selects.\n\nEvery test is asked of the **same** value, so several tests are their conjunction. `exists` asks about the\nselection rather than the value and is total; every other test is unknown where the source has no value,\nwhich is why `not` over a value test does not hold for an absent attribute - write `\"exists\": true` beside\nthe test to make it false instead.",
       "type": "object",
       "properties": {
-        "sources": {
-          "description": "`span_name`, or `attr:<key>`.",
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "source": {
+          "description": "Where the value is: `span_name`, `attr:<key>`, `attr_keys` (the set of the span's attribute keys, asked\nexistentially), `scope.name` (the instrumentation scope) or `resource:<key>`. Several sources are\nsearched together only by `contains_ignore_case`: a list asks every source that has a value, and\n`{\"first_of\": [...]}` only the first that has one.",
+          "$ref": "#/$defs/ConditionSource"
+        },
+        "exists": {
+          "description": "The source has a value. Total: true or false, never unknown.",
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
+        },
+        "equals": {
+          "description": "The value is exactly this text.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "equals_ignore_case": {
+          "description": "The value is this text, ignoring ASCII case.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "one_of": {
+          "description": "The value is one of these texts.",
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "default": []
         },
-        "needles": {
-          "description": "Any of these, matched case-insensitively.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+        "starts_with": {
+          "description": "The value begins with this text. For `attr_keys`, some key does.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
         },
-        "first_present_source": {
-          "description": "Search only the **first source that has a value**, rather than all of them.\n\nThe difference is a decision, not a nicety. Two attributes may hold two answers to one question - a\nrequest model and a response model - and searching both asks \"does *either* say so\" where the question\nwas \"does the one that applies say so\". A request for `gpt-4o` answered by `text-embedding-3-small` is\na chat completion whose response model is mislabelled, not an embedding call.",
-          "type": "boolean",
-          "default": false
+        "contains": {
+          "description": "The value contains this text.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "contains_ignore_case": {
+          "description": "The value contains this text, ignoring case (Unicode lower-casing).",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
         }
       },
       "additionalProperties": false,
       "required": [
-        "sources",
-        "needles"
+        "source"
+      ]
+    },
+    "ConditionSource": {
+      "description": "The source or sources a condition reads.",
+      "anyOf": [
+        {
+          "description": "One source.",
+          "$ref": "#/$defs/SourceName"
+        },
+        {
+          "description": "Every one of these that has a value.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceName"
+          }
+        },
+        {
+          "description": "Only the first of these that has a value.",
+          "$ref": "#/$defs/FirstOfSources"
+        }
+      ]
+    },
+    "SourceName": {
+      "description": "`span_name`, `attr_keys`, `scope.name`, `attr:<key>` or `resource:<key>`.",
+      "anyOf": [
+        {
+          "enum": [
+            "span_name",
+            "attr_keys",
+            "scope.name"
+          ]
+        },
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "FirstOfSources": {
+      "description": "Only the first of several sources that has a value.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "first_of": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceName"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "first_of"
       ]
     },
     "DetectAlternative": {
@@ -595,22 +650,15 @@
           },
           "default": []
         },
-        "match": {
-          "$ref": "#/$defs/DetectMatch"
-        },
-        "all_of": {
-          "description": "Further signal sets that must each match.",
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/DetectMatch"
-          }
+        "where": {
+          "$ref": "#/$defs/Expr_SpanCondition"
         }
       },
       "additionalProperties": false,
       "required": [
         "id",
         "priority",
-        "match"
+        "where"
       ]
     },
     "MessageRule": {
@@ -704,22 +752,11 @@
           ],
           "default": null
         },
-        "when": {
-          "description": "A gate on the span, in the detection vocabulary: the rule is consulted only where this holds.\n\nSeveral extractors refuse to read a carrier whose name they share with other dialects unless the\nspan also carries their own marker - `gen_ai.prompt` is the generic conventions' key and also\nwhere one exporter writes a whole request, so reading it unconditionally would claim another\ndialect's payload.",
+        "where": {
+          "description": "A gate on the span: the rule is consulted only where this holds. It reads the span's name and\nattributes and the instrumentation scope - never the resource.\n\nSeveral extractors refuse to read a carrier whose name they share with other dialects unless the span\nalso carries their own marker - `gen_ai.prompt` is the generic conventions' key and also where one\nexporter writes a whole request, so reading it unconditionally would claim another dialect's payload. A\ngate is also how a reading is restricted to one instrumentation scope, which is producer evidence the\ntelemetry carries itself, and how a reading is skipped where something holds (`not`).",
           "anyOf": [
             {
-              "$ref": "#/$defs/DetectMatch"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "instrumentation_scope": {
-          "description": "Restrict this reading to one OpenTelemetry instrumentation scope.\n\nThis is producer evidence carried by the telemetry itself, not a framework label inferred by\nSideSeat. Exact scope names keep a carrier shared by several OpenInference integrations from being\ninterpreted as though every integration emitted the same payload shape.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/InstrumentationScopeMatch"
+              "$ref": "#/$defs/Expr_SpanCondition"
             },
             {
               "type": "null"
@@ -822,17 +859,6 @@
             "null"
           ],
           "default": null
-        },
-        "unless": {
-          "description": "A negative gate: the rule is skipped where this holds.\n\nSymmetric to `when`, and needed for a genuine either/or - a response is read from its text when it\nhas text, and from its tool calls only when it does not, or one response would be emitted twice.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/DetectMatch"
-            },
-            {
-              "type": "null"
-            }
-          ]
         },
         "require_members": {
           "description": "What an indexed entry must carry to count as one.\n\nAn index exists as soon as *any* key mentions it, and a family legitimately holds keys that are not\nmessages - so without this a request's settings each become a turn.\n\nEach member declares how its presence is decided, because the dialects genuinely differ and the\ndifference is observable: one writes `content` directly *and* `content.0.text`, so either proves it,\nwhile another writes `contents.0.type` and never a bare `contents`, so only a nested key does. A\nsingle rule for all of them would either miss entries or invent them.",
@@ -1439,9 +1465,9 @@
         "from": {
           "type": "string"
         },
-        "when": {
-          "description": "The evidence required before the fallback is read.",
-          "$ref": "#/$defs/DetectMatch"
+        "where": {
+          "description": "The evidence required before the fallback is read, over the span's name and attributes.",
+          "$ref": "#/$defs/Expr_SpanCondition"
         },
         "parse": {
           "anyOf": [
@@ -1457,7 +1483,7 @@
       "additionalProperties": false,
       "required": [
         "from",
-        "when"
+        "where"
       ]
     },
     "ToolReprSpec": {
@@ -1996,29 +2022,6 @@
           "const": "claim"
         }
       ]
-    },
-    "InstrumentationScopeMatch": {
-      "description": "The OpenTelemetry instrumentation scopes accepted by a message rule: exactly one of `name` or `one_of`.",
-      "type": "object",
-      "properties": {
-        "name": {
-          "description": "Exact scope name. Empty names are refused when the rule is compiled.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null
-        },
-        "one_of": {
-          "description": "Several exact scope names, any of which admits the rule: one producer's spans emitted under the\nscope of a shared handler in some releases and under its own in others.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": []
-        }
-      },
-      "additionalProperties": false
     },
     "Alternative": {
       "description": "One documented shape of a payload: where to look, what to require, and what to carry down.",
@@ -4144,12 +4147,9 @@
           "type": "integer",
           "format": "int32"
         },
-        "all_of": {
-          "description": "**Every** one of these must hold, while each is internally a disjunction of signals.\n\nConjunction is what a single signal set cannot express, and three of these rules need it: an operation\nname *and* a model whose name says it is an embedding, an operation name *and* the system that gives it\na different meaning, a dialect's model attribute *and* an operation id that says which call it was.",
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/DetectMatch"
-          }
+        "where": {
+          "description": "When the span is this. Classification is given the span's name and attributes only.",
+          "$ref": "#/$defs/Expr_SpanCondition"
         },
         "result": {
           "description": "What the span is, in the stored vocabulary. Mapped to the enum by the caller, which is the one thing\nabout this that is not a producer's business.",
@@ -4168,7 +4168,7 @@
       "required": [
         "id",
         "priority",
-        "all_of",
+        "where",
         "result"
       ]
     },
@@ -4233,34 +4233,15 @@
             "null"
           ]
         },
-        "attr_equals": {
-          "description": "An attribute with this value.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/KeyValue"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "ignore_case": {
-          "description": "Compare that value case-insensitively. One convention writes its span kind in capitals.",
-          "type": "boolean",
-          "default": false
-        },
-        "attrs_present": {
-          "description": "**Every** one of these attributes is present. A conjunction, not a choice: a tool name alone sits on\na model span that merely mentions a tool, while the name *and* a call id together are a call\nbeing run.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": []
+        "where": {
+          "description": "The evidence, over the span's name and attributes. A conjunction is written as `all`: a tool name alone\nsits on a model span that merely mentions a tool, while the name *and* a call id together are a call\nbeing run.",
+          "$ref": "#/$defs/Expr_SpanCondition"
         }
       },
       "additionalProperties": false,
       "required": [
-        "id"
+        "id",
+        "where"
       ]
     },
     "Fragment": {
@@ -4548,11 +4529,11 @@
           ],
           "default": null
         },
-        "when": {
-          "description": "Consulted only when this holds of the span. Signals are ORed, as everywhere else.",
+        "where": {
+          "description": "Consulted only when this holds of the span, over its name and attributes.",
           "anyOf": [
             {
-              "$ref": "#/$defs/DetectMatch"
+              "$ref": "#/$defs/Expr_SpanCondition"
             },
             {
               "type": "null"

@@ -61,7 +61,8 @@
     {
       "id": "google-genai.tool_call_arguments",
       "doc": "A function the client called itself, recorded on its `execute_tool` span. The instrumentation writes each argument as `code.function.parameters.<name>.value` beside its Python type, so the arguments the model sent are those members, not the object; read as written, the call matched no copy of itself on the model span and appeared twice. Arguments in any other shape fall through to the semantic-conventions rule. Releases before 1.1 emit the same spans through OpenTelemetry's shared GenAI handler, under that handler's scope.",
-      "instrumentation_scope": {
+      "where": {
+        "source": "scope.name",
         "one_of": [
           "opentelemetry.instrumentation.google_genai",
           "opentelemetry.util.genai.handler"
@@ -106,7 +107,8 @@
     {
       "id": "google-genai.tool_call_parameters",
       "doc": "The same call as written by releases before 0.8, which put each argument on the `execute_tool` span itself as `code.function.parameters.<name>.value` instead of in `gen_ai.tool.call.arguments`. The family is read as one object and the `.value` members are the arguments.",
-      "instrumentation_scope": {
+      "where": {
+        "source": "scope.name",
         "one_of": [
           "opentelemetry.instrumentation.google_genai",
           "opentelemetry.util.genai.handler"
@@ -151,7 +153,8 @@
     {
       "id": "google-genai.tool_call_return",
       "doc": "Its result in those releases: `code.function.return.value`, the function's return value as JSON text or a plain string, on the same span. A `tool_result` block named like the semantic-conventions result.",
-      "instrumentation_scope": {
+      "where": {
+        "source": "scope.name",
         "one_of": [
           "opentelemetry.instrumentation.google_genai",
           "opentelemetry.util.genai.handler"

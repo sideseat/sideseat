@@ -31,15 +31,9 @@
     {
       "id": "langsmith.prompt",
       "doc": "The whole request, under the conventions' own prompt key. Gated on a langsmith marker because that key is not this dialect's alone - read unconditionally it would claim another dialect's request. A model run records LangChain's serialised messages, one list per prompt; older exporters wrote a messages array or a single message.",
-      "when": {
-        "attr_prefix": [
-          "langsmith."
-        ],
-        "attr_exists": [
-          "langsmith.span.kind",
-          "langsmith.trace.session_id",
-          "langsmith.trace.name"
-        ]
+      "where": {
+        "source": "attr_keys",
+        "starts_with": "langsmith."
       },
       "read": {
         "attribute": "gen_ai.prompt"
@@ -97,15 +91,9 @@
     {
       "id": "langsmith.completion",
       "doc": "The whole response. A chat model run records LangChain's generations, each holding the serialised message it produced; older exporters wrote the provider's choices array, whose finish reason sits beside each message and is lifted onto it.",
-      "when": {
-        "attr_prefix": [
-          "langsmith."
-        ],
-        "attr_exists": [
-          "langsmith.span.kind",
-          "langsmith.trace.session_id",
-          "langsmith.trace.name"
-        ]
+      "where": {
+        "source": "attr_keys",
+        "starts_with": "langsmith."
       },
       "read": {
         "attribute": "gen_ai.completion"

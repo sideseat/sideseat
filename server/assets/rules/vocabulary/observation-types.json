@@ -7,132 +7,111 @@
       "id": "observation.transport",
       "priority": 10,
       "doc": "An HTTP, RPC or database call is never a GenAI observation: with a framework SDK present the transport span duplicates the real generation, and showing both counts one call twice. Whether such traces are visible at all is the trace list's business, not this one's.",
-      "all_of": [
-        {
-          "attr_exists": [
-            "http.method",
-            "http.request.method",
-            "rpc.system",
-            "db.system"
-          ]
-        }
-      ],
+      "where": {
+        "any": [
+          {
+            "source": "attr:http.method",
+            "exists": true
+          },
+          {
+            "source": "attr:http.request.method",
+            "exists": true
+          },
+          {
+            "source": "attr:rpc.system",
+            "exists": true
+          },
+          {
+            "source": "attr:db.system",
+            "exists": true
+          }
+        ]
+      },
       "result": "span"
     },
     {
       "id": "observation.chat_of_an_embedding_model",
       "priority": 20,
       "doc": "Some telemetry reports an embedding call as a chat completion. The model's own name settles it, and the test is case-insensitive because a model id is a provider's string, not a keyword. The two model attributes are two answers to one question, so only the **first present** one is searched: a request for a chat model answered by a mislabelled response model is still a chat completion.",
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "gen_ai.operation.name",
-              "value": "chat"
+      "where": {
+        "all": [
+          {
+            "source": "attr:gen_ai.operation.name",
+            "one_of": [
+              "chat",
+              "text_completion"
+            ]
+          },
+          {
+            "source": {
+              "first_of": [
+                "attr:gen_ai.request.model",
+                "attr:gen_ai.response.model"
+              ]
             },
-            {
-              "key": "gen_ai.operation.name",
-              "value": "text_completion"
-            }
-          ]
-        },
-        {
-          "text_contains": {
-            "sources": [
-              "attr:gen_ai.request.model",
-              "attr:gen_ai.response.model"
-            ],
-            "needles": [
-              "embed"
-            ],
-            "first_present_source": true
+            "contains_ignore_case": "embed"
           }
-        }
-      ],
+        ]
+      },
       "result": "embedding"
     },
     {
       "id": "observation.chat",
       "priority": 30,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "gen_ai.operation.name",
-              "value": "chat"
-            },
-            {
-              "key": "gen_ai.operation.name",
-              "value": "text_completion"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:gen_ai.operation.name",
+        "one_of": [
+          "chat",
+          "text_completion"
+        ]
+      },
       "result": "generation"
     },
     {
       "id": "observation.embeddings",
       "priority": 40,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "gen_ai.operation.name",
-              "value": "embeddings"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:gen_ai.operation.name",
+        "equals": "embeddings"
+      },
       "result": "embedding"
     },
     {
       "id": "observation.execute_tool",
       "doc": "The conventions' own name for a tool execution, which nothing read - so a tool span was classified by whichever weaker signal happened to be present. One framework stamps the *owning agent's* name on its tool spans, and `observation.named_agent` (\"an agent name exists\", rank 100) outranks `observation.named_tool` (110), so 14 corpus spans named `execute_tool <tool>`, carrying `gen_ai.tool.name`, `gen_ai.tool.call.id`, `gen_ai.tool.description` and `gen_ai.tool.type`, were classified `agent` while 86 otherwise identical ones were classified `tool`. Same operation, two answers, decided by an attribute about something else. Ranked with the other operation-name rules, because the operation the producer *names* is the strongest evidence of what it did.",
       "priority": 45,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "gen_ai.operation.name",
-              "value": "execute_tool"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:gen_ai.operation.name",
+        "equals": "execute_tool"
+      },
       "result": "tool"
     },
     {
       "id": "observation.invoke_agent",
       "doc": "The conventions' name for invoking an agent, the mirror of the rule above. Corpus-neutral - all 85 such spans already resolved to `agent` through `observation.named_agent` - and declared anyway, so the answer rests on the producer's statement of the operation rather than on an agent-name attribute that a tool span may also carry.",
       "priority": 46,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "gen_ai.operation.name",
-              "value": "invoke_agent"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:gen_ai.operation.name",
+        "equals": "invoke_agent"
+      },
       "result": "agent"
     },
     {
       "id": "observation.tool_call_execution",
       "doc": "A span that names both the tool and the tool call it carries out is that execution, whatever else it names. The rule for producers that do not state the operation: Pydantic AI 1.74 to 1.86 (the version matrix's `pydantic-ai/native@1.74.0` to `@1.86.0`) write `running tool` spans with `gen_ai.tool.name`, `gen_ai.tool.call.id` and the owning agent's `gen_ai.agent.name` but no `gen_ai.operation.name`, so `observation.named_agent` (rank 100) classified 30 of them `agent` against their `tool` category - the defect `observation.execute_tool` fixed for releases that name the operation. Both members, not either: `observation.named_tool` (110) stays the weaker reading of one of them. Ranked immediately before `observation.named_agent`, so every rule that states more - an operation name, a producer's own marker - still answers first.",
       "priority": 99,
-      "all_of": [
-        {
-          "attr_exists": [
-            "gen_ai.tool.name"
-          ]
-        },
-        {
-          "attr_exists": [
-            "gen_ai.tool.call.id"
-          ]
-        }
-      ],
+      "where": {
+        "all": [
+          {
+            "source": "attr:gen_ai.tool.name",
+            "exists": true
+          },
+          {
+            "source": "attr:gen_ai.tool.call.id",
+            "exists": true
+          }
+        ]
+      },
       "result": "tool",
       "replaces_legacy_result": "agent"
     },
@@ -140,16 +119,10 @@
       "id": "observation.mcp_tool_call",
       "doc": "The MCP conventions' name for calling a tool on a server. An MCP client span inherits whatever its caller propagates, and one SDK copies baggage onto every span, so the client span of an agent's tool call also carries `gen_ai.agent.name` - which `observation.named_agent` (rank 100) would read as an agent, against its `tool` category. The method the span names is what it did.",
       "priority": 44,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "mcp.method.name",
-              "value": "tools/call"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:mcp.method.name",
+        "equals": "tools/call"
+      },
       "result": "tool",
       "replaces_legacy_result": "agent"
     },
@@ -157,462 +130,324 @@
       "id": "observation.agent_construction",
       "priority": 50,
       "doc": "One dialect emits `create_agent` for the *construction* of an agent, which ran no model and is not an agent invocation. Only that dialect's: the same operation name from anywhere else falls through, which is why this rule names the system as well.",
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "gen_ai.operation.name",
-              "value": "create_agent"
-            }
-          ]
-        },
-        {
-          "attr_equals": [
-            {
-              "key": "gen_ai.system",
-              "value": "autogen"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "all": [
+          {
+            "source": "attr:gen_ai.operation.name",
+            "equals": "create_agent"
+          },
+          {
+            "source": "attr:gen_ai.system",
+            "equals": "autogen"
+          }
+        ]
+      },
       "result": "span"
     },
     {
       "id": "observation.kind.openinference.llm",
       "priority": 60,
       "doc": "A dialect's own span-kind attribute. One rule per (key, kind) rather than per kind, and key-major, because the retired sweep returned the *first key* that named a recognised kind - so a span carrying two such attributes is what the earlier key says, not what the earlier kind says. The values are matched whatever their case, since one producer capitalises them and another does not.",
-      "all_of": [
-        {
-          "attr_equals_ignore_case": [
-            {
-              "key": "openinference.span.kind",
-              "value": "LLM"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:openinference.span.kind",
+        "equals_ignore_case": "LLM"
+      },
       "result": "generation"
     },
     {
       "id": "observation.kind.openinference.embedding",
       "priority": 61,
-      "all_of": [
-        {
-          "attr_equals_ignore_case": [
-            {
-              "key": "openinference.span.kind",
-              "value": "EMBEDDING"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:openinference.span.kind",
+        "equals_ignore_case": "EMBEDDING"
+      },
       "result": "embedding"
     },
     {
       "id": "observation.kind.openinference.agent",
       "priority": 62,
-      "all_of": [
-        {
-          "attr_equals_ignore_case": [
-            {
-              "key": "openinference.span.kind",
-              "value": "AGENT"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:openinference.span.kind",
+        "equals_ignore_case": "AGENT"
+      },
       "result": "agent"
     },
     {
       "id": "observation.kind.openinference.tool",
       "priority": 63,
-      "all_of": [
-        {
-          "attr_equals_ignore_case": [
-            {
-              "key": "openinference.span.kind",
-              "value": "TOOL"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:openinference.span.kind",
+        "equals_ignore_case": "TOOL"
+      },
       "result": "tool"
     },
     {
       "id": "observation.kind.openinference.chain",
       "priority": 64,
-      "all_of": [
-        {
-          "attr_equals_ignore_case": [
-            {
-              "key": "openinference.span.kind",
-              "value": "CHAIN"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:openinference.span.kind",
+        "equals_ignore_case": "CHAIN"
+      },
       "result": "chain"
     },
     {
       "id": "observation.kind.openinference.retriever",
       "priority": 65,
-      "all_of": [
-        {
-          "attr_equals_ignore_case": [
-            {
-              "key": "openinference.span.kind",
-              "value": "RETRIEVER"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:openinference.span.kind",
+        "equals_ignore_case": "RETRIEVER"
+      },
       "result": "retriever"
     },
     {
       "id": "observation.kind.openinference.guardrail",
       "priority": 66,
-      "all_of": [
-        {
-          "attr_equals_ignore_case": [
-            {
-              "key": "openinference.span.kind",
-              "value": "GUARDRAIL"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:openinference.span.kind",
+        "equals_ignore_case": "GUARDRAIL"
+      },
       "result": "guardrail"
     },
     {
       "id": "observation.kind.openinference.evaluator",
       "priority": 67,
-      "all_of": [
-        {
-          "attr_equals_ignore_case": [
-            {
-              "key": "openinference.span.kind",
-              "value": "EVALUATOR"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:openinference.span.kind",
+        "equals_ignore_case": "EVALUATOR"
+      },
       "result": "evaluator"
     },
     {
       "id": "observation.kind.langsmith.llm",
       "priority": 70,
       "doc": "The second dialect's spelling of the same fact, after every reading of the first - which is what key-major ordering means.",
-      "all_of": [
-        {
-          "attr_equals_ignore_case": [
-            {
-              "key": "langsmith.span.kind",
-              "value": "LLM"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:langsmith.span.kind",
+        "equals_ignore_case": "LLM"
+      },
       "result": "generation"
     },
     {
       "id": "observation.kind.langsmith.embedding",
       "priority": 71,
-      "all_of": [
-        {
-          "attr_equals_ignore_case": [
-            {
-              "key": "langsmith.span.kind",
-              "value": "EMBEDDING"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:langsmith.span.kind",
+        "equals_ignore_case": "EMBEDDING"
+      },
       "result": "embedding"
     },
     {
       "id": "observation.kind.langsmith.agent",
       "priority": 72,
-      "all_of": [
-        {
-          "attr_equals_ignore_case": [
-            {
-              "key": "langsmith.span.kind",
-              "value": "AGENT"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:langsmith.span.kind",
+        "equals_ignore_case": "AGENT"
+      },
       "result": "agent"
     },
     {
       "id": "observation.kind.langsmith.tool",
       "priority": 73,
-      "all_of": [
-        {
-          "attr_equals_ignore_case": [
-            {
-              "key": "langsmith.span.kind",
-              "value": "TOOL"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:langsmith.span.kind",
+        "equals_ignore_case": "TOOL"
+      },
       "result": "tool"
     },
     {
       "id": "observation.kind.langsmith.chain",
       "priority": 74,
-      "all_of": [
-        {
-          "attr_equals_ignore_case": [
-            {
-              "key": "langsmith.span.kind",
-              "value": "CHAIN"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:langsmith.span.kind",
+        "equals_ignore_case": "CHAIN"
+      },
       "result": "chain"
     },
     {
       "id": "observation.kind.langsmith.retriever",
       "priority": 75,
-      "all_of": [
-        {
-          "attr_equals_ignore_case": [
-            {
-              "key": "langsmith.span.kind",
-              "value": "RETRIEVER"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:langsmith.span.kind",
+        "equals_ignore_case": "RETRIEVER"
+      },
       "result": "retriever"
     },
     {
       "id": "observation.kind.langsmith.guardrail",
       "priority": 76,
-      "all_of": [
-        {
-          "attr_equals_ignore_case": [
-            {
-              "key": "langsmith.span.kind",
-              "value": "GUARDRAIL"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:langsmith.span.kind",
+        "equals_ignore_case": "GUARDRAIL"
+      },
       "result": "guardrail"
     },
     {
       "id": "observation.kind.langsmith.evaluator",
       "priority": 77,
-      "all_of": [
-        {
-          "attr_equals_ignore_case": [
-            {
-              "key": "langsmith.span.kind",
-              "value": "EVALUATOR"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:langsmith.span.kind",
+        "equals_ignore_case": "EVALUATOR"
+      },
       "result": "evaluator"
     },
     {
       "id": "observation.sdk_embedding_call",
       "priority": 80,
       "doc": "A dialect that names its model on every span it emits, and says which call it was in an operation id. Case-sensitive, as the retired test was: that id is the SDK's own constant rather than a user's string.",
-      "all_of": [
-        {
-          "attr_exists": [
-            "ai.model.id",
-            "ai.model.provider"
-          ]
-        },
-        {
-          "span_attr_contains": [
-            {
-              "key": "ai.operationId",
-              "value": "embed"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "all": [
+          {
+            "any": [
+              {
+                "source": "attr:ai.model.id",
+                "exists": true
+              },
+              {
+                "source": "attr:ai.model.provider",
+                "exists": true
+              }
+            ]
+          },
+          {
+            "source": "attr:ai.operationId",
+            "contains": "embed"
+          }
+        ]
+      },
       "result": "embedding"
     },
     {
       "id": "observation.sdk_model_call",
       "priority": 90,
-      "all_of": [
-        {
-          "attr_exists": [
-            "ai.model.id",
-            "ai.model.provider"
-          ]
-        }
-      ],
+      "where": {
+        "any": [
+          {
+            "source": "attr:ai.model.id",
+            "exists": true
+          },
+          {
+            "source": "attr:ai.model.provider",
+            "exists": true
+          }
+        ]
+      },
       "result": "generation"
     },
     {
       "id": "observation.named_agent",
       "priority": 100,
-      "all_of": [
-        {
-          "attr_exists": [
-            "gen_ai.agent.name",
-            "gen_ai.agent.id"
-          ]
-        }
-      ],
+      "where": {
+        "any": [
+          {
+            "source": "attr:gen_ai.agent.name",
+            "exists": true
+          },
+          {
+            "source": "attr:gen_ai.agent.id",
+            "exists": true
+          }
+        ]
+      },
       "result": "agent"
     },
     {
       "id": "observation.named_tool",
       "priority": 110,
-      "all_of": [
-        {
-          "attr_exists": [
-            "gen_ai.tool.name",
-            "gen_ai.tool.call.id"
-          ]
-        }
-      ],
+      "where": {
+        "any": [
+          {
+            "source": "attr:gen_ai.tool.name",
+            "exists": true
+          },
+          {
+            "source": "attr:gen_ai.tool.call.id",
+            "exists": true
+          }
+        ]
+      },
       "result": "tool"
     },
     {
       "id": "observation.name_says_embedding",
       "priority": 120,
       "doc": "The span name, which is the weakest evidence there is and therefore last but for two. Matched case-insensitively, and the order among these six is load-bearing: a name containing both `agent` and `tool` is an agent, because that is what the retired table said.",
-      "all_of": [
-        {
-          "text_contains": {
-            "sources": [
-              "span_name"
-            ],
-            "needles": [
-              "embed"
-            ]
-          }
-        }
-      ],
+      "where": {
+        "source": "span_name",
+        "contains_ignore_case": "embed"
+      },
       "result": "embedding"
     },
     {
       "id": "observation.name_says_agent",
       "priority": 121,
-      "all_of": [
-        {
-          "text_contains": {
-            "sources": [
-              "span_name"
-            ],
-            "needles": [
-              "agent"
-            ]
-          }
-        }
-      ],
+      "where": {
+        "source": "span_name",
+        "contains_ignore_case": "agent"
+      },
       "result": "agent"
     },
     {
       "id": "observation.name_says_tool",
       "priority": 122,
-      "all_of": [
-        {
-          "text_contains": {
-            "sources": [
-              "span_name"
-            ],
-            "needles": [
-              "tool"
-            ]
-          }
-        }
-      ],
+      "where": {
+        "source": "span_name",
+        "contains_ignore_case": "tool"
+      },
       "result": "tool"
     },
     {
       "id": "observation.name_says_retriever",
       "priority": 123,
-      "all_of": [
-        {
-          "text_contains": {
-            "sources": [
-              "span_name"
-            ],
-            "needles": [
-              "retriev"
-            ]
-          }
-        }
-      ],
+      "where": {
+        "source": "span_name",
+        "contains_ignore_case": "retriev"
+      },
       "result": "retriever"
     },
     {
       "id": "observation.name_says_guardrail",
       "priority": 124,
-      "all_of": [
-        {
-          "text_contains": {
-            "sources": [
-              "span_name"
-            ],
-            "needles": [
-              "guardrail"
-            ]
-          }
-        }
-      ],
+      "where": {
+        "source": "span_name",
+        "contains_ignore_case": "guardrail"
+      },
       "result": "guardrail"
     },
     {
       "id": "observation.name_says_evaluator",
       "priority": 125,
-      "all_of": [
-        {
-          "text_contains": {
-            "sources": [
-              "span_name"
-            ],
-            "needles": [
-              "eval"
-            ]
-          }
-        }
-      ],
+      "where": {
+        "source": "span_name",
+        "contains_ignore_case": "eval"
+      },
       "result": "evaluator"
     },
     {
       "id": "observation.tagged_as_a_model_call",
       "priority": 130,
       "doc": "One dialect tags its spans rather than naming an operation, so a tag list mentioning a model call is the only thing that says so.",
-      "all_of": [
-        {
-          "text_contains": {
-            "sources": [
-              "attr:logfire.tags"
-            ],
-            "needles": [
-              "llm"
-            ]
-          }
-        }
-      ],
+      "where": {
+        "source": "attr:logfire.tags",
+        "contains_ignore_case": "llm"
+      },
       "result": "generation"
     },
     {
       "id": "observation.has_a_model",
       "priority": 140,
       "doc": "Last: a span naming a model called one, whatever else it omitted.",
-      "all_of": [
-        {
-          "attr_exists": [
-            "gen_ai.request.model",
-            "gen_ai.response.model"
-          ]
-        }
-      ],
+      "where": {
+        "any": [
+          {
+            "source": "attr:gen_ai.request.model",
+            "exists": true
+          },
+          {
+            "source": "attr:gen_ai.response.model",
+            "exists": true
+          }
+        ]
+      },
       "result": "generation"
     }
   ]

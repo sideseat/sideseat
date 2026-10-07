@@ -51,13 +51,20 @@
       "id": "claude-agent-sdk.detect",
       "doc": "The CLI subprocess emits every span under one prefix. Two service names because the CLI reports one and the host process wrapping it reports the other.",
       "label": "ClaudeAgentSDK",
-      "match": {
-        "span_name": [
-          "claude_code."
-        ],
-        "service_name": [
-          "claude-code",
-          "claude-agent-sdk"
+      "where": {
+        "any": [
+          {
+            "source": "span_name",
+            "starts_with": "claude_code."
+          },
+          {
+            "source": "resource:service.name",
+            "contains": "claude-code"
+          },
+          {
+            "source": "resource:service.name",
+            "contains": "claude-agent-sdk"
+          }
         ]
       },
       "priority": 270
@@ -73,10 +80,9 @@
     {
       "id": "claude-agent-sdk.system_prompt",
       "doc": "The caller-supplied system prompt, emitted once per session rather than per request. Blank counts as absent here: this dialect writes the attribute whether or not there is a prompt.",
-      "when": {
-        "span_name": [
-          "claude_code."
-        ]
+      "where": {
+        "source": "span_name",
+        "starts_with": "claude_code."
       },
       "read": {
         "attribute": "user_system_prompt"
@@ -92,10 +98,9 @@
     {
       "id": "claude-agent-sdk.new_context",
       "doc": "Either side of the conversation, in one attribute, distinguished by a bracketed tag - and several sections joined by a separator, one per parallel tool call, each read on its own so every result keeps its own id.",
-      "when": {
-        "span_name": [
-          "claude_code."
-        ]
+      "where": {
+        "source": "span_name",
+        "starts_with": "claude_code."
       },
       "read": {
         "attribute": "new_context"
@@ -140,10 +145,9 @@
     {
       "id": "claude-agent-sdk.model_output",
       "doc": "The assistant's reply.",
-      "when": {
-        "span_name": [
-          "claude_code."
-        ]
+      "where": {
+        "source": "span_name",
+        "starts_with": "claude_code."
       },
       "read": {
         "attribute": "response.model_output"
@@ -159,10 +163,9 @@
     {
       "id": "claude-agent-sdk.tool_call",
       "doc": "A tool call rebuilt from the tool span. The read carrier is the tool's *name*, which becomes the block's name member; the input is attached from another attribute where the payload sits under a bracketed tag naming the tool, so it is stripped before parsing - parsing without stripping fails and the member would silently fall back to its empty form. An unparseable input does fall back to `{}`, because the block's shape requires the member.",
-      "when": {
-        "span_name": [
-          "claude_code."
-        ]
+      "where": {
+        "source": "span_name",
+        "starts_with": "claude_code."
       },
       "read": {
         "attribute": "tool_name"

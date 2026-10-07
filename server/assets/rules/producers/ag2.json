@@ -8,12 +8,16 @@
       "id": "ag2.detect",
       "doc": "Identifies AG2 1.x by its native instrumentation scope or framework-owned attributes. The supersession preserves classification for older OpenInference payloads without making them the supported boundary.",
       "label": "AG2",
-      "match": {
-        "scope_name": [
-          "opentelemetry.instrumentation.ag2"
-        ],
-        "attr_prefix": [
-          "ag2."
+      "where": {
+        "any": [
+          {
+            "source": "scope.name",
+            "equals": "opentelemetry.instrumentation.ag2"
+          },
+          {
+            "source": "attr_keys",
+            "starts_with": "ag2."
+          }
         ]
       },
       "priority": 110,

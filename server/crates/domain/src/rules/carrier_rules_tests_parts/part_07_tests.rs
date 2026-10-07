@@ -313,9 +313,7 @@ fn an_all_or_nothing_reading_cannot_be_starved_by_an_earlier_rank() {
 
     // An indexed family is starved by an earlier conditional rule reading one of its keys.
     let refused = asset(
-        r#"[{"id":"t.take_role","when":{"attr_exists":["marker"]},"read":{"attribute":"family.0.role"},
-             "parse":"text","tag_as":"taken","emit":"message","priority":1},
-            {"id":"t.read_family","read":{"indexed_family":"family"},"emit":"message","priority":2}]"#,
+        r#"[{"id": "t.take_role", "where": {"source": "attr:marker", "exists": true}, "read": {"attribute": "family.0.role"}, "parse": "text", "tag_as": "taken", "emit": "message", "priority": 1}, {"id": "t.read_family", "read": {"indexed_family": "family"}, "emit": "message", "priority": 2}]"#,
     )
     .expect_err("an indexed family starved by an earlier conditional rule must be refused");
     let message = refused.to_string();
@@ -331,11 +329,7 @@ fn an_all_or_nothing_reading_cannot_be_starved_by_an_earlier_rank() {
     // A **compose** with several members, which is the shape the retired test covered.
     assert!(
         asset(
-            r#"[{"id":"t.take_x","when":{"attr_exists":["marker"]},"read":{"attribute":"x"},
-                 "parse":"text","tag_as":"taken","emit":"message","priority":1},
-                {"id":"t.compose","compose":{"tag":"joined","members":[
-                    {"as":"a","from_any_of":["x","x_backup"],"parse":"text"},{"as":"b","from_any_of":["y"],"parse":"text"}]},
-                 "emit":"message","priority":2}]"#,
+            r#"[{"id": "t.take_x", "where": {"source": "attr:marker", "exists": true}, "read": {"attribute": "x"}, "parse": "text", "tag_as": "taken", "emit": "message", "priority": 1}, {"id": "t.compose", "compose": {"tag": "joined", "members": [{"as": "a", "from_any_of": ["x", "x_backup"], "parse": "text"}, {"as": "b", "from_any_of": ["y"], "parse": "text"}]}, "emit": "message", "priority": 2}]"#,
         )
         .err()
         .is_some_and(|error| matches!(
@@ -357,7 +351,7 @@ fn an_all_or_nothing_reading_cannot_be_starved_by_an_earlier_rank() {
     // passed while checking nothing. Which is this review's own recurring finding, in the test for it.
     let overlaid = |taker_rank: i32, overlaid_rank: i32| {
         format!(
-            r#"[{{"id":"t.take_rich","when":{{"attr_exists":["marker"]}},"read":{{"attribute":"rich"}},
+            r#"[{{"id":"t.take_rich","where":{{"source":"attr:marker","exists":true}},"read":{{"attribute":"rich"}},
                  "parse":"text","tag_as":"taken","emit":"message","priority":{taker_rank}}},
                 {{"id":"t.overlaid","read":{{"indexed_family":"fam","entry_member":"message",
                    "overlay":{{"from":"rich","parse":"json","select_any_of":["$.messages"],
@@ -383,10 +377,7 @@ fn an_all_or_nothing_reading_cannot_be_starved_by_an_earlier_rank() {
     // Both rules gated, on conditions neither of which covers the other, so the pre-existing contested-carrier
     // check does not fire either - which is what leaves the starvation question the only one being asked.
     asset(
-        r#"[{"id":"t.read_family","when":{"attr_exists":["family_marker"]},
-             "read":{"indexed_family":"family"},"emit":"message","priority":1},
-            {"id":"t.take_role","when":{"attr_exists":["marker"]},"read":{"attribute":"family.0.role"},
-             "parse":"text","tag_as":"taken","emit":"message","priority":2}]"#,
+        r#"[{"id": "t.read_family", "where": {"source": "attr:family_marker", "exists": true}, "read": {"indexed_family": "family"}, "emit": "message", "priority": 1}, {"id": "t.take_role", "where": {"source": "attr:marker", "exists": true}, "read": {"attribute": "family.0.role"}, "parse": "text", "tag_as": "taken", "emit": "message", "priority": 2}]"#,
     )
     .expect("a multi-owner reading at the earlier rank is not starved - it goes first");
 
@@ -407,11 +398,7 @@ fn an_all_or_nothing_reading_cannot_be_starved_by_an_earlier_rank() {
 
     // A single-member compose is not multi-owner: it takes one spelling, so there is no half to lose.
     asset(
-        r#"[{"id":"t.take_x","when":{"attr_exists":["marker"]},"read":{"attribute":"x"},
-             "parse":"text","tag_as":"taken","emit":"message","priority":1},
-            {"id":"t.compose","compose":{"tag":"joined","members":[
-                {"as":"a","from_any_of":["x","x_backup"],"parse":"text"}]},
-             "emit":"message","priority":2}]"#,
+        r#"[{"id": "t.take_x", "where": {"source": "attr:marker", "exists": true}, "read": {"attribute": "x"}, "parse": "text", "tag_as": "taken", "emit": "message", "priority": 1}, {"id": "t.compose", "compose": {"tag": "joined", "members": [{"as": "a", "from_any_of": ["x", "x_backup"], "parse": "text"}]}, "emit": "message", "priority": 2}]"#,
     )
     .expect("one member reading two spellings takes exactly one of them, so nothing is starved");
 }

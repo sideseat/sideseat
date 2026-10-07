@@ -8,18 +8,23 @@
       "id": "autogen.detect",
       "doc": "OpenInference's AutoGen instrumentation sets gen_ai.system while service.name may still be the default, so the system value is a signal in its own right.",
       "label": "AutoGen",
-      "match": {
-        "span_name": [
-          "autogen ",
-          "autogen."
-        ],
-        "attr_prefix": [
-          "autogen."
-        ],
-        "attr_equals": [
+      "where": {
+        "any": [
           {
-            "key": "gen_ai.system",
-            "value": "autogen"
+            "source": "span_name",
+            "starts_with": "autogen "
+          },
+          {
+            "source": "span_name",
+            "starts_with": "autogen."
+          },
+          {
+            "source": "attr_keys",
+            "starts_with": "autogen."
+          },
+          {
+            "source": "attr:gen_ai.system",
+            "equals": "autogen"
           }
         ]
       },
@@ -68,17 +73,15 @@
         "attribute": "message"
       },
       "parse": "json",
-      "unless": {
-        "attr_equals": [
-          {
-            "key": "message",
-            "value": "No Message"
-          },
-          {
-            "key": "message",
-            "value": "{}"
-          }
-        ]
+      "where": {
+        "not": {
+          "source": "attr:message",
+          "exists": true,
+          "one_of": [
+            "No Message",
+            "{}"
+          ]
+        }
       },
       "alternatives": [
         {

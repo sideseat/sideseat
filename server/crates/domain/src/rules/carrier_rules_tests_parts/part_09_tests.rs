@@ -835,10 +835,7 @@ fn metadata_contends_on_the_axis_it_emits_on() {
     // beside an unconditional later one. The compiler accepts that pair - they take turns and the ranks decide -
     // and on a span where both gates hold, only the first reading of the carrier survives on that axis.
     let plan = asset(
-        r#"[{"id":"t.first","when":{"attr_exists":["marker"]},"read":{"attribute":"tools"},
-             "parse":"json","emit":"tool_definitions","priority":1},
-            {"id":"t.second","read":{"attribute":"tools"},"parse":"json","emit":"tool_definitions",
-             "priority":2,"alternatives":[{"id":"inner","select":"$[*]"}]}]"#,
+        r#"[{"id": "t.first", "where": {"source": "attr:marker", "exists": true}, "read": {"attribute": "tools"}, "parse": "json", "emit": "tool_definitions", "priority": 1}, {"id": "t.second", "read": {"attribute": "tools"}, "parse": "json", "emit": "tool_definitions", "priority": 2, "alternatives": [{"id": "inner", "select": "$[*]"}]}]"#,
     )
     .expect("a conditional earlier rule beside an unconditional later one is accepted");
     let both = std::collections::HashMap::from([

@@ -572,58 +572,42 @@ fn a_classification_rule_answers_in_its_own_vocabulary() {
     let refused = [
         (
             "a misspelled observation type",
-            br#"{"id":"t","doc":"d","observation_types":[
-                {"id":"x","priority":1,"all_of":[{"attr_exists":["k"]}],"result":"genration"}]}"#
+            br#"{"id": "t", "doc": "d", "observation_types": [{"id": "x", "priority": 1, "where": {"source": "attr:k", "exists": true}, "result": "genration"}]}"#
                 .to_vec(),
         ),
         (
             "a category answer given as an observation type",
-            br#"{"id":"t","doc":"d","observation_types":[
-                {"id":"x","priority":1,"all_of":[{"attr_exists":["k"]}],"result":"llm"}]}"#
+            br#"{"id": "t", "doc": "d", "observation_types": [{"id": "x", "priority": 1, "where": {"source": "attr:k", "exists": true}, "result": "llm"}]}"#
                 .to_vec(),
         ),
         (
             "an observation type given as a category",
-            br#"{"id":"t","doc":"d","span_categories":[
-                {"id":"x","priority":1,"all_of":[{"attr_exists":["k"]}],"result":"generation"}]}"#
+            br#"{"id": "t", "doc": "d", "span_categories": [{"id": "x", "priority": 1, "where": {"source": "attr:k", "exists": true}, "result": "generation"}]}"#
                 .to_vec(),
         ),
         (
             "no answer at all",
-            br#"{"id":"t","doc":"d","observation_types":[
-                {"id":"x","priority":1,"all_of":[{"attr_exists":["k"]}],"result":""}]}"#
-                .to_vec(),
-        ),
-        (
-            "no condition, which would answer every span",
-            br#"{"id":"t","doc":"d","observation_types":[
-                {"id":"x","priority":1,"all_of":[],"result":"span"}]}"#
+            br#"{"id": "t", "doc": "d", "observation_types": [{"id": "x", "priority": 1, "where": {"source": "attr:k", "exists": true}, "result": ""}]}"#
                 .to_vec(),
         ),
         (
             "a condition that can never hold",
-            br#"{"id":"t","doc":"d","observation_types":[
-                {"id":"x","priority":1,"all_of":[{}],"result":"span"}]}"#
+            br#"{"id": "t", "doc": "d", "observation_types": [{"id": "x", "priority": 1, "where": {"source": "scope.name", "equals": "s"}, "result": "span"}]}"#
                 .to_vec(),
         ),
         (
             "a resource dimension, which classification is never given",
-            br#"{"id":"t","doc":"d","observation_types":[
-                {"id":"x","priority":1,"all_of":[{"service_name":["svc"]}],"result":"span"}]}"#
+            br#"{"id": "t", "doc": "d", "observation_types": [{"id": "x", "priority": 1, "where": {"source": "resource:service.name", "contains": "svc"}, "result": "span"}]}"#
                 .to_vec(),
         ),
         (
             "two rules of one classification sharing a rank",
-            br#"{"id":"t","doc":"d","observation_types":[
-                {"id":"x","priority":1,"all_of":[{"attr_exists":["a"]}],"result":"span"},
-                {"id":"y","priority":1,"all_of":[{"attr_exists":["b"]}],"result":"agent"}]}"#
+            br#"{"id": "t", "doc": "d", "observation_types": [{"id": "x", "priority": 1, "where": {"source": "attr:a", "exists": true}, "result": "span"}, {"id": "y", "priority": 1, "where": {"source": "attr:b", "exists": true}, "result": "agent"}]}"#
                 .to_vec(),
         ),
         (
             "one id naming a rule in each classification",
-            br#"{"id":"t","doc":"d",
-                "observation_types":[{"id":"x","priority":1,"all_of":[{"attr_exists":["a"]}],"result":"span"}],
-                "span_categories":[{"id":"x","priority":1,"all_of":[{"attr_exists":["b"]}],"result":"other"}]}"#
+            br#"{"id": "t", "doc": "d", "observation_types": [{"id": "x", "priority": 1, "where": {"source": "attr:a", "exists": true}, "result": "span"}], "span_categories": [{"id": "x", "priority": 1, "where": {"source": "attr:b", "exists": true}, "result": "other"}]}"#
                 .to_vec(),
         ),
     ];
@@ -637,9 +621,7 @@ fn a_classification_rule_answers_in_its_own_vocabulary() {
 
     // The same rank in *different* classifications means nothing and is accepted, which is what keeps the
     // refusal above a statement about precedence rather than about numbers.
-    let across = br#"{"id":"t","doc":"d",
-        "observation_types":[{"id":"o","priority":1,"all_of":[{"attr_exists":["a"]}],"result":"span"}],
-        "span_categories":[{"id":"c","priority":1,"all_of":[{"attr_exists":["b"]}],"result":"other"}]}"#;
+    let across = br#"{"id": "t", "doc": "d", "observation_types": [{"id": "o", "priority": 1, "where": {"source": "attr:a", "exists": true}, "result": "span"}], "span_categories": [{"id": "c", "priority": 1, "where": {"source": "attr:b", "exists": true}, "result": "other"}]}"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), across.to_vec())]);
     assert!(
         compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).is_ok(),
@@ -648,8 +630,7 @@ fn a_classification_rule_answers_in_its_own_vocabulary() {
     );
 
     // And the error names what was expected, so a typo is fixable from the message alone.
-    let typo = br#"{"id":"t","doc":"d","observation_types":[
-        {"id":"x","priority":1,"all_of":[{"attr_exists":["k"]}],"result":"genration"}]}"#;
+    let typo = br#"{"id": "t", "doc": "d", "observation_types": [{"id": "x", "priority": 1, "where": {"source": "attr:k", "exists": true}, "result": "genration"}]}"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), typo.to_vec())]);
     assert!(
         matches!(

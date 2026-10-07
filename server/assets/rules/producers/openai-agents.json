@@ -8,12 +8,16 @@
       "id": "openai-agents.detect",
       "doc": "Identifies OpenAIAgents by its own scope and attribute namespace. Logfire's instrumentation records the SDK's spans under its own `logfire.openai_agents` scope and with Logfire's attributes, so the scope is the evidence that the spans describe this framework rather than Logfire itself: placed ahead of Logfire's detection, and the overlap is declared rather than left to priority.",
       "label": "OpenAIAgents",
-      "match": {
-        "scope_name": [
-          "logfire.openai_agents"
-        ],
-        "attr_prefix": [
-          "openai.agents."
+      "where": {
+        "any": [
+          {
+            "source": "scope.name",
+            "equals": "logfire.openai_agents"
+          },
+          {
+            "source": "attr_keys",
+            "starts_with": "openai.agents."
+          }
         ]
       },
       "priority": 195,
@@ -28,34 +32,49 @@
           "supersedes": [
             "logfire.detect"
           ],
-          "match": {
-            "service_name": [
-              "openai-agents",
-              "openai_agents"
+          "where": {
+            "all": [
+              {
+                "any": [
+                  {
+                    "source": "resource:service.name",
+                    "contains": "openai-agents"
+                  },
+                  {
+                    "source": "resource:service.name",
+                    "contains": "openai_agents"
+                  }
+                ]
+              },
+              {
+                "any": [
+                  {
+                    "source": "attr_keys",
+                    "starts_with": "logfire."
+                  },
+                  {
+                    "source": "resource:telemetry.sdk.name",
+                    "contains": "logfire"
+                  }
+                ]
+              }
             ]
-          },
-          "all_of": [
-            {
-              "attr_prefix": [
-                "logfire."
-              ],
-              "resource_attr_contains": [
-                {
-                  "key": "telemetry.sdk.name",
-                  "value": "logfire"
-                }
-              ]
-            }
-          ]
+          }
         },
         {
           "id": "openai-agents.detect.service_name",
           "doc": "The service names the SDK reports by default, on their own. Weak evidence - a user names their own service - so it sits behind every instrumentation library's own signal.",
           "priority": 240,
-          "match": {
-            "service_name": [
-              "openai-agents",
-              "openai_agents"
+          "where": {
+            "any": [
+              {
+                "source": "resource:service.name",
+                "contains": "openai-agents"
+              },
+              {
+                "source": "resource:service.name",
+                "contains": "openai_agents"
+              }
             ]
           }
         }
@@ -90,13 +109,9 @@
         }
       },
       "emit": "message",
-      "when": {
-        "attr_equals": [
-          {
-            "key": "logfire.msg_template",
-            "value": "Function: {name}"
-          }
-        ]
+      "where": {
+        "source": "attr:logfire.msg_template",
+        "equals": "Function: {name}"
       },
       "priority": 1380,
       "reads_tool_spans": true
@@ -121,13 +136,9 @@
         }
       },
       "emit": "message",
-      "when": {
-        "attr_equals": [
-          {
-            "key": "logfire.msg_template",
-            "value": "Function: {name}"
-          }
-        ]
+      "where": {
+        "source": "attr:logfire.msg_template",
+        "equals": "Function: {name}"
       },
       "priority": 1390,
       "reads_tool_spans": true
@@ -168,15 +179,26 @@
       "signals": [
         {
           "id": "logfire_function",
-          "attr_equals": {
-            "key": "logfire.msg_template",
-            "value": "Function: {name}"
-          },
-          "attrs_present": [
-            "name",
-            "input",
-            "output"
-          ]
+          "where": {
+            "all": [
+              {
+                "source": "attr:logfire.msg_template",
+                "equals": "Function: {name}"
+              },
+              {
+                "source": "attr:name",
+                "exists": true
+              },
+              {
+                "source": "attr:input",
+                "exists": true
+              },
+              {
+                "source": "attr:output",
+                "exists": true
+              }
+            ]
+          }
         }
       ]
     }

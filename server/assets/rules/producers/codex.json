@@ -49,11 +49,20 @@
       "id": "codex.detect",
       "doc": "Codex names its service after the client that runs it: `codex_exec` for `codex exec`, `codex_cli_rs` for the interactive CLI, `codex_vscode` for the editor extension.",
       "label": "Codex",
-      "match": {
-        "service_name": [
-          "codex_exec",
-          "codex_cli_rs",
-          "codex_vscode"
+      "where": {
+        "any": [
+          {
+            "source": "resource:service.name",
+            "contains": "codex_exec"
+          },
+          {
+            "source": "resource:service.name",
+            "contains": "codex_cli_rs"
+          },
+          {
+            "source": "resource:service.name",
+            "contains": "codex_vscode"
+          }
         ]
       },
       "priority": 285

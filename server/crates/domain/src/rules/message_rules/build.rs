@@ -429,7 +429,15 @@ pub(super) fn composed(
             // that the span is one of its spans.
             let fallback = member.fallback.as_ref()?;
             let gate = compiled.fallback_gate.as_ref()?;
-            if !super::detect_rules::compiled_signals_hold(gate, ctx.span_name, ctx.gate_attrs) {
+            if !super::span_conditions::holds(
+                gate,
+                &super::span_conditions::SpanSubject {
+                    span_name: ctx.span_name,
+                    attrs: ctx.gate_attrs,
+                    scope_name: None,
+                    resource: None,
+                },
+            ) {
                 return None;
             }
             let raw = attrs.get(&fallback.from)?;

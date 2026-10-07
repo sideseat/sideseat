@@ -83,20 +83,40 @@
       "id": "vercel-ai.detect",
       "doc": "The prefix list was a hand-written Rust matcher that duplicated the prefix dimension exactly - the clearest case that a callback was never needed. Note this identifies the SDK's *legacy* integration; its current one emits pure gen_ai.* and is attributable only by the SDK's declaration.",
       "label": "VercelAISDK",
-      "match": {
-        "attr_exists": [
-          "ai.operationId",
-          "ai.telemetry.functionId",
-          "ai.telemetry.metadata"
-        ],
-        "attr_prefix": [
-          "ai.prompt.",
-          "ai.completion.",
-          "ai.settings.",
-          "ai.telemetry.",
-          "ai.stream.",
-          "ai.finishReason",
-          "ai.usage."
+      "where": {
+        "any": [
+          {
+            "source": "attr_keys",
+            "starts_with": "ai.prompt."
+          },
+          {
+            "source": "attr_keys",
+            "starts_with": "ai.completion."
+          },
+          {
+            "source": "attr_keys",
+            "starts_with": "ai.settings."
+          },
+          {
+            "source": "attr_keys",
+            "starts_with": "ai.telemetry."
+          },
+          {
+            "source": "attr_keys",
+            "starts_with": "ai.stream."
+          },
+          {
+            "source": "attr_keys",
+            "starts_with": "ai.finishReason"
+          },
+          {
+            "source": "attr_keys",
+            "starts_with": "ai.usage."
+          },
+          {
+            "source": "attr:ai.operationId",
+            "exists": true
+          }
         ]
       },
       "priority": 190
@@ -179,18 +199,40 @@
             "parse": "text",
             "fallback": {
               "from": "output.value",
-              "when": {
-                "attr_exists": [
-                  "ai.prompt.messages",
-                  "ai.prompt",
-                  "ai.response.text",
-                  "ai.result.text",
-                  "ai.response.toolCalls",
-                  "ai.result.toolCalls",
-                  "ai.toolCall.name"
-                ],
-                "span_name": [
-                  "ai."
+              "where": {
+                "any": [
+                  {
+                    "source": "span_name",
+                    "starts_with": "ai."
+                  },
+                  {
+                    "source": "attr:ai.prompt.messages",
+                    "exists": true
+                  },
+                  {
+                    "source": "attr:ai.prompt",
+                    "exists": true
+                  },
+                  {
+                    "source": "attr:ai.response.text",
+                    "exists": true
+                  },
+                  {
+                    "source": "attr:ai.result.text",
+                    "exists": true
+                  },
+                  {
+                    "source": "attr:ai.response.toolCalls",
+                    "exists": true
+                  },
+                  {
+                    "source": "attr:ai.result.toolCalls",
+                    "exists": true
+                  },
+                  {
+                    "source": "attr:ai.toolCall.name",
+                    "exists": true
+                  }
                 ]
               },
               "parse": "text"
@@ -267,10 +309,18 @@
       "signals": [
         {
           "id": "toolcall_name",
-          "attrs_present": [
-            "ai.toolCall.name",
-            "ai.toolCall.id"
-          ]
+          "where": {
+            "all": [
+              {
+                "source": "attr:ai.toolCall.name",
+                "exists": true
+              },
+              {
+                "source": "attr:ai.toolCall.id",
+                "exists": true
+              }
+            ]
+          }
         }
       ]
     }

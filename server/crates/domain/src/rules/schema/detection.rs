@@ -226,12 +226,9 @@ pub struct ClassifyRule {
     pub doc: Option<String>,
     /// Where this sits in the ordered sweep, lowest first. The first rule that holds answers.
     pub priority: i32,
-    /// **Every** one of these must hold, while each is internally a disjunction of signals.
-    ///
-    /// Conjunction is what a single signal set cannot express, and three of these rules need it: an operation
-    /// name *and* a model whose name says it is an embedding, an operation name *and* the system that gives it
-    /// a different meaning, a dialect's model attribute *and* an operation id that says which call it was.
-    pub all_of: Vec<DetectMatch>,
+    /// When the span is this. Classification is given the span's name and attributes only.
+    #[serde(rename = "where")]
+    pub condition: SpanWhere,
     /// What the span is, in the stored vocabulary. Mapped to the enum by the caller, which is the one thing
     /// about this that is not a producer's business.
     pub result: String,
@@ -268,17 +265,10 @@ pub struct DetectRule {
     /// into an `alternative` at its own priority, not by an edge.
     #[serde(default)]
     pub supersedes: Vec<String>,
-    #[serde(rename = "match")]
-    pub match_spec: DetectMatch,
-    /// Further signal sets that must each match.
-    ///
-    /// A `DetectMatch` is deliberately disjunctive: every signal inside it is independently
-    /// sufficient. Some producer identities need a conjunction instead, such as a shared cloud
-    /// provider together with the model API used through it. Keeping those as separate sets
-    /// preserves the useful disjunction within each set without hard-coding a producer
-    /// combination in the engine.
-    #[serde(default)]
-    pub all_of: Vec<DetectMatch>,
+    /// The evidence for the label. Detection reads the span's name and attributes, its instrumentation scope
+    /// and its resource.
+    #[serde(rename = "where")]
+    pub condition: SpanWhere,
     /// Further evidence for the same label, each at its **own** priority.
     ///
     /// The predicates inside one `match` are independently sufficient, so a rule whose signals differ in
@@ -310,11 +300,8 @@ pub struct DetectAlternative {
     /// exists to sit at a different priority, so an edge true of the rule's position may not be true of its.
     #[serde(default)]
     pub supersedes: Vec<String>,
-    #[serde(rename = "match")]
-    pub match_spec: DetectMatch,
-    /// Further signal sets that must each match.
-    #[serde(default)]
-    pub all_of: Vec<DetectMatch>,
+    #[serde(rename = "where")]
+    pub condition: SpanWhere,
 }
 
 /// One SDK-declared slug and the label it resolves to.
@@ -327,124 +314,6 @@ pub struct SdkSlug {
     pub doc: Option<String>,
     pub slug: String,
     pub label: String,
-}
-
-/// A pair of strings - an attribute key and the value or substring it must hold.
-///
-/// Strict, like every other type here. It was the one predicate type without it, so
-/// `{"key": …, "value": …, "ignore_case": true}` parsed and the flag was **discarded** - a comparison an
-/// author had asked to be case-insensitive stayed case-sensitive, silently. Case folding is a *separate
-/// dimension* (`attr_equals_ignore_case`), which is exactly the mistake this made easy to write.
-#[derive(PartialEq, Eq, Debug, Deserialize, Clone)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
-#[serde(deny_unknown_fields)]
-pub struct KeyValue {
-    pub key: String,
-    pub value: String,
-}
-
-/// A case-insensitive text search over named sources.
-///
-/// The one signal that is neither a prefix nor an equality: a framework whose spans are identified by a
-/// phrase appearing somewhere in a name, in any of several spellings.
-#[derive(PartialEq, Eq, Debug, Deserialize, Clone)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
-#[serde(deny_unknown_fields)]
-pub struct TextContains {
-    /// `span_name`, or `attr:<key>`.
-    pub sources: Vec<String>,
-    /// Any of these, matched case-insensitively.
-    pub needles: Vec<String>,
-    /// Search only the **first source that has a value**, rather than all of them.
-    ///
-    /// The difference is a decision, not a nicety. Two attributes may hold two answers to one question - a
-    /// request model and a response model - and searching both asks "does *either* say so" where the question
-    /// was "does the one that applies say so". A request for `gpt-4o` answered by `text-embedding-3-small` is
-    /// a chat completion whose response model is mislabelled, not an embedding call.
-    #[serde(default)]
-    pub first_present_source: bool,
-}
-
-/// The signals a detection rule may use. **Any** satisfied signal matches the rule.
-///
-/// Disjunctive, which is the existing behaviour and worth naming: each dimension is independently
-/// sufficient. That is why a rule listing a broad `service_name` beside a narrow `attr_prefix` is not
-/// "narrow" at all, and why rank matters.
-#[derive(PartialEq, Eq, Debug, Default, Deserialize, Clone)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
-#[serde(deny_unknown_fields)]
-pub struct DetectMatch {
-    /// Span name **starts with** any of these.
-    ///
-    /// Prefix only. It used to mean "equals *or* starts with", which is not two operators - a prefix subsumes its
-    /// own equality, so the equality arm could never be the reason a rule matched, and a literal that only differs
-    /// by a separator was dead beside the bare one. Every asset already spells the separator it means
-    /// (`autogen.`, `claude_code.`, `vertexai.`), which is what says this dimension is a prefix; the one that did
-    /// not is the one whose second literal was dead.
-    #[serde(default)]
-    pub span_name: Vec<String>,
-    /// Span name **is** any of these, exactly.
-    ///
-    /// Its own dimension, because a prefix cannot express it: a producer that names one span for its whole graph
-    /// and its steps `Graph.step` needs "exactly `Graph`" and "under `Graph.`" as two statements. Folded into the
-    /// prefix list, the bare name subsumed the separator form *and* claimed every unrelated span that merely
-    /// starts with those letters.
-    #[serde(default)]
-    pub span_name_exact: Vec<String>,
-    /// Instrumentation scope name **is** any of these, exactly.
-    ///
-    /// OpenInference instrumentors expose the concrete framework through the scope while their span
-    /// attributes intentionally stay in the shared `openinference.*` vocabulary. Exact matching keeps
-    /// that producer signal from turning a shared namespace fragment into a substring heuristic.
-    #[serde(default)]
-    pub scope_name: Vec<String>,
-    /// Any span attribute key starts with any of these.
-    #[serde(default)]
-    pub attr_prefix: Vec<String>,
-    /// A span attribute equals this value exactly.
-    #[serde(default)]
-    pub attr_equals: Vec<KeyValue>,
-    /// A span attribute equals this value, whatever its case.
-    ///
-    /// Its own dimension rather than a flag on `attr_equals`, because a flag that changes another field's
-    /// meaning is dead where that field is absent - and this engine refuses dead declarations. One producer
-    /// writes its span kind in capitals and another in mixed case, and both mean the same kind.
-    #[serde(default)]
-    pub attr_equals_ignore_case: Vec<KeyValue>,
-    /// Any of these span attribute keys exists.
-    #[serde(default)]
-    pub attr_exists: Vec<String>,
-    /// The resource's `service.name` **contains** any of these.
-    ///
-    /// A substring test, which is why no rule may identify a framework by a short common word: `agno` would also
-    /// match a service called `diagnostics`.
-    ///
-    /// It read `equals || contains`, and the equality arm was dead - a substring match subsumes its own equality.
-    /// Narrowing the whole dimension to equality was tried and is **wrong**: the breadth is deliberate. A user
-    /// names their own service, and `my-app-openai-agents-v1` identifies the SDK inside it
-    /// (`test_openai_agents_framework_detection_from_service_name_contains`). Every `service.name` in the captured
-    /// corpus that matches a declared literal happens to match it exactly, so the corpus cannot see this - which
-    /// is what makes those two unit tests the evidence.
-    ///
-    /// The cost is real and accepted: a service called `my-strands-agents-proxy` is attributed to Strands. Telling
-    /// that from `my-app-openai-agents-v1` needs evidence a resource attribute does not carry.
-    #[serde(default)]
-    pub service_name: Vec<String>,
-    /// A *span* attribute contains this substring.
-    ///
-    /// Generic on purpose. This replaced a `metadata_contains` dimension whose key the engine supplied,
-    /// which made one framework's attribute name look like part of OpenTelemetry: only one rule ever used
-    /// it. `service.name` stays a structural dimension because it really is OTel's own resource
-    /// attribute; `metadata` is a framework's, so the key belongs in the asset beside the value.
-    #[serde(default)]
-    pub span_attr_contains: Vec<KeyValue>,
-    /// A resource attribute contains this substring - how an instrumentation library identifies itself
-    /// through `telemetry.sdk.name`.
-    #[serde(default)]
-    pub resource_attr_contains: Vec<KeyValue>,
-    /// A case-insensitive phrase search over the span name or a named attribute.
-    #[serde(default)]
-    pub text_contains: Option<TextContains>,
 }
 
 /// One carrier declaration: what to match, and what the matched carrier is evidence of.

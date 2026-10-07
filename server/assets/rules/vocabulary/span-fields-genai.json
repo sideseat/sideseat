@@ -163,13 +163,9 @@
           "id": "agents_response_id",
           "doc": "A bare `response_id`, read only on the one span that is known to write it - the model call whose message template names it. The key is too generic to read on anyone else's span.",
           "attribute": "response_id",
-          "when": {
-            "attr_equals": [
-              {
-                "key": "logfire.msg_template",
-                "value": "Responses API with {gen_ai.request.model!r}"
-              }
-            ]
+          "where": {
+            "source": "attr:logfire.msg_template",
+            "equals": "Responses API with {gen_ai.request.model!r}"
           }
         }
       ]
@@ -419,13 +415,9 @@
             "path": "$.finish_reason",
             "scalar_only": true
           },
-          "when": {
-            "attr_equals_ignore_case": [
-              {
-                "key": "openinference.span.kind",
-                "value": "LLM"
-              }
-            ]
+          "where": {
+            "source": "attr:openinference.span.kind",
+            "equals_ignore_case": "LLM"
           },
           "on_malformed": "continue",
           "doc": "A model call's serialised result with a top-level `finish_reason`. Only on an LLM span: `output.value` is any operation's output, and an application's own result may hold a member of that name."
@@ -437,13 +429,9 @@
             "path": "$.generations[0:][0:].message.kwargs.response_metadata.stopReason",
             "reduce": "collect_all"
           },
-          "when": {
-            "attr_equals_ignore_case": [
-              {
-                "key": "openinference.span.kind",
-                "value": "LLM"
-              }
-            ]
+          "where": {
+            "source": "attr:openinference.span.kind",
+            "equals_ignore_case": "LLM"
           },
           "on_malformed": "continue",
           "doc": "A serialised generation result whose messages keep the provider's response metadata - Bedrock Converse's `stopReason` there. Every generation, because each states its own."
@@ -455,13 +443,9 @@
             "path": "$.generations[0:][0:].message.kwargs.response_metadata.stopReason",
             "reduce": "collect_all"
           },
-          "when": {
-            "attr_equals_ignore_case": [
-              {
-                "key": "langsmith.span.kind",
-                "value": "llm"
-              }
-            ]
+          "where": {
+            "source": "attr:langsmith.span.kind",
+            "equals_ignore_case": "llm"
           },
           "on_malformed": "continue",
           "doc": "The same generation result under the conventions' old completion key, which is where LangSmith's OpenTelemetry mode writes a chat model run: each generation keeps the provider's response metadata, Bedrock Converse's `stopReason` there."
@@ -473,13 +457,9 @@
             "path": "$.finishReason",
             "scalar_only": true
           },
-          "when": {
-            "attr_equals": [
-              {
-                "key": "genkit:metadata:subtype",
-                "value": "model"
-              }
-            ]
+          "where": {
+            "source": "attr:genkit:metadata:subtype",
+            "equals": "model"
           },
           "on_malformed": "continue",
           "doc": "Why a Genkit model action stopped, which Genkit states beside its response."

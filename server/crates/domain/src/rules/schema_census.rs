@@ -77,15 +77,7 @@ const IMPLICIT_DEFAULTS: &[&str] = &[
 /// They derive equality that overlap, shadowing and arena checks compare on, so a `doc` would make two
 /// otherwise identical declarations unequal and slip past those refusals. Each is retired by the unified
 /// predicate and source grammar, which gives `where` and sources `doc` from the start.
-const DOC_EXEMPT: &[&str] = &[
-    "MatchSpec",
-    "DetectMatch",
-    "KeyValue",
-    "TextContains",
-    "SpanSource",
-    "EventSource",
-    "InstrumentationScopeMatch",
-];
+const DOC_EXEMPT: &[&str] = &["MatchSpec", "SpanSource", "EventSource"];
 
 fn generated() -> Value {
     let generator = schemars::generate::SchemaSettings::draft2020_12().into_generator();

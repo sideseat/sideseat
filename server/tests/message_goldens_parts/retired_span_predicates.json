@@ -1,0 +1,3357 @@
+{
+ "doc": "The span predicates `where` replaced, frozen from the assets of 390e5c9f, keyed by clause. Read by every_where_answers_as_the_predicate_it_replaced_over_the_corpus.",
+ "clauses": [
+  {
+   "kind": "message",
+   "clause": "generic-io.fallback_response",
+   "unless": {
+    "attr_equals": [
+     {
+      "key": "rpc.system",
+      "value": "jsonrpc"
+     }
+    ],
+    "attr_exists": [
+     "output.value"
+    ]
+   }
+  },
+  {
+   "kind": "span_fact",
+   "clause": "semconv.tool_execution.operation_name",
+   "signal": {
+    "attr_equals": {
+     "key": "gen_ai.operation.name",
+     "value": "execute_tool"
+    }
+   }
+  },
+  {
+   "kind": "span_fact",
+   "clause": "semconv.tool_execution.tool_name",
+   "signal": {
+    "attrs_present": [
+     "gen_ai.tool.name",
+     "gen_ai.tool.call.id"
+    ]
+   }
+  },
+  {
+   "kind": "detect",
+   "clause": "ag2.detect",
+   "match": {
+    "scope_name": [
+     "opentelemetry.instrumentation.ag2"
+    ],
+    "attr_prefix": [
+     "ag2."
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "detect",
+   "clause": "agent-framework.detect",
+   "match": {
+    "attr_equals": [
+     {
+      "key": "gen_ai.provider.name",
+      "value": "microsoft.agent_framework"
+     }
+    ],
+    "service_name": [
+     "agent-framework-core"
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "detect",
+   "clause": "agentscope.detect",
+   "match": {
+    "attr_prefix": [
+     "agentscope."
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "message",
+   "clause": "agentscope.tool_call_result",
+   "instrumentation_scope": {
+    "name": "agentscope"
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "agentscope.tool_call_result_blocks",
+   "instrumentation_scope": {
+    "name": "agentscope"
+   }
+  },
+  {
+   "kind": "detect",
+   "clause": "agno.detect",
+   "match": {
+    "attr_prefix": [
+     "agno."
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "message",
+   "clause": "agno.llm_output_messages",
+   "when": {
+    "attr_equals": [
+     {
+      "key": "openinference.span.kind",
+      "value": "LLM"
+     }
+    ]
+   },
+   "unless": {
+    "attr_exists": [
+     "llm.output_messages.0.message.role"
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "openinference.instrumentation.agno"
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "agno.tool_output_literal",
+   "when": {
+    "attr_equals_ignore_case": [
+     {
+      "key": "openinference.span.kind",
+      "value": "tool"
+     }
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "openinference.instrumentation.agno"
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "agno.tool_output",
+   "when": {
+    "attr_equals_ignore_case": [
+     {
+      "key": "openinference.span.kind",
+      "value": "tool"
+     }
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "openinference.instrumentation.agno"
+   }
+  },
+  {
+   "kind": "detect",
+   "clause": "autogen.detect",
+   "match": {
+    "span_name": [
+     "autogen ",
+     "autogen."
+    ],
+    "attr_prefix": [
+     "autogen."
+    ],
+    "attr_equals": [
+     {
+      "key": "gen_ai.system",
+      "value": "autogen"
+     }
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "message",
+   "clause": "autogen.message",
+   "unless": {
+    "attr_equals": [
+     {
+      "key": "message",
+      "value": "No Message"
+     },
+     {
+      "key": "message",
+      "value": "{}"
+     }
+    ]
+   }
+  },
+  {
+   "kind": "detect",
+   "clause": "azure-ai-foundry.detect",
+   "match": {
+    "attr_prefix": [
+     "az.ai."
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "detect",
+   "clause": "azure-openai.detect",
+   "match": {
+    "attr_prefix": [
+     "azure.openai."
+    ],
+    "attr_equals": [
+     {
+      "key": "gen_ai.system",
+      "value": "azure_openai"
+     },
+     {
+      "key": "gen_ai.system",
+      "value": "azure.openai"
+     },
+     {
+      "key": "gen_ai.provider.name",
+      "value": "azure_openai"
+     },
+     {
+      "key": "gen_ai.provider.name",
+      "value": "azure.ai.openai"
+     }
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "detect",
+   "clause": "azure-openai.detect.openinference",
+   "match": {
+    "attr_equals": [
+     {
+      "key": "llm.provider",
+      "value": "azure"
+     }
+    ]
+   },
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "llm.system",
+       "value": "openai"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "detect",
+   "clause": "bedrock.detect",
+   "match": {
+    "attr_prefix": [
+     "aws.bedrock."
+    ],
+    "attr_equals": [
+     {
+      "key": "gen_ai.system",
+      "value": "aws_bedrock"
+     },
+     {
+      "key": "gen_ai.system",
+      "value": "aws.bedrock"
+     }
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "detect",
+   "clause": "browser-use.detect",
+   "match": {
+    "attr_equals": [
+     {
+      "key": "gen_ai.provider.name",
+      "value": "browser_use"
+     }
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "detect",
+   "clause": "browser-use.detect.laminar_agent_run",
+   "match": {
+    "span_attr_contains": [
+     {
+      "key": "lmnr.span.path",
+      "value": "\"agent.run\""
+     }
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.laminar_tool",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "lmnr.span.type",
+       "value": "TOOL"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.laminar_tool",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "lmnr.span.type",
+       "value": "TOOL"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "message",
+   "clause": "browser-use.action_call",
+   "when": {
+    "attr_equals": [
+     {
+      "key": "lmnr.span.type",
+      "value": "TOOL"
+     }
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "lmnr.tracer"
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "browser-use.action_result",
+   "when": {
+    "attr_equals": [
+     {
+      "key": "lmnr.span.type",
+      "value": "TOOL"
+     }
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "lmnr.tracer"
+   }
+  },
+  {
+   "kind": "span_fact",
+   "clause": "browser-use.tool_execution.span_type",
+   "signal": {
+    "attr_equals": {
+     "key": "lmnr.span.type",
+     "value": "TOOL"
+    }
+   }
+  },
+  {
+   "kind": "detect",
+   "clause": "claude-agent-sdk.detect",
+   "match": {
+    "span_name": [
+     "claude_code."
+    ],
+    "service_name": [
+     "claude-code",
+     "claude-agent-sdk"
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "message",
+   "clause": "claude-agent-sdk.system_prompt",
+   "when": {
+    "span_name": [
+     "claude_code."
+    ]
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "claude-agent-sdk.new_context",
+   "when": {
+    "span_name": [
+     "claude_code."
+    ]
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "claude-agent-sdk.model_output",
+   "when": {
+    "span_name": [
+     "claude_code."
+    ]
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "claude-agent-sdk.tool_call",
+   "when": {
+    "span_name": [
+     "claude_code."
+    ]
+   }
+  },
+  {
+   "kind": "detect",
+   "clause": "codex.detect",
+   "match": {
+    "service_name": [
+     "codex_exec",
+     "codex_cli_rs",
+     "codex_vscode"
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "detect",
+   "clause": "crewai.detect",
+   "match": {
+    "service_name": [
+     "crewAI-telemetry"
+    ],
+    "attr_exists": [
+     "crewai_version",
+     "crew_key",
+     "crew_id",
+     "crew_fingerprint",
+     "task_key"
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "message",
+   "clause": "crewai.crew_tasks",
+   "when": {
+    "attr_exists": [
+     "crew_key",
+     "crew_id",
+     "crew_tasks",
+     "task_key"
+    ]
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "crewai.output",
+   "when": {
+    "attr_exists": [
+     "crew_key",
+     "crew_id",
+     "crew_tasks",
+     "task_key"
+    ]
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "crewai.agent_task_tools",
+   "when": {
+    "attr_exists": [
+     "crew_key",
+     "crew_id",
+     "crew_tasks",
+     "task_key",
+     "crew_agents"
+    ]
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "crewai.input_value_tools",
+   "when": {
+    "attr_exists": [
+     "crew_key",
+     "crew_id",
+     "crew_tasks",
+     "task_key",
+     "crew_agents"
+    ]
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "crewai.aggregate_input",
+   "when": {
+    "attr_exists": [
+     "crew_key",
+     "crew_id",
+     "crew_tasks",
+     "task_key",
+     "crew_agents"
+    ]
+   }
+  },
+  {
+   "kind": "detect",
+   "clause": "genkit.detect",
+   "match": {
+    "attr_prefix": [
+     "genkit:"
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.genkit_model",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "genkit:metadata:subtype",
+       "value": "model"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.genkit_tool",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "genkit:metadata:subtype",
+       "value": "tool.v2"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.genkit_tool_v1",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "genkit:metadata:subtype",
+       "value": "tool"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.genkit_flow",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "genkit:metadata:subtype",
+       "value": "flow"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.genkit_model",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "genkit:metadata:subtype",
+       "value": "model"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.genkit_tool",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "genkit:metadata:subtype",
+       "value": "tool.v2"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.genkit_tool_v1",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "genkit:metadata:subtype",
+       "value": "tool"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.genkit_flow",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "genkit:metadata:subtype",
+       "value": "flow"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "message",
+   "clause": "genkit.model_request",
+   "when": {
+    "attr_equals": [
+     {
+      "key": "genkit:metadata:subtype",
+      "value": "model"
+     }
+    ]
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "genkit.model_response",
+   "when": {
+    "attr_equals": [
+     {
+      "key": "genkit:metadata:subtype",
+      "value": "model"
+     }
+    ]
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "genkit.model_tools",
+   "when": {
+    "attr_equals": [
+     {
+      "key": "genkit:metadata:subtype",
+      "value": "model"
+     }
+    ]
+   }
+  },
+  {
+   "kind": "detect",
+   "clause": "google-adk.detect",
+   "match": {
+    "attr_prefix": [
+     "google.adk.",
+     "gcp.vertex.agent."
+    ],
+    "attr_equals": [
+     {
+      "key": "gen_ai.system",
+      "value": "gcp.vertex.agent"
+     }
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "message",
+   "clause": "google-adk.event_content_request",
+   "instrumentation_scope": {
+    "name": "gcp.vertex.agent"
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "google-adk.event_content_choice",
+   "instrumentation_scope": {
+    "name": "gcp.vertex.agent"
+   }
+  },
+  {
+   "kind": "span_fact",
+   "clause": "google-adk.tool_execution.agent_tool_response",
+   "signal": {
+    "attrs_present": [
+     "gcp.vertex.agent.tool_response"
+    ]
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "google-genai.tool_call_arguments",
+   "instrumentation_scope": {
+    "one_of": [
+     "opentelemetry.instrumentation.google_genai",
+     "opentelemetry.util.genai.handler"
+    ]
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "google-genai.tool_call_parameters",
+   "instrumentation_scope": {
+    "one_of": [
+     "opentelemetry.instrumentation.google_genai",
+     "opentelemetry.util.genai.handler"
+    ]
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "google-genai.tool_call_return",
+   "instrumentation_scope": {
+    "one_of": [
+     "opentelemetry.instrumentation.google_genai",
+     "opentelemetry.util.genai.handler"
+    ]
+   }
+  },
+  {
+   "kind": "detect",
+   "clause": "haystack.detect",
+   "match": {
+    "scope_name": [
+     "haystack",
+     "openinference.instrumentation.haystack"
+    ],
+    "attr_prefix": [
+     "haystack."
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.haystack_agent_step_llm",
+   "all_of": [
+    {
+     "span_name_exact": [
+      "haystack.agent.step.llm"
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.haystack_agent_step_tool",
+   "all_of": [
+    {
+     "span_name_exact": [
+      "haystack.agent.step.tool"
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.haystack_agent",
+   "all_of": [
+    {
+     "span_name_exact": [
+      "haystack.agent.run",
+      "haystack.agent.step"
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.haystack_chat_generator_component",
+   "all_of": [
+    {
+     "span_name_exact": [
+      "haystack.component.run"
+     ]
+    },
+    {
+     "attr_equals": [
+      {
+       "key": "haystack.component.type",
+       "value": "OpenAIChatGenerator"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.haystack_agent_component",
+   "all_of": [
+    {
+     "span_name_exact": [
+      "haystack.component.run"
+     ]
+    },
+    {
+     "attr_equals": [
+      {
+       "key": "haystack.component.type",
+       "value": "Agent"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.haystack_pipeline",
+   "all_of": [
+    {
+     "span_name_exact": [
+      "haystack.pipeline.run"
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.haystack_component",
+   "all_of": [
+    {
+     "span_name_exact": [
+      "haystack.component.run"
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.haystack_agent_step_llm",
+   "all_of": [
+    {
+     "span_name_exact": [
+      "haystack.agent.step.llm"
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.haystack_agent_step_tool",
+   "all_of": [
+    {
+     "span_name_exact": [
+      "haystack.agent.step.tool"
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.haystack_chat_generator_component",
+   "all_of": [
+    {
+     "span_name_exact": [
+      "haystack.component.run"
+     ]
+    },
+    {
+     "attr_equals": [
+      {
+       "key": "haystack.component.type",
+       "value": "OpenAIChatGenerator"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.haystack_agent",
+   "all_of": [
+    {
+     "span_name_exact": [
+      "haystack.agent.run",
+      "haystack.agent.step"
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.haystack_agent_component",
+   "all_of": [
+    {
+     "span_name_exact": [
+      "haystack.component.run"
+     ]
+    },
+    {
+     "attr_equals": [
+      {
+       "key": "haystack.component.type",
+       "value": "Agent"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.haystack_pipeline",
+   "all_of": [
+    {
+     "span_name_exact": [
+      "haystack.pipeline.run"
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.haystack_component",
+   "all_of": [
+    {
+     "span_name_exact": [
+      "haystack.component.run"
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "message",
+   "clause": "haystack.agent_step_llm_input",
+   "when": {
+    "span_name_exact": [
+     "haystack.agent.step.llm"
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "haystack"
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "haystack.agent_step_llm_output",
+   "when": {
+    "span_name_exact": [
+     "haystack.agent.step.llm"
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "haystack"
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "haystack.agent_input",
+   "when": {
+    "span_name_exact": [
+     "haystack.agent.run"
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "haystack"
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "haystack.agent_output",
+   "when": {
+    "span_name_exact": [
+     "haystack.agent.run"
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "haystack"
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "haystack.component_input",
+   "when": {
+    "span_name_exact": [
+     "haystack.component.run"
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "haystack"
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "haystack.component_output",
+   "when": {
+    "span_name_exact": [
+     "haystack.component.run"
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "haystack"
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "haystack.pipeline_input",
+   "when": {
+    "span_name_exact": [
+     "haystack.pipeline.run"
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "haystack"
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "haystack.pipeline_output",
+   "when": {
+    "span_name_exact": [
+     "haystack.pipeline.run"
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "haystack"
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "haystack.agent_step_tool_input",
+   "when": {
+    "span_name_exact": [
+     "haystack.agent.step.tool"
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "haystack"
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "haystack.agent_step_tool_output",
+   "when": {
+    "span_name_exact": [
+     "haystack.agent.step.tool"
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "haystack"
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "haystack.agent_tools",
+   "when": {
+    "span_name_exact": [
+     "haystack.agent.run"
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "haystack"
+   }
+  },
+  {
+   "kind": "span_fact",
+   "clause": "haystack.tool_execution.agent_step_tool",
+   "signal": {
+    "attrs_present": [
+     "haystack.tool.name",
+     "haystack.agent.step.tool.input",
+     "haystack.agent.step.tool.output"
+    ]
+   }
+  },
+  {
+   "kind": "detect",
+   "clause": "langchain.detect",
+   "match": {
+    "scope_name": [
+     "openinference.instrumentation.langchain"
+    ],
+    "attr_prefix": [
+     "langchain.",
+     "langsmith."
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "message",
+   "clause": "langchain.prompt_value",
+   "when": {
+    "attr_equals_ignore_case": [
+     {
+      "key": "openinference.span.kind",
+      "value": "prompt"
+     }
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "openinference.instrumentation.langchain"
+   }
+  },
+  {
+   "kind": "detect",
+   "clause": "langflow.detect",
+   "match": {
+    "attr_prefix": [
+     "langflow."
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "detect",
+   "clause": "langfuse.detect",
+   "match": {
+    "attr_prefix": [
+     "langfuse.observation."
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.langfuse_generation",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "langfuse.observation.type",
+       "value": "generation"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.langfuse_tool",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "langfuse.observation.type",
+       "value": "tool"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.langfuse_agent",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "langfuse.observation.type",
+       "value": "agent"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.langfuse_chain",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "langfuse.observation.type",
+       "value": "chain"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.langfuse_retriever",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "langfuse.observation.type",
+       "value": "retriever"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.langfuse_embedding",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "langfuse.observation.type",
+       "value": "embedding"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.langfuse_evaluator",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "langfuse.observation.type",
+       "value": "evaluator"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.langfuse_guardrail",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "langfuse.observation.type",
+       "value": "guardrail"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.langfuse_generation",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "langfuse.observation.type",
+       "value": "generation"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.langfuse_tool",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "langfuse.observation.type",
+       "value": "tool"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.langfuse_agent",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "langfuse.observation.type",
+       "value": "agent"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.langfuse_chain",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "langfuse.observation.type",
+       "value": "chain"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.langfuse_retriever",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "langfuse.observation.type",
+       "value": "retriever"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.langfuse_embedding",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "langfuse.observation.type",
+       "value": "embedding"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "message",
+   "clause": "langfuse.generation_input",
+   "when": {
+    "attr_equals": [
+     {
+      "key": "langfuse.observation.type",
+      "value": "generation"
+     }
+    ]
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "langfuse.generation_output",
+   "when": {
+    "attr_equals": [
+     {
+      "key": "langfuse.observation.type",
+      "value": "generation"
+     }
+    ]
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "langfuse.generation_tools",
+   "when": {
+    "attr_equals": [
+     {
+      "key": "langfuse.observation.type",
+      "value": "generation"
+     }
+    ]
+   }
+  },
+  {
+   "kind": "detect",
+   "clause": "langgraph.detect",
+   "match": {
+    "span_name_exact": [
+     "LangGraph"
+    ],
+    "span_name": [
+     "LangGraph."
+    ],
+    "attr_prefix": [
+     "langgraph."
+    ],
+    "span_attr_contains": [
+     {
+      "key": "metadata",
+      "value": "langgraph_"
+     }
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "message",
+   "clause": "langgraph.input_value",
+   "when": {
+    "attr_exists": [
+     "langgraph.node",
+     "langgraph.checkpoint_ns",
+     "langgraph.thread_id"
+    ],
+    "span_attr_contains": [
+     {
+      "key": "metadata",
+      "value": "langgraph_"
+     }
+    ]
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "langgraph.output_value",
+   "when": {
+    "attr_exists": [
+     "langgraph.node",
+     "langgraph.checkpoint_ns",
+     "langgraph.thread_id"
+    ],
+    "span_attr_contains": [
+     {
+      "key": "metadata",
+      "value": "langgraph_"
+     }
+    ]
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "langgraph.message",
+   "when": {
+    "attr_exists": [
+     "langgraph.node",
+     "langgraph.checkpoint_ns",
+     "langgraph.thread_id"
+    ],
+    "span_attr_contains": [
+     {
+      "key": "metadata",
+      "value": "langgraph_"
+     }
+    ]
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "langsmith.prompt",
+   "when": {
+    "attr_prefix": [
+     "langsmith."
+    ],
+    "attr_exists": [
+     "langsmith.span.kind",
+     "langsmith.trace.session_id",
+     "langsmith.trace.name"
+    ]
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "langsmith.completion",
+   "when": {
+    "attr_prefix": [
+     "langsmith."
+    ],
+    "attr_exists": [
+     "langsmith.span.kind",
+     "langsmith.trace.session_id",
+     "langsmith.trace.name"
+    ]
+   }
+  },
+  {
+   "kind": "detect",
+   "clause": "livekit.detect",
+   "match": {
+    "attr_prefix": [
+     "livekit.",
+     "lk."
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "message",
+   "clause": "livekit.response_calls_only",
+   "unless": {
+    "attr_exists": [
+     "lk.response.text"
+    ]
+   }
+  },
+  {
+   "kind": "detect",
+   "clause": "llamaindex.detect",
+   "match": {
+    "scope_name": [
+     "openinference.instrumentation.llama_index"
+    ],
+    "attr_prefix": [
+     "llama_index."
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "message",
+   "clause": "llamaindex.chain_input",
+   "when": {
+    "attr_equals_ignore_case": [
+     {
+      "key": "openinference.span.kind",
+      "value": "chain"
+     }
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "openinference.instrumentation.llama_index"
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "llamaindex.chain_output",
+   "when": {
+    "attr_equals_ignore_case": [
+     {
+      "key": "openinference.span.kind",
+      "value": "chain"
+     }
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "openinference.instrumentation.llama_index"
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "llamaindex.prepare_chat_input",
+   "when": {
+    "span_name_exact": [
+     "OpenAI._prepare_chat_with_tools",
+     "BedrockConverse._prepare_chat_with_tools"
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "openinference.instrumentation.llama_index"
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "llamaindex.prepare_chat_output",
+   "when": {
+    "span_name_exact": [
+     "OpenAI._prepare_chat_with_tools",
+     "BedrockConverse._prepare_chat_with_tools"
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "openinference.instrumentation.llama_index"
+   }
+  },
+  {
+   "kind": "detect",
+   "clause": "logfire.detect",
+   "match": {
+    "attr_prefix": [
+     "logfire."
+    ],
+    "resource_attr_contains": [
+     {
+      "key": "telemetry.sdk.name",
+      "value": "logfire"
+     }
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "message",
+   "clause": "logfire.request_data_tools",
+   "unless": {
+    "attr_exists": [
+     "gen_ai.tool.definitions"
+    ]
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "logfire.fallback_raw_input",
+   "unless": {
+    "attr_exists": [
+     "input.value"
+    ]
+   }
+  },
+  {
+   "kind": "detect",
+   "clause": "mlflow.detect",
+   "match": {
+    "attr_prefix": [
+     "mlflow."
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "detect",
+   "clause": "openai-agents.detect",
+   "match": {
+    "scope_name": [
+     "logfire.openai_agents"
+    ],
+    "attr_prefix": [
+     "openai.agents."
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "detect",
+   "clause": "openai-agents.detect.service_name_under_logfire",
+   "match": {
+    "service_name": [
+     "openai-agents",
+     "openai_agents"
+    ]
+   },
+   "all_of": [
+    {
+     "attr_prefix": [
+      "logfire."
+     ],
+     "resource_attr_contains": [
+      {
+       "key": "telemetry.sdk.name",
+       "value": "logfire"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "detect",
+   "clause": "openai-agents.detect.service_name",
+   "match": {
+    "service_name": [
+     "openai-agents",
+     "openai_agents"
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "message",
+   "clause": "openai-agents.function_input",
+   "when": {
+    "attr_equals": [
+     {
+      "key": "logfire.msg_template",
+      "value": "Function: {name}"
+     }
+    ]
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "openai-agents.function_output",
+   "when": {
+    "attr_equals": [
+     {
+      "key": "logfire.msg_template",
+      "value": "Function: {name}"
+     }
+    ]
+   }
+  },
+  {
+   "kind": "span_fact",
+   "clause": "openai-agents.function_execution.logfire_function",
+   "signal": {
+    "attr_equals": {
+     "key": "logfire.msg_template",
+     "value": "Function: {name}"
+    },
+    "attrs_present": [
+     "name",
+     "input",
+     "output"
+    ]
+   }
+  },
+  {
+   "kind": "detect",
+   "clause": "openinference.detect",
+   "match": {
+    "attr_prefix": [
+     "openinference."
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "message",
+   "clause": "openinference.tool_output_with_id",
+   "when": {
+    "attr_exists": [
+     "tool.id"
+    ],
+    "attr_equals_ignore_case": [
+     {
+      "key": "openinference.span.kind",
+      "value": "tool"
+     }
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "openinference.instrumentation.generic"
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "openinference.tool_output_literal",
+   "when": {
+    "attr_equals_ignore_case": [
+     {
+      "key": "openinference.span.kind",
+      "value": "tool"
+     }
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "openinference.instrumentation.autogen_agentchat"
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "openinference.tool_output",
+   "when": {
+    "attr_equals_ignore_case": [
+     {
+      "key": "openinference.span.kind",
+      "value": "tool"
+     }
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "openinference.instrumentation.autogen_agentchat"
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "openinference.single_tool",
+   "when": {
+    "attr_exists": [
+     "tool.name"
+    ]
+   },
+   "unless": {
+    "attr_exists": [
+     "gen_ai.tool.name"
+    ]
+   }
+  },
+  {
+   "kind": "span_fact",
+   "clause": "openinference.tool_execution.span_kind",
+   "signal": {
+    "attr_equals": {
+     "key": "openinference.span.kind",
+     "value": "tool"
+    },
+    "ignore_case": true
+   }
+  },
+  {
+   "kind": "detect",
+   "clause": "semantic-kernel.detect",
+   "match": {
+    "scope_name": [
+     "semantic_kernel.connectors.ai.chat_completion_client_base",
+     "semantic_kernel.functions.kernel_function",
+     "semantic_kernel.utils.telemetry.agent_diagnostics.decorators",
+     "semantic_kernel.utils.telemetry.model_diagnostics.decorators"
+    ],
+    "attr_prefix": [
+     "semantic_kernel."
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "message",
+   "clause": "semantic-kernel.tool_call_result_literal",
+   "instrumentation_scope": {
+    "name": "semantic_kernel.functions.kernel_function"
+   }
+  },
+  {
+   "kind": "detect",
+   "clause": "smolagents.detect",
+   "match": {
+    "attr_prefix": [
+     "smolagents."
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "message",
+   "clause": "smolagents.agent_chain_input",
+   "when": {
+    "attr_equals_ignore_case": [
+     {
+      "key": "openinference.span.kind",
+      "value": "agent"
+     },
+     {
+      "key": "openinference.span.kind",
+      "value": "chain"
+     }
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "openinference.instrumentation.smolagents"
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "smolagents.agent_stream_objects",
+   "when": {
+    "attr_equals_ignore_case": [
+     {
+      "key": "openinference.span.kind",
+      "value": "agent"
+     }
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "openinference.instrumentation.smolagents"
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "smolagents.agent_chain_output",
+   "when": {
+    "attr_equals_ignore_case": [
+     {
+      "key": "openinference.span.kind",
+      "value": "agent"
+     },
+     {
+      "key": "openinference.span.kind",
+      "value": "chain"
+     }
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "openinference.instrumentation.smolagents"
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "smolagents.tool_output",
+   "when": {
+    "attr_equals_ignore_case": [
+     {
+      "key": "openinference.span.kind",
+      "value": "tool"
+     }
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "openinference.instrumentation.smolagents"
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "smolagents.tool_input",
+   "when": {
+    "attr_equals_ignore_case": [
+     {
+      "key": "openinference.span.kind",
+      "value": "tool"
+     }
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "openinference.instrumentation.smolagents"
+   }
+  },
+  {
+   "kind": "message",
+   "clause": "smolagents.llm_input_reprs",
+   "when": {
+    "attr_equals_ignore_case": [
+     {
+      "key": "openinference.span.kind",
+      "value": "llm"
+     }
+    ]
+   },
+   "unless": {
+    "attr_exists": [
+     "llm.input_messages.0.message.role"
+    ]
+   },
+   "instrumentation_scope": {
+    "name": "openinference.instrumentation.smolagents"
+   }
+  },
+  {
+   "kind": "detect",
+   "clause": "strands.detect",
+   "match": {
+    "service_name": [
+     "strands-agents"
+    ],
+    "text_contains": {
+     "sources": [
+      "span_name",
+      "attr:gen_ai.agent.name"
+     ],
+     "needles": [
+      "strands agent",
+      "strands-agent",
+      "strands_agent"
+     ]
+    }
+   },
+   "all_of": []
+  },
+  {
+   "kind": "detect",
+   "clause": "strands.detect.self_identified",
+   "match": {
+    "attr_equals": [
+     {
+      "key": "gen_ai.system",
+      "value": "strands-agents"
+     },
+     {
+      "key": "gen_ai.provider.name",
+      "value": "strands-agents"
+     }
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "detect",
+   "clause": "traceloop.detect",
+   "match": {
+    "attr_prefix": [
+     "traceloop."
+    ],
+    "resource_attr_contains": [
+     {
+      "key": "telemetry.sdk.name",
+      "value": "traceloop"
+     }
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.traceloop_tool",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "traceloop.span.kind",
+       "value": "tool"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.traceloop_agent",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "traceloop.span.kind",
+       "value": "agent"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.traceloop_chain",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "traceloop.span.kind",
+       "value": "workflow"
+      },
+      {
+       "key": "traceloop.span.kind",
+       "value": "task"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.traceloop_tool",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "traceloop.span.kind",
+       "value": "tool"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.traceloop_agent",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "traceloop.span.kind",
+       "value": "agent"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.traceloop_chain",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "traceloop.span.kind",
+       "value": "workflow"
+      },
+      {
+       "key": "traceloop.span.kind",
+       "value": "task"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "span_fact",
+   "clause": "traceloop.tool_execution.span_kind",
+   "signal": {
+    "attr_equals": {
+     "key": "traceloop.span.kind",
+     "value": "tool"
+    },
+    "ignore_case": true
+   }
+  },
+  {
+   "kind": "detect",
+   "clause": "vercel-ai.detect",
+   "match": {
+    "attr_exists": [
+     "ai.operationId",
+     "ai.telemetry.functionId",
+     "ai.telemetry.metadata"
+    ],
+    "attr_prefix": [
+     "ai.prompt.",
+     "ai.completion.",
+     "ai.settings.",
+     "ai.telemetry.",
+     "ai.stream.",
+     "ai.finishReason",
+     "ai.usage."
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "compose",
+   "clause": "vercel-ai.response.member0",
+   "when": {
+    "attr_exists": [
+     "ai.prompt.messages",
+     "ai.prompt",
+     "ai.response.text",
+     "ai.result.text",
+     "ai.response.toolCalls",
+     "ai.result.toolCalls",
+     "ai.toolCall.name"
+    ],
+    "span_name": [
+     "ai."
+    ]
+   }
+  },
+  {
+   "kind": "span_fact",
+   "clause": "vercel-ai.tool_execution.toolcall_name",
+   "signal": {
+    "attrs_present": [
+     "ai.toolCall.name",
+     "ai.toolCall.id"
+    ]
+   }
+  },
+  {
+   "kind": "detect",
+   "clause": "vertex-ai.detect",
+   "match": {
+    "scope_name": [
+     "opentelemetry.instrumentation.google_genai"
+    ]
+   },
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "gen_ai.provider.name",
+       "value": "vertex_ai"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "detect",
+   "clause": "vertex-ai.detect.legacy-openllmetry",
+   "match": {
+    "span_name": [
+     "vertexai."
+    ]
+   },
+   "all_of": []
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.transport",
+   "all_of": [
+    {
+     "attr_exists": [
+      "http.method",
+      "http.request.method",
+      "rpc.system",
+      "db.system"
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.chat_of_an_embedding_model",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "gen_ai.operation.name",
+       "value": "chat"
+      },
+      {
+       "key": "gen_ai.operation.name",
+       "value": "text_completion"
+      }
+     ]
+    },
+    {
+     "text_contains": {
+      "sources": [
+       "attr:gen_ai.request.model",
+       "attr:gen_ai.response.model"
+      ],
+      "needles": [
+       "embed"
+      ],
+      "first_present_source": true
+     }
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.chat",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "gen_ai.operation.name",
+       "value": "chat"
+      },
+      {
+       "key": "gen_ai.operation.name",
+       "value": "text_completion"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.embeddings",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "gen_ai.operation.name",
+       "value": "embeddings"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.execute_tool",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "gen_ai.operation.name",
+       "value": "execute_tool"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.invoke_agent",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "gen_ai.operation.name",
+       "value": "invoke_agent"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.tool_call_execution",
+   "all_of": [
+    {
+     "attr_exists": [
+      "gen_ai.tool.name"
+     ]
+    },
+    {
+     "attr_exists": [
+      "gen_ai.tool.call.id"
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.mcp_tool_call",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "mcp.method.name",
+       "value": "tools/call"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.agent_construction",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "gen_ai.operation.name",
+       "value": "create_agent"
+      }
+     ]
+    },
+    {
+     "attr_equals": [
+      {
+       "key": "gen_ai.system",
+       "value": "autogen"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.kind.openinference.llm",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "openinference.span.kind",
+       "value": "LLM"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.kind.openinference.embedding",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "openinference.span.kind",
+       "value": "EMBEDDING"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.kind.openinference.agent",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "openinference.span.kind",
+       "value": "AGENT"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.kind.openinference.tool",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "openinference.span.kind",
+       "value": "TOOL"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.kind.openinference.chain",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "openinference.span.kind",
+       "value": "CHAIN"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.kind.openinference.retriever",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "openinference.span.kind",
+       "value": "RETRIEVER"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.kind.openinference.guardrail",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "openinference.span.kind",
+       "value": "GUARDRAIL"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.kind.openinference.evaluator",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "openinference.span.kind",
+       "value": "EVALUATOR"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.kind.langsmith.llm",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "langsmith.span.kind",
+       "value": "LLM"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.kind.langsmith.embedding",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "langsmith.span.kind",
+       "value": "EMBEDDING"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.kind.langsmith.agent",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "langsmith.span.kind",
+       "value": "AGENT"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.kind.langsmith.tool",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "langsmith.span.kind",
+       "value": "TOOL"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.kind.langsmith.chain",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "langsmith.span.kind",
+       "value": "CHAIN"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.kind.langsmith.retriever",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "langsmith.span.kind",
+       "value": "RETRIEVER"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.kind.langsmith.guardrail",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "langsmith.span.kind",
+       "value": "GUARDRAIL"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.kind.langsmith.evaluator",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "langsmith.span.kind",
+       "value": "EVALUATOR"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.sdk_embedding_call",
+   "all_of": [
+    {
+     "attr_exists": [
+      "ai.model.id",
+      "ai.model.provider"
+     ]
+    },
+    {
+     "span_attr_contains": [
+      {
+       "key": "ai.operationId",
+       "value": "embed"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.sdk_model_call",
+   "all_of": [
+    {
+     "attr_exists": [
+      "ai.model.id",
+      "ai.model.provider"
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.named_agent",
+   "all_of": [
+    {
+     "attr_exists": [
+      "gen_ai.agent.name",
+      "gen_ai.agent.id"
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.named_tool",
+   "all_of": [
+    {
+     "attr_exists": [
+      "gen_ai.tool.name",
+      "gen_ai.tool.call.id"
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.name_says_embedding",
+   "all_of": [
+    {
+     "text_contains": {
+      "sources": [
+       "span_name"
+      ],
+      "needles": [
+       "embed"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.name_says_agent",
+   "all_of": [
+    {
+     "text_contains": {
+      "sources": [
+       "span_name"
+      ],
+      "needles": [
+       "agent"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.name_says_tool",
+   "all_of": [
+    {
+     "text_contains": {
+      "sources": [
+       "span_name"
+      ],
+      "needles": [
+       "tool"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.name_says_retriever",
+   "all_of": [
+    {
+     "text_contains": {
+      "sources": [
+       "span_name"
+      ],
+      "needles": [
+       "retriev"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.name_says_guardrail",
+   "all_of": [
+    {
+     "text_contains": {
+      "sources": [
+       "span_name"
+      ],
+      "needles": [
+       "guardrail"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.name_says_evaluator",
+   "all_of": [
+    {
+     "text_contains": {
+      "sources": [
+       "span_name"
+      ],
+      "needles": [
+       "eval"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.tagged_as_a_model_call",
+   "all_of": [
+    {
+     "text_contains": {
+      "sources": [
+       "attr:logfire.tags"
+      ],
+      "needles": [
+       "llm"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "observation_types",
+   "clause": "observation.has_a_model",
+   "all_of": [
+    {
+     "attr_exists": [
+      "gen_ai.request.model",
+      "gen_ai.response.model"
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.transport",
+   "all_of": [
+    {
+     "attr_exists": [
+      "http.method",
+      "http.request.method",
+      "rpc.system"
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.database",
+   "all_of": [
+    {
+     "attr_exists": [
+      "db.system"
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.messaging",
+   "all_of": [
+    {
+     "attr_exists": [
+      "messaging.system"
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.object_storage",
+   "all_of": [
+    {
+     "attr_prefix": [
+      "aws.s3."
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.chat_of_an_embedding_model",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "gen_ai.operation.name",
+       "value": "chat"
+      },
+      {
+       "key": "gen_ai.operation.name",
+       "value": "text_completion"
+      }
+     ]
+    },
+    {
+     "text_contains": {
+      "sources": [
+       "attr:gen_ai.request.model",
+       "attr:gen_ai.response.model"
+      ],
+      "needles": [
+       "embed"
+      ],
+      "first_present_source": true
+     }
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.chat",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "gen_ai.operation.name",
+       "value": "chat"
+      },
+      {
+       "key": "gen_ai.operation.name",
+       "value": "text_completion"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.embeddings",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "gen_ai.operation.name",
+       "value": "embeddings"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.tool_execution",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "gen_ai.operation.name",
+       "value": "execute_tool"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.mcp_tool_call_under_an_agent",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "mcp.method.name",
+       "value": "tools/call"
+      }
+     ]
+    },
+    {
+     "attr_exists": [
+      "gen_ai.agent.name"
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.mcp_tool_call",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "mcp.method.name",
+       "value": "tools/call"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.agent_operations",
+   "all_of": [
+    {
+     "attr_equals": [
+      {
+       "key": "gen_ai.operation.name",
+       "value": "invoke_agent"
+      },
+      {
+       "key": "gen_ai.operation.name",
+       "value": "invoke_swarm"
+      },
+      {
+       "key": "gen_ai.operation.name",
+       "value": "execute_event_loop_cycle"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.named_tool",
+   "all_of": [
+    {
+     "attr_exists": [
+      "gen_ai.tool.name"
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.named_agent",
+   "all_of": [
+    {
+     "attr_exists": [
+      "gen_ai.agent.name"
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.kind.llm",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "openinference.span.kind",
+       "value": "LLM"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.kind.embedding",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "openinference.span.kind",
+       "value": "EMBEDDING"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.kind.agent",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "openinference.span.kind",
+       "value": "AGENT"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.kind.tool",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "openinference.span.kind",
+       "value": "TOOL"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.kind.chain",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "openinference.span.kind",
+       "value": "CHAIN"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.kind.retriever",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "openinference.span.kind",
+       "value": "RETRIEVER"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.kind.guardrail",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "openinference.span.kind",
+       "value": "GUARDRAIL"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.kind.evaluator",
+   "all_of": [
+    {
+     "attr_equals_ignore_case": [
+      {
+       "key": "openinference.span.kind",
+       "value": "EVALUATOR"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.name_says_a_model_call",
+   "all_of": [
+    {
+     "text_contains": {
+      "sources": [
+       "span_name"
+      ],
+      "needles": [
+       "llm",
+       "chat"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.name_says_embedding",
+   "all_of": [
+    {
+     "text_contains": {
+      "sources": [
+       "span_name"
+      ],
+      "needles": [
+       "embed"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "kind": "classify",
+   "section": "span_categories",
+   "clause": "category.name_says_retrieval",
+   "all_of": [
+    {
+     "text_contains": {
+      "sources": [
+       "span_name"
+      ],
+      "needles": [
+       "retriev"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "kind": "span_field",
+   "clause": "span-fields.display_span_name.logfire_msg",
+   "when": {
+    "attr_exists": [
+     "logfire.msg_template"
+    ]
+   }
+  },
+  {
+   "kind": "span_field",
+   "clause": "span-fields.gen_ai_response_id.agents_response_id",
+   "when": {
+    "attr_equals": [
+     {
+      "key": "logfire.msg_template",
+      "value": "Responses API with {gen_ai.request.model!r}"
+     }
+    ]
+   }
+  },
+  {
+   "kind": "span_field",
+   "clause": "span-fields.gen_ai_finish_reasons.output_value_finish_reason",
+   "when": {
+    "attr_equals_ignore_case": [
+     {
+      "key": "openinference.span.kind",
+      "value": "LLM"
+     }
+    ]
+   }
+  },
+  {
+   "kind": "span_field",
+   "clause": "span-fields.gen_ai_finish_reasons.output_value_generation_stop_reason",
+   "when": {
+    "attr_equals_ignore_case": [
+     {
+      "key": "openinference.span.kind",
+      "value": "LLM"
+     }
+    ]
+   }
+  },
+  {
+   "kind": "span_field",
+   "clause": "span-fields.gen_ai_finish_reasons.completion_generation_stop_reason",
+   "when": {
+    "attr_equals_ignore_case": [
+     {
+      "key": "langsmith.span.kind",
+      "value": "llm"
+     }
+    ]
+   }
+  },
+  {
+   "kind": "span_field",
+   "clause": "span-fields.gen_ai_finish_reasons.genkit_output_finish_reason",
+   "when": {
+    "attr_equals": [
+     {
+      "key": "genkit:metadata:subtype",
+      "value": "model"
+     }
+    ]
+   }
+  },
+  {
+   "kind": "span_field",
+   "clause": "span-fields.usage_input_tokens.usage_input_tokens",
+   "when": {
+    "span_name": [
+     "claude_code."
+    ]
+   }
+  },
+  {
+   "kind": "span_field",
+   "clause": "span-fields.usage_input_tokens.genkit_output_input_tokens",
+   "when": {
+    "attr_equals": [
+     {
+      "key": "genkit:metadata:subtype",
+      "value": "model"
+     }
+    ]
+   }
+  },
+  {
+   "kind": "span_field",
+   "clause": "span-fields.usage_output_tokens.usage_output_tokens",
+   "when": {
+    "span_name": [
+     "claude_code."
+    ]
+   }
+  },
+  {
+   "kind": "span_field",
+   "clause": "span-fields.usage_output_tokens.genkit_output_output_tokens",
+   "when": {
+    "attr_equals": [
+     {
+      "key": "genkit:metadata:subtype",
+      "value": "model"
+     }
+    ]
+   }
+  },
+  {
+   "kind": "span_field",
+   "clause": "span-fields.usage_cache_read_tokens.usage_cache_read_input_tokens",
+   "when": {
+    "span_name": [
+     "claude_code."
+    ]
+   }
+  },
+  {
+   "kind": "span_field",
+   "clause": "span-fields.usage_cache_write_tokens.usage_cache_creation_input_tokens",
+   "when": {
+    "span_name": [
+     "claude_code."
+    ]
+   }
+  },
+  {
+   "kind": "span_field",
+   "clause": "span-fields.usage_candidate_input.output_value_prompt_tokens",
+   "when": {
+    "attr_exists": [
+     "crew_key",
+     "crew_id",
+     "crew_tasks",
+     "task_key"
+    ]
+   }
+  },
+  {
+   "kind": "span_field",
+   "clause": "span-fields.usage_candidate_output.output_value_completion_tokens",
+   "when": {
+    "attr_exists": [
+     "crew_key",
+     "crew_id",
+     "crew_tasks",
+     "task_key"
+    ]
+   }
+  },
+  {
+   "kind": "span_field",
+   "clause": "span-fields.usage_candidate_cache_read.output_value_cached_prompt_tokens",
+   "when": {
+    "attr_exists": [
+     "crew_key",
+     "crew_id",
+     "crew_tasks",
+     "task_key"
+    ]
+   }
+  },
+  {
+   "kind": "span_field",
+   "clause": "span-fields.usage_candidate_total.output_value_total_tokens",
+   "when": {
+    "attr_exists": [
+     "crew_key",
+     "crew_id",
+     "crew_tasks",
+     "task_key"
+    ]
+   }
+  },
+  {
+   "kind": "span_fact",
+   "clause": "tool-status.failed.error",
+   "signal": {
+    "attr_equals": {
+     "key": "gen_ai.tool.status",
+     "value": "error"
+    },
+    "ignore_case": true
+   }
+  },
+  {
+   "kind": "span_fact",
+   "clause": "tool-status.failed.failed",
+   "signal": {
+    "attr_equals": {
+     "key": "gen_ai.tool.status",
+     "value": "failed"
+    },
+    "ignore_case": true
+   }
+  }
+ ]
+}

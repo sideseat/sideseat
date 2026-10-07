@@ -32,14 +32,15 @@ use std::collections::HashMap;
 
 use serde_json::{Value as JsonValue, json};
 
-use super::detect_rules::CompiledDetect;
+use super::expr::Expr;
 use super::schema::{
-    Alternative, AttachSpec, BlockSpec, ComposeMember, ComposeSpec, DetectMatch, ElementsSpec,
-    EmitTarget, KeyValue, MemberPresence, MemberRequirements, MessageRule, OverlaySpec, ParseMode,
-    PredicateSet, ReadSpec, SectionsSpec, SingleToolCallSpec, ToolCallsSpec, ToolReprSpec,
-    ValueKind, ValuePredicate, WrapSpec,
+    Alternative, AttachSpec, BlockSpec, ComposeMember, ComposeSpec, ElementsSpec, EmitTarget,
+    MemberPresence, MemberRequirements, MessageRule, OverlaySpec, ParseMode, PredicateSet,
+    ReadSpec, SectionsSpec, SingleToolCallSpec, ToolCallsSpec, ToolReprSpec, ValueKind,
+    ValuePredicate, WrapSpec,
 };
-use super::{detect_rules, expr, refusal, schema, tool_repr};
+use super::span_conditions::{self, SpanExpr};
+use super::{expr, refusal, schema, tool_repr};
 
 /// One reading of a payload: the value **as constructed** and its target where it differs from the rule's.
 ///
@@ -299,9 +300,8 @@ pub struct CompiledMessageRule {
     pub wrap: Option<WrapSpec>,
     pub target: EmitTarget,
     pub aggregate_into_array: bool,
-    pub when: Option<CompiledDetect>,
-    pub unless: Option<CompiledDetect>,
-    pub instrumentation_scope: Option<super::schema::InstrumentationScopeMatch>,
+    /// The rule's `where`, lowered: consulted only where it holds.
+    pub gate: Option<super::span_conditions::SpanExpr>,
     pub require_non_empty: bool,
     pub require_non_blank: bool,
     pub branch_set: Option<CompiledBranchSet>,
@@ -372,6 +372,12 @@ pub enum MessageCompileError {
         rule: String,
         detail: &'static str,
     },
+    /// A `where` that cannot be lowered, reads a source this section is not given, or carries a literal that
+    /// matches everything or nothing.
+    Condition {
+        rule: String,
+        detail: String,
+    },
     /// A lower-ranked rule takes part of an all-or-nothing reading, so the reading is lost **whole** and the
     /// carriers the taker never wanted reach nobody. Distinct from `ContestedCarrier`, which is two rules
     /// wanting one carrier: here the loss is of carriers nothing contested.
@@ -401,6 +407,9 @@ impl std::fmt::Display for MessageCompileError {
             }
             Self::Inexpressible { rule, detail } => {
                 write!(f, "message rule `{rule}`: {detail}")
+            }
+            Self::Condition { rule, detail } => {
+                write!(f, "message rule `{rule}` has a condition that {detail}")
             }
             Self::DuplicateRuleId { rule } => {
                 write!(f, "message rule id `{rule}` is declared more than once")
@@ -469,10 +478,13 @@ pub struct CompiledCompose {
 #[derive(Debug, Clone)]
 pub struct CompiledComposeMember {
     pub spec: ComposeMember,
-    pub fallback_gate: Option<CompiledDetect>,
+    pub fallback_gate: Option<super::span_conditions::SpanExpr>,
 }
 
-fn compile_compose(compose: &ComposeSpec) -> CompiledCompose {
+fn compile_compose(
+    compose: &ComposeSpec,
+    gates: Vec<Option<super::span_conditions::SpanExpr>>,
+) -> CompiledCompose {
     CompiledCompose {
         require: compose.require.clone(),
         as_tool_definition: compose.as_tool_definition,
@@ -480,12 +492,10 @@ fn compile_compose(compose: &ComposeSpec) -> CompiledCompose {
         members: compose
             .members
             .iter()
-            .map(|member| CompiledComposeMember {
+            .zip(gates)
+            .map(|(member, fallback_gate)| CompiledComposeMember {
                 spec: member.clone(),
-                fallback_gate: member
-                    .fallback
-                    .as_ref()
-                    .map(|f| super::detect_rules::compile_signals(&f.when)),
+                fallback_gate,
             })
             .collect(),
         trailing: compose.trailing.clone(),

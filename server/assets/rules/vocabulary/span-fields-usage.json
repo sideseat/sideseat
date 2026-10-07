@@ -18,10 +18,9 @@
             "ai.usage.promptTokens",
             "input_tokens"
           ],
-          "when": {
-            "span_name": [
-              "claude_code."
-            ]
+          "where": {
+            "source": "span_name",
+            "starts_with": "claude_code."
           },
           "on_malformed": "continue"
         },
@@ -97,13 +96,9 @@
             "attribute": "genkit:output",
             "path": "$.usage.inputTokens"
           },
-          "when": {
-            "attr_equals": [
-              {
-                "key": "genkit:metadata:subtype",
-                "value": "model"
-              }
-            ]
+          "where": {
+            "source": "attr:genkit:metadata:subtype",
+            "equals": "model"
           },
           "on_malformed": "continue",
           "doc": "The usage a Genkit model action reports beside its response, in Genkit's own spelling."
@@ -125,10 +120,9 @@
             "ai.usage.completionTokens",
             "output_tokens"
           ],
-          "when": {
-            "span_name": [
-              "claude_code."
-            ]
+          "where": {
+            "source": "span_name",
+            "starts_with": "claude_code."
           },
           "on_malformed": "continue"
         },
@@ -199,13 +193,9 @@
             "attribute": "genkit:output",
             "path": "$.usage.outputTokens"
           },
-          "when": {
-            "attr_equals": [
-              {
-                "key": "genkit:metadata:subtype",
-                "value": "model"
-              }
-            ]
+          "where": {
+            "source": "attr:genkit:metadata:subtype",
+            "equals": "model"
           },
           "on_malformed": "continue",
           "doc": "The usage a Genkit model action reports beside its response, in Genkit's own spelling."
@@ -241,10 +231,9 @@
             "ai.usage.cachedInputTokens",
             "cache_read_tokens"
           ],
-          "when": {
-            "span_name": [
-              "claude_code."
-            ]
+          "where": {
+            "source": "span_name",
+            "starts_with": "claude_code."
           },
           "on_malformed": "continue"
         },
@@ -308,10 +297,9 @@
             "llm.usage.cache_creation_input_tokens",
             "cache_creation_tokens"
           ],
-          "when": {
-            "span_name": [
-              "claude_code."
-            ]
+          "where": {
+            "source": "span_name",
+            "starts_with": "claude_code."
           },
           "on_malformed": "continue"
         },
@@ -409,12 +397,24 @@
             "attribute": "output.value",
             "path": "$.token_usage.prompt_tokens"
           },
-          "when": {
-            "attr_exists": [
-              "crew_key",
-              "crew_id",
-              "crew_tasks",
-              "task_key"
+          "where": {
+            "any": [
+              {
+                "source": "attr:crew_key",
+                "exists": true
+              },
+              {
+                "source": "attr:crew_id",
+                "exists": true
+              },
+              {
+                "source": "attr:crew_tasks",
+                "exists": true
+              },
+              {
+                "source": "attr:task_key",
+                "exists": true
+              }
             ]
           },
           "on_malformed": "continue"
@@ -432,12 +432,24 @@
             "attribute": "output.value",
             "path": "$.token_usage.completion_tokens"
           },
-          "when": {
-            "attr_exists": [
-              "crew_key",
-              "crew_id",
-              "crew_tasks",
-              "task_key"
+          "where": {
+            "any": [
+              {
+                "source": "attr:crew_key",
+                "exists": true
+              },
+              {
+                "source": "attr:crew_id",
+                "exists": true
+              },
+              {
+                "source": "attr:crew_tasks",
+                "exists": true
+              },
+              {
+                "source": "attr:task_key",
+                "exists": true
+              }
             ]
           },
           "on_malformed": "continue"
@@ -454,12 +466,24 @@
             "attribute": "output.value",
             "path": "$.token_usage.cached_prompt_tokens"
           },
-          "when": {
-            "attr_exists": [
-              "crew_key",
-              "crew_id",
-              "crew_tasks",
-              "task_key"
+          "where": {
+            "any": [
+              {
+                "source": "attr:crew_key",
+                "exists": true
+              },
+              {
+                "source": "attr:crew_id",
+                "exists": true
+              },
+              {
+                "source": "attr:crew_tasks",
+                "exists": true
+              },
+              {
+                "source": "attr:task_key",
+                "exists": true
+              }
             ]
           },
           "on_malformed": "continue"
@@ -476,12 +500,24 @@
             "attribute": "output.value",
             "path": "$.token_usage.total_tokens"
           },
-          "when": {
-            "attr_exists": [
-              "crew_key",
-              "crew_id",
-              "crew_tasks",
-              "task_key"
+          "where": {
+            "any": [
+              {
+                "source": "attr:crew_key",
+                "exists": true
+              },
+              {
+                "source": "attr:crew_id",
+                "exists": true
+              },
+              {
+                "source": "attr:crew_tasks",
+                "exists": true
+              },
+              {
+                "source": "attr:task_key",
+                "exists": true
+              }
             ]
           },
           "on_malformed": "continue"

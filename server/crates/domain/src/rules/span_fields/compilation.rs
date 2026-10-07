@@ -152,7 +152,7 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
         }
         // A literal with no gate is not a source: it answers on every span, so every source after it is dead
         // and the field is a constant.
-        if spec.value.is_some() && spec.when.is_none() && spec.when_json.is_none() {
+        if spec.value.is_some() && spec.condition.is_none() && spec.when_json.is_none() {
             return Err(FieldCompileError::UngatedLiteral {
                 file: file_id.to_string(),
                 rule: rule.id.clone(),
@@ -179,32 +179,26 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
                 rule: rule.id.clone(),
             });
         }
-        // The same refusal message rules carry: this stage sees a span's own name and attributes, so a gate
-        // needing resource attributes would compile and never hold.
-        if let Some(gate) = &spec.when {
-            if let Some(dimension) = unavailable_field_gate(gate) {
-                return Err(FieldCompileError::UnavailableGate {
-                    file: file_id.to_string(),
-                    rule: rule.id.clone(),
-                    dimension,
-                });
-            }
-            // And a gate that could never hold whatever it is given. `compile_signals` validates nothing, so
-            // an empty gate - which is `false`, since signals are ORed - compiled as a dead source.
-            if let Some(detail) = super::super::detect_rules::gate_defect(gate) {
-                return Err(FieldCompileError::DeadGate {
-                    file: file_id.to_string(),
-                    rule: rule.id.clone(),
-                    detail,
-                });
-            }
-        }
+        // The same refusals every section's `where` meets: this stage sees a span's own name and attributes, so
+        // a gate reading the resource or the scope would compile and never hold.
+        let when = spec
+            .condition
+            .as_ref()
+            .map(|condition| {
+                super::super::detect_rules::checked_condition(
+                    condition,
+                    super::super::span_conditions::Readable::SPAN,
+                )
+            })
+            .transpose()
+            .map_err(|refusal| FieldCompileError::DeadGate {
+                file: file_id.to_string(),
+                rule: rule.id.clone(),
+                detail: refusal.to_string(),
+            })?;
         sources.push(CompiledSource {
             spec: spec.clone(),
-            when: spec
-                .when
-                .as_ref()
-                .map(super::super::detect_rules::compile_signals),
+            when,
         });
     }
     Ok(CompiledRule {
@@ -213,8 +207,4 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
         combine: rule.combine,
         sources,
     })
-}
-
-fn unavailable_field_gate(spec: &DetectMatch) -> Option<&'static str> {
-    super::super::detect_rules::unavailable_gate_dimension(spec)
 }

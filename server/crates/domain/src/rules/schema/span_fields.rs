@@ -409,9 +409,9 @@ pub struct FieldSource {
     /// knows only "this typed literal, where the gate holds".
     #[serde(default)]
     pub value: Option<String>,
-    /// Consulted only when this holds of the span. Signals are ORed, as everywhere else.
-    #[serde(default)]
-    pub when: Option<DetectMatch>,
+    /// Consulted only when this holds of the span, over its name and attributes.
+    #[serde(default, rename = "where")]
+    pub condition: Option<SpanWhere>,
 }
 
 /// How several matches of one path become one value.

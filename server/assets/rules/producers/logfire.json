@@ -55,14 +55,15 @@
       "id": "logfire.detect",
       "doc": "An instrumentation library identifying itself through telemetry.sdk.name - previously a Rust matcher, now one declared dimension.",
       "label": "Logfire",
-      "match": {
-        "attr_prefix": [
-          "logfire."
-        ],
-        "resource_attr_contains": [
+      "where": {
+        "any": [
           {
-            "key": "telemetry.sdk.name",
-            "value": "logfire"
+            "source": "attr_keys",
+            "starts_with": "logfire."
+          },
+          {
+            "source": "resource:telemetry.sdk.name",
+            "contains": "logfire"
           }
         ]
       },
@@ -294,10 +295,11 @@
         "attribute": "request_data"
       },
       "parse": "json",
-      "unless": {
-        "attr_exists": [
-          "gen_ai.tool.definitions"
-        ]
+      "where": {
+        "not": {
+          "source": "attr:gen_ai.tool.definitions",
+          "exists": true
+        }
       },
       "emit": "tool_definitions",
       "aggregate_into_array": true,
@@ -322,10 +324,11 @@
         "attribute": "raw_input"
       },
       "parse": "json",
-      "unless": {
-        "attr_exists": [
-          "input.value"
-        ]
+      "where": {
+        "not": {
+          "source": "attr:input.value",
+          "exists": true
+        }
       },
       "wrap": {
         "role": "user",

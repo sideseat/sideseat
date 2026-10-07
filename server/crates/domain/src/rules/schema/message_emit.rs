@@ -528,8 +528,9 @@ pub struct ComposeFallback {
     #[serde(default)]
     pub doc: Option<String>,
     pub from: String,
-    /// The evidence required before the fallback is read.
-    pub when: DetectMatch,
+    /// The evidence required before the fallback is read, over the span's name and attributes.
+    #[serde(rename = "where")]
+    pub condition: SpanWhere,
     #[serde(default)]
     pub parse: Option<ParseMode>,
 }

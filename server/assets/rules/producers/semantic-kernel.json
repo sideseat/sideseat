@@ -8,15 +8,21 @@
       "id": "semantic-kernel.detect",
       "doc": "Identifies SemanticKernel by its current Python instrumentation scopes or framework-owned attributes.",
       "label": "SemanticKernel",
-      "match": {
-        "scope_name": [
-          "semantic_kernel.connectors.ai.chat_completion_client_base",
-          "semantic_kernel.functions.kernel_function",
-          "semantic_kernel.utils.telemetry.agent_diagnostics.decorators",
-          "semantic_kernel.utils.telemetry.model_diagnostics.decorators"
-        ],
-        "attr_prefix": [
-          "semantic_kernel."
+      "where": {
+        "any": [
+          {
+            "source": "scope.name",
+            "one_of": [
+              "semantic_kernel.connectors.ai.chat_completion_client_base",
+              "semantic_kernel.functions.kernel_function",
+              "semantic_kernel.utils.telemetry.agent_diagnostics.decorators",
+              "semantic_kernel.utils.telemetry.model_diagnostics.decorators"
+            ]
+          },
+          {
+            "source": "attr_keys",
+            "starts_with": "semantic_kernel."
+          }
         ]
       },
       "priority": 150
@@ -32,8 +38,9 @@
     {
       "id": "semantic-kernel.tool_call_result_literal",
       "doc": "Semantic Kernel records a tool's result as the Python `str()` of what the function returned - which is also what it sends the model - so a dict arrives single-quoted. Read as the value it renders, on the kernel-function scope only; a result that is not a whole Python container falls through to the semantic-conventions rule and is read as text.",
-      "instrumentation_scope": {
-        "name": "semantic_kernel.functions.kernel_function"
+      "where": {
+        "source": "scope.name",
+        "equals": "semantic_kernel.functions.kernel_function"
       },
       "read": {
         "attribute": "gen_ai.tool.call.result"

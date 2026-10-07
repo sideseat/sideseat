@@ -7,154 +7,124 @@
       "id": "category.transport",
       "priority": 10,
       "doc": "One provider's API calls arrive as `rpc.system`, and would otherwise be categorised from their `gen_ai.*` attributes as the generation they duplicate.",
-      "all_of": [
-        {
-          "attr_exists": [
-            "http.method",
-            "http.request.method",
-            "rpc.system"
-          ]
-        }
-      ],
+      "where": {
+        "any": [
+          {
+            "source": "attr:http.method",
+            "exists": true
+          },
+          {
+            "source": "attr:http.request.method",
+            "exists": true
+          },
+          {
+            "source": "attr:rpc.system",
+            "exists": true
+          }
+        ]
+      },
       "result": "http"
     },
     {
       "id": "category.database",
       "priority": 20,
-      "all_of": [
-        {
-          "attr_exists": [
-            "db.system"
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:db.system",
+        "exists": true
+      },
       "result": "db"
     },
     {
       "id": "category.messaging",
       "priority": 30,
-      "all_of": [
-        {
-          "attr_exists": [
-            "messaging.system"
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:messaging.system",
+        "exists": true
+      },
       "result": "messaging"
     },
     {
       "id": "category.object_storage",
       "priority": 40,
       "doc": "Any attribute under one provider's object-storage prefix, which is what a bucket or key operation carries.",
-      "all_of": [
-        {
-          "attr_prefix": [
-            "aws.s3."
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr_keys",
+        "starts_with": "aws.s3."
+      },
       "result": "storage"
     },
     {
       "id": "category.chat_of_an_embedding_model",
       "priority": 50,
       "doc": "The same correction the observation type makes: telemetry that reports an embedding call as a chat completion, settled by the model's own name, case-insensitively. The two model attributes are two answers to one question, so only the **first present** one is searched: a request for a chat model answered by a mislabelled response model is still a chat completion.",
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "gen_ai.operation.name",
-              "value": "chat"
+      "where": {
+        "all": [
+          {
+            "source": "attr:gen_ai.operation.name",
+            "one_of": [
+              "chat",
+              "text_completion"
+            ]
+          },
+          {
+            "source": {
+              "first_of": [
+                "attr:gen_ai.request.model",
+                "attr:gen_ai.response.model"
+              ]
             },
-            {
-              "key": "gen_ai.operation.name",
-              "value": "text_completion"
-            }
-          ]
-        },
-        {
-          "text_contains": {
-            "sources": [
-              "attr:gen_ai.request.model",
-              "attr:gen_ai.response.model"
-            ],
-            "needles": [
-              "embed"
-            ],
-            "first_present_source": true
+            "contains_ignore_case": "embed"
           }
-        }
-      ],
+        ]
+      },
       "result": "embedding"
     },
     {
       "id": "category.chat",
       "priority": 60,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "gen_ai.operation.name",
-              "value": "chat"
-            },
-            {
-              "key": "gen_ai.operation.name",
-              "value": "text_completion"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:gen_ai.operation.name",
+        "one_of": [
+          "chat",
+          "text_completion"
+        ]
+      },
       "result": "llm"
     },
     {
       "id": "category.embeddings",
       "priority": 70,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "gen_ai.operation.name",
-              "value": "embeddings"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:gen_ai.operation.name",
+        "equals": "embeddings"
+      },
       "result": "embedding"
     },
     {
       "id": "category.tool_execution",
       "priority": 80,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "gen_ai.operation.name",
-              "value": "execute_tool"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:gen_ai.operation.name",
+        "equals": "execute_tool"
+      },
       "result": "tool"
     },
     {
       "id": "category.mcp_tool_call_under_an_agent",
       "doc": "The MCP conventions' name for calling a tool on a server, read before any agent name for the reason `observation.mcp_tool_call` gives: the client span of an agent's tool call can carry a propagated `gen_ai.agent.name` and no `gen_ai.tool.name`, which `category.named_agent` would read as an agent. Split from `category.mcp_tool_call` only because each rule names the one retired answer it replaces.",
       "priority": 77,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "mcp.method.name",
-              "value": "tools/call"
-            }
-          ]
-        },
-        {
-          "attr_exists": [
-            "gen_ai.agent.name"
-          ]
-        }
-      ],
+      "where": {
+        "all": [
+          {
+            "source": "attr:mcp.method.name",
+            "equals": "tools/call"
+          },
+          {
+            "source": "attr:gen_ai.agent.name",
+            "exists": true
+          }
+        ]
+      },
       "result": "tool",
       "replaces_legacy_result": "agent"
     },
@@ -162,16 +132,10 @@
       "id": "category.mcp_tool_call",
       "doc": "An MCP client's tool call is a tool call. The retired sweep had no reading of MCP, so these spans were `other` while the observation type already said `tool`.",
       "priority": 78,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "mcp.method.name",
-              "value": "tools/call"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:mcp.method.name",
+        "equals": "tools/call"
+      },
       "result": "tool",
       "replaces_legacy_result": "other"
     },
@@ -179,224 +143,143 @@
       "id": "category.agent_operations",
       "priority": 90,
       "doc": "Three operation names that all mean an agent was running: the conventional one, and two a dialect adds for a group of agents and for one turn of its own loop.",
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "gen_ai.operation.name",
-              "value": "invoke_agent"
-            },
-            {
-              "key": "gen_ai.operation.name",
-              "value": "invoke_swarm"
-            },
-            {
-              "key": "gen_ai.operation.name",
-              "value": "execute_event_loop_cycle"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:gen_ai.operation.name",
+        "one_of": [
+          "invoke_agent",
+          "invoke_swarm",
+          "execute_event_loop_cycle"
+        ]
+      },
       "result": "agent"
     },
     {
       "id": "category.named_tool",
       "priority": 100,
       "doc": "A tool name outranks an agent name here, which is the reverse of neither: the observation type asks the same pair in the other order, and both were transcribed as they stood.",
-      "all_of": [
-        {
-          "attr_exists": [
-            "gen_ai.tool.name"
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:gen_ai.tool.name",
+        "exists": true
+      },
       "result": "tool"
     },
     {
       "id": "category.named_agent",
       "priority": 110,
-      "all_of": [
-        {
-          "attr_exists": [
-            "gen_ai.agent.name"
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:gen_ai.agent.name",
+        "exists": true
+      },
       "result": "agent"
     },
     {
       "id": "category.kind.llm",
       "priority": 120,
       "doc": "One dialect's span kind. Only that dialect's here - the observation type reads a second dialect's spelling too, and this one never did. Two kinds map to no category of their own and are left to the fallback, which is what makes them absent from this list rather than mapped to `other`.",
-      "all_of": [
-        {
-          "attr_equals_ignore_case": [
-            {
-              "key": "openinference.span.kind",
-              "value": "LLM"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:openinference.span.kind",
+        "equals_ignore_case": "LLM"
+      },
       "result": "llm"
     },
     {
       "id": "category.kind.embedding",
       "priority": 121,
-      "all_of": [
-        {
-          "attr_equals_ignore_case": [
-            {
-              "key": "openinference.span.kind",
-              "value": "EMBEDDING"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:openinference.span.kind",
+        "equals_ignore_case": "EMBEDDING"
+      },
       "result": "embedding"
     },
     {
       "id": "category.kind.agent",
       "priority": 122,
-      "all_of": [
-        {
-          "attr_equals_ignore_case": [
-            {
-              "key": "openinference.span.kind",
-              "value": "AGENT"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:openinference.span.kind",
+        "equals_ignore_case": "AGENT"
+      },
       "result": "agent"
     },
     {
       "id": "category.kind.tool",
       "priority": 123,
-      "all_of": [
-        {
-          "attr_equals_ignore_case": [
-            {
-              "key": "openinference.span.kind",
-              "value": "TOOL"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:openinference.span.kind",
+        "equals_ignore_case": "TOOL"
+      },
       "result": "tool"
     },
     {
       "id": "category.kind.chain",
       "priority": 124,
-      "all_of": [
-        {
-          "attr_equals_ignore_case": [
-            {
-              "key": "openinference.span.kind",
-              "value": "CHAIN"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:openinference.span.kind",
+        "equals_ignore_case": "CHAIN"
+      },
       "result": "chain"
     },
     {
       "id": "category.kind.retriever",
       "priority": 125,
-      "all_of": [
-        {
-          "attr_equals_ignore_case": [
-            {
-              "key": "openinference.span.kind",
-              "value": "RETRIEVER"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:openinference.span.kind",
+        "equals_ignore_case": "RETRIEVER"
+      },
       "result": "retriever"
     },
     {
       "id": "category.kind.guardrail",
       "priority": 126,
       "doc": "A guardrail and an evaluator are observation types of their own and belong to no category of their own, so both answer `other` here - stated rather than left to the fallback, because falling through would let a *span name* answer instead, and the kind attribute is the stronger evidence.",
-      "all_of": [
-        {
-          "attr_equals_ignore_case": [
-            {
-              "key": "openinference.span.kind",
-              "value": "GUARDRAIL"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:openinference.span.kind",
+        "equals_ignore_case": "GUARDRAIL"
+      },
       "result": "other"
     },
     {
       "id": "category.kind.evaluator",
       "priority": 127,
-      "all_of": [
-        {
-          "attr_equals_ignore_case": [
-            {
-              "key": "openinference.span.kind",
-              "value": "EVALUATOR"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:openinference.span.kind",
+        "equals_ignore_case": "EVALUATOR"
+      },
       "result": "other"
     },
     {
       "id": "category.name_says_a_model_call",
       "priority": 130,
       "doc": "The span name, last and weakest. Two needles for one answer, and `chat` before `embed` - so a name saying both is a model call, which is what the retired order said.",
-      "all_of": [
-        {
-          "text_contains": {
-            "sources": [
-              "span_name"
-            ],
-            "needles": [
-              "llm",
-              "chat"
-            ]
+      "where": {
+        "any": [
+          {
+            "source": "span_name",
+            "contains_ignore_case": "llm"
+          },
+          {
+            "source": "span_name",
+            "contains_ignore_case": "chat"
           }
-        }
-      ],
+        ]
+      },
       "result": "llm"
     },
     {
       "id": "category.name_says_embedding",
       "priority": 131,
-      "all_of": [
-        {
-          "text_contains": {
-            "sources": [
-              "span_name"
-            ],
-            "needles": [
-              "embed"
-            ]
-          }
-        }
-      ],
+      "where": {
+        "source": "span_name",
+        "contains_ignore_case": "embed"
+      },
       "result": "embedding"
     },
     {
       "id": "category.name_says_retrieval",
       "priority": 132,
-      "all_of": [
-        {
-          "text_contains": {
-            "sources": [
-              "span_name"
-            ],
-            "needles": [
-              "retriev"
-            ]
-          }
-        }
-      ],
+      "where": {
+        "source": "span_name",
+        "contains_ignore_case": "retriev"
+      },
       "result": "retriever"
     }
   ]

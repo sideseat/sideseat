@@ -8,10 +8,9 @@
       "id": "smolagents.detect",
       "doc": "Identifies Smolagents by the signals below. Supersedes openinference.detect: this is the more specific dialect, and both match the same span, so the relationship is declared rather than left to the legacy rank.",
       "label": "Smolagents",
-      "match": {
-        "attr_prefix": [
-          "smolagents."
-        ]
+      "where": {
+        "source": "attr_keys",
+        "starts_with": "smolagents."
       },
       "priority": 80,
       "supersedes": [
@@ -23,18 +22,23 @@
     {
       "id": "smolagents.agent_chain_input",
       "doc": "Smolagents AGENT and CHAIN spans carry framework execution state in `input.value`; their LLM children carry the actual conversation. Claim the envelope so the generic fallback does not present task options or an ActionStep repr as a user turn. Where no LLM child exists - a streamed run on instrumentor releases before 0.1.33 - the prompt the model saw is only inside the agent output's ActionStep reprs, which are not read: those runs show no user turn.",
-      "instrumentation_scope": {
-        "name": "openinference.instrumentation.smolagents"
-      },
-      "when": {
-        "attr_equals_ignore_case": [
+      "where": {
+        "all": [
           {
-            "key": "openinference.span.kind",
-            "value": "agent"
+            "any": [
+              {
+                "source": "attr:openinference.span.kind",
+                "equals_ignore_case": "agent"
+              },
+              {
+                "source": "attr:openinference.span.kind",
+                "equals_ignore_case": "chain"
+              }
+            ]
           },
           {
-            "key": "openinference.span.kind",
-            "value": "chain"
+            "source": "scope.name",
+            "equals": "openinference.instrumentation.smolagents"
           }
         ]
       },
@@ -48,14 +52,15 @@
     {
       "id": "smolagents.agent_stream_objects",
       "doc": "A streamed run's AGENT `output.value` is every object the run yielded, their Python reprs written back to back: stream deltas, then for each tool the model called a `ToolCall` and the `ToolOutput` its execution returned - both carrying the model's id - then the step's bookkeeping. Instrumentor releases before 0.1.33 record no span for a streamed model call, so this is the only place the ids are. It re-lists what the TOOL spans ran: content identity makes each copy one with the span's own, which keeps the span and the time and takes the id.",
-      "instrumentation_scope": {
-        "name": "openinference.instrumentation.smolagents"
-      },
-      "when": {
-        "attr_equals_ignore_case": [
+      "where": {
+        "all": [
           {
-            "key": "openinference.span.kind",
-            "value": "agent"
+            "source": "attr:openinference.span.kind",
+            "equals_ignore_case": "agent"
+          },
+          {
+            "source": "scope.name",
+            "equals": "openinference.instrumentation.smolagents"
           }
         ]
       },
@@ -78,18 +83,23 @@
     {
       "id": "smolagents.agent_chain_output",
       "doc": "The AGENT and CHAIN output is an aggregate copy of the answer already represented by the model tool call and its execution span. Streaming agents additionally serialise every delta into a Python repr here, so this carrier is claimed rather than shown as an assistant message.",
-      "instrumentation_scope": {
-        "name": "openinference.instrumentation.smolagents"
-      },
-      "when": {
-        "attr_equals_ignore_case": [
+      "where": {
+        "all": [
           {
-            "key": "openinference.span.kind",
-            "value": "agent"
+            "any": [
+              {
+                "source": "attr:openinference.span.kind",
+                "equals_ignore_case": "agent"
+              },
+              {
+                "source": "attr:openinference.span.kind",
+                "equals_ignore_case": "chain"
+              }
+            ]
           },
           {
-            "key": "openinference.span.kind",
-            "value": "chain"
+            "source": "scope.name",
+            "equals": "openinference.instrumentation.smolagents"
           }
         ]
       },
@@ -103,14 +113,15 @@
     {
       "id": "smolagents.tool_output",
       "doc": "The return value of one Smolagents TOOL span. The instrumentor does not attach the call id, so the result carries the tool name and query-time correlation pairs it with the oldest unclaimed call of that name.",
-      "instrumentation_scope": {
-        "name": "openinference.instrumentation.smolagents"
-      },
-      "when": {
-        "attr_equals_ignore_case": [
+      "where": {
+        "all": [
           {
-            "key": "openinference.span.kind",
-            "value": "tool"
+            "source": "attr:openinference.span.kind",
+            "equals_ignore_case": "tool"
+          },
+          {
+            "source": "scope.name",
+            "equals": "openinference.instrumentation.smolagents"
           }
         ]
       },
@@ -141,14 +152,15 @@
     {
       "id": "smolagents.tool_input",
       "doc": "The call a smolagents TOOL span executed: the tool's name and the keyword arguments it was invoked with (`input.value` holds `{args, kwargs}`). The model's call is also on its generation span with its id, and content identity makes the two one call; this copy is what lets the span's own failure answer it, since a failing tool records only its exception, and it is the only copy of a call the model wrote as a text action.",
-      "instrumentation_scope": {
-        "name": "openinference.instrumentation.smolagents"
-      },
-      "when": {
-        "attr_equals_ignore_case": [
+      "where": {
+        "all": [
           {
-            "key": "openinference.span.kind",
-            "value": "tool"
+            "source": "attr:openinference.span.kind",
+            "equals_ignore_case": "tool"
+          },
+          {
+            "source": "scope.name",
+            "equals": "openinference.instrumentation.smolagents"
           }
         ]
       },
@@ -194,20 +206,22 @@
     {
       "id": "smolagents.llm_input_reprs",
       "doc": "The request a model call received, as instrumentor releases before `llm.input_messages` recorded it: `input.value` holds `{\"messages\": [...]}` whose members are the Python reprs of smolagents' `ChatMessage` objects. Each is read as the constructor it renders; read only where the indexed input family is absent.",
-      "instrumentation_scope": {
-        "name": "openinference.instrumentation.smolagents"
-      },
-      "when": {
-        "attr_equals_ignore_case": [
+      "where": {
+        "all": [
           {
-            "key": "openinference.span.kind",
-            "value": "llm"
+            "source": "attr:openinference.span.kind",
+            "equals_ignore_case": "llm"
+          },
+          {
+            "not": {
+              "source": "attr:llm.input_messages.0.message.role",
+              "exists": true
+            }
+          },
+          {
+            "source": "scope.name",
+            "equals": "openinference.instrumentation.smolagents"
           }
-        ]
-      },
-      "unless": {
-        "attr_exists": [
-          "llm.input_messages.0.message.role"
         ]
       },
       "read": {

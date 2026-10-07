@@ -200,6 +200,19 @@ fn key_of(span: &str) -> String {
     format!("k.{span}")
 }
 
+/// "Some of these attributes is present", as a condition.
+fn exists_any(keys: Vec<String>) -> serde_json::Value {
+    let atoms: Vec<serde_json::Value> = keys
+        .into_iter()
+        .map(|key| serde_json::json!({"source": format!("attr:{key}"), "exists": true}))
+        .collect();
+    if atoms.len() == 1 {
+        atoms.into_iter().next().expect("one atom")
+    } else {
+        serde_json::json!({ "any": atoms })
+    }
+}
+
 /// The detection rule realising one clause. A clause matching nothing reads a key no span carries.
 fn detect_rule(clause: &Clause, with_edges: bool) -> serde_json::Value {
     let mut keys: Vec<String> = clause.matches.iter().map(|span| key_of(span)).collect();
@@ -211,7 +224,7 @@ fn detect_rule(clause: &Clause, with_edges: bool) -> serde_json::Value {
         "label": clause.id,
         "priority": clause.priority,
         "supersedes": if with_edges { clause.supersedes.clone() } else { Vec::new() },
-        "match": {"attr_exists": keys},
+        "where": exists_any(keys),
     })
 }
 
@@ -324,7 +337,7 @@ fn classify_winners(instance: &Instance) -> Result<Vec<Option<String>>, &'static
             serde_json::json!({
                 "id": clause.id,
                 "priority": clause.priority,
-                "all_of": [{"attr_exists": keys}],
+                "where": exists_any(keys),
                 "result": "span",
             })
         })

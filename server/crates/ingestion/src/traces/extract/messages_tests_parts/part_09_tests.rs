@@ -247,49 +247,20 @@ fn inexpressible_rules_are_refused() {
         // Every gate a message rule can carry, through the one validator - three call sites had grown the
         // checks separately, so these were refused for a field source and compiled here.
         (
-            "a message gate with no signal at all",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
-                 "priority":1,"when":{}}]}"#,
-        ),
-        (
             "a message gate whose phrase search names a source the probe does not read",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
-                 "priority":1,"when":{"text_contains":{"sources":["span"],"needles":["x"]}}}]}"#,
-        ),
-        (
-            "a message gate searching the first of a mixed pair of sources",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
-                 "priority":1,"when":{"text_contains":{"sources":["attr:model","span_name"],"needles":["embed"],"first_present_source":true}}}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "k"}, "parse": "json", "emit": "message", "priority": 1, "where": {"source": "span", "contains_ignore_case": "x"}}]}"#,
         ),
         (
             "an `unless` with an empty attribute key",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
-                 "priority":1,"unless":{"attr_exists":[""]}}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "k"}, "parse": "json", "emit": "message", "priority": 1, "where": {"not": {"source": "attr:", "exists": true}}}]}"#,
         ),
         (
             "a compose member's fallback gated on a resource dimension",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","priority":1,
-                 "compose":{"tag":"q","members":[
-                    {"as":"c","from_any_of":["k"],
-                     "fallback":{"from":"other","when":{"service_name":["svc"]}}}]}}]}"#,
-        ),
-        (
-            "a compose member's fallback gated on nothing",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","priority":1,
-                 "compose":{"tag":"q","members":[
-                    {"as":"c","from_any_of":["k"],"fallback":{"from":"other","when":{}}}]}}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "priority": 1, "compose": {"tag": "q", "members": [{"as": "c", "from_any_of": ["k"], "fallback": {"from": "other", "where": {"source": "resource:service.name", "contains": "svc"}}}]}}]}"#,
         ),
         (
             "a gate on a resource dimension a message rule is never given",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
-                 "priority":1,"when":{"service_name":["svc"]}}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "k"}, "parse": "json", "emit": "message", "priority": 1, "where": {"source": "resource:service.name", "contains": "svc"}}]}"#,
         ),
         // A branch leaf's own copy of a field only the entry points read. Four spellings, because the
         // parent's no-dead-fields rule had no mirror here and each of these compiled into silence.
@@ -414,11 +385,7 @@ fn a_tautological_requirement_is_not_a_condition() {
         ),
         (
             "two rules tagging one carrier from different attributes",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "tag_as":"shared","when":{"attr_exists":["marker"]},"priority":1},
-                {"id":"b","doc":"d","read":{"attribute":"y"},"parse":"json","emit":"message",
-                 "tag_as":"shared","priority":2}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "tag_as": "shared", "where": {"source": "attr:marker", "exists": true}, "priority": 1}, {"id": "b", "doc": "d", "read": {"attribute": "y"}, "parse": "json", "emit": "message", "tag_as": "shared", "priority": 2}]}"#,
         ),
         (
             "a compose declaring a tag it does not emit",
@@ -442,11 +409,7 @@ fn a_tautological_requirement_is_not_a_condition() {
     let accepted = [
         (
             "two rules tagging one carrier and reading the same attribute",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "tag_as":"shared","when":{"attr_exists":["marker"]},"priority":1},
-                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "tag_as":"shared","priority":2}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "tag_as": "shared", "where": {"source": "attr:marker", "exists": true}, "priority": 1}, {"id": "b", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "tag_as": "shared", "priority": 2}]}"#,
         ),
         (
             "a single `exists` requirement, which is a real condition",
@@ -503,11 +466,7 @@ fn a_condition_separates_two_rules_only_when_it_differs() {
     let refused = [
         (
             "two rules gated on the same thing, reading one carrier",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "when":{"attr_exists":["marker"]},"tag_as":"a.tag","priority":1},
-                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "when":{"attr_exists":["marker"]},"tag_as":"b.tag","priority":2}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "where": {"source": "attr:marker", "exists": true}, "tag_as": "a.tag", "priority": 1}, {"id": "b", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "where": {"source": "attr:marker", "exists": true}, "tag_as": "b.tag", "priority": 2}]}"#,
         ),
         (
             "a shared tag where ownership does not resolve the pair",
@@ -557,19 +516,11 @@ fn a_condition_separates_two_rules_only_when_it_differs() {
     let accepted = [
         (
             "two rules gated on different things",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "when":{"attr_exists":["marker.a"]},"tag_as":"a.tag","priority":1},
-                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "when":{"attr_exists":["marker.b"]},"tag_as":"b.tag","priority":2}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "where": {"source": "attr:marker.a", "exists": true}, "tag_as": "a.tag", "priority": 1}, {"id": "b", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "where": {"source": "attr:marker.b", "exists": true}, "tag_as": "b.tag", "priority": 2}]}"#,
         ),
         (
             "a shared tag where both rules necessarily own one carrier",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "tag_as":"shared","when":{"attr_exists":["marker"]},"priority":1},
-                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "tag_as":"shared","priority":2}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "tag_as": "shared", "where": {"source": "attr:marker", "exists": true}, "priority": 1}, {"id": "b", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "tag_as": "shared", "priority": 2}]}"#,
         ),
         (
             "a `none_of` that forbids a value nothing else requires",
@@ -604,18 +555,18 @@ fn a_leaf_runs_under_both_gates() {
     let parent_p_leaf_l = |rank_b_gate: &str| {
         format!(
             r#"{{"id":"t","doc":"d","messages":[
-                {{"id":"a","doc":"d","priority":1,"when":{{"attr_exists":["p"]}},
+                {{"id":"a","doc":"d","priority":1,"where":{{"source":"attr:p","exists":true}},
                  "branch_set":{{"primary":[
                     {{"id":"a.1","doc":"d","read":{{"attribute":"x"}},"parse":"json","emit":"message",
-                     "when":{{"attr_exists":["l"]}},"tag_as":"a.tag"}}]}}}},
+                     "where":{{"source":"attr:l","exists":true}},"tag_as":"a.tag"}}]}}}},
                 {{"id":"b","doc":"d","read":{{"attribute":"x"}},"parse":"json","emit":"message",
-                 "when":{{"attr_exists":[{rank_b_gate}]}},"tag_as":"b.tag","priority":2}}]}}"#
+                 "where":{{"source":{rank_b_gate},"exists":true}},"tag_as":"b.tag","priority":2}}]}}"#
         )
     };
     // `l` without `p` runs only the later rule, so the pair is live and must be accepted.
     let sources = std::collections::BTreeMap::from([(
         "t.json".to_string(),
-        parent_p_leaf_l("\"l\"").into_bytes(),
+        parent_p_leaf_l("\"attr:l\"").into_bytes(),
     )]);
     assert!(
         compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).is_ok(),
@@ -625,13 +576,7 @@ fn a_leaf_runs_under_both_gates() {
 
     // The parent's gate covering the leaf's: the conjunction is the leaf's gate, and a later rule on the same
     // gate really is dead.
-    let covered = r#"{"id":"t","doc":"d","messages":[
-        {"id":"a","doc":"d","priority":1,"when":{"attr_exists":["p","l"]},
-         "branch_set":{"primary":[
-            {"id":"a.1","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-             "when":{"attr_exists":["l"]},"tag_as":"a.tag"}]}},
-        {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-         "when":{"attr_exists":["l"]},"tag_as":"b.tag","priority":2}]}"#;
+    let covered = r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "priority": 1, "where": {"any": [{"source": "attr:p", "exists": true}, {"source": "attr:l", "exists": true}]}, "branch_set": {"primary": [{"id": "a.1", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "where": {"source": "attr:l", "exists": true}, "tag_as": "a.tag"}]}}, {"id": "b", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "where": {"source": "attr:l", "exists": true}, "tag_as": "b.tag", "priority": 2}]}"#;
     let sources =
         std::collections::BTreeMap::from([("t.json".to_string(), covered.as_bytes().to_vec())]);
     assert!(
@@ -781,22 +726,12 @@ fn an_unreadable_source_stops_a_chain_and_not_a_merge() {
 fn a_field_source_may_not_declare_a_gate_that_never_holds() {
     let refused = [
         (
-            "a gate with no signal at all",
-            r#"{"id":"t","doc":"d","span_fields":[
-                {"id":"f","doc":"d","target":"user_id",
-                 "sources":[{"id":"probe.src","attribute":"k","when":{}}]}]}"#,
-        ),
-        (
             "an empty span-name prefix, which matches every span",
-            r#"{"id":"t","doc":"d","span_fields":[
-                {"id":"f","doc":"d","target":"user_id",
-                 "sources":[{"id":"probe.src","attribute":"k","when":{"span_name":[""]}}]}]}"#,
+            r#"{"id": "t", "doc": "d", "span_fields": [{"id": "f", "doc": "d", "target": "user_id", "sources": [{"id": "probe.src", "attribute": "k", "where": {"source": "span_name", "starts_with": ""}}]}]}"#,
         ),
         (
             "an empty attribute key, which nothing writes",
-            r#"{"id":"t","doc":"d","span_fields":[
-                {"id":"f","doc":"d","target":"user_id",
-                 "sources":[{"id":"probe.src","attribute":"k","when":{"attr_exists":[""]}}]}]}"#,
+            r#"{"id": "t", "doc": "d", "span_fields": [{"id": "f", "doc": "d", "target": "user_id", "sources": [{"id": "probe.src", "attribute": "k", "where": {"source": "attr:", "exists": true}}]}]}"#,
         ),
         (
             "a reduction on a witness, which asks only whether a member is there",
@@ -835,28 +770,16 @@ fn a_field_source_may_not_declare_a_gate_that_never_holds() {
                  "sources":[{"id":"probe.src","json":{"attribute":"request_data"}}]}]}"#,
         ),
         (
-            "a first-present search over the span name and an attribute, whose order is not preserved",
-            r#"{"id":"t","doc":"d","span_fields":[
-                {"id":"f","doc":"d","target":"user_id",
-                 "sources":[{"id":"probe.src","attribute":"k","when":{"text_contains":{"sources":["attr:model","span_name"],"needles":["embed"],"first_present_source":true}}}]}]}"#,
-        ),
-        (
             "a phrase search naming a source the probe does not read",
-            r#"{"id":"t","doc":"d","span_fields":[
-                {"id":"f","doc":"d","target":"user_id",
-                 "sources":[{"id":"probe.src","attribute":"k","when":{"text_contains":{"sources":["span"],"needles":["foo"]}}}]}]}"#,
+            r#"{"id": "t", "doc": "d", "span_fields": [{"id": "f", "doc": "d", "target": "user_id", "sources": [{"id": "probe.src", "attribute": "k", "where": {"source": "span", "contains_ignore_case": "foo"}}]}]}"#,
         ),
         (
             "a phrase search naming `attr:` with no key",
-            r#"{"id":"t","doc":"d","span_fields":[
-                {"id":"f","doc":"d","target":"user_id",
-                 "sources":[{"id":"probe.src","attribute":"k","when":{"text_contains":{"sources":["attr:"],"needles":["foo"]}}}]}]}"#,
+            r#"{"id": "t", "doc": "d", "span_fields": [{"id": "f", "doc": "d", "target": "user_id", "sources": [{"id": "probe.src", "attribute": "k", "where": {"source": "attr:", "contains_ignore_case": "foo"}}]}]}"#,
         ),
         (
             "a phrase search with no needle",
-            r#"{"id":"t","doc":"d","span_fields":[
-                {"id":"f","doc":"d","target":"user_id",
-                 "sources":[{"id":"probe.src","attribute":"k","when":{"text_contains":{"sources":["span_name"],"needles":[]}}}]}]}"#,
+            r#"{"id": "t", "doc": "d", "span_fields": [{"id": "f", "doc": "d", "target": "user_id", "sources": [{"id": "probe.src", "attribute": "k", "where": {"source": "span_name", "contains_ignore_case": ""}}]}]}"#,
         ),
     ];
     for (what, asset) in refused {
@@ -871,15 +794,7 @@ fn a_field_source_may_not_declare_a_gate_that_never_holds() {
         );
     }
     // A real gate compiles, phrase search included.
-    let ok = r#"{"id":"t","doc":"d","span_fields":[
-        {"id":"f","doc":"d","target":"user_id",
-         "sources":[{"id":"probe.src","attribute":"k","when":{"attr_exists":["marker"]}}]},
-        {"id":"g","doc":"d","target":"http_method",
-         "sources":[{"id":"probe.src","attribute":"m","when":{"text_contains":{"sources":["span_name","attr:k"],"needles":["chat"]}}}]},
-        {"id":"h","doc":"d","target":"http_url",
-         "sources":[{"id":"probe.src","attribute":"u","when":{"text_contains":{"sources":["attr:a","attr:b"],"needles":["x"],"first_present_source":true}}}]},
-        {"id":"i","doc":"d","target":"db_name",
-         "sources":[{"id":"probe.src","attribute":"d","when":{"text_contains":{"sources":["span_name"],"needles":["x"],"first_present_source":true}}}]}]}"#;
+    let ok = r#"{"id": "t", "doc": "d", "span_fields": [{"id": "f", "doc": "d", "target": "user_id", "sources": [{"id": "probe.src", "attribute": "k", "where": {"source": "attr:marker", "exists": true}}]}, {"id": "g", "doc": "d", "target": "http_method", "sources": [{"id": "probe.src", "attribute": "m", "where": {"source": ["span_name", "attr:k"], "contains_ignore_case": "chat"}}]}, {"id": "h", "doc": "d", "target": "http_url", "sources": [{"id": "probe.src", "attribute": "u", "where": {"source": {"first_of": ["attr:a", "attr:b"]}, "contains_ignore_case": "x"}}]}, {"id": "i", "doc": "d", "target": "db_name", "sources": [{"id": "probe.src", "attribute": "d", "where": {"source": "span_name", "contains_ignore_case": "x"}}]}]}"#;
     let sources =
         std::collections::BTreeMap::from([("t.json".to_string(), ok.as_bytes().to_vec())]);
     assert!(

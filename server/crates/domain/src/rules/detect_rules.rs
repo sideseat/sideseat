@@ -13,7 +13,7 @@
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 
-use super::schema::{DetectMatch, KeyValue, TextContains};
+use super::span_conditions::{self, Readable, SpanExpr};
 
 /// A compiled detection rule.
 #[derive(Debug, Clone)]
@@ -26,16 +26,8 @@ pub struct CompiledDetect {
     /// The overlaps this clause documents. Validated against `priority` at compile time and read only by the
     /// overlap report: the priority alone decides which rule answers.
     pub supersedes: Vec<String>,
-    pub match_spec: DetectMatch,
-    /// Further disjunctive signal sets that must each hold.
-    required: Vec<CompiledDetect>,
-    /// `text_contains` sources split once, at compile time, into "the span name" and attribute keys.
-    span_name_is_a_text_source: bool,
-    text_attribute_keys: Vec<String>,
-    /// Needles pre-lowercased, so a match does not lower-case a constant per span.
-    text_needles_lowered: Vec<String>,
-    /// Search only the first source that has a value. See `TextContains::first_present_source`.
-    text_first_present_source: bool,
+    /// The evidence, lowered once.
+    pub condition: SpanExpr,
 }
 
 /// A rule that reads a key this span has, and disagreed about its value.
@@ -79,10 +71,14 @@ pub enum DetectCompileError {
         rule: String,
         dimension: &'static str,
     },
-    /// A literal another in the same list already covers, so it can never be why a rule matched.
+    /// A condition that cannot be lowered, or carries a literal that matches everything or nothing.
+    Condition {
+        rule: String,
+        detail: String,
+    },
+    /// A disjunct another disjunct of the same group already covers, so it can never be why the rule matched.
     SubsumedLiteral {
         rule: String,
-        dimension: &'static str,
         dead: String,
         covering: String,
     },
@@ -103,9 +99,6 @@ pub enum DetectCompileError {
         first: String,
         second: String,
     },
-    NoSignal {
-        rule: String,
-    },
     DuplicateSlug {
         slug: String,
     },
@@ -114,10 +107,6 @@ pub enum DetectCompileError {
         rule: String,
         target: String,
         detail: String,
-    },
-    BadTextSource {
-        rule: String,
-        source: String,
     },
 }
 
@@ -138,15 +127,17 @@ impl std::fmt::Display for DetectCompileError {
             ),
             Self::SubsumedLiteral {
                 rule,
-                dimension,
                 dead,
                 covering,
             } => write!(
                 f,
-                "detection rule `{rule}` declares `{dead}` in `{dimension}`, which `{covering}` in the same \
-                 list already covers - the broader literal always fires first, so this one can never be why \
-                 the rule matched, and it reads as precision the rule does not have"
+                "detection rule `{rule}` declares `{dead}` beside `{covering}`, which already covers it - the \
+                 broader condition always holds first, so this one can never be why the rule matched, and it \
+                 reads as precision the rule does not have"
             ),
+            Self::Condition { rule, detail } => {
+                write!(f, "detection rule `{rule}` has a condition that {detail}")
+            }
             Self::UselessSupersedes {
                 rule,
                 target,
@@ -169,37 +160,60 @@ impl std::fmt::Display for DetectCompileError {
                 "detection rules `{first}` and `{second}` share a priority: their relative order would \
                  depend on load order, and detection order is policy"
             ),
-            Self::NoSignal { rule } => write!(
-                f,
-                "detection rule `{rule}` declares no signal, so it would claim every span"
-            ),
             Self::DuplicateSlug { slug } => write!(
                 f,
                 "SDK slug `{slug}` is claimed by more than one framework, so a declaration naming it \
                  has no single answer"
             ),
-            Self::BadTextSource { rule, source } => write!(
-                f,
-                "detection rule `{rule}` names text source `{source}`: expected `span_name` or \
-                 `attr:<key>`"
-            ),
         }
     }
 }
 
-/// Does this match spec declare any signal at all?
-fn has_signal(spec: &DetectMatch) -> bool {
-    !spec.span_name.is_empty()
-        || !spec.span_name_exact.is_empty()
-        || !spec.scope_name.is_empty()
-        || !spec.attr_prefix.is_empty()
-        || !spec.attr_equals.is_empty()
-        || !spec.attr_equals_ignore_case.is_empty()
-        || !spec.attr_exists.is_empty()
-        || !spec.service_name.is_empty()
-        || !spec.span_attr_contains.is_empty()
-        || !spec.resource_attr_contains.is_empty()
-        || spec.text_contains.is_some()
+/// A section's `where`, lowered and checked the way every section checks one: a source the section is not given
+/// and a test a source cannot answer are refused, so is a literal that matches everything or nothing, and so is
+/// a disjunct its own group already covers. The error is the reason, for the caller to locate.
+pub(super) fn checked_condition(
+    condition: &super::schema::SpanWhere,
+    readable: Readable,
+) -> Result<SpanExpr, ConditionRefusal> {
+    let lowered = span_conditions::lower(condition, readable)
+        .map_err(|defect| ConditionRefusal::Unlowerable(defect.0))?;
+    if let Some(defect) = lowered
+        .defects(&super::span_conditions::SpanAtom::defect)
+        .first()
+    {
+        return Err(ConditionRefusal::Unlowerable(format!(
+            "carries `{}` with {}",
+            defect.atom, defect.reason
+        )));
+    }
+    if let Some((dead, covering)) = span_conditions::dead_disjunct(&lowered) {
+        return Err(ConditionRefusal::DeadDisjunct {
+            dead: span_conditions::render(&dead),
+            covering: span_conditions::render(&covering),
+        });
+    }
+    Ok(lowered)
+}
+
+/// Why a section's condition was refused.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum ConditionRefusal {
+    Unlowerable(String),
+    DeadDisjunct { dead: String, covering: String },
+}
+
+impl std::fmt::Display for ConditionRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Unlowerable(detail) => f.write_str(detail),
+            Self::DeadDisjunct { dead, covering } => write!(
+                f,
+                "declares `{dead}` beside `{covering}`, which already covers it, so it can never be why the \
+                 condition held"
+            ),
+        }
+    }
 }
 
 /// Compile every asset's detection rules into one ordered plan.
@@ -220,17 +234,14 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<DetectPlan, Detec
                 });
             }
         }
-        // One body of evidence - a rule's own `match`, or one of its `alternatives` - validated and compiled the
-        // same way. Extracted so an alternative cannot get a weaker check than the primary: every refusal below
-        // used to sit inline in a loop over rules, and an alternative added beside it would have skipped all of
-        // them.
+        // One body of evidence - a rule's own `where`, or one of its `alternatives` - validated and compiled the
+        // same way, so an alternative cannot get a weaker check than the primary.
         let compile_one = |id: &str,
                            doc: Option<String>,
                            priority: i32,
                            label: &str,
                            supersedes: Vec<String>,
-                           spec: &DetectMatch,
-                           all_of: &[DetectMatch]|
+                           condition: &super::schema::SpanWhere|
          -> Result<CompiledDetect, DetectCompileError> {
             if id.is_empty() || label.is_empty() {
                 return Err(DetectCompileError::EmptyLiteral {
@@ -238,62 +249,20 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<DetectPlan, Detec
                     dimension: "id/label",
                 });
             }
-            for signal_set in std::iter::once(spec).chain(all_of) {
-                if !has_signal(signal_set) {
-                    return Err(DetectCompileError::NoSignal {
+            let condition =
+                checked_condition(condition, Readable::ALL).map_err(|refusal| match refusal {
+                    ConditionRefusal::Unlowerable(detail) => DetectCompileError::Condition {
                         rule: id.to_string(),
-                    });
-                }
-                // Through the shared atom validator, not a copy of it: the two had drifted in both directions.
-                if let Some(defect) = atom_literal_defect(signal_set) {
-                    // The variant a caller's own diagnostic wants: detection has a dedicated error for an
-                    // unreadable phrase source, and collapsing every defect into one variant made that
-                    // diagnostic worse than it was.
-                    return Err(match defect {
-                        AtomDefect::BadTextSource(source) => DetectCompileError::BadTextSource {
+                        detail,
+                    },
+                    ConditionRefusal::DeadDisjunct { dead, covering } => {
+                        DetectCompileError::SubsumedLiteral {
                             rule: id.to_string(),
-                            source,
-                        },
-                        // Names the two literals, because "a literal is subsumed" without saying which two sends
-                        // the reader to re-derive the covering relation by hand.
-                        AtomDefect::SubsumedLiteral {
-                            dimension,
                             dead,
                             covering,
-                        } => DetectCompileError::SubsumedLiteral {
-                            rule: id.to_string(),
-                            dimension,
-                            dead,
-                            covering,
-                        },
-                        other => DetectCompileError::EmptyLiteral {
-                            rule: id.to_string(),
-                            dimension: other.dimension(),
-                        },
-                    });
-                }
-            }
-            let (mut span_source, mut attr_keys, mut needles) = (false, Vec::new(), Vec::new());
-            if let Some(TextContains {
-                sources,
-                needles: n,
-                first_present_source: _,
-            }) = &spec.text_contains
-            {
-                for source in sources {
-                    if source == "span_name" {
-                        span_source = true;
-                    } else if let Some(key) = source.strip_prefix("attr:") {
-                        attr_keys.push(key.to_string());
-                    } else {
-                        return Err(DetectCompileError::BadTextSource {
-                            rule: id.to_string(),
-                            source: source.clone(),
-                        });
+                        }
                     }
-                }
-                needles = n.iter().map(|s| s.to_lowercase()).collect();
-            }
+                })?;
             Ok(CompiledDetect {
                 rule_file: file.id.clone(),
                 rule_id: id.to_string(),
@@ -301,15 +270,7 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<DetectPlan, Detec
                 label: label.to_string(),
                 priority,
                 supersedes,
-                match_spec: spec.clone(),
-                required: all_of.iter().map(probe_for).collect(),
-                span_name_is_a_text_source: span_source,
-                text_attribute_keys: attr_keys,
-                text_needles_lowered: needles,
-                text_first_present_source: spec
-                    .text_contains
-                    .as_ref()
-                    .is_some_and(|t| t.first_present_source),
+                condition,
             })
         };
 
@@ -327,8 +288,7 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<DetectPlan, Detec
                 rule.priority,
                 &rule.label,
                 rule.supersedes.clone(),
-                &rule.match_spec,
-                &rule.all_of,
+                &rule.condition,
             )?);
             for alternative in &rule.alternatives {
                 // The label is the *rule's*: an alternative is further evidence for one producer, so declaring its
@@ -340,8 +300,7 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<DetectPlan, Detec
                     alternative.priority,
                     &rule.label,
                     alternative.supersedes.clone(),
-                    &alternative.match_spec,
-                    &alternative.all_of,
+                    &alternative.condition,
                 )?);
             }
         }
@@ -382,18 +341,10 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<DetectPlan, Detec
 
     // A rule an earlier one always satisfies first can never answer. The same defect as a subsumed literal, one
     // level up - and a *detection* rule shadowed this way silently never attributes its producer at all. Sound
-    // rather than complete (see `shadows`).
+    // rather than complete (see `span_conditions::implies`).
     for (index, earlier) in rules.iter().enumerate() {
         for later in &rules[index + 1..] {
-            let earlier_specs: Vec<DetectMatch> = std::iter::once(&earlier.match_spec)
-                .chain(earlier.required.iter().map(|probe| &probe.match_spec))
-                .cloned()
-                .collect();
-            let later_specs: Vec<DetectMatch> = std::iter::once(&later.match_spec)
-                .chain(later.required.iter().map(|probe| &probe.match_spec))
-                .cloned()
-                .collect();
-            if shadows(&earlier_specs, &later_specs) {
+            if span_conditions::implies(&later.condition, &earlier.condition) {
                 return Err(DetectCompileError::ShadowedRule {
                     earlier: earlier.rule_id.clone(),
                     later: later.rule_id.clone(),
@@ -421,489 +372,6 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<DetectPlan, Detec
 
     plan.rules = rules;
     Ok(plan)
-}
-
-/// A signal set compiled once, for a message rule's gate.
-///
-/// Built at compile time rather than per observation. The previous form cloned the predicate, rebuilt its
-/// lowered needles and allocated an empty map on *every* gate evaluation - which is the opposite of what a
-/// "typed plan compiled once" is for.
-/// The retired shell's answer for a span, reachable from the oracle that holds the boolean grammar to it.
-#[cfg(test)]
-pub(crate) fn signals_hold_for_test(
-    spec: &DetectMatch,
-    span_name: &str,
-    span_attrs: &HashMap<String, String>,
-) -> bool {
-    compiled_signals_hold(&compile_signals(spec), span_name, span_attrs)
-}
-
-pub(super) fn compile_signals(spec: &DetectMatch) -> CompiledDetect {
-    probe_for(spec)
-}
-
-/// Whether a compiled signal set holds for a span.
-///
-/// One definition, shared with detection: two implementations of "does this span carry this marker" would
-/// drift, and invisibly - a rule would claim a carrier on a span detection did not attribute to that
-/// dialect.
-pub(super) fn compiled_signals_hold(
-    probe: &CompiledDetect,
-    span_name: &str,
-    span_attrs: &HashMap<String, String>,
-) -> bool {
-    // A message gate sees no resource attributes; dimensions that need them are refused at compile time,
-    // so an empty map here cannot silently change an answer.
-    static NO_RESOURCE: std::sync::OnceLock<HashMap<String, String>> = std::sync::OnceLock::new();
-    probe.matches(&DetectContext {
-        span_name,
-        scope_name: None,
-        span_attrs,
-        resource_attrs: NO_RESOURCE.get_or_init(HashMap::new),
-    })
-}
-
-/// Which gate dimensions a message rule cannot use, because a message gate is given no resource
-/// attributes - so such a predicate would be accepted and never hold.
-pub(super) fn unavailable_gate_dimension(spec: &DetectMatch) -> Option<&'static str> {
-    if !spec.service_name.is_empty() {
-        return Some("service_name");
-    }
-    if !spec.scope_name.is_empty() {
-        return Some("scope_name");
-    }
-    if !spec.resource_attr_contains.is_empty() {
-        return Some("resource_attr_contains");
-    }
-    None
-}
-
-/// A first-present search over *mixed* sources, which cannot be honoured.
-///
-/// Compilation splits sources into "the span name" and a list of attribute keys, so the declared order between
-/// the two is lost and the span name is always reached first. Refused rather than silently reordered - no asset
-/// needs the mix, and the fix if one ever does is to compile an ordered list of sources rather than a flag and a
-/// list. One definition, because the two compile paths refused it inconsistently.
-pub(super) fn mixed_first_present_sources(spec: &DetectMatch) -> bool {
-    spec.text_contains.as_ref().is_some_and(|text| {
-        text.first_present_source
-            && text.sources.iter().any(|s| s == "span_name")
-            && text.sources.iter().any(|s| s != "span_name")
-    })
-}
-
-/// Why a gate could never hold, where that is decidable from the declaration alone.
-///
-/// A gate is a *disjunction*, so an empty one is not "match anything" - it is `false`, and every rule carrying
-/// it is dead. An empty needle inside a dimension is the opposite mistake: `span_name: [""]` matches every
-/// span by prefix and `attr_exists: [""]` names a key nothing writes, so one is far broader than it reads and
-/// the other narrower. Both compiled silently.
-/// The literal defects of a span-match atom, wherever it is declared.
-///
-/// **One validator for detection and for every gate.** They were two, and had already drifted apart in both
-/// directions: an empty `attr:` source was accepted by detection and refused by a gate, and an empty substring
-/// *value* was refused by neither. A predicate whose meaning depends on where it was written is not a
-/// predicate.
-pub(super) enum AtomDefect {
-    /// A literal that matches everything or nothing, on the named dimension.
-    EmptyLiteral(&'static str),
-    /// A phrase search naming a source the probe does not read, and which one.
-    BadTextSource(String),
-    /// A phrase search with nothing to search for.
-    NoNeedle,
-    /// A first-present search mixing the span name with attributes, whose order compilation loses.
-    MixedFirstPresentSources,
-    /// A substring search for `""`, which every present value contains.
-    EmptySubstring(&'static str),
-    /// A literal another literal in the same list already covers, so it can never be why a rule matched.
-    SubsumedLiteral {
-        dimension: &'static str,
-        dead: String,
-        covering: String,
-    },
-}
-
-/// How one literal can cover another within a dimension.
-#[derive(Debug, Clone, Copy)]
-enum Subsumption {
-    /// The covering literal is a prefix of the dead one.
-    Prefix,
-    /// The covering literal appears inside the dead one.
-    Contains,
-    /// Only an identical literal covers - a list of exact matches.
-    Equal,
-}
-
-/// One condition a `DetectMatch` states, as the pair a comparison needs.
-///
-/// Flattened so implication between two rules can be asked atom by atom. `text_contains` is deliberately
-/// **omitted**: its `first_present_source` mode searches only the first source that has a value, so whether one
-/// phrase search implies another depends on which attributes a span happens to carry - and a wrong answer here
-/// refuses a legitimate ruleset at build time, which is worse than missing a shadow.
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum Atom<'a> {
-    SpanNamePrefix(&'a str),
-    SpanNameExact(&'a str),
-    ScopeNameExact(&'a str),
-    AttrPrefix(&'a str),
-    AttrExists(&'a str),
-    ServiceNameContains(&'a str),
-    AttrEquals(&'a str, &'a str),
-    AttrEqualsIgnoreCase(&'a str, &'a str),
-    SpanAttrContains(&'a str, &'a str),
-    ResourceAttrContains(&'a str, &'a str),
-}
-
-impl<'a> Atom<'a> {
-    /// The attribute key this condition is about, where it is about one.
-    fn key(&self) -> Option<&'a str> {
-        match self {
-            Self::AttrExists(key)
-            | Self::AttrEquals(key, _)
-            | Self::AttrEqualsIgnoreCase(key, _)
-            | Self::SpanAttrContains(key, _) => Some(key),
-            _ => None,
-        }
-    }
-
-    /// Whether satisfying `self` necessarily satisfies `other`.
-    ///
-    /// Conservative by construction: every arm is a containment or equality that holds for *every* span, never a
-    /// judgement about which attributes a span carries. Anything not listed answers `false`, so an unrecognised
-    /// pair means "no shadow proven" rather than a refusal nobody can explain.
-    fn implies(&self, other: &Atom<'_>) -> bool {
-        if self == other {
-            return true;
-        }
-        match other {
-            // Anything that reads a key proves the key is there.
-            Atom::AttrExists(key) => self.key() == Some(*key),
-            // A key under a longer prefix is under the shorter one.
-            Atom::AttrPrefix(prefix) => self
-                .key()
-                .or(match self {
-                    Atom::AttrPrefix(mine) => Some(mine),
-                    _ => None,
-                })
-                .is_some_and(|key| key.starts_with(prefix)),
-            Atom::SpanNamePrefix(prefix) => match self {
-                Atom::SpanNameExact(name) | Atom::SpanNamePrefix(name) => name.starts_with(prefix),
-                _ => false,
-            },
-            Atom::AttrEqualsIgnoreCase(key, value) => match self {
-                Atom::AttrEquals(mine, mine_value) => {
-                    mine == key && mine_value.eq_ignore_ascii_case(value)
-                }
-                _ => false,
-            },
-            Atom::ServiceNameContains(needle) => match self {
-                Atom::ServiceNameContains(mine) => mine.contains(needle),
-                _ => false,
-            },
-            Atom::SpanAttrContains(key, needle) => match self {
-                Atom::SpanAttrContains(mine, mine_needle) => {
-                    mine == key && mine_needle.contains(needle)
-                }
-                Atom::AttrEquals(mine, value) => mine == key && value.contains(needle),
-                _ => false,
-            },
-            Atom::ResourceAttrContains(key, needle) => match self {
-                Atom::ResourceAttrContains(mine, mine_needle) => {
-                    mine == key && mine_needle.contains(needle)
-                }
-                _ => false,
-            },
-            _ => false,
-        }
-    }
-}
-
-/// Every condition a match spec states, flattened. `None` where it states one this cannot compare.
-fn atoms_of(spec: &DetectMatch) -> Option<Vec<Atom<'_>>> {
-    if spec.text_contains.is_some() {
-        return None;
-    }
-    let mut out: Vec<Atom<'_>> = Vec::new();
-    out.extend(spec.span_name.iter().map(|s| Atom::SpanNamePrefix(s)));
-    out.extend(spec.span_name_exact.iter().map(|s| Atom::SpanNameExact(s)));
-    out.extend(spec.scope_name.iter().map(|s| Atom::ScopeNameExact(s)));
-    out.extend(spec.attr_prefix.iter().map(|s| Atom::AttrPrefix(s)));
-    out.extend(spec.attr_exists.iter().map(|s| Atom::AttrExists(s)));
-    out.extend(
-        spec.service_name
-            .iter()
-            .map(|s| Atom::ServiceNameContains(s)),
-    );
-    out.extend(
-        spec.attr_equals
-            .iter()
-            .map(|kv| Atom::AttrEquals(&kv.key, &kv.value)),
-    );
-    out.extend(
-        spec.attr_equals_ignore_case
-            .iter()
-            .map(|kv| Atom::AttrEqualsIgnoreCase(&kv.key, &kv.value)),
-    );
-    out.extend(
-        spec.span_attr_contains
-            .iter()
-            .map(|kv| Atom::SpanAttrContains(&kv.key, &kv.value)),
-    );
-    out.extend(
-        spec.resource_attr_contains
-            .iter()
-            .map(|kv| Atom::ResourceAttrContains(&kv.key, &kv.value)),
-    );
-    (!out.is_empty()).then_some(out)
-}
-
-/// Whether `later` can never be reached because `earlier` always holds first.
-///
-/// A rule that cannot fire reads as protection it does not give - the same defect as a subsumed literal, one level
-/// up. `earlier` is a single disjunctive set, so it holds if **any** of its conditions does; `later` needs every
-/// one of its conjuncts. So it suffices that *one* conjunct of `later` has all its conditions implying something
-/// in `earlier`: whichever of them a span satisfies, `earlier` was already satisfied by it.
-///
-/// Sound rather than complete, deliberately, in both directions: a multi-conjunct `earlier` is not analysed, a
-/// phrase search on either side is not analysed, and an unrecognised implication answers no. A false refusal
-/// breaks a build for a reason nobody can act on; a missed shadow leaves things as they were.
-pub(super) fn shadows(earlier: &[DetectMatch], later: &[DetectMatch]) -> bool {
-    let [earlier] = earlier else {
-        return false;
-    };
-    let Some(covering) = atoms_of(earlier) else {
-        return false;
-    };
-    later.iter().any(|conjunct| {
-        atoms_of(conjunct).is_some_and(|conditions| {
-            conditions
-                .iter()
-                .all(|condition| covering.iter().any(|target| condition.implies(target)))
-        })
-    })
-}
-
-/// The first literal another in the same list already covers, as `(dead, covering)`.
-fn subsumed_literal(values: &[String], kind: Subsumption) -> Option<(String, String)> {
-    for (index, dead) in values.iter().enumerate() {
-        for (other, covering) in values.iter().enumerate() {
-            if index == other {
-                continue;
-            }
-            let covered = match kind {
-                Subsumption::Prefix => dead.starts_with(covering.as_str()),
-                Subsumption::Contains => dead.contains(covering.as_str()),
-                // Duplicates only. A later identical entry adds nothing, and the earlier one covers it - so the
-                // *second* is the dead one, which is why the index comparison decides the tie.
-                Subsumption::Equal => dead == covering && other < index,
-            };
-            if covered && !(matches!(kind, Subsumption::Equal) && dead != covering) {
-                return Some((dead.clone(), covering.clone()));
-            }
-        }
-    }
-    None
-}
-
-impl AtomDefect {
-    /// The dimension a diagnostic should name.
-    pub(super) fn dimension(&self) -> &'static str {
-        match self {
-            Self::EmptyLiteral(dimension)
-            | Self::EmptySubstring(dimension)
-            | Self::SubsumedLiteral { dimension, .. } => dimension,
-            Self::BadTextSource(_) | Self::NoNeedle => "text_contains",
-            Self::MixedFirstPresentSources => "text_contains.first_present_source",
-        }
-    }
-
-    /// Why, for a caller whose error type carries prose rather than a variant per cause.
-    pub(super) fn reason(&self) -> &'static str {
-        match self {
-            Self::EmptyLiteral(_) => {
-                "names an empty span-name prefix, attribute key or service name, which matches either \
-                 everything or nothing rather than what it reads as"
-            }
-            Self::EmptySubstring(_) => {
-                "searches for an empty substring, which every present value contains"
-            }
-            Self::BadTextSource(_) => {
-                "declares a phrase search over a source that is neither `span_name` nor `attr:<key>` - so \
-                 it can never hold"
-            }
-            Self::NoNeedle => {
-                "declares a phrase search with no needle or no source, so it can never hold"
-            }
-            Self::MixedFirstPresentSources => {
-                "searches the first source that has a value over a mix of the span name and attributes, and \
-                 the declared order between those two is not preserved - name them separately, or use one \
-                 kind"
-            }
-            Self::SubsumedLiteral { .. } => {
-                "names a literal another literal in the same list already covers, so it can never be why the \
-                 rule matched - remove it, or move it to the dimension that makes it mean something"
-            }
-        }
-    }
-}
-
-pub(super) fn atom_literal_defect(spec: &DetectMatch) -> Option<AtomDefect> {
-    for (dimension, values) in [
-        ("span_name", &spec.span_name),
-        ("span_name_exact", &spec.span_name_exact),
-        ("scope_name", &spec.scope_name),
-        ("attr_prefix", &spec.attr_prefix),
-        ("attr_exists", &spec.attr_exists),
-        ("service_name", &spec.service_name),
-    ] {
-        if values.iter().any(String::is_empty) {
-            return Some(AtomDefect::EmptyLiteral(dimension));
-        }
-    }
-    for (dimension, pairs) in [
-        ("attr_equals", &spec.attr_equals),
-        ("attr_equals_ignore_case", &spec.attr_equals_ignore_case),
-        ("span_attr_contains", &spec.span_attr_contains),
-        ("resource_attr_contains", &spec.resource_attr_contains),
-    ] {
-        if pairs.iter().any(|kv| kv.key.is_empty()) {
-            return Some(AtomDefect::EmptyLiteral(dimension));
-        }
-    }
-    // An empty **value** is refused for the substring dimensions and stays legal for equality. Every present
-    // string contains `""`, so `span_attr_contains` with an empty value matches every span carrying the key at
-    // all - a narrow rule turned catch-all wherever its rank sits. An attribute that genuinely holds the empty
-    // string is something a producer can write, so `attr_equals` keeps it.
-    for (dimension, pairs) in [
-        ("span_attr_contains", &spec.span_attr_contains),
-        ("resource_attr_contains", &spec.resource_attr_contains),
-    ] {
-        if pairs.iter().any(|kv| kv.value.is_empty()) {
-            return Some(AtomDefect::EmptySubstring(dimension));
-        }
-    }
-    // A literal another literal in the same list already covers can never be the reason a rule matched: the
-    // broader one always fires first. Two shipped declarations were exactly that - `"LangGraph."` beside
-    // `"LangGraph"` in a prefix list, and `"\"langgraph_"` beside `"langgraph_"` in a substring one - and both
-    // read as precision the rule did not have.
-    for (dimension, values, kind) in [
-        ("span_name", &spec.span_name, Subsumption::Prefix),
-        ("span_name_exact", &spec.span_name_exact, Subsumption::Equal),
-        ("scope_name", &spec.scope_name, Subsumption::Equal),
-        ("attr_prefix", &spec.attr_prefix, Subsumption::Prefix),
-        ("attr_exists", &spec.attr_exists, Subsumption::Equal),
-        ("service_name", &spec.service_name, Subsumption::Contains),
-    ] {
-        if let Some((dead, covering)) = subsumed_literal(values, kind) {
-            return Some(AtomDefect::SubsumedLiteral {
-                dimension,
-                dead,
-                covering,
-            });
-        }
-    }
-    for (dimension, pairs) in [
-        ("span_attr_contains", &spec.span_attr_contains),
-        ("resource_attr_contains", &spec.resource_attr_contains),
-    ] {
-        // Per key: two substrings of *different* attributes say nothing about each other.
-        let mut by_key: std::collections::BTreeMap<&str, Vec<String>> =
-            std::collections::BTreeMap::new();
-        for pair in pairs.iter() {
-            by_key
-                .entry(&pair.key)
-                .or_default()
-                .push(pair.value.clone());
-        }
-        for values in by_key.values() {
-            if let Some((dead, covering)) = subsumed_literal(values, Subsumption::Contains) {
-                return Some(AtomDefect::SubsumedLiteral {
-                    dimension,
-                    dead,
-                    covering,
-                });
-            }
-        }
-    }
-    if mixed_first_present_sources(spec) {
-        return Some(AtomDefect::MixedFirstPresentSources);
-    }
-    if let Some(text) = &spec.text_contains {
-        // Every source has to be a form the probe reads. A misspelling like `span` is *silently dropped*
-        // there, so a search naming only that one can never hold.
-        if text.needles.is_empty()
-            || text.needles.iter().any(String::is_empty)
-            || text.sources.is_empty()
-        {
-            return Some(AtomDefect::NoNeedle);
-        }
-        if let Some(source) = text.sources.iter().find(|source| {
-            *source != "span_name"
-                && source
-                    .strip_prefix("attr:")
-                    .is_none_or(|key| key.is_empty())
-        }) {
-            return Some(AtomDefect::BadTextSource(source.clone()));
-        }
-    }
-    None
-}
-
-pub(super) fn gate_defect(spec: &DetectMatch) -> Option<&'static str> {
-    if let Some(defect) = atom_literal_defect(spec) {
-        return Some(defect.reason());
-    }
-    let any_signal = !spec.span_name.is_empty()
-        || !spec.span_name_exact.is_empty()
-        || !spec.scope_name.is_empty()
-        || !spec.attr_prefix.is_empty()
-        || !spec.attr_equals.is_empty()
-        || !spec.attr_equals_ignore_case.is_empty()
-        || !spec.attr_exists.is_empty()
-        || !spec.service_name.is_empty()
-        || !spec.span_attr_contains.is_empty()
-        || !spec.resource_attr_contains.is_empty()
-        || spec.text_contains.is_some();
-    if !any_signal {
-        return Some("declares no signal at all, and a gate with no signal never holds");
-    }
-    None
-}
-
-fn probe_for(spec: &DetectMatch) -> CompiledDetect {
-    CompiledDetect {
-        rule_file: String::new(),
-        rule_id: String::new(),
-        doc: None,
-        label: String::new(),
-        priority: 0,
-        supersedes: Vec::new(),
-        match_spec: spec.clone(),
-        required: Vec::new(),
-        span_name_is_a_text_source: spec
-            .text_contains
-            .as_ref()
-            .is_some_and(|t| t.sources.iter().any(|s| s == "span_name")),
-        text_attribute_keys: spec
-            .text_contains
-            .as_ref()
-            .map(|t| {
-                t.sources
-                    .iter()
-                    .filter_map(|s| s.strip_prefix("attr:").map(str::to_string))
-                    .collect()
-            })
-            .unwrap_or_default(),
-        text_needles_lowered: spec
-            .text_contains
-            .as_ref()
-            .map(|t| t.needles.iter().map(|n| n.to_lowercase()).collect())
-            .unwrap_or_default(),
-        text_first_present_source: spec
-            .text_contains
-            .as_ref()
-            .is_some_and(|t| t.first_present_source),
-    }
 }
 
 mod evaluation;

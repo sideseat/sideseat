@@ -300,15 +300,13 @@ fn every_span_field_refusal_fires() {
         ),
         (
             "a gate that can never hold",
-            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
-               "sources":[{"id":"s","attribute":"k","when":{"attr_prefix":[""]}}]}]}"#,
+            r#"{"id": "t", "span_fields": [{"id": "f", "target": "user_id", "sources": [{"id": "s", "attribute": "k", "where": {"source": "attr_keys", "starts_with": ""}}]}]}"#,
             |e| matches!(e, E::DeadGate { .. }),
         ),
         (
             "a gate naming a resource dimension field resolution is never given",
-            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
-               "sources":[{"id":"s","attribute":"k","when":{"service_name":["x"]}}]}]}"#,
-            |e| matches!(e, E::UnavailableGate { .. }),
+            r#"{"id": "t", "span_fields": [{"id": "f", "target": "user_id", "sources": [{"id": "s", "attribute": "k", "where": {"source": "resource:service.name", "contains": "x"}}]}]}"#,
+            |e| matches!(e, E::DeadGate { .. }),
         ),
     ];
 

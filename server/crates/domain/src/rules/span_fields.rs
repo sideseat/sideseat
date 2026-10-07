@@ -19,8 +19,8 @@ use serde_json::Value as JsonValue;
 pub use super::refusal::Refusal;
 use super::refusal::Unusable;
 use super::schema::{
-    DetectMatch, FieldCombine, FieldSource, FieldTarget, FieldType, JsonFieldSource,
-    MalformedPolicy, Reduction, SpanFieldRule,
+    FieldCombine, FieldSource, FieldTarget, FieldType, JsonFieldSource, MalformedPolicy, Reduction,
+    SpanFieldRule,
 };
 
 /// What reading one source produced.
@@ -182,27 +182,17 @@ pub enum FieldCompileError {
         first: String,
         second: String,
     },
-    #[error(
-        "span field rule `{rule}` in `{file}` gates a source in a way that never holds: {detail}"
-    )]
+    #[error("span field rule `{rule}` in `{file}` gates a source on a condition that {detail}")]
     DeadGate {
         file: String,
         rule: String,
-        detail: &'static str,
-    },
-    #[error(
-        "span field rule `{rule}` in `{file}` gates a source on `{dimension}`, which this stage is never given"
-    )]
-    UnavailableGate {
-        file: String,
-        rule: String,
-        dimension: &'static str,
+        detail: String,
     },
 }
 
 struct CompiledSource {
     spec: FieldSource,
-    when: Option<super::detect_rules::CompiledDetect>,
+    when: Option<super::span_conditions::SpanExpr>,
 }
 
 struct CompiledRule {
@@ -450,7 +440,15 @@ fn source_applies(
     attrs: &HashMap<String, String>,
 ) -> bool {
     if let Some(gate) = &source.when
-        && !super::detect_rules::compiled_signals_hold(gate, span_name, attrs)
+        && !super::span_conditions::holds(
+            gate,
+            &super::span_conditions::SpanSubject {
+                span_name,
+                attrs,
+                scope_name: None,
+                resource: None,
+            },
+        )
     {
         return false;
     }

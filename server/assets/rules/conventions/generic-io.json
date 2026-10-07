@@ -91,16 +91,20 @@
         "attribute": "response"
       },
       "parse": "json",
-      "unless": {
-        "attr_equals": [
-          {
-            "key": "rpc.system",
-            "value": "jsonrpc"
-          }
-        ],
-        "attr_exists": [
-          "output.value"
-        ]
+      "where": {
+        "not": {
+          "any": [
+            {
+              "source": "attr:rpc.system",
+              "exists": true,
+              "equals": "jsonrpc"
+            },
+            {
+              "source": "attr:output.value",
+              "exists": true
+            }
+          ]
+        }
       },
       "wrap": {
         "role": "assistant",

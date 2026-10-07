@@ -8,21 +8,18 @@
       "id": "vertex-ai.detect",
       "doc": "The current Google Gen AI instrumentor reports Vertex through its exact scope together with gen_ai.provider.name=vertex_ai. Either signal alone is shared: the scope also serves the Gemini Developer API, while framework integrations can call models hosted on Vertex.",
       "label": "VertexAI",
-      "match": {
-        "scope_name": [
-          "opentelemetry.instrumentation.google_genai"
+      "where": {
+        "all": [
+          {
+            "source": "scope.name",
+            "equals": "opentelemetry.instrumentation.google_genai"
+          },
+          {
+            "source": "attr:gen_ai.provider.name",
+            "equals": "vertex_ai"
+          }
         ]
       },
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "gen_ai.provider.name",
-              "value": "vertex_ai"
-            }
-          ]
-        }
-      ],
       "priority": 180,
       "supersedes": [
         "logfire.detect"
@@ -32,10 +29,9 @@
           "id": "vertex-ai.detect.legacy-openllmetry",
           "doc": "Historical opentelemetry-instrumentation-vertexai releases identified themselves only through vertexai.* span names.",
           "priority": 181,
-          "match": {
-            "span_name": [
-              "vertexai."
-            ]
+          "where": {
+            "source": "span_name",
+            "starts_with": "vertexai."
           }
         }
       ]

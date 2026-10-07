@@ -11,20 +11,18 @@
         {
           "id": "error",
           "doc": "The status most producers write.",
-          "attr_equals": {
-            "key": "gen_ai.tool.status",
-            "value": "error"
-          },
-          "ignore_case": true
+          "where": {
+            "source": "attr:gen_ai.tool.status",
+            "equals_ignore_case": "error"
+          }
         },
         {
           "id": "failed",
           "doc": "The past-tense spelling one producer writes for the same outcome.",
-          "attr_equals": {
-            "key": "gen_ai.tool.status",
-            "value": "failed"
-          },
-          "ignore_case": true
+          "where": {
+            "source": "attr:gen_ai.tool.status",
+            "equals_ignore_case": "failed"
+          }
         }
       ]
     }

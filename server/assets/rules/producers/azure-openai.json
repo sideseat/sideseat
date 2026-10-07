@@ -8,26 +8,25 @@
       "id": "azure-openai.detect",
       "doc": "Before Azure AI Foundry, whose `az.ai.` prefix is broader. The legacy system spellings and the current semantic-convention provider value are independently sufficient. OpenInference instead reports the cloud and model API in separate attributes, so that wire shape is a conjunctive alternative below.",
       "label": "AzureOpenAI",
-      "match": {
-        "attr_prefix": [
-          "azure.openai."
-        ],
-        "attr_equals": [
+      "where": {
+        "any": [
           {
-            "key": "gen_ai.system",
-            "value": "azure_openai"
+            "source": "attr_keys",
+            "starts_with": "azure.openai."
           },
           {
-            "key": "gen_ai.system",
-            "value": "azure.openai"
+            "source": "attr:gen_ai.system",
+            "one_of": [
+              "azure_openai",
+              "azure.openai"
+            ]
           },
           {
-            "key": "gen_ai.provider.name",
-            "value": "azure_openai"
-          },
-          {
-            "key": "gen_ai.provider.name",
-            "value": "azure.ai.openai"
+            "source": "attr:gen_ai.provider.name",
+            "one_of": [
+              "azure_openai",
+              "azure.ai.openai"
+            ]
           }
         ]
       },
@@ -44,24 +43,18 @@
             "openinference.detect",
             "azure-ai-foundry.detect"
           ],
-          "match": {
-            "attr_equals": [
+          "where": {
+            "all": [
               {
-                "key": "llm.provider",
-                "value": "azure"
+                "source": "attr:llm.provider",
+                "equals": "azure"
+              },
+              {
+                "source": "attr:llm.system",
+                "equals": "openai"
               }
             ]
-          },
-          "all_of": [
-            {
-              "attr_equals": [
-                {
-                  "key": "llm.system",
-                  "value": "openai"
-                }
-              ]
-            }
-          ]
+          }
         }
       ]
     }

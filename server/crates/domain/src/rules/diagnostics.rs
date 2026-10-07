@@ -279,8 +279,7 @@ impl SectionDefect for super::detect_rules::DetectCompileError {
         match self {
             E::EmptyLiteral { rule, .. }
             | E::DuplicateRuleId { rule }
-            | E::NoSignal { rule }
-            | E::BadTextSource { rule, .. } => vec![rule],
+            | E::Condition { rule, .. } => vec![rule],
             E::SubsumedLiteral { rule, .. } => vec![rule],
             E::UselessSupersedes { rule, .. } => vec![rule],
             E::ShadowedRule { earlier, later } => vec![later, earlier],
@@ -297,7 +296,8 @@ impl SectionDefect for super::message_rules::MessageCompileError {
             E::NotExactlyOneCarrier { rule }
             | E::DuplicateRuleId { rule }
             | E::EmptyCarrier { rule }
-            | E::Inexpressible { rule, .. } => vec![rule],
+            | E::Inexpressible { rule, .. }
+            | E::Condition { rule, .. } => vec![rule],
             E::UnknownFragment { .. } => Vec::new(),
             E::StarvedReading { starved, taker, .. } => vec![starved, taker],
             E::ContestedCarrier { first, second, .. } => vec![first, second],
@@ -309,8 +309,7 @@ impl SectionDefect for super::classify::ClassifyCompileError {
     fn clauses(&self) -> Vec<&str> {
         use super::classify::ClassifyCompileError as E;
         match self {
-            E::NoCondition { rule, .. }
-            | E::DeadCondition { rule, .. }
+            E::DeadCondition { rule, .. }
             | E::NoResult { rule, .. }
             | E::UnknownResult { rule, .. }
             | E::DuplicateId { rule, .. } => vec![rule],
@@ -322,8 +321,7 @@ impl SectionDefect for super::classify::ClassifyCompileError {
     fn asset_paths(&self) -> Vec<&str> {
         use super::classify::ClassifyCompileError as E;
         match self {
-            E::NoCondition { file, .. }
-            | E::DeadCondition { file, .. }
+            E::DeadCondition { file, .. }
             | E::NoResult { file, .. }
             | E::UnknownResult { file, .. } => vec![file],
             E::DuplicateId { first, second, .. } => vec![first, second],
@@ -348,7 +346,6 @@ impl SectionDefect for super::span_fields::FieldCompileError {
             | E::EmptyAttribute { rule, .. }
             | E::MergeIntoScalar { rule, .. }
             | E::DeadGate { rule, .. }
-            | E::UnavailableGate { rule, .. }
             | E::DuplicateId { rule, .. } => vec![rule],
             E::DuplicateTarget { first, second, .. } => vec![first, second],
         }
@@ -368,8 +365,7 @@ impl SectionDefect for super::span_fields::FieldCompileError {
             | E::ScalarOnlyWithoutAPath { file, .. }
             | E::EmptyAttribute { file, .. }
             | E::MergeIntoScalar { file, .. }
-            | E::DeadGate { file, .. }
-            | E::UnavailableGate { file, .. } => vec![file],
+            | E::DeadGate { file, .. } => vec![file],
             E::DuplicateId { first, second, .. } => vec![first, second],
             E::DuplicateTarget { .. } => Vec::new(),
         }
@@ -457,11 +453,7 @@ impl SectionDefect for super::SpanFactCompileError {
     fn clauses(&self) -> Vec<&str> {
         use super::SpanFactCompileError as E;
         match self {
-            E::AssertsNothing { rule, .. }
-            | E::EmptyKey { rule, .. }
-            | E::CaseFoldsNothing { rule, .. } => {
-                vec![rule]
-            }
+            E::Condition { rule, .. } => vec![rule],
         }
     }
 }

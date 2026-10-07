@@ -239,21 +239,27 @@ fn detection_by_priority_changes_only_the_stated_overlaps() {
     );
     let mut probes: Vec<Probe> = Vec::new();
     for rule in plan.rules() {
-        let spec = &rule.match_spec;
-        for prefix in &spec.attr_prefix {
-            probes.push((None, attrs(&[(&format!("{prefix}x"), "1")]), none.clone()));
-        }
-        for pair in spec.attr_equals.iter().chain(&spec.attr_equals_ignore_case) {
-            probes.push((None, attrs(&[(&pair.key, &pair.value)]), none.clone()));
-        }
-        for key in &spec.attr_exists {
-            probes.push((None, attrs(&[(key, "1")]), none.clone()));
-        }
-        for scope in &spec.scope_name {
-            probes.push((Some(scope.clone()), none.clone(), none.clone()));
-        }
-        for service in &spec.service_name {
-            probes.push((None, none.clone(), attrs(&[("service.name", service)])));
+        use sideseat_domain::rules::span_conditions::{SpanAtom, positive_atoms};
+        for atom in positive_atoms(&rule.condition) {
+            match atom {
+                SpanAtom::SpanAttrKeyStartsWith { prefix } => {
+                    probes.push((None, attrs(&[(&format!("{prefix}x"), "1")]), none.clone()));
+                }
+                SpanAtom::SpanAttrEquals { key, value }
+                | SpanAtom::SpanAttrEqualsIgnoreAsciiCase { key, value } => {
+                    probes.push((None, attrs(&[(key, value)]), none.clone()));
+                }
+                SpanAtom::SpanAttrExists { key } => {
+                    probes.push((None, attrs(&[(key, "1")]), none.clone()));
+                }
+                SpanAtom::ScopeNameEquals { name } => {
+                    probes.push((Some(name.clone()), none.clone(), none.clone()));
+                }
+                SpanAtom::ResourceAttrContains { key, value } => {
+                    probes.push((None, none.clone(), attrs(&[(key, value)])));
+                }
+                _ => {}
+            }
         }
     }
     let mut moved: BTreeSet<(String, String)> = BTreeSet::new();
@@ -308,5 +314,134 @@ fn detection_by_priority_changes_only_the_stated_overlaps() {
         moved.contains(&("AzureOpenAI".to_string(), "OpenInference".to_string()))
             && moved.contains(&("TraceLoop".to_string(), "OpenAIAgents".to_string())),
         "the probe pairs must reach the stated overlaps, or they prove nothing: {moved:?}"
+    );
+}
+
+// ============================================================================
+// Equivalence oracle: every `where` against the span predicate it replaced
+// ============================================================================
+
+/// Every clause's `where` answers as the retired declaration it replaced, for every span of the corpus.
+///
+/// The retired declarations - detection's `match` and `all_of`, a classification's `all_of`, a gate's `when`,
+/// `unless` and instrumentation scope, a span fact's signal - are frozen in `retired_span_predicates.json` and
+/// asked by the retired evaluator; each clause's current `where` is asked by the grammar, with the sources its
+/// section is given. The generated-span half is `every_where_answers_as_the_predicate_it_replaced` in the
+/// domain crate.
+#[test]
+fn every_where_answers_as_the_predicate_it_replaced_over_the_corpus() {
+    use sideseat_domain::rules::retired_span_predicates::{
+        RetiredSubject, current_conditions, retired_holds,
+    };
+    use sideseat_domain::rules::span_conditions::{SpanSubject, holds, lower};
+
+    let frozen: serde_json::Value =
+        serde_json::from_slice(include_bytes!("retired_span_predicates.json"))
+            .expect("the frozen declarations decode");
+    let records = frozen["clauses"].as_array().expect("a list of clauses");
+    let current = current_conditions(
+        &sideseat_domain::rules::assets::ParsedAssets::parse(
+            &sideseat_domain::rules::schema::embedded_sources(),
+        )
+        .expect("the embedded assets parse"),
+    );
+    let lowered: Vec<_> = records
+        .iter()
+        .map(|record| {
+            let clause = record["clause"].as_str().expect("a clause key");
+            let (readable, condition) = current
+                .get(clause)
+                .unwrap_or_else(|| panic!("{clause} has no current `where`"));
+            (
+                clause,
+                record,
+                *readable,
+                lower(condition, *readable).expect("the current condition lowers"),
+            )
+        })
+        .collect();
+
+    let mut seen: HashSet<u64> = HashSet::new();
+    let mut spans = 0_usize;
+    let mut disagreements: BTreeSet<String> = BTreeSet::new();
+    let mut held: BTreeMap<&str, usize> = BTreeMap::new();
+    for (label, paths) in discover_fixtures() {
+        for path in &paths {
+            for (span_name, scope_name, span_attrs, resource_attrs) in
+                detect_inputs(&decode_request(path))
+            {
+                let digest = {
+                    use std::hash::{Hash, Hasher};
+                    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                    span_name.hash(&mut hasher);
+                    scope_name.hash(&mut hasher);
+                    let mut pairs: Vec<_> = span_attrs.iter().chain(&resource_attrs).collect();
+                    pairs.sort();
+                    pairs.hash(&mut hasher);
+                    hasher.finish()
+                };
+                if !seen.insert(digest) {
+                    continue;
+                }
+                spans += 1;
+                for (clause, record, readable, condition) in &lowered {
+                    let old = retired_holds(
+                        record,
+                        &RetiredSubject {
+                            span_name: &span_name,
+                            scope_name: scope_name.as_deref(),
+                            attrs: &span_attrs,
+                            resource: &resource_attrs,
+                        },
+                    );
+                    let new = holds(
+                        condition,
+                        &SpanSubject {
+                            span_name: if readable.span_name { &span_name } else { "" },
+                            attrs: &span_attrs,
+                            scope_name: if readable.scope {
+                                scope_name.as_deref()
+                            } else {
+                                None
+                            },
+                            resource: readable.resource.then_some(&resource_attrs),
+                        },
+                    );
+                    if new {
+                        *held.entry(clause).or_default() += 1;
+                    }
+                    if old != new {
+                        disagreements.insert(format!(
+                            "{label} / {span_name}: `{clause}` retired {old}, `where` {new}"
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        spans > 1000,
+        "the oracle compared only {spans} distinct spans"
+    );
+    assert!(
+        held.len() > records.len() / 2,
+        "only {} of {} clauses held on any corpus span, so the comparison barely exercised them",
+        held.len(),
+        records.len()
+    );
+    assert!(
+        disagreements.is_empty(),
+        "{} corpus answer(s) differ between a `where` and the predicate it replaced:\n{}",
+        disagreements.len(),
+        disagreements
+            .into_iter()
+            .take(40)
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+    eprintln!(
+        "where oracle: {} clauses over {spans} distinct corpus spans, {} of them held somewhere, no disagreement",
+        records.len(),
+        held.len()
     );
 }

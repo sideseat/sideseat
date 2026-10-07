@@ -8,10 +8,9 @@
       "id": "agno.detect",
       "doc": "By attribute prefix only, never service.name: that dimension is a substring test, so `agno` would also match a service called `diagnostics`. Supersedes openinference.detect: this is the more specific dialect, and both match the same span, so the relationship is declared rather than left to the legacy rank.",
       "label": "Agno",
-      "match": {
-        "attr_prefix": [
-          "agno."
-        ]
+      "where": {
+        "source": "attr_keys",
+        "starts_with": "agno."
       },
       "priority": 70,
       "supersedes": [
@@ -29,20 +28,22 @@
     {
       "id": "agno.llm_output_messages",
       "doc": "A model call's response as Agno's instrumentor wrote it before it emitted `llm.output_messages`: the `output.value` of the LLM span holds the turns the call produced, as `{\"messages\": [...]}` or as the bare list. Read only where the indexed output family is absent, since later releases write both and the family is the richer copy.",
-      "instrumentation_scope": {
-        "name": "openinference.instrumentation.agno"
-      },
-      "when": {
-        "attr_equals": [
+      "where": {
+        "all": [
           {
-            "key": "openinference.span.kind",
-            "value": "LLM"
+            "source": "attr:openinference.span.kind",
+            "equals": "LLM"
+          },
+          {
+            "not": {
+              "source": "attr:llm.output_messages.0.message.role",
+              "exists": true
+            }
+          },
+          {
+            "source": "scope.name",
+            "equals": "openinference.instrumentation.agno"
           }
-        ]
-      },
-      "unless": {
-        "attr_exists": [
-          "llm.output_messages.0.message.role"
         ]
       },
       "read": {
@@ -87,14 +88,15 @@
     {
       "id": "agno.tool_output_literal",
       "doc": "A TOOL span's result as Agno records it: the Python `str()` of what the tool returned, so a dict arrives single-quoted. Read as the value it renders, with the tool's name - the span carries no call id, and query-time correlation pairs the result with the oldest unclaimed call of that name. A result that is not a whole Python container falls through to `agno.tool_output`.",
-      "instrumentation_scope": {
-        "name": "openinference.instrumentation.agno"
-      },
-      "when": {
-        "attr_equals_ignore_case": [
+      "where": {
+        "all": [
           {
-            "key": "openinference.span.kind",
-            "value": "tool"
+            "source": "attr:openinference.span.kind",
+            "equals_ignore_case": "tool"
+          },
+          {
+            "source": "scope.name",
+            "equals": "openinference.instrumentation.agno"
           }
         ]
       },
@@ -121,14 +123,15 @@
     {
       "id": "agno.tool_output",
       "doc": "The same result when it is JSON or text, with the tool's name.",
-      "instrumentation_scope": {
-        "name": "openinference.instrumentation.agno"
-      },
-      "when": {
-        "attr_equals_ignore_case": [
+      "where": {
+        "all": [
           {
-            "key": "openinference.span.kind",
-            "value": "tool"
+            "source": "attr:openinference.span.kind",
+            "equals_ignore_case": "tool"
+          },
+          {
+            "source": "scope.name",
+            "equals": "openinference.instrumentation.agno"
           }
         ]
       },

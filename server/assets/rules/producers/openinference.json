@@ -100,10 +100,9 @@
       "id": "openinference.detect",
       "doc": "The generic OpenInference dialect, after every framework that rides on it.",
       "label": "OpenInference",
-      "match": {
-        "attr_prefix": [
-          "openinference."
-        ]
+      "where": {
+        "source": "attr_keys",
+        "starts_with": "openinference."
       },
       "priority": 140
     }
@@ -276,17 +275,23 @@
     {
       "id": "openinference.tool_output_with_id",
       "doc": "The return value of a generic OpenInference TOOL span that identifies itself with the convention's tool.id attribute. The dedicated generic scope distinguishes direct OITracer use from framework instrumentors that own another result carrier.",
-      "instrumentation_scope": {
-        "name": "openinference.instrumentation.generic"
-      },
-      "when": {
-        "attr_exists": [
-          "tool.id"
-        ],
-        "attr_equals_ignore_case": [
+      "where": {
+        "all": [
           {
-            "key": "openinference.span.kind",
-            "value": "tool"
+            "any": [
+              {
+                "source": "attr:openinference.span.kind",
+                "equals_ignore_case": "tool"
+              },
+              {
+                "source": "attr:tool.id",
+                "exists": true
+              }
+            ]
+          },
+          {
+            "source": "scope.name",
+            "equals": "openinference.instrumentation.generic"
           }
         ]
       },
@@ -317,14 +322,15 @@
     {
       "id": "openinference.tool_output_literal",
       "doc": "AutoGen's TOOL span records the result as the Python `str()` of what the tool returned (and labels it `text/plain`, which is that rendering's MIME type, not the value's), so a dict arrives single-quoted. Read as the value it renders; a result that is not a whole Python container falls through to `openinference.tool_output` and is read as JSON or text.",
-      "instrumentation_scope": {
-        "name": "openinference.instrumentation.autogen_agentchat"
-      },
-      "when": {
-        "attr_equals_ignore_case": [
+      "where": {
+        "all": [
           {
-            "key": "openinference.span.kind",
-            "value": "tool"
+            "source": "attr:openinference.span.kind",
+            "equals_ignore_case": "tool"
+          },
+          {
+            "source": "scope.name",
+            "equals": "openinference.instrumentation.autogen_agentchat"
           }
         ]
       },
@@ -355,14 +361,15 @@
     {
       "id": "openinference.tool_output",
       "doc": "The return value of an OpenInference TOOL span from AutoGen. AutoGen 0.7.5 records the call id on its sibling semantic-convention span rather than this OpenInference span, so the result keeps the tool name and query-time correlation links it to the oldest unclaimed call of that name.",
-      "instrumentation_scope": {
-        "name": "openinference.instrumentation.autogen_agentchat"
-      },
-      "when": {
-        "attr_equals_ignore_case": [
+      "where": {
+        "all": [
           {
-            "key": "openinference.span.kind",
-            "value": "tool"
+            "source": "attr:openinference.span.kind",
+            "equals_ignore_case": "tool"
+          },
+          {
+            "source": "scope.name",
+            "equals": "openinference.instrumentation.autogen_agentchat"
           }
         ]
       },
@@ -572,9 +579,18 @@
           {
             "id": "openinference.single_tool",
             "doc": "One tool per span, written as three separate attributes. Read only if this dialect's list carriers produced nothing - the branch order tests *production*, where an `attr_exists` gate tested only presence and a malformed list suppressed a perfectly good triple. Still gated on the convention's own single-tool attribute, which outranks a dialect's spelling of the same fact whether or not this dialect produced anything.",
-            "unless": {
-              "attr_exists": [
-                "gen_ai.tool.name"
+            "where": {
+              "all": [
+                {
+                  "source": "attr:tool.name",
+                  "exists": true
+                },
+                {
+                  "not": {
+                    "source": "attr:gen_ai.tool.name",
+                    "exists": true
+                  }
+                }
               ]
             },
             "compose": {
@@ -604,12 +620,7 @@
                 }
               ]
             },
-            "emit": "tool_definitions",
-            "when": {
-              "attr_exists": [
-                "tool.name"
-              ]
-            }
+            "emit": "tool_definitions"
           }
         ]
       }
@@ -623,11 +634,10 @@
       "signals": [
         {
           "id": "span_kind",
-          "attr_equals": {
-            "key": "openinference.span.kind",
-            "value": "tool"
-          },
-          "ignore_case": true
+          "where": {
+            "source": "attr:openinference.span.kind",
+            "equals_ignore_case": "tool"
+          }
         }
       ]
     }

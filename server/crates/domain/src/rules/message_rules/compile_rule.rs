@@ -33,9 +33,7 @@ pub(super) fn compile_rule(
         sections,
         reads_tool_spans,
         tag_as,
-        unless,
-        when,
-        instrumentation_scope,
+        condition,
         priority,
     } = rule;
     // The values every check below reads, resolved once. The *declarations* above keep their presence, which
@@ -46,15 +44,6 @@ pub(super) fn compile_rule(
     let non_empty = require_non_empty.unwrap_or(false);
     let non_blank = require_non_blank.unwrap_or(false);
     let tool_spans = reads_tool_spans.unwrap_or(false);
-    if instrumentation_scope.as_ref().is_some_and(|scope| {
-        (scope.name.is_some() != scope.one_of.is_empty()) || scope.names().any(str::is_empty)
-    }) {
-        return Err(MessageCompileError::Inexpressible {
-            rule: id.clone(),
-            detail: "an instrumentation scope must name exactly one of `name` or `one_of`, none empty, or it \
-                     would match no meaningful producer scope",
-        });
-    }
     // A family is already an object: there is no text to parse, split or test for blankness.
     if let Some(family) = read.family.as_deref()
         && (family.len() < 2
@@ -85,24 +74,46 @@ pub(super) fn compile_rule(
     // refused in two places and compiled in a third. A compose member's conditional fallback is a gate too, read
     // only where it holds, so an undeclarable one makes that member's last resort dead while reading as though
     // it has one.
-    let gates = [when.as_ref(), unless.as_ref()]
-        .into_iter()
-        .flatten()
-        .chain(
+    // A message gate reads the span's name and attributes and the instrumentation scope; a compose member's
+    // fallback, the name and attributes only.
+    let gate = condition
+        .as_ref()
+        .map(|condition| {
+            super::super::detect_rules::checked_condition(
+                condition,
+                super::super::span_conditions::Readable::SPAN_AND_SCOPE,
+            )
+        })
+        .transpose()
+        .map_err(|refusal| MessageCompileError::Condition {
+            rule: id.clone(),
+            detail: refusal.to_string(),
+        })?;
+    let compose_gates = compose
+        .as_ref()
+        .map(|compose| {
             compose
+                .members
                 .iter()
-                .flat_map(|compose| &compose.members)
-                .filter_map(|member| member.fallback.as_ref())
-                .map(|fallback| &fallback.when),
-        );
-    for gate in gates {
-        if let Some(detail) = message_gate_defect(gate) {
-            return Err(MessageCompileError::Inexpressible {
-                rule: id.clone(),
-                detail,
-            });
-        }
-    }
+                .map(|member| {
+                    member
+                        .fallback
+                        .as_ref()
+                        .map(|fallback| {
+                            super::super::detect_rules::checked_condition(
+                                &fallback.condition,
+                                super::super::span_conditions::Readable::SPAN,
+                            )
+                        })
+                        .transpose()
+                })
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .transpose()
+        .map_err(|refusal| MessageCompileError::Condition {
+            rule: id.clone(),
+            detail: refusal.to_string(),
+        })?;
     if compose.is_some()
         && (wrap.is_some()
             || sections.is_some()
@@ -915,15 +926,16 @@ pub(super) fn compile_rule(
         rule_id: id.clone(),
         doc: doc.clone(),
         read: read.clone(),
-        compose: compose.as_ref().map(compile_compose),
+        compose: compose
+            .as_ref()
+            .zip(compose_gates)
+            .map(|(compose, gates)| compile_compose(compose, gates)),
         parse: *parse,
         require_members: require_members.clone(),
         wrap: wrap.clone(),
         target: emit_target,
         aggregate_into_array: aggregate,
-        when: when.as_ref().map(super::detect_rules::compile_signals),
-        unless: unless.as_ref().map(super::detect_rules::compile_signals),
-        instrumentation_scope: instrumentation_scope.clone(),
+        gate,
         require_non_empty: non_empty,
         require_non_blank: non_blank,
         branch_set: compiled_branch_set,

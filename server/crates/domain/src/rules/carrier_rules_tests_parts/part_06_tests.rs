@@ -15,14 +15,14 @@ fn a_supersedes_edge_that_cannot_take_effect_is_refused() {
                     "id": "probe.specific",
                     "label": "strands",
                     "priority": first_rank,
-                    "match": {"attr_prefix": ["probe.specific."]},
+                    "where": {"source": "attr_keys", "starts_with": "probe.specific."},
                     "supersedes": [supersedes],
                 },
                 {
                     "id": "probe.generic",
                     "label": "langchain",
                     "priority": second_rank,
-                    "match": {"attr_prefix": ["probe."]},
+                    "where": {"source": "attr_keys", "starts_with": "probe."},
                 },
             ],
         });
@@ -83,16 +83,25 @@ fn a_supersedes_edge_that_cannot_take_effect_is_refused() {
                 "id": "probe.specific",
                 "label": "strands",
                 "priority": 10,
-                "match": {"attr_prefix": ["probe.specific."]},
-                "supersedes": ["probe.generic", "probe.generic"],
+                "where": {
+                    "source": "attr_keys",
+                    "starts_with": "probe.specific."
+                },
+                "supersedes": [
+                    "probe.generic",
+                    "probe.generic"
+                ]
             },
             {
                 "id": "probe.generic",
                 "label": "langchain",
                 "priority": 20,
-                "match": {"attr_prefix": ["probe."]},
-            },
-        ],
+                "where": {
+                    "source": "attr_keys",
+                    "starts_with": "probe."
+                }
+            }
+        ]
     });
     assert!(
         crate::rules::detect_rules::compile(
@@ -126,23 +135,36 @@ fn a_superseded_rule_is_dominated_transitively() {
                 "id": "probe.most_specific",
                 "label": "strands",
                 "priority": 10,
-                "match": {"attr_prefix": ["probe.mid.deep."]},
-                "supersedes": ["probe.middle"],
+                "where": {
+                    "source": "attr_keys",
+                    "starts_with": "probe.mid.deep."
+                },
+                "supersedes": [
+                    "probe.middle"
+                ]
             },
             {
                 "id": "probe.middle",
                 "label": "langchain",
                 "priority": 20,
-                "match": {"attr_prefix": ["probe.mid."]},
-                "supersedes": ["probe.generic"],
+                "where": {
+                    "source": "attr_keys",
+                    "starts_with": "probe.mid."
+                },
+                "supersedes": [
+                    "probe.generic"
+                ]
             },
             {
                 "id": "probe.generic",
                 "label": "crewai",
                 "priority": 30,
-                "match": {"attr_prefix": ["probe."]},
-            },
-        ],
+                "where": {
+                    "source": "attr_keys",
+                    "starts_with": "probe."
+                }
+            }
+        ]
     });
     let plan = crate::rules::detect_rules::compile(
         &ParsedAssets::parse(&std::collections::BTreeMap::from([(

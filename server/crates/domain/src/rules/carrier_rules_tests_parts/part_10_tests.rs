@@ -615,53 +615,43 @@ fn every_classification_refusal_fires() {
     type Case = (&'static str, &'static str, fn(&E) -> bool);
     let cases: Vec<Case> = vec![
         (
-            "a rule with no condition, which would answer for every span",
-            r#"{"id":"t","observation_types":[{"id":"r","priority":1,"all_of":[],"result":"tool"}]}"#,
-            |e| matches!(e, E::NoCondition { .. }),
+            "a rule whose condition reads the resource, which classification is never given",
+            r#"{"id": "t", "observation_types": [{"id": "r", "priority": 1, "where": {"source": "resource:service.name", "contains": "x"}, "result": "tool"}]}"#,
+            |e| matches!(e, E::DeadCondition { .. }),
         ),
         (
             "a rule whose result is not one of the answers this classification may give",
-            r#"{"id":"t","observation_types":[{"id":"r","priority":1,
-               "all_of":[{"attr_exists":["k"]}],"result":"narrator"}]}"#,
+            r#"{"id": "t", "observation_types": [{"id": "r", "priority": 1, "where": {"source": "attr:k", "exists": true}, "result": "narrator"}]}"#,
             |e| matches!(e, E::UnknownResult { .. }),
         ),
         (
             "a rule with no result at all",
-            r#"{"id":"t","observation_types":[{"id":"r","priority":1,
-               "all_of":[{"attr_exists":["k"]}],"result":""}]}"#,
+            r#"{"id": "t", "observation_types": [{"id": "r", "priority": 1, "where": {"source": "attr:k", "exists": true}, "result": ""}]}"#,
             |e| matches!(e, E::NoResult { .. }),
         ),
         (
             "a condition that can never hold",
-            r#"{"id":"t","observation_types":[{"id":"r","priority":1,
-               "all_of":[{"attr_prefix":[""]}],"result":"tool"}]}"#,
+            r#"{"id": "t", "observation_types": [{"id": "r", "priority": 1, "where": {"source": "attr_keys", "starts_with": ""}, "result": "tool"}]}"#,
             |e| matches!(e, E::DeadCondition { .. }),
         ),
         (
             "a condition naming a resource dimension classification is never given",
-            r#"{"id":"t","observation_types":[{"id":"r","priority":1,
-               "all_of":[{"service_name":["x"]}],"result":"tool"}]}"#,
+            r#"{"id": "t", "observation_types": [{"id": "r", "priority": 1, "where": {"source": "resource:service.name", "contains": "x"}, "result": "tool"}]}"#,
             |e| matches!(e, E::DeadCondition { .. }),
         ),
         (
             "two rules of one classification sharing a rank",
-            r#"{"id":"t","observation_types":[
-               {"id":"a","priority":1,"all_of":[{"attr_exists":["k"]}],"result":"tool"},
-               {"id":"b","priority":1,"all_of":[{"attr_exists":["j"]}],"result":"agent"}]}"#,
+            r#"{"id": "t", "observation_types": [{"id": "a", "priority": 1, "where": {"source": "attr:k", "exists": true}, "result": "tool"}, {"id": "b", "priority": 1, "where": {"source": "attr:j", "exists": true}, "result": "agent"}]}"#,
             |e| matches!(e, E::SharedPriority { .. }),
         ),
         (
             "two rules sharing an id",
-            r#"{"id":"t","observation_types":[
-               {"id":"a","priority":1,"all_of":[{"attr_exists":["k"]}],"result":"tool"},
-               {"id":"a","priority":2,"all_of":[{"attr_exists":["j"]}],"result":"agent"}]}"#,
+            r#"{"id": "t", "observation_types": [{"id": "a", "priority": 1, "where": {"source": "attr:k", "exists": true}, "result": "tool"}, {"id": "a", "priority": 2, "where": {"source": "attr:j", "exists": true}, "result": "agent"}]}"#,
             |e| matches!(e, E::DuplicateId { .. }),
         ),
         (
             "a rule an earlier rule always satisfies, whose result can never be reached",
-            r#"{"id":"t","observation_types":[
-               {"id":"a","priority":1,"all_of":[{"attr_exists":["k"]}],"result":"tool"},
-               {"id":"b","priority":2,"all_of":[{"attr_equals":[{"key":"k","value":"v"}]}],"result":"agent"}]}"#,
+            r#"{"id": "t", "observation_types": [{"id": "a", "priority": 1, "where": {"source": "attr:k", "exists": true}, "result": "tool"}, {"id": "b", "priority": 2, "where": {"source": "attr:k", "equals": "v"}, "result": "agent"}]}"#,
             |e| matches!(e, E::ShadowedRule { .. }),
         ),
     ];
@@ -674,9 +664,7 @@ fn every_classification_refusal_fires() {
     // A pair of ordinary rules compiles, or the refusals are simply a ban.
     assert!(
         compiled(
-            r#"{"id":"t","observation_types":[
-               {"id":"a","priority":1,"all_of":[{"attr_exists":["one"]}],"result":"tool"},
-               {"id":"b","priority":2,"all_of":[{"attr_exists":["two"]}],"result":"agent"}]}"#
+            r#"{"id": "t", "observation_types": [{"id": "a", "priority": 1, "where": {"source": "attr:one", "exists": true}, "result": "tool"}, {"id": "b", "priority": 2, "where": {"source": "attr:two", "exists": true}, "result": "agent"}]}"#
         )
         .is_ok()
     );

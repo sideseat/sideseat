@@ -8,18 +8,18 @@
       "id": "bedrock.detect",
       "doc": "Identifies AWSBedrock by the signals below.",
       "label": "AWSBedrock",
-      "match": {
-        "attr_prefix": [
-          "aws.bedrock."
-        ],
-        "attr_equals": [
+      "where": {
+        "any": [
           {
-            "key": "gen_ai.system",
-            "value": "aws_bedrock"
+            "source": "attr_keys",
+            "starts_with": "aws.bedrock."
           },
           {
-            "key": "gen_ai.system",
-            "value": "aws.bedrock"
+            "source": "attr:gen_ai.system",
+            "one_of": [
+              "aws_bedrock",
+              "aws.bedrock"
+            ]
           }
         ]
       },

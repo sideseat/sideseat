@@ -8,15 +8,16 @@
       "id": "agent-framework.detect",
       "doc": "Identifies AgentFramework by the signals below.",
       "label": "AgentFramework",
-      "match": {
-        "attr_equals": [
+      "where": {
+        "any": [
           {
-            "key": "gen_ai.provider.name",
-            "value": "microsoft.agent_framework"
+            "source": "attr:gen_ai.provider.name",
+            "equals": "microsoft.agent_framework"
+          },
+          {
+            "source": "resource:service.name",
+            "contains": "agent-framework-core"
           }
-        ],
-        "service_name": [
-          "agent-framework-core"
         ]
       },
       "priority": 250

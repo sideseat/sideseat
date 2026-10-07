@@ -65,15 +65,19 @@
       "id": "google-adk.detect",
       "doc": "Ranked ahead of every service-name fallback: ADK's own attributes are conclusive.",
       "label": "GoogleADK",
-      "match": {
-        "attr_prefix": [
-          "google.adk.",
-          "gcp.vertex.agent."
-        ],
-        "attr_equals": [
+      "where": {
+        "any": [
           {
-            "key": "gen_ai.system",
-            "value": "gcp.vertex.agent"
+            "source": "attr_keys",
+            "starts_with": "google.adk."
+          },
+          {
+            "source": "attr_keys",
+            "starts_with": "gcp.vertex.agent."
+          },
+          {
+            "source": "attr:gen_ai.system",
+            "equals": "gcp.vertex.agent"
           }
         ]
       },
@@ -335,8 +339,9 @@
         }
       ],
       "tag_as": "google_adk.request_content",
-      "instrumentation_scope": {
-        "name": "gcp.vertex.agent"
+      "where": {
+        "source": "scope.name",
+        "equals": "gcp.vertex.agent"
       }
     },
     {
@@ -386,8 +391,9 @@
         }
       ],
       "tag_as": "google_adk.choice_content",
-      "instrumentation_scope": {
-        "name": "gcp.vertex.agent"
+      "where": {
+        "source": "scope.name",
+        "equals": "gcp.vertex.agent"
       }
     }
   ],
@@ -399,9 +405,10 @@
       "signals": [
         {
           "id": "agent_tool_response",
-          "attrs_present": [
-            "gcp.vertex.agent.tool_response"
-          ]
+          "where": {
+            "source": "attr:gcp.vertex.agent.tool_response",
+            "exists": true
+          }
         }
       ]
     }

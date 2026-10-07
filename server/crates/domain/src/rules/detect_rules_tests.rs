@@ -60,13 +60,7 @@ fn the_detection_plan_holds_every_rule() {
 fn two_rules_at_one_rank_are_refused() {
     // Rank is explicit precisely because detection order is policy. Two rules sharing one would be
     // separated by load order, which is what the explicit rank exists to eliminate.
-    let clash = br#"{
-      "id": "t", "doc": "d",
-      "detect": [
-        {"id": "a", "doc": "d", "label": "A", "priority": 5, "match": {"attr_prefix": ["a."]}},
-        {"id": "b", "doc": "d", "label": "B", "priority": 5, "match": {"attr_prefix": ["b."]}}
-      ]
-    }"#;
+    let clash = br#"{"id": "t", "doc": "d", "detect": [{"id": "a", "doc": "d", "label": "A", "priority": 5, "where": {"source": "attr_keys", "starts_with": "a."}}, {"id": "b", "doc": "d", "label": "B", "priority": 5, "where": {"source": "attr_keys", "starts_with": "b."}}]}"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), clash.to_vec())]);
     assert!(matches!(
         compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")),
@@ -76,15 +70,16 @@ fn two_rules_at_one_rank_are_refused() {
 
 #[test]
 fn a_rule_with_no_signal_is_refused() {
-    let bare = br#"{
-      "id": "t", "doc": "d",
-      "detect": [{"id": "a", "doc": "d", "label": "A", "priority": 1, "match": {}}]
-    }"#;
-    let sources = std::collections::BTreeMap::from([("t.json".to_string(), bare.to_vec())]);
-    assert!(matches!(
-        compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")),
-        Err(DetectCompileError::NoSignal { .. })
-    ));
+    // An empty condition is not an expression, and omitting it is not allowed: either way the asset does not
+    // parse, so no rule can claim every span.
+    for bare in [
+        &br#"{"id": "t", "doc": "d", "detect": [{"id": "a", "doc": "d", "label": "A", "priority": 1, "where": {}}]}"#[..],
+        &br#"{"id": "t", "doc": "d", "detect": [{"id": "a", "doc": "d", "label": "A", "priority": 1}]}"#[..],
+        &br#"{"id": "t", "doc": "d", "detect": [{"id": "a", "doc": "d", "label": "A", "priority": 1, "where": {"any": []}}]}"#[..],
+    ] {
+        let sources = std::collections::BTreeMap::from([("t.json".to_string(), bare.to_vec())]);
+        assert!(ParsedAssets::parse(&sources).is_err());
+    }
 }
 
 #[test]
@@ -103,27 +98,17 @@ fn a_slug_claimed_twice_is_refused() {
 
 #[test]
 fn a_text_source_must_name_something_the_engine_can_read() {
-    let bad = br#"{
-      "id": "t", "doc": "d",
-      "detect": [{"id": "a", "doc": "d", "label": "A", "priority": 1,
-                  "match": {"text_contains": {"sources": ["whatever"], "needles": ["x"]}}}]
-    }"#;
+    let bad = br#"{"id": "t", "doc": "d", "detect": [{"id": "a", "doc": "d", "label": "A", "priority": 1, "where": {"source": "whatever", "contains_ignore_case": "x"}}]}"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), bad.to_vec())]);
     assert!(matches!(
         compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")),
-        Err(DetectCompileError::BadTextSource { .. })
+        Err(DetectCompileError::Condition { .. })
     ));
 }
 
 #[test]
 fn rank_decides_which_of_two_matching_rules_wins() {
-    let ordered = br#"{
-      "id": "t", "doc": "d",
-      "detect": [
-        {"id": "broad", "doc": "d", "label": "Broad", "priority": 90, "match": {"attr_prefix": ["x."]}},
-        {"id": "narrow", "doc": "d", "label": "Narrow", "priority": 10, "match": {"attr_prefix": ["x.y."]}}
-      ]
-    }"#;
+    let ordered = br#"{"id": "t", "doc": "d", "detect": [{"id": "broad", "doc": "d", "label": "Broad", "priority": 90, "where": {"source": "attr_keys", "starts_with": "x."}}, {"id": "narrow", "doc": "d", "label": "Narrow", "priority": 10, "where": {"source": "attr_keys", "starts_with": "x.y."}}]}"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), ordered.to_vec())]);
     let plan = compile(&ParsedAssets::parse(&sources).expect("the probe assets parse"))
         .expect("distinct ranks compile");
@@ -145,21 +130,7 @@ fn rank_decides_which_of_two_matching_rules_wins() {
 
 #[test]
 fn detection_can_require_independent_signal_sets() {
-    let source = br#"{
-      "id": "t", "doc": "d",
-      "detect": [{
-        "id": "azure-openai",
-        "doc": "d",
-        "label": "AzureOpenAI",
-        "priority": 10,
-        "match": {
-          "attr_equals": [{"key": "llm.provider", "value": "azure"}]
-        },
-        "all_of": [{
-          "attr_equals": [{"key": "llm.system", "value": "openai"}]
-        }]
-      }]
-    }"#;
+    let source = br#"{"id": "t", "doc": "d", "detect": [{"id": "azure-openai", "doc": "d", "label": "AzureOpenAI", "priority": 10, "where": {"all": [{"source": "attr:llm.provider", "equals": "azure"}, {"source": "attr:llm.system", "equals": "openai"}]}}]}"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), source.to_vec())]);
     let plan = compile(&ParsedAssets::parse(&sources).expect("the probe assets parse"))
         .expect("conjunctive detection compiles");
@@ -189,26 +160,6 @@ fn detection_can_require_independent_signal_sets() {
         None,
         "the model API alone does not identify which cloud served it"
     );
-}
-
-#[test]
-fn every_required_detection_set_must_declare_a_signal() {
-    let source = br#"{
-      "id": "t", "doc": "d",
-      "detect": [{
-        "id": "broken",
-        "doc": "d",
-        "label": "Broken",
-        "priority": 10,
-        "match": {"attr_exists": ["one"]},
-        "all_of": [{}]
-      }]
-    }"#;
-    let sources = std::collections::BTreeMap::from([("t.json".to_string(), source.to_vec())]);
-    assert!(matches!(
-        compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")),
-        Err(DetectCompileError::NoSignal { .. })
-    ));
 }
 
 #[test]
@@ -246,51 +197,38 @@ fn detection_asks_no_question_about_framework_identity() {
     }
 }
 
-/// A first-present phrase search over mixed sources is refused on **both** compile paths.
+/// A first-present phrase search over mixed sources keeps the declared order.
 ///
-/// Compilation splits sources into "the span name" and a list of attribute keys, so the declared order between
-/// the two is lost and the name is always reached first. The detection path validates rules of its own and does
-/// not go through `gate_defect`, so this was refused for a field source and accepted here - one definition now,
-/// because that is the shape of the defect.
+/// The retired compilation split sources into "the span name" and a list of attribute keys, so the order between
+/// the two was lost and the name was always reached first, and the mix was refused. A `where` evaluates its
+/// sources in the order written, so the mix means what it says and is accepted.
 #[test]
-fn a_mixed_first_present_search_is_refused_here_too() {
-    let mixed = br#"{
-      "id": "t", "doc": "d",
-      "detect": [
-        {"id": "x", "doc": "d", "label": "X", "priority": 10,
-         "match": {"text_contains": {"sources": ["attr:model", "span_name"], "needles": ["embed"],
-                                     "first_present_source": true}}}
-      ]
-    }"#;
+fn a_mixed_first_present_search_keeps_its_order() {
+    let mixed = br#"{"id": "t", "doc": "d", "detect": [{"id": "x", "doc": "d", "label": "X", "priority": 10, "where": {"source": {"first_of": ["attr:model", "span_name"]}, "contains_ignore_case": "embed"}}]}"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), mixed.to_vec())]);
-    assert!(
-        compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).is_err(),
-        "the declared order between the span name and an attribute is not preserved, so this must not compile"
+    let plan = compile(&ParsedAssets::parse(&sources).expect("the probe assets parse"))
+        .expect("a mixed first-present search compiles");
+    let label = |span_name: &str, model: Option<&str>| {
+        let span = attrs(&model.map(|m| vec![("model", m)]).unwrap_or_default());
+        plan.resolve(&DetectContext {
+            span_name,
+            scope_name: None,
+            span_attrs: &span,
+            resource_attrs: &attrs(&[]),
+        })
+        .map(|rule| rule.label.clone())
+    };
+    assert_eq!(
+        label("embed", Some("chat-model")),
+        None,
+        "the attribute is first and says no"
     );
-
-    // One kind of source is fine, and so is the same mix *without* the flag - where every source is searched and
-    // there is no order to lose.
-    for asset in [
-        br#"{"id":"t","doc":"d","detect":[
-            {"id":"x","doc":"d","label":"X","priority":10,
-             "match":{"text_contains":{"sources":["attr:a","attr:b"],"needles":["e"],"first_present_source":true}}}]}"#
-            .to_vec(),
-        br#"{"id":"t","doc":"d","detect":[
-            {"id":"x","doc":"d","label":"X","priority":10,
-             "match":{"text_contains":{"sources":["span_name"],"needles":["e"],"first_present_source":true}}}]}"#
-            .to_vec(),
-        br#"{"id":"t","doc":"d","detect":[
-            {"id":"x","doc":"d","label":"X","priority":10,
-             "match":{"text_contains":{"sources":["attr:model","span_name"],"needles":["e"]}}}]}"#
-            .to_vec(),
-    ] {
-        let sources = std::collections::BTreeMap::from([("t.json".to_string(), asset)]);
-        assert!(
-            compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).is_ok(),
-            "there is no order to lose here: {:?}",
-            compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")).err()
-        );
-    }
+    assert_eq!(
+        label("embed", None),
+        Some("X".to_string()),
+        "absent, the span name answers"
+    );
+    assert_eq!(label("chat", Some("embedder")), Some("X".to_string()));
 }
 
 /// A literal another in the same list already covers is refused: it can never be why a rule matched.
@@ -323,32 +261,30 @@ fn a_literal_another_already_covers_is_refused() {
 
     // Prefix: the extension is dead beside the bare form. The shape the shipped asset had.
     assert!(subsumed(
-        r#"{"id":"a","doc":"d","label":"A","priority":1,"match":{"span_name":["LangGraph","LangGraph."]}}"#
+        r#"{"id": "a", "doc": "d", "label": "A", "priority": 1, "where": {"any": [{"source": "span_name", "starts_with": "LangGraph"}, {"source": "span_name", "starts_with": "LangGraph."}]}}"#
     ));
     assert!(subsumed(
-        r#"{"id":"a","doc":"d","label":"A","priority":1,"match":{"attr_prefix":["ai.","ai.telemetry."]}}"#
+        r#"{"id": "a", "doc": "d", "label": "A", "priority": 1, "where": {"any": [{"source": "attr_keys", "starts_with": "ai."}, {"source": "attr_keys", "starts_with": "ai.telemetry."}]}}"#
     ));
     // Substring, per key: the quoted form is dead beside the bare one. The other shipped shape.
     assert!(subsumed(
-        r#"{"id":"a","doc":"d","label":"A","priority":1,"match":{"span_attr_contains":[
-             {"key":"metadata","value":"langgraph_"},{"key":"metadata","value":"\"langgraph_"}]}}"#
+        r#"{"id": "a", "doc": "d", "label": "A", "priority": 1, "where": {"any": [{"source": "attr:metadata", "contains": "langgraph_"}, {"source": "attr:metadata", "contains": "\"langgraph_"}]}}"#
     ));
     // Substring under two *different* keys says nothing: they are not in one another's list.
     assert!(
         compiled(
-            r#"{"id":"a","doc":"d","label":"A","priority":1,"match":{"span_attr_contains":[
-                 {"key":"one","value":"langgraph_"},{"key":"two","value":"\"langgraph_"}]}}"#
+            r#"{"id": "a", "doc": "d", "label": "A", "priority": 1, "where": {"any": [{"source": "attr:one", "contains": "langgraph_"}, {"source": "attr:two", "contains": "\"langgraph_"}]}}"#
         )
         .is_ok(),
         "two substrings of different attributes do not cover each other"
     );
     // Exact: only a duplicate covers, and `LangGraph.` is a perfectly good separate exact name.
     assert!(subsumed(
-        r#"{"id":"a","doc":"d","label":"A","priority":1,"match":{"span_name_exact":["LangGraph","LangGraph"]}}"#
+        r#"{"id": "a", "doc": "d", "label": "A", "priority": 1, "where": {"source": "span_name", "one_of": ["LangGraph", "LangGraph"]}}"#
     ));
     assert!(
         compiled(
-            r#"{"id":"a","doc":"d","label":"A","priority":1,"match":{"span_name_exact":["LangGraph","LangGraph."]}}"#
+            r#"{"id": "a", "doc": "d", "label": "A", "priority": 1, "where": {"source": "span_name", "one_of": ["LangGraph", "LangGraph."]}}"#
         )
         .is_ok(),
         "an exact list is covered only by a duplicate - a prefix relation between two exact names is not one"
@@ -356,7 +292,7 @@ fn a_literal_another_already_covers_is_refused() {
     // And an exact name beside a prefix in the *other* dimension is the whole point of splitting them.
     assert!(
         compiled(
-            r#"{"id":"a","doc":"d","label":"A","priority":1,"match":{"span_name_exact":["LangGraph"],"span_name":["LangGraph."]}}"#
+            r#"{"id": "a", "doc": "d", "label": "A", "priority": 1, "where": {"any": [{"source": "span_name", "starts_with": "LangGraph."}, {"source": "span_name", "equals": "LangGraph"}]}}"#
         )
         .is_ok(),
         "exactly `LangGraph` beside the `LangGraph.` prefix is two statements, which is what the split is for"
@@ -586,33 +522,45 @@ fn a_rule_an_earlier_one_always_satisfies_is_refused() {
             Err(DetectCompileError::ShadowedRule { .. })
         )
     };
-    let rule = |id: &str, rank: i32, spec: serde_json::Value| serde_json::json!({"id": id, "doc": "d", "label": id, "priority": rank, "match": spec});
+    let rule = |id: &str, rank: i32, spec: serde_json::Value| serde_json::json!({"id": id, "doc": "d", "label": id, "priority": rank, "where": spec});
 
     // A key's existence covers any statement about that key's value.
     assert!(shadowed(serde_json::json!([
-        rule("a", 10, serde_json::json!({"attr_exists": ["k"]})),
+        rule(
+            "a",
+            10,
+            serde_json::json!({"source": "attr:k", "exists": true})
+        ),
         rule(
             "b",
             20,
-            serde_json::json!({"attr_equals": [{"key": "k", "value": "v"}]})
+            serde_json::json!({"source": "attr:k", "equals": "v"})
         ),
     ])));
     // A shorter attribute prefix covers a longer one.
     assert!(shadowed(serde_json::json!([
-        rule("a", 10, serde_json::json!({"attr_prefix": ["ai."]})),
+        rule(
+            "a",
+            10,
+            serde_json::json!({"source": "attr_keys", "starts_with": "ai."})
+        ),
         rule(
             "b",
             20,
-            serde_json::json!({"attr_prefix": ["ai.telemetry."]})
+            serde_json::json!({"source": "attr_keys", "starts_with": "ai.telemetry."})
         ),
     ])));
     // A span-name prefix covers an exact name under it.
     assert!(shadowed(serde_json::json!([
-        rule("a", 10, serde_json::json!({"span_name": ["Graph."]})),
+        rule(
+            "a",
+            10,
+            serde_json::json!({"source": "span_name", "starts_with": "Graph."})
+        ),
         rule(
             "b",
             20,
-            serde_json::json!({"span_name_exact": ["Graph.step"]})
+            serde_json::json!({"source": "span_name", "equals": "Graph.step"})
         ),
     ])));
     // A case-insensitive equality covers the case-sensitive one.
@@ -620,12 +568,12 @@ fn a_rule_an_earlier_one_always_satisfies_is_refused() {
         rule(
             "a",
             10,
-            serde_json::json!({"attr_equals_ignore_case": [{"key": "k", "value": "LLM"}]})
+            serde_json::json!({"source": "attr:k", "equals_ignore_case": "LLM"})
         ),
         rule(
             "b",
             20,
-            serde_json::json!({"attr_equals": [{"key": "k", "value": "llm"}]})
+            serde_json::json!({"source": "attr:k", "equals": "llm"})
         ),
     ])));
 
@@ -637,19 +585,27 @@ fn a_rule_an_earlier_one_always_satisfies_is_refused() {
                 rule(
                     "a",
                     10,
-                    serde_json::json!({"attr_prefix": ["ai.telemetry."]})
+                    serde_json::json!({"source": "attr_keys", "starts_with": "ai.telemetry."})
                 ),
-                rule("b", 20, serde_json::json!({"attr_prefix": ["ai."]})),
+                rule(
+                    "b",
+                    20,
+                    serde_json::json!({"source": "attr_keys", "starts_with": "ai."})
+                ),
             ]),
         ),
         (
             "different keys say nothing about each other",
             serde_json::json!([
-                rule("a", 10, serde_json::json!({"attr_exists": ["one"]})),
+                rule(
+                    "a",
+                    10,
+                    serde_json::json!({"source": "attr:one", "exists": true})
+                ),
                 rule(
                     "b",
                     20,
-                    serde_json::json!({"attr_equals": [{"key": "two", "value": "v"}]})
+                    serde_json::json!({"source": "attr:two", "equals": "v"})
                 ),
             ]),
         ),
@@ -657,9 +613,21 @@ fn a_rule_an_earlier_one_always_satisfies_is_refused() {
             "a later rule needing *more* than the earlier one is reachable only if some conjunct is covered - \
              here none is",
             serde_json::json!([
-                rule("a", 10, serde_json::json!({"attr_exists": ["one"]})),
-                serde_json::json!({"id": "b", "doc": "d", "label": "b", "priority": 20,
-                    "match": {"attr_exists": ["two"]}}),
+                rule(
+                    "a",
+                    10,
+                    serde_json::json!({"source": "attr:one", "exists": true})
+                ),
+                serde_json::json!({
+                    "id": "b",
+                    "doc": "d",
+                    "label": "b",
+                    "priority": 20,
+                    "where": {
+                        "source": "attr:two",
+                        "exists": true
+                    }
+                }),
             ]),
         ),
         (
@@ -668,9 +636,13 @@ fn a_rule_an_earlier_one_always_satisfies_is_refused() {
                 rule(
                     "a",
                     10,
-                    serde_json::json!({"text_contains": {"sources": ["span_name"], "needles": ["x"]}})
+                    serde_json::json!({"source": "span_name", "contains_ignore_case": "x"})
                 ),
-                rule("b", 20, serde_json::json!({"attr_exists": ["k"]})),
+                rule(
+                    "b",
+                    20,
+                    serde_json::json!({"source": "attr:k", "exists": true})
+                ),
             ]),
         ),
     ] {

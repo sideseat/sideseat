@@ -6,15 +6,15 @@
 fn a_predicate_that_could_never_mean_what_it_says_is_refused() {
     use crate::rules::schema::RuleFile;
 
-    // `KeyValue` was the one predicate type without strict decoding, so a flag on it was **discarded** and
-    // the comparison an author asked to be case-insensitive stayed case-sensitive.
+    // A stray member on a condition is refused rather than discarded: `KeyValue` was once the one predicate type
+    // without strict decoding, so a flag on it was dropped and a case-insensitive comparison stayed sensitive.
     let with_stray_member = serde_json::from_value::<RuleFile>(serde_json::json!({
         "id": "probe",
         "detect": [{
             "id": "probe.detect",
             "label": "probe",
             "priority": 1,
-            "match": {"attr_equals": [{"key": "span.kind", "value": "TOOL", "ignore_case": true}]},
+            "where": {"source": "attr:span.kind", "equals": "TOOL", "ignore_case": true},
         }],
     }));
     assert!(
@@ -23,25 +23,44 @@ fn a_predicate_that_could_never_mean_what_it_says_is_refused() {
     );
 
     // An empty substring: every present value contains it, so the rule matches every span carrying the key.
-    // Refused for both detection and a gate, through one validator - they had drifted apart in both
-    // directions, so this asserts the *same* answer from both callers.
-    let contains_nothing = serde_json::json!({
-        "span_attr_contains": [{"key": "metadata", "value": ""}],
-    });
-    let spec: crate::rules::schema::DetectMatch =
-        serde_json::from_value(contains_nothing).expect("the probe parses");
+    // Refused wherever a `where` is written, through one validator - detection and the gates had drifted apart
+    // in both directions when they had two.
+    let lowered = |condition: serde_json::Value| {
+        let condition: crate::rules::schema::SpanWhere =
+            serde_json::from_value(condition).expect("the probe parses");
+        crate::rules::detect_rules::checked_condition(
+            &condition,
+            crate::rules::span_conditions::Readable::SPAN,
+        )
+    };
     assert!(
-        crate::rules::detect_rules::atom_literal_defect(&spec).is_some(),
+        lowered(serde_json::json!({"source": "attr:metadata", "contains": ""})).is_err(),
         "an empty substring search must be refused: every present value contains it"
     );
-
     // An equality against the empty string stays legal - a producer can write an attribute that holds it.
-    let equals_empty: crate::rules::schema::DetectMatch =
-        serde_json::from_value(serde_json::json!({"attr_equals": [{"key": "k", "value": ""}]}))
-            .expect("the probe parses");
     assert!(
-        crate::rules::detect_rules::atom_literal_defect(&equals_empty).is_none(),
+        lowered(serde_json::json!({"source": "attr:k", "equals": ""})).is_ok(),
         "an attribute that holds the empty string is a thing a producer writes"
+    );
+    // A source this section is not given is refused, so is a test a source cannot answer.
+    assert!(
+        lowered(serde_json::json!({"source": "resource:service.name", "contains": "x"})).is_err()
+    );
+    assert!(lowered(serde_json::json!({"source": "scope.name", "equals": "x"})).is_err());
+    assert!(lowered(serde_json::json!({"source": "attr_keys", "equals": "x"})).is_err());
+    assert!(lowered(serde_json::json!({"source": "span_name", "exists": true})).is_err());
+    assert!(
+        lowered(serde_json::json!({"source": "attr:k"})).is_err(),
+        "a source asked nothing"
+    );
+    // A disjunct its own group already covers can never be why the group held.
+    assert!(
+        lowered(serde_json::json!({"any": [
+            {"source": "attr:k", "exists": true},
+            {"source": "attr:k", "equals": "v"},
+        ]}))
+        .is_err(),
+        "`equals` beside `exists` of the same key is dead"
     );
 
     // A member requirement naming nothing asks for `<entry>.`, so the rule is dead; a requirement with no
@@ -126,297 +145,228 @@ fn a_scalar_is_neither_empty_nor_non_empty() {
     }
 }
 
-/// The boolean grammar answers exactly as the shell it replaces, over generated spans.
+/// Every `where` answers exactly as the span predicate it replaced, over spans generated on its boundaries.
 ///
 /// The migration's whole risk is that a translated condition means something slightly different, and the
-/// difference shows only on an input nobody wrote a fixture for. So this compares the new expression against
-/// the retired `DetectMatch` evaluator on **every** `DetectMatch` the shipped assets contain, over a generated
-/// set of spans chosen to sit on each dimension's boundary: the attribute present with the value, present with
-/// another value, absent entirely, and the span name matching or not.
-///
-/// `Unknown` is where they may legitimately differ, and the assertion is directional: where the old evaluator
-/// said **true**, the new one must say true. The old one could not say "I cannot ask this", so it answered
-/// false for an absent attribute - and the new one answers `Unknown`, which also does not hold. Requiring
-/// equality of `holds()` is therefore the right comparison, and it is the one made here.
+/// difference shows only on an input nobody wrote a fixture for. So every retired declaration - detection's
+/// `match` and `all_of`, a classification's `all_of`, a gate's `when`, `unless` and instrumentation scope, a span
+/// fact's signal - frozen in `server/tests/message_goldens_parts/retired_span_predicates.json`, is asked by the
+/// retired evaluator, and the clause's current `where` by the grammar, over spans built from that declaration's
+/// own literals: each key present with the value, with its case flipped, inside other text, with another value,
+/// empty and absent; each source alone and together; each declared scope and service name and neither. The
+/// corpus half is `every_where_answers_as_the_predicate_it_replaced_over_the_corpus` in the goldens.
 #[test]
-fn the_boolean_grammar_answers_as_the_shell_it_replaces() {
-    use crate::rules::expr::{SpanSubject, span_expr_of};
-    use crate::rules::schema::{DetectMatch, RuleFile};
-    use std::collections::HashMap;
+fn every_where_answers_as_the_predicate_it_replaced() {
+    use crate::rules::retired_span_predicates::{
+        RetiredSubject, current_conditions, retired_holds,
+    };
+    use crate::rules::span_conditions::{SpanSubject, holds, lower};
+    use std::collections::{BTreeSet, HashMap};
 
-    // Every `DetectMatch` the assets declare, wherever it sits.
-    let mut specs: Vec<(String, DetectMatch)> = Vec::new();
-    for (path, bytes) in crate::rules::schema::embedded_sources() {
-        let value: serde_json::Value = serde_json::from_slice(&bytes).expect("the asset parses");
-        let file: RuleFile = serde_json::from_slice(&bytes).expect("the asset parses");
-        for rule in &file.detect {
-            specs.push((format!("{path}:{}", rule.id), rule.match_spec.clone()));
-        }
-        for rule in file.observation_types.iter().chain(&file.span_categories) {
-            for (index, conjunct) in rule.all_of.iter().enumerate() {
-                specs.push((format!("{path}:{}#{index}", rule.id), conjunct.clone()));
-            }
-        }
-        // The gates, wherever they are nested: `when` and `unless` on a message rule, a branch leaf, a field
-        // source, a compose fallback. Walked over the raw JSON so a nesting nobody remembered is included.
-        fn walk(value: &serde_json::Value, path: &str, out: &mut Vec<(String, DetectMatch)>) {
-            match value {
-                serde_json::Value::Object(members) => {
-                    for (key, inner) in members {
-                        if (key == "when" || key == "unless")
-                            && let Ok(spec) = serde_json::from_value::<DetectMatch>(inner.clone())
-                        {
-                            out.push((format!("{path}/{key}"), spec));
-                        }
-                        walk(inner, path, out);
-                    }
-                }
-                serde_json::Value::Array(items) => {
-                    for item in items {
-                        walk(item, path, out);
-                    }
-                }
-                _ => {}
-            }
-        }
-        walk(&value, &path, &mut specs);
-    }
+    let frozen: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/message_goldens_parts/retired_span_predicates.json"
+        ))
+        .expect("the frozen declarations are readable"),
+    )
+    .expect("the frozen declarations decode");
+    let records = frozen["clauses"].as_array().expect("a list of clauses");
+    let current = current_conditions(
+        &crate::rules::assets::ParsedAssets::parse(&crate::rules::schema::embedded_sources())
+            .expect("the embedded assets parse"),
+    );
     assert!(
-        specs.len() > 40,
-        "only {} conditions were found in the assets, which cannot be right",
-        specs.len()
+        records.len() > 200,
+        "only {} frozen declarations",
+        records.len()
     );
 
-    // The keys and values every condition mentions, so the generated spans sit on their boundaries.
-    let mut keys: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-    let mut values: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-    let mut names: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-    for (_, spec) in &specs {
-        keys.extend(spec.attr_exists.iter().cloned());
-        keys.extend(spec.attr_prefix.iter().cloned());
-        for pair in spec
-            .attr_equals
-            .iter()
-            .chain(&spec.attr_equals_ignore_case)
-            .chain(&spec.span_attr_contains)
-        {
-            keys.insert(pair.key.clone());
-            values.insert(pair.value.clone());
-        }
-        names.extend(spec.span_name.iter().cloned());
-        if let Some(text) = &spec.text_contains {
-            for source in &text.sources {
-                if let Some(key) = source.strip_prefix("attr:") {
-                    keys.insert(key.to_string());
+    // Every literal a record mentions, wherever in it, by what it is.
+    fn literals(
+        value: &serde_json::Value,
+        keys: &mut BTreeSet<String>,
+        values: &mut BTreeSet<String>,
+        names: &mut BTreeSet<String>,
+        scopes: &mut BTreeSet<String>,
+        services: &mut BTreeSet<String>,
+    ) {
+        match value {
+            serde_json::Value::Object(members) => {
+                for (member, inner) in members {
+                    let strings: Vec<String> = match inner {
+                        serde_json::Value::String(text) => vec![text.clone()],
+                        serde_json::Value::Array(items) => items
+                            .iter()
+                            .filter_map(|item| item.as_str().map(str::to_string))
+                            .collect(),
+                        _ => Vec::new(),
+                    };
+                    match member.as_str() {
+                        "attr_exists" | "attrs_present" => keys.extend(strings),
+                        "attr_prefix" => {
+                            for prefix in strings {
+                                keys.insert(format!("{prefix}something"));
+                                keys.insert(prefix);
+                            }
+                        }
+                        "span_name" | "span_name_exact" => names.extend(strings),
+                        "scope_name" | "name" | "one_of" => scopes.extend(strings),
+                        "service_name" => services.extend(strings),
+                        "key" => keys.extend(strings),
+                        "value" | "needles" => values.extend(strings),
+                        "sources" => keys.extend(
+                            strings
+                                .iter()
+                                .filter_map(|source| source.strip_prefix("attr:"))
+                                .map(str::to_string),
+                        ),
+                        _ => {}
+                    }
+                    literals(inner, keys, values, names, scopes, services);
                 }
             }
-            values.extend(text.needles.iter().cloned());
+            serde_json::Value::Array(items) => {
+                for item in items {
+                    literals(item, keys, values, names, scopes, services);
+                }
+            }
+            _ => {}
         }
     }
+    let flip = |text: &str| -> String {
+        text.chars()
+            .map(|c| {
+                if c.is_ascii_lowercase() {
+                    c.to_ascii_uppercase()
+                } else {
+                    c.to_ascii_lowercase()
+                }
+            })
+            .collect()
+    };
 
     let mut compared = 0_usize;
-    let mut per_condition: std::collections::BTreeMap<String, usize> =
-        std::collections::BTreeMap::new();
     let mut disagreements: Vec<String> = Vec::new();
-    let mut untranslated: Vec<String> = Vec::new();
-    for (id, spec) in &specs {
-        // A condition that translates to nothing is **not** silently skipped. Skipping it was this test's own
-        // version of the defect it exists to catch: dropping a dimension from the translation made every
-        // condition that used only that dimension produce `None`, so it was skipped rather than compared, and
-        // the mutation passed. A condition with any signal at all must translate.
-        let has_signal = !spec.span_name.is_empty()
-            || !spec.attr_prefix.is_empty()
-            || !spec.attr_exists.is_empty()
-            || !spec.attr_equals.is_empty()
-            || !spec.attr_equals_ignore_case.is_empty()
-            || !spec.span_attr_contains.is_empty()
-            || spec
-                .text_contains
-                .as_ref()
-                .is_some_and(|text| !text.needles.is_empty() && !text.sources.is_empty());
-        let expr = match span_expr_of(spec) {
-            Some(expr) => expr,
-            None => {
-                if has_signal {
-                    untranslated.push(format!("  {id}: {spec:?}"));
-                }
-                continue;
-            }
+    let mut missing: Vec<String> = Vec::new();
+    for record in records {
+        let clause = record["clause"].as_str().expect("a clause key");
+        let Some((readable, condition)) = current.get(clause) else {
+            missing.push(clause.to_string());
+            continue;
         };
-        // Spans built from **this condition's own** literals, not from a global cross product truncated to a
-        // budget. That was the first form and it hid two mutations: the targeted inputs were appended after a
-        // large product and then cut off by the `take`, so a case-folding change and an ignored
-        // `first_present` flag were never reached. A per-condition set is smaller *and* complete.
-        let mut spans: Vec<(String, HashMap<String, String>)> =
-            vec![("other.span".to_string(), HashMap::new())];
-        let mut mentioned_keys: Vec<String> = spec
-            .attr_exists
-            .iter()
-            .chain(&spec.attr_prefix)
-            .cloned()
+        let lowered = lower(condition, *readable)
+            .unwrap_or_else(|e| panic!("{clause}: the current condition lowers: {e}"));
+        let (mut keys, mut values, mut names, mut scopes, mut services) = Default::default();
+        literals(
+            record,
+            &mut keys,
+            &mut values,
+            &mut names,
+            &mut scopes,
+            &mut services,
+        );
+        let keys: Vec<String> = keys.into_iter().collect();
+        let mut values: Vec<String> = values.into_iter().collect();
+        if values.is_empty() {
+            values.push("a value".to_string());
+        }
+        values.push(String::new());
+        let mut names: Vec<String> = names.into_iter().collect();
+        names.extend(names.clone().iter().map(|n| format!("{n}.tail")));
+        names.push("other.span".to_string());
+        let mut scopes: Vec<Option<String>> = scopes
+            .into_iter()
+            .flat_map(|scope| [Some(format!("{scope}.extra")), Some(scope)])
             .collect();
-        // A key *under* each declared prefix, since that dimension is about the key rather than the value and
-        // an exactly-equal key is not what it asks.
-        for prefix in &spec.attr_prefix {
-            mentioned_keys.push(format!("{prefix}something"));
+        scopes.push(None);
+        scopes.push(Some("other.scope".to_string()));
+        let mut resources: Vec<HashMap<String, String>> = vec![HashMap::new()];
+        for service in &services {
+            resources.push(HashMap::from([(
+                "service.name".to_string(),
+                format!("my-{service}-app"),
+            )]));
         }
-        let mut mentioned_values: Vec<String> = Vec::new();
-        for pair in spec
-            .attr_equals
-            .iter()
-            .chain(&spec.attr_equals_ignore_case)
-            .chain(&spec.span_attr_contains)
-        {
-            mentioned_keys.push(pair.key.clone());
-            mentioned_values.push(pair.value.clone());
-        }
-        if let Some(text) = &spec.text_contains {
-            for source in &text.sources {
-                if let Some(key) = source.strip_prefix("attr:") {
-                    mentioned_keys.push(key.to_string());
+        let mut attr_sets: Vec<HashMap<String, String>> = vec![HashMap::new()];
+        for key in &keys {
+            for value in &values {
+                for variant in [value.clone(), flip(value), format!("prefix {value} suffix")] {
+                    attr_sets.push(HashMap::from([(key.clone(), variant)]));
                 }
             }
-            mentioned_values.extend(text.needles.iter().cloned());
+            attr_sets.push(HashMap::from([(key.clone(), "unrelated".to_string())]));
         }
-        mentioned_keys.sort();
-        mentioned_keys.dedup();
-        mentioned_values.sort();
-        mentioned_values.dedup();
-        // A condition may mention keys and no values at all - `attr_exists`, `attr_prefix`, a bare span-name
-        // prefix. Those still need a span where the key is there and one where it is not, or the condition is
-        // compared only against the empty span and the comparison shows nothing.
-        if mentioned_values.is_empty() {
-            mentioned_values.push("a value".to_string());
-            mentioned_values.push(String::new());
-        }
-        if mentioned_keys.is_empty() {
-            mentioned_keys.push("some.attribute".to_string());
-        }
-
-        let flip = |text: &str| -> String {
-            text.chars()
-                .map(|c| {
-                    if c.is_ascii_lowercase() {
-                        c.to_ascii_uppercase()
-                    } else {
-                        c.to_ascii_lowercase()
-                    }
-                })
-                .collect()
-        };
-
-        let span_names: Vec<String> = spec
-            .span_name
-            .iter()
-            .cloned()
-            .chain(["other.span".to_string()])
-            .collect();
-        for name in &span_names {
-            // The key absent altogether, which is where a value question has no answer.
-            spans.push((name.clone(), HashMap::new()));
-            for key in &mentioned_keys {
-                for value in &mentioned_values {
-                    for variant in [
-                        value.clone(),
-                        flip(value),
-                        format!("prefix {value} suffix"),
-                        "a value nothing mentions".to_string(),
-                        String::new(),
-                    ] {
-                        let mut attrs = HashMap::new();
-                        attrs.insert(key.clone(), variant);
-                        spans.push((name.clone(), attrs));
-                    }
+        if keys.len() > 1 {
+            for value in values.iter().take(2) {
+                attr_sets.push(keys.iter().map(|k| (k.clone(), value.clone())).collect());
+                for matching in &keys {
+                    attr_sets.push(
+                        keys.iter()
+                            .map(|k| {
+                                (
+                                    k.clone(),
+                                    if k == matching {
+                                        value.clone()
+                                    } else {
+                                        "unrelated".to_string()
+                                    },
+                                )
+                            })
+                            .collect(),
+                    );
                 }
             }
-            // The case that separates `first_present` from `any_present`, which needs *different* values
-            // across the keys: exactly one source holds the matching value and the others hold something
-            // unrelated. With the match on a later source, a first-present search says no and an any-present
-            // search says yes - and with every key holding the same value the two agree, which is why the
-            // same-value spans below could not see an ignored flag.
-            if mentioned_keys.len() > 1 {
-                for value in mentioned_values.iter().take(2) {
-                    for matching in &mentioned_keys {
-                        let mut attrs = HashMap::new();
-                        for key in &mentioned_keys {
-                            attrs.insert(
-                                key.clone(),
-                                if key == matching {
-                                    value.clone()
+        }
+        for name in &names {
+            for scope in &scopes {
+                for resource in &resources {
+                    for attrs in &attr_sets {
+                        let old = retired_holds(
+                            record,
+                            &RetiredSubject {
+                                span_name: name,
+                                scope_name: scope.as_deref(),
+                                attrs,
+                                resource,
+                            },
+                        );
+                        let new = holds(
+                            &lowered,
+                            &SpanSubject {
+                                span_name: if readable.span_name { name } else { "" },
+                                attrs,
+                                scope_name: if readable.scope {
+                                    scope.as_deref()
                                 } else {
-                                    "unrelated".to_string()
+                                    None
                                 },
-                            );
+                                resource: readable.resource.then_some(resource),
+                            },
+                        );
+                        compared += 1;
+                        if old != new {
+                            disagreements.push(format!(
+                                "  {clause}: span `{name}` scope {scope:?} resource {resource:?} attrs {attrs:?} - \
+                                 retired said {old}, `where` says {new}"
+                            ));
                         }
-                        spans.push((name.clone(), attrs));
                     }
                 }
-            }
-            // Every key present at once, and each *single* key present with the others absent.
-            if mentioned_keys.len() > 1 {
-                for value in mentioned_values.iter().take(2) {
-                    let mut all = HashMap::new();
-                    for key in &mentioned_keys {
-                        all.insert(key.clone(), value.clone());
-                    }
-                    spans.push((name.clone(), all));
-                    for present in &mentioned_keys {
-                        let mut one = HashMap::new();
-                        one.insert(present.clone(), value.clone());
-                        spans.push((name.clone(), one));
-                        let mut one_other = HashMap::new();
-                        one_other.insert(present.clone(), "unrelated".to_string());
-                        spans.push((name.clone(), one_other));
-                    }
-                }
-            }
-        }
-        for (span_name, attrs) in &spans {
-            let old = crate::rules::detect_rules::signals_hold_for_test(spec, span_name, attrs);
-            let new = expr
-                .eval(&mut |atom| atom.eval(&SpanSubject { span_name, attrs }))
-                .holds();
-            compared += 1;
-            *per_condition.entry(id.clone()).or_default() += 1;
-            if old != new {
-                disagreements.push(format!(
-                    "  {id}: span `{span_name}` attrs {attrs:?} - retired said {old}, the grammar says {new}"
-                ));
             }
         }
     }
     assert!(
-        untranslated.is_empty(),
-        "{} condition(s) have a signal and translate to no expression, so they were never compared - which \
-         is how a dropped dimension passes this test:\n{}",
-        untranslated.len(),
-        untranslated.join("\n")
+        missing.is_empty(),
+        "{} frozen declaration(s) have no current `where`: {missing:?}",
+        missing.len()
     );
-    // A floor per **condition**, not a total. A large total of arbitrary spans is what the first form had, and
-    // it reached none of the boundaries that matter; what makes a comparison worth counting is that it was
-    // built from the condition's own literals, so the requirement is that every condition got several.
-    let thin: Vec<&String> = per_condition
-        .iter()
-        .filter(|(_, count)| **count < 3)
-        .map(|(id, _)| id)
-        .collect();
-    assert!(
-        thin.is_empty(),
-        "{} condition(s) were compared on fewer than three spans, so the translation is barely exercised \
-         for them: {:?}",
-        thin.len(),
-        thin.iter().take(8).collect::<Vec<_>>()
-    );
-    assert!(
-        compared > 500,
-        "only {compared} comparisons were made in total, which cannot exercise the translation"
-    );
+    assert!(compared > 5_000, "only {compared} comparisons");
     disagreements.sort();
     disagreements.dedup();
     assert!(
         disagreements.is_empty(),
-        "{} of {compared} comparisons disagree. The translation must preserve meaning exactly, or a \
-         migrated condition means something the asset did not say:\n{}",
+        "{} of {compared} comparisons disagree:\n{}",
         disagreements.len(),
         disagreements
             .iter()
@@ -743,19 +693,29 @@ fn a_shared_message_rank_is_refused_only_where_the_order_shows() {
         {
             "id": "probe.a",
             "priority": 10,
-            "read": {"attribute": "shared"},
+            "read": {
+                "attribute": "shared"
+            },
             "parse": "text",
-            "when": {"attr_exists": ["left"]},
-            "emit": "message",
+            "where": {
+                "source": "attr:left",
+                "exists": true
+            },
+            "emit": "message"
         },
         {
             "id": "probe.z",
             "priority": 10,
-            "read": {"attribute": "other"},
+            "read": {
+                "attribute": "other"
+            },
             "parse": "text",
-            "when": {"attr_exists": ["right"]},
-            "emit": "message",
-        },
+            "where": {
+                "source": "attr:right",
+                "exists": true
+            },
+            "emit": "message"
+        }
     ]);
     assert!(
         compiled(contending).is_err(),

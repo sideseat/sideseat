@@ -194,6 +194,39 @@ impl<A> Expr<A> {
     }
 }
 
+/// The editor schema of an expression: an atom, or one boolean clause over expressions.
+#[cfg(test)]
+impl<A: schemars::JsonSchema> schemars::JsonSchema for Expr<A> {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        format!("Expr_{}", A::schema_name()).into()
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        let me = generator.subschema_for::<Self>();
+        let atom = generator.subschema_for::<A>();
+        let doc = serde_json::json!({"type": ["string", "null"]});
+        let group = |key: &str, body: serde_json::Value| {
+            serde_json::json!({
+                "type": "object",
+                "properties": {key: body, "doc": doc.clone()},
+                "required": [key],
+                "additionalProperties": false,
+            })
+        };
+        let me = serde_json::to_value(me).expect("a schema serialises");
+        let list = serde_json::json!({"type": "array", "items": me.clone()});
+        schemars::Schema::try_from(serde_json::json!({
+            "oneOf": [
+                serde_json::to_value(atom).expect("a schema serialises"),
+                group("all", list.clone()),
+                group("any", list),
+                group("not", me),
+            ]
+        }))
+        .expect("an object is a schema")
+    }
+}
+
 /// Deserialised by hand rather than with `serde(untagged)`.
 ///
 /// `untagged` tries each variant and reports "data did not match any variant" from wherever it gave up, which
@@ -243,14 +276,17 @@ where
             }
         }
 
-        // `doc` is **refused**, not reserved. It parsed, was never type-checked (`"doc": 17` was accepted) and
-        // was then discarded - a declaration that reads as documentation and documents nothing, which is what
-        // this format refuses everywhere else. When expression-level documentation is built it will be a field
-        // on a wrapper type that carries it; until then, saying so is better than swallowing it.
-        if members.contains_key("doc") {
-            return Err(de::Error::custom(
-                "`doc` on an expression is not read - document the rule that holds it, or the atom",
-            ));
+        // `doc` documents the node, as it does every other object of the format, and is read by nothing. It is
+        // type-checked rather than swallowed - `"doc": 17` is refused - and taken out before the clause is
+        // read, so a group may say why it is a group and an atom keeps its own `doc`.
+        let group_doc = members
+            .keys()
+            .any(|key| matches!(key.as_str(), "all" | "any" | "not"));
+        if group_doc
+            && let Some(doc) = members.remove("doc")
+            && !doc.is_string()
+        {
+            return Err(de::Error::custom("`doc` is prose: a string"));
         }
         let clauses: Vec<&String> = members.keys().collect();
         let group = clauses
@@ -305,229 +341,6 @@ where
             .map_err(de::Error::custom)?;
         Ok(Expr::Atom(atom))
     }
-}
-
-// ============================================================================
-// Span atoms
-// ============================================================================
-
-/// One question about a span: its name, or one of its own attributes.
-///
-/// Singular, unlike the dimensions it replaces. `attr_equals: [a, b]` was a *list* whose members were OR'd,
-/// which is how a conjunction became inexpressible - two values of one key is `any` of two atoms now, and two
-/// different keys is `all` of two atoms, and the difference is written rather than implied.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields, rename_all = "snake_case")]
-pub enum SpanAtom {
-    /// The span's name begins with this.
-    SpanNameStartsWith { prefix: String },
-    /// Some attribute key begins with this.
-    SpanAttrKeyStartsWith { prefix: String },
-    /// This attribute is present, whatever it holds. A **total** question.
-    SpanAttrExists { key: String },
-    /// This attribute holds exactly this value.
-    SpanAttrEquals { key: String, value: String },
-    /// The same, folding ASCII case.
-    SpanAttrEqualsIgnoreAsciiCase { key: String, value: String },
-    /// This attribute's value contains this substring.
-    SpanAttrContains { key: String, value: String },
-    /// A phrase search over named sources.
-    TextContains {
-        sources: Vec<TextSource>,
-        #[serde(default)]
-        source_mode: SourceMode,
-        /// Singular: several needles are an `any` of several atoms.
-        needle: String,
-    },
-}
-
-/// Where a phrase search looks. Typed, rather than the `"attr:<key>"` string form it replaces - which could
-/// name an empty key, and was validated in two places that had drifted apart.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields, rename_all = "snake_case")]
-pub enum TextSource {
-    SpanName,
-    Attr { key: String },
-}
-
-/// Which sources a phrase search consults.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum SourceMode {
-    /// Every source that has a value. The default, and what an unqualified search means.
-    #[default]
-    AnyPresent,
-    /// Only the first source that has a value, in declared order: two spellings of one fact are one
-    /// question, and a later one answering for an earlier is a different statement.
-    FirstPresent,
-}
-
-/// What a span atom is evaluated against.
-pub struct SpanSubject<'a> {
-    pub span_name: &'a str,
-    pub attrs: &'a std::collections::HashMap<String, String>,
-}
-
-impl SpanAtom {
-    /// Three-valued, and which atoms are total is the whole point of the distinction.
-    ///
-    /// A presence question always has an answer. A question *about a value* has none when the attribute is
-    /// absent - so `not span_attr_equals` does not hold for a span that lacks the attribute, which is the trap
-    /// `none_of` fell into.
-    pub fn eval(&self, subject: &SpanSubject<'_>) -> Truth {
-        match self {
-            Self::SpanNameStartsWith { prefix } => {
-                Truth::total(subject.span_name.starts_with(prefix.as_str()))
-            }
-            Self::SpanAttrKeyStartsWith { prefix } => Truth::total(
-                subject
-                    .attrs
-                    .keys()
-                    .any(|key| key.starts_with(prefix.as_str())),
-            ),
-            Self::SpanAttrExists { key } => Truth::total(subject.attrs.contains_key(key)),
-            Self::SpanAttrEquals { key, value } => match subject.attrs.get(key) {
-                Some(found) => Truth::total(found == value),
-                None => Truth::Unknown,
-            },
-            Self::SpanAttrEqualsIgnoreAsciiCase { key, value } => match subject.attrs.get(key) {
-                Some(found) => Truth::total(found.eq_ignore_ascii_case(value)),
-                None => Truth::Unknown,
-            },
-            Self::SpanAttrContains { key, value } => match subject.attrs.get(key) {
-                Some(found) => Truth::total(found.contains(value.as_str())),
-                None => Truth::Unknown,
-            },
-            Self::TextContains {
-                sources,
-                source_mode,
-                needle,
-            } => {
-                let value_of = |source: &TextSource| -> Option<&str> {
-                    match source {
-                        TextSource::SpanName => Some(subject.span_name),
-                        TextSource::Attr { key } => subject.attrs.get(key).map(String::as_str),
-                    }
-                };
-                // **Unicode** lowercase, not ASCII. The retired evaluator folded with `to_lowercase()`, so a
-                // needle `é` matched `Évaluation`; `to_ascii_lowercase` does not, and the translation would
-                // have quietly narrowed every phrase search over non-ASCII text. The oracle could not see it
-                // either - its case mutation only flips ASCII - which is why this is a comment and not just a
-                // call.
-                let folded = needle.to_lowercase();
-                let hit = |text: &str| text.to_lowercase().contains(&folded);
-                match source_mode {
-                    SourceMode::FirstPresent => match sources.iter().find_map(value_of) {
-                        Some(text) => Truth::total(hit(text)),
-                        // No source had a value, so the search could not be made.
-                        None => Truth::Unknown,
-                    },
-                    SourceMode::AnyPresent => {
-                        let mut any_present = false;
-                        for text in sources.iter().filter_map(value_of) {
-                            any_present = true;
-                            if hit(text) {
-                                return Truth::True;
-                            }
-                        }
-                        if any_present {
-                            Truth::False
-                        } else {
-                            Truth::Unknown
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// A span expression.
-pub type SpanExpr = Expr<SpanAtom>;
-
-// ============================================================================
-// Compiling the retired shells into the grammar
-// ============================================================================
-
-/// A `DetectMatch` as a span expression.
-///
-/// The translation is where the old semantics are written down, and two of them are easy to get wrong:
-///
-/// - **The dimensions are OR'd.** Each populated dimension is a disjunct, and within a dimension each value
-///   is a disjunct too - so the whole thing is one flat `any`. That is what made a conjunction inexpressible.
-/// - **`service_name` is not a span attribute.** It reads a *resource* attribute, so a span-only context
-///   cannot answer it, and the old code refused it there rather than translating it. It is not produced here;
-///   [`detection_expr`] handles it.
-///
-/// A `DetectMatch` with nothing populated becomes `None`: the old evaluators refused it, and an empty `any`
-/// is not writable in the grammar for the same reason.
-pub fn span_expr_of(spec: &super::schema::DetectMatch) -> Option<SpanExpr> {
-    let mut disjuncts: Vec<SpanExpr> = Vec::new();
-    for prefix in &spec.span_name {
-        disjuncts.push(Expr::Atom(SpanAtom::SpanNameStartsWith {
-            prefix: prefix.clone(),
-        }));
-    }
-    for prefix in &spec.attr_prefix {
-        disjuncts.push(Expr::Atom(SpanAtom::SpanAttrKeyStartsWith {
-            prefix: prefix.clone(),
-        }));
-    }
-    for key in &spec.attr_exists {
-        disjuncts.push(Expr::Atom(SpanAtom::SpanAttrExists { key: key.clone() }));
-    }
-    for pair in &spec.attr_equals {
-        disjuncts.push(Expr::Atom(SpanAtom::SpanAttrEquals {
-            key: pair.key.clone(),
-            value: pair.value.clone(),
-        }));
-    }
-    for pair in &spec.attr_equals_ignore_case {
-        disjuncts.push(Expr::Atom(SpanAtom::SpanAttrEqualsIgnoreAsciiCase {
-            key: pair.key.clone(),
-            value: pair.value.clone(),
-        }));
-    }
-    for pair in &spec.span_attr_contains {
-        disjuncts.push(Expr::Atom(SpanAtom::SpanAttrContains {
-            key: pair.key.clone(),
-            value: pair.value.clone(),
-        }));
-    }
-    if let Some(text) = &spec.text_contains {
-        let sources: Vec<TextSource> = text
-            .sources
-            .iter()
-            .filter_map(|source| {
-                if source == "span_name" {
-                    Some(TextSource::SpanName)
-                } else {
-                    source
-                        .strip_prefix("attr:")
-                        .filter(|key| !key.is_empty())
-                        .map(|key| TextSource::Attr {
-                            key: key.to_string(),
-                        })
-                }
-            })
-            .collect();
-        let mode = if text.first_present_source {
-            SourceMode::FirstPresent
-        } else {
-            SourceMode::AnyPresent
-        };
-        if !sources.is_empty() {
-            // A needle per atom, OR'd - which is what a list of needles meant.
-            for needle in &text.needles {
-                disjuncts.push(Expr::Atom(SpanAtom::TextContains {
-                    sources: sources.clone(),
-                    source_mode: mode,
-                    needle: needle.clone(),
-                }));
-            }
-        }
-    }
-    Expr::any(disjuncts)
 }
 
 // ============================================================================
@@ -859,64 +672,6 @@ pub fn json_expr_of(set: &super::schema::PredicateSet) -> Option<JsonExpr> {
 pub struct AtomDefect {
     pub atom: &'static str,
     pub reason: &'static str,
-}
-
-impl SpanAtom {
-    /// The defect this atom carries, if any.
-    pub fn defect(&self) -> Option<AtomDefect> {
-        let defect = |atom, reason| Some(AtomDefect { atom, reason });
-        match self {
-            Self::SpanNameStartsWith { prefix } if prefix.is_empty() => defect(
-                "span_name_starts_with",
-                "an empty prefix, which every span name begins with",
-            ),
-            Self::SpanAttrKeyStartsWith { prefix } if prefix.is_empty() => defect(
-                "span_attr_key_starts_with",
-                "an empty prefix, which every attribute key begins with",
-            ),
-            Self::SpanAttrExists { key } if key.is_empty() => {
-                defect("span_attr_exists", "an empty attribute key")
-            }
-            Self::SpanAttrEquals { key, .. } if key.is_empty() => {
-                defect("span_attr_equals", "an empty attribute key")
-            }
-            Self::SpanAttrEqualsIgnoreAsciiCase { key, .. } if key.is_empty() => defect(
-                "span_attr_equals_ignore_ascii_case",
-                "an empty attribute key",
-            ),
-            Self::SpanAttrContains { key, value } => {
-                if key.is_empty() {
-                    defect("span_attr_contains", "an empty attribute key")
-                } else if value.is_empty() {
-                    // Legal for equality - a producer can write an attribute holding `""` - and never for a
-                    // substring search, which every present value satisfies.
-                    defect(
-                        "span_attr_contains",
-                        "an empty substring, which every present value contains",
-                    )
-                } else {
-                    None
-                }
-            }
-            Self::TextContains {
-                sources, needle, ..
-            } => {
-                if needle.is_empty() {
-                    defect("text_contains", "an empty needle")
-                } else if sources.is_empty() {
-                    defect("text_contains", "no source to search")
-                } else if sources
-                    .iter()
-                    .any(|source| matches!(source, TextSource::Attr { key } if key.is_empty()))
-                {
-                    defect("text_contains", "a source naming an empty attribute key")
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        }
-    }
 }
 
 impl JsonSubjectAtom {

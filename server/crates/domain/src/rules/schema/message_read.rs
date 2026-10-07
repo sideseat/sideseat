@@ -71,21 +71,16 @@ pub struct MessageRule {
     /// is one observation - emitting one per tool would make each look like a separate declaration.
     #[serde(default)]
     pub aggregate_into_array: Option<bool>,
-    /// A gate on the span, in the detection vocabulary: the rule is consulted only where this holds.
+    /// A gate on the span: the rule is consulted only where this holds. It reads the span's name and
+    /// attributes and the instrumentation scope - never the resource.
     ///
-    /// Several extractors refuse to read a carrier whose name they share with other dialects unless the
-    /// span also carries their own marker - `gen_ai.prompt` is the generic conventions' key and also
-    /// where one exporter writes a whole request, so reading it unconditionally would claim another
-    /// dialect's payload.
-    #[serde(default)]
-    pub when: Option<DetectMatch>,
-    /// Restrict this reading to one OpenTelemetry instrumentation scope.
-    ///
-    /// This is producer evidence carried by the telemetry itself, not a framework label inferred by
-    /// SideSeat. Exact scope names keep a carrier shared by several OpenInference integrations from being
-    /// interpreted as though every integration emitted the same payload shape.
-    #[serde(default)]
-    pub instrumentation_scope: Option<InstrumentationScopeMatch>,
+    /// Several extractors refuse to read a carrier whose name they share with other dialects unless the span
+    /// also carries their own marker - `gen_ai.prompt` is the generic conventions' key and also where one
+    /// exporter writes a whole request, so reading it unconditionally would claim another dialect's payload. A
+    /// gate is also how a reading is restricted to one instrumentation scope, which is producer evidence the
+    /// telemetry carries itself, and how a reading is skipped where something holds (`not`).
+    #[serde(default, rename = "where")]
+    pub condition: Option<SpanWhere>,
     /// Ordered readings of the parsed value, tried until one yields an observation.
     ///
     /// An ordered coalesce, not a program: a payload has more than one documented shape and the rule
@@ -171,12 +166,6 @@ pub struct MessageRule {
     /// nothing in it - which the no-empty-content invariant then rejects downstream.
     #[serde(default)]
     pub require_non_empty: Option<bool>,
-    /// A negative gate: the rule is skipped where this holds.
-    ///
-    /// Symmetric to `when`, and needed for a genuine either/or - a response is read from its text when it
-    /// has text, and from its tool calls only when it does not, or one response would be emitted twice.
-    #[serde(default)]
-    pub unless: Option<DetectMatch>,
     /// What an indexed entry must carry to count as one.
     ///
     /// An index exists as soon as *any* key mentions it, and a family legitimately holds keys that are not
@@ -346,17 +335,11 @@ pub struct SpanSignal {
     /// identity after it, and nothing could safely reference one.
     pub id: String,
     pub doc: Option<String>,
-    /// An attribute with this value.
-    #[serde(default)]
-    pub attr_equals: Option<KeyValue>,
-    /// Compare that value case-insensitively. One convention writes its span kind in capitals.
-    #[serde(default)]
-    pub ignore_case: bool,
-    /// **Every** one of these attributes is present. A conjunction, not a choice: a tool name alone sits on
-    /// a model span that merely mentions a tool, while the name *and* a call id together are a call
+    /// The evidence, over the span's name and attributes. A conjunction is written as `all`: a tool name alone
+    /// sits on a model span that merely mentions a tool, while the name *and* a call id together are a call
     /// being run.
-    #[serde(default)]
-    pub attrs_present: Vec<String>,
+    #[serde(rename = "where")]
+    pub condition: SpanWhere,
 }
 
 /// Tool definitions a carrier holds as a language's `repr` rather than as JSON.

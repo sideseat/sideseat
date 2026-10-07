@@ -32,10 +32,9 @@
       "id": "genkit.detect",
       "doc": "Every action span Genkit records carries its kind.",
       "label": "Genkit",
-      "match": {
-        "attr_prefix": [
-          "genkit:"
-        ]
+      "where": {
+        "source": "attr_keys",
+        "starts_with": "genkit:"
       },
       "priority": 217
     }
@@ -50,13 +49,9 @@
     {
       "id": "genkit.model_request",
       "doc": "The request a model action was sent: Genkit messages, each a role and content parts.",
-      "when": {
-        "attr_equals": [
-          {
-            "key": "genkit:metadata:subtype",
-            "value": "model"
-          }
-        ]
+      "where": {
+        "source": "attr:genkit:metadata:subtype",
+        "equals": "model"
       },
       "read": {
         "attribute": "genkit:input"
@@ -89,13 +84,9 @@
     {
       "id": "genkit.model_response",
       "doc": "The response a model action produced, with the reason it stopped, which Genkit states beside the message rather than inside it.",
-      "when": {
-        "attr_equals": [
-          {
-            "key": "genkit:metadata:subtype",
-            "value": "model"
-          }
-        ]
+      "where": {
+        "source": "attr:genkit:metadata:subtype",
+        "equals": "model"
       },
       "read": {
         "attribute": "genkit:output"
@@ -160,13 +151,9 @@
     {
       "id": "genkit.model_tools",
       "doc": "The tools a model action was offered.",
-      "when": {
-        "attr_equals": [
-          {
-            "key": "genkit:metadata:subtype",
-            "value": "model"
-          }
-        ]
+      "where": {
+        "source": "attr:genkit:metadata:subtype",
+        "equals": "model"
       },
       "read": {
         "attribute": "genkit:input"
@@ -279,16 +266,10 @@
     {
       "id": "observation.genkit_model",
       "priority": 88,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "genkit:metadata:subtype",
-              "value": "model"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:genkit:metadata:subtype",
+        "equals": "model"
+      },
       "result": "generation",
       "replaces_legacy_result": "span",
       "doc": "Genkit states each action's subtype; a model action is the model call."
@@ -296,48 +277,30 @@
     {
       "id": "observation.genkit_tool",
       "priority": 89,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "genkit:metadata:subtype",
-              "value": "tool.v2"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:genkit:metadata:subtype",
+        "equals": "tool.v2"
+      },
       "result": "tool",
       "replaces_legacy_result": "span"
     },
     {
       "id": "observation.genkit_tool_v1",
       "priority": 91,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "genkit:metadata:subtype",
-              "value": "tool"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:genkit:metadata:subtype",
+        "equals": "tool"
+      },
       "result": "tool",
       "replaces_legacy_result": "span"
     },
     {
       "id": "observation.genkit_flow",
       "priority": 92,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "genkit:metadata:subtype",
-              "value": "flow"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:genkit:metadata:subtype",
+        "equals": "flow"
+      },
       "result": "chain",
       "replaces_legacy_result": "span"
     }
@@ -346,16 +309,10 @@
     {
       "id": "category.genkit_model",
       "priority": 101,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "genkit:metadata:subtype",
-              "value": "model"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:genkit:metadata:subtype",
+        "equals": "model"
+      },
       "result": "llm",
       "replaces_legacy_result": "other",
       "doc": "The same statement, read as a category."
@@ -363,48 +320,30 @@
     {
       "id": "category.genkit_tool",
       "priority": 102,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "genkit:metadata:subtype",
-              "value": "tool.v2"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:genkit:metadata:subtype",
+        "equals": "tool.v2"
+      },
       "result": "tool",
       "replaces_legacy_result": "other"
     },
     {
       "id": "category.genkit_tool_v1",
       "priority": 103,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "genkit:metadata:subtype",
-              "value": "tool"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:genkit:metadata:subtype",
+        "equals": "tool"
+      },
       "result": "tool",
       "replaces_legacy_result": "other"
     },
     {
       "id": "category.genkit_flow",
       "priority": 104,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "genkit:metadata:subtype",
-              "value": "flow"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:genkit:metadata:subtype",
+        "equals": "flow"
+      },
       "result": "chain",
       "replaces_legacy_result": "other"
     }

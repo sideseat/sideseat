@@ -682,22 +682,17 @@ pub(super) fn sniffed_value(raw: &str) -> JsonValue {
 
 /// Both gates, in one place so every read form is subject to them.
 pub(super) fn gates_allow(rule: &CompiledMessageRule, ctx: &MessageContext<'_>) -> bool {
-    if let Some(scope) = &rule.instrumentation_scope
-        && !scope.names().any(|name| ctx.scope_name == Some(name))
-    {
-        return false;
-    }
-    if let Some(gate) = &rule.when
-        && !super::detect_rules::compiled_signals_hold(gate, ctx.span_name, ctx.gate_attrs)
-    {
-        return false;
-    }
-    if let Some(gate) = &rule.unless
-        && super::detect_rules::compiled_signals_hold(gate, ctx.span_name, ctx.gate_attrs)
-    {
-        return false;
-    }
-    true
+    rule.gate.as_ref().is_none_or(|gate| {
+        super::span_conditions::holds(
+            gate,
+            &super::span_conditions::SpanSubject {
+                span_name: ctx.span_name,
+                attrs: ctx.gate_attrs,
+                scope_name: ctx.scope_name,
+                resource: None,
+            },
+        )
+    })
 }
 
 /// The attribute a rule reads and its raw value: the named one, or the first of its alternatives the

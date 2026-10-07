@@ -392,20 +392,6 @@ pub(super) fn wrap_predicate_sets(wrap: &WrapSpec) -> Vec<&PredicateSet> {
     }
     out
 }
-/// Why a message-rule gate could never hold.
-///
-/// One definition for `when`, `unless` and a compose member's fallback: the dimensions a message gate is not
-/// given, plus every way a gate is undeclarable whoever asks it.
-pub(super) fn message_gate_defect(gate: &DetectMatch) -> Option<&'static str> {
-    if super::detect_rules::unavailable_gate_dimension(gate).is_some() {
-        return Some(
-            "uses a resource dimension, and a message gate is given no resource attributes - it could never \
-             hold",
-        );
-    }
-    super::detect_rules::gate_defect(gate)
-}
-
 /// Whether a rule's claim on a carrier is *conditional* - on the span, or on nothing else having
 /// supplied the value.
 ///
@@ -419,13 +405,27 @@ pub(super) fn message_gate_defect(gate: &DetectMatch) -> Option<&'static str> {
 pub(super) fn rule_condition(rule: &CompiledMessageRule) -> Condition {
     // Both facets, not one label. A rule can be gated *and* payload-narrowed, and folding them into one
     // value made "same gate, mutually exclusive payloads" look like a dead pair while it is a working one.
-    let gate = rule.when.as_ref().map(|g| g.match_spec.clone());
-    // `unless` narrows in the opposite direction: this rule runs where the gate does *not* hold, and nothing
-    // here can relate that to another rule's positive gate. Treated as an incomparable narrowing.
-    // An instrumentation scope is a telemetry-envelope gate evaluated beside `when`. The carrier is free
-    // outside that exact scope, so treating the rule as unconditional makes a producer-specific decoder
-    // appear to permanently suppress the convention's general reading of the same attribute.
-    let opaque = rule.unless.is_some() || rule.instrumentation_scope.is_some();
+    // The gate's comparable part: its positive conjuncts. A negated conjunct narrows in the opposite direction -
+    // the rule runs where something does *not* hold, and nothing here can relate that to another rule's positive
+    // gate - and a scope conjunct is a telemetry-envelope gate that leaves the carrier free outside that exact
+    // scope; treating either as unconditional would make a producer-specific decoder appear to permanently
+    // suppress the convention's general reading of the same attribute. Both make the claim incomparable.
+    let (gate, opaque) = match &rule.gate {
+        None => (None, false),
+        Some(gate) => {
+            let conjuncts: Vec<&SpanExpr> = match gate {
+                Expr::All(group) => group.children().iter().collect(),
+                other => vec![other],
+            };
+            let comparable: Vec<SpanExpr> = conjuncts
+                .iter()
+                .filter(|conjunct| !span_conditions::is_opaque(conjunct))
+                .map(|conjunct| (*conjunct).clone())
+                .collect();
+            let opaque = comparable.len() < conjuncts.len();
+            (Expr::all(comparable), opaque)
+        }
+    };
     if opaque {
         return Condition {
             gate,
@@ -595,7 +595,7 @@ pub(super) fn owned_all_or_nothing(rule: &CompiledMessageRule) -> Vec<CarrierPat
 #[derive(Clone, Default)]
 pub(super) struct Condition {
     /// The spans this runs on. `None` means every span.
-    pub(super) gate: Option<DetectMatch>,
+    pub(super) gate: Option<SpanExpr>,
     /// Narrowed by the payload, by a parent, or by which spelling of the carrier a producer used.
     pub(super) narrowed: bool,
 }
@@ -627,84 +627,11 @@ impl Condition {
     }
 }
 
-/// Whether every span `narrower` admits is also admitted by `wider`.
-///
-/// Signal by signal, and only where one literally subsumes another - a longer span-name prefix, the same
-/// attribute key, a shorter `contains` needle. Sound and deliberately incomplete: a missed subsumption
-/// under-refuses, which leaves a dead rule to the corpus measurement, while a wrong one deletes a working
-/// rule at startup.
-pub(super) fn gate_covers(wider: &DetectMatch, narrower: &DetectMatch) -> bool {
-    // Dimensions this cannot relate at all. Present on either side, nothing is provable - and saying so is
-    // what keeps a missed subsumption an under-refusal rather than a deleted rule.
-    if narrower.text_contains.is_some()
-        || wider.text_contains.is_some()
-        || !narrower.attr_equals_ignore_case.is_empty()
-        || !wider.attr_equals_ignore_case.is_empty()
-    {
-        return false;
-    }
-    let all_covered = |them: &[String], us: &[String], subsumes: fn(&str, &str) -> bool| {
-        them.iter()
-            .all(|theirs| us.iter().any(|ours| subsumes(ours, theirs)))
-    };
-    let pairs_covered = |them: &[KeyValue], us: &[KeyValue], subsumes: fn(&str, &str) -> bool| {
-        them.iter().all(|theirs| {
-            us.iter()
-                .any(|ours| ours.key == theirs.key && subsumes(&ours.value, &theirs.value))
-        })
-    };
-    // A span-name signal matches by equality *or* prefix, so a longer needle is covered by a shorter one.
-    let prefix_of = |ours: &str, theirs: &str| theirs.starts_with(ours);
-    // A `contains` needle covers any needle that contains it.
-    let inside = |ours: &str, theirs: &str| theirs.contains(ours);
-
-    let any_signal = !narrower.span_name.is_empty()
-        || !narrower.attr_prefix.is_empty()
-        || !narrower.attr_equals.is_empty()
-        || !narrower.attr_exists.is_empty()
-        || !narrower.service_name.is_empty()
-        || !narrower.span_attr_contains.is_empty()
-        || !narrower.resource_attr_contains.is_empty();
-
-    // Across dimensions where one runtime signal *implies* another. `attr_equals(k, v)` reads the key, so it
-    // cannot hold unless `attr_exists(k)` does; and `attr_prefix(p)` holds of any key starting with `p`, so an
-    // exact key that starts with `p` implies it. Same-dimension comparison alone let a wide `attr_exists`
-    // rule sit ahead of a narrow `attr_equals` one on the same carrier, where the second can never own it.
-    let key_covered = |key: &str| {
-        wider.attr_exists.iter().any(|ours| ours == key)
-            || wider
-                .attr_prefix
-                .iter()
-                .any(|prefix| key.starts_with(prefix.as_str()))
-    };
-    let equals_covered = narrower.attr_equals.iter().all(|theirs| {
-        key_covered(&theirs.key)
-            || wider
-                .attr_equals
-                .iter()
-                .any(|ours| ours.key == theirs.key && ours.value == theirs.value)
-    });
-    let exists_covered = narrower
-        .attr_exists
-        .iter()
-        .all(|theirs| key_covered(theirs));
-
-    any_signal
-        && all_covered(&narrower.span_name, &wider.span_name, prefix_of)
-        && all_covered(&narrower.attr_prefix, &wider.attr_prefix, prefix_of)
-        && exists_covered
-        && all_covered(&narrower.service_name, &wider.service_name, inside)
-        && equals_covered
-        && pairs_covered(
-            &narrower.span_attr_contains,
-            &wider.span_attr_contains,
-            inside,
-        )
-        && pairs_covered(
-            &narrower.resource_attr_contains,
-            &wider.resource_attr_contains,
-            inside,
-        )
+/// Whether every span `narrower` admits is also admitted by `wider`: the conditions' implication, which is sound
+/// and deliberately incomplete. A missed implication under-refuses, which leaves a dead rule to the corpus
+/// measurement, while a wrong one deletes a working rule at startup.
+pub(super) fn gate_covers(wider: &SpanExpr, narrower: &SpanExpr) -> bool {
+    span_conditions::implies(narrower, wider)
 }
 
 /// One carrier a rule reads, and whether *that* claim is conditional.

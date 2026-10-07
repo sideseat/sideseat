@@ -10,20 +10,16 @@
 
 use std::collections::HashMap;
 
-use super::detect_rules::{CompiledDetect, compile_signals, gate_defect};
 use super::schema::ClassifyRule;
+use super::span_conditions::{self, Readable, SpanExpr};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClassifyCompileError {
-    #[error(
-        "classification rule `{rule}` in `{file}` states no condition, so it answers every span"
-    )]
-    NoCondition { file: String, rule: String },
-    #[error("classification rule `{rule}` in `{file}` has a condition that never holds: {detail}")]
+    #[error("classification rule `{rule}` in `{file}` has a condition that {detail}")]
     DeadCondition {
         file: String,
         rule: String,
-        detail: &'static str,
+        detail: String,
     },
     #[error("classification rule `{rule}` in `{file}` names no result")]
     NoResult { file: String, rule: String },
@@ -59,8 +55,7 @@ pub enum ClassifyCompileError {
 
 struct CompiledRule {
     rule_id: String,
-    /// Every one of these must hold; each is internally a disjunction.
-    all_of: Vec<CompiledDetect>,
+    condition: SpanExpr,
     result: String,
     replaces_legacy_result: Option<String>,
 }
@@ -126,11 +121,15 @@ fn matching_rule<'a>(
     span_name: &str,
     attrs: &HashMap<String, String>,
 ) -> Option<&'a CompiledRule> {
-    rules.iter().find(|rule| {
-        rule.all_of
-            .iter()
-            .all(|signals| super::detect_rules::compiled_signals_hold(signals, span_name, attrs))
-    })
+    let subject = span_conditions::SpanSubject {
+        span_name,
+        attrs,
+        scope_name: None,
+        resource: None,
+    };
+    rules
+        .iter()
+        .find(|rule| span_conditions::holds(&rule.condition, &subject))
 }
 
 fn first_match<'a>(
@@ -215,13 +214,7 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<ClassifyPlan, Cla
     for rules in [&observation_types, &span_categories] {
         for (index, (_, earlier)) in rules.iter().enumerate() {
             for (_, later) in &rules[index + 1..] {
-                let specs = |rule: &CompiledRule| -> Vec<super::schema::DetectMatch> {
-                    rule.all_of
-                        .iter()
-                        .map(|probe| probe.match_spec.clone())
-                        .collect()
-                };
-                if super::detect_rules::shadows(&specs(earlier), &specs(later)) {
+                if span_conditions::implies(&later.condition, &earlier.condition) {
                     return Err(ClassifyCompileError::ShadowedRule {
                         earlier: earlier.rule_id.clone(),
                         later: later.rule_id.clone(),
@@ -270,12 +263,6 @@ fn compile_rule(
     rule: &ClassifyRule,
     allowed: &[&str],
 ) -> Result<CompiledRule, ClassifyCompileError> {
-    if rule.all_of.is_empty() {
-        return Err(ClassifyCompileError::NoCondition {
-            file: file_id.to_string(),
-            rule: rule.id.clone(),
-        });
-    }
     if rule.result.is_empty() {
         return Err(ClassifyCompileError::NoResult {
             file: file_id.to_string(),
@@ -302,38 +289,17 @@ fn compile_rule(
             allowed: allowed.join(", "),
         });
     }
-    for spec in &rule.all_of {
-        // A conjunct that can never hold makes the whole rule dead, so it is refused for the same reason a
-        // field source's gate is. `service_name` and `resource_attr_contains` are *not* refused here, unlike on
-        // a message gate: classification is given the span's own attributes only, and a resource dimension
-        // would be accepted and never hold - so it is caught by the same check.
-        if let Some(detail) = gate_defect(spec) {
-            return Err(ClassifyCompileError::DeadCondition {
-                file: file_id.to_string(),
-                rule: rule.id.clone(),
-                detail,
-            });
-        }
-        if let Some(dimension) = super::detect_rules::unavailable_gate_dimension(spec) {
-            return Err(ClassifyCompileError::DeadCondition {
-                file: file_id.to_string(),
-                rule: rule.id.clone(),
-                detail: match dimension {
-                    "service_name" => {
-                        "`service_name` names a resource attribute, and classification is \
-                                       given a span's own attributes only"
-                    }
-                    _ => {
-                        "`resource_attr_contains` names a resource attribute, and classification is given \
-                          a span's own attributes only"
-                    }
-                },
-            });
-        }
-    }
+    // A condition that can never hold makes the rule dead, and one reading the resource or the scope never holds
+    // here: classification is given a span's own name and attributes only.
+    let condition = super::detect_rules::checked_condition(&rule.condition, Readable::SPAN)
+        .map_err(|refusal| ClassifyCompileError::DeadCondition {
+            file: file_id.to_string(),
+            rule: rule.id.clone(),
+            detail: refusal.to_string(),
+        })?;
     Ok(CompiledRule {
         rule_id: rule.id.clone(),
-        all_of: rule.all_of.iter().map(compile_signals).collect(),
+        condition,
         result: rule.result.clone(),
         replaces_legacy_result: rule.replaces_legacy_result.clone(),
     })

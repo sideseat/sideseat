@@ -32,10 +32,9 @@
       "id": "langfuse.detect",
       "doc": "Every observation Langfuse records carries its kind.",
       "label": "Langfuse",
-      "match": {
-        "attr_prefix": [
-          "langfuse.observation."
-        ]
+      "where": {
+        "source": "attr_keys",
+        "starts_with": "langfuse.observation."
       },
       "priority": 215
     }
@@ -50,13 +49,9 @@
     {
       "id": "langfuse.generation_input",
       "doc": "The request a generation sent. A Responses request is an object whose `input` holds the items; a chat request is the message list itself.",
-      "when": {
-        "attr_equals": [
-          {
-            "key": "langfuse.observation.type",
-            "value": "generation"
-          }
-        ]
+      "where": {
+        "source": "attr:langfuse.observation.type",
+        "equals": "generation"
       },
       "read": {
         "attribute": "langfuse.observation.input"
@@ -91,13 +86,9 @@
     {
       "id": "langfuse.generation_output",
       "doc": "The response a generation received: a chat message, a Responses message item, or the items of a turn that called tools. Langfuse unwraps a one-element list, so a single item arrives bare.",
-      "when": {
-        "attr_equals": [
-          {
-            "key": "langfuse.observation.type",
-            "value": "generation"
-          }
-        ]
+      "where": {
+        "source": "attr:langfuse.observation.type",
+        "equals": "generation"
       },
       "read": {
         "attribute": "langfuse.observation.output"
@@ -123,13 +114,9 @@
     {
       "id": "langfuse.generation_tools",
       "doc": "The tools a Responses request offered.",
-      "when": {
-        "attr_equals": [
-          {
-            "key": "langfuse.observation.type",
-            "value": "generation"
-          }
-        ]
+      "where": {
+        "source": "attr:langfuse.observation.type",
+        "equals": "generation"
       },
       "read": {
         "attribute": "langfuse.observation.input"
@@ -151,16 +138,10 @@
     {
       "id": "observation.langfuse_generation",
       "priority": 78,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "langfuse.observation.type",
-              "value": "generation"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:langfuse.observation.type",
+        "equals": "generation"
+      },
       "result": "generation",
       "replaces_legacy_result": "span",
       "doc": "Langfuse states each observation's kind directly; one rule per kind it shares with this vocabulary."
@@ -168,112 +149,70 @@
     {
       "id": "observation.langfuse_tool",
       "priority": 79,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "langfuse.observation.type",
-              "value": "tool"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:langfuse.observation.type",
+        "equals": "tool"
+      },
       "result": "tool",
       "replaces_legacy_result": "span"
     },
     {
       "id": "observation.langfuse_agent",
       "priority": 81,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "langfuse.observation.type",
-              "value": "agent"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:langfuse.observation.type",
+        "equals": "agent"
+      },
       "result": "agent",
       "replaces_legacy_result": "span"
     },
     {
       "id": "observation.langfuse_chain",
       "priority": 82,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "langfuse.observation.type",
-              "value": "chain"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:langfuse.observation.type",
+        "equals": "chain"
+      },
       "result": "chain",
       "replaces_legacy_result": "span"
     },
     {
       "id": "observation.langfuse_retriever",
       "priority": 83,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "langfuse.observation.type",
-              "value": "retriever"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:langfuse.observation.type",
+        "equals": "retriever"
+      },
       "result": "retriever",
       "replaces_legacy_result": "span"
     },
     {
       "id": "observation.langfuse_embedding",
       "priority": 84,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "langfuse.observation.type",
-              "value": "embedding"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:langfuse.observation.type",
+        "equals": "embedding"
+      },
       "result": "embedding",
       "replaces_legacy_result": "span"
     },
     {
       "id": "observation.langfuse_evaluator",
       "priority": 85,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "langfuse.observation.type",
-              "value": "evaluator"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:langfuse.observation.type",
+        "equals": "evaluator"
+      },
       "result": "evaluator",
       "replaces_legacy_result": "span"
     },
     {
       "id": "observation.langfuse_guardrail",
       "priority": 86,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "langfuse.observation.type",
-              "value": "guardrail"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:langfuse.observation.type",
+        "equals": "guardrail"
+      },
       "result": "guardrail",
       "replaces_legacy_result": "span"
     }
@@ -282,16 +221,10 @@
     {
       "id": "category.langfuse_generation",
       "priority": 93,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "langfuse.observation.type",
-              "value": "generation"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:langfuse.observation.type",
+        "equals": "generation"
+      },
       "result": "llm",
       "replaces_legacy_result": "other",
       "doc": "The same statement, read as a category."
@@ -299,80 +232,50 @@
     {
       "id": "category.langfuse_tool",
       "priority": 94,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "langfuse.observation.type",
-              "value": "tool"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:langfuse.observation.type",
+        "equals": "tool"
+      },
       "result": "tool",
       "replaces_legacy_result": "other"
     },
     {
       "id": "category.langfuse_agent",
       "priority": 95,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "langfuse.observation.type",
-              "value": "agent"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:langfuse.observation.type",
+        "equals": "agent"
+      },
       "result": "agent",
       "replaces_legacy_result": "other"
     },
     {
       "id": "category.langfuse_chain",
       "priority": 96,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "langfuse.observation.type",
-              "value": "chain"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:langfuse.observation.type",
+        "equals": "chain"
+      },
       "result": "chain",
       "replaces_legacy_result": "other"
     },
     {
       "id": "category.langfuse_retriever",
       "priority": 97,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "langfuse.observation.type",
-              "value": "retriever"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:langfuse.observation.type",
+        "equals": "retriever"
+      },
       "result": "retriever",
       "replaces_legacy_result": "other"
     },
     {
       "id": "category.langfuse_embedding",
       "priority": 98,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "langfuse.observation.type",
-              "value": "embedding"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:langfuse.observation.type",
+        "equals": "embedding"
+      },
       "result": "embedding",
       "replaces_legacy_result": "other"
     }

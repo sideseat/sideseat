@@ -8,13 +8,20 @@
       "id": "langchain.detect",
       "doc": "The LangChain dialect, including the LangSmith exporter's spelling and the exact instrumentation scope emitted by the current OpenInference LangChain instrumentor. Supersedes openinference.detect because that instrumentor deliberately writes the shared openinference.* attributes alongside its framework-specific scope.",
       "label": "LangChain",
-      "match": {
-        "scope_name": [
-          "openinference.instrumentation.langchain"
-        ],
-        "attr_prefix": [
-          "langchain.",
-          "langsmith."
+      "where": {
+        "any": [
+          {
+            "source": "scope.name",
+            "equals": "openinference.instrumentation.langchain"
+          },
+          {
+            "source": "attr_keys",
+            "starts_with": "langchain."
+          },
+          {
+            "source": "attr_keys",
+            "starts_with": "langsmith."
+          }
         ]
       },
       "priority": 50,
@@ -370,14 +377,15 @@
     {
       "id": "langchain.prompt_value",
       "doc": "What a chat prompt template rendered: the messages it will send, as LangChain message dicts under `messages`. Read as messages, so the rendered system and user turns are themselves rather than one opaque structured answer of the template's.",
-      "instrumentation_scope": {
-        "name": "openinference.instrumentation.langchain"
-      },
-      "when": {
-        "attr_equals_ignore_case": [
+      "where": {
+        "all": [
           {
-            "key": "openinference.span.kind",
-            "value": "prompt"
+            "source": "attr:openinference.span.kind",
+            "equals_ignore_case": "prompt"
+          },
+          {
+            "source": "scope.name",
+            "equals": "openinference.instrumentation.langchain"
           }
         ]
       },

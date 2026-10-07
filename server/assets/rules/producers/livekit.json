@@ -64,10 +64,16 @@
       "id": "livekit.detect",
       "doc": "Identifies LiveKit by the signals below.",
       "label": "LiveKit",
-      "match": {
-        "attr_prefix": [
-          "livekit.",
-          "lk."
+      "where": {
+        "any": [
+          {
+            "source": "attr_keys",
+            "starts_with": "livekit."
+          },
+          {
+            "source": "attr_keys",
+            "starts_with": "lk."
+          }
         ]
       },
       "priority": 230
@@ -218,10 +224,11 @@
         "attribute": "lk.response.function_calls"
       },
       "parse": "json",
-      "unless": {
-        "attr_exists": [
-          "lk.response.text"
-        ]
+      "where": {
+        "not": {
+          "source": "attr:lk.response.text",
+          "exists": true
+        }
       },
       "wrap": {
         "role": "assistant",

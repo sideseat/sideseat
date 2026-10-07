@@ -33,10 +33,9 @@
       "id": "mlflow.detect",
       "doc": "Identifies MLflow by the signals below.",
       "label": "MLflow",
-      "match": {
-        "attr_prefix": [
-          "mlflow."
-        ]
+      "where": {
+        "source": "attr_keys",
+        "starts_with": "mlflow."
       },
       "priority": 210
     }

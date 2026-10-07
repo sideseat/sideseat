@@ -9,6 +9,7 @@ use serde::Deserialize;
 use serde_json::Value as JsonValue;
 pub use serde_json_path::JsonPath;
 
+mod conditions;
 mod content;
 mod content_blocks;
 mod detection;
@@ -16,6 +17,7 @@ mod message_emit;
 mod message_read;
 mod span_fields;
 
+pub use conditions::*;
 pub use content::*;
 pub use content_blocks::*;
 pub use detection::*;

@@ -32,7 +32,10 @@ pub mod message_projection;
 pub mod message_rules;
 pub mod precedence;
 pub mod refusal;
+#[cfg(any(test, feature = "test-support"))]
+pub mod retired_span_predicates;
 pub mod schema;
+pub mod span_conditions;
 pub mod span_fields;
 mod tool_repr;
 pub mod tool_shapes;
@@ -41,6 +44,8 @@ pub mod tool_shapes;
 mod carrier_rules_tests;
 #[cfg(test)]
 mod detect_rules_tests;
+#[cfg(test)]
+mod expr_instances_tests;
 #[cfg(test)]
 mod precedence_instances_tests;
 #[cfg(test)]
@@ -51,17 +56,6 @@ pub use detect_rules::DetectContext;
 pub use message_rules::{EmittedCarrier, MessageContext};
 
 use std::sync::OnceLock;
-
-/// The one resource attribute the engine reads *structurally* rather than as producer vocabulary.
-///
-/// `service.name` is OpenTelemetry's own name, not any framework's: a rule says which *value* identifies
-/// a producer through it, and the key is part of the dimension's definition. Held here so no asset can
-/// redefine where "the service name" lives and have two assets disagree about what the dimension means.
-///
-/// `metadata` used to sit beside it and did not belong: it is one framework's attribute, so pretending
-/// the engine owned the key made a producer's vocabulary look like part of OpenTelemetry. It is a value
-/// of the generic `span_attr_contains` dimension now, with its key in the asset.
-pub(crate) const SERVICE_NAME_KEY: &str = "service.name";
 
 /// The label for a span no detection rule claimed and no declaration resolved.
 ///
@@ -82,74 +76,41 @@ pub const UNCLAIMED_LABEL: &str = "Unknown";
 /// Why the span-fact rules would not compile.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum SpanFactCompileError {
-    #[error(
-        "span fact `{fact:?}` signal `{rule}.{signal}` asserts nothing, so it holds for every span"
-    )]
-    AssertsNothing {
+    #[error("span fact `{fact:?}` signal `{rule}.{signal}` has a condition that {detail}")]
+    Condition {
         fact: schema::SpanFact,
         rule: String,
         signal: String,
-    },
-    #[error("span fact `{fact:?}` signal `{rule}.{signal}` names an empty attribute key")]
-    EmptyKey {
-        fact: schema::SpanFact,
-        rule: String,
-        signal: String,
-    },
-    #[error(
-        "span fact `{fact:?}` signal `{rule}.{signal}` asks for a case-insensitive compare with nothing to compare"
-    )]
-    CaseFoldsNothing {
-        fact: schema::SpanFact,
-        rule: String,
-        signal: String,
+        detail: String,
     },
 }
 
 #[derive(Debug, Default)]
 pub struct SpanFactPlan {
     /// Each signal with the rule it came from, so an established fact can name every witness.
-    signals: Vec<(schema::SpanFact, String, schema::SpanSignal)>,
+    signals: Vec<(schema::SpanFact, String, String, span_conditions::SpanExpr)>,
 }
 
 impl SpanFactPlan {
     fn compile(assets: &assets::ParsedAssets) -> Result<Self, SpanFactCompileError> {
-        let plan = Self::compile_unvalidated(assets);
-        for (fact, rule, signal) in &plan.signals {
-            let located = || (*fact, rule.clone(), signal.id.clone());
-            // A signal that asserts nothing holds for **every** span, which for `tool_execution` would
-            // classify every span as a tool running and gate almost every message rule out. Refused rather
-            // than warned about: the failure is total and silent.
-            if signal.attr_equals.is_none() && signal.attrs_present.is_empty() {
-                let (fact, rule, signal) = located();
-                return Err(SpanFactCompileError::AssertsNothing { fact, rule, signal });
-            }
-            if signal.attrs_present.iter().any(String::is_empty) {
-                let (fact, rule, signal) = located();
-                return Err(SpanFactCompileError::EmptyKey { fact, rule, signal });
-            }
-            // Case-folding a comparison that is not made is a statement about nothing.
-            if signal.ignore_case && signal.attr_equals.is_none() {
-                let (fact, rule, signal) = located();
-                return Err(SpanFactCompileError::CaseFoldsNothing { fact, rule, signal });
+        let mut signals = Vec::new();
+        for rule in assets.files().iter().flat_map(|file| &file.span_facts) {
+            for signal in &rule.signals {
+                // A span fact is asked of a span's own name and attributes.
+                let condition = detect_rules::checked_condition(
+                    &signal.condition,
+                    span_conditions::Readable::ATTRIBUTES,
+                )
+                .map_err(|refusal| SpanFactCompileError::Condition {
+                    fact: rule.fact,
+                    rule: rule.id.clone(),
+                    signal: signal.id.clone(),
+                    detail: refusal.to_string(),
+                })?;
+                signals.push((rule.fact, rule.id.clone(), signal.id.clone(), condition));
             }
         }
-        Ok(plan)
-    }
-
-    fn compile_unvalidated(assets: &assets::ParsedAssets) -> Self {
-        Self {
-            signals: assets
-                .files()
-                .iter()
-                .flat_map(|file| &file.span_facts)
-                .flat_map(|rule| {
-                    rule.signals
-                        .iter()
-                        .map(move |signal| (rule.fact, rule.id.clone(), signal.clone()))
-                })
-                .collect(),
-        }
+        Ok(Self { signals })
     }
 
     /// Whether any dialect's evidence establishes this fact for the span.
@@ -171,42 +132,23 @@ impl SpanFactPlan {
         fact: schema::SpanFact,
         attrs: &std::collections::HashMap<String, String>,
     ) -> Option<expr::Verdict<schema::SpanFact>> {
+        // A span fact reads attributes only: the name is not part of the question.
+        let subject = span_conditions::SpanSubject {
+            span_name: "",
+            attrs,
+            scope_name: None,
+            resource: None,
+        };
         let witnesses: Vec<expr::ClausePath> = self
             .signals
             .iter()
-            .filter(|(declared, _, _)| *declared == fact)
-            .filter(|(_, _, signal)| Self::signal_holds(signal, attrs))
-            .map(|(_, rule_id, signal)| {
-                expr::ClausePath::root(rule_id.clone()).then(signal.id.clone())
+            .filter(|(declared, ..)| *declared == fact)
+            .filter(|(.., condition)| span_conditions::holds(condition, &subject))
+            .map(|(_, rule_id, signal_id, _)| {
+                expr::ClausePath::root(rule_id.clone()).then(signal_id.clone())
             })
             .collect();
         expr::EvidenceSet::of(witnesses).map(|evidence| expr::Verdict::new(fact, evidence))
-    }
-
-    fn signal_holds(
-        signal: &schema::SpanSignal,
-        attrs: &std::collections::HashMap<String, String>,
-    ) -> bool {
-        {
-            let signal = &signal;
-            {
-                let equals = signal.attr_equals.as_ref().is_none_or(|want| {
-                    attrs.get(&want.key).is_some_and(|found| {
-                        if signal.ignore_case {
-                            found.eq_ignore_ascii_case(&want.value)
-                        } else {
-                            found == &want.value
-                        }
-                    })
-                });
-                // A conjunction: every named attribute present. One alone is not the evidence.
-                equals
-                    && signal
-                        .attrs_present
-                        .iter()
-                        .all(|key| attrs.contains_key(key))
-            }
-        }
     }
 }
 

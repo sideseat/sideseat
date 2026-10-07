@@ -30,14 +30,15 @@
     {
       "id": "browser-use.action_call",
       "doc": "The call an action span executed. Browser Use names the span after the action and writes the parameters under `params`. The model asked for it inside its `AgentOutput` reply, which carries no id per action, so the call and the result beside it take the span's own id.",
-      "instrumentation_scope": {
-        "name": "lmnr.tracer"
-      },
-      "when": {
-        "attr_equals": [
+      "where": {
+        "all": [
           {
-            "key": "lmnr.span.type",
-            "value": "TOOL"
+            "source": "attr:lmnr.span.type",
+            "equals": "TOOL"
+          },
+          {
+            "source": "scope.name",
+            "equals": "lmnr.tracer"
           }
         ]
       },
@@ -90,14 +91,15 @@
     {
       "id": "browser-use.action_result",
       "doc": "What the action returned. A built-in action returns an `ActionResult` whose `error` is set when it failed and whose `extracted_content` is what the model reads next; a custom action may return plain text instead. The `done` action's content is the agent's final answer.",
-      "instrumentation_scope": {
-        "name": "lmnr.tracer"
-      },
-      "when": {
-        "attr_equals": [
+      "where": {
+        "all": [
           {
-            "key": "lmnr.span.type",
-            "value": "TOOL"
+            "source": "attr:lmnr.span.type",
+            "equals": "TOOL"
+          },
+          {
+            "source": "scope.name",
+            "equals": "lmnr.tracer"
           }
         ]
       },
@@ -222,16 +224,10 @@
       "id": "observation.laminar_tool",
       "doc": "Laminar states a span's type directly; Browser Use runs each action under a TOOL span.",
       "priority": 58,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "lmnr.span.type",
-              "value": "TOOL"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:lmnr.span.type",
+        "equals": "TOOL"
+      },
       "result": "tool",
       "replaces_legacy_result": "span"
     }
@@ -241,16 +237,10 @@
       "id": "category.laminar_tool",
       "doc": "A Laminar TOOL span: one action Browser Use executed.",
       "priority": 92,
-      "all_of": [
-        {
-          "attr_equals": [
-            {
-              "key": "lmnr.span.type",
-              "value": "TOOL"
-            }
-          ]
-        }
-      ],
+      "where": {
+        "source": "attr:lmnr.span.type",
+        "equals": "TOOL"
+      },
       "result": "tool",
       "replaces_legacy_result": "other"
     }
@@ -263,9 +253,9 @@
       "signals": [
         {
           "id": "span_type",
-          "attr_equals": {
-            "key": "lmnr.span.type",
-            "value": "TOOL"
+          "where": {
+            "source": "attr:lmnr.span.type",
+            "equals": "TOOL"
           }
         }
       ]
@@ -276,13 +266,9 @@
       "id": "browser-use.detect",
       "doc": "Browser Use identifies itself in two ways: older releases set `gen_ai.provider.name` on their spans, and current ones trace through Laminar, whose span path names every ancestor - and Browser Use's agent loop runs under `agent.run`.",
       "label": "BrowserUse",
-      "match": {
-        "attr_equals": [
-          {
-            "key": "gen_ai.provider.name",
-            "value": "browser_use"
-          }
-        ]
+      "where": {
+        "source": "attr:gen_ai.provider.name",
+        "equals": "browser_use"
       },
       "priority": 130,
       "alternatives": [
@@ -290,13 +276,9 @@
           "id": "browser-use.detect.laminar_agent_run",
           "doc": "A Laminar span inside Browser Use's `agent.run`: the loop itself, each step, the model calls it makes and the actions it runs. The path is an array attribute, compared as its JSON text, so the quoted name matches one element rather than a substring of one.",
           "priority": 131,
-          "match": {
-            "span_attr_contains": [
-              {
-                "key": "lmnr.span.path",
-                "value": "\"agent.run\""
-              }
-            ]
+          "where": {
+            "source": "attr:lmnr.span.path",
+            "contains": "\"agent.run\""
           }
         }
       ]

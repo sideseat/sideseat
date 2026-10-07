@@ -67,7 +67,7 @@ index construction therefore stay off the per-observation path.
 
 ## Asset organisation
 
-The embedded corpus currently contains **58 assets holding 656 clauses** in three groups:
+The embedded corpus currently contains **58 assets holding 658 clauses** in three groups:
 
 ```text
 server/assets/rules/
@@ -175,6 +175,24 @@ The structural vocabulary includes:
 
 There are no inline scripts and no rule-selected Rust callbacks. A new primitive is acceptable only when it
 describes a producer-neutral operation, has bounded cost, and can be tested without naming a producer.
+
+### Conditions about a span
+
+Every section that asks a question about a span - detection, the classifications, span facts, span-field
+sources, message-rule gates and a compose member's fallback - asks it with one `where`, in the expression grammar
+of `server/crates/domain/src/rules/expr.rs`: an atom, `{"all": [...]}`, `{"any": [...]}` or `{"not": ...}`,
+strong-Kleene, holding only when true. An atom names a `source` - `span_name`, `attr:<key>`, `attr_keys` (the
+span's attribute keys, asked existentially), `scope.name`, `resource:<key>` - and the tests asked of the value it
+selects (`exists`, `equals`, `equals_ignore_case`, `one_of`, `starts_with`, `contains`, `contains_ignore_case`); all
+of an atom's tests are asked of the same value. `exists` is total; a value test on an absent value is unknown, so
+`not` over it does not hold - writing `"exists": true` beside the test makes it false instead. Each section is
+given only some sources (detection all of them; message gates the span and its scope; classification and
+span-field sources the span; span facts its attributes), and a condition reading another is refused when the
+rule compiles, as are an empty literal, a test a source cannot answer, and a disjunct its own group already
+covers. `server/crates/domain/src/rules/span_conditions.rs` lowers a `where`, evaluates it and decides
+implication (shadowing, and which of two contending message rules suppresses the other), soundly and without
+assuming excluded middle. `server/specs/ThreeValuedPredicate.tla` checks the logic's laws, and
+`three_valued_predicate_instances` holds `Expr::eval` to them.
 
 ### Content blocks
 
