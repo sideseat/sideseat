@@ -89,6 +89,13 @@ impl SqliteService {
             .pragma("temp_store", "MEMORY")
             .pragma("wal_autocheckpoint", SQLITE_WAL_AUTOCHECKPOINT)
             .log_statements(LevelFilter::Trace);
+        // On Apple platforms `fsync` does not flush the drive's write cache, so a synced commit can still be
+        // lost to a power failure; `F_FULLFSYNC` is the call that makes it durable. SQLite issues it only when
+        // asked, for commits and for checkpoints separately.
+        #[cfg(target_vendor = "apple")]
+        let options = options
+            .pragma("fullfsync", "ON")
+            .pragma("checkpoint_fullfsync", "ON");
 
         let pool = SqlitePoolOptions::new()
             .max_connections(SQLITE_MAX_CONNECTIONS)

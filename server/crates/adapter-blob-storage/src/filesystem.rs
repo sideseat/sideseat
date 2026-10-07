@@ -367,21 +367,14 @@ async fn sync_dir(path: &Path) -> Result<(), FileStorageError> {
     Ok(())
 }
 
-/// The durability the rest of the store gets, and no more.
+/// Make a file's contents, or a directory's entries, durable.
 ///
-/// On Apple platforms std's `sync_all` is `F_FULLFSYNC`, which flushes the whole drive cache and measured
-/// ~15 ms per object; SQLite and DuckDB, which hold the rows that reference these objects, use plain `fsync`
-/// there. A blob more durable than the row naming it buys nothing, so this matches them. Elsewhere `sync_all`
-/// is already `fsync` (Linux) or `FlushFileBuffers` (Windows).
+/// std's `sync_all` is `F_FULLFSYNC` on Apple platforms, where plain `fsync` leaves the bytes in the drive's
+/// write cache and a power failure can lose them; elsewhere it is `fsync` (Linux) or `FlushFileBuffers`
+/// (Windows). The rows that reference these objects are made durable the same way on every platform, so an
+/// object is never less durable than the row naming it.
 fn sync_handle(file: &std::fs::File) -> std::io::Result<()> {
-    #[cfg(target_vendor = "apple")]
-    {
-        rustix::fs::fsync(file).map_err(std::io::Error::from)
-    }
-    #[cfg(not(target_vendor = "apple"))]
-    {
-        file.sync_all()
-    }
+    file.sync_all()
 }
 
 #[cfg(test)]

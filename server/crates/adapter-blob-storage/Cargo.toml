@@ -18,9 +18,5 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 uuid = { workspace = true }
 
-# `fsync` on Apple platforms, where std's `sync_all` is `F_FULLFSYNC`; see `filesystem::sync_handle`.
-[target.'cfg(target_vendor = "apple")'.dependencies]
-rustix = { version = "1", features = ["fs"] }
-
 [dev-dependencies]
 tempfile = "3"
