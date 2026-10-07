@@ -16,7 +16,7 @@ mod repository_impl;
 pub use error::SqliteError;
 pub use repository_impl::SqliteRepository;
 pub mod schema;
-#[cfg(feature = "test-support")]
+#[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
 
 use sqlx::SqlitePool;
