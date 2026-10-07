@@ -199,7 +199,7 @@ fn check_unexplained(
         // What the model was sent, from the request its call recorded, shown once in its trace. A bounded
         // allowance, not a blanket one: the second copy is a duplicate the views must not show, and
         // "some request carried these bytes" would otherwise excuse any number of them.
-        if context.request_accounted.contains(&block.identity)
+        if context.accounted.blocks.contains(&block.identity)
             && request_seen.insert((trace, block.identity.as_str()))
         {
             continue;

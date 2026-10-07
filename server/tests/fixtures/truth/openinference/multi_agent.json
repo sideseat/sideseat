@@ -381,7 +381,11 @@
           "type": "text",
           "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nResearcher's findings:\nBarcelona's forecast for the next two days is rain on day 1 with a high of 21°C, then sun on day 2 with a high of 22°C.\n\n**Packing list:** Pack for mild weather with one wet day and one sunny day. Bring layers like a light sweater or long-sleeve shirt, plus a few T-shirts for the warmer, sunny afternoon. A compact umbrella and a light waterproof jacket will keep you dry on day 1. Wear water-resistant, comfortable walking shoes, and bring a second pair or spare socks in case the first pair gets wet. For day 2, add sunglasses, sunscreen, and a hat. Also bring a small day bag with a plastic cover or dry bag to protect your phone and documents from the rain, and a light pair of pants or jeans that will be comfortable in both conditions."
          },
-         "new": "rq-003"
+         "new": "rq-003",
+         "renders": [
+          "fact-001",
+          "fact-004"
+         ]
         }
        ]
       }
@@ -508,7 +512,11 @@
           "type": "text",
           "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nResearcher's findings:\nBarcelona's forecast for the next two days is rain on day 1 with a high of 21°C, then sun on day 2 with a high of 22°C.\n\n**Packing list:** Pack for mild weather with one wet day and one sunny day. Bring layers like a light sweater or long-sleeve shirt, plus a few T-shirts for the warmer, sunny afternoon. A compact umbrella and a light waterproof jacket will keep you dry on day 1. Wear water-resistant, comfortable walking shoes, and bring a second pair or spare socks in case the first pair gets wet. For day 2, add sunglasses, sunscreen, and a hat. Also bring a small day bag with a plastic cover or dry bag to protect your phone and documents from the rain, and a light pair of pants or jeans that will be comfortable in both conditions."
          },
-         "new": "rq-003"
+         "new": "rq-003",
+         "renders": [
+          "fact-001",
+          "fact-004"
+         ]
         }
        ]
       }

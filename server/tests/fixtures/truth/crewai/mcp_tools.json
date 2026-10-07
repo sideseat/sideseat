@@ -305,7 +305,10 @@
           "type": "text",
           "text": "\nCurrent Task: Use the calculator to compute (17 * 23) + 4, then report the result.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "new": "rq-002"
+         "new": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       }
@@ -334,7 +337,10 @@
           "type": "text",
           "text": "\nCurrent Task: Use the calculator to compute (17 * 23) + 4, then report the result.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "replay_of": "rq-002"
+         "replay_of": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       },
@@ -396,7 +402,10 @@
           "type": "text",
           "text": "\nCurrent Task: Use the calculator to compute (17 * 23) + 4, then report the result.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "replay_of": "rq-002"
+         "replay_of": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       },
@@ -499,7 +508,10 @@
           "type": "text",
           "text": "\nCurrent Task: Use the calculator to compute (17 * 23) + 4, then report the result.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "new": "rq-002"
+         "new": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       }
@@ -528,7 +540,10 @@
           "type": "text",
           "text": "\nCurrent Task: Use the calculator to compute (17 * 23) + 4, then report the result.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "replay_of": "rq-002"
+         "replay_of": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       },
@@ -590,7 +605,10 @@
           "type": "text",
           "text": "\nCurrent Task: Use the calculator to compute (17 * 23) + 4, then report the result.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "replay_of": "rq-002"
+         "replay_of": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       },

@@ -403,7 +403,11 @@
           "type": "text",
           "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nThe researcher's findings:\n**Barcelona packing list (next two days):** Day 1 will be rainy with a high around 21°C. Day 2 will be sunny with a high around 22°C. Pack a light, packaging-friendly waterproof jacket or compact umbrella and water-resistant shoes for the wet first day. Bring breathable layers such as T-shirts and a light sweater or cardigan for the mild temperatures. For the sunny second day, add sunglasses, sunscreen, and a hat. Comfortable walking shoes will work for both days. A small daypack will hold the extra layers and the rain gear as the weather changes."
          },
-         "new": "rq-003"
+         "new": "rq-003",
+         "renders": [
+          "fact-001",
+          "fact-004"
+         ]
         }
        ]
       }
@@ -530,7 +534,11 @@
           "type": "text",
           "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nThe researcher's findings:\n**Barcelona packing list (next two days):** Day 1 will be rainy with a high around 21°C. Day 2 will be sunny with a high around 22°C. Pack a light, packaging-friendly waterproof jacket or compact umbrella and water-resistant shoes for the wet first day. Bring breathable layers such as T-shirts and a light sweater or cardigan for the mild temperatures. For the sunny second day, add sunglasses, sunscreen, and a hat. Comfortable walking shoes will work for both days. A small daypack will hold the extra layers and the rain gear as the weather changes."
          },
-         "new": "rq-003"
+         "new": "rq-003",
+         "renders": [
+          "fact-001",
+          "fact-004"
+         ]
         }
        ]
       }

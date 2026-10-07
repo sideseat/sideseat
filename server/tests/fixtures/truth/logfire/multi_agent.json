@@ -402,7 +402,11 @@
           "type": "text",
           "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nResearcher's findings:\nBarcelona’s forecast for the next two days is rain with a high of 21°C on day one, followed by sunshine with a high of 22°C on day two. Pack a lightweight waterproof jacket, a compact umbrella, comfortable water-resistant walking shoes, breathable tops, and light trousers, plus a thin sweater for cooler periods. Add sunglasses, sunscreen, and a hat for the sunny second day."
          },
-         "new": "rq-002"
+         "new": "rq-002",
+         "renders": [
+          "fact-001",
+          "fact-005"
+         ]
         }
        ]
       }
@@ -529,7 +533,11 @@
           "type": "text",
           "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nResearcher's findings:\nBarcelona’s forecast for the next two days is rain with a high of 21°C on day one, followed by sunshine with a high of 22°C on day two. Pack a lightweight waterproof jacket, a compact umbrella, comfortable water-resistant walking shoes, breathable tops, and light trousers, plus a thin sweater for cooler periods. Add sunglasses, sunscreen, and a hat for the sunny second day."
          },
-         "new": "rq-002"
+         "new": "rq-002",
+         "renders": [
+          "fact-001",
+          "fact-005"
+         ]
         }
        ]
       }

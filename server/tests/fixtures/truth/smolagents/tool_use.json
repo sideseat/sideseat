@@ -460,7 +460,10 @@
           "type": "text",
           "text": "New task:\nWhat will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?"
          },
-         "new": "rq-002"
+         "new": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       }
@@ -491,7 +494,10 @@
           "type": "text",
           "text": "New task:\nWhat will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?"
          },
-         "replay_of": "rq-002"
+         "replay_of": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       },
@@ -515,7 +521,11 @@
           "type": "text",
           "text": "Observation:\n{'city': 'Tokyo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}\n80% chance of rain in Tokyo tomorrow.\n10% chance of rain in Paris tomorrow.\n{'city': 'Paris', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}"
          },
-         "new": "rq-003"
+         "new": "rq-003",
+         "renders": [
+          "fact-006",
+          "fact-007"
+         ]
         }
        ]
       }
@@ -552,7 +562,10 @@
           "type": "text",
           "text": "New task:\nWhat will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?"
          },
-         "new": "rq-002"
+         "new": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       }
@@ -583,7 +596,10 @@
           "type": "text",
           "text": "New task:\nWhat will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?"
          },
-         "replay_of": "rq-002"
+         "replay_of": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       },
@@ -607,7 +623,11 @@
           "type": "text",
           "text": "Observation:\n{'city': 'Tokyo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}\n80% chance of rain in Tokyo tomorrow.\n10% chance of rain in Paris tomorrow.\n{'city': 'Paris', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}"
          },
-         "new": "rq-003"
+         "new": "rq-003",
+         "renders": [
+          "fact-006",
+          "fact-007"
+         ]
         }
        ]
       }

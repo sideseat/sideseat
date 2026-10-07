@@ -297,7 +297,10 @@
           "type": "text",
           "text": "\nCurrent Task: I am planning a weekend in Lisbon. Name one neighbourhood to stay in.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nProvide your complete response:"
          },
-         "new": "rq-002"
+         "new": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       }
@@ -324,7 +327,10 @@
           "type": "text",
           "text": "\nCurrent Task: What is one dish I should try there?\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nThis is the context you're working with:\nStay in **Alfama**, Lisbon's oldest neighbourhood. It has winding cobbled streets, traditional fado bars, and sweeping river views, and it's within walking distance of the main sights like the São Jorge Castle and the Sé Cathedral. If you prefer something flatter and more central, Baixa is a good alternative.\n\nProvide your complete response:"
          },
-         "new": "rq-003"
+         "new": "rq-003",
+         "renders": [
+          "fact-002"
+         ]
         }
        ]
       }
@@ -351,7 +357,12 @@
           "type": "text",
           "text": "\nCurrent Task: Summarise your two suggestions in one sentence.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nThis is the context you're working with:\nStay in **Alfama**, Lisbon's oldest neighbourhood. It has winding cobbled streets, traditional fado bars, and sweeping river views, and it's within walking distance of the main sights like the São Jorge Castle and the Sé Cathedral. If you prefer something flatter and more central, Baixa is a good alternative.\n\n----------\n\nTry **pastéis de nata**, Lisbon's famous custard tarts, with a dusting of cinnamon and a coffee. For a heartier local dish, order **bacalhau à Brás**, a comforting mix of shredded salt cod, eggs, and crispy potatoes, at one of Alfama's small tascas.\n\nProvide your complete response:"
          },
-         "new": "rq-004"
+         "new": "rq-004",
+         "renders": [
+          "fact-002",
+          "fact-004",
+          "fact-005"
+         ]
         }
        ]
       }
@@ -384,7 +395,10 @@
           "type": "text",
           "text": "\nCurrent Task: I am planning a weekend in Lisbon. Name one neighbourhood to stay in.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nProvide your complete response:"
          },
-         "new": "rq-002"
+         "new": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       }
@@ -411,7 +425,10 @@
           "type": "text",
           "text": "\nCurrent Task: What is one dish I should try there?\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nThis is the context you're working with:\nStay in **Alfama**, Lisbon's oldest neighbourhood. It has winding cobbled streets, traditional fado bars, and sweeping river views, and it's within walking distance of the main sights like the São Jorge Castle and the Sé Cathedral. If you prefer something flatter and more central, Baixa is a good alternative.\n\nProvide your complete response:"
          },
-         "new": "rq-003"
+         "new": "rq-003",
+         "renders": [
+          "fact-002"
+         ]
         }
        ]
       }
@@ -438,7 +455,12 @@
           "type": "text",
           "text": "\nCurrent Task: Summarise your two suggestions in one sentence.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nThis is the context you're working with:\nStay in **Alfama**, Lisbon's oldest neighbourhood. It has winding cobbled streets, traditional fado bars, and sweeping river views, and it's within walking distance of the main sights like the São Jorge Castle and the Sé Cathedral. If you prefer something flatter and more central, Baixa is a good alternative.\n\n----------\n\nTry **pastéis de nata**, Lisbon's famous custard tarts, with a dusting of cinnamon and a coffee. For a heartier local dish, order **bacalhau à Brás**, a comforting mix of shredded salt cod, eggs, and crispy potatoes, at one of Alfama's small tascas.\n\nProvide your complete response:"
          },
-         "new": "rq-004"
+         "new": "rq-004",
+         "renders": [
+          "fact-002",
+          "fact-004",
+          "fact-005"
+         ]
         }
        ]
       }

@@ -196,7 +196,10 @@
           "type": "text",
           "text": "New task:\nFour travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the schedule?"
          },
-         "new": "rq-002"
+         "new": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       }
@@ -231,7 +234,10 @@
           "type": "text",
           "text": "New task:\nFour travellers must cross a bridge at night with one torch. At most two cross at a time and a pair moves at the slower person's pace. They take 1, 2, 5 and 10 minutes. What is the fastest total crossing time, and what is the schedule?"
          },
-         "new": "rq-002"
+         "new": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       }

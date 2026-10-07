@@ -287,7 +287,10 @@
           "type": "text",
           "text": "\nCurrent Task: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nThis is the expected criteria for your final answer: The forecast for each day.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "new": "rq-002"
+         "new": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       }
@@ -316,7 +319,10 @@
           "type": "text",
           "text": "\nCurrent Task: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nThis is the expected criteria for your final answer: The forecast for each day.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "replay_of": "rq-002"
+         "replay_of": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       },
@@ -381,7 +387,10 @@
           "type": "text",
           "text": "\nCurrent Task: Write the one-paragraph packing list the request asks for.\n\nThis is the expected criteria for your final answer: A one-paragraph packing list.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nThis is the context you're working with:\n**Barcelona forecast for the next two days**\n- **Day 1:** Rain, with a high of 21°C.\n- **Day 2:** Sunny, with a high of 22°C.\n\n**Packing list:** Pack for mild weather with one wet day followed by a sunny one. Bring a light waterproof jacket or compact umbrella and water-resistant closed shoes for the rain on Day 1. Add breathable layers such as T-shirts and a light long-sleeve top or cardigan, because highs of 21–22°C can still feel cool in the morning and evening. For Day 2, bring sunglasses, sunscreen, and a hat. Comfortable walking shoes or sneakers will work for both days of sightseeing. A small daypack will hold the layers and rain gear as the weather changes.\n\nProvide your complete response:"
          },
-         "new": "rq-004"
+         "new": "rq-004",
+         "renders": [
+          "fact-004"
+         ]
         }
        ]
       }
@@ -414,7 +423,10 @@
           "type": "text",
           "text": "\nCurrent Task: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nThis is the expected criteria for your final answer: The forecast for each day.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "new": "rq-002"
+         "new": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       }
@@ -443,7 +455,10 @@
           "type": "text",
           "text": "\nCurrent Task: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nThis is the expected criteria for your final answer: The forecast for each day.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "replay_of": "rq-002"
+         "replay_of": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       },
@@ -508,7 +523,10 @@
           "type": "text",
           "text": "\nCurrent Task: Write the one-paragraph packing list the request asks for.\n\nThis is the expected criteria for your final answer: A one-paragraph packing list.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nThis is the context you're working with:\n**Barcelona forecast for the next two days**\n- **Day 1:** Rain, with a high of 21°C.\n- **Day 2:** Sunny, with a high of 22°C.\n\n**Packing list:** Pack for mild weather with one wet day followed by a sunny one. Bring a light waterproof jacket or compact umbrella and water-resistant closed shoes for the rain on Day 1. Add breathable layers such as T-shirts and a light long-sleeve top or cardigan, because highs of 21–22°C can still feel cool in the morning and evening. For Day 2, bring sunglasses, sunscreen, and a hat. Comfortable walking shoes or sneakers will work for both days of sightseeing. A small daypack will hold the layers and rain gear as the weather changes.\n\nProvide your complete response:"
          },
-         "new": "rq-004"
+         "new": "rq-004",
+         "renders": [
+          "fact-004"
+         ]
         }
        ]
       }

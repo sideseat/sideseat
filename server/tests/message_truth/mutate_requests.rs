@@ -112,6 +112,7 @@ fn claim_sent_text(truth: &mut Truth, recon: &Recon, text: &str) -> bool {
             replay_of: None,
             new: Some("rq-claimed".to_string()),
             lineage_unknown: None,
+            renders: Vec::new(),
         }],
     });
     true

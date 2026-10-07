@@ -515,7 +515,10 @@
           "type": "text",
           "text": "<user_request>\nI am planning a weekend in Lisbon. Name one neighbourhood to stay in.\n</user_request>\n\n<agent_history>\nAgent initialized\n</agent_history>\n\n<agent_state>\n<file_system>\n\n</file_system>\n<todo_contents>\n[empty todo.md, fill it when applicable]\n</todo_contents>\n</agent_state>\n<browser_state>\n<page_stats>Page appears empty - consider waiting - 0 links, 0 interactive, 0 iframes, 0 total elements</page_stats>\n\nAvailable tabs:\nTab 6F0A:  - \n\n<page_info>0.0 pages above, 0.0 pages below</page_info>\n\nInteractive elements:\n[Start of page]\nEmpty DOM tree (you might have to wait for the page to load)\n[End of page]\n</browser_state>\n<step_info>Step1 maximum:10\nToday:2026-10-06</step_info>\n"
          },
-         "new": "rq-002"
+         "new": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       }
@@ -544,7 +547,10 @@
           "type": "text",
           "text": "<user_request>\n<initial_user_request>I am planning a weekend in Lisbon. Name one neighbourhood to stay in.</initial_user_request>\n<follow_up_user_request> What is one dish I should try there? </follow_up_user_request>\n</user_request>\n\n<agent_history>\nAgent initialized\n<follow_up_user_request> What is one dish I should try there? </follow_up_user_request>\n<step>\nAgent initialized; no browsing needed.\nTask is a simple recommendation; answering directly.\nCall done with a neighbourhood recommendation.\nResult\nTask completed: True - I'd suggest staying in Alfama, Lisbon's historic old quarter. It has charming narrow streets, fado m - 175 more characters\n</agent_history>\n\n<agent_state>\n<file_system>\n\n</file_system>\n<todo_contents>\n[empty todo.md, fill it when applicable]\n</todo_contents>\n</agent_state>\n<browser_state>\n<page_stats>Page appears empty - consider waiting - 0 links, 0 interactive, 0 iframes, 0 total elements</page_stats>\n\nAvailable tabs:\nTab 6B4E:  - \n\n<page_info>0.0 pages above, 0.0 pages below</page_info>\n\nInteractive elements:\n[Start of page]\nEmpty DOM tree (you might have to wait for the page to load)\n[End of page]\n</browser_state>\n<step_info>Step2 maximum:10\nToday:2026-10-06</step_info>\n"
          },
-         "new": "rq-003"
+         "new": "rq-003",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       }
@@ -573,7 +579,11 @@
           "type": "text",
           "text": "<user_request>\n<initial_user_request>I am planning a weekend in Lisbon. Name one neighbourhood to stay in.</initial_user_request>\n<follow_up_user_request> What is one dish I should try there? </follow_up_user_request>\n<follow_up_user_request> Summarise your two suggestions in one sentence. </follow_up_user_request>\n</user_request>\n\n<agent_history>\nAgent initialized\n<follow_up_user_request> What is one dish I should try there? </follow_up_user_request>\n<step>\nAgent initialized; no browsing needed.\nTask is a simple recommendation; answering directly.\nCall done with a neighbourhood recommendation.\nResult\nTask completed: True - I'd suggest staying in Alfama, Lisbon's historic old quarter. It has charming narrow streets, fado m - 175 more characters\n<follow_up_user_request> Summarise your two suggestions in one sentence. </follow_up_user_request>\n<step>\nPrevious step answered the neighbourhood question (Alfama). Verdict: Success\nInitial question answered with Alfama. Follow-up: one dish to try in Lisbon.\nAnswer the follow-up with a dish recommendation.\nResult\nTask completed: True - Try pastéis de nata, Lisbon's famous custard tarts. They're best eaten warm with a sprinkle of cinna - 180 more characters\n</agent_history>\n\n<agent_state>\n<file_system>\n\n</file_system>\n<todo_contents>\n[empty todo.md, fill it when applicable]\n</todo_contents>\n</agent_state>\n<browser_state>\n<page_stats>Page appears empty - consider waiting - 0 links, 0 interactive, 0 iframes, 0 total elements</page_stats>\n\nAvailable tabs:\nTab 2581:  - \n\n<page_info>0.0 pages above, 0.0 pages below</page_info>\n\nInteractive elements:\n[Start of page]\nEmpty DOM tree (you might have to wait for the page to load)\n[End of page]\n</browser_state>\n<step_info>Step3 maximum:10\nToday:2026-10-06</step_info>\n"
          },
-         "new": "rq-004"
+         "new": "rq-004",
+         "renders": [
+          "fact-001",
+          "fact-009"
+         ]
         }
        ]
       }
@@ -608,7 +618,10 @@
           "type": "text",
           "text": "<user_request>\nI am planning a weekend in Lisbon. Name one neighbourhood to stay in.\n</user_request>\n\n<agent_history>\nAgent initialized\n</agent_history>\n\n<agent_state>\n<file_system>\n\n</file_system>\n<todo_contents>\n[empty todo.md, fill it when applicable]\n</todo_contents>\n</agent_state>\n<browser_state>\n<page_stats>Page appears empty - consider waiting - 0 links, 0 interactive, 0 iframes, 0 total elements</page_stats>\n\nAvailable tabs:\nTab C8B4:  - \n\n<page_info>0.0 pages above, 0.0 pages below</page_info>\n\nInteractive elements:\n[Start of page]\nEmpty DOM tree (you might have to wait for the page to load)\n[End of page]\n</browser_state>\n<step_info>Step1 maximum:10\nToday:2026-10-06</step_info>\n"
          },
-         "new": "rq-002"
+         "new": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       }
@@ -637,7 +650,10 @@
           "type": "text",
           "text": "<user_request>\n<initial_user_request>I am planning a weekend in Lisbon. Name one neighbourhood to stay in.</initial_user_request>\n<follow_up_user_request> What is one dish I should try there? </follow_up_user_request>\n</user_request>\n\n<agent_history>\nAgent initialized\n<follow_up_user_request> What is one dish I should try there? </follow_up_user_request>\n<step>\nAgent initialized; no browsing needed.\nTask is a simple recommendation; answering directly.\nCall done with a neighbourhood recommendation.\nResult\nTask completed: True - I'd suggest staying in Alfama, Lisbon's historic old quarter. It has charming narrow streets, fado m - 175 more characters\n</agent_history>\n\n<agent_state>\n<file_system>\n\n</file_system>\n<todo_contents>\n[empty todo.md, fill it when applicable]\n</todo_contents>\n</agent_state>\n<browser_state>\n<page_stats>Page appears empty - consider waiting - 0 links, 0 interactive, 0 iframes, 0 total elements</page_stats>\n\nAvailable tabs:\nTab 9DFE:  - \n\n<page_info>0.0 pages above, 0.0 pages below</page_info>\n\nInteractive elements:\n[Start of page]\nEmpty DOM tree (you might have to wait for the page to load)\n[End of page]\n</browser_state>\n<step_info>Step2 maximum:10\nToday:2026-10-06</step_info>\n"
          },
-         "new": "rq-003"
+         "new": "rq-003",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       }
@@ -666,7 +682,11 @@
           "type": "text",
           "text": "<user_request>\n<initial_user_request>I am planning a weekend in Lisbon. Name one neighbourhood to stay in.</initial_user_request>\n<follow_up_user_request> What is one dish I should try there? </follow_up_user_request>\n<follow_up_user_request> Summarise your two suggestions in one sentence. </follow_up_user_request>\n</user_request>\n\n<agent_history>\nAgent initialized\n<follow_up_user_request> What is one dish I should try there? </follow_up_user_request>\n<step>\nAgent initialized; no browsing needed.\nTask is a simple recommendation; answering directly.\nCall done with a neighbourhood recommendation.\nResult\nTask completed: True - I'd suggest staying in Alfama, Lisbon's historic old quarter. It has charming narrow streets, fado m - 175 more characters\n<follow_up_user_request> Summarise your two suggestions in one sentence. </follow_up_user_request>\n<step>\nPrevious step answered the neighbourhood question (Alfama). Verdict: Success\nInitial question answered with Alfama. Follow-up: one dish to try in Lisbon.\nAnswer the follow-up with a dish recommendation.\nResult\nTask completed: True - Try pastéis de nata, Lisbon's famous custard tarts. They're best eaten warm with a sprinkle of cinna - 180 more characters\n</agent_history>\n\n<agent_state>\n<file_system>\n\n</file_system>\n<todo_contents>\n[empty todo.md, fill it when applicable]\n</todo_contents>\n</agent_state>\n<browser_state>\n<page_stats>Page appears empty - consider waiting - 0 links, 0 interactive, 0 iframes, 0 total elements</page_stats>\n\nAvailable tabs:\nTab EE9B:  - \n\n<page_info>0.0 pages above, 0.0 pages below</page_info>\n\nInteractive elements:\n[Start of page]\nEmpty DOM tree (you might have to wait for the page to load)\n[End of page]\n</browser_state>\n<step_info>Step3 maximum:10\nToday:2026-10-06</step_info>\n"
          },
-         "new": "rq-004"
+         "new": "rq-004",
+         "renders": [
+          "fact-001",
+          "fact-009"
+         ]
         }
        ]
       }

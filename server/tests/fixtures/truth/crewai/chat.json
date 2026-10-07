@@ -140,7 +140,10 @@
           "type": "text",
           "text": "\nCurrent Task: In one sentence, what is Kyoto best known for?\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nProvide your complete response:"
          },
-         "new": "rq-002"
+         "new": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       }
@@ -173,7 +176,10 @@
           "type": "text",
           "text": "\nCurrent Task: In one sentence, what is Kyoto best known for?\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nProvide your complete response:"
          },
-         "new": "rq-002"
+         "new": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       }

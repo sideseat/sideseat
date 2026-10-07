@@ -40,8 +40,8 @@ pub(super) struct Context<'a> {
     pub matching: &'a Matching,
     facts: BTreeMap<&'a str, &'a Fact>,
     pub home_trace: BTreeMap<&'a str, String>,
-    /// Blocks a recorded request accounts for that no conversation fact holds (`requests`).
-    pub request_accounted: BTreeSet<String>,
+    /// What this fixture's recorded requests account for in its views (`requests`).
+    pub accounted: super::requests::Accounted,
 }
 
 impl<'a> Context<'a> {
@@ -49,7 +49,7 @@ impl<'a> Context<'a> {
         truth: &'a Truth,
         recon: &'a Recon,
         matching: &'a Matching,
-        request_accounted: BTreeSet<String>,
+        accounted: super::requests::Accounted,
     ) -> Self {
         let facts = truth.facts.iter().map(|f| (f.id.as_str(), f)).collect();
         let mut context = Context {
@@ -58,7 +58,7 @@ impl<'a> Context<'a> {
             matching,
             facts,
             home_trace: BTreeMap::new(),
-            request_accounted,
+            accounted,
         };
         for fact in &truth.facts {
             if let Some(call) = context.home_call(fact)

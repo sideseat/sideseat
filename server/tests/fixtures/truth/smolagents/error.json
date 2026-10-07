@@ -390,7 +390,10 @@
           "type": "text",
           "text": "New task:\nBook me a flight from London to Oslo on 2026-11-14."
          },
-         "new": "rq-002"
+         "new": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       }
@@ -420,14 +423,21 @@
           "type": "text",
           "text": "New task:\nBook me a flight from London to Oslo on 2026-11-14."
          },
-         "replay_of": "rq-002"
+         "replay_of": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         },
         {
          "part": {
           "type": "text",
           "text": "Error:\nError executing tool 'book_flight' with arguments {'origin': 'London', 'destination': 'Oslo', 'date': '2026-11-14'}: BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.\nPlease try again or use another tool\nNow let's retry: take care not to repeat previous errors! If you have retried several times, try a completely different approach.\n"
          },
-         "new": "rq-003"
+         "new": "rq-003",
+         "renders": [
+          "fact-002",
+          "fact-003"
+         ]
         }
        ]
       }
@@ -457,21 +467,32 @@
           "type": "text",
           "text": "New task:\nBook me a flight from London to Oslo on 2026-11-14."
          },
-         "replay_of": "rq-002"
+         "replay_of": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         },
         {
          "part": {
           "type": "text",
           "text": "Error:\nError executing tool 'book_flight' with arguments {'origin': 'London', 'destination': 'Oslo', 'date': '2026-11-14'}: BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.\nPlease try again or use another tool\nNow let's retry: take care not to repeat previous errors! If you have retried several times, try a completely different approach.\n"
          },
-         "replay_of": "rq-003"
+         "replay_of": "rq-003",
+         "renders": [
+          "fact-002",
+          "fact-003"
+         ]
         },
         {
          "part": {
           "type": "text",
           "text": "Error:\nError executing tool 'book_flight' with arguments {'origin': 'LHR', 'destination': 'OSL', 'date': '2026-11-14'}: BookingUnavailable: No seats from LHR to OSL on 2026-11-14: the booking system is offline.\nPlease try again or use another tool\nNow let's retry: take care not to repeat previous errors! If you have retried several times, try a completely different approach.\n"
          },
-         "new": "rq-004"
+         "new": "rq-004",
+         "renders": [
+          "fact-005",
+          "fact-006"
+         ]
         }
        ]
       }
@@ -507,7 +528,10 @@
           "type": "text",
           "text": "New task:\nBook me a flight from London to Oslo on 2026-11-14."
          },
-         "new": "rq-002"
+         "new": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       }
@@ -537,14 +561,21 @@
           "type": "text",
           "text": "New task:\nBook me a flight from London to Oslo on 2026-11-14."
          },
-         "replay_of": "rq-002"
+         "replay_of": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         },
         {
          "part": {
           "type": "text",
           "text": "Error:\nError executing tool 'book_flight' with arguments {'origin': 'London', 'destination': 'Oslo', 'date': '2026-11-14'}: BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.\nPlease try again or use another tool\nNow let's retry: take care not to repeat previous errors! If you have retried several times, try a completely different approach.\n"
          },
-         "new": "rq-003"
+         "new": "rq-003",
+         "renders": [
+          "fact-002",
+          "fact-003"
+         ]
         }
        ]
       }
@@ -574,21 +605,32 @@
           "type": "text",
           "text": "New task:\nBook me a flight from London to Oslo on 2026-11-14."
          },
-         "replay_of": "rq-002"
+         "replay_of": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         },
         {
          "part": {
           "type": "text",
           "text": "Error:\nError executing tool 'book_flight' with arguments {'origin': 'London', 'destination': 'Oslo', 'date': '2026-11-14'}: BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.\nPlease try again or use another tool\nNow let's retry: take care not to repeat previous errors! If you have retried several times, try a completely different approach.\n"
          },
-         "replay_of": "rq-003"
+         "replay_of": "rq-003",
+         "renders": [
+          "fact-002",
+          "fact-003"
+         ]
         },
         {
          "part": {
           "type": "text",
           "text": "Error:\nError executing tool 'book_flight' with arguments {'origin': 'LHR', 'destination': 'OSL', 'date': '2026-11-14'}: BookingUnavailable: No seats from LHR to OSL on 2026-11-14: the booking system is offline.\nPlease try again or use another tool\nNow let's retry: take care not to repeat previous errors! If you have retried several times, try a completely different approach.\n"
          },
-         "new": "rq-004"
+         "new": "rq-004",
+         "renders": [
+          "fact-005",
+          "fact-006"
+         ]
         }
        ]
       }

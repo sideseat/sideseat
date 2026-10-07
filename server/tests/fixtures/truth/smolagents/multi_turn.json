@@ -417,7 +417,10 @@
           "type": "text",
           "text": "New task:\nI am planning a weekend in Lisbon. Name one neighbourhood to stay in."
          },
-         "new": "rq-002"
+         "new": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       }
@@ -446,7 +449,10 @@
           "type": "text",
           "text": "New task:\nI am planning a weekend in Lisbon. Name one neighbourhood to stay in."
          },
-         "replay_of": "rq-002"
+         "replay_of": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       },
@@ -470,7 +476,10 @@
           "type": "text",
           "text": "Observation:\nStay in Baixa/Chiado, Lisbon's central district. It's walkable to major sights, restaurants and nightlife, and it has excellent metro, tram and train connections, so it suits a short weekend. Alfama is a good alternative if you prefer a more historic, atmospheric feel.\nNew task:\nWhat is one dish I should try there?"
          },
-         "new": "rq-003"
+         "new": "rq-003",
+         "renders": [
+          "fact-003"
+         ]
         }
        ]
       }
@@ -499,7 +508,10 @@
           "type": "text",
           "text": "New task:\nI am planning a weekend in Lisbon. Name one neighbourhood to stay in."
          },
-         "replay_of": "rq-002"
+         "replay_of": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       },
@@ -523,7 +535,10 @@
           "type": "text",
           "text": "Observation:\nStay in Baixa/Chiado, Lisbon's central district. It's walkable to major sights, restaurants and nightlife, and it has excellent metro, tram and train connections, so it suits a short weekend. Alfama is a good alternative if you prefer a more historic, atmospheric feel.\nNew task:\nWhat is one dish I should try there?"
          },
-         "replay_of": "rq-003"
+         "replay_of": "rq-003",
+         "renders": [
+          "fact-003"
+         ]
         }
        ]
       },
@@ -547,7 +562,11 @@
           "type": "text",
           "text": "Observation:\nTry pastéis de nata, Lisbon's famous custard tarts, ideally warm from a bakery like Pastéis de Belém. If you want something savory, bacalhau à Brás (shredded salted cod with eggs and potatoes) is a classic local dish.\nNew task:\nSummarise your two suggestions in one sentence."
          },
-         "new": "rq-004"
+         "new": "rq-004",
+         "renders": [
+          "fact-006",
+          "fact-007"
+         ]
         }
        ]
       }
@@ -582,7 +601,10 @@
           "type": "text",
           "text": "New task:\nI am planning a weekend in Lisbon. Name one neighbourhood to stay in."
          },
-         "new": "rq-002"
+         "new": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       }
@@ -611,7 +633,10 @@
           "type": "text",
           "text": "New task:\nI am planning a weekend in Lisbon. Name one neighbourhood to stay in."
          },
-         "replay_of": "rq-002"
+         "replay_of": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       },
@@ -635,7 +660,10 @@
           "type": "text",
           "text": "Observation:\nStay in Baixa/Chiado, Lisbon's central district. It's walkable to major sights, restaurants and nightlife, and it has excellent metro, tram and train connections, so it suits a short weekend. Alfama is a good alternative if you prefer a more historic, atmospheric feel.\nNew task:\nWhat is one dish I should try there?"
          },
-         "new": "rq-003"
+         "new": "rq-003",
+         "renders": [
+          "fact-003"
+         ]
         }
        ]
       }
@@ -664,7 +692,10 @@
           "type": "text",
           "text": "New task:\nI am planning a weekend in Lisbon. Name one neighbourhood to stay in."
          },
-         "replay_of": "rq-002"
+         "replay_of": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       },
@@ -688,7 +719,10 @@
           "type": "text",
           "text": "Observation:\nStay in Baixa/Chiado, Lisbon's central district. It's walkable to major sights, restaurants and nightlife, and it has excellent metro, tram and train connections, so it suits a short weekend. Alfama is a good alternative if you prefer a more historic, atmospheric feel.\nNew task:\nWhat is one dish I should try there?"
          },
-         "replay_of": "rq-003"
+         "replay_of": "rq-003",
+         "renders": [
+          "fact-003"
+         ]
         }
        ]
       },
@@ -712,7 +746,11 @@
           "type": "text",
           "text": "Observation:\nTry pastéis de nata, Lisbon's famous custard tarts, ideally warm from a bakery like Pastéis de Belém. If you want something savory, bacalhau à Brás (shredded salted cod with eggs and potatoes) is a classic local dish.\nNew task:\nSummarise your two suggestions in one sentence."
          },
-         "new": "rq-004"
+         "new": "rq-004",
+         "renders": [
+          "fact-006",
+          "fact-007"
+         ]
         }
        ]
       }

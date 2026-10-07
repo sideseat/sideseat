@@ -75,11 +75,71 @@ def _candidates(
     return out
 
 
-class _Lineage:
-    """Assigns each occurrence its lineage as the requests arrive."""
+def _collapsed(text: str) -> str:
+    return " ".join(text.split())
 
-    def __init__(self, truth: dict[str, Any]) -> None:
+
+#: How much of a fact must appear inside a part before the part reads as a rendering of it. Long enough that
+#: two different turns cannot share it by accident; no share-of-the-part rule, because a framework's
+#: scaffolding around a quoted task - CrewAI's "Current Task ... expected criteria" - is mostly scaffolding
+#: and still a rendering.
+_RENDERS_MIN = 40
+
+
+def _renderings(fact: dict[str, Any]) -> list[str]:
+    """The forms a fact's content can appear in inside another message's text.
+
+    A framework quotes a turn verbatim, and a tool result either as JSON or as the language's own literal -
+    smolagents writes ``Observation: {'city': 'Tokyo'}``, which is `repr`, not JSON. Both spellings are
+    offered, so a rendering is recognised whichever the framework used.
+    """
+    value = fact["value"]
+    kind = fact["kind"]
+    if kind in ("system", "user_text", "text", "reasoning"):
+        text = value.get("text") or ""
+        return [text] if text else []
+    if kind == "tool_result":
+        held = value.get("value")
+        return [json.dumps(held, ensure_ascii=False), repr(held), str(held)]
+    if kind == "tool_call":
+        arguments = value.get("arguments")
+        return [json.dumps(arguments, ensure_ascii=False), repr(arguments)]
+    return []
+
+
+def _renders(part: dict[str, Any], facts: list[dict[str, Any]]) -> list[str]:
+    """The conversation facts a request part re-renders: their content inside its own text.
+
+    A framework that hands the model its own state message, quotes the task back, or writes a tool result as
+    an observation is rendering facts the conversation already has. Such a part is not new content, and
+    minting a fact for it would make two facts demand one block.
+    """
+    text = _collapsed(part.get("text") or "") if part["type"] == "text" else ""
+    if not text:
+        return []
+    out = []
+    for fact in facts:
+        for rendering in _renderings(fact):
+            quoted = _collapsed(rendering)
+            if len(quoted) < _RENDERS_MIN or quoted == text or quoted not in text:
+                continue
+            out.append(fact["id"])
+            break
+    return out
+
+
+class _Lineage:
+    """Assigns each occurrence its lineage as the requests arrive.
+
+    Content a conversation fact holds is a reference to that fact. Content that renders facts the
+    conversation has - a state message quoting the task, a tool result written as an observation - is a
+    rendering, linked to the facts it renders and no fact of its own, so two facts never demand one block.
+    Anything else only a request carries keeps an ``rq-*`` identity of its own.
+    """
+
+    def __init__(self, truth: dict[str, Any], fixture: str) -> None:
         self.truth = truth
+        self.fixture = fixture
         self.established: set[str] = set()
         self.request_only: dict[str, str] = {}
 
@@ -98,9 +158,17 @@ class _Lineage:
         if role == "assistant" or part["type"] in ("tool_call", "reasoning"):
             # What the model said, which no output of this conversation is: a rewrite or a summary.
             return {"lineage_unknown": "model-side content no call's output matches"}
+        rendered = _renders(part, facts)
         key = _canonical([role, part])
         if key in self.request_only:
-            return {"replay_of": self.request_only[key]}
+            lineage = {"replay_of": self.request_only[key]}
+            return {**lineage, "renders": rendered} if rendered else lineage
+        if rendered:
+            # A rendering of facts the conversation already has: no fact of its own, so the two never
+            # compete for one block. The assignment still requires the span sent it to show it.
+            identifier = f"rq-{len(self.request_only) + 1:03d}"
+            self.request_only[key] = identifier
+            return {"new": identifier, "renders": rendered}
         identifier = f"rq-{len(self.request_only) + 1:03d}"
         self.request_only[key] = identifier
         return {"new": identifier}
@@ -144,7 +212,7 @@ def fixture_requests(
         return None
     calls = {call["id"]: call for call in truth["calls"]}
     in_order = [call["id"] for call in truth["calls"]]
-    lineage = _Lineage(truth)
+    lineage = _Lineage(truth, fixture)
     out: dict[str, Any] = {}
     unanswered = []
     arrival = 0

@@ -427,7 +427,10 @@
           "type": "text",
           "text": "\nCurrent Task: What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "new": "rq-002"
+         "new": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       }
@@ -457,7 +460,10 @@
           "type": "text",
           "text": "\nCurrent Task: What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "replay_of": "rq-002"
+         "replay_of": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       },
@@ -605,7 +611,10 @@
           "type": "text",
           "text": "\nCurrent Task: What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "new": "rq-002"
+         "new": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       }
@@ -635,7 +644,10 @@
           "type": "text",
           "text": "\nCurrent Task: What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "replay_of": "rq-002"
+         "replay_of": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       },

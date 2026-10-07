@@ -136,6 +136,11 @@ pub(super) struct Occurrence {
     pub new: Option<String>,
     #[serde(default)]
     pub lineage_unknown: Option<String>,
+    /// The conversation facts this part renders: a framework's state message quoting the task, a digest of
+    /// the turn so far. It is no fact of its own - two facts must never demand one block - and the views are
+    /// not obliged to show it, though the span that was sent it must.
+    #[serde(default)]
+    pub renders: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

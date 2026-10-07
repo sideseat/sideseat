@@ -191,7 +191,10 @@
           "type": "text",
           "text": "New task:\nIn one sentence, what is Kyoto best known for?"
          },
-         "new": "rq-002"
+         "new": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       }
@@ -226,7 +229,10 @@
           "type": "text",
           "text": "New task:\nIn one sentence, what is Kyoto best known for?"
          },
-         "new": "rq-002"
+         "new": "rq-002",
+         "renders": [
+          "fact-001"
+         ]
         }
        ]
       }

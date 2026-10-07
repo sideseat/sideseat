@@ -22,6 +22,13 @@ use super::recon::{Block, Recon, ViewKind};
 use super::truth::{CallRequest, Fact, Occurrence, Requirement, Truth};
 use super::{Violation, ViolationView};
 
+/// What a fixture's recorded requests account for in its views.
+#[derive(Default)]
+pub(super) struct Accounted {
+    /// Blocks a request explains that no conversation fact holds.
+    pub blocks: BTreeSet<String>,
+}
+
 /// One expected input block: where it sits in the request, its role, and the fact it must show.
 struct Expected {
     label: String,
@@ -32,6 +39,8 @@ struct Expected {
     message: Option<usize>,
     /// The occurrence names a conversation fact, rather than content only the request carries.
     is_fact: bool,
+    /// The conversation facts this part renders, where it renders rather than states them.
+    renders: Vec<String>,
 }
 
 /// The role a reconstruction shows a part under: a tool's result is the tool's turn, whatever message
@@ -217,6 +226,7 @@ fn expected(
                 part: occurrence.part.clone(),
                 message: None,
                 is_fact: names_fact(occurrence),
+                renders: occurrence.renders.clone(),
             });
         }
     }
@@ -232,6 +242,7 @@ fn expected(
                     part: occurrence.part.clone(),
                     message: Some(m),
                     is_fact: names_fact(occurrence),
+                    renders: occurrence.renders.clone(),
                 });
             }
         }
@@ -395,11 +406,11 @@ pub(super) fn check_requests(
     recon: &Recon,
     matching: &Matching,
     out: &mut Vec<Violation>,
-) -> BTreeSet<String> {
+) -> Accounted {
     // What a request accounts for that no conversation fact holds: the client's own preamble, the
     // environment block it appends, a turn it composed. The conversation views may show it - the model was
     // sent it - and `extra.unexplained` would otherwise call it content from nowhere.
-    let mut accounted = BTreeSet::new();
+    let mut accounted = Accounted::default();
     let Some(recorded) = truth.requests.get(&recon.fixture) else {
         return accounted;
     };
@@ -412,7 +423,7 @@ pub(super) fn check_requests(
             .filter(|item| !item.is_fact)
         {
             for block in everywhere.iter().filter(|block| matches(item, block)) {
-                accounted.insert(block.identity.clone());
+                accounted.blocks.insert(block.identity.clone());
             }
         }
     }
@@ -497,10 +508,20 @@ pub(super) fn check_requests(
                     ),
                     Proof::Present(at) | Proof::Partial(at) => (
                         "request.missing",
-                        format!(
-                            "{at} carries this {}, and no input shows it",
-                            item.fact.kind
-                        ),
+                        match item.renders.as_slice() {
+                            // Naming what a part renders is what makes the finding actionable: a
+                            // framework's own wrapper around turns the conversation already has reads
+                            // differently from content of its own.
+                            [] => format!(
+                                "{at} carries this {}, and no input shows it",
+                                item.fact.kind
+                            ),
+                            rendered => format!(
+                                "{at} carries this {}, rendering {}, and no input shows it",
+                                item.fact.kind,
+                                rendered.join(", ")
+                            ),
+                        },
                     ),
                     Proof::Unprovable(why) => (
                         "request.missing",
