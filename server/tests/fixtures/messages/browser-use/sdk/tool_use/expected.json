@@ -1,6 +1,6 @@
 {
   "label": "browser-use/sdk/tool_use",
-  "request_count": 1,
+  "request_count": 2,
   "span_count": 13,
   "trace_count": 1,
   "session_count": 1,
@@ -56,7 +56,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city? Read the forecast on the travel site at http://127.0.0.1:47811 and check the chance of rain for each city w…[2121 chars]",
-          "content_digest": "c08634f436f1aa12",
+          "content_digest": "953e8dfcb2e89486",
           "observation_type": "generation"
         },
         {
@@ -93,7 +93,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city? Read the forecast on the travel site at http://127.0.0.1:47811 and check the chance of rain for each city w…[993 chars]",
-          "content_digest": "12759dc01109de1c",
+          "content_digest": "447bc4a6bcea6734",
           "observation_type": "generation"
         },
         {
@@ -130,7 +130,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city? Read the forecast on the travel site at http://127.0.0.1:47811 and check the chance of rain for each city w…[1851 chars]",
-          "content_digest": "8d971f0af4ba8841",
+          "content_digest": "4a8f1d33c57e3f75",
           "observation_type": "generation"
         },
         {
@@ -353,7 +353,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city? Read the forecast on the travel site at http://127.0.0.1:47811 and check the chance of rain for each city w…[993 chars]",
-          "content_digest": "12759dc01109de1c",
+          "content_digest": "447bc4a6bcea6734",
           "observation_type": "generation"
         },
         {
@@ -388,7 +388,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city? Read the forecast on the travel site at http://127.0.0.1:47811 and check the chance of rain for each city w…[1851 chars]",
-          "content_digest": "8d971f0af4ba8841",
+          "content_digest": "4a8f1d33c57e3f75",
           "observation_type": "generation"
         },
         {
@@ -441,7 +441,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city? Read the forecast on the travel site at http://127.0.0.1:47811 and check the chance of rain for each city w…[2121 chars]",
-          "content_digest": "c08634f436f1aa12",
+          "content_digest": "953e8dfcb2e89486",
           "observation_type": "generation"
         },
         {
@@ -530,7 +530,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city? Read the forecast on the travel site at http://127.0.0.1:47811 and check the chance of rain for each city w…[993 chars]",
-          "content_digest": "12759dc01109de1c",
+          "content_digest": "447bc4a6bcea6734",
           "observation_type": "generation"
         },
         {
@@ -565,7 +565,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city? Read the forecast on the travel site at http://127.0.0.1:47811 and check the chance of rain for each city w…[1851 chars]",
-          "content_digest": "8d971f0af4ba8841",
+          "content_digest": "4a8f1d33c57e3f75",
           "observation_type": "generation"
         },
         {
@@ -618,7 +618,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city? Read the forecast on the travel site at http://127.0.0.1:47811 and check the chance of rain for each city w…[2121 chars]",
-          "content_digest": "c08634f436f1aa12",
+          "content_digest": "953e8dfcb2e89486",
           "observation_type": "generation"
         },
         {
@@ -698,7 +698,7 @@
         "role": "user",
         "entry_type": "text",
         "content": "<user_request> What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city? Read the forecast on the travel site at http://127.0.0.1:47811 and check the chance of rain for each city w…[2121 chars]",
-        "content_digest": "c08634f436f1aa12",
+        "content_digest": "953e8dfcb2e89486",
         "observation_type": "generation"
       },
       {
@@ -751,7 +751,7 @@
         "role": "user",
         "entry_type": "text",
         "content": "<user_request> What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city? Read the forecast on the travel site at http://127.0.0.1:47811 and check the chance of rain for each city w…[1851 chars]",
-        "content_digest": "8d971f0af4ba8841",
+        "content_digest": "4a8f1d33c57e3f75",
         "observation_type": "generation"
       },
       {
@@ -794,7 +794,7 @@
         "role": "user",
         "entry_type": "text",
         "content": "<user_request> What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city? Read the forecast on the travel site at http://127.0.0.1:47811 and check the chance of rain for each city w…[993 chars]",
-        "content_digest": "12759dc01109de1c",
+        "content_digest": "447bc4a6bcea6734",
         "observation_type": "generation"
       },
       {

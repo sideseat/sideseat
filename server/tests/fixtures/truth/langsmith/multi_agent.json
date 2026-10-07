@@ -98,10 +98,12 @@
   {
    "id": "conv-1",
    "sequence": [
+    "fact-007",
     "fact-001",
     "fact-002",
     "fact-003",
     "fact-004",
+    "fact-008",
     "fact-005",
     "fact-006"
    ],
@@ -253,6 +255,54 @@
     "match": "exact"
    },
    "call": "call-003"
+  },
+  {
+   "id": "fact-007",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You research weather with the tool, then hand off to the writer."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "langsmith/native/multi_agent",
+    "langsmith/sdk/multi_agent"
+   ]
+  },
+  {
+   "id": "fact-008",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You write the final packing list from the researcher's findings."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "langsmith/native/multi_agent",
+    "langsmith/sdk/multi_agent"
+   ]
   }
  ],
  "edges": [
@@ -297,7 +347,7 @@
         "type": "text",
         "text": "You research weather with the tool, then hand off to the writer."
        },
-       "new": "rq-001"
+       "new_fact": "fact-007"
       }
      ],
      "messages": [
@@ -326,7 +376,7 @@
         "type": "text",
         "text": "You research weather with the tool, then hand off to the writer."
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-007"
       }
      ],
      "messages": [
@@ -391,7 +441,7 @@
         "type": "text",
         "text": "You write the final packing list from the researcher's findings."
        },
-       "new": "rq-002"
+       "new_fact": "fact-008"
       }
      ],
      "messages": [
@@ -403,7 +453,7 @@
           "type": "text",
           "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nThe researcher's findings:\n**Barcelona packing list (next two days):** Day 1 will be rainy with a high around 21°C. Day 2 will be sunny with a high around 22°C. Pack a light, packaging-friendly waterproof jacket or compact umbrella and water-resistant shoes for the wet first day. Bring breathable layers such as T-shirts and a light sweater or cardigan for the mild temperatures. For the sunny second day, add sunglasses, sunscreen, and a hat. Comfortable walking shoes will work for both days. A small daypack will hold the extra layers and the rain gear as the weather changes."
          },
-         "new": "rq-003",
+         "new": "rq-001",
          "renders": [
           "fact-001",
           "fact-004"
@@ -428,7 +478,7 @@
         "type": "text",
         "text": "You research weather with the tool, then hand off to the writer."
        },
-       "new": "rq-001"
+       "new_fact": "fact-007"
       }
      ],
      "messages": [
@@ -457,7 +507,7 @@
         "type": "text",
         "text": "You research weather with the tool, then hand off to the writer."
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-007"
       }
      ],
      "messages": [
@@ -522,7 +572,7 @@
         "type": "text",
         "text": "You write the final packing list from the researcher's findings."
        },
-       "new": "rq-002"
+       "new_fact": "fact-008"
       }
      ],
      "messages": [
@@ -534,7 +584,7 @@
           "type": "text",
           "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nThe researcher's findings:\n**Barcelona packing list (next two days):** Day 1 will be rainy with a high around 21°C. Day 2 will be sunny with a high around 22°C. Pack a light, packaging-friendly waterproof jacket or compact umbrella and water-resistant shoes for the wet first day. Bring breathable layers such as T-shirts and a light sweater or cardigan for the mild temperatures. For the sunny second day, add sunglasses, sunscreen, and a hat. Comfortable walking shoes will work for both days. A small daypack will hold the extra layers and the rain gear as the weather changes."
          },
-         "new": "rq-003",
+         "new": "rq-001",
          "renders": [
           "fact-001",
           "fact-004"

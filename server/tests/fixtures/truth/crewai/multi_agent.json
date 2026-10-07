@@ -97,10 +97,12 @@
   {
    "id": "conv-1",
    "sequence": [
+    "fact-006",
     "fact-001",
     "fact-002",
     "fact-003",
     "fact-004",
+    "fact-007",
     "fact-005"
    ],
    "final_answers": [
@@ -237,6 +239,54 @@
     "match": "exact"
    },
    "call": "call-003"
+  },
+  {
+   "id": "fact-006",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You are Weather researcher. You research weather with the tool, then hand off to the writer.\nYour personal goal is: Find the forecast the traveller needs"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "crewai/native/multi_agent",
+    "crewai/sdk/multi_agent"
+   ]
+  },
+  {
+   "id": "fact-007",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You are Packing list writer. You write the final packing list from the researcher's findings.\nYour personal goal is: Write the packing list"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "crewai/native/multi_agent",
+    "crewai/sdk/multi_agent"
+   ]
   }
  ],
  "edges": [
@@ -275,7 +325,7 @@
         "type": "text",
         "text": "You are Weather researcher. You research weather with the tool, then hand off to the writer.\nYour personal goal is: Find the forecast the traveller needs"
        },
-       "new": "rq-001"
+       "new_fact": "fact-006"
       }
      ],
      "messages": [
@@ -287,7 +337,7 @@
           "type": "text",
           "text": "\nCurrent Task: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nThis is the expected criteria for your final answer: The forecast for each day.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "new": "rq-002",
+         "new": "rq-001",
          "renders": [
           "fact-001"
          ]
@@ -307,7 +357,7 @@
         "type": "text",
         "text": "You are Weather researcher. You research weather with the tool, then hand off to the writer.\nYour personal goal is: Find the forecast the traveller needs"
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-006"
       }
      ],
      "messages": [
@@ -319,7 +369,7 @@
           "type": "text",
           "text": "\nCurrent Task: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nThis is the expected criteria for your final answer: The forecast for each day.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "replay_of": "rq-002",
+         "replay_of": "rq-001",
          "renders": [
           "fact-001"
          ]
@@ -375,7 +425,7 @@
         "type": "text",
         "text": "You are Packing list writer. You write the final packing list from the researcher's findings.\nYour personal goal is: Write the packing list"
        },
-       "new": "rq-003"
+       "new_fact": "fact-007"
       }
      ],
      "messages": [
@@ -387,7 +437,7 @@
           "type": "text",
           "text": "\nCurrent Task: Write the one-paragraph packing list the request asks for.\n\nThis is the expected criteria for your final answer: A one-paragraph packing list.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nThis is the context you're working with:\n**Barcelona forecast for the next two days**\n- **Day 1:** Rain, with a high of 21°C.\n- **Day 2:** Sunny, with a high of 22°C.\n\n**Packing list:** Pack for mild weather with one wet day followed by a sunny one. Bring a light waterproof jacket or compact umbrella and water-resistant closed shoes for the rain on Day 1. Add breathable layers such as T-shirts and a light long-sleeve top or cardigan, because highs of 21–22°C can still feel cool in the morning and evening. For Day 2, bring sunglasses, sunscreen, and a hat. Comfortable walking shoes or sneakers will work for both days of sightseeing. A small daypack will hold the layers and rain gear as the weather changes.\n\nProvide your complete response:"
          },
-         "new": "rq-004",
+         "new": "rq-002",
          "renders": [
           "fact-004"
          ]
@@ -411,7 +461,7 @@
         "type": "text",
         "text": "You are Weather researcher. You research weather with the tool, then hand off to the writer.\nYour personal goal is: Find the forecast the traveller needs"
        },
-       "new": "rq-001"
+       "new_fact": "fact-006"
       }
      ],
      "messages": [
@@ -423,7 +473,7 @@
           "type": "text",
           "text": "\nCurrent Task: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nThis is the expected criteria for your final answer: The forecast for each day.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "new": "rq-002",
+         "new": "rq-001",
          "renders": [
           "fact-001"
          ]
@@ -443,7 +493,7 @@
         "type": "text",
         "text": "You are Weather researcher. You research weather with the tool, then hand off to the writer.\nYour personal goal is: Find the forecast the traveller needs"
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-006"
       }
      ],
      "messages": [
@@ -455,7 +505,7 @@
           "type": "text",
           "text": "\nCurrent Task: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nThis is the expected criteria for your final answer: The forecast for each day.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "replay_of": "rq-002",
+         "replay_of": "rq-001",
          "renders": [
           "fact-001"
          ]
@@ -511,7 +561,7 @@
         "type": "text",
         "text": "You are Packing list writer. You write the final packing list from the researcher's findings.\nYour personal goal is: Write the packing list"
        },
-       "new": "rq-003"
+       "new_fact": "fact-007"
       }
      ],
      "messages": [
@@ -523,7 +573,7 @@
           "type": "text",
           "text": "\nCurrent Task: Write the one-paragraph packing list the request asks for.\n\nThis is the expected criteria for your final answer: A one-paragraph packing list.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nThis is the context you're working with:\n**Barcelona forecast for the next two days**\n- **Day 1:** Rain, with a high of 21°C.\n- **Day 2:** Sunny, with a high of 22°C.\n\n**Packing list:** Pack for mild weather with one wet day followed by a sunny one. Bring a light waterproof jacket or compact umbrella and water-resistant closed shoes for the rain on Day 1. Add breathable layers such as T-shirts and a light long-sleeve top or cardigan, because highs of 21–22°C can still feel cool in the morning and evening. For Day 2, bring sunglasses, sunscreen, and a hat. Comfortable walking shoes or sneakers will work for both days of sightseeing. A small daypack will hold the layers and rain gear as the weather changes.\n\nProvide your complete response:"
          },
-         "new": "rq-004",
+         "new": "rq-002",
          "renders": [
           "fact-004"
          ]

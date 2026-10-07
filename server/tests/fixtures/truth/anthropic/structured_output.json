@@ -46,6 +46,7 @@
   {
    "id": "conv-1",
    "sequence": [
+    "fact-003",
     "fact-001",
     "fact-002"
    ],
@@ -103,6 +104,29 @@
     "match": "semantic"
    },
    "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Answer by calling trip_plan."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "anthropic/sdk/structured_output"
+   ]
   }
  ],
  "edges": [
@@ -137,7 +161,7 @@
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Answer by calling trip_plan."
        },
-       "new": "rq-001"
+       "new_fact": "fact-003"
       }
      ],
      "messages": [

@@ -50,7 +50,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> Plan a two-day trip to Vienna. Expected output format: TripPlan { \"description\": \"A short itinerary.\", \"properties\": { \"city\": { \"description\": \"The destination city\", \"title\": \"City\", \"type\": \"string\" }, \"days\": { \"descripti…[1135 chars]",
-          "content_digest": "2a333596ebfeb337",
+          "content_digest": "bdb0c437916b4815",
           "observation_type": "generation"
         },
         {
@@ -95,7 +95,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> Plan a two-day trip to Vienna. Expected output format: TripPlan { \"description\": \"A short itinerary.\", \"properties\": { \"city\": { \"description\": \"The destination city\", \"title\": \"City\", \"type\": \"string\" }, \"days\": { \"descripti…[1351 chars]",
-          "content_digest": "2dbc06360c62441d",
+          "content_digest": "9559d405510945ae",
           "observation_type": "generation"
         },
         {
@@ -206,7 +206,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> Plan a two-day trip to Vienna. Expected output format: TripPlan { \"description\": \"A short itinerary.\", \"properties\": { \"city\": { \"description\": \"The destination city\", \"title\": \"City\", \"type\": \"string\" }, \"days\": { \"descripti…[1135 chars]",
-          "content_digest": "2a333596ebfeb337",
+          "content_digest": "bdb0c437916b4815",
           "observation_type": "generation"
         },
         {
@@ -249,7 +249,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> Plan a two-day trip to Vienna. Expected output format: TripPlan { \"description\": \"A short itinerary.\", \"properties\": { \"city\": { \"description\": \"The destination city\", \"title\": \"City\", \"type\": \"string\" }, \"days\": { \"descripti…[1351 chars]",
-          "content_digest": "2dbc06360c62441d",
+          "content_digest": "9559d405510945ae",
           "observation_type": "generation"
         },
         {
@@ -313,7 +313,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> Plan a two-day trip to Vienna. Expected output format: TripPlan { \"description\": \"A short itinerary.\", \"properties\": { \"city\": { \"description\": \"The destination city\", \"title\": \"City\", \"type\": \"string\" }, \"days\": { \"descripti…[1135 chars]",
-          "content_digest": "2a333596ebfeb337",
+          "content_digest": "bdb0c437916b4815",
           "observation_type": "generation"
         },
         {
@@ -356,7 +356,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> Plan a two-day trip to Vienna. Expected output format: TripPlan { \"description\": \"A short itinerary.\", \"properties\": { \"city\": { \"description\": \"The destination city\", \"title\": \"City\", \"type\": \"string\" }, \"days\": { \"descripti…[1351 chars]",
-          "content_digest": "2dbc06360c62441d",
+          "content_digest": "9559d405510945ae",
           "observation_type": "generation"
         },
         {
@@ -429,7 +429,7 @@
         "role": "user",
         "entry_type": "text",
         "content": "<user_request> Plan a two-day trip to Vienna. Expected output format: TripPlan { \"description\": \"A short itinerary.\", \"properties\": { \"city\": { \"description\": \"The destination city\", \"title\": \"City\", \"type\": \"string\" }, \"days\": { \"descripti…[1351 chars]",
-        "content_digest": "2dbc06360c62441d",
+        "content_digest": "9559d405510945ae",
         "observation_type": "generation"
       },
       {
@@ -472,7 +472,7 @@
         "role": "user",
         "entry_type": "text",
         "content": "<user_request> Plan a two-day trip to Vienna. Expected output format: TripPlan { \"description\": \"A short itinerary.\", \"properties\": { \"city\": { \"description\": \"The destination city\", \"title\": \"City\", \"type\": \"string\" }, \"days\": { \"descripti…[1135 chars]",
-        "content_digest": "2a333596ebfeb337",
+        "content_digest": "bdb0c437916b4815",
         "observation_type": "generation"
       },
       {

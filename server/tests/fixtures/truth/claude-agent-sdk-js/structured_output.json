@@ -47,7 +47,11 @@
   {
    "id": "conv-1",
    "sequence": [
+    "fact-003",
+    "fact-004",
+    "fact-005",
     "fact-001",
+    "fact-006",
     "fact-002"
    ],
    "final_answers": []
@@ -104,6 +108,102 @@
     "match": "semantic"
    },
    "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "x-anthropic-billing-header: cc_version=2.1.284.0bb; cc_entrypoint=sdk-ts;"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "claude-agent-sdk-js/native/structured_output",
+    "claude-agent-sdk-js/sdk/structured_output"
+   ]
+  },
+  {
+   "id": "fact-004",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "claude-agent-sdk-js/native/structured_output",
+    "claude-agent-sdk-js/sdk/structured_output"
+   ]
+  },
+  {
+   "id": "fact-005",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "claude-agent-sdk-js/native/structured_output",
+    "claude-agent-sdk-js/sdk/structured_output"
+   ]
+  },
+  {
+   "id": "fact-006",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "# Environment\nYou have been invoked in the following environment: \n - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk-js\n - Is a git repository: false\n - Platform: darwin\n - Shell: zsh\n - OS Version: Darwin 25.6.0\n\nYou are powered by the model named Sonnet 5.5. The exact model ID is global.anthropic.claude-sonnet-5-5. Assistant knowledge cutoff is June 2026.\n\n<total_tokens>15000000 tokens left</total_tokens>\n\nToday's date is 2026-10-07."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "claude-agent-sdk-js/native/structured_output",
+    "claude-agent-sdk-js/sdk/structured_output"
+   ]
   }
  ],
  "edges": [
@@ -138,21 +238,21 @@
         "type": "text",
         "text": "x-anthropic-billing-header: cc_version=2.1.284.0bb; cc_entrypoint=sdk-ts;"
        },
-       "new": "rq-001"
+       "new_fact": "fact-003"
       },
       {
        "part": {
         "type": "text",
         "text": "You are a Claude agent, built on Anthropic's Claude Agent SDK."
        },
-       "new": "rq-002"
+       "new_fact": "fact-004"
       },
       {
        "part": {
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
        },
-       "new": "rq-003"
+       "new_fact": "fact-005"
       }
      ],
      "messages": [
@@ -174,9 +274,9 @@
         {
          "part": {
           "type": "text",
-          "text": "# Environment\nYou have been invoked in the following environment: \n - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk-js\n - Is a git repository: false\n - Platform: darwin\n - Shell: zsh\n - OS Version: Darwin 25.6.0\n\nYou are powered by the model named Sonnet 5.5. The exact model ID is global.anthropic.claude-sonnet-5-5. Assistant knowledge cutoff is June 2026.\n\n<total_tokens>15000000 tokens left</total_tokens>\n\nToday's date is 2026-10-06."
+          "text": "# Environment\nYou have been invoked in the following environment: \n - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk-js\n - Is a git repository: false\n - Platform: darwin\n - Shell: zsh\n - OS Version: Darwin 25.6.0\n\nYou are powered by the model named Sonnet 5.5. The exact model ID is global.anthropic.claude-sonnet-5-5. Assistant knowledge cutoff is June 2026.\n\n<total_tokens>15000000 tokens left</total_tokens>\n\nToday's date is 2026-10-07."
          },
-         "new": "rq-004"
+         "new_fact": "fact-006"
         }
        ]
       }
@@ -199,21 +299,21 @@
         "type": "text",
         "text": "x-anthropic-billing-header: cc_version=2.1.284.0bb; cc_entrypoint=sdk-ts;"
        },
-       "new": "rq-001"
+       "new_fact": "fact-003"
       },
       {
        "part": {
         "type": "text",
         "text": "You are a Claude agent, built on Anthropic's Claude Agent SDK."
        },
-       "new": "rq-002"
+       "new_fact": "fact-004"
       },
       {
        "part": {
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
        },
-       "new": "rq-003"
+       "new_fact": "fact-005"
       }
      ],
      "messages": [
@@ -235,9 +335,9 @@
         {
          "part": {
           "type": "text",
-          "text": "# Environment\nYou have been invoked in the following environment: \n - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk-js\n - Is a git repository: false\n - Platform: darwin\n - Shell: zsh\n - OS Version: Darwin 25.6.0\n\nYou are powered by the model named Sonnet 5.5. The exact model ID is global.anthropic.claude-sonnet-5-5. Assistant knowledge cutoff is June 2026.\n\n<total_tokens>15000000 tokens left</total_tokens>\n\nToday's date is 2026-10-06."
+          "text": "# Environment\nYou have been invoked in the following environment: \n - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk-js\n - Is a git repository: false\n - Platform: darwin\n - Shell: zsh\n - OS Version: Darwin 25.6.0\n\nYou are powered by the model named Sonnet 5.5. The exact model ID is global.anthropic.claude-sonnet-5-5. Assistant knowledge cutoff is June 2026.\n\n<total_tokens>15000000 tokens left</total_tokens>\n\nToday's date is 2026-10-07."
          },
-         "new": "rq-004"
+         "new_fact": "fact-006"
         }
        ]
       }

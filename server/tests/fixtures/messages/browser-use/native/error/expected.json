@@ -1,6 +1,6 @@
 {
   "label": "browser-use/native/error",
-  "request_count": 3,
+  "request_count": 1,
   "span_count": 11,
   "trace_count": 1,
   "session_count": 1,
@@ -56,7 +56,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> Book me a flight from London to Oslo on 2026-11-14. </user_request> <agent_history> Agent initialized <step> Starting task. Browser is empty; using book_flight tool. Book the flight using book_flight. Result Error executing a…[1240 chars]",
-          "content_digest": "531ae650a2a22168",
+          "content_digest": "684f6b2ec70bdd74",
           "observation_type": "generation"
         },
         {
@@ -93,7 +93,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> Book me a flight from London to Oslo on 2026-11-14. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo…[668 chars]",
-          "content_digest": "a7d8912fcc8317e6",
+          "content_digest": "b127b398ab2b3427",
           "observation_type": "generation"
         },
         {
@@ -131,7 +131,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> Book me a flight from London to Oslo on 2026-11-14. </user_request> <agent_history> Agent initialized <step> Starting task. Browser is empty; using book_flight tool. Book the flight using book_flight. Result Error executing a…[885 chars]",
-          "content_digest": "91ea37f47cbf2300",
+          "content_digest": "982f788e8710647b",
           "observation_type": "generation"
         },
         {
@@ -283,7 +283,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> Book me a flight from London to Oslo on 2026-11-14. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo…[668 chars]",
-          "content_digest": "a7d8912fcc8317e6",
+          "content_digest": "b127b398ab2b3427",
           "observation_type": "generation"
         },
         {
@@ -318,7 +318,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> Book me a flight from London to Oslo on 2026-11-14. </user_request> <agent_history> Agent initialized <step> Starting task. Browser is empty; using book_flight tool. Book the flight using book_flight. Result Error executing a…[885 chars]",
-          "content_digest": "91ea37f47cbf2300",
+          "content_digest": "982f788e8710647b",
           "observation_type": "generation"
         },
         {
@@ -361,7 +361,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> Book me a flight from London to Oslo on 2026-11-14. </user_request> <agent_history> Agent initialized <step> Starting task. Browser is empty; using book_flight tool. Book the flight using book_flight. Result Error executing a…[1240 chars]",
-          "content_digest": "531ae650a2a22168",
+          "content_digest": "684f6b2ec70bdd74",
           "observation_type": "generation"
         },
         {
@@ -429,7 +429,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> Book me a flight from London to Oslo on 2026-11-14. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo…[668 chars]",
-          "content_digest": "a7d8912fcc8317e6",
+          "content_digest": "b127b398ab2b3427",
           "observation_type": "generation"
         },
         {
@@ -464,7 +464,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> Book me a flight from London to Oslo on 2026-11-14. </user_request> <agent_history> Agent initialized <step> Starting task. Browser is empty; using book_flight tool. Book the flight using book_flight. Result Error executing a…[885 chars]",
-          "content_digest": "91ea37f47cbf2300",
+          "content_digest": "982f788e8710647b",
           "observation_type": "generation"
         },
         {
@@ -507,7 +507,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> Book me a flight from London to Oslo on 2026-11-14. </user_request> <agent_history> Agent initialized <step> Starting task. Browser is empty; using book_flight tool. Book the flight using book_flight. Result Error executing a…[1240 chars]",
-          "content_digest": "531ae650a2a22168",
+          "content_digest": "684f6b2ec70bdd74",
           "observation_type": "generation"
         },
         {
@@ -584,7 +584,7 @@
         "role": "user",
         "entry_type": "text",
         "content": "<user_request> Book me a flight from London to Oslo on 2026-11-14. </user_request> <agent_history> Agent initialized <step> Starting task. Browser is empty; using book_flight tool. Book the flight using book_flight. Result Error executing a…[1240 chars]",
-        "content_digest": "531ae650a2a22168",
+        "content_digest": "684f6b2ec70bdd74",
         "observation_type": "generation"
       },
       {
@@ -619,7 +619,7 @@
         "role": "user",
         "entry_type": "text",
         "content": "<user_request> Book me a flight from London to Oslo on 2026-11-14. </user_request> <agent_history> Agent initialized <step> Starting task. Browser is empty; using book_flight tool. Book the flight using book_flight. Result Error executing a…[885 chars]",
-        "content_digest": "91ea37f47cbf2300",
+        "content_digest": "982f788e8710647b",
         "observation_type": "generation"
       },
       {
@@ -670,7 +670,7 @@
         "role": "user",
         "entry_type": "text",
         "content": "<user_request> Book me a flight from London to Oslo on 2026-11-14. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo…[668 chars]",
-        "content_digest": "a7d8912fcc8317e6",
+        "content_digest": "b127b398ab2b3427",
         "observation_type": "generation"
       },
       {

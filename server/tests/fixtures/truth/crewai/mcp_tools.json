@@ -99,6 +99,7 @@
   {
    "id": "conv-1",
    "sequence": [
+    "fact-007",
     "fact-001",
     "fact-002",
     "fact-003",
@@ -231,6 +232,30 @@
     "match": "exact"
    },
    "call": "call-003"
+  },
+  {
+   "id": "fact-007",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "crewai/native/mcp_tools",
+    "crewai/sdk/mcp_tools"
+   ]
   }
  ],
  "edges": [
@@ -293,7 +318,7 @@
         "type": "text",
         "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
        },
-       "new": "rq-001"
+       "new_fact": "fact-007"
       }
      ],
      "messages": [
@@ -305,7 +330,7 @@
           "type": "text",
           "text": "\nCurrent Task: Use the calculator to compute (17 * 23) + 4, then report the result.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "new": "rq-002",
+         "new": "rq-001",
          "renders": [
           "fact-001"
          ]
@@ -325,7 +350,7 @@
         "type": "text",
         "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-007"
       }
      ],
      "messages": [
@@ -337,7 +362,7 @@
           "type": "text",
           "text": "\nCurrent Task: Use the calculator to compute (17 * 23) + 4, then report the result.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "replay_of": "rq-002",
+         "replay_of": "rq-001",
          "renders": [
           "fact-001"
          ]
@@ -373,7 +398,7 @@
           ],
           "is_error": false
          },
-         "new": "rq-003"
+         "new": "rq-002"
         }
        ]
       }
@@ -390,7 +415,7 @@
         "type": "text",
         "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-007"
       }
      ],
      "messages": [
@@ -402,7 +427,7 @@
           "type": "text",
           "text": "\nCurrent Task: Use the calculator to compute (17 * 23) + 4, then report the result.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "replay_of": "rq-002",
+         "replay_of": "rq-001",
          "renders": [
           "fact-001"
          ]
@@ -438,7 +463,7 @@
           ],
           "is_error": false
          },
-         "replay_of": "rq-003"
+         "replay_of": "rq-002"
         }
        ]
       },
@@ -473,7 +498,7 @@
           ],
           "is_error": false
          },
-         "new": "rq-004"
+         "new": "rq-003"
         }
        ]
       }
@@ -496,7 +521,7 @@
         "type": "text",
         "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
        },
-       "new": "rq-001"
+       "new_fact": "fact-007"
       }
      ],
      "messages": [
@@ -508,7 +533,7 @@
           "type": "text",
           "text": "\nCurrent Task: Use the calculator to compute (17 * 23) + 4, then report the result.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "new": "rq-002",
+         "new": "rq-001",
          "renders": [
           "fact-001"
          ]
@@ -528,7 +553,7 @@
         "type": "text",
         "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-007"
       }
      ],
      "messages": [
@@ -540,7 +565,7 @@
           "type": "text",
           "text": "\nCurrent Task: Use the calculator to compute (17 * 23) + 4, then report the result.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "replay_of": "rq-002",
+         "replay_of": "rq-001",
          "renders": [
           "fact-001"
          ]
@@ -576,7 +601,7 @@
           ],
           "is_error": false
          },
-         "new": "rq-003"
+         "new": "rq-002"
         }
        ]
       }
@@ -593,7 +618,7 @@
         "type": "text",
         "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-007"
       }
      ],
      "messages": [
@@ -605,7 +630,7 @@
           "type": "text",
           "text": "\nCurrent Task: Use the calculator to compute (17 * 23) + 4, then report the result.\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "replay_of": "rq-002",
+         "replay_of": "rq-001",
          "renders": [
           "fact-001"
          ]
@@ -641,7 +666,7 @@
           ],
           "is_error": false
          },
-         "replay_of": "rq-003"
+         "replay_of": "rq-002"
         }
        ]
       },
@@ -676,7 +701,7 @@
           ],
           "is_error": false
          },
-         "new": "rq-004"
+         "new": "rq-003"
         }
        ]
       }

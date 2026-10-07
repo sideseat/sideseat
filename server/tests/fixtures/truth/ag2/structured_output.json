@@ -48,6 +48,7 @@
   {
    "id": "conv-1",
    "sequence": [
+    "fact-004",
     "fact-001",
     "fact-002",
     "fact-003"
@@ -113,6 +114,30 @@
     "match": "json"
    },
    "call": "call-001"
+  },
+  {
+   "id": "fact-004",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYou must respond with valid JSON that conforms to the following JSON schema:\n```json\n{\n  \"properties\": {\n    \"city\": {\n      \"description\": \"The destination city\",\n      \"title\": \"City\",\n      \"type\": \"string\"\n    },\n    \"days\": {\n      \"description\": \"One activity per day\",\n      \"items\": {\n        \"type\": \"string\"\n      },\n      \"title\": \"Days\",\n      \"type\": \"array\"\n    },\n    \"budget_eur\": {\n      \"description\": \"Estimated total budget in euros\",\n      \"title\": \"Budget Eur\",\n      \"type\": \"integer\"\n    }\n  },\n  \"required\": [\n    \"city\",\n    \"days\",\n    \"budget_eur\"\n  ],\n  \"type\": \"object\"\n}\n```\nDo not include any text, markdown formatting, or explanation outside the JSON object."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "ag2/native/structured_output",
+    "ag2/sdk/structured_output"
+   ]
   }
  ],
  "edges": [
@@ -147,7 +172,7 @@
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYou must respond with valid JSON that conforms to the following JSON schema:\n```json\n{\n  \"properties\": {\n    \"city\": {\n      \"description\": \"The destination city\",\n      \"title\": \"City\",\n      \"type\": \"string\"\n    },\n    \"days\": {\n      \"description\": \"One activity per day\",\n      \"items\": {\n        \"type\": \"string\"\n      },\n      \"title\": \"Days\",\n      \"type\": \"array\"\n    },\n    \"budget_eur\": {\n      \"description\": \"Estimated total budget in euros\",\n      \"title\": \"Budget Eur\",\n      \"type\": \"integer\"\n    }\n  },\n  \"required\": [\n    \"city\",\n    \"days\",\n    \"budget_eur\"\n  ],\n  \"type\": \"object\"\n}\n```\nDo not include any text, markdown formatting, or explanation outside the JSON object."
        },
-       "new": "rq-001"
+       "new_fact": "fact-004"
       }
      ],
      "messages": [
@@ -180,7 +205,7 @@
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYou must respond with valid JSON that conforms to the following JSON schema:\n```json\n{\n  \"properties\": {\n    \"city\": {\n      \"description\": \"The destination city\",\n      \"title\": \"City\",\n      \"type\": \"string\"\n    },\n    \"days\": {\n      \"description\": \"One activity per day\",\n      \"items\": {\n        \"type\": \"string\"\n      },\n      \"title\": \"Days\",\n      \"type\": \"array\"\n    },\n    \"budget_eur\": {\n      \"description\": \"Estimated total budget in euros\",\n      \"title\": \"Budget Eur\",\n      \"type\": \"integer\"\n    }\n  },\n  \"required\": [\n    \"city\",\n    \"days\",\n    \"budget_eur\"\n  ],\n  \"type\": \"object\"\n}\n```\nDo not include any text, markdown formatting, or explanation outside the JSON object."
        },
-       "new": "rq-001"
+       "new_fact": "fact-004"
       }
      ],
      "messages": [

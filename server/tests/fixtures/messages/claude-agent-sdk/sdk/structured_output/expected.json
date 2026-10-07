@@ -24,10 +24,13 @@
       ]
     },
     "trace-1/claude_code.llm_request/span-3": {
-      "message_count": 2,
+      "message_count": 5,
       "role_sequence": [
         "system",
-        "user"
+        "system",
+        "system",
+        "user",
+        "system"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -36,16 +39,40 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.286.997; cc_entrypoint=sdk-py;",
+          "content_digest": "d509aedc247ff5ab",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 3,
           "role": "user",
           "entry_type": "text",
           "content": "Plan a two-day trip to Vienna.",
           "content_digest": "5f56235d64bfe00d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk - Is a git repository: false - Additional working directories:…[601 chars]",
+          "content_digest": "e8ceb5ffd529f512",
           "observation_type": "generation"
         }
       ]
@@ -93,10 +120,13 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 3,
+      "message_count": 6,
       "role_sequence": [
         "system",
+        "system",
+        "system",
         "user",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -106,12 +136,28 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.286.997; cc_entrypoint=sdk-py;",
+          "content_digest": "d509aedc247ff5ab",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 3,
           "role": "user",
           "entry_type": "text",
           "content": "Plan a two-day trip to Vienna.",
@@ -119,7 +165,15 @@
           "observation_type": "span"
         },
         {
-          "index": 2,
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk - Is a git repository: false - Additional working directories:…[601 chars]",
+          "content_digest": "e8ceb5ffd529f512",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_016wx9BN2KuZwQmgEVApFWgy\",\"name\":\"StructuredOutput\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt: St. Stephen's Cathedral, Hofburg Palace, and a coffee-house stop at Café Central, the…[456 chars]",
@@ -132,10 +186,13 @@
   },
   "session_views": {
     "claude-agent-sdk-structured_output": {
-      "message_count": 3,
+      "message_count": 6,
       "role_sequence": [
         "system",
+        "system",
+        "system",
         "user",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -145,12 +202,28 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.286.997; cc_entrypoint=sdk-py;",
+          "content_digest": "d509aedc247ff5ab",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 3,
           "role": "user",
           "entry_type": "text",
           "content": "Plan a two-day trip to Vienna.",
@@ -158,7 +231,15 @@
           "observation_type": "span"
         },
         {
-          "index": 2,
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk - Is a git repository: false - Additional working directories:…[601 chars]",
+          "content_digest": "e8ceb5ffd529f512",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_016wx9BN2KuZwQmgEVApFWgy\",\"name\":\"StructuredOutput\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt: St. Stephen's Cathedral, Hofburg Palace, and a coffee-house stop at Café Central, the…[456 chars]",
@@ -170,9 +251,12 @@
     }
   },
   "feed_view": {
-    "message_count": 3,
+    "message_count": 6,
     "role_sequence": [
       "assistant",
+      "system",
+      "system",
+      "system",
       "system",
       "user"
     ],
@@ -192,12 +276,36 @@
         "index": 1,
         "role": "system",
         "entry_type": "text",
+        "content": "x-anthropic-billing-header: cc_version=2.1.286.997; cc_entrypoint=sdk-py;",
+        "content_digest": "d509aedc247ff5ab",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+        "content_digest": "918d321f250cd6d3",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "system",
+        "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
         "content_digest": "5d227641a000cd8c",
         "observation_type": "generation"
       },
       {
-        "index": 2,
+        "index": 4,
+        "role": "system",
+        "entry_type": "text",
+        "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk - Is a git repository: false - Additional working directories:…[601 chars]",
+        "content_digest": "e8ceb5ffd529f512",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
         "role": "user",
         "entry_type": "text",
         "content": "Plan a two-day trip to Vienna.",

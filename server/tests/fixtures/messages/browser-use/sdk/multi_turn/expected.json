@@ -1,6 +1,6 @@
 {
   "label": "browser-use/sdk/multi_turn",
-  "request_count": 1,
+  "request_count": 2,
   "span_count": 13,
   "trace_count": 1,
   "session_count": 1,
@@ -70,7 +70,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> <initial_user_request>I am planning a weekend in Lisbon. Name one neighbourhood to stay in.</initial_user_request> <follow_up_user_request> What is one dish I should try there? </follow_up_user_request> <follow_up_user_reques…[1768 chars]",
-          "content_digest": "2bd606a35250fca0",
+          "content_digest": "4be91d47da9a3007",
           "observation_type": "generation"
         },
         {
@@ -107,7 +107,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> I am planning a weekend in Lisbon. Name one neighbourhood to stay in. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when …[687 chars]",
-          "content_digest": "288c9aa589546d75",
+          "content_digest": "1982c06d36ffeabe",
           "observation_type": "generation"
         },
         {
@@ -144,7 +144,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> <initial_user_request>I am planning a weekend in Lisbon. Name one neighbourhood to stay in.</initial_user_request> <follow_up_user_request> What is one dish I should try there? </follow_up_user_request> </user_request> <agent…[1207 chars]",
-          "content_digest": "85d0072500a5a69b",
+          "content_digest": "cdab9f5d9120c92b",
           "observation_type": "generation"
         },
         {
@@ -287,7 +287,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> I am planning a weekend in Lisbon. Name one neighbourhood to stay in. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when …[687 chars]",
-          "content_digest": "288c9aa589546d75",
+          "content_digest": "1982c06d36ffeabe",
           "observation_type": "generation"
         },
         {
@@ -322,7 +322,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> <initial_user_request>I am planning a weekend in Lisbon. Name one neighbourhood to stay in.</initial_user_request> <follow_up_user_request> What is one dish I should try there? </follow_up_user_request> </user_request> <agent…[1207 chars]",
-          "content_digest": "85d0072500a5a69b",
+          "content_digest": "cdab9f5d9120c92b",
           "observation_type": "generation"
         },
         {
@@ -357,7 +357,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> <initial_user_request>I am planning a weekend in Lisbon. Name one neighbourhood to stay in.</initial_user_request> <follow_up_user_request> What is one dish I should try there? </follow_up_user_request> <follow_up_user_reques…[1768 chars]",
-          "content_digest": "2bd606a35250fca0",
+          "content_digest": "4be91d47da9a3007",
           "observation_type": "generation"
         },
         {
@@ -424,7 +424,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> I am planning a weekend in Lisbon. Name one neighbourhood to stay in. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when …[687 chars]",
-          "content_digest": "288c9aa589546d75",
+          "content_digest": "1982c06d36ffeabe",
           "observation_type": "generation"
         },
         {
@@ -459,7 +459,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> <initial_user_request>I am planning a weekend in Lisbon. Name one neighbourhood to stay in.</initial_user_request> <follow_up_user_request> What is one dish I should try there? </follow_up_user_request> </user_request> <agent…[1207 chars]",
-          "content_digest": "85d0072500a5a69b",
+          "content_digest": "cdab9f5d9120c92b",
           "observation_type": "generation"
         },
         {
@@ -494,7 +494,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> <initial_user_request>I am planning a weekend in Lisbon. Name one neighbourhood to stay in.</initial_user_request> <follow_up_user_request> What is one dish I should try there? </follow_up_user_request> <follow_up_user_reques…[1768 chars]",
-          "content_digest": "2bd606a35250fca0",
+          "content_digest": "4be91d47da9a3007",
           "observation_type": "generation"
         },
         {
@@ -570,7 +570,7 @@
         "role": "user",
         "entry_type": "text",
         "content": "<user_request> <initial_user_request>I am planning a weekend in Lisbon. Name one neighbourhood to stay in.</initial_user_request> <follow_up_user_request> What is one dish I should try there? </follow_up_user_request> <follow_up_user_reques…[1768 chars]",
-        "content_digest": "2bd606a35250fca0",
+        "content_digest": "4be91d47da9a3007",
         "observation_type": "generation"
       },
       {
@@ -605,7 +605,7 @@
         "role": "user",
         "entry_type": "text",
         "content": "<user_request> <initial_user_request>I am planning a weekend in Lisbon. Name one neighbourhood to stay in.</initial_user_request> <follow_up_user_request> What is one dish I should try there? </follow_up_user_request> </user_request> <agent…[1207 chars]",
-        "content_digest": "85d0072500a5a69b",
+        "content_digest": "cdab9f5d9120c92b",
         "observation_type": "generation"
       },
       {
@@ -648,7 +648,7 @@
         "role": "user",
         "entry_type": "text",
         "content": "<user_request> I am planning a weekend in Lisbon. Name one neighbourhood to stay in. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when …[687 chars]",
-        "content_digest": "288c9aa589546d75",
+        "content_digest": "1982c06d36ffeabe",
         "observation_type": "generation"
       },
       {

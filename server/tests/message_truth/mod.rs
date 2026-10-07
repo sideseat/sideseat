@@ -204,6 +204,10 @@ fn family(assertion: &str) -> String {
 /// Checks 2-9 for one fixture.
 fn check(truth: &Truth, recon: &Recon) -> Vec<Violation> {
     let mut out = Vec::new();
+    // A fact only a request carries, whose content no payload holds, cannot be shown by any
+    // reconstruction: the producer did not export it. Withdrawn from the payloads alone, and documented
+    // as that framework's limitation - the rule every proven gap follows.
+    let truth = &requests::without_unexported_facts(truth, recon);
     let matching = matching::match_calls(truth, recon, &mut out);
     matching::check_metadata(truth, recon, &matching, &mut out);
     let accounted = requests::check_requests(truth, recon, &matching, &mut out);
@@ -354,23 +358,149 @@ fn truth_violation_ledger_is_well_formed() {
 }
 
 /// The entries added since the base that are regressions: an entry for a fixture that existed at the
-/// base, about a check that existed at the base, that the base did not record.
+/// base, about a check that existed at the base and a truth fact the base already stated, that the base
+/// did not record.
 ///
-/// Two kinds of addition are baselines instead. A check introduced since the base describes defects
-/// the rubric could not see before; a fixture introduced since the base had no entries to keep. Both
-/// still need a triaged backlog issue, which `truth_violation_ledger_is_well_formed` enforces.
+/// Four kinds of addition are baselines instead. A check introduced since the base describes defects
+/// the rubric could not see before; a fixture introduced since the base had no entries to keep; a fact
+/// the truth gained since the base - content a request carried that the truth then learned to state - is
+/// an obligation the base never imposed; and a request entry whose request part - the one its subject
+/// names, or the call's whole request - the base did not send, because the fixture's transcript was
+/// recorded or re-recorded since with other content there. All still need a triaged backlog issue, which
+/// `truth_violation_ledger_is_well_formed` enforces.
 fn regressions(
     entries: &[ledger::Entry],
     recorded_at_base: &std::collections::BTreeSet<String>,
     check_existed: impl Fn(&str) -> bool,
     fixture_existed: impl Fn(&str) -> bool,
+    fact_existed: impl Fn(&ledger::Entry) -> bool,
 ) -> Vec<String> {
     entries
         .iter()
         .filter(|e| !recorded_at_base.contains(&e.id))
         .filter(|e| check_existed(&family(&e.assertion)) && fixture_existed(&e.fixture))
+        .filter(|e| fact_existed(e))
         .map(|e| e.id.clone())
         .collect()
+}
+
+/// Whether the base already sent what a request entry is about, so the entry is a regression.
+///
+/// A request check compares a span with what its call was sent. The obligation is the request part the
+/// subject names (`call-002:m3.0`, `call-001:system.2`), or for content a span shows that no part
+/// explains (`call-002:in4:...`) the call's whole request: an entry is new only where that obligation is,
+/// because the fixture's transcript was recorded or re-recorded since the base with other content there.
+fn request_at_base(
+    current: &BTreeMap<String, Truth>,
+    base_truth: impl Fn(&str) -> Option<serde_json::Value>,
+    fixture: &str,
+    subject: &str,
+) -> bool {
+    let Some((key, truth)) = current
+        .iter()
+        .find(|(_, t)| t.fixtures.iter().any(|f| f == fixture))
+    else {
+        return true;
+    };
+    let mut parts = subject.split(':');
+    let (Some(call), Some(position)) = (parts.next(), parts.next()) else {
+        return true;
+    };
+    let Some(now) = truth.requests.get(fixture).and_then(|r| r.calls.get(call)) else {
+        return true;
+    };
+    let Some(base) = base_truth(key) else {
+        return false;
+    };
+    let then = &base["requests"][fixture]["calls"][call];
+    if then.is_null() {
+        return false;
+    }
+    let part_now = |system: bool, message: usize, index: usize| {
+        if system {
+            now.system.get(index).map(|o| o.part.clone())
+        } else {
+            now.messages
+                .get(message)
+                .and_then(|m| m.parts.get(index))
+                .map(|o| o.part.clone())
+        }
+    };
+    let part_then = |system: bool, message: usize, index: usize| {
+        let occurrence = if system {
+            &then["system"][index]
+        } else {
+            &then["messages"][message]["parts"][index]
+        };
+        Some(occurrence["part"].clone()).filter(|p| !p.is_null())
+    };
+    let named = position
+        .strip_prefix("system.")
+        .and_then(|i| i.parse().ok())
+        .map(|i| (true, 0, i))
+        .or_else(|| {
+            let (m, i) = position.strip_prefix('m')?.split_once('.')?;
+            Some((false, m.parse().ok()?, i.parse().ok()?))
+        });
+    match named {
+        Some((system, message, index)) => {
+            part_now(system, message, index) == part_then(system, message, index)
+        }
+        // A shown block no part explains: the obligation is the whole request.
+        None => {
+            let every = |value: &serde_json::Value| -> Vec<serde_json::Value> {
+                value["system"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .chain(
+                        value["messages"]
+                            .as_array()
+                            .into_iter()
+                            .flatten()
+                            .flat_map(|m| m["parts"].as_array().into_iter().flatten()),
+                    )
+                    .map(|o| o["part"].clone())
+                    .collect()
+            };
+            let parts_now: Vec<serde_json::Value> = now
+                .system
+                .iter()
+                .chain(now.messages.iter().flat_map(|m| m.parts.iter()))
+                .map(|o| o.part.clone())
+                .collect();
+            parts_now == every(then)
+        }
+    }
+}
+
+/// Whether the truth describing `fixture` stated the fact `subject` names at the base, with the same kind
+/// and value. A subject that is no fact - a call, an edge, a span - always existed: only a fact is new.
+fn fact_at_base(
+    current: &BTreeMap<String, Truth>,
+    base_truth: impl Fn(&str) -> Option<serde_json::Value>,
+    fixture: &str,
+    subject: &str,
+) -> bool {
+    let Some((key, truth)) = current
+        .iter()
+        .find(|(_, t)| t.fixtures.iter().any(|f| f == fixture))
+    else {
+        return true;
+    };
+    // A per-trace obligation (`fact-010@trace-2`) is its fact's.
+    let subject = subject.split_once('@').map_or(subject, |(fact, _)| fact);
+    let Some(fact) = truth.facts.iter().find(|f| f.id == subject) else {
+        return true;
+    };
+    let Some(base) = base_truth(key) else {
+        return false;
+    };
+    base["facts"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .any(|f| f["id"] == subject && f["kind"] == fact.kind.as_str() && f["value"] == fact.value)
 }
 
 /// The reviewed baseline is the ledger's only expansion: an entry added after it is a regression
@@ -420,11 +550,33 @@ fn truth_violation_ledger_only_shrinks_against_main() {
     .filter_map(|path| path.strip_prefix("server/tests/fixtures/messages/"))
     .filter_map(|path| path.rsplit_once('/').map(|(dir, _)| dir.to_string()))
     .collect();
+    let current = truth::load_all();
+    let base_truths: std::cell::RefCell<BTreeMap<String, Option<serde_json::Value>>> =
+        Default::default();
+    let base_truth = |key: &str| {
+        base_truths
+            .borrow_mut()
+            .entry(key.to_string())
+            .or_insert_with(|| {
+                git(&[
+                    "show",
+                    &format!("{base}:server/tests/fixtures/truth/{key}.json"),
+                ])
+                .and_then(|text| serde_json::from_str(&text).ok())
+            })
+            .clone()
+    };
     let added = regressions(
         &ledger::load().entries,
         &before,
         |family| registry.contains(&format!("\"{family}\"")),
         |fixture| fixtures_at_base.contains(fixture),
+        |entry| {
+            if entry.view == ViolationView::Request.name() {
+                return request_at_base(&current, &base_truth, &entry.fixture, &entry.subject);
+            }
+            fact_at_base(&current, &base_truth, &entry.fixture, &entry.subject)
+        },
     );
     assert!(
         added.is_empty(),
@@ -460,16 +612,26 @@ fn only_a_new_check_or_a_new_fixture_may_add_ledger_entries() {
         &base,
         |family| family != "order.new_check",
         |fixture| fixture != "p/native/new",
+        |_| true,
     );
     // An existing fixture under an existing check gains nothing; a new fixture or a new check brings
     // its own baseline; what the base recorded stays allowed.
     assert_eq!(refused, vec![entries[0].id.clone()]);
-    let none_new = regressions(&entries, &base, |_| true, |_| true);
+    let none_new = regressions(&entries, &base, |_| true, |_| true, |_| true);
     assert_eq!(
         none_new.len(),
         3,
         "with nothing new, every addition is a regression"
     );
+    // A fact the truth gained since the base brings its own baseline, as a new check does.
+    let new_fact = regressions(
+        &entries,
+        &base,
+        |_| true,
+        |_| true,
+        |e| e.fixture != "p/native/old",
+    );
+    assert_eq!(new_fact, vec![entries[1].id.clone()]);
 }
 
 /// Prints one fixture's views and violations, for triaging a ledger entry:

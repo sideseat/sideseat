@@ -48,6 +48,7 @@
   {
    "id": "conv-1",
    "sequence": [
+    "fact-004",
     "fact-001",
     "fact-002",
     "fact-003"
@@ -113,6 +114,30 @@
     "match": "json"
    },
    "call": "call-001"
+  },
+  {
+   "id": "fact-004",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\n\nProvide your output as a JSON containing the following fields:\n<json_fields>\n[\"city\", \"days\", \"budget_eur\"]\n</json_fields>\n\nHere are the properties for each field:\n<json_field_properties>\n{\n  \"city\": {\n    \"description\": \"The destination city\",\n    \"type\": \"string\"\n  },\n  \"days\": {\n    \"description\": \"One activity per day\",\n    \"items\": {\n      \"type\": \"string\"\n    },\n    \"type\": \"array\"\n  },\n  \"budget_eur\": {\n    \"description\": \"Estimated total budget in euros\",\n    \"type\": \"integer\"\n  }\n}\n</json_field_properties>\nStart your response with `{` and end it with `}`.\nYour output will be passed to json.loads() to convert it to a Python object.\nMake sure it only contains valid JSON."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "agno/native/structured_output",
+    "agno/sdk/structured_output"
+   ]
   }
  ],
  "edges": [
@@ -147,7 +172,7 @@
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\n\nProvide your output as a JSON containing the following fields:\n<json_fields>\n[\"city\", \"days\", \"budget_eur\"]\n</json_fields>\n\nHere are the properties for each field:\n<json_field_properties>\n{\n  \"city\": {\n    \"description\": \"The destination city\",\n    \"type\": \"string\"\n  },\n  \"days\": {\n    \"description\": \"One activity per day\",\n    \"items\": {\n      \"type\": \"string\"\n    },\n    \"type\": \"array\"\n  },\n  \"budget_eur\": {\n    \"description\": \"Estimated total budget in euros\",\n    \"type\": \"integer\"\n  }\n}\n</json_field_properties>\nStart your response with `{` and end it with `}`.\nYour output will be passed to json.loads() to convert it to a Python object.\nMake sure it only contains valid JSON."
        },
-       "new": "rq-001"
+       "new_fact": "fact-004"
       }
      ],
      "messages": [
@@ -180,7 +205,7 @@
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\n\nProvide your output as a JSON containing the following fields:\n<json_fields>\n[\"city\", \"days\", \"budget_eur\"]\n</json_fields>\n\nHere are the properties for each field:\n<json_field_properties>\n{\n  \"city\": {\n    \"description\": \"The destination city\",\n    \"type\": \"string\"\n  },\n  \"days\": {\n    \"description\": \"One activity per day\",\n    \"items\": {\n      \"type\": \"string\"\n    },\n    \"type\": \"array\"\n  },\n  \"budget_eur\": {\n    \"description\": \"Estimated total budget in euros\",\n    \"type\": \"integer\"\n  }\n}\n</json_field_properties>\nStart your response with `{` and end it with `}`.\nYour output will be passed to json.loads() to convert it to a Python object.\nMake sure it only contains valid JSON."
        },
-       "new": "rq-001"
+       "new_fact": "fact-004"
       }
      ],
      "messages": [

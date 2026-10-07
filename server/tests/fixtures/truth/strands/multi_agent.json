@@ -122,11 +122,13 @@
   {
    "id": "conv-1",
    "sequence": [
+    "fact-007",
     "fact-001",
     "fact-002",
     "fact-003",
     "fact-004",
     "fact-005",
+    "fact-008",
     "fact-006"
    ],
    "final_answers": [
@@ -305,6 +307,54 @@
     "match": "exact"
    },
    "call": "call-004"
+  },
+  {
+   "id": "fact-007",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You research weather with the tool, then hand off to the writer."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "strands/native/multi_agent",
+    "strands/sdk/multi_agent"
+   ]
+  },
+  {
+   "id": "fact-008",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You write the final packing list from the researcher's findings."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "strands/native/multi_agent",
+    "strands/sdk/multi_agent"
+   ]
   }
  ],
  "edges": [
@@ -349,7 +399,7 @@
         "type": "text",
         "text": "You research weather with the tool, then hand off to the writer."
        },
-       "new": "rq-001"
+       "new_fact": "fact-007"
       }
      ],
      "messages": [
@@ -361,7 +411,7 @@
           "type": "text",
           "text": "Context:\nUser Request: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nOther agents available for collaboration:\nAgent name: writer.\n\nYou have access to swarm coordination tools if you need help from other agents. If you don't hand off to another agent, the swarm will consider the task complete.\n\n"
          },
-         "new": "rq-002",
+         "new": "rq-001",
          "renders": [
           "fact-001"
          ]
@@ -382,7 +432,7 @@
         "type": "text",
         "text": "You research weather with the tool, then hand off to the writer."
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-007"
       }
      ],
      "messages": [
@@ -394,7 +444,7 @@
           "type": "text",
           "text": "Context:\nUser Request: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nOther agents available for collaboration:\nAgent name: writer.\n\nYou have access to swarm coordination tools if you need help from other agents. If you don't hand off to another agent, the swarm will consider the task complete.\n\n"
          },
-         "replay_of": "rq-002",
+         "replay_of": "rq-001",
          "renders": [
           "fact-001"
          ]
@@ -451,7 +501,7 @@
         "type": "text",
         "text": "You research weather with the tool, then hand off to the writer."
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-007"
       }
      ],
      "messages": [
@@ -463,7 +513,7 @@
           "type": "text",
           "text": "Context:\nUser Request: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nOther agents available for collaboration:\nAgent name: writer.\n\nYou have access to swarm coordination tools if you need help from other agents. If you don't hand off to another agent, the swarm will consider the task complete.\n\n"
          },
-         "replay_of": "rq-002",
+         "replay_of": "rq-001",
          "renders": [
           "fact-001"
          ]
@@ -553,7 +603,7 @@
           ],
           "is_error": false
          },
-         "new": "rq-003"
+         "new": "rq-002"
         }
        ]
       }
@@ -571,7 +621,7 @@
         "type": "text",
         "text": "You write the final packing list from the researcher's findings."
        },
-       "new": "rq-004"
+       "new_fact": "fact-008"
       }
      ],
      "messages": [
@@ -583,7 +633,7 @@
           "type": "text",
           "text": "Context:\nHandoff Message: Please write a one-paragraph packing list for a trip to Barcelona based on the two-day forecast below.\n\nUser Request: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nPrevious agents who worked on this: researcher\n\nShared knowledge from previous agents:\n• researcher: {'city': 'Barcelona', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}\n\nOther agents available for collaboration:\nAgent name: researcher.\n\nYou have access to swarm coordination tools if you need help from other agents. If you don't hand off to another agent, the swarm will consider the task complete.\n\n"
          },
-         "new": "rq-005",
+         "new": "rq-003",
          "renders": [
           "fact-001",
           "fact-003"
@@ -610,7 +660,7 @@
         "type": "text",
         "text": "You research weather with the tool, then hand off to the writer."
        },
-       "new": "rq-001"
+       "new_fact": "fact-007"
       }
      ],
      "messages": [
@@ -622,7 +672,7 @@
           "type": "text",
           "text": "Context:\nUser Request: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nOther agents available for collaboration:\nAgent name: writer.\n\nYou have access to swarm coordination tools if you need help from other agents. If you don't hand off to another agent, the swarm will consider the task complete.\n\n"
          },
-         "new": "rq-002",
+         "new": "rq-001",
          "renders": [
           "fact-001"
          ]
@@ -643,7 +693,7 @@
         "type": "text",
         "text": "You research weather with the tool, then hand off to the writer."
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-007"
       }
      ],
      "messages": [
@@ -655,7 +705,7 @@
           "type": "text",
           "text": "Context:\nUser Request: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nOther agents available for collaboration:\nAgent name: writer.\n\nYou have access to swarm coordination tools if you need help from other agents. If you don't hand off to another agent, the swarm will consider the task complete.\n\n"
          },
-         "replay_of": "rq-002",
+         "replay_of": "rq-001",
          "renders": [
           "fact-001"
          ]
@@ -712,7 +762,7 @@
         "type": "text",
         "text": "You research weather with the tool, then hand off to the writer."
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-007"
       }
      ],
      "messages": [
@@ -724,7 +774,7 @@
           "type": "text",
           "text": "Context:\nUser Request: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nOther agents available for collaboration:\nAgent name: writer.\n\nYou have access to swarm coordination tools if you need help from other agents. If you don't hand off to another agent, the swarm will consider the task complete.\n\n"
          },
-         "replay_of": "rq-002",
+         "replay_of": "rq-001",
          "renders": [
           "fact-001"
          ]
@@ -814,7 +864,7 @@
           ],
           "is_error": false
          },
-         "new": "rq-003"
+         "new": "rq-002"
         }
        ]
       }
@@ -832,7 +882,7 @@
         "type": "text",
         "text": "You write the final packing list from the researcher's findings."
        },
-       "new": "rq-004"
+       "new_fact": "fact-008"
       }
      ],
      "messages": [
@@ -844,7 +894,7 @@
           "type": "text",
           "text": "Context:\nHandoff Message: Please write a one-paragraph packing list for a trip to Barcelona based on the two-day forecast below.\n\nUser Request: Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nPrevious agents who worked on this: researcher\n\nShared knowledge from previous agents:\n• researcher: {'city': 'Barcelona', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}\n\nOther agents available for collaboration:\nAgent name: researcher.\n\nYou have access to swarm coordination tools if you need help from other agents. If you don't hand off to another agent, the swarm will consider the task complete.\n\n"
          },
-         "new": "rq-005",
+         "new": "rq-003",
          "renders": [
           "fact-001",
           "fact-003"

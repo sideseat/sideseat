@@ -33,9 +33,12 @@
       ]
     },
     "trace-1/claude_code.llm_request/span-2": {
-      "message_count": 2,
+      "message_count": 5,
       "role_sequence": [
+        "system",
+        "system",
         "user",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -43,6 +46,22 @@
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.288.c2e; cc_entrypoint=sdk-cli;",
+          "content_digest": "2541012bc72bcd1b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
           "role": "user",
           "entry_type": "text",
           "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
@@ -50,7 +69,15 @@
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/tmp/sideseat-cli/claude-code/multi_turn - Is a git repository: false - Platform: darwin - Shell: unknown - OS Version: Darwin 25.6.0 You…[460 chars]",
+          "content_digest": "3b3f2ff7473b1fc3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "**Alfama** is my pick for a weekend. It's Lisbon's oldest neighbourhood, with winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol. You can walk to the Sé Cathedral, the Castelo de São Jorge, and the riverfront. The h…[309 chars]",
@@ -87,10 +114,13 @@
       ]
     },
     "trace-2/claude_code.llm_request/span-2": {
-      "message_count": 3,
+      "message_count": 6,
       "role_sequence": [
+        "system",
+        "system",
         "user",
         "user",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -98,6 +128,22 @@
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.288.c2e; cc_entrypoint=sdk-cli;",
+          "content_digest": "2541012bc72bcd1b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
           "role": "user",
           "entry_type": "text",
           "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
@@ -105,7 +151,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 3,
           "role": "user",
           "entry_type": "text",
           "content": "What is one dish I should try there?",
@@ -113,7 +159,15 @@
           "observation_type": "generation"
         },
         {
-          "index": 2,
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/tmp/sideseat-cli/claude-code/multi_turn - Is a git repository: false - Platform: darwin - Shell: unknown - OS Version: Darwin 25.6.0 You…[514 chars]",
+          "content_digest": "3bb11a59ca23d6bb",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "**Sardinhas assadas** (grilled sardines) are the dish to try in Alfama. They're served whole, usually on a slice of bread that soaks up the juices, with a side of roasted peppers or salad. They're a Lisbon staple, especially in summer and a…[376 chars]",
@@ -150,11 +204,14 @@
       ]
     },
     "trace-3/claude_code.llm_request/span-2": {
-      "message_count": 4,
+      "message_count": 7,
       "role_sequence": [
+        "system",
+        "system",
         "user",
         "user",
         "user",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -162,6 +219,22 @@
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.288.c2e; cc_entrypoint=sdk-cli;",
+          "content_digest": "2541012bc72bcd1b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
           "role": "user",
           "entry_type": "text",
           "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
@@ -169,7 +242,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 3,
           "role": "user",
           "entry_type": "text",
           "content": "What is one dish I should try there?",
@@ -177,7 +250,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 2,
+          "index": 4,
           "role": "user",
           "entry_type": "text",
           "content": "Summarise your two suggestions in one sentence.",
@@ -185,7 +258,15 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/tmp/sideseat-cli/claude-code/multi_turn - Is a git repository: false - Platform: darwin - Shell: unknown - OS Version: Darwin 25.6.0 You…[568 chars]",
+          "content_digest": "4a236784c9a60614",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
           "role": "assistant",
           "entry_type": "text",
           "content": "Stay in Alfama, Lisbon's oldest neighbourhood, and try the grilled sardines (sardinhas assadas) served on bread at one of its local taverns.",
@@ -197,9 +278,12 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 2,
+      "message_count": 5,
       "role_sequence": [
+        "system",
+        "system",
         "user",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -207,6 +291,22 @@
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.288.c2e; cc_entrypoint=sdk-cli;",
+          "content_digest": "2541012bc72bcd1b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
           "role": "user",
           "entry_type": "text",
           "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
@@ -214,7 +314,15 @@
           "observation_type": "span"
         },
         {
-          "index": 1,
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/tmp/sideseat-cli/claude-code/multi_turn - Is a git repository: false - Platform: darwin - Shell: unknown - OS Version: Darwin 25.6.0 You…[460 chars]",
+          "content_digest": "3b3f2ff7473b1fc3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "**Alfama** is my pick for a weekend. It's Lisbon's oldest neighbourhood, with winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol. You can walk to the Sé Cathedral, the Castelo de São Jorge, and the riverfront. The h…[309 chars]",
@@ -224,10 +332,13 @@
       ]
     },
     "trace-2": {
-      "message_count": 3,
+      "message_count": 6,
       "role_sequence": [
+        "system",
+        "system",
         "user",
         "user",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -235,107 +346,18 @@
       "messages": [
         {
           "index": 0,
-          "role": "user",
+          "role": "system",
           "entry_type": "text",
-          "content": "What is one dish I should try there?",
-          "content_digest": "fa205a3ea90d1fdf",
-          "observation_type": "span"
+          "content": "x-anthropic-billing-header: cc_version=2.1.288.c2e; cc_entrypoint=sdk-cli;",
+          "content_digest": "2541012bc72bcd1b",
+          "observation_type": "generation"
         },
         {
           "index": 1,
-          "role": "user",
+          "role": "system",
           "entry_type": "text",
-          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
-          "content_digest": "c366c7539466c187",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "**Sardinhas assadas** (grilled sardines) are the dish to try in Alfama. They're served whole, usually on a slice of bread that soaks up the juices, with a side of roasted peppers or salad. They're a Lisbon staple, especially in summer and a…[376 chars]",
-          "content_digest": "6c6a7f4d32a23537",
-          "observation_type": "generation"
-        }
-      ]
-    },
-    "trace-3": {
-      "message_count": 4,
-      "role_sequence": [
-        "user",
-        "user",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Summarise your two suggestions in one sentence.",
-          "content_digest": "3a58af4870fae288",
-          "observation_type": "span"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
-          "content_digest": "c366c7539466c187",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What is one dish I should try there?",
-          "content_digest": "fa205a3ea90d1fdf",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "Stay in Alfama, Lisbon's oldest neighbourhood, and try the grilled sardines (sardinhas assadas) served on bread at one of its local taverns.",
-          "content_digest": "8ead38f23928057c",
-          "observation_type": "generation"
-        }
-      ]
-    }
-  },
-  "session_views": {
-    "14b8b15a-3d2d-5c34-87cd-0570bf17d42a": {
-      "message_count": 9,
-      "role_sequence": [
-        "user",
-        "assistant",
-        "user",
-        "user",
-        "assistant",
-        "user",
-        "user",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "user",
-          "entry_type": "text",
-          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
-          "content_digest": "c366c7539466c187",
-          "observation_type": "span"
-        },
-        {
-          "index": 1,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "**Alfama** is my pick for a weekend. It's Lisbon's oldest neighbourhood, with winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol. You can walk to the Sé Cathedral, the Castelo de São Jorge, and the riverfront. The h…[309 chars]",
-          "content_digest": "fb8377ce702ed73a",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
           "observation_type": "generation"
         },
         {
@@ -356,14 +378,54 @@
         },
         {
           "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/tmp/sideseat-cli/claude-code/multi_turn - Is a git repository: false - Platform: darwin - Shell: unknown - OS Version: Darwin 25.6.0 You…[514 chars]",
+          "content_digest": "3bb11a59ca23d6bb",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "**Sardinhas assadas** (grilled sardines) are the dish to try in Alfama. They're served whole, usually on a slice of bread that soaks up the juices, with a side of roasted peppers or salad. They're a Lisbon staple, especially in summer and a…[376 chars]",
           "content_digest": "6c6a7f4d32a23537",
           "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-3": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "system",
+        "user",
+        "user",
+        "user",
+        "system",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.288.c2e; cc_entrypoint=sdk-cli;",
+          "content_digest": "2541012bc72bcd1b",
+          "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
           "role": "user",
           "entry_type": "text",
           "content": "Summarise your two suggestions in one sentence.",
@@ -371,11 +433,120 @@
           "observation_type": "span"
         },
         {
-          "index": 6,
+          "index": 3,
           "role": "user",
           "entry_type": "text",
           "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
           "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/tmp/sideseat-cli/claude-code/multi_turn - Is a git repository: false - Platform: darwin - Shell: unknown - OS Version: Darwin 25.6.0 You…[568 chars]",
+          "content_digest": "4a236784c9a60614",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in Alfama, Lisbon's oldest neighbourhood, and try the grilled sardines (sardinhas assadas) served on bread at one of its local taverns.",
+          "content_digest": "8ead38f23928057c",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "14b8b15a-3d2d-5c34-87cd-0570bf17d42a": {
+      "message_count": 18,
+      "role_sequence": [
+        "system",
+        "system",
+        "user",
+        "system",
+        "assistant",
+        "system",
+        "system",
+        "user",
+        "user",
+        "system",
+        "assistant",
+        "system",
+        "system",
+        "user",
+        "user",
+        "user",
+        "system",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.288.c2e; cc_entrypoint=sdk-cli;",
+          "content_digest": "2541012bc72bcd1b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/tmp/sideseat-cli/claude-code/multi_turn - Is a git repository: false - Platform: darwin - Shell: unknown - OS Version: Darwin 25.6.0 You…[460 chars]",
+          "content_digest": "3b3f2ff7473b1fc3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Alfama** is my pick for a weekend. It's Lisbon's oldest neighbourhood, with winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol. You can walk to the Sé Cathedral, the Castelo de São Jorge, and the riverfront. The h…[309 chars]",
+          "content_digest": "fb8377ce702ed73a",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.288.c2e; cc_entrypoint=sdk-cli;",
+          "content_digest": "2541012bc72bcd1b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
           "observation_type": "generation"
         },
         {
@@ -384,10 +555,82 @@
           "entry_type": "text",
           "content": "What is one dish I should try there?",
           "content_digest": "fa205a3ea90d1fdf",
-          "observation_type": "generation"
+          "observation_type": "span"
         },
         {
           "index": 8,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/tmp/sideseat-cli/claude-code/multi_turn - Is a git repository: false - Platform: darwin - Shell: unknown - OS Version: Darwin 25.6.0 You…[514 chars]",
+          "content_digest": "3bb11a59ca23d6bb",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Sardinhas assadas** (grilled sardines) are the dish to try in Alfama. They're served whole, usually on a slice of bread that soaks up the juices, with a side of roasted peppers or salad. They're a Lisbon staple, especially in summer and a…[376 chars]",
+          "content_digest": "6c6a7f4d32a23537",
+          "observation_type": "generation"
+        },
+        {
+          "index": 11,
+          "role": "system",
+          "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.288.c2e; cc_entrypoint=sdk-cli;",
+          "content_digest": "2541012bc72bcd1b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 12,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 13,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarise your two suggestions in one sentence.",
+          "content_digest": "3a58af4870fae288",
+          "observation_type": "span"
+        },
+        {
+          "index": 14,
+          "role": "user",
+          "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 15,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 16,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/tmp/sideseat-cli/claude-code/multi_turn - Is a git repository: false - Platform: darwin - Shell: unknown - OS Version: Darwin 25.6.0 You…[568 chars]",
+          "content_digest": "4a236784c9a60614",
+          "observation_type": "generation"
+        },
+        {
+          "index": 17,
           "role": "assistant",
           "entry_type": "text",
           "content": "Stay in Alfama, Lisbon's oldest neighbourhood, and try the grilled sardines (sardinhas assadas) served on bread at one of its local taverns.",
@@ -398,15 +641,24 @@
     }
   },
   "feed_view": {
-    "message_count": 9,
+    "message_count": 18,
     "role_sequence": [
+      "system",
+      "system",
       "user",
       "user",
+      "system",
       "assistant",
       "user",
+      "system",
+      "system",
       "user",
+      "system",
       "assistant",
       "user",
+      "system",
+      "system",
+      "system",
       "assistant",
       "user"
     ],
@@ -415,6 +667,22 @@
     "messages": [
       {
         "index": 0,
+        "role": "system",
+        "entry_type": "text",
+        "content": "x-anthropic-billing-header: cc_version=2.1.288.c2e; cc_entrypoint=sdk-cli;",
+        "content_digest": "2541012bc72bcd1b",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+        "content_digest": "918d321f250cd6d3",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
         "role": "user",
         "entry_type": "text",
         "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
@@ -422,7 +690,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 1,
+        "index": 3,
         "role": "user",
         "entry_type": "text",
         "content": "What is one dish I should try there?",
@@ -430,7 +698,15 @@
         "observation_type": "generation"
       },
       {
-        "index": 2,
+        "index": 4,
+        "role": "system",
+        "entry_type": "text",
+        "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/tmp/sideseat-cli/claude-code/multi_turn - Is a git repository: false - Platform: darwin - Shell: unknown - OS Version: Darwin 25.6.0 You…[568 chars]",
+        "content_digest": "4a236784c9a60614",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
         "role": "assistant",
         "entry_type": "text",
         "content": "Stay in Alfama, Lisbon's oldest neighbourhood, and try the grilled sardines (sardinhas assadas) served on bread at one of its local taverns.",
@@ -438,7 +714,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 3,
+        "index": 6,
         "role": "user",
         "entry_type": "text",
         "content": "Summarise your two suggestions in one sentence.",
@@ -446,7 +722,23 @@
         "observation_type": "span"
       },
       {
-        "index": 4,
+        "index": 7,
+        "role": "system",
+        "entry_type": "text",
+        "content": "x-anthropic-billing-header: cc_version=2.1.288.c2e; cc_entrypoint=sdk-cli;",
+        "content_digest": "2541012bc72bcd1b",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+        "content_digest": "918d321f250cd6d3",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
         "role": "user",
         "entry_type": "text",
         "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
@@ -454,7 +746,15 @@
         "observation_type": "generation"
       },
       {
-        "index": 5,
+        "index": 10,
+        "role": "system",
+        "entry_type": "text",
+        "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/tmp/sideseat-cli/claude-code/multi_turn - Is a git repository: false - Platform: darwin - Shell: unknown - OS Version: Darwin 25.6.0 You…[514 chars]",
+        "content_digest": "3bb11a59ca23d6bb",
+        "observation_type": "generation"
+      },
+      {
+        "index": 11,
         "role": "assistant",
         "entry_type": "text",
         "content": "**Sardinhas assadas** (grilled sardines) are the dish to try in Alfama. They're served whole, usually on a slice of bread that soaks up the juices, with a side of roasted peppers or salad. They're a Lisbon staple, especially in summer and a…[376 chars]",
@@ -462,7 +762,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 6,
+        "index": 12,
         "role": "user",
         "entry_type": "text",
         "content": "What is one dish I should try there?",
@@ -470,7 +770,31 @@
         "observation_type": "span"
       },
       {
-        "index": 7,
+        "index": 13,
+        "role": "system",
+        "entry_type": "text",
+        "content": "x-anthropic-billing-header: cc_version=2.1.288.c2e; cc_entrypoint=sdk-cli;",
+        "content_digest": "2541012bc72bcd1b",
+        "observation_type": "generation"
+      },
+      {
+        "index": 14,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+        "content_digest": "918d321f250cd6d3",
+        "observation_type": "generation"
+      },
+      {
+        "index": 15,
+        "role": "system",
+        "entry_type": "text",
+        "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/tmp/sideseat-cli/claude-code/multi_turn - Is a git repository: false - Platform: darwin - Shell: unknown - OS Version: Darwin 25.6.0 You…[460 chars]",
+        "content_digest": "3b3f2ff7473b1fc3",
+        "observation_type": "generation"
+      },
+      {
+        "index": 16,
         "role": "assistant",
         "entry_type": "text",
         "content": "**Alfama** is my pick for a weekend. It's Lisbon's oldest neighbourhood, with winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol. You can walk to the Sé Cathedral, the Castelo de São Jorge, and the riverfront. The h…[309 chars]",
@@ -478,7 +802,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 8,
+        "index": 17,
         "role": "user",
         "entry_type": "text",
         "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",

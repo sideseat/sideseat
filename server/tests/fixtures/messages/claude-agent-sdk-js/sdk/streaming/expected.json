@@ -6,9 +6,10 @@
   "session_count": 1,
   "span_views": {
     "trace-1/claude_code.interaction/span-2": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -20,14 +21,25 @@
           "content": "Check the weather in Rome for the next day and tell me what to wear.",
           "content_digest": "3801edeb34a2cb29",
           "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Rome will be sunny tomorrow with a high of 21°C. Wear light, breathable layers such as a T-shirt or light shirt with a thin jacket or sweater for the cooler morning and evening. Bring sunglasses and comfortable walking shoes.",
+          "content_digest": "7421bf118b19b42f",
+          "observation_type": "span"
         }
       ]
     },
     "trace-1/claude_code.llm_request/span-3": {
-      "message_count": 2,
+      "message_count": 5,
       "role_sequence": [
         "system",
-        "user"
+        "system",
+        "system",
+        "user",
+        "system"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -36,24 +48,52 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.284.00d; cc_entrypoint=sdk-ts;",
+          "content_digest": "8f9ac227e7f9e105",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 3,
           "role": "user",
           "entry_type": "text",
           "content": "Check the weather in Rome for the next day and tell me what to wear.",
           "content_digest": "3801edeb34a2cb29",
           "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk-js - Is a git repository: false - Platform: darwin - Shell: zs…[493 chars]",
+          "content_digest": "253729459322c449",
+          "observation_type": "generation"
         }
       ]
     },
     "trace-1/claude_code.llm_request/span-7": {
-      "message_count": 2,
+      "message_count": 6,
       "role_sequence": [
+        "system",
+        "system",
+        "system",
         "tool",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -61,6 +101,30 @@
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.284.00d; cc_entrypoint=sdk-ts;",
+          "content_digest": "8f9ac227e7f9e105",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[{\"type\":\"text\",\"text\":\"{\\\"city\\\":\\\"Rome\\\",\\\"forecast\\\":[{\\\"day\\\":1,\\\"condition\\\":\\\"sunny\\\",\\\"high_c\\\":21}]}\"}]",
@@ -68,7 +132,15 @@
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<total_tokens>14999132 tokens left</total_tokens>",
+          "content_digest": "739fbbfb20763228",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "Rome will be sunny tomorrow with a high of 21°C. Wear light, breathable layers such as a T-shirt or light shirt with a thin jacket or sweater for the cooler morning and evening. Bring sunglasses and comfortable walking shoes.",
@@ -120,12 +192,16 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 5,
+      "message_count": 9,
       "role_sequence": [
         "system",
+        "system",
+        "system",
         "user",
+        "system",
         "assistant",
         "tool",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -135,12 +211,28 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.284.00d; cc_entrypoint=sdk-ts;",
+          "content_digest": "8f9ac227e7f9e105",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 3,
           "role": "user",
           "entry_type": "text",
           "content": "Check the weather in Rome for the next day and tell me what to wear.",
@@ -148,7 +240,15 @@
           "observation_type": "span"
         },
         {
-          "index": 2,
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk-js - Is a git repository: false - Platform: darwin - Shell: zs…[493 chars]",
+          "content_digest": "253729459322c449",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_014wfETVagGwR8Vt3Tu7BRTL\",\"name\":\"mcp__travel__get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
@@ -157,7 +257,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 3,
+          "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[{\"type\":\"text\",\"text\":\"{\\\"city\\\":\\\"Rome\\\",\\\"forecast\\\":[{\\\"day\\\":1,\\\"condition\\\":\\\"sunny\\\",\\\"high_c\\\":21}]}\"}]",
@@ -165,7 +265,15 @@
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 7,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<total_tokens>14999132 tokens left</total_tokens>",
+          "content_digest": "739fbbfb20763228",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
           "role": "assistant",
           "entry_type": "text",
           "content": "Rome will be sunny tomorrow with a high of 21°C. Wear light, breathable layers such as a T-shirt or light shirt with a thin jacket or sweater for the cooler morning and evening. Bring sunglasses and comfortable walking shoes.",
@@ -177,12 +285,16 @@
   },
   "session_views": {
     "claude-agent-sdk-js-streaming": {
-      "message_count": 5,
+      "message_count": 9,
       "role_sequence": [
         "system",
+        "system",
+        "system",
         "user",
+        "system",
         "assistant",
         "tool",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -192,12 +304,28 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.284.00d; cc_entrypoint=sdk-ts;",
+          "content_digest": "8f9ac227e7f9e105",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 3,
           "role": "user",
           "entry_type": "text",
           "content": "Check the weather in Rome for the next day and tell me what to wear.",
@@ -205,7 +333,15 @@
           "observation_type": "span"
         },
         {
-          "index": 2,
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk-js - Is a git repository: false - Platform: darwin - Shell: zs…[493 chars]",
+          "content_digest": "253729459322c449",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_014wfETVagGwR8Vt3Tu7BRTL\",\"name\":\"mcp__travel__get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
@@ -214,7 +350,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 3,
+          "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[{\"type\":\"text\",\"text\":\"{\\\"city\\\":\\\"Rome\\\",\\\"forecast\\\":[{\\\"day\\\":1,\\\"condition\\\":\\\"sunny\\\",\\\"high_c\\\":21}]}\"}]",
@@ -222,7 +358,15 @@
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 7,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<total_tokens>14999132 tokens left</total_tokens>",
+          "content_digest": "739fbbfb20763228",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
           "role": "assistant",
           "entry_type": "text",
           "content": "Rome will be sunny tomorrow with a high of 21°C. Wear light, breathable layers such as a T-shirt or light shirt with a thin jacket or sweater for the cooler morning and evening. Bring sunglasses and comfortable walking shoes.",
@@ -233,11 +377,15 @@
     }
   },
   "feed_view": {
-    "message_count": 5,
+    "message_count": 9,
     "role_sequence": [
       "tool",
+      "system",
       "assistant",
       "assistant",
+      "system",
+      "system",
+      "system",
       "system",
       "user"
     ],
@@ -254,6 +402,14 @@
       },
       {
         "index": 1,
+        "role": "system",
+        "entry_type": "text",
+        "content": "<total_tokens>14999132 tokens left</total_tokens>",
+        "content_digest": "739fbbfb20763228",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
         "role": "assistant",
         "entry_type": "text",
         "content": "Rome will be sunny tomorrow with a high of 21°C. Wear light, breathable layers such as a T-shirt or light shirt with a thin jacket or sweater for the cooler morning and evening. Bring sunglasses and comfortable walking shoes.",
@@ -261,7 +417,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 2,
+        "index": 3,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_014wfETVagGwR8Vt3Tu7BRTL\",\"name\":\"mcp__travel__get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
@@ -270,7 +426,23 @@
         "observation_type": "tool"
       },
       {
-        "index": 3,
+        "index": 4,
+        "role": "system",
+        "entry_type": "text",
+        "content": "x-anthropic-billing-header: cc_version=2.1.284.00d; cc_entrypoint=sdk-ts;",
+        "content_digest": "8f9ac227e7f9e105",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+        "content_digest": "918d321f250cd6d3",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -278,7 +450,15 @@
         "observation_type": "generation"
       },
       {
-        "index": 4,
+        "index": 7,
+        "role": "system",
+        "entry_type": "text",
+        "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk-js - Is a git repository: false - Platform: darwin - Shell: zs…[493 chars]",
+        "content_digest": "253729459322c449",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
         "role": "user",
         "entry_type": "text",
         "content": "Check the weather in Rome for the next day and tell me what to wear.",

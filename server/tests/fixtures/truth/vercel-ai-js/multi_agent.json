@@ -98,10 +98,12 @@
   {
    "id": "conv-1",
    "sequence": [
+    "fact-007",
     "fact-001",
     "fact-002",
     "fact-003",
     "fact-004",
+    "fact-008",
     "fact-005",
     "fact-006"
    ],
@@ -253,6 +255,54 @@
     "match": "exact"
    },
    "call": "call-003"
+  },
+  {
+   "id": "fact-007",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You research weather with the tool and report the forecast."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "vercel-ai-js/native/multi_agent",
+    "vercel-ai-js/sdk/multi_agent"
+   ]
+  },
+  {
+   "id": "fact-008",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You write the final packing list from the researcher's findings."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "vercel-ai-js/native/multi_agent",
+    "vercel-ai-js/sdk/multi_agent"
+   ]
   }
  ],
  "edges": [
@@ -297,7 +347,7 @@
         "type": "text",
         "text": "You research weather with the tool and report the forecast."
        },
-       "new": "rq-001"
+       "new_fact": "fact-007"
       }
      ],
      "messages": [
@@ -326,7 +376,7 @@
         "type": "text",
         "text": "You research weather with the tool and report the forecast."
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-007"
       }
      ],
      "messages": [
@@ -391,7 +441,7 @@
         "type": "text",
         "text": "You write the final packing list from the researcher's findings."
        },
-       "new": "rq-002"
+       "new_fact": "fact-008"
       }
      ],
      "messages": [
@@ -403,7 +453,7 @@
           "type": "text",
           "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nResearch:\nBarcelona's forecast for the next two days is rain on day 1 with a high of 21°C, then sunshine on day 2 with a high of 22°C.\n\n**Packing list:** Bring light, layerable clothes for the mild 21–22°C days. Pack a few T-shirts or short-sleeve tops, plus a light sweater or long-sleeve shirt for the cooler, damp hours on the rainy first day. A compact umbrella or a packable waterproof jacket will help on day 1. Water-resistant shoes or sneakers that can get wet are a good idea. Sunglasses, a hat, and sunscreen will be useful on the sunny second day. Add a small daypack to carry the layers you take off as the weather changes."
          },
-         "new": "rq-003",
+         "new": "rq-001",
          "renders": [
           "fact-001",
           "fact-004"
@@ -428,7 +478,7 @@
         "type": "text",
         "text": "You research weather with the tool and report the forecast."
        },
-       "new": "rq-001"
+       "new_fact": "fact-007"
       }
      ],
      "messages": [
@@ -457,7 +507,7 @@
         "type": "text",
         "text": "You research weather with the tool and report the forecast."
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-007"
       }
      ],
      "messages": [
@@ -522,7 +572,7 @@
         "type": "text",
         "text": "You write the final packing list from the researcher's findings."
        },
-       "new": "rq-002"
+       "new_fact": "fact-008"
       }
      ],
      "messages": [
@@ -534,7 +584,7 @@
           "type": "text",
           "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nResearch:\nBarcelona's forecast for the next two days is rain on day 1 with a high of 21°C, then sunshine on day 2 with a high of 22°C.\n\n**Packing list:** Bring light, layerable clothes for the mild 21–22°C days. Pack a few T-shirts or short-sleeve tops, plus a light sweater or long-sleeve shirt for the cooler, damp hours on the rainy first day. A compact umbrella or a packable waterproof jacket will help on day 1. Water-resistant shoes or sneakers that can get wet are a good idea. Sunglasses, a hat, and sunscreen will be useful on the sunny second day. Add a small daypack to carry the layers you take off as the weather changes."
          },
-         "new": "rq-003",
+         "new": "rq-001",
          "renders": [
           "fact-001",
           "fact-004"

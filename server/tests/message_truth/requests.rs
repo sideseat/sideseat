@@ -122,6 +122,7 @@ pub(super) fn as_fact(
         value,
         require: requirement(matcher),
         call: None,
+        fixtures: None,
     })
 }
 
@@ -400,6 +401,81 @@ pub(super) fn sequenced_inputs(
     None
 }
 
+/// The truth without the request-only facts this fixture's payloads do not carry.
+///
+/// Such a fact states what the model was told; the telemetry does not, so no reconstruction can show it, and
+/// demanding it would report a producer's limitation as a parsing defect. The proof is over the payloads
+/// alone, so the withdrawal never depends on what the parser produced; `absence::request_limitations`
+/// documents the same parts.
+pub(super) fn without_unexported_facts(truth: &Truth, recon: &Recon) -> Truth {
+    let withdrawn: BTreeSet<String> = truth
+        .facts
+        .iter()
+        .filter(|fact| fact.fixtures.is_some() && fact.require.is_some())
+        .filter(|fact| matches!(prove(fact, haystack(recon)), Proof::Absent))
+        .map(|fact| fact.id.clone())
+        .collect();
+    let mut out = truth.clone();
+    out.withdraw(&withdrawn);
+    out
+}
+
+/// Which calls each fact a request carries was sent to: its home is wherever the model was told it.
+///
+/// A client's preamble and the environment block it appends go with *every* request of a session, so a fact
+/// for them belongs to every trace that was sent it, and a block showing it belongs on any of those spans.
+/// Only facts the requests mint, which is why an ordinary turn's home stays the call that prompted it.
+pub(super) fn sent_to(truth: &Truth, recon: &Recon) -> BTreeMap<String, BTreeSet<String>> {
+    let mut out: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let Some(recorded) = truth.requests.get(&recon.fixture) else {
+        return out;
+    };
+    let scoped: BTreeSet<&str> = truth
+        .facts
+        .iter()
+        .filter(|fact| fact.fixtures.is_some())
+        .map(|fact| fact.id.as_str())
+        .collect();
+    for (call, request) in &recorded.calls {
+        let parts = request
+            .system
+            .iter()
+            .chain(request.messages.iter().flat_map(|m| m.parts.iter()));
+        for occurrence in parts {
+            for named in [&occurrence.new_fact, &occurrence.replay_of]
+                .into_iter()
+                .flatten()
+                .filter(|named| scoped.contains(named.as_str()))
+            {
+                out.entry(named.clone()).or_default().insert(call.clone());
+            }
+        }
+    }
+    out
+}
+
+/// The span a call was sent on, as the matcher established it from the call's output - or, for a call it
+/// could not find, the span of the nearest call of the same conversation it did find, earlier first.
+///
+/// A request's preamble goes with every call, including one whose output no span shows; the trace that
+/// call ran in is then the trace of its neighbours, which share its turn.
+pub(super) fn span_sent(truth: &Truth, matching: &Matching, call: &str) -> Option<usize> {
+    if let Some(&span) = matching.span_of.get(call) {
+        return Some(span);
+    }
+    let at = truth.calls.iter().position(|c| c.id == call)?;
+    let conversation = &truth.calls[at].conversation;
+    let found = |c: &&super::truth::Call| {
+        &c.conversation == conversation && c.succeeded() && matching.span_of.contains_key(&c.id)
+    };
+    truth.calls[..at]
+        .iter()
+        .rev()
+        .find(found)
+        .or_else(|| truth.calls[at + 1..].iter().find(found))
+        .and_then(|c| matching.span_of.get(&c.id).copied())
+}
+
 /// Requests against span inputs, for every matched call the fixture's transcript recorded.
 pub(super) fn check_requests(
     truth: &Truth,
@@ -420,7 +496,9 @@ pub(super) fn check_requests(
     for (call, request) in &recorded.calls {
         for item in expected(call, request, &BTreeMap::new())
             .iter()
-            .filter(|item| !item.is_fact)
+            // Content of its own only: a rendering of facts the conversation has is explained by those
+            // facts and the framework's declared restatements, which must still be used.
+            .filter(|item| !item.is_fact && item.renders.is_empty())
         {
             for block in everywhere.iter().filter(|block| matches(item, block)) {
                 accounted.blocks.insert(block.identity.clone());
@@ -494,7 +572,8 @@ pub(super) fn check_requests(
                 // A reconstruction that shows the part somewhere disproves any claim that the payloads
                 // lack it: the parser read it from them. So absence counts only when no view shows it.
                 let shown_elsewhere = everywhere.iter().any(|block| matches(item, block));
-                match prove(sent.as_ref().unwrap_or(&item.fact), haystack(recon)) {
+                let sent_fact = sent.as_ref().unwrap_or(&item.fact);
+                match prove(sent_fact, haystack(recon)) {
                     // Proven absent: the producer does not export this part of the request. That is a
                     // limitation of its telemetry, which `absence::request_limitations` documents per
                     // framework - never a violation, exactly as a declared and proven gap is not one.

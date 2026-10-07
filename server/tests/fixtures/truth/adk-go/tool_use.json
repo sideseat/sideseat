@@ -99,6 +99,7 @@
   {
    "id": "conv-1",
    "sequence": [
+    "fact-011",
     "fact-001",
     "fact-002",
     "fact-003",
@@ -373,6 +374,30 @@
    },
    "require": null,
    "call": "call-003"
+  },
+  {
+   "id": "fact-011",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\n\nYou are an agent. Your internal name is \"assistant\"."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "adk-go/native/tool_use",
+    "adk-go/sdk/tool_use"
+   ]
   }
  ],
  "edges": [
@@ -447,7 +472,7 @@
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\n\nYou are an agent. Your internal name is \"assistant\"."
        },
-       "new": "rq-001"
+       "new_fact": "fact-011"
       }
      ],
      "messages": [
@@ -477,7 +502,7 @@
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\n\nYou are an agent. Your internal name is \"assistant\"."
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-011"
       }
      ],
      "messages": [
@@ -597,7 +622,7 @@
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\n\nYou are an agent. Your internal name is \"assistant\"."
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-011"
       }
      ],
      "messages": [
@@ -787,7 +812,7 @@
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\n\nYou are an agent. Your internal name is \"assistant\"."
        },
-       "new": "rq-001"
+       "new_fact": "fact-011"
       }
      ],
      "messages": [
@@ -817,7 +842,7 @@
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\n\nYou are an agent. Your internal name is \"assistant\"."
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-011"
       }
      ],
      "messages": [
@@ -937,7 +962,7 @@
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\n\nYou are an agent. Your internal name is \"assistant\"."
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-011"
       }
      ],
      "messages": [

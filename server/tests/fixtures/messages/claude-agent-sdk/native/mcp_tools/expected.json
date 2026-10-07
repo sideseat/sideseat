@@ -6,9 +6,10 @@
   "session_count": 1,
   "span_views": {
     "trace-1/claude_code.interaction/span-2": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -20,14 +21,25 @@
           "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
           "content_digest": "94524de89ab3c69f",
           "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "(17 × 23) + 4 = **395**.",
+          "content_digest": "52aaa6c961cd0f52",
+          "observation_type": "span"
         }
       ]
     },
     "trace-1/claude_code.llm_request/span-3": {
-      "message_count": 2,
+      "message_count": 5,
       "role_sequence": [
         "system",
-        "user"
+        "system",
+        "system",
+        "user",
+        "system"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -36,24 +48,52 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.286.417; cc_entrypoint=sdk-py;",
+          "content_digest": "b36646b3065c9d5b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 3,
           "role": "user",
           "entry_type": "text",
           "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
           "content_digest": "94524de89ab3c69f",
           "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk - Is a git repository: false - Additional working directories:…[601 chars]",
+          "content_digest": "e8ceb5ffd529f512",
+          "observation_type": "generation"
         }
       ]
     },
     "trace-1/claude_code.llm_request/span-7": {
-      "message_count": 2,
+      "message_count": 6,
       "role_sequence": [
+        "system",
+        "system",
+        "system",
         "tool",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -61,6 +101,30 @@
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.286.417; cc_entrypoint=sdk-py;",
+          "content_digest": "b36646b3065c9d5b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"result\":395}",
@@ -68,7 +132,15 @@
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<total_tokens>14999088 tokens left</total_tokens>",
+          "content_digest": "d6fcee7f0f4fc0be",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "(17 × 23) + 4 = **395**.",
@@ -120,12 +192,16 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 5,
+      "message_count": 9,
       "role_sequence": [
         "system",
+        "system",
+        "system",
         "user",
+        "system",
         "assistant",
         "tool",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -135,12 +211,28 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.286.417; cc_entrypoint=sdk-py;",
+          "content_digest": "b36646b3065c9d5b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 3,
           "role": "user",
           "entry_type": "text",
           "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
@@ -148,7 +240,15 @@
           "observation_type": "span"
         },
         {
-          "index": 2,
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk - Is a git repository: false - Additional working directories:…[601 chars]",
+          "content_digest": "e8ceb5ffd529f512",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01P2hMAQZLM2Ttwcpt6h4fjy\",\"name\":\"mcp__calculator__calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
@@ -157,7 +257,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 3,
+          "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"result\":395}",
@@ -165,7 +265,15 @@
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 7,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<total_tokens>14999088 tokens left</total_tokens>",
+          "content_digest": "d6fcee7f0f4fc0be",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
           "role": "assistant",
           "entry_type": "text",
           "content": "(17 × 23) + 4 = **395**.",
@@ -177,12 +285,16 @@
   },
   "session_views": {
     "claude-agent-sdk-mcp_tools": {
-      "message_count": 5,
+      "message_count": 9,
       "role_sequence": [
         "system",
+        "system",
+        "system",
         "user",
+        "system",
         "assistant",
         "tool",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -192,12 +304,28 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.286.417; cc_entrypoint=sdk-py;",
+          "content_digest": "b36646b3065c9d5b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 3,
           "role": "user",
           "entry_type": "text",
           "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
@@ -205,7 +333,15 @@
           "observation_type": "span"
         },
         {
-          "index": 2,
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk - Is a git repository: false - Additional working directories:…[601 chars]",
+          "content_digest": "e8ceb5ffd529f512",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01P2hMAQZLM2Ttwcpt6h4fjy\",\"name\":\"mcp__calculator__calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
@@ -214,7 +350,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 3,
+          "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"result\":395}",
@@ -222,7 +358,15 @@
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 7,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<total_tokens>14999088 tokens left</total_tokens>",
+          "content_digest": "d6fcee7f0f4fc0be",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
           "role": "assistant",
           "entry_type": "text",
           "content": "(17 × 23) + 4 = **395**.",
@@ -233,11 +377,15 @@
     }
   },
   "feed_view": {
-    "message_count": 5,
+    "message_count": 9,
     "role_sequence": [
       "tool",
+      "system",
       "assistant",
       "assistant",
+      "system",
+      "system",
+      "system",
       "system",
       "user"
     ],
@@ -254,6 +402,14 @@
       },
       {
         "index": 1,
+        "role": "system",
+        "entry_type": "text",
+        "content": "<total_tokens>14999088 tokens left</total_tokens>",
+        "content_digest": "d6fcee7f0f4fc0be",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
         "role": "assistant",
         "entry_type": "text",
         "content": "(17 × 23) + 4 = **395**.",
@@ -261,7 +417,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 2,
+        "index": 3,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01P2hMAQZLM2Ttwcpt6h4fjy\",\"name\":\"mcp__calculator__calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
@@ -270,7 +426,23 @@
         "observation_type": "tool"
       },
       {
-        "index": 3,
+        "index": 4,
+        "role": "system",
+        "entry_type": "text",
+        "content": "x-anthropic-billing-header: cc_version=2.1.286.417; cc_entrypoint=sdk-py;",
+        "content_digest": "b36646b3065c9d5b",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+        "content_digest": "918d321f250cd6d3",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -278,7 +450,15 @@
         "observation_type": "generation"
       },
       {
-        "index": 4,
+        "index": 7,
+        "role": "system",
+        "entry_type": "text",
+        "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk - Is a git repository: false - Additional working directories:…[601 chars]",
+        "content_digest": "e8ceb5ffd529f512",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
         "role": "user",
         "entry_type": "text",
         "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",

@@ -24,6 +24,17 @@
       }
     },
     {
+      "id": "claude-agent-sdk.system_prompt_preview",
+      "doc": "The whole system instruction, reported beside the conversation: a detached request frame.",
+      "match": {
+        "attribute": "system_prompt_preview"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_is_detached_request_frame": true
+      }
+    },
+    {
       "id": "claude-agent-sdk.user_system_prompt",
       "doc": "The system prompt, reported beside the conversation: a detached request frame.",
       "match": {
@@ -32,6 +43,16 @@
       "facts": {
         "preset": "snapshot",
         "carrier_is_detached_request_frame": true
+      }
+    },
+    {
+      "id": "claude-agent-sdk.system_reminders",
+      "doc": "The client's environment block: a system turn the client appends after the conversation's newest input, re-sent with every request. Not a detached frame, because it follows the inputs of its request rather than preceding them.",
+      "match": {
+        "attribute": "system_reminders"
+      },
+      "facts": {
+        "preset": "snapshot"
       }
     },
     {
@@ -78,6 +99,39 @@
   ],
   "messages": [
     {
+      "id": "claude-agent-sdk.system_prompt_preview",
+      "doc": "The whole system instruction the client sent, not only the caller's part: its billing header and the SDK's own preamble, then the caller's prompt, each a block of its own, joined by a blank line. The caller's prompt is the last block and may hold blank lines itself, so the split stops after two. Where `user_system_prompt` carries that prompt whole, the rule reading it shows it and the section is skipped. The attribute is a preview, cut at 500 characters on a subagent, and a cut block is not what the model was told: the length the CLI states beside it is a JavaScript string length, so it counts UTF-16 units.",
+      "where": {
+        "source": "span_name",
+        "starts_with": "claude_code."
+      },
+      "read": {
+        "attribute": "system_prompt_preview"
+      },
+      "parse": "text",
+      "raw_where": {
+        "non_blank": true
+      },
+      "sections": {
+        "split_on": "\n\n",
+        "max_sections": 3,
+        "truncated_unless_length": {
+          "source": "attr:system_prompt_length",
+          "counts": "utf16_units"
+        },
+        "skip_sections_equal_to": ["attr:user_system_prompt"],
+        "routes": [
+          {
+            "id": "system_block",
+            "doc": "Every block of the instruction is the system's.",
+            "role": "system"
+          }
+        ]
+      },
+      "emit": "message",
+      "priority": 1395
+    },
+    {
       "id": "claude-agent-sdk.system_prompt",
       "doc": "The caller-supplied system prompt, emitted once per session rather than per request. Blank counts as absent here: this dialect writes the attribute whether or not there is a prompt.",
       "where": {
@@ -96,6 +150,26 @@
       },
       "emit": "message",
       "priority": 1400
+    },
+    {
+      "id": "claude-agent-sdk.system_reminders",
+      "doc": "The environment block the client appends to the request as a system turn of its own: the working directory, the platform, the tools' context. Part of what the model was told, carried whole rather than as a preview, so it is read as the system message it is.",
+      "where": {
+        "source": "span_name",
+        "starts_with": "claude_code."
+      },
+      "read": {
+        "attribute": "system_reminders"
+      },
+      "parse": "text",
+      "raw_where": {
+        "non_blank": true
+      },
+      "wrap": {
+        "role": "system"
+      },
+      "emit": "message",
+      "priority": 1415
     },
     {
       "id": "claude-agent-sdk.new_context",

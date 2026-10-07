@@ -512,7 +512,13 @@ def capture_one(
             os.environ.pop(transcript.ENV, None)
         else:
             os.environ[transcript.ENV] = previous_log
-    requests_document = json.dumps(transcript.finish(request_log), indent=1) + "\n"
+    requests_document = (
+        json.dumps(
+            transcript.finish(request_log, lambda raw: anonymise(raw, _Recorder.pins)),
+            indent=1,
+        )
+        + "\n"
+    )
     recorded = sorted(staging.glob("req-*"))
     log_exports = sorted(staging.glob("logs-*"))
     metric_exports = sorted(staging.glob("metrics-*"))

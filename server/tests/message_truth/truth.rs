@@ -218,6 +218,13 @@ pub(super) struct Fact {
     pub require: Option<Requirement>,
     #[serde(default)]
     pub call: Option<String>,
+    /// The fixtures whose requests carry this fact, where only some do; absent means every fixture.
+    ///
+    /// Content only a request carries - a client's preamble, the environment block it appends - is part of
+    /// the conversation the model saw, and which fixtures sent it is a property of each run, not of the
+    /// scenario. `for_fixture` projects a document onto one fixture before anything is checked.
+    #[serde(default)]
+    pub fixtures: Option<Vec<String>>,
 }
 
 impl Fact {
@@ -276,11 +283,47 @@ impl Gap {
 }
 
 impl Truth {
+    /// Remove these facts and everything that names them, leaving a document still internally consistent.
+    pub fn withdraw(&mut self, facts: &BTreeSet<String>) {
+        if facts.is_empty() {
+            return;
+        }
+        self.facts.retain(|f| !facts.contains(&f.id));
+        for conversation in &mut self.conversations {
+            conversation.sequence.retain(|id| !facts.contains(id));
+            conversation.final_answers.retain(|id| !facts.contains(id));
+        }
+        self.edges.retain(|edge| {
+            ![&edge.from, &edge.to, &edge.before, &edge.after]
+                .into_iter()
+                .flatten()
+                .any(|id| facts.contains(id))
+        });
+        self.gaps
+            .retain(|gap| gap.subject.as_ref().is_none_or(|s| !facts.contains(s)));
+        for call in &mut self.calls {
+            call.outputs.retain(|id| !facts.contains(id));
+        }
+    }
+
     /// The truth as one fixture is checked against it: only the gaps that hold for it, and a tool call
     /// whose id that fixture's telemetry does not carry (`id_not_exported`) asserted without it - its
     /// wire id kept aside as `wire_id`.
     pub fn for_fixture(&self, fixture: &str) -> Truth {
         let mut truth = self.clone();
+        // Facts only some fixtures' requests carry: the projection drops the rest, and everything that
+        // names them, so no check sees a fact this run never sent.
+        let dropped: BTreeSet<String> = truth
+            .facts
+            .iter()
+            .filter(|f| {
+                f.fixtures
+                    .as_ref()
+                    .is_some_and(|only| !only.iter().any(|listed| listed == fixture))
+            })
+            .map(|f| f.id.clone())
+            .collect();
+        truth.withdraw(&dropped);
         truth.gaps.retain(|gap| gap.holds_for(fixture));
         let unexported: BTreeSet<String> = truth
             .gaps

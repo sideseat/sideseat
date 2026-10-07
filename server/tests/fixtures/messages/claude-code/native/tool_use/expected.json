@@ -33,28 +33,58 @@
       ]
     },
     "trace-1/claude_code.llm_request/span-2": {
-      "message_count": 1,
+      "message_count": 4,
       "role_sequence": [
-        "user"
+        "system",
+        "system",
+        "user",
+        "system"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.288.f78; cc_entrypoint=sdk-cli;",
+          "content_digest": "301523e9c500b10e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
           "role": "user",
           "entry_type": "text",
           "content": "Read forecast.json in this directory, then run the shell command `wc -l forecast.json`. Using what the file says, tell me in two sentences how many lines it has and whether I should pack an umbrella for Paris or for Tokyo.",
           "content_digest": "707ef9329b4ea2b3",
           "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/tmp/sideseat-cli/claude-code/tool_use - Is a git repository: false - Platform: darwin - Shell: unknown - OS Version: Darwin 25.6.0 You a…[458 chars]",
+          "content_digest": "105c1be239b03458",
+          "observation_type": "generation"
         }
       ]
     },
     "trace-1/claude_code.llm_request/span-9": {
-      "message_count": 3,
+      "message_count": 6,
       "role_sequence": [
+        "system",
+        "system",
         "tool",
         "tool",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -62,6 +92,22 @@
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.288.f78; cc_entrypoint=sdk-cli;",
+          "content_digest": "301523e9c500b10e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "1 { 2 \"Paris\": { 3 \"city\": \"Paris\", 4 \"forecast\": [ 5 { 6 \"day\": 1, 7 \"condition\": \"sunny\", 8 \"high_c\": 21 9 }, 10 { 11 \"day\": 2, 12 \"condition\": \"sunny\", 13 \"high_c\": 22 14 } 15 ] 16 }, 17 \"Tokyo\": { 18 \"city\": \"Tokyo\", 19 \"forecast\": [ 20…[383 chars]",
@@ -69,7 +115,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "32 forecast.json",
@@ -77,7 +123,15 @@
           "observation_type": "generation"
         },
         {
-          "index": 2,
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<total_tokens>14996494 tokens left</total_tokens>",
+          "content_digest": "0d200ec55671c2f8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "`forecast.json` has 32 lines according to `wc -l`. Pack the umbrella for Tokyo, because the file shows rain there on day 1, while Paris is sunny on both days.",
@@ -155,13 +209,17 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 6,
+      "message_count": 10,
       "role_sequence": [
+        "system",
+        "system",
         "user",
+        "system",
         "assistant",
         "assistant",
         "tool",
         "tool",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -169,6 +227,22 @@
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.288.f78; cc_entrypoint=sdk-cli;",
+          "content_digest": "301523e9c500b10e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
           "role": "user",
           "entry_type": "text",
           "content": "Read forecast.json in this directory, then run the shell command `wc -l forecast.json`. Using what the file says, tell me in two sentences how many lines it has and whether I should pack an umbrella for Paris or for Tokyo.",
@@ -176,7 +250,15 @@
           "observation_type": "span"
         },
         {
-          "index": 1,
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/tmp/sideseat-cli/claude-code/tool_use - Is a git repository: false - Platform: darwin - Shell: unknown - OS Version: Darwin 25.6.0 You a…[458 chars]",
+          "content_digest": "105c1be239b03458",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01WiVW8ZGCtkTJ5bJpG5JSFH\",\"name\":\"Read\",\"input\":{\"file_path\":\"/private/tmp/sideseat-cli/claude-code/tool_use/forecast.json\"}}",
@@ -185,7 +267,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 2,
+          "index": 5,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01TPdMyvarDc22DmjhwywXGr\",\"name\":\"Bash\",\"input\":{\"command\":\"wc -l forecast.json\",\"description\":\"Count lines in forecast.json\"}}",
@@ -194,7 +276,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 3,
+          "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "1 { 2 \"Paris\": { 3 \"city\": \"Paris\", 4 \"forecast\": [ 5 { 6 \"day\": 1, 7 \"condition\": \"sunny\", 8 \"high_c\": 21 9 }, 10 { 11 \"day\": 2, 12 \"condition\": \"sunny\", 13 \"high_c\": 22 14 } 15 ] 16 }, 17 \"Tokyo\": { 18 \"city\": \"Tokyo\", 19 \"forecast\": [ 20…[383 chars]",
@@ -202,7 +284,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "32 forecast.json",
@@ -210,7 +292,15 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 8,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<total_tokens>14996494 tokens left</total_tokens>",
+          "content_digest": "0d200ec55671c2f8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
           "role": "assistant",
           "entry_type": "text",
           "content": "`forecast.json` has 32 lines according to `wc -l`. Pack the umbrella for Tokyo, because the file shows rain there on day 1, while Paris is sunny on both days.",
@@ -222,13 +312,17 @@
   },
   "session_views": {
     "47e392d9-c0e9-567a-9cec-57f2dda66be0": {
-      "message_count": 6,
+      "message_count": 10,
       "role_sequence": [
+        "system",
+        "system",
         "user",
+        "system",
         "assistant",
         "assistant",
         "tool",
         "tool",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -236,6 +330,22 @@
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.288.f78; cc_entrypoint=sdk-cli;",
+          "content_digest": "301523e9c500b10e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
           "role": "user",
           "entry_type": "text",
           "content": "Read forecast.json in this directory, then run the shell command `wc -l forecast.json`. Using what the file says, tell me in two sentences how many lines it has and whether I should pack an umbrella for Paris or for Tokyo.",
@@ -243,7 +353,15 @@
           "observation_type": "span"
         },
         {
-          "index": 1,
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/tmp/sideseat-cli/claude-code/tool_use - Is a git repository: false - Platform: darwin - Shell: unknown - OS Version: Darwin 25.6.0 You a…[458 chars]",
+          "content_digest": "105c1be239b03458",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01WiVW8ZGCtkTJ5bJpG5JSFH\",\"name\":\"Read\",\"input\":{\"file_path\":\"/private/tmp/sideseat-cli/claude-code/tool_use/forecast.json\"}}",
@@ -252,7 +370,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 2,
+          "index": 5,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01TPdMyvarDc22DmjhwywXGr\",\"name\":\"Bash\",\"input\":{\"command\":\"wc -l forecast.json\",\"description\":\"Count lines in forecast.json\"}}",
@@ -261,7 +379,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 3,
+          "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "1 { 2 \"Paris\": { 3 \"city\": \"Paris\", 4 \"forecast\": [ 5 { 6 \"day\": 1, 7 \"condition\": \"sunny\", 8 \"high_c\": 21 9 }, 10 { 11 \"day\": 2, 12 \"condition\": \"sunny\", 13 \"high_c\": 22 14 } 15 ] 16 }, 17 \"Tokyo\": { 18 \"city\": \"Tokyo\", 19 \"forecast\": [ 20…[383 chars]",
@@ -269,7 +387,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "32 forecast.json",
@@ -277,7 +395,15 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 8,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<total_tokens>14996494 tokens left</total_tokens>",
+          "content_digest": "0d200ec55671c2f8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
           "role": "assistant",
           "entry_type": "text",
           "content": "`forecast.json` has 32 lines according to `wc -l`. Pack the umbrella for Tokyo, because the file shows rain there on day 1, while Paris is sunny on both days.",
@@ -288,13 +414,17 @@
     }
   },
   "feed_view": {
-    "message_count": 6,
+    "message_count": 10,
     "role_sequence": [
       "tool",
       "tool",
+      "system",
       "assistant",
       "assistant",
       "assistant",
+      "system",
+      "system",
+      "system",
       "user"
     ],
     "tool_names": [],
@@ -318,6 +448,14 @@
       },
       {
         "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "<total_tokens>14996494 tokens left</total_tokens>",
+        "content_digest": "0d200ec55671c2f8",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
         "role": "assistant",
         "entry_type": "text",
         "content": "`forecast.json` has 32 lines according to `wc -l`. Pack the umbrella for Tokyo, because the file shows rain there on day 1, while Paris is sunny on both days.",
@@ -325,7 +463,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 3,
+        "index": 4,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01TPdMyvarDc22DmjhwywXGr\",\"name\":\"Bash\",\"input\":{\"command\":\"wc -l forecast.json\",\"description\":\"Count lines in forecast.json\"}}",
@@ -334,7 +472,7 @@
         "observation_type": "tool"
       },
       {
-        "index": 4,
+        "index": 5,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01WiVW8ZGCtkTJ5bJpG5JSFH\",\"name\":\"Read\",\"input\":{\"file_path\":\"/private/tmp/sideseat-cli/claude-code/tool_use/forecast.json\"}}",
@@ -343,7 +481,31 @@
         "observation_type": "tool"
       },
       {
-        "index": 5,
+        "index": 6,
+        "role": "system",
+        "entry_type": "text",
+        "content": "x-anthropic-billing-header: cc_version=2.1.288.f78; cc_entrypoint=sdk-cli;",
+        "content_digest": "301523e9c500b10e",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+        "content_digest": "918d321f250cd6d3",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "system",
+        "entry_type": "text",
+        "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/tmp/sideseat-cli/claude-code/tool_use - Is a git repository: false - Platform: darwin - Shell: unknown - OS Version: Darwin 25.6.0 You a…[458 chars]",
+        "content_digest": "105c1be239b03458",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
         "role": "user",
         "entry_type": "text",
         "content": "Read forecast.json in this directory, then run the shell command `wc -l forecast.json`. Using what the file says, tell me in two sentences how many lines it has and whether I should pack an umbrella for Paris or for Tokyo.",

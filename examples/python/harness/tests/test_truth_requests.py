@@ -275,6 +275,10 @@ def test_lineage_comes_from_the_requests_and_the_outputs(
                 "value": {"call_id": "t1", "name": "f", "value": "ok"},
             },
         ],
+        "conversations": [
+            {"id": "c", "sequence": ["fact-001", "fact-002", "fact-003"]}
+        ],
+        "edges": [],
     }
     recorded = request_truth.fixture_requests(
         truth, "p/native/s", {0: "call-001", 1: "call-002", 2: "call-003"}
@@ -289,7 +293,13 @@ def test_lineage_comes_from_the_requests_and_the_outputs(
             for part in message["parts"]
         ]
 
-    assert calls["call-001"]["system"][0]["new"] == "rq-001"
+    # The system instruction only a request carries becomes a fact of this fixture, introduced before
+    # anything the conversation had said, and asserted wherever the conversation is shown.
+    assert calls["call-001"]["system"][0]["new_fact"] == "fact-004"
+    minted = truth["facts"][-1]
+    assert minted["id"] == "fact-004" and minted["fixtures"] == ["p/native/s"]
+    assert minted["kind"] == "system" and minted["require"]["anchor"] == "conversation"
+    assert truth["conversations"][0]["sequence"][0] == "fact-004"
     assert lineage("call-001") == [{"new_fact": "fact-001"}]
     assert lineage("call-002") == [
         {"replay_of": "fact-001"},
@@ -298,7 +308,7 @@ def test_lineage_comes_from_the_requests_and_the_outputs(
     ]
     assert calls["call-003"]["system"][0] == {
         "part": {"type": "text", "text": "Be brief."},
-        "replay_of": "rq-001",
+        "replay_of": "fact-004",
     }
     # The summary is model-side content no output holds: its lineage is unknown, never "new".
     assert "lineage_unknown" in lineage("call-003")[0]
@@ -315,3 +325,76 @@ def test_a_fixture_without_a_transcript_has_no_request_truth(
         request_truth.fixture_requests({"calls": [], "facts": []}, "p/native/s", None)
         is None
     )
+
+
+def test_request_only_copies_are_facts_each_and_history_is_a_replay(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from harness.truth import request_truth
+
+    monkeypatch.setattr(request_truth, "FIXTURES", tmp_path)
+    monkeypatch.setattr(request_truth, "REPO", tmp_path)
+    fixture = tmp_path / "p" / "native" / "s"
+    fixture.mkdir(parents=True)
+    note = {"text": "For context: another agent spoke before you."}
+    first = {"role": "user", "content": [{"text": "Hi"}]}
+    answer = {"role": "assistant", "content": [{"text": "Hello there."}]}
+    second = {"role": "user", "content": [note, note, {"text": "And now?"}]}
+    log = tmp_path / "log.jsonl"
+    for index, messages in enumerate([[first], [first, answer, second]]):
+        transcript.record(
+            "POST",
+            "/model/m/converse",
+            _converse(messages),
+            "application/json",
+            answered_by=index,
+            log=str(log),
+        )
+    (fixture / transcript.FILENAME).write_text(json.dumps(transcript.finish(log)))
+
+    def fact(identifier: str, kind: str, conversation: str, text: str) -> dict:
+        value = {"text": text}
+        return {
+            "id": identifier,
+            "kind": kind,
+            "conversation": conversation,
+            "value": value,
+        }
+
+    truth = {
+        "calls": [
+            {"id": "call-001", "conversation": "c1", "outputs": ["fact-002"]},
+            {"id": "call-002", "conversation": "c2", "outputs": []},
+        ],
+        "facts": [
+            fact("fact-001", "user_text", "c1", "Hi"),
+            fact("fact-002", "text", "c1", "Hello there."),
+            fact("fact-003", "user_text", "c2", "And now?"),
+        ],
+        "conversations": [
+            {"id": "c1", "sequence": ["fact-001", "fact-002"]},
+            {"id": "c2", "sequence": ["fact-003"]},
+        ],
+        "edges": [],
+    }
+    recorded = request_truth.fixture_requests(
+        truth, "p/native/s", {0: "call-001", 1: "call-002"}
+    )
+    assert recorded is not None
+    parts = [
+        {k: v for k, v in part.items() if k != "part"}
+        for message in recorded["calls"]["call-002"]["messages"]
+        for part in message["parts"]
+    ]
+    # An earlier conversation's turns, handed to the next one, are history: replays, not new facts.
+    assert parts[0] == {"replay_of": "fact-001"}
+    assert parts[1] == {"replay_of": "fact-002"}
+    # One request sending the same note twice sent two parts, and each is a fact of its own.
+    assert parts[2] == {"new_fact": "fact-006"} and parts[3] == {"new_fact": "fact-007"}
+    assert parts[4] == {"new_fact": "fact-003"}
+    # The instruction every request carries is each conversation's own, not one conversation's history.
+    systems = [
+        recorded["calls"][call]["system"][0]["new_fact"]
+        for call in ("call-001", "call-002")
+    ]
+    assert systems == ["fact-004", "fact-005"]

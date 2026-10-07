@@ -72,6 +72,7 @@
   {
    "id": "conv-1",
    "sequence": [
+    "fact-005",
     "fact-001",
     "fact-002"
    ],
@@ -82,6 +83,7 @@
   {
    "id": "conv-2",
    "sequence": [
+    "fact-006",
     "fact-003",
     "fact-004"
    ],
@@ -174,6 +176,54 @@
     "match": "exact"
    },
    "call": "call-002"
+  },
+  {
+   "id": "fact-005",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "autogen/native/session",
+    "autogen/sdk/session"
+   ]
+  },
+  {
+   "id": "fact-006",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-2",
+   "evidence": "wire",
+   "value": {
+    "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "autogen/native/session",
+    "autogen/sdk/session"
+   ]
   }
  ],
  "edges": [
@@ -217,7 +267,7 @@
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
        },
-       "new": "rq-001"
+       "new_fact": "fact-005"
       }
      ],
      "messages": [
@@ -244,7 +294,7 @@
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
        },
-       "replay_of": "rq-001"
+       "new_fact": "fact-006"
       }
      ],
      "messages": [
@@ -277,7 +327,7 @@
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
        },
-       "new": "rq-001"
+       "new_fact": "fact-005"
       }
      ],
      "messages": [
@@ -304,7 +354,7 @@
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
        },
-       "replay_of": "rq-001"
+       "new_fact": "fact-006"
       }
      ],
      "messages": [

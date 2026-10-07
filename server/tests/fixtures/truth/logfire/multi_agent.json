@@ -102,6 +102,7 @@
     "fact-003",
     "fact-004",
     "fact-005",
+    "fact-007",
     "fact-006"
    ],
    "final_answers": [
@@ -258,6 +259,30 @@
     "match": "exact"
    },
    "call": "call-003"
+  },
+  {
+   "id": "fact-007",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You write the final packing list from the researcher's findings."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "logfire/native/multi_agent",
+    "logfire/sdk/multi_agent"
+   ]
   }
  ],
  "edges": [
@@ -390,7 +415,7 @@
         "type": "text",
         "text": "You write the final packing list from the researcher's findings."
        },
-       "new": "rq-001"
+       "new_fact": "fact-007"
       }
      ],
      "messages": [
@@ -402,7 +427,7 @@
           "type": "text",
           "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nResearcher's findings:\nBarcelona’s forecast for the next two days is rain with a high of 21°C on day one, followed by sunshine with a high of 22°C on day two. Pack a lightweight waterproof jacket, a compact umbrella, comfortable water-resistant walking shoes, breathable tops, and light trousers, plus a thin sweater for cooler periods. Add sunglasses, sunscreen, and a hat for the sunny second day."
          },
-         "new": "rq-002",
+         "new": "rq-001",
          "renders": [
           "fact-001",
           "fact-005"
@@ -521,7 +546,7 @@
         "type": "text",
         "text": "You write the final packing list from the researcher's findings."
        },
-       "new": "rq-001"
+       "new_fact": "fact-007"
       }
      ],
      "messages": [
@@ -533,7 +558,7 @@
           "type": "text",
           "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nResearcher's findings:\nBarcelona’s forecast for the next two days is rain with a high of 21°C on day one, followed by sunshine with a high of 22°C on day two. Pack a lightweight waterproof jacket, a compact umbrella, comfortable water-resistant walking shoes, breathable tops, and light trousers, plus a thin sweater for cooler periods. Add sunglasses, sunscreen, and a hat for the sunny second day."
          },
-         "new": "rq-002",
+         "new": "rq-001",
          "renders": [
           "fact-001",
           "fact-005"

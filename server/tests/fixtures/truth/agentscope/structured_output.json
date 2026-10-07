@@ -47,7 +47,9 @@
   {
    "id": "conv-1",
    "sequence": [
+    "fact-003",
     "fact-001",
+    "fact-004",
     "fact-002"
    ],
    "final_answers": []
@@ -104,12 +106,65 @@
     "match": "semantic"
    },
    "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "agentscope/native/structured_output",
+    "agentscope/sdk/structured_output"
+   ]
+  },
+  {
+   "id": "fact-004",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "<system-reminder>You're required to generate structured output by calling the 'GenerateStructuredOutput' tool. Call it when you are ready to generate the final structured output.</system-reminder>"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "agentscope/native/structured_output",
+    "agentscope/sdk/structured_output"
+   ]
   }
  ],
  "edges": [
   {
    "kind": "prompt_of",
    "from": "fact-001",
+   "to": "call-001"
+  },
+  {
+   "kind": "prompt_of",
+   "from": "fact-004",
    "to": "call-001"
   }
  ],
@@ -144,7 +199,7 @@
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
        },
-       "new": "rq-001"
+       "new_fact": "fact-003"
       }
      ],
      "messages": [
@@ -168,7 +223,7 @@
           "type": "text",
           "text": "<system-reminder>You're required to generate structured output by calling the 'GenerateStructuredOutput' tool. Call it when you are ready to generate the final structured output.</system-reminder>"
          },
-         "new": "rq-002"
+         "new_fact": "fact-004"
         }
        ]
       }
@@ -191,7 +246,7 @@
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
        },
-       "new": "rq-001"
+       "new_fact": "fact-003"
       }
      ],
      "messages": [
@@ -215,7 +270,7 @@
           "type": "text",
           "text": "<system-reminder>You're required to generate structured output by calling the 'GenerateStructuredOutput' tool. Call it when you are ready to generate the final structured output.</system-reminder>"
          },
-         "new": "rq-002"
+         "new_fact": "fact-004"
         }
        ]
       }

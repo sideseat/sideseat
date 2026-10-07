@@ -97,10 +97,12 @@
   {
    "id": "conv-1",
    "sequence": [
+    "fact-006",
     "fact-001",
     "fact-002",
     "fact-003",
     "fact-004",
+    "fact-007",
     "fact-005"
    ],
    "final_answers": [
@@ -237,6 +239,54 @@
     "match": "exact"
    },
    "call": "call-003"
+  },
+  {
+   "id": "fact-006",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You research weather with the tool and report the forecast."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "traceloop/native/multi_agent",
+    "traceloop/sdk/multi_agent"
+   ]
+  },
+  {
+   "id": "fact-007",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You write the final packing list from the researcher's findings."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "traceloop/native/multi_agent",
+    "traceloop/sdk/multi_agent"
+   ]
   }
  ],
  "edges": [
@@ -293,7 +343,7 @@
         "type": "text",
         "text": "You research weather with the tool and report the forecast."
        },
-       "new": "rq-001"
+       "new_fact": "fact-006"
       }
      ],
      "messages": [
@@ -322,7 +372,7 @@
         "type": "text",
         "text": "You research weather with the tool and report the forecast."
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-006"
       }
      ],
      "messages": [
@@ -387,7 +437,7 @@
         "type": "text",
         "text": "You write the final packing list from the researcher's findings."
        },
-       "new": "rq-002"
+       "new_fact": "fact-007"
       }
      ],
      "messages": [
@@ -399,7 +449,7 @@
           "type": "text",
           "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nResearcher's findings:\nBarcelona's forecast is rain on day 1 with a high of 21°C, then sun on day 2 with a high of 22°C.\n\n**Packing list:** Pack for mild weather with a wet first day and a bright second day. Bring a compact umbrella and a light waterproof jacket for the rain. Wear water-resistant shoes or sneakers, and bring a spare pair of socks. Pack breathable layers such as T-shirts and a light sweater or long-sleeve top, plus comfortable pants or jeans. Add sunglasses, sunscreen, and a hat for day 2. A small daypack with a dry bag or plastic cover will keep your phone and documents dry."
          },
-         "new": "rq-003",
+         "new": "rq-001",
          "renders": [
           "fact-001",
           "fact-004"
@@ -424,7 +474,7 @@
         "type": "text",
         "text": "You research weather with the tool and report the forecast."
        },
-       "new": "rq-001"
+       "new_fact": "fact-006"
       }
      ],
      "messages": [
@@ -453,7 +503,7 @@
         "type": "text",
         "text": "You research weather with the tool and report the forecast."
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-006"
       }
      ],
      "messages": [
@@ -518,7 +568,7 @@
         "type": "text",
         "text": "You write the final packing list from the researcher's findings."
        },
-       "new": "rq-002"
+       "new_fact": "fact-007"
       }
      ],
      "messages": [
@@ -530,7 +580,7 @@
           "type": "text",
           "text": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.\n\nResearcher's findings:\nBarcelona's forecast is rain on day 1 with a high of 21°C, then sun on day 2 with a high of 22°C.\n\n**Packing list:** Pack for mild weather with a wet first day and a bright second day. Bring a compact umbrella and a light waterproof jacket for the rain. Wear water-resistant shoes or sneakers, and bring a spare pair of socks. Pack breathable layers such as T-shirts and a light sweater or long-sleeve top, plus comfortable pants or jeans. Add sunglasses, sunscreen, and a hat for day 2. A small daypack with a dry bag or plastic cover will keep your phone and documents dry."
          },
-         "new": "rq-003",
+         "new": "rq-001",
          "renders": [
           "fact-001",
           "fact-004"

@@ -15,7 +15,14 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 from harness import transcript
-from harness.capture import Pins, Suite, _Recorder, credential_in, uses_fake_model
+from harness.capture import (
+    Pins,
+    Suite,
+    _Recorder,
+    anonymise,
+    credential_in,
+    uses_fake_model,
+)
 from harness.matrix.environment import executable
 from harness.proxy import ModelProxy, client_environment
 
@@ -181,7 +188,11 @@ def replay(
         else:
             os.environ[transcript.ENV] = previous_log
     (staging / transcript.FILENAME).write_text(
-        json.dumps(transcript.finish(request_log), indent=1) + "\n"
+        json.dumps(
+            transcript.finish(request_log, lambda raw: anonymise(raw, _Recorder.pins)),
+            indent=1,
+        )
+        + "\n"
     )
     request_log.unlink(missing_ok=True)
     for path in sorted(staging.iterdir()):

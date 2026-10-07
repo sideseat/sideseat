@@ -6,9 +6,10 @@
   "session_count": 1,
   "span_views": {
     "trace-1/claude_code.interaction/span-2": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -20,15 +21,26 @@
           "content": "Describe the image in one sentence, then summarise the document in one sentence.",
           "content_digest": "66bed9fc16754ebe",
           "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "**Image:** A curved tarmac path winds through a sunny park with mown grass, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings under a clear blue sky. **Document:** The five-page PDF is almost entirely blank…[351 chars]",
+          "content_digest": "0fec08f65de3f107",
+          "observation_type": "span"
         }
       ]
     },
     "trace-1/claude_code.llm_request/span-3": {
-      "message_count": 4,
+      "message_count": 7,
       "role_sequence": [
+        "system",
+        "system",
         "system",
         "user",
         "user",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -38,12 +50,28 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.286.1ce; cc_entrypoint=sdk-py;",
+          "content_digest": "6112b5a4369ac66e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 3,
           "role": "user",
           "entry_type": "text",
           "content": "Describe the image in one sentence, then summarise the document in one sentence.",
@@ -51,7 +79,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 2,
+          "index": 4,
           "role": "user",
           "entry_type": "text",
           "content": "[Image: source: /private/tmp/claude-504/-private-var-folders-n--kvwhfj054zx3zjmwj941d53c0000gr-T-sideseat-claude-agent-sdk/00000000-0000-0000-0000-000000000000/images/1.jpg]",
@@ -59,7 +87,15 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk - Is a git repository: false - Additional working directories:…[601 chars]",
+          "content_digest": "e8ceb5ffd529f512",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
           "role": "assistant",
           "entry_type": "text",
           "content": "**Image:** A curved tarmac path winds through a sunny park with mown grass, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings under a clear blue sky. **Document:** The five-page PDF is almost entirely blank…[351 chars]",
@@ -78,11 +114,14 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 4,
+      "message_count": 7,
       "role_sequence": [
+        "system",
+        "system",
         "system",
         "user",
         "user",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -92,12 +131,28 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.286.1ce; cc_entrypoint=sdk-py;",
+          "content_digest": "6112b5a4369ac66e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 3,
           "role": "user",
           "entry_type": "text",
           "content": "Describe the image in one sentence, then summarise the document in one sentence.",
@@ -105,7 +160,7 @@
           "observation_type": "span"
         },
         {
-          "index": 2,
+          "index": 4,
           "role": "user",
           "entry_type": "text",
           "content": "[Image: source: /private/tmp/claude-504/-private-var-folders-n--kvwhfj054zx3zjmwj941d53c0000gr-T-sideseat-claude-agent-sdk/00000000-0000-0000-0000-000000000000/images/1.jpg]",
@@ -113,7 +168,15 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk - Is a git repository: false - Additional working directories:…[601 chars]",
+          "content_digest": "e8ceb5ffd529f512",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
           "role": "assistant",
           "entry_type": "text",
           "content": "**Image:** A curved tarmac path winds through a sunny park with mown grass, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings under a clear blue sky. **Document:** The five-page PDF is almost entirely blank…[351 chars]",
@@ -125,11 +188,14 @@
   },
   "session_views": {
     "claude-agent-sdk-files": {
-      "message_count": 4,
+      "message_count": 7,
       "role_sequence": [
+        "system",
+        "system",
         "system",
         "user",
         "user",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -139,12 +205,28 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.286.1ce; cc_entrypoint=sdk-py;",
+          "content_digest": "6112b5a4369ac66e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 3,
           "role": "user",
           "entry_type": "text",
           "content": "Describe the image in one sentence, then summarise the document in one sentence.",
@@ -152,7 +234,7 @@
           "observation_type": "span"
         },
         {
-          "index": 2,
+          "index": 4,
           "role": "user",
           "entry_type": "text",
           "content": "[Image: source: /private/tmp/claude-504/-private-var-folders-n--kvwhfj054zx3zjmwj941d53c0000gr-T-sideseat-claude-agent-sdk/00000000-0000-0000-0000-000000000000/images/1.jpg]",
@@ -160,7 +242,15 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk - Is a git repository: false - Additional working directories:…[601 chars]",
+          "content_digest": "e8ceb5ffd529f512",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
           "role": "assistant",
           "entry_type": "text",
           "content": "**Image:** A curved tarmac path winds through a sunny park with mown grass, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings under a clear blue sky. **Document:** The five-page PDF is almost entirely blank…[351 chars]",
@@ -171,10 +261,13 @@
     }
   },
   "feed_view": {
-    "message_count": 4,
+    "message_count": 7,
     "role_sequence": [
       "system",
+      "system",
+      "system",
       "user",
+      "system",
       "assistant",
       "user"
     ],
@@ -185,12 +278,28 @@
         "index": 0,
         "role": "system",
         "entry_type": "text",
+        "content": "x-anthropic-billing-header: cc_version=2.1.286.1ce; cc_entrypoint=sdk-py;",
+        "content_digest": "6112b5a4369ac66e",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+        "content_digest": "918d321f250cd6d3",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "system",
+        "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
         "content_digest": "5d227641a000cd8c",
         "observation_type": "generation"
       },
       {
-        "index": 1,
+        "index": 3,
         "role": "user",
         "entry_type": "text",
         "content": "[Image: source: /private/tmp/claude-504/-private-var-folders-n--kvwhfj054zx3zjmwj941d53c0000gr-T-sideseat-claude-agent-sdk/00000000-0000-0000-0000-000000000000/images/1.jpg]",
@@ -198,7 +307,15 @@
         "observation_type": "generation"
       },
       {
-        "index": 2,
+        "index": 4,
+        "role": "system",
+        "entry_type": "text",
+        "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk - Is a git repository: false - Additional working directories:…[601 chars]",
+        "content_digest": "e8ceb5ffd529f512",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
         "role": "assistant",
         "entry_type": "text",
         "content": "**Image:** A curved tarmac path winds through a sunny park with mown grass, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings under a clear blue sky. **Document:** The five-page PDF is almost entirely blank…[351 chars]",
@@ -206,7 +323,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 3,
+        "index": 6,
         "role": "user",
         "entry_type": "text",
         "content": "Describe the image in one sentence, then summarise the document in one sentence.",

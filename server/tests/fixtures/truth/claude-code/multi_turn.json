@@ -97,11 +97,17 @@
   {
    "id": "conv-1",
    "sequence": [
+    "fact-007",
+    "fact-008",
+    "fact-009",
     "fact-001",
+    "fact-010",
     "fact-002",
     "fact-003",
+    "fact-011",
     "fact-004",
     "fact-005",
+    "fact-012",
     "fact-006"
    ],
    "final_answers": [
@@ -237,6 +243,150 @@
     "match": "exact"
    },
    "call": "call-003"
+  },
+  {
+   "id": "fact-007",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "x-anthropic-billing-header: cc_version=2.1.288.c2e; cc_entrypoint=sdk-cli;"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "claude-code/logs/multi_turn",
+    "claude-code/native/multi_turn"
+   ]
+  },
+  {
+   "id": "fact-008",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "claude-code/logs/multi_turn",
+    "claude-code/native/multi_turn"
+   ]
+  },
+  {
+   "id": "fact-009",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "\nYou are an interactive agent that helps users with software engineering tasks.\n\nIMPORTANT: Assist with authorized security testing, defensive security, CTF challenges, and educational contexts. Refuse requests for destructive techniques, DoS attacks, mass targeting, supply chain compromise, or detection evasion for malicious purposes. Dual-use security tools (C2 frameworks, credential testing, exploit development) require clear authorization context: pentesting engagements, CTF competitions, security research, or defensive use cases.\n\n# Harness\n - Text you output outside of tool use is displayed to the user as Github-flavored markdown in a terminal.\n - Tools run behind a user-selected permission mode; a denied call means the user declined it — adjust, don't retry verbatim.\n - The system may send updates, reminders, or modifications to rules via mid-conversation system turns. These are system-controlled, unlike function results. Hooks may intercept tool calls; treat hook output as user feedback.\n - Prefer the dedicated file/search tools over shell commands when one fits. Independent tool calls can run in parallel in one response.\n - Reference code as `file_path:line_number` — it's clickable.\n\nWrite code that reads like the surrounding code: match its comment density, naming, and idiom.\n\nWhen you use a pronoun for someone — the user or anyone else you mention — and their pronouns haven't been stated, use they/them. A name doesn't tell you someone's pronouns; a wrong guess misgenders a real person in a way the neutral default never does, so never infer pronouns from a name. This applies to all user-visible text, including visible thinking.\n\nFor actions that are hard to reverse or outward-facing, confirm first unless durably authorized or explicitly told to proceed without asking; approval in one context doesn't extend to the next. Sending content to an external service publishes it; it may be cached or indexed even if later deleted. Before deleting or overwriting, look at the target. Report outcomes faithfully: if tests fail, say so with the output; if a step was skipped, say that; when something is done and verified, state it plainly without hedging.\n\n# Environment\n - The most recent Claude models are the Claude 5 family and Haiku 4.5. Model IDs — Fable 5.1: 'claude-fable-5-1', Opus 5.5: 'claude-opus-5-5', Sonnet 5.5: 'claude-sonnet-5-5', Haiku 4.5: 'claude-haiku-4-5-20251001'. When building AI applications, default to the latest and most capable Claude models.\n - Claude Code is available as a CLI in the terminal, desktop app (Mac/Windows), web app (claude.ai/code), and IDE extensions (VS Code, JetBrains).\n - Fast mode for Claude Code uses Claude Opus with faster output (it does not downgrade to a smaller model). It can be toggled with /fast.\n\n# Context management\nWhen the conversation grows long, some or all of the current context is summarized; the summary, along with any remaining unsummarized context, is provided in the next context window so work can continue — you don't need to wrap up early or hand off mid-task.\n\nWhen you have enough information to act, act. Do not re-derive facts already established in the conversation, re-litigate a decision the user has already made, or narrate options you will not pursue. If you are weighing a choice, give a recommendation, not an exhaustive survey\n\n<total_tokens>15000000 tokens left</total_tokens>"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "claude-code/logs/multi_turn",
+    "claude-code/native/multi_turn"
+   ]
+  },
+  {
+   "id": "fact-010",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "# Environment\nYou have been invoked in the following environment: \n - Primary working directory: /private/tmp/sideseat-cli/claude-code/multi_turn\n - Is a git repository: false\n - Platform: darwin\n - Shell: unknown\n - OS Version: Darwin 25.6.0\n\nYou are powered by the model named Sonnet 5.5. The exact model ID is global.anthropic.claude-sonnet-5-5. Assistant knowledge cutoff is June 2026.\n\n<total_tokens>15000000 tokens left</total_tokens>\n\nToday's date is 2026-10-07."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "claude-code/logs/multi_turn",
+    "claude-code/native/multi_turn"
+   ]
+  },
+  {
+   "id": "fact-011",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "<total_tokens>15000000 tokens left</total_tokens>"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "claude-code/logs/multi_turn",
+    "claude-code/native/multi_turn"
+   ]
+  },
+  {
+   "id": "fact-012",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "<total_tokens>15000000 tokens left</total_tokens>"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "claude-code/logs/multi_turn",
+    "claude-code/native/multi_turn"
+   ]
   }
  ],
  "edges": [
@@ -272,5 +422,583 @@
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
   }
- ]
+ ],
+ "requests": {
+  "claude-code/logs/multi_turn": {
+   "transcript": "server/tests/fixtures/messages/claude-code/logs/multi_turn/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "x-anthropic-billing-header: cc_version=2.1.288.c2e; cc_entrypoint=sdk-cli;"
+       },
+       "new_fact": "fact-007"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+       },
+       "new_fact": "fact-008"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "\nYou are an interactive agent that helps users with software engineering tasks.\n\nIMPORTANT: Assist with authorized security testing, defensive security, CTF challenges, and educational contexts. Refuse requests for destructive techniques, DoS attacks, mass targeting, supply chain compromise, or detection evasion for malicious purposes. Dual-use security tools (C2 frameworks, credential testing, exploit development) require clear authorization context: pentesting engagements, CTF competitions, security research, or defensive use cases.\n\n# Harness\n - Text you output outside of tool use is displayed to the user as Github-flavored markdown in a terminal.\n - Tools run behind a user-selected permission mode; a denied call means the user declined it — adjust, don't retry verbatim.\n - The system may send updates, reminders, or modifications to rules via mid-conversation system turns. These are system-controlled, unlike function results. Hooks may intercept tool calls; treat hook output as user feedback.\n - Prefer the dedicated file/search tools over shell commands when one fits. Independent tool calls can run in parallel in one response.\n - Reference code as `file_path:line_number` — it's clickable.\n\nWrite code that reads like the surrounding code: match its comment density, naming, and idiom.\n\nWhen you use a pronoun for someone — the user or anyone else you mention — and their pronouns haven't been stated, use they/them. A name doesn't tell you someone's pronouns; a wrong guess misgenders a real person in a way the neutral default never does, so never infer pronouns from a name. This applies to all user-visible text, including visible thinking.\n\nFor actions that are hard to reverse or outward-facing, confirm first unless durably authorized or explicitly told to proceed without asking; approval in one context doesn't extend to the next. Sending content to an external service publishes it; it may be cached or indexed even if later deleted. Before deleting or overwriting, look at the target. Report outcomes faithfully: if tests fail, say so with the output; if a step was skipped, say that; when something is done and verified, state it plainly without hedging.\n\n# Environment\n - The most recent Claude models are the Claude 5 family and Haiku 4.5. Model IDs — Fable 5.1: 'claude-fable-5-1', Opus 5.5: 'claude-opus-5-5', Sonnet 5.5: 'claude-sonnet-5-5', Haiku 4.5: 'claude-haiku-4-5-20251001'. When building AI applications, default to the latest and most capable Claude models.\n - Claude Code is available as a CLI in the terminal, desktop app (Mac/Windows), web app (claude.ai/code), and IDE extensions (VS Code, JetBrains).\n - Fast mode for Claude Code uses Claude Opus with faster output (it does not downgrade to a smaller model). It can be toggled with /fast.\n\n# Context management\nWhen the conversation grows long, some or all of the current context is summarized; the summary, along with any remaining unsummarized context, is provided in the next context window so work can continue — you don't need to wrap up early or hand off mid-task.\n\nWhen you have enough information to act, act. Do not re-derive facts already established in the conversation, re-litigate a decision the user has already made, or narrate options you will not pursue. If you are weighing a choice, give a recommendation, not an exhaustive survey\n\n<total_tokens>15000000 tokens left</total_tokens>"
+       },
+       "new_fact": "fact-009"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "system",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "# Environment\nYou have been invoked in the following environment: \n - Primary working directory: /private/tmp/sideseat-cli/claude-code/multi_turn\n - Is a git repository: false\n - Platform: darwin\n - Shell: unknown\n - OS Version: Darwin 25.6.0\n\nYou are powered by the model named Sonnet 5.5. The exact model ID is global.anthropic.claude-sonnet-5-5. Assistant knowledge cutoff is June 2026.\n\n<total_tokens>15000000 tokens left</total_tokens>\n\nToday's date is 2026-10-07."
+         },
+         "new_fact": "fact-010"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "Bash",
+      "Read"
+     ]
+    },
+    "call-002": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "x-anthropic-billing-header: cc_version=2.1.288.c2e; cc_entrypoint=sdk-cli;"
+       },
+       "replay_of": "fact-007"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+       },
+       "replay_of": "fact-008"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "\nYou are an interactive agent that helps users with software engineering tasks.\n\nIMPORTANT: Assist with authorized security testing, defensive security, CTF challenges, and educational contexts. Refuse requests for destructive techniques, DoS attacks, mass targeting, supply chain compromise, or detection evasion for malicious purposes. Dual-use security tools (C2 frameworks, credential testing, exploit development) require clear authorization context: pentesting engagements, CTF competitions, security research, or defensive use cases.\n\n# Harness\n - Text you output outside of tool use is displayed to the user as Github-flavored markdown in a terminal.\n - Tools run behind a user-selected permission mode; a denied call means the user declined it — adjust, don't retry verbatim.\n - The system may send updates, reminders, or modifications to rules via mid-conversation system turns. These are system-controlled, unlike function results. Hooks may intercept tool calls; treat hook output as user feedback.\n - Prefer the dedicated file/search tools over shell commands when one fits. Independent tool calls can run in parallel in one response.\n - Reference code as `file_path:line_number` — it's clickable.\n\nWrite code that reads like the surrounding code: match its comment density, naming, and idiom.\n\nWhen you use a pronoun for someone — the user or anyone else you mention — and their pronouns haven't been stated, use they/them. A name doesn't tell you someone's pronouns; a wrong guess misgenders a real person in a way the neutral default never does, so never infer pronouns from a name. This applies to all user-visible text, including visible thinking.\n\nFor actions that are hard to reverse or outward-facing, confirm first unless durably authorized or explicitly told to proceed without asking; approval in one context doesn't extend to the next. Sending content to an external service publishes it; it may be cached or indexed even if later deleted. Before deleting or overwriting, look at the target. Report outcomes faithfully: if tests fail, say so with the output; if a step was skipped, say that; when something is done and verified, state it plainly without hedging.\n\n# Environment\n - The most recent Claude models are the Claude 5 family and Haiku 4.5. Model IDs — Fable 5.1: 'claude-fable-5-1', Opus 5.5: 'claude-opus-5-5', Sonnet 5.5: 'claude-sonnet-5-5', Haiku 4.5: 'claude-haiku-4-5-20251001'. When building AI applications, default to the latest and most capable Claude models.\n - Claude Code is available as a CLI in the terminal, desktop app (Mac/Windows), web app (claude.ai/code), and IDE extensions (VS Code, JetBrains).\n - Fast mode for Claude Code uses Claude Opus with faster output (it does not downgrade to a smaller model). It can be toggled with /fast.\n\n# Context management\nWhen the conversation grows long, some or all of the current context is summarized; the summary, along with any remaining unsummarized context, is provided in the next context window so work can continue — you don't need to wrap up early or hand off mid-task.\n\nWhen you have enough information to act, act. Do not re-derive facts already established in the conversation, re-litigate a decision the user has already made, or narrate options you will not pursue. If you are weighing a choice, give a recommendation, not an exhaustive survey\n\n<total_tokens>15000000 tokens left</total_tokens>"
+       },
+       "replay_of": "fact-009"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "system",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "# Environment\nYou have been invoked in the following environment: \n - Primary working directory: /private/tmp/sideseat-cli/claude-code/multi_turn\n - Is a git repository: false\n - Platform: darwin\n - Shell: unknown\n - OS Version: Darwin 25.6.0\n\nYou are powered by the model named Sonnet 5.5. The exact model ID is global.anthropic.claude-sonnet-5-5. Assistant knowledge cutoff is June 2026.\n\n<total_tokens>15000000 tokens left</total_tokens>\n\nToday's date is 2026-10-07."
+         },
+         "replay_of": "fact-010"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "**Alfama** is my pick for a weekend. It's Lisbon's oldest neighbourhood, with winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol. You can walk to the Sé Cathedral, the Castelo de São Jorge, and the riverfront. The hills are steep and the streets are narrow, so pack comfortable shoes."
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What is one dish I should try there?"
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "system",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "<total_tokens>15000000 tokens left</total_tokens>"
+         },
+         "new_fact": "fact-011"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "Bash",
+      "Read"
+     ]
+    },
+    "call-003": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "x-anthropic-billing-header: cc_version=2.1.288.c2e; cc_entrypoint=sdk-cli;"
+       },
+       "replay_of": "fact-007"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+       },
+       "replay_of": "fact-008"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "\nYou are an interactive agent that helps users with software engineering tasks.\n\nIMPORTANT: Assist with authorized security testing, defensive security, CTF challenges, and educational contexts. Refuse requests for destructive techniques, DoS attacks, mass targeting, supply chain compromise, or detection evasion for malicious purposes. Dual-use security tools (C2 frameworks, credential testing, exploit development) require clear authorization context: pentesting engagements, CTF competitions, security research, or defensive use cases.\n\n# Harness\n - Text you output outside of tool use is displayed to the user as Github-flavored markdown in a terminal.\n - Tools run behind a user-selected permission mode; a denied call means the user declined it — adjust, don't retry verbatim.\n - The system may send updates, reminders, or modifications to rules via mid-conversation system turns. These are system-controlled, unlike function results. Hooks may intercept tool calls; treat hook output as user feedback.\n - Prefer the dedicated file/search tools over shell commands when one fits. Independent tool calls can run in parallel in one response.\n - Reference code as `file_path:line_number` — it's clickable.\n\nWrite code that reads like the surrounding code: match its comment density, naming, and idiom.\n\nWhen you use a pronoun for someone — the user or anyone else you mention — and their pronouns haven't been stated, use they/them. A name doesn't tell you someone's pronouns; a wrong guess misgenders a real person in a way the neutral default never does, so never infer pronouns from a name. This applies to all user-visible text, including visible thinking.\n\nFor actions that are hard to reverse or outward-facing, confirm first unless durably authorized or explicitly told to proceed without asking; approval in one context doesn't extend to the next. Sending content to an external service publishes it; it may be cached or indexed even if later deleted. Before deleting or overwriting, look at the target. Report outcomes faithfully: if tests fail, say so with the output; if a step was skipped, say that; when something is done and verified, state it plainly without hedging.\n\n# Environment\n - The most recent Claude models are the Claude 5 family and Haiku 4.5. Model IDs — Fable 5.1: 'claude-fable-5-1', Opus 5.5: 'claude-opus-5-5', Sonnet 5.5: 'claude-sonnet-5-5', Haiku 4.5: 'claude-haiku-4-5-20251001'. When building AI applications, default to the latest and most capable Claude models.\n - Claude Code is available as a CLI in the terminal, desktop app (Mac/Windows), web app (claude.ai/code), and IDE extensions (VS Code, JetBrains).\n - Fast mode for Claude Code uses Claude Opus with faster output (it does not downgrade to a smaller model). It can be toggled with /fast.\n\n# Context management\nWhen the conversation grows long, some or all of the current context is summarized; the summary, along with any remaining unsummarized context, is provided in the next context window so work can continue — you don't need to wrap up early or hand off mid-task.\n\nWhen you have enough information to act, act. Do not re-derive facts already established in the conversation, re-litigate a decision the user has already made, or narrate options you will not pursue. If you are weighing a choice, give a recommendation, not an exhaustive survey\n\n<total_tokens>15000000 tokens left</total_tokens>"
+       },
+       "replay_of": "fact-009",
+       "renders": [
+        "fact-011"
+       ]
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "system",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "# Environment\nYou have been invoked in the following environment: \n - Primary working directory: /private/tmp/sideseat-cli/claude-code/multi_turn\n - Is a git repository: false\n - Platform: darwin\n - Shell: unknown\n - OS Version: Darwin 25.6.0\n\nYou are powered by the model named Sonnet 5.5. The exact model ID is global.anthropic.claude-sonnet-5-5. Assistant knowledge cutoff is June 2026.\n\n<total_tokens>15000000 tokens left</total_tokens>\n\nToday's date is 2026-10-07."
+         },
+         "replay_of": "fact-010",
+         "renders": [
+          "fact-011"
+         ]
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "**Alfama** is my pick for a weekend. It's Lisbon's oldest neighbourhood, with winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol. You can walk to the Sé Cathedral, the Castelo de São Jorge, and the riverfront. The hills are steep and the streets are narrow, so pack comfortable shoes."
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What is one dish I should try there?"
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "system",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "<total_tokens>15000000 tokens left</total_tokens>"
+         },
+         "replay_of": "fact-011"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "**Sardinhas assadas** (grilled sardines) are the dish to try in Alfama. They're served whole, usually on a slice of bread that soaks up the juices, with a side of roasted peppers or salad. They're a Lisbon staple, especially in summer and around the Santo António festival in June, but many Alfama taverns serve them through early autumn, so you should find them on your trip."
+         },
+         "replay_of": "fact-004"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Summarise your two suggestions in one sentence."
+         },
+         "new_fact": "fact-005"
+        }
+       ]
+      },
+      {
+       "role": "system",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "<total_tokens>15000000 tokens left</total_tokens>"
+         },
+         "new_fact": "fact-012"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "Bash",
+      "Read"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  },
+  "claude-code/native/multi_turn": {
+   "transcript": "server/tests/fixtures/messages/claude-code/native/multi_turn/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "x-anthropic-billing-header: cc_version=2.1.288.c2e; cc_entrypoint=sdk-cli;"
+       },
+       "new_fact": "fact-007"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+       },
+       "new_fact": "fact-008"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "\nYou are an interactive agent that helps users with software engineering tasks.\n\nIMPORTANT: Assist with authorized security testing, defensive security, CTF challenges, and educational contexts. Refuse requests for destructive techniques, DoS attacks, mass targeting, supply chain compromise, or detection evasion for malicious purposes. Dual-use security tools (C2 frameworks, credential testing, exploit development) require clear authorization context: pentesting engagements, CTF competitions, security research, or defensive use cases.\n\n# Harness\n - Text you output outside of tool use is displayed to the user as Github-flavored markdown in a terminal.\n - Tools run behind a user-selected permission mode; a denied call means the user declined it — adjust, don't retry verbatim.\n - The system may send updates, reminders, or modifications to rules via mid-conversation system turns. These are system-controlled, unlike function results. Hooks may intercept tool calls; treat hook output as user feedback.\n - Prefer the dedicated file/search tools over shell commands when one fits. Independent tool calls can run in parallel in one response.\n - Reference code as `file_path:line_number` — it's clickable.\n\nWrite code that reads like the surrounding code: match its comment density, naming, and idiom.\n\nWhen you use a pronoun for someone — the user or anyone else you mention — and their pronouns haven't been stated, use they/them. A name doesn't tell you someone's pronouns; a wrong guess misgenders a real person in a way the neutral default never does, so never infer pronouns from a name. This applies to all user-visible text, including visible thinking.\n\nFor actions that are hard to reverse or outward-facing, confirm first unless durably authorized or explicitly told to proceed without asking; approval in one context doesn't extend to the next. Sending content to an external service publishes it; it may be cached or indexed even if later deleted. Before deleting or overwriting, look at the target. Report outcomes faithfully: if tests fail, say so with the output; if a step was skipped, say that; when something is done and verified, state it plainly without hedging.\n\n# Environment\n - The most recent Claude models are the Claude 5 family and Haiku 4.5. Model IDs — Fable 5.1: 'claude-fable-5-1', Opus 5.5: 'claude-opus-5-5', Sonnet 5.5: 'claude-sonnet-5-5', Haiku 4.5: 'claude-haiku-4-5-20251001'. When building AI applications, default to the latest and most capable Claude models.\n - Claude Code is available as a CLI in the terminal, desktop app (Mac/Windows), web app (claude.ai/code), and IDE extensions (VS Code, JetBrains).\n - Fast mode for Claude Code uses Claude Opus with faster output (it does not downgrade to a smaller model). It can be toggled with /fast.\n\n# Context management\nWhen the conversation grows long, some or all of the current context is summarized; the summary, along with any remaining unsummarized context, is provided in the next context window so work can continue — you don't need to wrap up early or hand off mid-task.\n\nWhen you have enough information to act, act. Do not re-derive facts already established in the conversation, re-litigate a decision the user has already made, or narrate options you will not pursue. If you are weighing a choice, give a recommendation, not an exhaustive survey\n\n<total_tokens>15000000 tokens left</total_tokens>"
+       },
+       "new_fact": "fact-009"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "system",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "# Environment\nYou have been invoked in the following environment: \n - Primary working directory: /private/tmp/sideseat-cli/claude-code/multi_turn\n - Is a git repository: false\n - Platform: darwin\n - Shell: unknown\n - OS Version: Darwin 25.6.0\n\nYou are powered by the model named Sonnet 5.5. The exact model ID is global.anthropic.claude-sonnet-5-5. Assistant knowledge cutoff is June 2026.\n\n<total_tokens>15000000 tokens left</total_tokens>\n\nToday's date is 2026-10-07."
+         },
+         "new_fact": "fact-010"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "Bash",
+      "Read"
+     ]
+    },
+    "call-002": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "x-anthropic-billing-header: cc_version=2.1.288.c2e; cc_entrypoint=sdk-cli;"
+       },
+       "replay_of": "fact-007"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+       },
+       "replay_of": "fact-008"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "\nYou are an interactive agent that helps users with software engineering tasks.\n\nIMPORTANT: Assist with authorized security testing, defensive security, CTF challenges, and educational contexts. Refuse requests for destructive techniques, DoS attacks, mass targeting, supply chain compromise, or detection evasion for malicious purposes. Dual-use security tools (C2 frameworks, credential testing, exploit development) require clear authorization context: pentesting engagements, CTF competitions, security research, or defensive use cases.\n\n# Harness\n - Text you output outside of tool use is displayed to the user as Github-flavored markdown in a terminal.\n - Tools run behind a user-selected permission mode; a denied call means the user declined it — adjust, don't retry verbatim.\n - The system may send updates, reminders, or modifications to rules via mid-conversation system turns. These are system-controlled, unlike function results. Hooks may intercept tool calls; treat hook output as user feedback.\n - Prefer the dedicated file/search tools over shell commands when one fits. Independent tool calls can run in parallel in one response.\n - Reference code as `file_path:line_number` — it's clickable.\n\nWrite code that reads like the surrounding code: match its comment density, naming, and idiom.\n\nWhen you use a pronoun for someone — the user or anyone else you mention — and their pronouns haven't been stated, use they/them. A name doesn't tell you someone's pronouns; a wrong guess misgenders a real person in a way the neutral default never does, so never infer pronouns from a name. This applies to all user-visible text, including visible thinking.\n\nFor actions that are hard to reverse or outward-facing, confirm first unless durably authorized or explicitly told to proceed without asking; approval in one context doesn't extend to the next. Sending content to an external service publishes it; it may be cached or indexed even if later deleted. Before deleting or overwriting, look at the target. Report outcomes faithfully: if tests fail, say so with the output; if a step was skipped, say that; when something is done and verified, state it plainly without hedging.\n\n# Environment\n - The most recent Claude models are the Claude 5 family and Haiku 4.5. Model IDs — Fable 5.1: 'claude-fable-5-1', Opus 5.5: 'claude-opus-5-5', Sonnet 5.5: 'claude-sonnet-5-5', Haiku 4.5: 'claude-haiku-4-5-20251001'. When building AI applications, default to the latest and most capable Claude models.\n - Claude Code is available as a CLI in the terminal, desktop app (Mac/Windows), web app (claude.ai/code), and IDE extensions (VS Code, JetBrains).\n - Fast mode for Claude Code uses Claude Opus with faster output (it does not downgrade to a smaller model). It can be toggled with /fast.\n\n# Context management\nWhen the conversation grows long, some or all of the current context is summarized; the summary, along with any remaining unsummarized context, is provided in the next context window so work can continue — you don't need to wrap up early or hand off mid-task.\n\nWhen you have enough information to act, act. Do not re-derive facts already established in the conversation, re-litigate a decision the user has already made, or narrate options you will not pursue. If you are weighing a choice, give a recommendation, not an exhaustive survey\n\n<total_tokens>15000000 tokens left</total_tokens>"
+       },
+       "replay_of": "fact-009"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "system",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "# Environment\nYou have been invoked in the following environment: \n - Primary working directory: /private/tmp/sideseat-cli/claude-code/multi_turn\n - Is a git repository: false\n - Platform: darwin\n - Shell: unknown\n - OS Version: Darwin 25.6.0\n\nYou are powered by the model named Sonnet 5.5. The exact model ID is global.anthropic.claude-sonnet-5-5. Assistant knowledge cutoff is June 2026.\n\n<total_tokens>15000000 tokens left</total_tokens>\n\nToday's date is 2026-10-07."
+         },
+         "replay_of": "fact-010"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "**Alfama** is my pick for a weekend. It's Lisbon's oldest neighbourhood, with winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol. You can walk to the Sé Cathedral, the Castelo de São Jorge, and the riverfront. The hills are steep and the streets are narrow, so pack comfortable shoes."
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What is one dish I should try there?"
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "system",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "<total_tokens>15000000 tokens left</total_tokens>"
+         },
+         "new_fact": "fact-011"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "Bash",
+      "Read"
+     ]
+    },
+    "call-003": {
+     "api": "anthropic.messages",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "x-anthropic-billing-header: cc_version=2.1.288.c2e; cc_entrypoint=sdk-cli;"
+       },
+       "replay_of": "fact-007"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+       },
+       "replay_of": "fact-008"
+      },
+      {
+       "part": {
+        "type": "text",
+        "text": "\nYou are an interactive agent that helps users with software engineering tasks.\n\nIMPORTANT: Assist with authorized security testing, defensive security, CTF challenges, and educational contexts. Refuse requests for destructive techniques, DoS attacks, mass targeting, supply chain compromise, or detection evasion for malicious purposes. Dual-use security tools (C2 frameworks, credential testing, exploit development) require clear authorization context: pentesting engagements, CTF competitions, security research, or defensive use cases.\n\n# Harness\n - Text you output outside of tool use is displayed to the user as Github-flavored markdown in a terminal.\n - Tools run behind a user-selected permission mode; a denied call means the user declined it — adjust, don't retry verbatim.\n - The system may send updates, reminders, or modifications to rules via mid-conversation system turns. These are system-controlled, unlike function results. Hooks may intercept tool calls; treat hook output as user feedback.\n - Prefer the dedicated file/search tools over shell commands when one fits. Independent tool calls can run in parallel in one response.\n - Reference code as `file_path:line_number` — it's clickable.\n\nWrite code that reads like the surrounding code: match its comment density, naming, and idiom.\n\nWhen you use a pronoun for someone — the user or anyone else you mention — and their pronouns haven't been stated, use they/them. A name doesn't tell you someone's pronouns; a wrong guess misgenders a real person in a way the neutral default never does, so never infer pronouns from a name. This applies to all user-visible text, including visible thinking.\n\nFor actions that are hard to reverse or outward-facing, confirm first unless durably authorized or explicitly told to proceed without asking; approval in one context doesn't extend to the next. Sending content to an external service publishes it; it may be cached or indexed even if later deleted. Before deleting or overwriting, look at the target. Report outcomes faithfully: if tests fail, say so with the output; if a step was skipped, say that; when something is done and verified, state it plainly without hedging.\n\n# Environment\n - The most recent Claude models are the Claude 5 family and Haiku 4.5. Model IDs — Fable 5.1: 'claude-fable-5-1', Opus 5.5: 'claude-opus-5-5', Sonnet 5.5: 'claude-sonnet-5-5', Haiku 4.5: 'claude-haiku-4-5-20251001'. When building AI applications, default to the latest and most capable Claude models.\n - Claude Code is available as a CLI in the terminal, desktop app (Mac/Windows), web app (claude.ai/code), and IDE extensions (VS Code, JetBrains).\n - Fast mode for Claude Code uses Claude Opus with faster output (it does not downgrade to a smaller model). It can be toggled with /fast.\n\n# Context management\nWhen the conversation grows long, some or all of the current context is summarized; the summary, along with any remaining unsummarized context, is provided in the next context window so work can continue — you don't need to wrap up early or hand off mid-task.\n\nWhen you have enough information to act, act. Do not re-derive facts already established in the conversation, re-litigate a decision the user has already made, or narrate options you will not pursue. If you are weighing a choice, give a recommendation, not an exhaustive survey\n\n<total_tokens>15000000 tokens left</total_tokens>"
+       },
+       "replay_of": "fact-009",
+       "renders": [
+        "fact-011"
+       ]
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "system",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "# Environment\nYou have been invoked in the following environment: \n - Primary working directory: /private/tmp/sideseat-cli/claude-code/multi_turn\n - Is a git repository: false\n - Platform: darwin\n - Shell: unknown\n - OS Version: Darwin 25.6.0\n\nYou are powered by the model named Sonnet 5.5. The exact model ID is global.anthropic.claude-sonnet-5-5. Assistant knowledge cutoff is June 2026.\n\n<total_tokens>15000000 tokens left</total_tokens>\n\nToday's date is 2026-10-07."
+         },
+         "replay_of": "fact-010",
+         "renders": [
+          "fact-011"
+         ]
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "**Alfama** is my pick for a weekend. It's Lisbon's oldest neighbourhood, with winding streets, fado bars, and viewpoints like Miradouro das Portas do Sol. You can walk to the Sé Cathedral, the Castelo de São Jorge, and the riverfront. The hills are steep and the streets are narrow, so pack comfortable shoes."
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What is one dish I should try there?"
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "system",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "<total_tokens>15000000 tokens left</total_tokens>"
+         },
+         "replay_of": "fact-011"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "**Sardinhas assadas** (grilled sardines) are the dish to try in Alfama. They're served whole, usually on a slice of bread that soaks up the juices, with a side of roasted peppers or salad. They're a Lisbon staple, especially in summer and around the Santo António festival in June, but many Alfama taverns serve them through early autumn, so you should find them on your trip."
+         },
+         "replay_of": "fact-004"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Summarise your two suggestions in one sentence."
+         },
+         "new_fact": "fact-005"
+        }
+       ]
+      },
+      {
+       "role": "system",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "<total_tokens>15000000 tokens left</total_tokens>"
+         },
+         "new_fact": "fact-012"
+        }
+       ]
+      }
+     ],
+     "tools": [
+      "Bash",
+      "Read"
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
 }

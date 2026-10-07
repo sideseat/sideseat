@@ -78,6 +78,7 @@
   {
    "id": "conv-1",
    "sequence": [
+    "fact-011",
     "fact-001",
     "fact-002",
     "fact-003",
@@ -362,6 +363,30 @@
     "match": "exact"
    },
    "call": "call-002"
+  },
+  {
+   "id": "fact-011",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "crewai/native/tool_use",
+    "crewai/sdk/tool_use"
+   ]
   }
  ],
  "edges": [
@@ -415,7 +440,7 @@
         "type": "text",
         "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
        },
-       "new": "rq-001"
+       "new_fact": "fact-011"
       }
      ],
      "messages": [
@@ -427,7 +452,7 @@
           "type": "text",
           "text": "\nCurrent Task: What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "new": "rq-002",
+         "new": "rq-001",
          "renders": [
           "fact-001"
          ]
@@ -448,7 +473,7 @@
         "type": "text",
         "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-011"
       }
      ],
      "messages": [
@@ -460,7 +485,7 @@
           "type": "text",
           "text": "\nCurrent Task: What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "replay_of": "rq-002",
+         "replay_of": "rq-001",
          "renders": [
           "fact-001"
          ]
@@ -599,7 +624,7 @@
         "type": "text",
         "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
        },
-       "new": "rq-001"
+       "new_fact": "fact-011"
       }
      ],
      "messages": [
@@ -611,7 +636,7 @@
           "type": "text",
           "text": "\nCurrent Task: What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "new": "rq-002",
+         "new": "rq-001",
          "renders": [
           "fact-001"
          ]
@@ -632,7 +657,7 @@
         "type": "text",
         "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-011"
       }
      ],
      "messages": [
@@ -644,7 +669,7 @@
           "type": "text",
           "text": "\nCurrent Task: What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary."
          },
-         "replay_of": "rq-002",
+         "replay_of": "rq-001",
          "renders": [
           "fact-001"
          ]

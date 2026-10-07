@@ -336,8 +336,22 @@ fn check_attribution(
             continue;
         };
         let block = scope.blocks[at].2;
-        let allowed = block.span == generation.span
-            || (fact.call.is_none() && generation.ancestors.contains(&block.span));
+        // A fact the requests re-sent belongs on a span that was sent it, or an enclosing one, and nowhere
+        // else: a client's preamble goes with every request, so any of those spans is right, and the
+        // conversation's first call - the ordinary home of a system prompt - is right only if it was sent it.
+        let allowed = match context.sent_spans.get(fact_id) {
+            Some(spans) => {
+                spans.contains(&block.span)
+                    || recon
+                        .generations
+                        .iter()
+                        .any(|g| spans.contains(&g.span) && g.ancestors.contains(&block.span))
+            }
+            None => {
+                block.span == generation.span
+                    || (fact.call.is_none() && generation.ancestors.contains(&block.span))
+            }
+        };
         if !allowed {
             let shown_on = recon
                 .generations

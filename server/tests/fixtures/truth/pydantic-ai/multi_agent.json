@@ -122,8 +122,11 @@
   {
    "id": "conv-1",
    "sequence": [
+    "fact-007",
     "fact-001",
     "fact-002",
+    "fact-008",
+    "fact-009",
     "fact-003",
     "fact-004",
     "fact-005",
@@ -289,6 +292,78 @@
     "match": "exact"
    },
    "call": "call-004"
+  },
+  {
+   "id": "fact-007",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You write the final packing list. Ask the researcher for the weather first."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "pydantic-ai/native/multi_agent",
+    "pydantic-ai/sdk/multi_agent"
+   ]
+  },
+  {
+   "id": "fact-008",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You research weather with the tool and report the forecast."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "pydantic-ai/native/multi_agent",
+    "pydantic-ai/sdk/multi_agent"
+   ]
+  },
+  {
+   "id": "fact-009",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humidity, and UV if available."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "pydantic-ai/native/multi_agent",
+    "pydantic-ai/sdk/multi_agent"
+   ]
   }
  ],
  "edges": [
@@ -301,6 +376,11 @@
    "kind": "result_of",
    "from": "fact-004",
    "to": "fact-003"
+  },
+  {
+   "kind": "prompt_of",
+   "from": "fact-009",
+   "to": "call-002"
   }
  ],
  "gaps": [
@@ -333,7 +413,7 @@
         "type": "text",
         "text": "You write the final packing list. Ask the researcher for the weather first."
        },
-       "new": "rq-001"
+       "new_fact": "fact-007"
       }
      ],
      "messages": [
@@ -362,7 +442,7 @@
         "type": "text",
         "text": "You research weather with the tool and report the forecast."
        },
-       "new": "rq-002"
+       "new_fact": "fact-008"
       }
      ],
      "messages": [
@@ -374,7 +454,7 @@
           "type": "text",
           "text": "What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humidity, and UV if available."
          },
-         "new": "rq-003"
+         "new_fact": "fact-009"
         }
        ]
       }
@@ -391,7 +471,7 @@
         "type": "text",
         "text": "You research weather with the tool and report the forecast."
        },
-       "replay_of": "rq-002"
+       "replay_of": "fact-008"
       }
      ],
      "messages": [
@@ -403,7 +483,7 @@
           "type": "text",
           "text": "What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humidity, and UV if available."
          },
-         "replay_of": "rq-003"
+         "replay_of": "fact-009"
         }
        ]
       },
@@ -456,7 +536,7 @@
         "type": "text",
         "text": "You write the final packing list. Ask the researcher for the weather first."
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-007"
       }
      ],
      "messages": [
@@ -503,7 +583,7 @@
           ],
           "is_error": false
          },
-         "new": "rq-004"
+         "new": "rq-001"
         }
        ]
       }
@@ -526,7 +606,7 @@
         "type": "text",
         "text": "You write the final packing list. Ask the researcher for the weather first."
        },
-       "new": "rq-001"
+       "new_fact": "fact-007"
       }
      ],
      "messages": [
@@ -555,7 +635,7 @@
         "type": "text",
         "text": "You research weather with the tool and report the forecast."
        },
-       "new": "rq-002"
+       "new_fact": "fact-008"
       }
      ],
      "messages": [
@@ -567,7 +647,7 @@
           "type": "text",
           "text": "What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humidity, and UV if available."
          },
-         "new": "rq-003"
+         "new_fact": "fact-009"
         }
        ]
       }
@@ -584,7 +664,7 @@
         "type": "text",
         "text": "You research weather with the tool and report the forecast."
        },
-       "replay_of": "rq-002"
+       "replay_of": "fact-008"
       }
      ],
      "messages": [
@@ -596,7 +676,7 @@
           "type": "text",
           "text": "What is the weather forecast for Barcelona, Spain for the next two days? Include temperatures (high/low), precipitation chances, wind, humidity, and UV if available."
          },
-         "replay_of": "rq-003"
+         "replay_of": "fact-009"
         }
        ]
       },
@@ -649,7 +729,7 @@
         "type": "text",
         "text": "You write the final packing list. Ask the researcher for the weather first."
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-007"
       }
      ],
      "messages": [
@@ -696,7 +776,7 @@
           ],
           "is_error": false
          },
-         "new": "rq-004"
+         "new": "rq-001"
         }
        ]
       }

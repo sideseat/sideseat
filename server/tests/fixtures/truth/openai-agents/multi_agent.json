@@ -102,6 +102,7 @@
     "fact-003",
     "fact-004",
     "fact-005",
+    "fact-007",
     "fact-006"
    ],
    "final_answers": [
@@ -259,6 +260,30 @@
     "match": "exact"
    },
    "call": "call-003"
+  },
+  {
+   "id": "fact-007",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You write the final packing list from the researcher's findings."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "openai-agents/native/multi_agent",
+    "openai-agents/sdk/multi_agent"
+   ]
   }
  ],
  "edges": [
@@ -399,7 +424,7 @@
         "type": "text",
         "text": "You write the final packing list from the researcher's findings."
        },
-       "new": "rq-001"
+       "new_fact": "fact-007"
       }
      ],
      "messages": [
@@ -480,7 +505,7 @@
           ],
           "is_error": false
          },
-         "new": "rq-002"
+         "new": "rq-001"
         }
        ]
       }
@@ -597,7 +622,7 @@
         "type": "text",
         "text": "You write the final packing list from the researcher's findings."
        },
-       "new": "rq-001"
+       "new_fact": "fact-007"
       }
      ],
      "messages": [
@@ -678,7 +703,7 @@
           ],
           "is_error": false
          },
-         "new": "rq-002"
+         "new": "rq-001"
         }
        ]
       }

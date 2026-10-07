@@ -6,9 +6,10 @@
   "session_count": 1,
   "span_views": {
     "trace-1/claude_code.interaction/span-2": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -20,14 +21,25 @@
           "content": "Suggest one museum to visit in Madrid.",
           "content_digest": "9d08c76a1df2d525",
           "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Visit the **Museo del Prado**, one of the world's great art museums. It holds masterpieces by Velázquez (*Las Meninas*), Goya, and El Greco. Plan for 2-3 hours, and check for free evening entry hours to save on tickets.",
+          "content_digest": "a04af887337e4b50",
+          "observation_type": "span"
         }
       ]
     },
     "trace-1/claude_code.llm_request/span-3": {
-      "message_count": 3,
+      "message_count": 6,
       "role_sequence": [
         "system",
+        "system",
+        "system",
         "user",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -37,12 +49,28 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.284.86e; cc_entrypoint=sdk-ts;",
+          "content_digest": "6ec710c641325ef7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 3,
           "role": "user",
           "entry_type": "text",
           "content": "Suggest one museum to visit in Madrid.",
@@ -50,7 +78,15 @@
           "observation_type": "generation"
         },
         {
-          "index": 2,
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk-js - Is a git repository: false - Platform: darwin - Shell: zs…[493 chars]",
+          "content_digest": "253729459322c449",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "Visit the **Museo del Prado**, one of the world's great art museums. It holds masterpieces by Velázquez (*Las Meninas*), Goya, and El Greco. Plan for 2-3 hours, and check for free evening entry hours to save on tickets.",
@@ -67,9 +103,10 @@
       "messages": []
     },
     "trace-2/claude_code.interaction/span-2": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -81,14 +118,25 @@
           "content": "Suggest one park to visit in Madrid.",
           "content_digest": "95fac62b5ab37eb3",
           "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Visit **El Retiro Park**, Madrid's most iconic green space. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll the tree-lined paths. It's free to enter and a short walk from the Prado Museum.",
+          "content_digest": "2698fd333d083e2a",
+          "observation_type": "span"
         }
       ]
     },
     "trace-2/claude_code.llm_request/span-3": {
-      "message_count": 3,
+      "message_count": 6,
       "role_sequence": [
         "system",
+        "system",
+        "system",
         "user",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -98,12 +146,28 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.284.075; cc_entrypoint=sdk-ts;",
+          "content_digest": "555211e8c9da73ac",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 3,
           "role": "user",
           "entry_type": "text",
           "content": "Suggest one park to visit in Madrid.",
@@ -111,7 +175,15 @@
           "observation_type": "generation"
         },
         {
-          "index": 2,
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk-js - Is a git repository: false - Platform: darwin - Shell: zs…[493 chars]",
+          "content_digest": "253729459322c449",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "Visit **El Retiro Park**, Madrid's most iconic green space. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll the tree-lined paths. It's free to enter and a short walk from the Prado Museum.",
@@ -130,10 +202,13 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 3,
+      "message_count": 6,
       "role_sequence": [
         "system",
+        "system",
+        "system",
         "user",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -143,12 +218,28 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.284.86e; cc_entrypoint=sdk-ts;",
+          "content_digest": "6ec710c641325ef7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 3,
           "role": "user",
           "entry_type": "text",
           "content": "Suggest one museum to visit in Madrid.",
@@ -156,7 +247,15 @@
           "observation_type": "span"
         },
         {
-          "index": 2,
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk-js - Is a git repository: false - Platform: darwin - Shell: zs…[493 chars]",
+          "content_digest": "253729459322c449",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "Visit the **Museo del Prado**, one of the world's great art museums. It holds masterpieces by Velázquez (*Las Meninas*), Goya, and El Greco. Plan for 2-3 hours, and check for free evening entry hours to save on tickets.",
@@ -166,51 +265,13 @@
       ]
     },
     "trace-2": {
-      "message_count": 3,
-      "role_sequence": [
-        "system",
-        "user",
-        "assistant"
-      ],
-      "tool_names": [],
-      "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
-          "content_digest": "5d227641a000cd8c",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Suggest one park to visit in Madrid.",
-          "content_digest": "95fac62b5ab37eb3",
-          "observation_type": "span"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "Visit **El Retiro Park**, Madrid's most iconic green space. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll the tree-lined paths. It's free to enter and a short walk from the Prado Museum.",
-          "content_digest": "2698fd333d083e2a",
-          "observation_type": "generation"
-        }
-      ]
-    }
-  },
-  "session_views": {
-    "claude-agent-sdk-js-session": {
       "message_count": 6,
       "role_sequence": [
         "system",
-        "user",
-        "assistant",
+        "system",
         "system",
         "user",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -220,41 +281,41 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
-          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
-          "content_digest": "5d227641a000cd8c",
+          "content": "x-anthropic-billing-header: cc_version=2.1.284.075; cc_entrypoint=sdk-ts;",
+          "content_digest": "555211e8c9da73ac",
           "observation_type": "generation"
         },
         {
           "index": 1,
-          "role": "user",
+          "role": "system",
           "entry_type": "text",
-          "content": "Suggest one museum to visit in Madrid.",
-          "content_digest": "9d08c76a1df2d525",
-          "observation_type": "span"
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
         },
         {
           "index": 2,
-          "role": "assistant",
+          "role": "system",
           "entry_type": "text",
-          "content": "Visit the **Museo del Prado**, one of the world's great art museums. It holds masterpieces by Velázquez (*Las Meninas*), Goya, and El Greco. Plan for 2-3 hours, and check for free evening entry hours to save on tickets.",
-          "content_digest": "a04af887337e4b50",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
           "observation_type": "generation"
         },
         {
           "index": 3,
-          "role": "system",
-          "entry_type": "text",
-          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
-          "content_digest": "5d227641a000cd8c",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
           "role": "user",
           "entry_type": "text",
           "content": "Suggest one park to visit in Madrid.",
           "content_digest": "95fac62b5ab37eb3",
           "observation_type": "span"
+        },
+        {
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk-js - Is a git repository: false - Platform: darwin - Shell: zs…[493 chars]",
+          "content_digest": "253729459322c449",
+          "observation_type": "generation"
         },
         {
           "index": 5,
@@ -267,12 +328,137 @@
       ]
     }
   },
+  "session_views": {
+    "claude-agent-sdk-js-session": {
+      "message_count": 12,
+      "role_sequence": [
+        "system",
+        "system",
+        "system",
+        "user",
+        "system",
+        "assistant",
+        "system",
+        "system",
+        "system",
+        "user",
+        "system",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.284.86e; cc_entrypoint=sdk-ts;",
+          "content_digest": "6ec710c641325ef7",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one museum to visit in Madrid.",
+          "content_digest": "9d08c76a1df2d525",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk-js - Is a git repository: false - Platform: darwin - Shell: zs…[493 chars]",
+          "content_digest": "253729459322c449",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Visit the **Museo del Prado**, one of the world's great art museums. It holds masterpieces by Velázquez (*Las Meninas*), Goya, and El Greco. Plan for 2-3 hours, and check for free evening entry hours to save on tickets.",
+          "content_digest": "a04af887337e4b50",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "system",
+          "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.284.075; cc_entrypoint=sdk-ts;",
+          "content_digest": "555211e8c9da73ac",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Suggest one park to visit in Madrid.",
+          "content_digest": "95fac62b5ab37eb3",
+          "observation_type": "span"
+        },
+        {
+          "index": 10,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk-js - Is a git repository: false - Platform: darwin - Shell: zs…[493 chars]",
+          "content_digest": "253729459322c449",
+          "observation_type": "generation"
+        },
+        {
+          "index": 11,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Visit **El Retiro Park**, Madrid's most iconic green space. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll the tree-lined paths. It's free to enter and a short walk from the Prado Museum.",
+          "content_digest": "2698fd333d083e2a",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
   "feed_view": {
-    "message_count": 6,
+    "message_count": 12,
     "role_sequence": [
+      "system",
+      "system",
+      "system",
       "system",
       "assistant",
       "user",
+      "system",
+      "system",
+      "system",
       "system",
       "assistant",
       "user"
@@ -284,28 +470,20 @@
         "index": 0,
         "role": "system",
         "entry_type": "text",
-        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
-        "content_digest": "5d227641a000cd8c",
+        "content": "x-anthropic-billing-header: cc_version=2.1.284.075; cc_entrypoint=sdk-ts;",
+        "content_digest": "555211e8c9da73ac",
         "observation_type": "generation"
       },
       {
         "index": 1,
-        "role": "assistant",
+        "role": "system",
         "entry_type": "text",
-        "content": "Visit **El Retiro Park**, Madrid's most iconic green space. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll the tree-lined paths. It's free to enter and a short walk from the Prado Museum.",
-        "content_digest": "2698fd333d083e2a",
+        "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+        "content_digest": "918d321f250cd6d3",
         "observation_type": "generation"
       },
       {
         "index": 2,
-        "role": "user",
-        "entry_type": "text",
-        "content": "Suggest one park to visit in Madrid.",
-        "content_digest": "95fac62b5ab37eb3",
-        "observation_type": "span"
-      },
-      {
-        "index": 3,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -313,7 +491,63 @@
         "observation_type": "generation"
       },
       {
+        "index": 3,
+        "role": "system",
+        "entry_type": "text",
+        "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk-js - Is a git repository: false - Platform: darwin - Shell: zs…[493 chars]",
+        "content_digest": "253729459322c449",
+        "observation_type": "generation"
+      },
+      {
         "index": 4,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Visit **El Retiro Park**, Madrid's most iconic green space. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll the tree-lined paths. It's free to enter and a short walk from the Prado Museum.",
+        "content_digest": "2698fd333d083e2a",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Suggest one park to visit in Madrid.",
+        "content_digest": "95fac62b5ab37eb3",
+        "observation_type": "span"
+      },
+      {
+        "index": 6,
+        "role": "system",
+        "entry_type": "text",
+        "content": "x-anthropic-billing-header: cc_version=2.1.284.86e; cc_entrypoint=sdk-ts;",
+        "content_digest": "6ec710c641325ef7",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+        "content_digest": "918d321f250cd6d3",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
+        "role": "system",
+        "entry_type": "text",
+        "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk-js - Is a git repository: false - Platform: darwin - Shell: zs…[493 chars]",
+        "content_digest": "253729459322c449",
+        "observation_type": "generation"
+      },
+      {
+        "index": 10,
         "role": "assistant",
         "entry_type": "text",
         "content": "Visit the **Museo del Prado**, one of the world's great art museums. It holds masterpieces by Velázquez (*Las Meninas*), Goya, and El Greco. Plan for 2-3 hours, and check for free evening entry hours to save on tickets.",
@@ -321,7 +555,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 5,
+        "index": 11,
         "role": "user",
         "entry_type": "text",
         "content": "Suggest one museum to visit in Madrid.",

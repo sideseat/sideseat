@@ -98,10 +98,12 @@
   {
    "id": "conv-1",
    "sequence": [
+    "fact-007",
     "fact-001",
     "fact-002",
     "fact-003",
     "fact-004",
+    "fact-008",
     "fact-005",
     "fact-006"
    ],
@@ -257,6 +259,54 @@
     "match": "exact"
    },
    "call": "call-003"
+  },
+  {
+   "id": "fact-007",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You research weather with the tool, then hand off to the writer."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "llama-index/native/multi_agent",
+    "llama-index/sdk/multi_agent"
+   ]
+  },
+  {
+   "id": "fact-008",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You write the final packing list from the researcher's findings."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "llama-index/native/multi_agent",
+    "llama-index/sdk/multi_agent"
+   ]
   }
  ],
  "edges": [
@@ -307,7 +357,7 @@
         "type": "text",
         "text": "You research weather with the tool, then hand off to the writer."
        },
-       "new": "rq-001"
+       "new_fact": "fact-007"
       }
      ],
      "messages": [
@@ -337,7 +387,7 @@
         "type": "text",
         "text": "You research weather with the tool, then hand off to the writer."
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-007"
       }
      ],
      "messages": [
@@ -403,7 +453,7 @@
         "type": "text",
         "text": "You write the final packing list from the researcher's findings."
        },
-       "new": "rq-002"
+       "new_fact": "fact-008"
       }
      ],
      "messages": [
@@ -487,7 +537,7 @@
           ],
           "is_error": false
          },
-         "new": "rq-003"
+         "new": "rq-001"
         }
        ]
       }
@@ -510,7 +560,7 @@
         "type": "text",
         "text": "You research weather with the tool, then hand off to the writer."
        },
-       "new": "rq-001"
+       "new_fact": "fact-007"
       }
      ],
      "messages": [
@@ -540,7 +590,7 @@
         "type": "text",
         "text": "You research weather with the tool, then hand off to the writer."
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-007"
       }
      ],
      "messages": [
@@ -606,7 +656,7 @@
         "type": "text",
         "text": "You write the final packing list from the researcher's findings."
        },
-       "new": "rq-002"
+       "new_fact": "fact-008"
       }
      ],
      "messages": [
@@ -690,7 +740,7 @@
           ],
           "is_error": false
          },
-         "new": "rq-003"
+         "new": "rq-001"
         }
        ]
       }

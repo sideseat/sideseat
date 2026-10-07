@@ -395,11 +395,11 @@ fn no_declared_subdivision_is_dead_across_the_corpus() {
     }
     declared.sort();
     declared.dedup();
-    // Six today: two section routes, two element passes, two derived cases. Asserted so the gate cannot pass
-    // by finding nothing - which is how a walk that stopped covering a nesting would look.
+    // Seven today: three section routes, two element passes, two derived cases. Asserted so the gate cannot
+    // pass by finding nothing - which is how a walk that stopped covering a nesting would look.
     assert_eq!(
         declared.len(),
-        6,
+        7,
         "the declared subdivisions changed; the walk may have stopped covering a nesting: {declared:?}"
     );
 

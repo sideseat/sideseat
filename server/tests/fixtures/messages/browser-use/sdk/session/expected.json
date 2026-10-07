@@ -42,7 +42,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> Suggest one museum to visit in Madrid. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo_contents> </…[655 chars]",
-          "content_digest": "cf8e1d3da5e65b98",
+          "content_digest": "f0eee14fab2d4c02",
           "observation_type": "generation"
         },
         {
@@ -129,7 +129,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> Suggest one park to visit in Madrid. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo_contents> </ag…[653 chars]",
-          "content_digest": "c5077d2f9b7d09ec",
+          "content_digest": "b00c7311dd1aa943",
           "observation_type": "generation"
         },
         {
@@ -206,7 +206,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> Suggest one museum to visit in Madrid. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo_contents> </…[655 chars]",
-          "content_digest": "cf8e1d3da5e65b98",
+          "content_digest": "f0eee14fab2d4c02",
           "observation_type": "generation"
         },
         {
@@ -263,7 +263,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> Suggest one park to visit in Madrid. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo_contents> </ag…[653 chars]",
-          "content_digest": "c5077d2f9b7d09ec",
+          "content_digest": "b00c7311dd1aa943",
           "observation_type": "generation"
         },
         {
@@ -327,7 +327,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> Suggest one museum to visit in Madrid. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo_contents> </…[655 chars]",
-          "content_digest": "cf8e1d3da5e65b98",
+          "content_digest": "f0eee14fab2d4c02",
           "observation_type": "generation"
         },
         {
@@ -370,7 +370,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "<user_request> Suggest one park to visit in Madrid. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo_contents> </ag…[653 chars]",
-          "content_digest": "c5077d2f9b7d09ec",
+          "content_digest": "b00c7311dd1aa943",
           "observation_type": "generation"
         },
         {
@@ -451,7 +451,7 @@
         "role": "user",
         "entry_type": "text",
         "content": "<user_request> Suggest one park to visit in Madrid. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo_contents> </ag…[653 chars]",
-        "content_digest": "c5077d2f9b7d09ec",
+        "content_digest": "b00c7311dd1aa943",
         "observation_type": "generation"
       },
       {
@@ -494,7 +494,7 @@
         "role": "user",
         "entry_type": "text",
         "content": "<user_request> Suggest one museum to visit in Madrid. </user_request> <agent_history> Agent initialized </agent_history> <agent_state> <file_system> </file_system> <todo_contents> [empty todo.md, fill it when applicable] </todo_contents> </…[655 chars]",
-        "content_digest": "cf8e1d3da5e65b98",
+        "content_digest": "f0eee14fab2d4c02",
         "observation_type": "generation"
       },
       {

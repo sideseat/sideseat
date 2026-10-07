@@ -6,9 +6,10 @@
   "session_count": 1,
   "span_views": {
     "trace-1/claude_code.interaction/span-2": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -20,13 +21,22 @@
           "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
           "content_digest": "c366c7539466c187",
           "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has winding streets, fado music, and great viewpoints, and it's within easy reach of the main sights on foot or by tram. If you'd prefer somewhere more central with lots of restaurants a…[289 chars]",
+          "content_digest": "e0669f4edb0e5d29",
+          "observation_type": "span"
         }
       ]
     },
     "trace-1/claude_code.interaction/span-4": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -38,13 +48,22 @@
           "content": "What is one dish I should try there?",
           "content_digest": "fa205a3ea90d1fdf",
           "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod, thin fried potatoes, eggs, and onions. For something sweeter, grab a **pastel de nata** afterward.",
+          "content_digest": "51f660778922913f",
+          "observation_type": "span"
         }
       ]
     },
     "trace-1/claude_code.interaction/span-6": {
-      "message_count": 1,
+      "message_count": 2,
       "role_sequence": [
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -56,14 +75,25 @@
           "content": "Summarise your two suggestions in one sentence.",
           "content_digest": "3a58af4870fae288",
           "observation_type": "span"
+        },
+        {
+          "index": 1,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in historic Alfama for its winding streets, fado, and viewpoints, and try bacalhau à Brás (salt cod with potatoes and eggs) for a classic Lisbon meal.",
+          "content_digest": "4f19f4a7f343b9ed",
+          "observation_type": "span"
         }
       ]
     },
     "trace-1/claude_code.llm_request/span-3": {
-      "message_count": 3,
+      "message_count": 6,
       "role_sequence": [
         "system",
+        "system",
+        "system",
         "user",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -73,12 +103,28 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.286.7f5; cc_entrypoint=sdk-py;",
+          "content_digest": "f0e98cbaaeb3ecbb",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 3,
           "role": "user",
           "entry_type": "text",
           "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
@@ -86,7 +132,15 @@
           "observation_type": "generation"
         },
         {
-          "index": 2,
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk - Is a git repository: false - Additional working directories:…[601 chars]",
+          "content_digest": "e8ceb5ffd529f512",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has winding streets, fado music, and great viewpoints, and it's within easy reach of the main sights on foot or by tram. If you'd prefer somewhere more central with lots of restaurants a…[289 chars]",
@@ -96,9 +150,13 @@
       ]
     },
     "trace-1/claude_code.llm_request/span-5": {
-      "message_count": 2,
+      "message_count": 6,
       "role_sequence": [
+        "system",
+        "system",
+        "system",
         "user",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -106,6 +164,30 @@
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.286.7f5; cc_entrypoint=sdk-py;",
+          "content_digest": "f0e98cbaaeb3ecbb",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
           "role": "user",
           "entry_type": "text",
           "content": "What is one dish I should try there?",
@@ -113,7 +195,15 @@
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<total_tokens>15000000 tokens left</total_tokens>",
+          "content_digest": "99ca247fd35d4e1b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod, thin fried potatoes, eggs, and onions. For something sweeter, grab a **pastel de nata** afterward.",
@@ -123,9 +213,13 @@
       ]
     },
     "trace-1/claude_code.llm_request/span-7": {
-      "message_count": 2,
+      "message_count": 6,
       "role_sequence": [
+        "system",
+        "system",
+        "system",
         "user",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -133,6 +227,30 @@
       "messages": [
         {
           "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.286.7f5; cc_entrypoint=sdk-py;",
+          "content_digest": "f0e98cbaaeb3ecbb",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
           "role": "user",
           "entry_type": "text",
           "content": "Summarise your two suggestions in one sentence.",
@@ -140,7 +258,15 @@
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<total_tokens>15000000 tokens left</total_tokens>",
+          "content_digest": "99ca247fd35d4e1b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "Stay in historic Alfama for its winding streets, fado, and viewpoints, and try bacalhau à Brás (salt cod with potatoes and eggs) for a classic Lisbon meal.",
@@ -159,12 +285,16 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 7,
+      "message_count": 11,
       "role_sequence": [
         "system",
+        "system",
+        "system",
         "user",
+        "system",
         "assistant",
         "user",
+        "system",
         "assistant",
         "user",
         "assistant"
@@ -176,12 +306,28 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.286.7f5; cc_entrypoint=sdk-py;",
+          "content_digest": "f0e98cbaaeb3ecbb",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 3,
           "role": "user",
           "entry_type": "text",
           "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
@@ -189,7 +335,15 @@
           "observation_type": "span"
         },
         {
-          "index": 2,
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk - Is a git repository: false - Additional working directories:…[601 chars]",
+          "content_digest": "e8ceb5ffd529f512",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has winding streets, fado music, and great viewpoints, and it's within easy reach of the main sights on foot or by tram. If you'd prefer somewhere more central with lots of restaurants a…[289 chars]",
@@ -197,7 +351,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 6,
           "role": "user",
           "entry_type": "text",
           "content": "What is one dish I should try there?",
@@ -205,7 +359,15 @@
           "observation_type": "span"
         },
         {
-          "index": 4,
+          "index": 7,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<total_tokens>15000000 tokens left</total_tokens>",
+          "content_digest": "99ca247fd35d4e1b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
           "role": "assistant",
           "entry_type": "text",
           "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod, thin fried potatoes, eggs, and onions. For something sweeter, grab a **pastel de nata** afterward.",
@@ -213,7 +375,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 9,
           "role": "user",
           "entry_type": "text",
           "content": "Summarise your two suggestions in one sentence.",
@@ -221,7 +383,7 @@
           "observation_type": "span"
         },
         {
-          "index": 6,
+          "index": 10,
           "role": "assistant",
           "entry_type": "text",
           "content": "Stay in historic Alfama for its winding streets, fado, and viewpoints, and try bacalhau à Brás (salt cod with potatoes and eggs) for a classic Lisbon meal.",
@@ -233,12 +395,16 @@
   },
   "session_views": {
     "claude-agent-sdk-multi_turn": {
-      "message_count": 7,
+      "message_count": 11,
       "role_sequence": [
         "system",
+        "system",
+        "system",
         "user",
+        "system",
         "assistant",
         "user",
+        "system",
         "assistant",
         "user",
         "assistant"
@@ -250,12 +416,28 @@
           "index": 0,
           "role": "system",
           "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.286.7f5; cc_entrypoint=sdk-py;",
+          "content_digest": "f0e98cbaaeb3ecbb",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
           "observation_type": "generation"
         },
         {
-          "index": 1,
+          "index": 3,
           "role": "user",
           "entry_type": "text",
           "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
@@ -263,7 +445,15 @@
           "observation_type": "span"
         },
         {
-          "index": 2,
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk - Is a git repository: false - Additional working directories:…[601 chars]",
+          "content_digest": "e8ceb5ffd529f512",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has winding streets, fado music, and great viewpoints, and it's within easy reach of the main sights on foot or by tram. If you'd prefer somewhere more central with lots of restaurants a…[289 chars]",
@@ -271,7 +461,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 6,
           "role": "user",
           "entry_type": "text",
           "content": "What is one dish I should try there?",
@@ -279,7 +469,15 @@
           "observation_type": "span"
         },
         {
-          "index": 4,
+          "index": 7,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<total_tokens>15000000 tokens left</total_tokens>",
+          "content_digest": "99ca247fd35d4e1b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
           "role": "assistant",
           "entry_type": "text",
           "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod, thin fried potatoes, eggs, and onions. For something sweeter, grab a **pastel de nata** afterward.",
@@ -287,7 +485,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 9,
           "role": "user",
           "entry_type": "text",
           "content": "Summarise your two suggestions in one sentence.",
@@ -295,7 +493,7 @@
           "observation_type": "span"
         },
         {
-          "index": 6,
+          "index": 10,
           "role": "assistant",
           "entry_type": "text",
           "content": "Stay in historic Alfama for its winding streets, fado, and viewpoints, and try bacalhau à Brás (salt cod with potatoes and eggs) for a classic Lisbon meal.",
@@ -306,12 +504,16 @@
     }
   },
   "feed_view": {
-    "message_count": 7,
+    "message_count": 11,
     "role_sequence": [
       "assistant",
       "user",
+      "system",
       "assistant",
       "user",
+      "system",
+      "system",
+      "system",
       "system",
       "assistant",
       "user"
@@ -337,6 +539,14 @@
       },
       {
         "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "<total_tokens>15000000 tokens left</total_tokens>",
+        "content_digest": "99ca247fd35d4e1b",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
         "role": "assistant",
         "entry_type": "text",
         "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod, thin fried potatoes, eggs, and onions. For something sweeter, grab a **pastel de nata** afterward.",
@@ -344,7 +554,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 3,
+        "index": 4,
         "role": "user",
         "entry_type": "text",
         "content": "What is one dish I should try there?",
@@ -352,7 +562,23 @@
         "observation_type": "span"
       },
       {
-        "index": 4,
+        "index": 5,
+        "role": "system",
+        "entry_type": "text",
+        "content": "x-anthropic-billing-header: cc_version=2.1.286.7f5; cc_entrypoint=sdk-py;",
+        "content_digest": "f0e98cbaaeb3ecbb",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+        "content_digest": "918d321f250cd6d3",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -360,7 +586,15 @@
         "observation_type": "generation"
       },
       {
-        "index": 5,
+        "index": 8,
+        "role": "system",
+        "entry_type": "text",
+        "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk - Is a git repository: false - Additional working directories:…[601 chars]",
+        "content_digest": "e8ceb5ffd529f512",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
         "role": "assistant",
         "entry_type": "text",
         "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has winding streets, fado music, and great viewpoints, and it's within easy reach of the main sights on foot or by tram. If you'd prefer somewhere more central with lots of restaurants a…[289 chars]",
@@ -368,7 +602,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 6,
+        "index": 10,
         "role": "user",
         "entry_type": "text",
         "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",

@@ -77,6 +77,7 @@
   {
    "id": "conv-1",
    "sequence": [
+    "fact-011",
     "fact-001",
     "fact-002",
     "fact-003",
@@ -361,6 +362,30 @@
     "match": "exact"
    },
    "call": "call-002"
+  },
+  {
+   "id": "fact-011",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "openinference/native/tool_use",
+    "openinference/sdk/tool_use"
+   ]
   }
  ],
  "edges": [
@@ -414,7 +439,7 @@
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
        },
-       "new": "rq-001"
+       "new_fact": "fact-011"
       }
      ],
      "messages": [
@@ -444,7 +469,7 @@
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-011"
       }
      ],
      "messages": [
@@ -592,7 +617,7 @@
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
        },
-       "new": "rq-001"
+       "new_fact": "fact-011"
       }
      ],
      "messages": [
@@ -622,7 +647,7 @@
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-011"
       }
      ],
      "messages": [

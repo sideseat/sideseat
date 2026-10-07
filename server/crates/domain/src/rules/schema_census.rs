@@ -44,20 +44,6 @@ const UNUSED: &[(&str, &str)] = &[
          missing one would be an arbitrary hole",
     ),
     ("LengthUnit=chars", "as `bytes`"),
-    ("LengthUnit=utf16_units", "as `chars`"),
-    (
-        "SectionsSpec.max_sections",
-        "requested by the rubric track for a prompt preview whose last part is free text; its asset lands in \
-         that track's next commit, and this entry leaves with it",
-    ),
-    (
-        "SectionsSpec.skip_sections_equal_to",
-        "as `SectionsSpec.max_sections`",
-    ),
-    (
-        "SectionsSpec.truncated_unless_length",
-        "as `SectionsSpec.max_sections`",
-    ),
     (
         "Facts.carrier_is_atomic_emission",
         "every fact axis of a carrier preset stays independently overridable, so a clause can state an \

@@ -35,7 +35,7 @@ of the surviving messages rather than silently inventing or dropping content.
 
 ## Current checked-in boundary
 
-The current tracked corpus contains **218 suites, 1045 samples, and 1347 captured OTLP requests**:
+The current tracked corpus contains **218 suites, 1045 samples, and 1340 captured OTLP requests**:
 
 - SideSeat SDK versus plain OpenTelemetry pairs for Python, TypeScript/Node.js, .NET, and Rust;
 - a credential-free OpenAI 3.19.2 / Logfire 6.0.0b7 pair captured both natively and through
@@ -154,9 +154,12 @@ describes those captures, not every release of the framework.
 | agentscope | user prompt (2 in 2 captures) | sent to the model and absent from every payload: this producer does not export that part of a request | `native`: structured_output; `sdk`: structured_output |
 | azure-openai | attachment (2 in 2 captures) | sent to the model and absent from every payload: this producer does not export that part of a request | `native`: files; `sdk`: files |
 | claude-agent-sdk | attachment (4 in 2 captures) | sent to the model and absent from every payload: this producer does not export that part of a request | `native`: files; `sdk`: files |
-| claude-agent-sdk | tool result (16 in 8 captures) | sent to the model and absent from every payload: this producer does not export that part of a request | `native`: mcp_tools, multi_agent, streaming, tool_use; `sdk`: mcp_tools, multi_agent, streaming, tool_use |
+| claude-agent-sdk | tool result (10 in 8 captures) | sent to the model and absent from every payload: this producer does not export that part of a request | `native`: mcp_tools, multi_agent, streaming, tool_use; `sdk`: mcp_tools, multi_agent, streaming, tool_use |
 | claude-agent-sdk-js | attachment (4 in 2 captures) | sent to the model and absent from every payload: this producer does not export that part of a request | `native`: files; `sdk`: files |
 | claude-agent-sdk-js | tool result (8 in 6 captures) | sent to the model and absent from every payload: this producer does not export that part of a request | `native`: mcp_tools, streaming, tool_use; `sdk`: mcp_tools, streaming, tool_use |
+| claude-code | system prompt (50 in 4 captures) | sent to the model and absent from every payload: this producer does not export that part of a request | `logs`: error, multi_agent, multi_turn, tool_use |
+| claude-code | tool result (4 in 3 captures) | sent to the model and absent from every payload: this producer does not export that part of a request | `logs`: error, multi_agent, tool_use |
+| claude-code | user prompt (2 in 1 captures) | sent to the model and absent from every payload: this producer does not export that part of a request | `logs`: multi_agent |
 | codex | assistant text (4 in 3 captures) | Codex exports a turn's final reply (codex.agent_response) and nothing the model wrote between tool calls | `native`: error, multi_agent, tool_use |
 | codex | system prompt (4 in 4 captures) | Codex exports no system prompt or instructions, in any signal | `native`: error, multi_agent, multi_turn, tool_use |
 | genkit-go | tool result (16 in 6 captures) | sent to the model and absent from every payload: this producer does not export that part of a request | `native`: error, streaming, tool_use; `sdk`: error, streaming, tool_use |

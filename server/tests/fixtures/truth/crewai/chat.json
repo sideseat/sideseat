@@ -50,6 +50,7 @@
   {
    "id": "conv-1",
    "sequence": [
+    "fact-003",
     "fact-001",
     "fact-002"
    ],
@@ -100,6 +101,30 @@
     "match": "exact"
    },
    "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "crewai/native/chat",
+    "crewai/sdk/chat"
+   ]
   }
  ],
  "edges": [
@@ -128,7 +153,7 @@
         "type": "text",
         "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
        },
-       "new": "rq-001"
+       "new_fact": "fact-003"
       }
      ],
      "messages": [
@@ -140,7 +165,7 @@
           "type": "text",
           "text": "\nCurrent Task: In one sentence, what is Kyoto best known for?\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nProvide your complete response:"
          },
-         "new": "rq-002",
+         "new": "rq-001",
          "renders": [
           "fact-001"
          ]
@@ -164,7 +189,7 @@
         "type": "text",
         "text": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.\nYour personal goal is: Answer the traveller's question"
        },
-       "new": "rq-001"
+       "new_fact": "fact-003"
       }
      ],
      "messages": [
@@ -176,7 +201,7 @@
           "type": "text",
           "text": "\nCurrent Task: In one sentence, what is Kyoto best known for?\n\nThis is the expected criteria for your final answer: A direct answer to the request.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nProvide your complete response:"
          },
-         "new": "rq-002",
+         "new": "rq-001",
          "renders": [
           "fact-001"
          ]

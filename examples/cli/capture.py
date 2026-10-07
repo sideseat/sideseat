@@ -42,7 +42,7 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-from harness import capture, content
+from harness import capture, content, transcript
 from harness.proxy import ModelProxy
 
 HERE = Path(__file__).resolve().parent
@@ -338,6 +338,12 @@ def capture_one(cli: Cli, scenario: Scenario, mode: str, record: bool) -> bool:
     threading.Thread(target=server.serve_forever, daemon=True).start()
     telemetry = f"http://127.0.0.1:{server.server_address[1]}"
     action = "recording" if record else "replaying"
+    # The requests the CLI sent the model on this run, as every capture path records them: a fixture's
+    # request truth comes from its own run, since the CLI writes the date, the workspace and its token
+    # budget into what the model reads.
+    request_log = staging / "model-requests.jsonl"
+    previous_log = os.environ.get(transcript.ENV)
+    os.environ[transcript.ENV] = str(request_log)
     print(f"[cli] {label}: {version(cli)} ({action} model traffic)")
     ok, expired = True, False
     try:
@@ -378,6 +384,10 @@ def capture_one(cli: Cli, scenario: Scenario, mode: str, record: bool) -> bool:
         threading.Event().wait(2)
         server.shutdown()
         shutil.rmtree(root, ignore_errors=True)
+        if previous_log is None:
+            os.environ.pop(transcript.ENV, None)
+        else:
+            os.environ[transcript.ENV] = previous_log
 
     payloads = sorted(staging.glob("req-*")) + sorted(staging.glob("logs-*"))
     leaked = next(
@@ -410,6 +420,15 @@ def capture_one(cli: Cli, scenario: Scenario, mode: str, record: bool) -> bool:
         stale.unlink()
     for payload in payloads:
         shutil.move(payload, target / payload.name)
+    (target / transcript.FILENAME).write_text(
+        json.dumps(
+            transcript.finish(
+                request_log, lambda raw: capture.anonymise(raw, recorder.pins)
+            ),
+            indent=1,
+        )
+        + "\n"
+    )
     shutil.rmtree(staging)
     print(f"[cli] {label}: {len(payloads)} export(s) written")
     return True

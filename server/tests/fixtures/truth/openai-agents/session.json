@@ -320,7 +320,7 @@
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
        },
-       "new_fact": "fact-006"
+       "lineage_unknown": "history of fact-002 or new fact-006"
       }
      ],
      "messages": [
@@ -380,7 +380,7 @@
         "type": "text",
         "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
        },
-       "new_fact": "fact-006"
+       "lineage_unknown": "history of fact-002 or new fact-006"
       }
      ],
      "messages": [

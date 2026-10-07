@@ -40,8 +40,15 @@ pub(super) struct Context<'a> {
     pub matching: &'a Matching,
     facts: BTreeMap<&'a str, &'a Fact>,
     pub home_trace: BTreeMap<&'a str, String>,
+    /// For a fact a request re-sent, every trace it was sent in: its home is wherever the model was told it,
+    /// so a client's preamble is at home in each trace of a session rather than in one of them.
+    pub home_traces: BTreeMap<String, BTreeSet<String>>,
+    /// The spans a fact a request re-sent may be shown on: those of the calls that were sent it.
+    pub sent_spans: BTreeMap<String, BTreeSet<String>>,
     /// What this fixture's recorded requests account for in its views (`requests`).
     pub accounted: super::requests::Accounted,
+    /// Each trace's capture-stable label (`trace-2`), for naming a per-trace obligation.
+    pub trace_label: BTreeMap<String, String>,
 }
 
 impl<'a> Context<'a> {
@@ -58,8 +65,47 @@ impl<'a> Context<'a> {
             matching,
             facts,
             home_trace: BTreeMap::new(),
+            home_traces: BTreeMap::new(),
+            sent_spans: BTreeMap::new(),
             accounted,
+            trace_label: BTreeMap::new(),
         };
+        for (fact, calls) in super::requests::sent_to(truth, recon) {
+            let spans: Vec<usize> = calls
+                .iter()
+                .filter_map(|call| super::requests::span_sent(truth, matching, call))
+                .collect();
+            // No call it was sent to has a span: where it belongs is unknown, and the matcher has already
+            // reported the call it could not find. The fact keeps the ordinary single home instead.
+            if spans.is_empty() {
+                continue;
+            }
+            context.home_traces.insert(
+                fact.clone(),
+                spans
+                    .iter()
+                    .map(|&s| recon.generations[s].trace.clone())
+                    .collect(),
+            );
+            // Only the spans the matcher found: a neighbour's span stands in for an unfound call's trace,
+            // never for the span that call was shown on.
+            context.sent_spans.insert(
+                fact,
+                calls
+                    .iter()
+                    .filter_map(|call| matching.span_of.get(call))
+                    .map(|&s| recon.generations[s].span.clone())
+                    .collect(),
+            );
+        }
+        for generation in &recon.generations {
+            if let Some((label, _)) = generation.label.split_once('/') {
+                context
+                    .trace_label
+                    .entry(generation.trace.clone())
+                    .or_insert_with(|| label.to_string());
+            }
+        }
         for fact in &truth.facts {
             if let Some(call) = context.home_call(fact)
                 && let Some(&span) = matching.span_of.get(call)
@@ -364,16 +410,23 @@ fn assign(context: &Context<'_>, scope: &Scope<'_>) -> Assigned {
 /// the session view of that trace's session - pooled session views must not trade conversations.
 pub(super) fn in_home(context: &Context<'_>, scope: &Scope<'_>, fact: &Fact, at: usize) -> bool {
     let (view, _, block) = scope.blocks[at];
-    let Some(trace) = context
-        .home_trace
-        .get(fact.id.as_str())
-        .filter(|_| scope.by_trace)
-    else {
+    if !scope.by_trace {
+        return true;
+    }
+    let at_home = |trace: &String| {
+        block.trace == *trace
+            && (scope.kind != ViewKind::Session
+                || context.recon.session_of_trace.get(trace)
+                    == Some(&context.recon.views[view].key))
+    };
+    // A fact the requests re-sent is at home in every trace that was sent it.
+    if let Some(traces) = context.home_traces.get(fact.id.as_str()) {
+        return traces.iter().any(at_home);
+    }
+    let Some(trace) = context.home_trace.get(fact.id.as_str()) else {
         return true;
     };
-    block.trace == *trace
-        && (scope.kind != ViewKind::Session
-            || context.recon.session_of_trace.get(trace) == Some(&context.recon.views[view].key))
+    at_home(trace)
 }
 
 /// The id a result must carry: its call's, as the call appears in this scope.
@@ -581,9 +634,19 @@ fn report_assignment(
             .filter(|b| *b != at && !claimed.contains(b) && !consumed.contains(b))
             .filter(|&b| scope.blocks[b].2.identity == digest)
             .collect();
-        let (here, elsewhere): (Vec<usize>, Vec<usize>) = extra
+        // A fact the requests re-sent is shown once per trace that was sent it: a client's preamble goes
+        // with every request of a session, so the session view holds one copy per trace and a second copy
+        // *in one trace* is the duplicate.
+        let per_trace = context.home_traces.contains_key(fact.id.as_str());
+        let shown_trace = scope.blocks[at].2.trace.as_str();
+        let (here, elsewhere): (Vec<usize>, Vec<usize>) = extra.into_iter().partition(|&b| {
+            in_home(context, scope, fact, b)
+                && (!per_trace || scope.blocks[b].2.trace == shown_trace)
+        });
+        let elsewhere: Vec<usize> = elsewhere
             .into_iter()
-            .partition(|&b| in_home(context, scope, fact, b));
+            .filter(|&b| !in_home(context, scope, fact, b))
+            .collect();
         if !here.is_empty() {
             out.push(Violation::new(
                 view,
@@ -591,6 +654,9 @@ fn report_assignment(
                 &fact.id,
                 format!("shown {} times", here.len() + 1),
             ));
+        }
+        if per_trace {
+            report_other_home_traces(context, scope, fact, at, &claimed, out);
         }
         if !elsewhere.is_empty() {
             out.push(Violation::new(
@@ -602,6 +668,63 @@ fn report_assignment(
         }
     }
     shown_by
+}
+
+/// A fact the requests sent in several traces is owed once in each of them, not once overall: the assignment
+/// places it in one, and here every other home trace this scope holds must show exactly one unclaimed copy.
+/// Named `<fact>@<trace>`, so each trace's obligation is its own entry.
+fn report_other_home_traces(
+    context: &Context<'_>,
+    scope: &Scope<'_>,
+    fact: &Fact,
+    at: usize,
+    claimed: &BTreeSet<usize>,
+    out: &mut Vec<Violation>,
+) {
+    let Some(traces) = context.home_traces.get(fact.id.as_str()) else {
+        return;
+    };
+    let assigned_trace = scope.blocks[at].2.trace.as_str();
+    let held: BTreeSet<&str> = scope
+        .blocks
+        .iter()
+        .map(|(_, _, b)| b.trace.as_str())
+        .collect();
+    let kind = fact.kind.as_str();
+    for trace in traces.iter().filter(|t| t.as_str() != assigned_trace) {
+        // A trace this scope does not hold - one outside any session, in a session scope - owes nothing here.
+        if !held.contains(trace.as_str())
+            || (scope.kind == ViewKind::Session
+                && !context.recon.session_of_trace.contains_key(trace))
+        {
+            continue;
+        }
+        let copies = (0..scope.blocks.len())
+            .filter(|&b| scope.blocks[b].2.trace == *trace && !claimed.contains(&b))
+            .filter(|&b| in_home(context, scope, fact, b))
+            .filter(|&b| block_shows(fact, scope, b, None) != Shows::No)
+            .count();
+        let label = context
+            .trace_label
+            .get(trace)
+            .map_or("an unlabelled trace", String::as_str);
+        let subject = format!("{}@{label}", fact.id);
+        match copies {
+            1 => {}
+            0 => out.push(Violation::new(
+                ViolationView::from(scope.kind),
+                &format!("{kind}.missing"),
+                &subject,
+                format!("{label} was sent it and does not show it"),
+            )),
+            n => out.push(Violation::new(
+                ViolationView::from(scope.kind),
+                &format!("{kind}.duplicated"),
+                &subject,
+                format!("shown {n} times in {label}"),
+            )),
+        }
+    }
 }
 
 /// A stable one-line description of the nearest thing the view does show, for the ledger.

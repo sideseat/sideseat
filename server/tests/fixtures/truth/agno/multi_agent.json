@@ -172,12 +172,17 @@
   {
    "id": "conv-1",
    "sequence": [
+    "fact-009",
     "fact-001",
     "fact-002",
+    "fact-010",
+    "fact-011",
     "fact-003",
     "fact-004",
     "fact-005",
     "fact-006",
+    "fact-012",
+    "fact-013",
     "fact-007",
     "fact-008"
    ],
@@ -392,6 +397,126 @@
     "match": "exact"
    },
    "call": "call-006"
+  },
+  {
+   "id": "fact-009",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "Ask the researcher for the forecast, then ask the writer for the packing list.\n\n<team>\nYou coordinate this team to fulfill the user's request. You have a team of specialists, listed below. Delegate to members when their expertise or tools are needed; answer directly — including with your own tools — when they are not.\n\n<team_members>\n<member id=\"researcher\" name=\"researcher\">\n  Role: Researches weather with the tool\n</member>\n<member id=\"writer\" name=\"writer\">\n  Role: Writes the packing list\n</member>\n</team_members>\n\n<delegation>\nYou work in coordinate mode: you hand sub-tasks to members with `delegate_task_to_member` and write the answer yourself.\n\n- Match each sub-task to the member whose role and description fit it best. When sub-tasks do not depend on each other, delegate them in the same turn instead of one per turn.\n- A member's output is evidence, not your answer. When a member fails, refuses, or returns nothing, say so plainly and name what it reported — never supply a cause, source, or finding the member did not state.\n- If a response is off-target, re-delegate with clearer instructions or try a better-suited member. If it still misses, answer with what you have and say what is missing — do not work through the roster.\n- Write one answer. Resolve contradictions, add structure, and fill gaps only where you can state the basis for it. Never concatenate member outputs.\n\nMembers do not see this conversation. Each one gets only the text you write for it, so carry over every name, number and earlier answer it needs, and say what a good result looks like.\nMember ids are the ids shown in the roster above, used exactly as written.\n</delegation>\n</team>\n\nDo not reflect on the quality of the returned search results in your response"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "agno/native/multi_agent",
+    "agno/sdk/multi_agent"
+   ]
+  },
+  {
+   "id": "fact-010",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "<your_role>\nResearches weather with the tool\n</your_role>\n\nYou research weather with the tool and report the forecast.\n\nDo not reflect on the quality of the returned search results in your response"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "agno/native/multi_agent",
+    "agno/sdk/multi_agent"
+   ]
+  },
+  {
+   "id": "fact-011",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "Research the weather forecast for Barcelona, Spain for the next two days. Report temperatures (highs/lows), precipitation chances, wind, and general conditions for each day."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "agno/native/multi_agent",
+    "agno/sdk/multi_agent"
+   ]
+  },
+  {
+   "id": "fact-012",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "<your_role>\nWrites the packing list\n</your_role>\n\nYou write the final packing list from the researcher's findings."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "agno/native/multi_agent",
+    "agno/sdk/multi_agent"
+   ]
+  },
+  {
+   "id": "fact-013",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "Write a one-paragraph packing list for a two-day trip to Barcelona based on this forecast: Day 1 sunny, high 21°C (70°F); Day 2 sunny, high 22°C (72°F). Lows, precipitation chance and wind were not available, so suggest a light extra layer for evenings. Keep it to a single paragraph."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "agno/native/multi_agent",
+    "agno/sdk/multi_agent"
+   ]
   }
  ],
  "edges": [
@@ -404,6 +529,16 @@
    "kind": "result_of",
    "from": "fact-004",
    "to": "fact-003"
+  },
+  {
+   "kind": "prompt_of",
+   "from": "fact-011",
+   "to": "call-002"
+  },
+  {
+   "kind": "prompt_of",
+   "from": "fact-013",
+   "to": "call-005"
   }
  ],
  "gaps": [
@@ -442,7 +577,7 @@
         "type": "text",
         "text": "Ask the researcher for the forecast, then ask the writer for the packing list.\n\n<team>\nYou coordinate this team to fulfill the user's request. You have a team of specialists, listed below. Delegate to members when their expertise or tools are needed; answer directly — including with your own tools — when they are not.\n\n<team_members>\n<member id=\"researcher\" name=\"researcher\">\n  Role: Researches weather with the tool\n</member>\n<member id=\"writer\" name=\"writer\">\n  Role: Writes the packing list\n</member>\n</team_members>\n\n<delegation>\nYou work in coordinate mode: you hand sub-tasks to members with `delegate_task_to_member` and write the answer yourself.\n\n- Match each sub-task to the member whose role and description fit it best. When sub-tasks do not depend on each other, delegate them in the same turn instead of one per turn.\n- A member's output is evidence, not your answer. When a member fails, refuses, or returns nothing, say so plainly and name what it reported — never supply a cause, source, or finding the member did not state.\n- If a response is off-target, re-delegate with clearer instructions or try a better-suited member. If it still misses, answer with what you have and say what is missing — do not work through the roster.\n- Write one answer. Resolve contradictions, add structure, and fill gaps only where you can state the basis for it. Never concatenate member outputs.\n\nMembers do not see this conversation. Each one gets only the text you write for it, so carry over every name, number and earlier answer it needs, and say what a good result looks like.\nMember ids are the ids shown in the roster above, used exactly as written.\n</delegation>\n</team>\n\nDo not reflect on the quality of the returned search results in your response"
        },
-       "new": "rq-001"
+       "new_fact": "fact-009"
       }
      ],
      "messages": [
@@ -471,7 +606,7 @@
         "type": "text",
         "text": "<your_role>\nResearches weather with the tool\n</your_role>\n\nYou research weather with the tool and report the forecast.\n\nDo not reflect on the quality of the returned search results in your response"
        },
-       "new": "rq-002"
+       "new_fact": "fact-010"
       }
      ],
      "messages": [
@@ -483,7 +618,7 @@
           "type": "text",
           "text": "Research the weather forecast for Barcelona, Spain for the next two days. Report temperatures (highs/lows), precipitation chances, wind, and general conditions for each day."
          },
-         "new": "rq-003"
+         "new_fact": "fact-011"
         }
        ]
       }
@@ -500,7 +635,7 @@
         "type": "text",
         "text": "<your_role>\nResearches weather with the tool\n</your_role>\n\nYou research weather with the tool and report the forecast.\n\nDo not reflect on the quality of the returned search results in your response"
        },
-       "replay_of": "rq-002"
+       "replay_of": "fact-010"
       }
      ],
      "messages": [
@@ -512,7 +647,7 @@
           "type": "text",
           "text": "Research the weather forecast for Barcelona, Spain for the next two days. Report temperatures (highs/lows), precipitation chances, wind, and general conditions for each day."
          },
-         "replay_of": "rq-003"
+         "replay_of": "fact-011"
         }
        ]
       },
@@ -565,7 +700,7 @@
         "type": "text",
         "text": "Ask the researcher for the forecast, then ask the writer for the packing list.\n\n<team>\nYou coordinate this team to fulfill the user's request. You have a team of specialists, listed below. Delegate to members when their expertise or tools are needed; answer directly — including with your own tools — when they are not.\n\n<team_members>\n<member id=\"researcher\" name=\"researcher\">\n  Role: Researches weather with the tool\n</member>\n<member id=\"writer\" name=\"writer\">\n  Role: Writes the packing list\n</member>\n</team_members>\n\n<delegation>\nYou work in coordinate mode: you hand sub-tasks to members with `delegate_task_to_member` and write the answer yourself.\n\n- Match each sub-task to the member whose role and description fit it best. When sub-tasks do not depend on each other, delegate them in the same turn instead of one per turn.\n- A member's output is evidence, not your answer. When a member fails, refuses, or returns nothing, say so plainly and name what it reported — never supply a cause, source, or finding the member did not state.\n- If a response is off-target, re-delegate with clearer instructions or try a better-suited member. If it still misses, answer with what you have and say what is missing — do not work through the roster.\n- Write one answer. Resolve contradictions, add structure, and fill gaps only where you can state the basis for it. Never concatenate member outputs.\n\nMembers do not see this conversation. Each one gets only the text you write for it, so carry over every name, number and earlier answer it needs, and say what a good result looks like.\nMember ids are the ids shown in the roster above, used exactly as written.\n</delegation>\n</team>\n\nDo not reflect on the quality of the returned search results in your response"
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-009"
       }
      ],
      "messages": [
@@ -613,7 +748,7 @@
           ],
           "is_error": false
          },
-         "new": "rq-004"
+         "new": "rq-001"
         }
        ]
       }
@@ -630,7 +765,7 @@
         "type": "text",
         "text": "<your_role>\nWrites the packing list\n</your_role>\n\nYou write the final packing list from the researcher's findings."
        },
-       "new": "rq-005"
+       "new_fact": "fact-012"
       }
      ],
      "messages": [
@@ -642,7 +777,7 @@
           "type": "text",
           "text": "Write a one-paragraph packing list for a two-day trip to Barcelona based on this forecast: Day 1 sunny, high 21°C (70°F); Day 2 sunny, high 22°C (72°F). Lows, precipitation chance and wind were not available, so suggest a light extra layer for evenings. Keep it to a single paragraph."
          },
-         "new": "rq-006"
+         "new_fact": "fact-013"
         }
        ]
       }
@@ -657,7 +792,7 @@
         "type": "text",
         "text": "Ask the researcher for the forecast, then ask the writer for the packing list.\n\n<team>\nYou coordinate this team to fulfill the user's request. You have a team of specialists, listed below. Delegate to members when their expertise or tools are needed; answer directly — including with your own tools — when they are not.\n\n<team_members>\n<member id=\"researcher\" name=\"researcher\">\n  Role: Researches weather with the tool\n</member>\n<member id=\"writer\" name=\"writer\">\n  Role: Writes the packing list\n</member>\n</team_members>\n\n<delegation>\nYou work in coordinate mode: you hand sub-tasks to members with `delegate_task_to_member` and write the answer yourself.\n\n- Match each sub-task to the member whose role and description fit it best. When sub-tasks do not depend on each other, delegate them in the same turn instead of one per turn.\n- A member's output is evidence, not your answer. When a member fails, refuses, or returns nothing, say so plainly and name what it reported — never supply a cause, source, or finding the member did not state.\n- If a response is off-target, re-delegate with clearer instructions or try a better-suited member. If it still misses, answer with what you have and say what is missing — do not work through the roster.\n- Write one answer. Resolve contradictions, add structure, and fill gaps only where you can state the basis for it. Never concatenate member outputs.\n\nMembers do not see this conversation. Each one gets only the text you write for it, so carry over every name, number and earlier answer it needs, and say what a good result looks like.\nMember ids are the ids shown in the roster above, used exactly as written.\n</delegation>\n</team>\n\nDo not reflect on the quality of the returned search results in your response"
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-009"
       }
      ],
      "messages": [
@@ -705,7 +840,7 @@
           ],
           "is_error": false
          },
-         "replay_of": "rq-004"
+         "replay_of": "rq-001"
         }
        ]
       },
@@ -741,7 +876,7 @@
           ],
           "is_error": false
          },
-         "new": "rq-007"
+         "new": "rq-002"
         }
        ]
       }
@@ -764,7 +899,7 @@
         "type": "text",
         "text": "Ask the researcher for the forecast, then ask the writer for the packing list.\n\n<team>\nYou coordinate this team to fulfill the user's request. You have a team of specialists, listed below. Delegate to members when their expertise or tools are needed; answer directly — including with your own tools — when they are not.\n\n<team_members>\n<member id=\"researcher\" name=\"researcher\">\n  Role: Researches weather with the tool\n</member>\n<member id=\"writer\" name=\"writer\">\n  Role: Writes the packing list\n</member>\n</team_members>\n\n<delegation>\nYou work in coordinate mode: you hand sub-tasks to members with `delegate_task_to_member` and write the answer yourself.\n\n- Match each sub-task to the member whose role and description fit it best. When sub-tasks do not depend on each other, delegate them in the same turn instead of one per turn.\n- A member's output is evidence, not your answer. When a member fails, refuses, or returns nothing, say so plainly and name what it reported — never supply a cause, source, or finding the member did not state.\n- If a response is off-target, re-delegate with clearer instructions or try a better-suited member. If it still misses, answer with what you have and say what is missing — do not work through the roster.\n- Write one answer. Resolve contradictions, add structure, and fill gaps only where you can state the basis for it. Never concatenate member outputs.\n\nMembers do not see this conversation. Each one gets only the text you write for it, so carry over every name, number and earlier answer it needs, and say what a good result looks like.\nMember ids are the ids shown in the roster above, used exactly as written.\n</delegation>\n</team>\n\nDo not reflect on the quality of the returned search results in your response"
        },
-       "new": "rq-001"
+       "new_fact": "fact-009"
       }
      ],
      "messages": [
@@ -793,7 +928,7 @@
         "type": "text",
         "text": "<your_role>\nResearches weather with the tool\n</your_role>\n\nYou research weather with the tool and report the forecast.\n\nDo not reflect on the quality of the returned search results in your response"
        },
-       "new": "rq-002"
+       "new_fact": "fact-010"
       }
      ],
      "messages": [
@@ -805,7 +940,7 @@
           "type": "text",
           "text": "Research the weather forecast for Barcelona, Spain for the next two days. Report temperatures (highs/lows), precipitation chances, wind, and general conditions for each day."
          },
-         "new": "rq-003"
+         "new_fact": "fact-011"
         }
        ]
       }
@@ -822,7 +957,7 @@
         "type": "text",
         "text": "<your_role>\nResearches weather with the tool\n</your_role>\n\nYou research weather with the tool and report the forecast.\n\nDo not reflect on the quality of the returned search results in your response"
        },
-       "replay_of": "rq-002"
+       "replay_of": "fact-010"
       }
      ],
      "messages": [
@@ -834,7 +969,7 @@
           "type": "text",
           "text": "Research the weather forecast for Barcelona, Spain for the next two days. Report temperatures (highs/lows), precipitation chances, wind, and general conditions for each day."
          },
-         "replay_of": "rq-003"
+         "replay_of": "fact-011"
         }
        ]
       },
@@ -887,7 +1022,7 @@
         "type": "text",
         "text": "Ask the researcher for the forecast, then ask the writer for the packing list.\n\n<team>\nYou coordinate this team to fulfill the user's request. You have a team of specialists, listed below. Delegate to members when their expertise or tools are needed; answer directly — including with your own tools — when they are not.\n\n<team_members>\n<member id=\"researcher\" name=\"researcher\">\n  Role: Researches weather with the tool\n</member>\n<member id=\"writer\" name=\"writer\">\n  Role: Writes the packing list\n</member>\n</team_members>\n\n<delegation>\nYou work in coordinate mode: you hand sub-tasks to members with `delegate_task_to_member` and write the answer yourself.\n\n- Match each sub-task to the member whose role and description fit it best. When sub-tasks do not depend on each other, delegate them in the same turn instead of one per turn.\n- A member's output is evidence, not your answer. When a member fails, refuses, or returns nothing, say so plainly and name what it reported — never supply a cause, source, or finding the member did not state.\n- If a response is off-target, re-delegate with clearer instructions or try a better-suited member. If it still misses, answer with what you have and say what is missing — do not work through the roster.\n- Write one answer. Resolve contradictions, add structure, and fill gaps only where you can state the basis for it. Never concatenate member outputs.\n\nMembers do not see this conversation. Each one gets only the text you write for it, so carry over every name, number and earlier answer it needs, and say what a good result looks like.\nMember ids are the ids shown in the roster above, used exactly as written.\n</delegation>\n</team>\n\nDo not reflect on the quality of the returned search results in your response"
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-009"
       }
      ],
      "messages": [
@@ -935,7 +1070,7 @@
           ],
           "is_error": false
          },
-         "new": "rq-004"
+         "new": "rq-001"
         }
        ]
       }
@@ -952,7 +1087,7 @@
         "type": "text",
         "text": "<your_role>\nWrites the packing list\n</your_role>\n\nYou write the final packing list from the researcher's findings."
        },
-       "new": "rq-005"
+       "new_fact": "fact-012"
       }
      ],
      "messages": [
@@ -964,7 +1099,7 @@
           "type": "text",
           "text": "Write a one-paragraph packing list for a two-day trip to Barcelona based on this forecast: Day 1 sunny, high 21°C (70°F); Day 2 sunny, high 22°C (72°F). Lows, precipitation chance and wind were not available, so suggest a light extra layer for evenings. Keep it to a single paragraph."
          },
-         "new": "rq-006"
+         "new_fact": "fact-013"
         }
        ]
       }
@@ -979,7 +1114,7 @@
         "type": "text",
         "text": "Ask the researcher for the forecast, then ask the writer for the packing list.\n\n<team>\nYou coordinate this team to fulfill the user's request. You have a team of specialists, listed below. Delegate to members when their expertise or tools are needed; answer directly — including with your own tools — when they are not.\n\n<team_members>\n<member id=\"researcher\" name=\"researcher\">\n  Role: Researches weather with the tool\n</member>\n<member id=\"writer\" name=\"writer\">\n  Role: Writes the packing list\n</member>\n</team_members>\n\n<delegation>\nYou work in coordinate mode: you hand sub-tasks to members with `delegate_task_to_member` and write the answer yourself.\n\n- Match each sub-task to the member whose role and description fit it best. When sub-tasks do not depend on each other, delegate them in the same turn instead of one per turn.\n- A member's output is evidence, not your answer. When a member fails, refuses, or returns nothing, say so plainly and name what it reported — never supply a cause, source, or finding the member did not state.\n- If a response is off-target, re-delegate with clearer instructions or try a better-suited member. If it still misses, answer with what you have and say what is missing — do not work through the roster.\n- Write one answer. Resolve contradictions, add structure, and fill gaps only where you can state the basis for it. Never concatenate member outputs.\n\nMembers do not see this conversation. Each one gets only the text you write for it, so carry over every name, number and earlier answer it needs, and say what a good result looks like.\nMember ids are the ids shown in the roster above, used exactly as written.\n</delegation>\n</team>\n\nDo not reflect on the quality of the returned search results in your response"
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-009"
       }
      ],
      "messages": [
@@ -1027,7 +1162,7 @@
           ],
           "is_error": false
          },
-         "replay_of": "rq-004"
+         "replay_of": "rq-001"
         }
        ]
       },
@@ -1063,7 +1198,7 @@
           ],
           "is_error": false
          },
-         "new": "rq-007"
+         "new": "rq-002"
         }
        ]
       }

@@ -19,7 +19,7 @@ import json
 import os
 import threading
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from harness.scrub import scrub_body
 
@@ -65,8 +65,15 @@ def record(
         out.write(line)
 
 
-def finish(log: Path) -> dict[str, Any]:
-    """The committed document for a run's log: requests in arrival order, bodies scrubbed."""
+def finish(
+    log: Path, anonymise: Callable[[bytes], bytes] | None = None
+) -> dict[str, Any]:
+    """The committed document for a run's log: requests in arrival order, bodies scrubbed.
+
+    ``anonymise`` is the run's own telemetry anonymisation, with the names it pinned: what a request
+    carries must read exactly as the fixture's telemetry does, or the request truth would demand a
+    session directory or a tab name the fixture never shows.
+    """
     interactions = []
     if log.exists():
         for line in log.read_text(encoding="utf-8").splitlines():
@@ -74,6 +81,8 @@ def finish(log: Path) -> dict[str, Any]:
                 continue
             entry = json.loads(line)
             raw = base64.b64decode(entry["body"])
+            if anonymise is not None:
+                raw = anonymise(raw)
             clean = scrub_body(raw, entry.get("content_type", ""))
             entry["body"] = base64.b64encode(clean).decode("ascii")
             interactions.append(entry)

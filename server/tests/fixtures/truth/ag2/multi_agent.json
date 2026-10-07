@@ -122,10 +122,13 @@
   {
    "id": "conv-1",
    "sequence": [
+    "fact-007",
     "fact-001",
     "fact-002",
     "fact-003",
     "fact-004",
+    "fact-008",
+    "fact-009",
     "fact-005",
     "fact-006"
    ],
@@ -290,6 +293,78 @@
     "match": "exact"
    },
    "call": "call-004"
+  },
+  {
+   "id": "fact-007",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You research weather with the tool, then hand off to the writer."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "ag2/native/multi_agent",
+    "ag2/sdk/multi_agent"
+   ]
+  },
+  {
+   "id": "fact-008",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You write the final packing list from the researcher's findings."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "ag2/native/multi_agent",
+    "ag2/sdk/multi_agent"
+   ]
+  },
+  {
+   "id": "fact-009",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "Write a one-paragraph packing list for a two-day trip to Barcelona based on the weather forecast.\n\n## Context\nBarcelona forecast: Day 1: rain, high 21°C. Day 2: sunny, high 22°C."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "ag2/native/multi_agent",
+    "ag2/sdk/multi_agent"
+   ]
   }
  ],
  "edges": [
@@ -302,6 +377,11 @@
    "kind": "result_of",
    "from": "fact-003",
    "to": "fact-002"
+  },
+  {
+   "kind": "prompt_of",
+   "from": "fact-009",
+   "to": "call-003"
   }
  ],
  "gaps": [
@@ -334,7 +414,7 @@
         "type": "text",
         "text": "You research weather with the tool, then hand off to the writer."
        },
-       "new": "rq-001"
+       "new_fact": "fact-007"
       }
      ],
      "messages": [
@@ -364,7 +444,7 @@
         "type": "text",
         "text": "You research weather with the tool, then hand off to the writer."
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-007"
       }
      ],
      "messages": [
@@ -430,7 +510,7 @@
         "type": "text",
         "text": "You write the final packing list from the researcher's findings."
        },
-       "new": "rq-002"
+       "new_fact": "fact-008"
       }
      ],
      "messages": [
@@ -442,7 +522,7 @@
           "type": "text",
           "text": "Write a one-paragraph packing list for a two-day trip to Barcelona based on the weather forecast.\n\n## Context\nBarcelona forecast: Day 1: rain, high 21°C. Day 2: sunny, high 22°C."
          },
-         "new": "rq-003"
+         "new_fact": "fact-009"
         }
        ]
       }
@@ -457,7 +537,7 @@
         "type": "text",
         "text": "You research weather with the tool, then hand off to the writer."
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-007"
       }
      ],
      "messages": [
@@ -541,7 +621,7 @@
           ],
           "is_error": false
          },
-         "new": "rq-004"
+         "new": "rq-001"
         }
        ]
       }
@@ -565,7 +645,7 @@
         "type": "text",
         "text": "You research weather with the tool, then hand off to the writer."
        },
-       "new": "rq-001"
+       "new_fact": "fact-007"
       }
      ],
      "messages": [
@@ -595,7 +675,7 @@
         "type": "text",
         "text": "You research weather with the tool, then hand off to the writer."
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-007"
       }
      ],
      "messages": [
@@ -661,7 +741,7 @@
         "type": "text",
         "text": "You write the final packing list from the researcher's findings."
        },
-       "new": "rq-002"
+       "new_fact": "fact-008"
       }
      ],
      "messages": [
@@ -673,7 +753,7 @@
           "type": "text",
           "text": "Write a one-paragraph packing list for a two-day trip to Barcelona based on the weather forecast.\n\n## Context\nBarcelona forecast: Day 1: rain, high 21°C. Day 2: sunny, high 22°C."
          },
-         "new": "rq-003"
+         "new_fact": "fact-009"
         }
        ]
       }
@@ -688,7 +768,7 @@
         "type": "text",
         "text": "You research weather with the tool, then hand off to the writer."
        },
-       "replay_of": "rq-001"
+       "replay_of": "fact-007"
       }
      ],
      "messages": [
@@ -772,7 +852,7 @@
           ],
           "is_error": false
          },
-         "new": "rq-004"
+         "new": "rq-001"
         }
        ]
       }
