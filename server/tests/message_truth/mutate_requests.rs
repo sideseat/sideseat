@@ -44,13 +44,15 @@ pub(super) fn repeat_sent_message(truth: &mut Truth, recon: &mut Recon) -> bool 
     true
 }
 
-/// Two different messages the call was sent, shown in each other's place.
+/// Two different parts the call was sent, shown in each other's place.
 pub(super) fn swap_sent_messages(truth: &mut Truth, recon: &mut Recon) -> bool {
-    let Some((view, inputs)) = recorded_inputs(truth, recon) else {
+    let mut sink = Vec::new();
+    let matching = super::matching::match_calls(truth, recon, &mut sink);
+    let Some((view, shown)) = super::requests::sequenced_inputs(truth, recon, &matching) else {
         return false;
     };
     let blocks = &mut recon.views[view].blocks;
-    let Some(pair) = inputs
+    let Some(pair) = shown
         .windows(2)
         .find(|w| blocks[w[0]].digest != blocks[w[1]].digest)
     else {

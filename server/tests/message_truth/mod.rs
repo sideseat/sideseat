@@ -207,8 +207,8 @@ fn check(truth: &Truth, recon: &Recon) -> Vec<Violation> {
     let mut out = Vec::new();
     let matching = matching::match_calls(truth, recon, &mut out);
     matching::check_metadata(truth, recon, &matching, &mut out);
-    requests::check_requests(truth, recon, &matching, &mut out);
-    let context = checks::Context::new(truth, recon, &matching);
+    let accounted = requests::check_requests(truth, recon, &matching, &mut out);
+    let context = checks::Context::new(truth, recon, &matching, accounted);
     checks::check_placement(&context, &mut out);
     for violation in &mut out {
         violation.fixture = recon.fixture.clone();

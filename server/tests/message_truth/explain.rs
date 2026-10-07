@@ -193,6 +193,10 @@ fn check_unexplained(
         if claimed.contains(&at) || claimed_digests.contains(block.identity.as_str()) {
             continue;
         }
+        if context.request_accounted.contains(&block.identity) {
+            // What the model was sent, from the request its call recorded: shown, and accounted for.
+            continue;
+        }
         let trace = block.trace.as_str();
         let routed = allowance.routing && allowance.in_conversation(trace);
         let explained = match (block.role.as_str(), block.kind.as_str()) {

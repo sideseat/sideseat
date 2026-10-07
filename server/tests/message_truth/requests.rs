@@ -19,7 +19,7 @@ use super::absence::{Proof, prove};
 use super::matching::Matching;
 use super::predicates::{Shows, shows};
 use super::recon::{Block, Recon, ViewKind};
-use super::truth::{CallRequest, Fact, Requirement, Truth};
+use super::truth::{CallRequest, Fact, Occurrence, Requirement, Truth};
 use super::{Violation, ViolationView};
 
 /// One expected input block: where it sits in the request, its role, and the fact it must show.
@@ -30,6 +30,8 @@ struct Expected {
     part: Value,
     /// Which message of the request sent it; `None` for a system part.
     message: Option<usize>,
+    /// The occurrence names a conversation fact, rather than content only the request carries.
+    is_fact: bool,
 }
 
 /// The role a reconstruction shows a part under: a tool's result is the tool's turn, whatever message
@@ -131,6 +133,14 @@ fn result_value(content: &Value) -> Value {
     }
 }
 
+/// Whether an occurrence's lineage names a conversation fact, which the fact checks then account for.
+fn names_fact(occurrence: &Occurrence) -> bool {
+    [&occurrence.new_fact, &occurrence.replay_of]
+        .into_iter()
+        .flatten()
+        .any(|named| named.starts_with("fact-"))
+}
+
 /// The id a view shows a wire id under, where the framework rewrote it.
 fn rewritten(id: &Value, rewrites: &BTreeMap<String, String>) -> Value {
     match id.as_str().and_then(|id| rewrites.get(id)) {
@@ -206,6 +216,7 @@ fn expected(
                 fact,
                 part: occurrence.part.clone(),
                 message: None,
+                is_fact: names_fact(occurrence),
             });
         }
     }
@@ -220,6 +231,7 @@ fn expected(
                     fact,
                     part: occurrence.part.clone(),
                     message: Some(m),
+                    is_fact: names_fact(occurrence),
                 });
             }
         }
@@ -280,11 +292,11 @@ fn haystack(recon: &Recon) -> &'static Haystack {
         .or_insert_with(|| Box::leak(Box::new(Haystack::of_fixture(&recon.paths))))
 }
 
-/// Accept an occurrence shown inside its own message's span of the input, in another position.
+/// Accept a tool call or result shown inside its own message's span of the input, in another position.
 ///
-/// The parts of one message are a batch, not a sequence: a provider's parallel calls - and the results
-/// answering them - arrive together, and a reconstruction may order a batch by completion. Across
-/// messages the request's order stands, which is what `request.order` reports.
+/// A message's parallel calls - and the results answering them - are a batch: they were requested at once
+/// and a reconstruction may order them by completion. Nothing else is: text and instructions are a
+/// sequence wherever they sit, so moving one is `request.order`.
 fn recover_within_messages(
     expected: &[Expected],
     blocks: &[&Block],
@@ -303,8 +315,14 @@ fn recover_within_messages(
             _ => None,
         }
     };
+    let batched = |part: &Value| {
+        matches!(
+            part.get("type").and_then(Value::as_str),
+            Some("tool_call" | "tool_result")
+        )
+    };
     for i in 0..expected.len() {
-        if assigned_expected[i] {
+        if assigned_expected[i] || !batched(&expected[i].part) {
             continue;
         }
         let Some((first, last)) = span_of(expected[i].message) else {
@@ -319,15 +337,71 @@ fn recover_within_messages(
     }
 }
 
+/// Which of a span view's blocks a call's request is shown by, for the mutations that move them.
+///
+/// Only the blocks whose occurrence is a sequence - not a message's parallel tool batch - so a mutation
+/// that reorders them is a defect the check must catch rather than a permutation it accepts.
+pub(super) fn sequenced_inputs(
+    truth: &Truth,
+    recon: &Recon,
+    matching: &Matching,
+) -> Option<(usize, Vec<usize>)> {
+    let recorded = truth.requests.get(&recon.fixture)?;
+    for (call, request) in &recorded.calls {
+        let Some(&generation) = matching.span_of.get(call) else {
+            continue;
+        };
+        let span = &recon.generations[generation].span;
+        let Some(view) = recon
+            .views
+            .iter()
+            .position(|v| v.kind == ViewKind::Span && &v.key == span)
+        else {
+            continue;
+        };
+        let inputs: Vec<usize> = recon.views[view]
+            .blocks
+            .iter()
+            .enumerate()
+            .filter(|(_, b)| !b.output)
+            .map(|(i, _)| i)
+            .collect();
+        let blocks: Vec<&Block> = inputs
+            .iter()
+            .map(|&i| &recon.views[view].blocks[i])
+            .collect();
+        let wanted = expected(call, request, &rewrites(request, recon, &blocks));
+        let pairs = assignment(&wanted, &blocks);
+        let shown: Vec<usize> = pairs
+            .iter()
+            .filter(|&&(e, _)| {
+                !matches!(
+                    wanted[e].part.get("type").and_then(Value::as_str),
+                    Some("tool_call" | "tool_result")
+                )
+            })
+            .map(|&(_, b)| inputs[b])
+            .collect();
+        if shown.len() >= 2 {
+            return Some((view, shown));
+        }
+    }
+    None
+}
+
 /// Requests against span inputs, for every matched call the fixture's transcript recorded.
 pub(super) fn check_requests(
     truth: &Truth,
     recon: &Recon,
     matching: &Matching,
     out: &mut Vec<Violation>,
-) {
+) -> BTreeSet<String> {
+    // What a request accounts for that no conversation fact holds: the client's own preamble, the
+    // environment block it appends, a turn it composed. The conversation views may show it - the model was
+    // sent it - and `extra.unexplained` would otherwise call it content from nowhere.
+    let mut accounted = BTreeSet::new();
     let Some(recorded) = truth.requests.get(&recon.fixture) else {
-        return;
+        return accounted;
     };
     for (call, request) in &recorded.calls {
         // Only a call whose span its *output* established. A failed attempt is tied to an ERROR span by
@@ -425,6 +499,11 @@ pub(super) fn check_requests(
                 detail,
             ));
         }
+        for &(e, j) in &pairs {
+            if !wanted[e].is_fact {
+                accounted.insert(blocks[j].identity.clone());
+            }
+        }
         for (j, block) in blocks.iter().enumerate() {
             if assigned_block[j] || explained[j] {
                 continue;
@@ -452,4 +531,5 @@ pub(super) fn check_requests(
             }
         }
     }
+    accounted
 }
