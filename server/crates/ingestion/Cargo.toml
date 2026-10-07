@@ -39,6 +39,6 @@ sideseat-domain = { path = "../domain", features = ["test-support"] }
 sideseat-adapter-blob-storage = { path = "../adapter-blob-storage" }
 sideseat-adapter-cache = { path = "../adapter-cache" }
 sideseat-adapter-duckdb = { path = "../adapter-duckdb" }
-sideseat-adapter-sqlite = { path = "../adapter-sqlite" }
+sideseat-adapter-sqlite = { path = "../adapter-sqlite", features = ["test-support"] }
 sideseat-adapter-topics = { path = "../adapter-topics" }
 tempfile = "3"

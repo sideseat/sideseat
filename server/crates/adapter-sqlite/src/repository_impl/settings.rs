@@ -457,8 +457,28 @@ impl DeletionJournal for SqliteRepository {
 
 #[async_trait]
 impl StagedPayloadStore for SqliteRepository {
-    async fn create_staged_payload(&self, payload: &StagedPayload) -> Result<(), DataError> {
+    async fn create_staged_payload(&self, payload: &StagedPayload) -> Result<i64, DataError> {
         staging::create(self.0.pool(), payload)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn staged_sequence_state(
+        &self,
+        seq: i64,
+    ) -> Result<sideseat_ports::types::StagedSequenceState, DataError> {
+        staging::sequence_state(self.0.pool(), seq)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn record_staging_anomaly(
+        &self,
+        id: &str,
+        seq: i64,
+        detected_at: chrono::DateTime<chrono::Utc>,
+    ) -> Result<(), DataError> {
+        staging::record_anomaly(self.0.pool(), id, seq, detected_at)
             .await
             .map_err(Into::into)
     }

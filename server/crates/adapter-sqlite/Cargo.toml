@@ -9,6 +9,10 @@ rust-version.workspace = true
 [lints]
 workspace = true
 
+[features]
+# Helpers that reach into the store the way a fault would - see `test_support`. Tests only.
+test-support = []
+
 [dependencies]
 sideseat-core = { path = "../core" }
 sideseat-ports = { path = "../ports" }

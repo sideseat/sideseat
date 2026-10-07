@@ -80,3 +80,17 @@ pub struct StagedPayload {
     pub unconfirmed: bool,
     pub records: Vec<StagedRecord>,
 }
+
+/// Where the registry's sequence stands, for classifying a queue reference whose row is missing.
+///
+/// Every registration takes the next value of a durable sequence, committed with its row, and its queue
+/// reference carries that value. A row lost to a rolled-back commit then shows as a sequence above the
+/// high-water mark, or as that sequence now held by a different payload once later registrations reuse it.
+/// The protocol, and the one double fault it cannot see, are in `server/specs/StagingRetirement.tla`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StagedSequenceState {
+    /// The highest sequence the registry has committed.
+    pub high_water: i64,
+    /// The payload whose live row holds the sequence asked about, if any.
+    pub holder: Option<String>,
+}

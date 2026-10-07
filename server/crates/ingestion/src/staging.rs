@@ -20,6 +20,15 @@ use uuid::Uuid;
 
 use crate::traces::{IngestOutcome, TracePipeline};
 
+/// What a queue reference whose registry row is missing turns out to be.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MissingReference {
+    /// Retired or deleted; the reference outlived its row legitimately.
+    Finished,
+    /// The registration was lost after its export was acknowledged.
+    Lost,
+}
+
 /// Compact durable-queue value. Payload bytes remain in the blob store.
 #[derive(Clone, PartialEq, Eq, Message)]
 pub struct StagedPayloadRef {
@@ -27,6 +36,9 @@ pub struct StagedPayloadRef {
     pub id: String,
     #[prost(string, tag = "2")]
     pub partition_key: String,
+    /// The sequence the registration took, so a consumer can tell a retired payload from a lost one.
+    #[prost(int64, tag = "3")]
+    pub seq: i64,
 }
 
 impl StagedPayloadRef {
@@ -116,22 +128,70 @@ impl StagingService {
             unconfirmed: false,
             records,
         };
-        if let Err(error) = self.database.create_staged_payload(&payload).await {
-            if let Err(cleanup_error) = self
-                .storage
-                .delete(&payload.project_id, &payload.blob_hash)
-                .await
-            {
-                tracing::error!(
-                    staged_payload_id = %payload.id,
-                    %cleanup_error,
-                    "Could not remove a staging blob after its registry write failed"
-                );
+        let seq = match self.database.create_staged_payload(&payload).await {
+            Ok(seq) => seq,
+            Err(error) => {
+                if let Err(cleanup_error) = self
+                    .storage
+                    .delete(&payload.project_id, &payload.blob_hash)
+                    .await
+                {
+                    tracing::error!(
+                        staged_payload_id = %payload.id,
+                        %cleanup_error,
+                        "Could not remove a staging blob after its registry write failed"
+                    );
+                }
+                return Err(StagingError::Registry(error.to_string()));
             }
-            return Err(StagingError::Registry(error.to_string()));
-        }
+        };
 
-        Ok(StagedPayloadRef { id, partition_key })
+        Ok(StagedPayloadRef {
+            id,
+            partition_key,
+            seq,
+        })
+    }
+
+    /// Decide what a queue reference whose registry row is missing means.
+    ///
+    /// A row is missing legitimately - retired by redrive, by another consumer holding a claimed copy, or
+    /// before a crash interrupted the acknowledgement, or removed with its project - and illegitimately when
+    /// its registration was lost after the export was acknowledged. The sequence tells them apart: a lost
+    /// registration's value is above the high-water mark, or held by another payload once reused. The
+    /// protocol and the double fault it cannot see are modelled in `server/specs/StagingRetirement.tla`.
+    pub async fn classify_missing(
+        &self,
+        reference: &StagedPayloadRef,
+    ) -> Result<MissingReference, StagingError> {
+        let state = self
+            .database
+            .staged_sequence_state(reference.seq)
+            .await
+            .map_err(|error| StagingError::Registry(error.to_string()))?;
+        let lost = reference.seq > state.high_water
+            || state
+                .holder
+                .as_deref()
+                .is_some_and(|holder| holder != reference.id);
+        Ok(if lost {
+            MissingReference::Lost
+        } else {
+            MissingReference::Finished
+        })
+    }
+
+    /// Record a lost registration durably, so it is counted and visible rather than acknowledged in silence.
+    pub async fn record_lost(&self, reference: &StagedPayloadRef) -> Result<(), StagingError> {
+        tracing::error!(
+            staged_payload_id = %reference.id,
+            seq = reference.seq,
+            "An acknowledged export's staging registration is missing: it was lost after acknowledgement"
+        );
+        self.database
+            .record_staging_anomaly(&reference.id, reference.seq, self.clock.now())
+            .await
+            .map_err(|error| StagingError::Registry(error.to_string()))
     }
 
     pub async fn load(&self, id: &str) -> Result<Option<(StagedPayload, Vec<u8>)>, StagingError> {
@@ -675,3 +735,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "staging_retirement_tests.rs"]
+mod retirement_tests;

@@ -479,7 +479,11 @@ CREATE INDEX IF NOT EXISTS idx_deletion_journal_target
     ON deletion_journal(project_id, scope, target_id);
 
 -- Staged OTLP payload registry. Intentionally no TTL or expiry column.
+-- `seq` is the registration's place in a durable sequence that PostgreSQL never hands out twice, so a queue
+-- reference whose row is missing was retired unless its sequence is above the high-water mark - which only a
+-- restore to an older point can cause (specs/StagingRetirement.tla).
 CREATE TABLE IF NOT EXISTS staged_payloads (
+    seq              BIGINT  GENERATED ALWAYS AS IDENTITY UNIQUE,
     id               TEXT    PRIMARY KEY,
     project_id       TEXT    NOT NULL,
     signal           TEXT    NOT NULL CHECK(signal IN ('traces', 'metrics', 'logs')),
@@ -492,6 +496,16 @@ CREATE TABLE IF NOT EXISTS staged_payloads (
 );
 CREATE INDEX IF NOT EXISTS idx_staged_payloads_pending
     ON staged_payloads(unconfirmed, created_at, id);
+
+-- Queue references whose registration was lost: acknowledged exports that cannot be found. Never expected;
+-- each is an incident, so the rows are kept until an operator clears them. Written by the maintenance role,
+-- since a lost registration has no project to scope it to.
+CREATE TABLE IF NOT EXISTS staged_payload_anomalies (
+    id          TEXT    PRIMARY KEY,
+    seq         BIGINT  NOT NULL,
+    detected_at BIGINT  NOT NULL,
+    occurrences BIGINT  NOT NULL DEFAULT 1 CHECK(occurrences >= 1)
+);
 
 -- Project-wide legal holds, the shared hold/retention lease, and best-effort storage accounting.
 CREATE TABLE IF NOT EXISTS project_holds (

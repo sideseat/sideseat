@@ -58,7 +58,7 @@ pub use messages::{
 pub use metrics::{ListMetricsParams, MetricAggregateRow, MetricRow};
 
 // Re-export stats types
-pub use staging::{StagedPayload, StagedRecord, StagedSignal};
+pub use staging::{StagedPayload, StagedRecord, StagedSequenceState, StagedSignal};
 pub use stats::{
     CostsResult, CountsResult, FrameworkBreakdown, LatencyBucket, ModelBreakdown,
     ProjectStatsResult, StatsParams, TokensResult, TrendBucket,

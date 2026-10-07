@@ -633,6 +633,8 @@ mod association_leak_tests;
 #[cfg(test)]
 mod fan_out_tests;
 #[cfg(test)]
+mod missing_reference_tests;
+#[cfg(test)]
 mod pipeline_tests;
 #[cfg(test)]
 mod raw_lifecycle_tests;

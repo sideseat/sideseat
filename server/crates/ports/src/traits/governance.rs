@@ -289,7 +289,23 @@ pub fn retention_cleanup_logical_bytes<P: AsRef<str> + ?Sized>(
 /// deletion.
 #[async_trait]
 pub trait StagedPayloadStore: Send + Sync {
-    async fn create_staged_payload(&self, payload: &StagedPayload) -> Result<(), DataError>;
+    /// Register a payload and return the sequence its registration took. The sequence is committed with the
+    /// row; a queue reference carries it so a consumer can tell a retired payload from a lost one.
+    async fn create_staged_payload(&self, payload: &StagedPayload) -> Result<i64, DataError>;
+
+    /// The registry's sequence high-water mark and the live holder of `seq`, if any - see
+    /// [`StagedSequenceState`].
+    async fn staged_sequence_state(&self, seq: i64) -> Result<StagedSequenceState, DataError>;
+
+    /// Record a queue reference whose registration was lost: an acknowledged export that cannot be found.
+    ///
+    /// Recording the same reference again counts the occurrence instead of adding a row.
+    async fn record_staging_anomaly(
+        &self,
+        id: &str,
+        seq: i64,
+        detected_at: DateTime<Utc>,
+    ) -> Result<(), DataError>;
 
     async fn get_staged_payload(&self, id: &str) -> Result<Option<StagedPayload>, DataError>;
 

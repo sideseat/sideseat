@@ -4,18 +4,21 @@ use chrono::{DateTime, Utc};
 use sqlx::{PgConnection, Row};
 
 use crate::PostgresError;
-use sideseat_ports::types::{ProjectId, StagedPayload, StagedRecord, StagedSignal};
+use sideseat_ports::types::{
+    ProjectId, StagedPayload, StagedRecord, StagedSequenceState, StagedSignal,
+};
 
 pub async fn create(
     connection: &mut PgConnection,
     payload: &StagedPayload,
-) -> Result<(), PostgresError> {
+) -> Result<i64, PostgresError> {
     let records = serde_json::to_string(&payload.records)
         .map_err(|error| PostgresError::Conflict(error.to_string()))?;
-    sqlx::query(
+    let seq = sqlx::query_scalar(
         "INSERT INTO staged_payloads
          (id, project_id, signal, blob_hash, byte_len, created_at, redrive_attempts, unconfirmed, records_json)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         RETURNING seq",
     )
     .bind(&payload.id)
     .bind(payload.project_id.as_str())
@@ -26,6 +29,45 @@ pub async fn create(
     .bind(i64::from(payload.redrive_attempts))
     .bind(payload.unconfirmed)
     .bind(records)
+    .fetch_one(&mut *connection)
+    .await?;
+    Ok(seq)
+}
+
+pub async fn sequence_state(
+    connection: &mut PgConnection,
+    seq: i64,
+) -> Result<StagedSequenceState, PostgresError> {
+    // `last_value` is NULL until the sequence is first used.
+    let high_water: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(last_value, 0) FROM pg_sequences
+         WHERE schemaname = current_schema()
+           AND sequencename = pg_get_serial_sequence('staged_payloads', 'seq')::regclass::name",
+    )
+    .fetch_optional(&mut *connection)
+    .await?
+    .unwrap_or(0);
+    let holder: Option<String> =
+        sqlx::query_scalar("SELECT id FROM staged_payloads WHERE seq = $1")
+            .bind(seq)
+            .fetch_optional(&mut *connection)
+            .await?;
+    Ok(StagedSequenceState { high_water, holder })
+}
+
+pub async fn record_anomaly(
+    connection: &mut PgConnection,
+    id: &str,
+    seq: i64,
+    detected_at: DateTime<Utc>,
+) -> Result<(), PostgresError> {
+    sqlx::query(
+        "INSERT INTO staged_payload_anomalies (id, seq, detected_at) VALUES ($1, $2, $3)
+         ON CONFLICT (id) DO UPDATE SET occurrences = staged_payload_anomalies.occurrences + 1",
+    )
+    .bind(id)
+    .bind(seq)
+    .bind(detected_at.timestamp_micros())
     .execute(&mut *connection)
     .await?;
     Ok(())

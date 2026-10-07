@@ -1,4 +1,5 @@
 use super::*;
+use crate::staging::MissingReference;
 
 impl TracePipeline {
     pub fn new(
@@ -242,7 +243,11 @@ impl TracePipeline {
                         Ok(Some((payload, request, received))) => {
                             ready.push((msg_id, payload, request, received));
                         }
-                        Ok(None) => ack_ids.push(msg_id),
+                        Ok(None) => {
+                            if self.settle_missing(&payload_ref).await {
+                                ack_ids.push(msg_id);
+                            }
+                        }
                         Err(error) => {
                             tracing::error!(
                                 staged_payload_id = %payload_ref.id,
@@ -398,6 +403,36 @@ impl TracePipeline {
         }
     }
 
+    /// Whether a reference whose registry row is missing may be acknowledged.
+    ///
+    /// A retired payload is acknowledged quietly. A lost registration is recorded first - an anomaly row, an
+    /// error event - and acknowledged only once that record is durable, so a lost export is never acknowledged
+    /// in silence; if either step fails the reference stays queued and is redelivered.
+    async fn settle_missing(&self, payload_ref: &StagedPayloadRef) -> bool {
+        match self.staging.classify_missing(payload_ref).await {
+            Ok(MissingReference::Finished) => true,
+            Ok(MissingReference::Lost) => match self.staging.record_lost(payload_ref).await {
+                Ok(()) => true,
+                Err(error) => {
+                    tracing::error!(
+                        staged_payload_id = %payload_ref.id,
+                        %error,
+                        "Could not record a lost staging registration; keeping its reference queued"
+                    );
+                    false
+                }
+            },
+            Err(error) => {
+                tracing::error!(
+                    staged_payload_id = %payload_ref.id,
+                    %error,
+                    "Could not classify a staged reference whose row is missing; keeping it queued"
+                );
+                false
+            }
+        }
+    }
+
     async fn note_staging_failure(&self, id: &str) -> bool {
         match self.staging.note_failed_attempt(id).await {
             Ok(exhausted) => exhausted,
@@ -412,10 +447,10 @@ impl TracePipeline {
         }
     }
 
-    async fn process_staged_reference(&self, payload_ref: &StagedPayloadRef) -> bool {
+    pub(super) async fn process_staged_reference(&self, payload_ref: &StagedPayloadRef) -> bool {
         let (payload, request, received) = match self.load_staged_trace(payload_ref).await {
             Ok(Some(loaded)) => loaded,
-            Ok(None) => return true,
+            Ok(None) => return self.settle_missing(payload_ref).await,
             Err(error) => {
                 tracing::error!(
                     staged_payload_id = %payload_ref.id,

@@ -470,9 +470,27 @@ impl DeletionJournal for PostgresRepository {
 
 #[async_trait]
 impl StagedPayloadStore for PostgresRepository {
-    async fn create_staged_payload(&self, payload: &StagedPayload) -> Result<(), DataError> {
+    async fn create_staged_payload(&self, payload: &StagedPayload) -> Result<i64, DataError> {
         tenant_transaction!(self, &payload.project_id, |connection| {
             staging::create(connection, payload)
+        })
+    }
+
+    async fn staged_sequence_state(
+        &self,
+        seq: i64,
+    ) -> Result<sideseat_ports::types::StagedSequenceState, DataError> {
+        maintenance_transaction!(self, |connection| staging::sequence_state(connection, seq))
+    }
+
+    async fn record_staging_anomaly(
+        &self,
+        id: &str,
+        seq: i64,
+        detected_at: chrono::DateTime<chrono::Utc>,
+    ) -> Result<(), DataError> {
+        maintenance_transaction!(self, |connection| {
+            staging::record_anomaly(connection, id, seq, detected_at)
         })
     }
 

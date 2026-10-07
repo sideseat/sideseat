@@ -117,6 +117,22 @@ An OTLP success means one of two things:
 An in-memory queue is not durable. Trace ingestion therefore persists synchronously when no durable stream
 backend is configured.
 
+Every store commits durably before the response: SQLite runs WAL with `synchronous = FULL`, and on Apple
+platforms, where `fsync` stops at the drive's write cache, SQLite, DuckDB and the blob store all sync with
+`F_FULLFSYNC`. DuckDB does that only when built with `HAVE_FULLFSYNC`, which its own build never defines;
+the repository's `.cargo/config.toml` defines it for Apple targets.
+
+A queue reference can outlive its registry row legitimately: redrive retires a row whose message is still
+queued, a consumer can crash between retiring and acknowledging, a claimed message is processed twice, and a
+project deletion removes its rows. A registration lost after the response looks the same unless something
+says otherwise, so each registration takes the next value of a durable sequence, committed with its row, and
+the reference carries it. A missing row whose sequence is above the registry's high-water mark, or held by a
+different payload once reused, was lost: the consumer records it in `staged_payload_anomalies`, logs it as
+an error, and acknowledges only once that record is durable. Any other missing row was finished.
+`server/specs/StagingRetirement.tla` models the protocol, including the one double fault it cannot see: a
+lost sequence reused by a payload that is itself retired before the old reference is read, which SQLite's
+`AUTOINCREMENT` permits and PostgreSQL's sequences do not.
+
 Metrics and logs use `PersistBeforeAck`. Traces can use `DurableQueue` because their processing path is
 larger and supports asynchronous batching.
 

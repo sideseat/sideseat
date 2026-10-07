@@ -17,7 +17,8 @@ use crate::types::{
     MetricRow, NormalizedLog, NormalizedMetric, NormalizedSpan, OrgWithRole, OrganizationRow,
     PressureSpanCandidate, ProjectHold, ProjectId, ProjectRow, ProjectStorageUsage, RawPending,
     RawRecordRow, SearchBackfillDocument, SearchBackfillSource, SearchCursor, SearchPage,
-    SearchQuery, SearchSignal, SessionRow, SpanCounts, SpanRow, StagedPayload, TraceRow, UserRow,
+    SearchQuery, SearchSignal, SessionRow, SpanCounts, SpanRow, StagedPayload, StagedSequenceState,
+    TraceRow, UserRow,
 };
 
 mod analytics;
