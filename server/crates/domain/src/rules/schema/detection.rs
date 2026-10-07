@@ -595,8 +595,8 @@ pub struct ToolShapeRule {
     /// as two clauses would duplicate every other member of the rule and give the pair a rank order that means
     /// nothing.
     #[serde(default)]
-    #[cfg_attr(test, schemars(with = "Vec<String>"))]
-    pub each: Vec<JsonPath>,
+    #[cfg_attr(test, schemars(with = "FirstOf<String, false>"))]
+    pub each: FirstOf<JsonPath, false>,
     /// The whole canonical `function` object, for a producer that already writes it.
     ///
     /// Exclusive with the three members below: a shape either hands over a canonical object or states where each
@@ -626,8 +626,9 @@ pub struct ParametersSpec {
     pub doc: Option<String>,
     /// Ordered: the first path that resolves is the parameters. One producer writes
     /// `inputSchema.json` and the same producer sometimes writes `inputSchema` directly.
-    #[cfg_attr(test, schemars(with = "Vec<String>"))]
-    pub from: Vec<JsonPath>,
+    #[cfg_attr(test, schemars(with = "FirstOf<String, false>"))]
+    #[serde(default)]
+    pub from: FirstOf<JsonPath, false>,
     /// **Declared**, not guessed from the content. It was guessed: a member named `type` inside an argument map
     /// made the map look like a finished JSON Schema, so `{"type":"str","query":"str"}` was emitted as a schema
     /// whose type is `str`. The argument named `type` decided how the whole representation was read.

@@ -315,24 +315,18 @@
           },
           "wrap": {
             "role": "tool",
-            "content_from_any_of": [
-              "$.output"
-            ],
+            "content_from": "$.output",
             "content_default": null,
             "block": {
               "type": "tool_result",
               "content_as": "content",
               "attach": [
                 {
-                  "from_value_any_of": [
-                    "$.id"
-                  ],
+                  "from_value": "$.id",
                   "as": "tool_use_id"
                 },
                 {
-                  "from_value_any_of": [
-                    "$.tool_call.name"
-                  ],
+                  "from_value": "$.tool_call.name",
                   "as": "name"
                 }
               ]

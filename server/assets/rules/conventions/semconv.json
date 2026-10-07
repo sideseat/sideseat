@@ -469,23 +469,17 @@
         "members": [
           {
             "as": "name",
-            "from_any_of": [
-              "gen_ai.tool.name"
-            ],
+            "from": "gen_ai.tool.name",
             "parse": "text"
           },
           {
             "as": "description",
-            "from_any_of": [
-              "gen_ai.tool.description"
-            ],
+            "from": "gen_ai.tool.description",
             "parse": "text"
           },
           {
             "as": "parameters",
-            "from_any_of": [
-              "gen_ai.tool.json_schema"
-            ],
+            "from": "gen_ai.tool.json_schema",
             "parse": "json"
           }
         ]
@@ -574,60 +568,78 @@
     {
       "id": "semconv.log_event.system_message",
       "name": "gen_ai.system.message",
-      "name_from": [
-        "event_name",
-        "attributes:event.name"
-      ],
+      "name_from": {
+        "first_of": [
+          "event_name",
+          "attr:event.name"
+        ],
+        "mode": "usable"
+      },
       "payload": "body_members",
       "doc": "A system instruction, as a log record whose body members are the event's attributes."
     },
     {
       "id": "semconv.log_event.user_message",
       "name": "gen_ai.user.message",
-      "name_from": [
-        "event_name",
-        "attributes:event.name"
-      ],
+      "name_from": {
+        "first_of": [
+          "event_name",
+          "attr:event.name"
+        ],
+        "mode": "usable"
+      },
       "payload": "body_members",
       "doc": "A user turn, as a log record whose body members are the event's attributes - the shape the OpenTelemetry OpenAI and botocore instrumentations emit by default."
     },
     {
       "id": "semconv.log_event.assistant_message",
       "name": "gen_ai.assistant.message",
-      "name_from": [
-        "event_name",
-        "attributes:event.name"
-      ],
+      "name_from": {
+        "first_of": [
+          "event_name",
+          "attr:event.name"
+        ],
+        "mode": "usable"
+      },
       "payload": "body_members",
       "doc": "An assistant turn, as a log record whose body members are the event's attributes."
     },
     {
       "id": "semconv.log_event.tool_message",
       "name": "gen_ai.tool.message",
-      "name_from": [
-        "event_name",
-        "attributes:event.name"
-      ],
+      "name_from": {
+        "first_of": [
+          "event_name",
+          "attr:event.name"
+        ],
+        "mode": "usable"
+      },
       "payload": "body_members",
       "doc": "A tool result handed back to a model, as a log record whose body members are the event's attributes."
     },
     {
       "id": "semconv.log_event.choice",
       "name": "gen_ai.choice",
-      "name_from": [
-        "event_name",
-        "attributes:event.name"
-      ],
+      "name_from": {
+        "first_of": [
+          "event_name",
+          "attr:event.name"
+        ],
+        "mode": "usable"
+      },
       "payload": "body_members",
       "doc": "What the model chose, as a log record whose body carries `index`, `finish_reason` and `message`."
     },
     {
       "id": "semconv.log_event.client_inference_operation_details",
       "name": "gen_ai.client.inference.operation.details",
-      "name_from": [
-        "event_name",
-        "attributes:event.name"
-      ],
+      "name_from": {
+        "first_of": [
+          "event_name",
+          "attr:event.name"
+        ],
+        "mode": "usable"
+      },
       "payload": "attributes",
       "doc": "The inference-details container as a log record: its own attributes are the request and the response, read by the same container readings as the span event."
     }
@@ -738,13 +750,14 @@
         ]
       },
       "media": {
-        "media_type": [
-          "$.mime_type",
-          "$.media_type"
-        ],
-        "data": [
-          "$.content"
-        ]
+        "media_type": {
+          "first_of": [
+            "$.mime_type",
+            "$.media_type"
+          ],
+          "mode": "usable"
+        },
+        "data": "$.content"
       }
     },
     {
@@ -767,13 +780,14 @@
         ]
       },
       "media": {
-        "media_type": [
-          "$.mime_type",
-          "$.media_type"
-        ],
-        "data": [
-          "$.uri"
-        ]
+        "media_type": {
+          "first_of": [
+            "$.mime_type",
+            "$.media_type"
+          ],
+          "mode": "usable"
+        },
+        "data": "$.uri"
       }
     },
     {
@@ -801,12 +815,8 @@
         ]
       },
       "tool_result": {
-        "tool_use_id": [
-          "$.id"
-        ],
-        "content": [
-          "$.response"
-        ]
+        "tool_use_id": "$.id",
+        "content": "$.response"
       }
     },
     {
@@ -830,9 +840,7 @@
         ]
       },
       "text": {
-        "text": [
-          "$.content"
-        ],
+        "text": "$.content",
         "doc": "The conventions' text part holds its text under `content`. Read only where `text` is absent: a block whose `text` holds a non-string has already been refused as prose."
       }
     },
@@ -847,18 +855,12 @@
         ]
       },
       "tool_use": {
-        "id": [
-          "$.id"
-        ],
-        "name": [
-          "$.name"
-        ],
-        "input": [
-          {
-            "path": "$.arguments",
-            "parse": "json_or_string"
-          }
-        ],
+        "id": "$.id",
+        "name": "$.name",
+        "input": {
+          "path": "$.arguments",
+          "parse": "json_or_string"
+        },
         "doc": "A tool call request part. The arguments may be the object itself or its JSON text; text that is not JSON is the argument as written."
       }
     },
@@ -873,15 +875,11 @@
         ]
       },
       "tool_result": {
-        "tool_use_id": [
-          "$.id"
-        ],
-        "content": [
-          {
-            "path": "$.response",
-            "parse": "json_structure_or_string"
-          }
-        ],
+        "tool_use_id": "$.id",
+        "content": {
+          "path": "$.response",
+          "parse": "json_structure_or_string"
+        },
         "content_as": "blocks",
         "doc": "A tool call response part. Producers serialise the response, so encoded structure is decoded - but text encoding a number stays the text the tool returned. A response holding Python constructor reprs is read as the blocks they describe."
       }
@@ -905,9 +903,7 @@
         ]
       },
       "thinking": {
-        "text": [
-          "$.text"
-        ]
+        "text": "$.text"
       }
     },
     {
@@ -933,9 +929,7 @@
         ]
       },
       "thinking": {
-        "text": [
-          "$.content"
-        ],
+        "text": "$.content",
         "doc": "The reasoning part. Without this it rendered as an unknown block rather than reasoning; one with no text at all is left to the chain."
       }
     },
@@ -951,14 +945,20 @@
       },
       "media": {
         "kind": "document",
-        "data": [
-          "$.data",
-          "$.uri"
-        ],
-        "media_type": [
-          "$.media_type",
-          "$.mime_type"
-        ],
+        "data": {
+          "first_of": [
+            "$.data",
+            "$.uri"
+          ],
+          "mode": "usable"
+        },
+        "media_type": {
+          "first_of": [
+            "$.media_type",
+            "$.mime_type"
+          ],
+          "mode": "usable"
+        },
         "media_type_default": "application/octet-stream",
         "doc": "A binary part holding its payload under `data` or `uri` rather than `content` (which `semconv.blob_part` reads). A stored reference or data URL names the real media type; otherwise the declared one, and bytes of no stated type are an octet stream."
       }

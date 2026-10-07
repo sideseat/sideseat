@@ -205,7 +205,7 @@ fn a_scoped_constructor_repr_decoder_yields_to_the_general_carrier_reader() {
     let plan = compile(
         &ParsedAssets::parse(&std::collections::BTreeMap::from([(
             "t.json".to_string(),
-            br#"{"id": "t", "messages": [{"id": "t.constructor", "read": {"attribute": "result"}, "parse": "python_constructor_repr", "where": {"source": "scope.name", "equals": "specific"}, "wrap": {"role": "tool", "content_from_any_of": ["$.content"], "block": {"type": "tool_result", "attach": [{"from_value_any_of": ["$.state"], "where": {"one_of": ["error", "denied", "interrupted"]}, "as": "is_error", "value": true, "after_content": true}]}}, "emit": "message", "reads_tool_spans": true, "priority": 1}, {"id": "t.general", "read": {"attribute": "result"}, "parse": "json_or_string", "wrap": {"role": "tool", "block": {"type": "tool_result"}}, "emit": "message", "reads_tool_spans": true, "priority": 2}]}"#
+            br#"{"id": "t", "messages": [{"id": "t.constructor", "read": {"attribute": "result"}, "parse": "python_constructor_repr", "where": {"source": "scope.name", "equals": "specific"}, "wrap": {"role": "tool", "content_from": "$.content", "block": {"type": "tool_result", "attach": [{"from_value": "$.state", "where": {"one_of": ["error", "denied", "interrupted"]}, "as": "is_error", "value": true, "after_content": true}]}}, "emit": "message", "reads_tool_spans": true, "priority": 1}, {"id": "t.general", "read": {"attribute": "result"}, "parse": "json_or_string", "wrap": {"role": "tool", "block": {"type": "tool_result"}}, "emit": "message", "reads_tool_spans": true, "priority": 2}]}"#
                 .to_vec(),
         )]))
         .expect("the probe assets parse"),
@@ -248,7 +248,7 @@ fn a_list_of_constructor_reprs_is_read_as_blocks_and_only_whole() {
     let plan = compile(
         &ParsedAssets::parse(&std::collections::BTreeMap::from([(
             "t.json".to_string(),
-            br#"{"id": "t", "messages": [{"id": "t.blocks", "read": {"attribute": "result"}, "parse": "python_constructor_repr_array", "where": {"source": "scope.name", "equals": "specific"}, "wrap": {"role": "tool", "content_from_any_of": ["$"], "block": {"type": "tool_result"}}, "emit": "message", "reads_tool_spans": true, "priority": 1}, {"id": "t.general", "read": {"attribute": "result"}, "parse": "json_or_string", "wrap": {"role": "tool", "block": {"type": "tool_result"}}, "emit": "message", "reads_tool_spans": true, "priority": 2}]}"#
+            br#"{"id": "t", "messages": [{"id": "t.blocks", "read": {"attribute": "result"}, "parse": "python_constructor_repr_array", "where": {"source": "scope.name", "equals": "specific"}, "wrap": {"role": "tool", "content_from": "$", "block": {"type": "tool_result"}}, "emit": "message", "reads_tool_spans": true, "priority": 1}, {"id": "t.general", "read": {"attribute": "result"}, "parse": "json_or_string", "wrap": {"role": "tool", "block": {"type": "tool_result"}}, "emit": "message", "reads_tool_spans": true, "priority": 2}]}"#
                 .to_vec(),
         )]))
         .expect("the probe assets parse"),

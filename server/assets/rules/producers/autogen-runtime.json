@@ -56,17 +56,21 @@
           "select": "$.response",
           "wrap": {
             "role": "assistant",
-            "content_from_any_of": [
-              "$.content",
-              "$.choices[0].message.content"
-            ],
+            "content_from": {
+              "first_of": [
+                "$.content",
+                "$.choices[0].message.content"
+              ]
+            },
             "attach": [
               {
                 "after_content": true,
-                "from_value_any_of": [
-                  "$.tool_calls",
-                  "$.choices[0].message.tool_calls"
-                ],
+                "from_value": {
+                  "first_of": [
+                    "$.tool_calls",
+                    "$.choices[0].message.tool_calls"
+                  ]
+                },
                 "where": {
                   "non_empty": true
                 },
@@ -108,9 +112,7 @@
             "content_default": null,
             "attach": [
               {
-                "from_value_any_of": [
-                  "$.tool_name"
-                ],
+                "from_value": "$.tool_name",
                 "default": "unknown",
                 "as": "name"
               }
@@ -121,9 +123,7 @@
               "arguments_default": {},
               "name_default": "unknown"
             },
-            "content_from_any_of": [
-              "$.result"
-            ]
+            "content_from": "$.result"
           }
         }
       ],
@@ -181,17 +181,21 @@
           "select": "$.response",
           "wrap": {
             "role": "assistant",
-            "content_from_any_of": [
-              "$.content",
-              "$.choices[0].message.content"
-            ],
+            "content_from": {
+              "first_of": [
+                "$.content",
+                "$.choices[0].message.content"
+              ]
+            },
             "attach": [
               {
                 "after_content": true,
-                "from_value_any_of": [
-                  "$.tool_calls",
-                  "$.choices[0].message.tool_calls"
-                ],
+                "from_value": {
+                  "first_of": [
+                    "$.tool_calls",
+                    "$.choices[0].message.tool_calls"
+                  ]
+                },
                 "where": {
                   "non_empty": true
                 },
@@ -233,9 +237,7 @@
             "content_default": null,
             "attach": [
               {
-                "from_value_any_of": [
-                  "$.tool_name"
-                ],
+                "from_value": "$.tool_name",
                 "default": "unknown",
                 "as": "name"
               }
@@ -246,9 +248,7 @@
               "arguments_default": {},
               "name_default": "unknown"
             },
-            "content_from_any_of": [
-              "$.result"
-            ]
+            "content_from": "$.result"
           }
         }
       ],
@@ -306,17 +306,21 @@
           "select": "$.response",
           "wrap": {
             "role": "assistant",
-            "content_from_any_of": [
-              "$.content",
-              "$.choices[0].message.content"
-            ],
+            "content_from": {
+              "first_of": [
+                "$.content",
+                "$.choices[0].message.content"
+              ]
+            },
             "attach": [
               {
                 "after_content": true,
-                "from_value_any_of": [
-                  "$.tool_calls",
-                  "$.choices[0].message.tool_calls"
-                ],
+                "from_value": {
+                  "first_of": [
+                    "$.tool_calls",
+                    "$.choices[0].message.tool_calls"
+                  ]
+                },
                 "where": {
                   "non_empty": true
                 },
@@ -358,9 +362,7 @@
             "content_default": null,
             "attach": [
               {
-                "from_value_any_of": [
-                  "$.tool_name"
-                ],
+                "from_value": "$.tool_name",
                 "default": "unknown",
                 "as": "name"
               }
@@ -371,9 +373,7 @@
               "arguments_default": {},
               "name_default": "unknown"
             },
-            "content_from_any_of": [
-              "$.result"
-            ]
+            "content_from": "$.result"
           }
         }
       ],

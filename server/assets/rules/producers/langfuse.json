@@ -320,14 +320,10 @@
           },
           "wrap": {
             "role": "tool",
-            "content_from_any_of": [
-              "$.output"
-            ],
+            "content_from": "$.output",
             "attach": [
               {
-                "from_value_any_of": [
-                  "$.call_id"
-                ],
+                "from_value": "$.call_id",
                 "as": "tool_call_id"
               }
             ]

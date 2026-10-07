@@ -13,19 +13,18 @@
         "exists": true
       },
       "tool_use": {
-        "id": [
-          "$.functionCall.id",
-          {
-            "template": "gemini_{name}_call_{stable_hash(input)}",
-            "doc": "Gemini's own API states no call id, so where the part carries none one is built from the call: two calls of one function with different arguments get different ids, and the same call re-sent gets the same one. A part that does carry one - ADK fills it with the provider's id - keeps it."
-          }
-        ],
-        "name": [
-          "$.functionCall.name"
-        ],
-        "input": [
-          "$.functionCall.args"
-        ]
+        "id": {
+          "first_of": [
+            "$.functionCall.id",
+            {
+              "template": "gemini_{name}_call_{stable_hash(input)}",
+              "doc": "Gemini's own API states no call id, so where the part carries none one is built from the call: two calls of one function with different arguments get different ids, and the same call re-sent gets the same one. A part that does carry one - ADK fills it with the provider's id - keeps it."
+            }
+          ],
+          "mode": "usable"
+        },
+        "name": "$.functionCall.name",
+        "input": "$.functionCall.args"
       }
     },
     {
@@ -46,19 +45,18 @@
         ]
       },
       "tool_use": {
-        "id": [
-          "$.function_call.id",
-          {
-            "template": "gemini_{name}_call_{stable_hash(input)}",
-            "doc": "Gemini's own API states no call id, so where the part carries none one is built from the call: two calls of one function with different arguments get different ids, and the same call re-sent gets the same one. A part that does carry one - ADK fills it with the provider's id - keeps it."
-          }
-        ],
-        "name": [
-          "$.function_call.name"
-        ],
-        "input": [
-          "$.function_call.args"
-        ]
+        "id": {
+          "first_of": [
+            "$.function_call.id",
+            {
+              "template": "gemini_{name}_call_{stable_hash(input)}",
+              "doc": "Gemini's own API states no call id, so where the part carries none one is built from the call: two calls of one function with different arguments get different ids, and the same call re-sent gets the same one. A part that does carry one - ADK fills it with the provider's id - keeps it."
+            }
+          ],
+          "mode": "usable"
+        },
+        "name": "$.function_call.name",
+        "input": "$.function_call.args"
       }
     },
     {
@@ -72,15 +70,9 @@
       },
       "tool_result": {
         "doc": "The call id where the part states one, as ADK does; otherwise none, and the feed's correlation pairs the result with its call by name, the only place both halves are visible at once.",
-        "name": [
-          "$.functionResponse.name"
-        ],
-        "content": [
-          "$.functionResponse.response"
-        ],
-        "tool_use_id": [
-          "$.functionResponse.id"
-        ]
+        "name": "$.functionResponse.name",
+        "content": "$.functionResponse.response",
+        "tool_use_id": "$.functionResponse.id"
       }
     },
     {
@@ -102,15 +94,9 @@
       },
       "tool_result": {
         "doc": "The call id where the part states one, as ADK does; otherwise none, and the feed's correlation pairs the result with its call by name, the only place both halves are visible at once.",
-        "name": [
-          "$.function_response.name"
-        ],
-        "content": [
-          "$.function_response.response"
-        ],
-        "tool_use_id": [
-          "$.function_response.id"
-        ]
+        "name": "$.function_response.name",
+        "content": "$.function_response.response",
+        "tool_use_id": "$.function_response.id"
       }
     },
     {
@@ -131,12 +117,8 @@
         ]
       },
       "media": {
-        "media_type": [
-          "$.inlineData.mimeType"
-        ],
-        "data": [
-          "$.inlineData.data"
-        ]
+        "media_type": "$.inlineData.mimeType",
+        "data": "$.inlineData.data"
       }
     },
     {
@@ -158,9 +140,7 @@
         ]
       },
       "thinking": {
-        "text": [
-          "$.thinking"
-        ],
+        "text": "$.thinking",
         "doc": "Reasoning as exactly `{\"thinking\": text}`."
       }
     },
@@ -181,9 +161,7 @@
         ]
       },
       "thinking": {
-        "text": [
-          "$.text"
-        ],
+        "text": "$.text",
         "doc": "A text part flagged as a thought."
       }
     },
@@ -196,12 +174,8 @@
         "exists": true
       },
       "media": {
-        "data": [
-          "$.inline_data.data"
-        ],
-        "media_type": [
-          "$.inline_data.mime_type"
-        ],
+        "data": "$.inline_data.data",
+        "media_type": "$.inline_data.mime_type",
         "source": {
           "reference_or": "base64"
         },
@@ -218,12 +192,8 @@
         "doc": "A part holding an inline_data member, readable or not, is an inline part; its file_data is not consulted."
       },
       "media": {
-        "data": [
-          "$.file_data.file_uri"
-        ],
-        "media_type": [
-          "$.file_data.mime_type"
-        ],
+        "data": "$.file_data.file_uri",
+        "media_type": "$.file_data.mime_type",
         "source": {
           "literal": "url"
         },

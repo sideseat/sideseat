@@ -37,10 +37,12 @@
       "name": "$.toolSpec.name",
       "description": "$.toolSpec.description",
       "parameters": {
-        "from": [
-          "$.toolSpec.inputSchema.json",
-          "$.toolSpec.inputSchema"
-        ],
+        "from": {
+          "first_of": [
+            "$.toolSpec.inputSchema.json",
+            "$.toolSpec.inputSchema"
+          ]
+        },
         "encoding": "json_schema"
       }
     },
@@ -48,10 +50,12 @@
       "id": "tool-shapes.function_declarations",
       "doc": "One payload holding several declarations. `each` is what makes that expressible: the retired reader looped inside itself, so a payload with several definitions was one reader's private business rather than a declared multiplicity. Both spellings, because one producer writes camelCase and another snake_case - two spellings of one shape, so an ordered list rather than two clauses whose rank order would mean nothing.",
       "priority": 40,
-      "each": [
-        "$.functionDeclarations[*]",
-        "$.function_declarations[*]"
-      ],
+      "each": {
+        "first_of": [
+          "$.functionDeclarations[*]",
+          "$.function_declarations[*]"
+        ]
+      },
       "where": {
         "any": [
           {
@@ -67,9 +71,7 @@
       "name": "$.name",
       "description": "$.description",
       "parameters": {
-        "from": [
-          "$.parameters"
-        ],
+        "from": "$.parameters",
         "encoding": "json_schema"
       }
     },
@@ -100,9 +102,7 @@
       "name": "$.name",
       "description": "$.description",
       "parameters": {
-        "from": [
-          "$.parameter_definitions"
-        ],
+        "from": "$.parameter_definitions",
         "encoding": "argument_map"
       }
     },
@@ -128,11 +128,13 @@
         "strict"
       ],
       "parameters": {
-        "from": [
-          "$.parameters",
-          "$.input_schema",
-          "$.inputSchema"
-        ],
+        "from": {
+          "first_of": [
+            "$.parameters",
+            "$.input_schema",
+            "$.inputSchema"
+          ]
+        },
         "encoding": "json_schema"
       }
     }

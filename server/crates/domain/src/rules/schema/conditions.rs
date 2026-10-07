@@ -94,3 +94,208 @@ impl schemars::JsonSchema for SourceName {
         })
     }
 }
+
+/// One source, or `{"first_of": [...]}` - several, of which the first is read.
+///
+/// The one spelling of "read this, else that" wherever a value comes from. What "the first" means is a property
+/// of the field, and a list says which it is: **present** (the default) takes the first candidate that is there
+/// and commits to it, whatever it turns out to hold - a badly written primary does not hand over to an alias,
+/// because two spellings in one payload are one producer's statement; **usable** (`"mode": "usable"`, required
+/// where a field reads that way) steps over a candidate that is there but cannot be read as the field needs. A
+/// lone source has no alternative, so the two coincide and it is written bare. A list names at least two.
+#[derive(Clone, PartialEq, Eq)]
+pub struct FirstOf<T, const USABLE: bool> {
+    items: Vec<T>,
+}
+
+impl<T, const USABLE: bool> FirstOf<T, USABLE> {
+    /// The candidates, in the order they are tried.
+    pub fn candidates(&self) -> &[T] {
+        &self.items
+    }
+
+    /// Whether this was written as one source.
+    pub fn is_single(&self) -> bool {
+        self.items.len() == 1
+    }
+
+    /// The lone source, where it is one.
+    pub fn single(&self) -> Option<&T> {
+        match self.items.as_slice() {
+            [one] => Some(one),
+            _ => None,
+        }
+    }
+
+    /// Built from candidates, for a caller that holds them already.
+    pub fn of(items: Vec<T>) -> Self {
+        Self { items }
+    }
+}
+
+impl<T, const USABLE: bool> Default for FirstOf<T, USABLE> {
+    fn default() -> Self {
+        Self { items: Vec::new() }
+    }
+}
+
+impl<T, const USABLE: bool> std::ops::Deref for FirstOf<T, USABLE> {
+    type Target = [T];
+
+    fn deref(&self) -> &[T] {
+        &self.items
+    }
+}
+
+impl<'a, T, const USABLE: bool> IntoIterator for &'a FirstOf<T, USABLE> {
+    type Item = &'a T;
+    type IntoIter = std::slice::Iter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.items.iter()
+    }
+}
+
+impl<T: std::fmt::Debug, const USABLE: bool> std::fmt::Debug for FirstOf<T, USABLE> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.items.fmt(f)
+    }
+}
+
+impl<'de, T: serde::de::DeserializeOwned, const USABLE: bool> Deserialize<'de>
+    for FirstOf<T, USABLE>
+{
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        use serde::de::Error;
+        let value = JsonValue::deserialize(deserializer)?;
+        let Some(members) = value.as_object().filter(|m| m.contains_key("first_of")) else {
+            return Ok(Self {
+                items: vec![serde_json::from_value(value).map_err(D::Error::custom)?],
+            });
+        };
+        for key in members.keys() {
+            if !matches!(key.as_str(), "first_of" | "mode" | "doc") {
+                return Err(D::Error::custom(format!(
+                    "unknown field `{key}` beside `first_of`, expected `mode` or `doc`"
+                )));
+            }
+        }
+        if members.get("doc").is_some_and(|doc| !doc.is_string()) {
+            return Err(D::Error::custom("`doc` is prose: a string"));
+        }
+        let mode = members.get("mode").and_then(JsonValue::as_str);
+        match (USABLE, mode) {
+            (false, None | Some("present")) | (true, Some("usable")) => {}
+            (true, _) => {
+                return Err(D::Error::custom(
+                    "this field reads the first **usable** candidate, stepping over one it cannot read, so \
+                     its list says `\"mode\": \"usable\"`",
+                ));
+            }
+            (false, _) => {
+                return Err(D::Error::custom(
+                    "this field commits to the first **present** candidate, so its list's `mode` is \
+                     `present` or omitted",
+                ));
+            }
+        }
+        let items: Vec<T> =
+            serde_json::from_value(members["first_of"].clone()).map_err(D::Error::custom)?;
+        if items.len() < 2 {
+            return Err(D::Error::custom(
+                "`first_of` names at least two candidates; write a lone source bare",
+            ));
+        }
+        Ok(Self { items })
+    }
+}
+
+#[cfg(test)]
+impl<T: schemars::JsonSchema, const USABLE: bool> schemars::JsonSchema for FirstOf<T, USABLE> {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        format!(
+            "{}{}",
+            if USABLE {
+                "FirstUsable_"
+            } else {
+                "FirstPresent_"
+            },
+            T::schema_name()
+        )
+        .into()
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        let one =
+            serde_json::to_value(generator.subschema_for::<T>()).expect("a schema serialises");
+        let mode = if USABLE {
+            serde_json::json!({"const": "usable"})
+        } else {
+            serde_json::json!({"const": "present"})
+        };
+        let mut list = serde_json::json!({
+            "type": "object",
+            "properties": {
+                "first_of": {"type": "array", "items": one.clone(), "minItems": 2},
+                "mode": mode,
+                "doc": {"type": ["string", "null"]},
+            },
+            "required": ["first_of"],
+            "additionalProperties": false,
+        });
+        if USABLE {
+            list["required"] = serde_json::json!(["first_of", "mode"]);
+        }
+        schemars::Schema::try_from(serde_json::json!({"oneOf": [one, list]}))
+            .expect("an object is a schema")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FirstOf;
+
+    type Present = FirstOf<String, false>;
+    type Usable = FirstOf<String, true>;
+
+    fn parse<T: serde::de::DeserializeOwned>(value: serde_json::Value) -> Result<T, String> {
+        serde_json::from_value(value).map_err(|e| e.to_string())
+    }
+
+    #[test]
+    fn one_source_is_written_bare_and_several_as_first_of() {
+        let one: Present = parse(serde_json::json!("a")).expect("bare");
+        assert_eq!(one.candidates(), ["a"]);
+        assert!(one.is_single());
+        let two: Present = parse(serde_json::json!({"first_of": ["a", "b"]})).expect("a list");
+        assert_eq!(two.candidates(), ["a", "b"]);
+        assert!(two.single().is_none());
+        // The retired spelling, a bare array, is refused rather than read as either.
+        assert!(parse::<Present>(serde_json::json!(["a", "b"])).is_err());
+        // A list of one is a bare source written the long way, and of none names nothing.
+        assert!(parse::<Present>(serde_json::json!({"first_of": ["a"]})).is_err());
+        assert!(parse::<Present>(serde_json::json!({"first_of": []})).is_err());
+        assert!(parse::<Present>(serde_json::json!({"first_of": ["a", "b"], "typo": 1})).is_err());
+    }
+
+    #[test]
+    fn a_list_states_the_mode_its_field_reads_in() {
+        assert!(
+            parse::<Present>(serde_json::json!({"first_of": ["a", "b"], "mode": "present"}))
+                .is_ok()
+        );
+        assert!(
+            parse::<Present>(serde_json::json!({"first_of": ["a", "b"], "mode": "usable"}))
+                .is_err()
+        );
+        assert!(
+            parse::<Usable>(serde_json::json!({"first_of": ["a", "b"], "mode": "usable"})).is_ok()
+        );
+        assert!(
+            parse::<Usable>(serde_json::json!({"first_of": ["a", "b"]})).is_err(),
+            "a usable list says so, so `first_of` alone always means first present"
+        );
+        // A lone source has no alternative, so the two modes coincide and it needs none.
+        assert!(parse::<Usable>(serde_json::json!("a")).is_ok());
+    }
+}

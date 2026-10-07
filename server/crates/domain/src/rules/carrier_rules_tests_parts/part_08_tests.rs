@@ -116,7 +116,10 @@ fn a_reading_that_parses_a_scalar_declares_how() {
     // Each form that parses a scalar of its own, refused without a mode.
     for (what, read) in [
         ("an exact attribute", r#"{"attribute":"x"}"#),
-        ("ordered alternatives", r#"{"first_present":["x","y"]}"#),
+        (
+            "ordered alternatives",
+            r#"{"attribute":{"first_of":["x", "y"]}}"#,
+        ),
     ] {
         let rule = format!(r#"{{"id":"t.r","read":{read},"emit":"message","priority":1}}"#);
         assert!(
@@ -134,8 +137,7 @@ fn a_reading_that_parses_a_scalar_declares_how() {
     // A compose member naming carriers reads one of their strings, so the mode is the member's.
     assert!(
         asset(
-            r#"{"id":"t.c","compose":{"tag":"joined","members":[
-                 {"as":"a","from_any_of":["x"]}]},"emit":"message","priority":1}"#
+            r#"{"id": "t.c", "compose": {"tag": "joined", "members": [{"as": "a", "from": "x"}]}, "emit": "message", "priority": 1}"#
         )
         .is_err(),
         "a compose member naming carriers must declare its own mode"
@@ -148,9 +150,7 @@ fn a_reading_that_parses_a_scalar_declares_how() {
             // `except` names every fixed output member the rule writes, which the collision refusal requires -
             // a swept name is only known at read time, so excluding them is the only way a sweep can say it
             // will not overwrite one.
-            r#"{"id":"t.c","compose":{"tag":"joined","members":[
-                 {"as":"a","from_any_of":["x"],"parse":"text"},
-                 {"sweep_prefix":"p.","except":["a"]}]},"emit":"message","priority":1}"#,
+            r#"{"id": "t.c", "compose": {"tag": "joined", "members": [{"as": "a", "from": "x", "parse": "text"}, {"sweep_prefix": "p.", "except": ["a"]}]}, "emit": "message", "priority": 1}"#,
         ),
         (
             "an indexed family, which assembles entries from keys rather than parsing one string",
@@ -177,10 +177,7 @@ fn a_compose_owns_its_members_and_not_its_own_tag() {
     let plan = compile(
         &ParsedAssets::parse(&std::collections::BTreeMap::from([(
             "t.json".to_string(),
-            br#"{"id":"t","messages":[{"id":"t.compose","priority":1,
-             "compose":{"tag":"canonical.response","members":[
-               {"as":"content","from_any_of":["x"],"parse":"text"}]},
-             "emit":"message"}]}"#
+            br#"{"id": "t", "messages": [{"id": "t.compose", "priority": 1, "compose": {"tag": "canonical.response", "members": [{"as": "content", "from": "x", "parse": "text"}]}, "emit": "message"}]}"#
                 .to_vec(),
         )]))
         .expect("the probe assets parse"),
@@ -267,9 +264,7 @@ fn two_declarations_must_not_write_one_output_member() {
     // `trailing` over a named compose member.
     assert!(
         asset(
-            r#"{"id":"t.c","emit":"message","priority":1,
-                 "compose":{"tag":"joined","trailing":{"role":"assistant"},"members":[
-                   {"as":"role","from_any_of":["x"],"parse":"text"}]}}"#
+            r#"{"id": "t.c", "emit": "message", "priority": 1, "compose": {"tag": "joined", "trailing": {"role": "assistant"}, "members": [{"as": "role", "from": "x", "parse": "text"}]}}"#
         )
         .is_err(),
         "trailing is inserted last, so it discards the member's value"
@@ -279,10 +274,7 @@ fn two_declarations_must_not_write_one_output_member() {
     // them is the only way a sweep can state that it will not overwrite one.
     assert!(
         asset(
-            r#"{"id":"t.c","emit":"message","priority":1,
-                 "compose":{"tag":"joined","trailing":{"role":"assistant"},"members":[
-                   {"as":"content","from_any_of":["x"],"parse":"text"},
-                   {"sweep_prefix":"p."}]}}"#
+            r#"{"id": "t.c", "emit": "message", "priority": 1, "compose": {"tag": "joined", "trailing": {"role": "assistant"}, "members": [{"as": "content", "from": "x", "parse": "text"}, {"sweep_prefix": "p."}]}}"#
         )
         .is_err(),
         "a sweep must exclude every fixed output member the rule writes"
@@ -307,10 +299,7 @@ fn two_declarations_must_not_write_one_output_member() {
         ),
         (
             "a sweep excluding every fixed name",
-            r#"{"id":"t.c","emit":"message","priority":1,
-                 "compose":{"tag":"joined","trailing":{"role":"assistant"},"members":[
-                   {"as":"content","from_any_of":["x"],"parse":"text"},
-                   {"sweep_prefix":"p.","except":["content","role"]}]}}"#
+            r#"{"id": "t.c", "emit": "message", "priority": 1, "compose": {"tag": "joined", "trailing": {"role": "assistant"}, "members": [{"as": "content", "from": "x", "parse": "text"}, {"sweep_prefix": "p.", "except": ["content", "role"]}]}}"#
                 .to_string(),
         ),
     ] {
@@ -433,11 +422,7 @@ fn a_reading_whose_envelope_cannot_be_built_lets_the_chain_continue() {
 
     let plan = compile(&ParsedAssets::parse(&std::collections::BTreeMap::from([(
         "t.json".to_string(),
-        br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json",
-             "emit":"message","priority":1,
-             "alternatives":[
-               {"id":"first","select":"$.a","wrap":{"role":"user","content_from_any_of":["$.missing"]}},
-               {"id":"second","select":"$.b","wrap":{"role":"user","content_from_any_of":["$.text"]}}]}]}"#
+        br#"{"id": "t", "messages": [{"id": "t.r", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "alternatives": [{"id": "first", "select": "$.a", "wrap": {"role": "user", "content_from": "$.missing"}}, {"id": "second", "select": "$.b", "wrap": {"role": "user", "content_from": "$.text"}}]}]}"#
             .to_vec(),
     )])).expect("the probe assets parse"))
     .expect("the probe compiles");
@@ -460,12 +445,7 @@ fn a_reading_whose_envelope_cannot_be_built_lets_the_chain_continue() {
     // And the rule's own `fallback`, which was equally unreachable.
     let plan = compile(&ParsedAssets::parse(&std::collections::BTreeMap::from([(
         "t.json".to_string(),
-        br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json",
-             "emit":"message","priority":1,
-             "alternatives":[
-               {"id":"first","select":"$.a","wrap":{"role":"user","content_from_any_of":["$.missing"]}}],
-             "fallback":[
-               {"id":"last","select":"$.b","wrap":{"role":"user","content_from_any_of":["$.text"]}}]}]}"#
+        br#"{"id": "t", "messages": [{"id": "t.r", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "alternatives": [{"id": "first", "select": "$.a", "wrap": {"role": "user", "content_from": "$.missing"}}], "fallback": [{"id": "last", "select": "$.b", "wrap": {"role": "user", "content_from": "$.text"}}]}]}"#
             .to_vec(),
     )])).expect("the probe assets parse"))
     .expect("the probe compiles");
@@ -484,10 +464,7 @@ fn a_reading_whose_envelope_cannot_be_built_lets_the_chain_continue() {
     // is the half of this that was already right.
     let plan = compile(&ParsedAssets::parse(&std::collections::BTreeMap::from([(
         "t.json".to_string(),
-        br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json",
-             "emit":"message","priority":1,
-             "alternatives":[
-               {"id":"only","select":"$.a","wrap":{"role":"user","content_from_any_of":["$.missing"]}}]}]}"#
+        br#"{"id": "t", "messages": [{"id": "t.r", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "alternatives": [{"id": "only", "select": "$.a", "wrap": {"role": "user", "content_from": "$.missing"}}]}]}"#
             .to_vec(),
     )])).expect("the probe assets parse"))
     .expect("the probe compiles");
@@ -607,7 +584,7 @@ fn an_alternative_and_a_grouped_run_name_every_clause_that_built_them() {
     let plan = compile(
         &ParsedAssets::parse(&std::collections::BTreeMap::from([(
             "t.json".to_string(),
-            br#"{"id": "t", "fragments": {"shape": {"cases": [{"id": "as_user", "where": {"path": "$.role", "one_of": ["user"]}, "wrap": {"role": "user", "content_from_any_of": ["$.content"]}}, {"id": "as_other", "wrap": {"role": "assistant", "content_from_any_of": ["$.content"]}}]}}, "messages": [{"id": "t.r", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "alternatives": [{"id": "plain", "select": "$.direct"}, {"id": "via_fragment", "select": "$.wrapped[*]", "then_fragment": "t.shape"}]}]}"#
+            br#"{"id": "t", "fragments": {"shape": {"cases": [{"id": "as_user", "where": {"path": "$.role", "one_of": ["user"]}, "wrap": {"role": "user", "content_from": "$.content"}}, {"id": "as_other", "wrap": {"role": "assistant", "content_from": "$.content"}}]}}, "messages": [{"id": "t.r", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "alternatives": [{"id": "plain", "select": "$.direct"}, {"id": "via_fragment", "select": "$.wrapped[*]", "then_fragment": "t.shape"}]}]}"#
                 .to_vec(),
         )]))
         .expect("the probe assets parse"),
@@ -675,11 +652,7 @@ fn an_attachment_falls_through_to_its_other_sources() {
     let plan = compile(
         &ParsedAssets::parse(&std::collections::BTreeMap::from([(
             "t.json".to_string(),
-            br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json",
-             "emit":"message","priority":1,
-             "wrap":{"role":"assistant","content_from_any_of":["$.content"],
-               "attach":[{"as":"finish_reason","from_path":"$.finish_reason","from":"finish_reason",
-                 "default":"unknown"}]}}]}"#
+            br#"{"id": "t", "messages": [{"id": "t.r", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "wrap": {"role": "assistant", "content_from": "$.content", "attach": [{"as": "finish_reason", "from_path": "$.finish_reason", "from": "finish_reason", "default": "unknown"}]}}]}"#
                 .to_vec(),
         )]))
         .expect("the probe assets parse"),
@@ -833,10 +806,10 @@ fn a_walk_stops_on_the_clauses_it_names() {
                  "emit":"message","priority":1,"walk":{{"max_depth":3,"stop_on":{stop}}},
                  "also":[
                    {{"id":"whole_node","where": {{"all":[{{"path":"$.role"}},{{"path":"$.content"}}]}},
-                    "wrap":{{"role_from":"$.role","content_from_any_of":["$.content"]}}}},
+                    "wrap":{{"role_from":"$.role","content_from":"$.content"}}}},
                    {{"id":"any_member","select":"$.*",
                     "where": {{"all":[{{"path":"$.role"}},{{"path":"$.content"}}]}},
-                    "wrap":{{"role_from":"$.role","content_from_any_of":["$.content"]}}}}]}}]}}"#
+                    "wrap":{{"role_from":"$.role","content_from":"$.content"}}}}]}}]}}"#
         );
         compile(
             &ParsedAssets::parse(&std::collections::BTreeMap::from([(

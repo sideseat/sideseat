@@ -187,9 +187,7 @@
           },
           "wrap": {
             "role": "system",
-            "content_from_any_of": [
-              "$.content"
-            ]
+            "content_from": "$.content"
           }
         },
         {
@@ -213,16 +211,12 @@
             "role": "user",
             "attach": [
               {
-                "from_value_any_of": [
-                  "$.source"
-                ],
+                "from_value": "$.source",
                 "after_content": true,
                 "as": "name"
               }
             ],
-            "content_from_any_of": [
-              "$.content"
-            ]
+            "content_from": "$.content"
           }
         },
         {
@@ -246,9 +240,7 @@
             "role": "assistant",
             "attach": [
               {
-                "from_value_any_of": [
-                  "$.source"
-                ],
+                "from_value": "$.source",
                 "as": "name"
               }
             ],
@@ -276,9 +268,7 @@
                 ]
               }
             },
-            "content_from_any_of": [
-              "$.content"
-            ]
+            "content_from": "$.content"
           }
         },
         {
@@ -306,9 +296,7 @@
             "role": "assistant",
             "attach": [
               {
-                "from_value_any_of": [
-                  "$.source"
-                ],
+                "from_value": "$.source",
                 "where": {
                   "none_of": [
                     "user"
@@ -318,9 +306,7 @@
                 "as": "name"
               }
             ],
-            "content_from_any_of": [
-              "$.content"
-            ]
+            "content_from": "$.content"
           },
           "doc": "An agent's utterance; `source` names the speaker."
         },
@@ -349,9 +335,7 @@
             "role": "assistant",
             "attach": [
               {
-                "from_value_any_of": [
-                  "$.source"
-                ],
+                "from_value": "$.source",
                 "where": {
                   "none_of": [
                     "user"
@@ -361,9 +345,7 @@
                 "as": "name"
               }
             ],
-            "content_from_any_of": [
-              "$.content"
-            ]
+            "content_from": "$.content"
           },
           "doc": "An utterance carrying images beside its text."
         },
@@ -392,9 +374,7 @@
             "role": "assistant",
             "attach": [
               {
-                "from_value_any_of": [
-                  "$.source"
-                ],
+                "from_value": "$.source",
                 "where": {
                   "none_of": [
                     "user"
@@ -404,9 +384,7 @@
                 "as": "name"
               }
             ],
-            "content_from_any_of": [
-              "$.content"
-            ]
+            "content_from": "$.content"
           },
           "doc": "The utterance that ended a conversation."
         },
@@ -431,9 +409,7 @@
             "role": "assistant",
             "attach": [
               {
-                "from_value_any_of": [
-                  "$.source"
-                ],
+                "from_value": "$.source",
                 "after_content": true,
                 "where": {
                   "kind": "string"
@@ -441,9 +417,7 @@
                 "as": "name"
               }
             ],
-            "content_from_any_of": [
-              "$.content"
-            ]
+            "content_from": "$.content"
           }
         },
         {
@@ -480,9 +454,7 @@
                 }
               ]
             },
-            "content_from_any_of": [
-              "$.content"
-            ]
+            "content_from": "$.content"
           }
         },
         {
@@ -517,9 +489,7 @@
             },
             "attach": [
               {
-                "from_value_any_of": [
-                  "$.source"
-                ],
+                "from_value": "$.source",
                 "after_content": true,
                 "as": "name"
               }
@@ -562,23 +532,17 @@
             "content_default": "",
             "attach": [
               {
-                "from_value_any_of": [
-                  "$.name"
-                ],
+                "from_value": "$.name",
                 "after_content": true,
                 "as": "name"
               },
               {
-                "from_value_any_of": [
-                  "$.call_id"
-                ],
+                "from_value": "$.call_id",
                 "after_content": true,
                 "as": "tool_call_id"
               }
             ],
-            "content_from_any_of": [
-              "$.content"
-            ]
+            "content_from": "$.content"
           },
           "parent_where": {
             "all": [
@@ -685,9 +649,7 @@
             },
             "attach": [
               {
-                "from_value_any_of": [
-                  "$.source"
-                ],
+                "from_value": "$.source",
                 "after_content": true,
                 "as": "name"
               }
@@ -730,23 +692,17 @@
             "content_default": "",
             "attach": [
               {
-                "from_value_any_of": [
-                  "$.name"
-                ],
+                "from_value": "$.name",
                 "after_content": true,
                 "as": "name"
               },
               {
-                "from_value_any_of": [
-                  "$.call_id"
-                ],
+                "from_value": "$.call_id",
                 "after_content": true,
                 "as": "tool_call_id"
               }
             ],
-            "content_from_any_of": [
-              "$.content"
-            ]
+            "content_from": "$.content"
           },
           "parent_where": {
             "all": [
@@ -801,9 +757,7 @@
             "role": "assistant",
             "attach": [
               {
-                "from_value_any_of": [
-                  "$.source"
-                ],
+                "from_value": "$.source",
                 "where": {
                   "none_of": [
                     "user"
@@ -813,9 +767,7 @@
                 "as": "name"
               }
             ],
-            "content_from_any_of": [
-              "$.content"
-            ]
+            "content_from": "$.content"
           }
         }
       ]

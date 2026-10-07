@@ -126,10 +126,13 @@
           "doc": "The flattened family loses whole content blocks and writes `__REDACTED__` for a url, while this dialect's serialised copy of the same conversation keeps both - so where both describe one message, the richer one is preferred. Matched by position, and only for an entry whose content arrived flattened.",
           "from": "input.value",
           "parse": "json",
-          "select_any_of": [
-            "$.messages",
-            "$"
-          ],
+          "select": {
+            "first_of": [
+              "$.messages",
+              "$"
+            ],
+            "mode": "usable"
+          },
           "witness": {
             "any": [
               {
@@ -156,11 +159,13 @@
             ]
           },
           "when_member_prefix": "contents.",
-          "content_any_of": [
-            "$.content",
-            "$.kwargs.content",
-            "$.text"
-          ],
+          "content_from": {
+            "first_of": [
+              "$.content",
+              "$.kwargs.content",
+              "$.text"
+            ]
+          },
           "where": {
             "kind": "array"
           },
@@ -207,9 +212,7 @@
           "doc": "The same loss on the way out: the flattened family drops blocks it has no name for, such as reasoning, and indexes what remains from where it sat - so an answer that followed its reasoning arrives as `contents.1` with nothing at `contents.0`. The dialect's serialised generation on the same span keeps every block in order. Matched by position, one generation per output message, and only for an entry whose content arrived flattened.",
           "from": "output.value",
           "parse": "json",
-          "select_any_of": [
-            "$.generations"
-          ],
+          "select": "$.generations",
           "unwrap_single_element_list": true,
           "witness": {
             "path": "$[*].message.id",
@@ -217,10 +220,12 @@
             "doc": "A generation's message carries its class path as an array."
           },
           "when_member_prefix": "contents.",
-          "content_any_of": [
-            "$.message.kwargs.content",
-            "$.message.content"
-          ],
+          "content_from": {
+            "first_of": [
+              "$.message.kwargs.content",
+              "$.message.content"
+            ]
+          },
           "where": {
             "kind": "array"
           },
@@ -583,23 +588,17 @@
               "members": [
                 {
                   "as": "name",
-                  "from_any_of": [
-                    "tool.name"
-                  ],
+                  "from": "tool.name",
                   "parse": "text"
                 },
                 {
                   "as": "description",
-                  "from_any_of": [
-                    "tool.description"
-                  ],
+                  "from": "tool.description",
                   "parse": "text"
                 },
                 {
                   "as": "parameters",
-                  "from_any_of": [
-                    "tool.parameters"
-                  ],
+                  "from": "tool.parameters",
                   "parse": "json"
                 }
               ]

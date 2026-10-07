@@ -68,27 +68,21 @@
     {
       "id": "claude-code.log_event.user_prompt",
       "name": "user_prompt",
-      "name_from": [
-        "attributes:event.name"
-      ],
+      "name_from": "attr:event.name",
       "payload": "attributes",
       "doc": "`claude_code.user_prompt`."
     },
     {
       "id": "claude-code.log_event.assistant_response",
       "name": "assistant_response",
-      "name_from": [
-        "attributes:event.name"
-      ],
+      "name_from": "attr:event.name",
       "payload": "attributes",
       "doc": "`claude_code.assistant_response`."
     },
     {
       "id": "claude-code.log_event.tool_result",
       "name": "tool_result",
-      "name_from": [
-        "attributes:event.name"
-      ],
+      "name_from": "attr:event.name",
       "payload": "attributes",
       "doc": "`claude_code.tool_result`."
     }
@@ -188,11 +182,13 @@
         }
       },
       "read": {
-        "first_present": [
-          "content",
-          "output",
-          "diff"
-        ]
+        "attribute": {
+          "first_of": [
+            "content",
+            "output",
+            "diff"
+          ]
+        }
       },
       "parse": "text",
       "raw_where": {

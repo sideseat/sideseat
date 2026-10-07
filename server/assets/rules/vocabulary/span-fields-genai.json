@@ -245,10 +245,12 @@
           "doc": "Both spellings this dialect uses, in one object: the first *present* one answers. As separate sources a badly written `max_tokens` would be stepped over and `max_completion_tokens` would answer, where the retired code let the bad one end this carrier and the next carrier answer.",
           "json": {
             "attribute": "request_data",
-            "first_present_of": [
-              "$.max_tokens",
-              "$.max_completion_tokens"
-            ]
+            "path": {
+              "first_of": [
+                "$.max_tokens",
+                "$.max_completion_tokens"
+              ]
+            }
           },
           "on_malformed": "continue"
         },
@@ -256,10 +258,12 @@
           "id": "llm_invocation_parameters_max_tokens",
           "json": {
             "attribute": "llm.invocation_parameters",
-            "first_present_of": [
-              "$.max_tokens",
-              "$.max_output_tokens"
-            ]
+            "path": {
+              "first_of": [
+                "$.max_tokens",
+                "$.max_output_tokens"
+              ]
+            }
           },
           "on_malformed": "continue"
         }

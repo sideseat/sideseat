@@ -242,9 +242,7 @@ fn a_constructor_and_its_target_describe_the_same_thing() {
     // wrap probe would pass for the wrong reason and say nothing about the claim rule.
     assert!(
         asset(
-            r#"{"id":"t.r","emit":"claim","priority":1,
-                 "compose":{"tag":"joined","members":[
-                   {"as":"content","from_any_of":["k"],"parse":"text"}]}}"#
+            r#"{"id": "t.r", "emit": "claim", "priority": 1, "compose": {"tag": "joined", "members": [{"as": "content", "from": "k", "parse": "text"}]}}"#
         )
         .is_err(),
         "a claim constructs nothing - whatever the compose assembled would be thrown away"
@@ -273,7 +271,7 @@ fn a_tool_call_list_declares_what_an_unbuildable_call_means() {
                    "name":"$.name","arguments":"$.arguments","on_invalid_item":"{policy}"}}}},
                  "alternatives":[{{"id":"as_calls"}}],
                  "fallback":[{{"id":"as_text","wrap":{{"role":"assistant",
-                   "content_from_any_of":["$.summary"]}}}}]}}]}}"#
+                   "content_from":"$.summary"}}}}]}}]}}"#
         );
         compile(
             &ParsedAssets::parse(&std::collections::BTreeMap::from([(
@@ -431,11 +429,7 @@ fn a_compose_owns_the_carriers_it_read() {
     let plan = compile(
         &ParsedAssets::parse(&std::collections::BTreeMap::from([(
             "t.json".to_string(),
-            br#"{"id":"t","messages":[
-             {"id":"t.compose","priority":1,"emit":"message",
-              "compose":{"tag":"joined","members":[
-                {"as":"content","from_any_of":["text"],"parse":"text"},
-                {"as":"extra","from_any_of":["structured"],"parse":"json"}]}}]}"#
+            br#"{"id": "t", "messages": [{"id": "t.compose", "priority": 1, "emit": "message", "compose": {"tag": "joined", "members": [{"as": "content", "from": "text", "parse": "text"}, {"as": "extra", "from": "structured", "parse": "json"}]}}]}"#
                 .to_vec(),
         )]))
         .expect("the probe assets parse"),

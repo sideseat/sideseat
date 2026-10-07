@@ -22,12 +22,8 @@
         ]
       },
       "thinking": {
-        "text": [
-          "$.thinking"
-        ],
-        "signature": [
-          "$.signature"
-        ],
+        "text": "$.thinking",
+        "signature": "$.signature",
         "doc": "Extended thinking: the reasoning under `thinking`, and the signature a later request replays."
       }
     },
@@ -50,12 +46,8 @@
         ]
       },
       "thinking": {
-        "text": [
-          "$.text"
-        ],
-        "signature": [
-          "$.signature"
-        ],
+        "text": "$.text",
+        "signature": "$.signature",
         "doc": "The same block with its reasoning under `text` beside a `thinking` member that holds none - the first spelling that holds a string is the reasoning."
       }
     },
@@ -70,9 +62,7 @@
         ]
       },
       "thinking": {
-        "signature": [
-          "$.signature"
-        ],
+        "signature": "$.signature",
         "doc": "A thinking block whose reasoning is in no member that holds a string: still reasoning, with whatever signature it carries, and never left for a later case to read as something else."
       }
     },
@@ -87,9 +77,7 @@
         ]
       },
       "redacted_thinking": {
-        "data": [
-          "$.data"
-        ]
+        "data": "$.data"
       }
     },
     {
@@ -114,12 +102,8 @@
       },
       "media": {
         "kind": "image",
-        "data": [
-          "$.source.data"
-        ],
-        "media_type": [
-          "$.source.media_type"
-        ],
+        "data": "$.source.data",
+        "media_type": "$.source.media_type",
         "missing_media_type": "null",
         "source": {
           "reference_or": "base64"
@@ -149,12 +133,8 @@
       },
       "media": {
         "kind": "image",
-        "data": [
-          "$.source.url"
-        ],
-        "media_type": [
-          "$.source.media_type"
-        ],
+        "data": "$.source.url",
+        "media_type": "$.source.media_type",
         "missing_media_type": "null",
         "source": {
           "literal": "url"
@@ -183,12 +163,8 @@
       },
       "media": {
         "kind": "document",
-        "data": [
-          "$.source.data"
-        ],
-        "media_type": [
-          "$.source.media_type"
-        ],
+        "data": "$.source.data",
+        "media_type": "$.source.media_type",
         "missing_media_type": "null",
         "source": {
           "reference_or": "base64"
@@ -217,12 +193,8 @@
       },
       "media": {
         "kind": "document",
-        "data": [
-          "$.source.url"
-        ],
-        "media_type": [
-          "$.source.media_type"
-        ],
+        "data": "$.source.url",
+        "media_type": "$.source.media_type",
         "missing_media_type": "null",
         "source": {
           "literal": "url"
@@ -240,15 +212,9 @@
         ]
       },
       "tool_use": {
-        "id": [
-          "$.id"
-        ],
-        "name": [
-          "$.name"
-        ],
-        "input": [
-          "$.input"
-        ],
+        "id": "$.id",
+        "name": "$.name",
+        "input": "$.input",
         "doc": "A call. The canonical passthrough reads one inside a message's content; a tool's returned value that is a lone call is read here."
       }
     },
@@ -263,15 +229,9 @@
         ]
       },
       "tool_result": {
-        "tool_use_id": [
-          "$.tool_use_id"
-        ],
-        "content": [
-          "$.content"
-        ],
-        "is_error": [
-          "$.is_error"
-        ],
+        "tool_use_id": "$.tool_use_id",
+        "content": "$.content",
+        "is_error": "$.is_error",
         "doc": "A result. The canonical passthrough reads one inside a message's content that carries an id or content; this reads the rest, and a tool's returned value that is a lone result."
       }
     }

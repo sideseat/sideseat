@@ -287,7 +287,7 @@ fn a_scalar_only_that_cannot_apply_is_refused() {
             "gen_ai_finish_reasons",
             serde_json::json!({
                 "attribute": "probe.payload",
-                "first_present_of": ["$.reason"],
+                "path": {"first_of": ["$.reason", "$.why"]},
                 "scalar_only": true,
             }),
         ),

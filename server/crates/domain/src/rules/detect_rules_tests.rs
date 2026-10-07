@@ -906,10 +906,7 @@ fn what_an_unseen_producer_can_and_cannot_declare() {
     // **Not** expressible: the role in a sibling member. Refused rather than silently ignored, which is the
     // format behaving correctly - and the limit is that there is nothing else to declare instead.
     let refused = compiled(
-        r#"[{"id":"acme.role_from_sibling","doc":"d","read":{"indexed_family":"chat"},
-             "parse":"text","emit":"message","priority":1,
-             "wrap":{"content_from_any_of":["$.content"],"role_from":"$.kind",
-                     "role_map":{"in":"user","out":"assistant"}}}]"#,
+        r#"[{"id": "acme.role_from_sibling", "doc": "d", "read": {"indexed_family": "chat"}, "parse": "text", "emit": "message", "priority": 1, "wrap": {"content_from": "$.content", "role_from": "$.kind", "role_map": {"in": "user", "out": "assistant"}}}]"#,
     )
     .expect_err("an indexed family cannot state which member holds the role");
     assert!(

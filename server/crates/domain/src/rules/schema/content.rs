@@ -705,11 +705,10 @@ pub struct LogEvent {
     pub id: String,
     /// The event name, which must also be declared in `message_events`.
     pub name: String,
-    /// Where a record states its event name, tried in order: the first present source decides.
-    ///
-    /// `event_name` is the log record's own field; `attributes:<key>` is a record attribute, which is how
-    /// producers that predate the field wrote it.
-    pub name_from: Vec<String>,
+    /// Where a record states its event name: `event_name`, the log record's own field, or `attr:<key>`, a
+    /// record attribute, which is how producers that predate the field wrote it. Of several, the first that
+    /// holds a non-empty name decides.
+    pub name_from: FirstOf<SourceName, true>,
     /// Where the event's attributes are on the record.
     pub payload: LogEventPayload,
     pub doc: Option<String>,

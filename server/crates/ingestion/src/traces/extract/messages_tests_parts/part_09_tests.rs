@@ -177,11 +177,7 @@ fn carrier_ownership_conflicts_are_refused() {
         ),
         (
             "a compose consumes a carrier another rule emits",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute":"r.text"},"parse":"json","emit":"message",
-                 "priority":1},
-                {"id":"b","doc":"d","compose":{"tag":"r","members":[
-                    {"as":"content","from_any_of":["r.text"],"parse":"text"}]},"emit":"message","priority":2}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "r.text"}, "parse": "json", "emit": "message", "priority": 1}, {"id": "b", "doc": "d", "compose": {"tag": "r", "members": [{"as": "content", "from": "r.text", "parse": "text"}]}, "emit": "message", "priority": 2}]}"#,
         ),
         (
             "a sweep overlaps an exact source of another rule",
@@ -213,9 +209,7 @@ fn inexpressible_rules_are_refused() {
     let cases: &[(&str, &str)] = &[
         (
             "`compose` with `wrap`, which would be ignored",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","compose":{"tag":"q","members":[{"as":"c","from_any_of":["k"],"parse":"text"}]},
-                 "wrap":{"role":"user"},"emit":"message","priority":1}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "compose": {"tag": "q", "members": [{"as": "c", "from": "k", "parse": "text"}]}, "wrap": {"role": "user"}, "emit": "message", "priority": 1}]}"#,
         ),
         (
             "an indexed family with `wrap`, which would be ignored",
@@ -239,10 +233,7 @@ fn inexpressible_rules_are_refused() {
         ),
         (
             "a compose member that is both a sweep and a named source",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","compose":{"tag":"q","members":[
-                    {"as":"c","from_any_of":["k"],"sweep_prefix":"p."}]},"emit":"message",
-                 "priority":1}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "compose": {"tag": "q", "members": [{"as": "c", "from": "k", "sweep_prefix": "p."}]}, "emit": "message", "priority": 1}]}"#,
         ),
         // Every gate a message rule can carry, through the one validator - three call sites had grown the
         // checks separately, so these were refused for a field source and compiled here.
@@ -256,7 +247,7 @@ fn inexpressible_rules_are_refused() {
         ),
         (
             "a compose member's fallback gated on a resource dimension",
-            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "priority": 1, "compose": {"tag": "q", "members": [{"as": "c", "from_any_of": ["k"], "fallback": {"from": "other", "where": {"source": "resource:service.name", "contains": "svc"}}}]}}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "priority": 1, "compose": {"tag": "q", "members": [{"as": "c", "from": "k", "fallback": {"from": "other", "where": {"source": "resource:service.name", "contains": "svc"}}}]}}]}"#,
         ),
         (
             "a gate on a resource dimension a message rule is never given",
@@ -375,7 +366,7 @@ fn a_tautological_requirement_is_not_a_condition() {
     let refused = [
         (
             "an `exists` complement, which holds of every payload",
-            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "alternatives": [{"id": "probe.alt", "where": {"any": [{"path": "$.v", "exists": true}, {"path": "$.v", "exists": false}]}, "wrap": {"role": "user", "content_from_any_of": ["$.content"]}}]}, {"id": "b", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 2}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "alternatives": [{"id": "probe.alt", "where": {"any": [{"path": "$.v", "exists": true}, {"path": "$.v", "exists": false}]}, "wrap": {"role": "user", "content_from": "$.content"}}]}, {"id": "b", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 2}]}"#,
         ),
         (
             "two rules tagging one carrier from different attributes",
@@ -383,9 +374,7 @@ fn a_tautological_requirement_is_not_a_condition() {
         ),
         (
             "a compose declaring a tag it does not emit",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","tag_as":"declared","priority":1,
-                 "compose":{"tag":"actual","members":[{"as":"content","from_any_of":["k"],"parse":"text"}]}}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "tag_as": "declared", "priority": 1, "compose": {"tag": "actual", "members": [{"as": "content", "from": "k", "parse": "text"}]}}]}"#,
         ),
     ];
     for (what, asset) in refused {
@@ -407,7 +396,7 @@ fn a_tautological_requirement_is_not_a_condition() {
         ),
         (
             "a single `exists` requirement, which is a real condition",
-            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "alternatives": [{"id": "probe.alt", "where": {"path": "$.v", "exists": true}, "wrap": {"role": "user", "content_from_any_of": ["$.content"]}}]}, {"id": "b", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 2}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "alternatives": [{"id": "probe.alt", "where": {"path": "$.v", "exists": true}, "wrap": {"role": "user", "content_from": "$.content"}}]}, {"id": "b", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 2}]}"#,
         ),
         (
             "an indexed family requiring members, beside a rule reading one of its keys",
@@ -419,11 +408,7 @@ fn a_tautological_requirement_is_not_a_condition() {
         ),
         (
             "a rule reading a later spelling of a carrier another rule reads first",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"first_present":["first","second"]},"parse":"json",
-                 "emit":"message","tag_as":"a.own.tag","priority":1},
-                {"id":"b","doc":"d","read":{"attribute":"second"},"parse":"json","emit":"message",
-                 "tag_as":"b.own.tag","priority":2}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": {"first_of": ["first", "second"]}}, "parse": "json", "emit": "message", "tag_as": "a.own.tag", "priority": 1}, {"id": "b", "doc": "d", "read": {"attribute": "second"}, "parse": "json", "emit": "message", "tag_as": "b.own.tag", "priority": 2}]}"#,
         ),
     ];
     for (what, asset) in accepted {
@@ -459,19 +444,15 @@ fn a_condition_separates_two_rules_only_when_it_differs() {
         ),
         (
             "a shared tag where ownership does not resolve the pair",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"first_present":["first","second"]},"parse":"json",
-                 "emit":"message","tag_as":"shared","priority":1},
-                {"id":"b","doc":"d","read":{"attribute":"second"},"parse":"json","emit":"message",
-                 "tag_as":"shared","priority":2}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": {"first_of": ["first", "second"]}}, "parse": "json", "emit": "message", "tag_as": "shared", "priority": 1}, {"id": "b", "doc": "d", "read": {"attribute": "second"}, "parse": "json", "emit": "message", "tag_as": "shared", "priority": 2}]}"#,
         ),
         (
             "a `one_of`/`none_of` complement on a member path",
-            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "alternatives": [{"id": "probe.alt", "where": {"any": [{"path": "$.v", "one_of": ["a"]}, {"path": "$.v", "none_of": ["a"]}]}, "wrap": {"role": "user", "content_from_any_of": ["$.content"]}}]}, {"id": "b", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 2}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "alternatives": [{"id": "probe.alt", "where": {"any": [{"path": "$.v", "one_of": ["a"]}, {"path": "$.v", "none_of": ["a"]}]}, "wrap": {"role": "user", "content_from": "$.content"}}]}, {"id": "b", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 2}]}"#,
         ),
         (
             "the same complement with the path written in bracket form",
-            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "alternatives": [{"id": "probe.alt", "where": {"any": [{"path": "$.v", "exists": true}, {"path": "$['v']", "exists": false}]}, "wrap": {"role": "user", "content_from_any_of": ["$.content"]}}]}, {"id": "b", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 2}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "alternatives": [{"id": "probe.alt", "where": {"any": [{"path": "$.v", "exists": true}, {"path": "$['v']", "exists": false}]}, "wrap": {"role": "user", "content_from": "$.content"}}]}, {"id": "b", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 2}]}"#,
         ),
         (
             "`elements` beside a `tag_as` it never emits",
@@ -501,7 +482,7 @@ fn a_condition_separates_two_rules_only_when_it_differs() {
         ),
         (
             "a `none_of` that forbids a value nothing else requires",
-            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "alternatives": [{"id": "probe.alt", "where": {"any": [{"path": "$.v", "one_of": ["a"]}, {"path": "$.v", "none_of": ["a", "b"]}]}, "wrap": {"role": "user", "content_from_any_of": ["$.content"]}}]}, {"id": "b", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 2}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "alternatives": [{"id": "probe.alt", "where": {"any": [{"path": "$.v", "one_of": ["a"]}, {"path": "$.v", "none_of": ["a", "b"]}]}, "wrap": {"role": "user", "content_from": "$.content"}}]}, {"id": "b", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 2}]}"#,
         ),
     ];
     for (what, asset) in accepted {
@@ -718,21 +699,13 @@ fn a_field_source_may_not_declare_a_gate_that_never_holds() {
         ),
         (
             "a reduction over a first-present group, which takes one path of several",
-            r#"{"id":"t","doc":"d","span_fields":[
-                {"id":"f","doc":"d","target":"usage_input_tokens",
-                 "sources":[{"id":"probe.src","json":{"attribute":"output.value","first_present_of":["$.a","$.b"],"reduce":"sum"}}]}]}"#,
+            r#"{"id": "t", "doc": "d", "span_fields": [{"id": "f", "doc": "d", "target": "usage_input_tokens", "sources": [{"id": "probe.src", "json": {"attribute": "output.value", "path": {"first_of": ["$.a", "$.b"]}, "reduce": "sum"}}]}]}"#,
         ),
         (
             "a JSON witness naming no member, which always answers false",
             r#"{"id":"t","doc":"d","span_fields":[
                 {"id":"f","doc":"d","target":"user_id",
                  "sources":[{"id":"probe.src","value":"x","when_json":{"attribute":"request_data"}}]}]}"#,
-        ),
-        (
-            "a JSON witness naming two ways of naming one member",
-            r#"{"id":"t","doc":"d","span_fields":[
-                {"id":"f","doc":"d","target":"user_id",
-                 "sources":[{"id":"probe.src","value":"x","when_json":{"attribute":"request_data","path":"$.a","first_present_of":["$.b"]}}]}]}"#,
         ),
         (
             "a JSON read naming no member",

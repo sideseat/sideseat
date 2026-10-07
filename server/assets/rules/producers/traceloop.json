@@ -149,9 +149,7 @@
         ]
       },
       "unwrap": {
-        "from": [
-          "$.content"
-        ],
+        "from": "$.content",
         "parse_json": true
       }
     }

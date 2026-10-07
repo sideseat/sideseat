@@ -67,8 +67,8 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
         // Exactly one form. Two would make the read ambiguous and none makes the source dead, and both used to
         // be expressible - so this counts rather than pattern-matching a pair, which is what stopped covering
         // the forms as they were added.
-        let forms = usize::from(spec.attribute.is_some())
-            + usize::from(!spec.attribute_first_present_of.is_empty())
+        let forms = usize::from(spec.attribute().is_some())
+            + usize::from(!spec.attribute_first_present_of().is_empty())
             + usize::from(spec.json.is_some())
             + usize::from(spec.span_name_strip_prefix.is_some())
             + usize::from(spec.value.is_some())
@@ -91,7 +91,7 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
         for json in [&spec.json, &spec.when_json].into_iter().flatten() {
             // A reduction combines the matches of *one* path, so there is nothing for it to do over a
             // first-present group - which names several paths and takes one of them.
-            if json.reduce.is_some() && json.path.is_none() {
+            if json.reduce.is_some() && json.path().is_none() {
                 return Err(FieldCompileError::ReductionWithoutAPath {
                     file: file_id.to_string(),
                     rule: rule.id.clone(),
@@ -112,7 +112,7 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
             if json.scalar_only
                 && (is_witness
                     || json.reduce.is_some()
-                    || json.path.is_none()
+                    || json.path().is_none()
                     || rule.target.field_type() != FieldType::StringList)
             {
                 return Err(FieldCompileError::ScalarOnlyWithoutAPath {
@@ -131,8 +131,8 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
                     rule: rule.id.clone(),
                 });
             }
-            let ways =
-                usize::from(json.path.is_some()) + usize::from(!json.first_present_of.is_empty());
+            let ways = usize::from(json.path().is_some())
+                + usize::from(!json.first_present_of().is_empty());
             if ways != 1 {
                 return Err(FieldCompileError::JsonNamesNoMember {
                     file: file_id.to_string(),
@@ -158,7 +158,10 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
                 rule: rule.id.clone(),
             });
         }
-        if spec.attribute.as_deref().is_some_and(str::is_empty)
+        if spec
+            .attribute()
+            .map(String::as_str)
+            .is_some_and(str::is_empty)
             || spec
                 .json
                 .as_ref()
@@ -168,7 +171,10 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
                 .as_deref()
                 .is_some_and(str::is_empty)
             || spec.value.as_deref().is_some_and(str::is_empty)
-            || spec.attribute_first_present_of.iter().any(String::is_empty)
+            || spec
+                .attribute_first_present_of()
+                .iter()
+                .any(String::is_empty)
             || spec
                 .when_json
                 .as_ref()

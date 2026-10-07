@@ -70,12 +70,14 @@
           },
           "wrap": {
             "role": "user",
-            "content_from_any_of": [
-              "$.content",
-              "$.kwargs.content",
-              "$.data.content",
-              "$.text"
-            ]
+            "content_from": {
+              "first_of": [
+                "$.content",
+                "$.kwargs.content",
+                "$.data.content",
+                "$.text"
+              ]
+            }
           }
         },
         {
@@ -108,23 +110,27 @@
           },
           "wrap": {
             "role": "assistant",
-            "content_from_any_of": [
-              "$.content",
-              "$.kwargs.content",
-              "$.data.content",
-              "$.text"
-            ],
+            "content_from": {
+              "first_of": [
+                "$.content",
+                "$.kwargs.content",
+                "$.data.content",
+                "$.text"
+              ]
+            },
             "attach": [
               {
                 "as": "tool_calls",
-                "from_value_any_of": [
-                  "$.tool_calls",
-                  "$.kwargs.tool_calls",
-                  "$.data.tool_calls",
-                  "$.additional_kwargs.tool_calls",
-                  "$.kwargs.additional_kwargs.tool_calls",
-                  "$.data.additional_kwargs.tool_calls"
-                ],
+                "from_value": {
+                  "first_of": [
+                    "$.tool_calls",
+                    "$.kwargs.tool_calls",
+                    "$.data.tool_calls",
+                    "$.additional_kwargs.tool_calls",
+                    "$.kwargs.additional_kwargs.tool_calls",
+                    "$.data.additional_kwargs.tool_calls"
+                  ]
+                },
                 "where": {
                   "kind": "array",
                   "non_empty": true
@@ -133,11 +139,13 @@
               },
               {
                 "as": "function_call",
-                "from_value_any_of": [
-                  "$.additional_kwargs.function_call",
-                  "$.kwargs.additional_kwargs.function_call",
-                  "$.data.additional_kwargs.function_call"
-                ],
+                "from_value": {
+                  "first_of": [
+                    "$.additional_kwargs.function_call",
+                    "$.kwargs.additional_kwargs.function_call",
+                    "$.data.additional_kwargs.function_call"
+                  ]
+                },
                 "after_content": true
               }
             ]
@@ -173,12 +181,14 @@
           },
           "wrap": {
             "role": "system",
-            "content_from_any_of": [
-              "$.content",
-              "$.kwargs.content",
-              "$.data.content",
-              "$.text"
-            ]
+            "content_from": {
+              "first_of": [
+                "$.content",
+                "$.kwargs.content",
+                "$.data.content",
+                "$.text"
+              ]
+            }
           }
         },
         {
@@ -211,29 +221,35 @@
           },
           "wrap": {
             "role": "tool",
-            "content_from_any_of": [
-              "$.content",
-              "$.kwargs.content",
-              "$.data.content",
-              "$.text"
-            ],
+            "content_from": {
+              "first_of": [
+                "$.content",
+                "$.kwargs.content",
+                "$.data.content",
+                "$.text"
+              ]
+            },
             "attach": [
               {
                 "as": "tool_call_id",
-                "from_value_any_of": [
-                  "$.tool_call_id",
-                  "$.kwargs.tool_call_id",
-                  "$.data.tool_call_id"
-                ],
+                "from_value": {
+                  "first_of": [
+                    "$.tool_call_id",
+                    "$.kwargs.tool_call_id",
+                    "$.data.tool_call_id"
+                  ]
+                },
                 "after_content": true
               },
               {
                 "as": "name",
-                "from_value_any_of": [
-                  "$.name",
-                  "$.kwargs.name",
-                  "$.data.name"
-                ],
+                "from_value": {
+                  "first_of": [
+                    "$.name",
+                    "$.kwargs.name",
+                    "$.data.name"
+                  ]
+                },
                 "after_content": true
               }
             ]
@@ -269,20 +285,24 @@
           },
           "wrap": {
             "role": "function",
-            "content_from_any_of": [
-              "$.content",
-              "$.kwargs.content",
-              "$.data.content",
-              "$.text"
-            ],
+            "content_from": {
+              "first_of": [
+                "$.content",
+                "$.kwargs.content",
+                "$.data.content",
+                "$.text"
+              ]
+            },
             "attach": [
               {
                 "as": "name",
-                "from_value_any_of": [
-                  "$.name",
-                  "$.kwargs.name",
-                  "$.data.name"
-                ],
+                "from_value": {
+                  "first_of": [
+                    "$.name",
+                    "$.kwargs.name",
+                    "$.data.name"
+                  ]
+                },
                 "default": "function"
               }
             ]
@@ -310,12 +330,14 @@
           },
           "wrap": {
             "role_from": "$.role",
-            "content_from_any_of": [
-              "$.content",
-              "$.kwargs.content",
-              "$.data.content",
-              "$.text"
-            ]
+            "content_from": {
+              "first_of": [
+                "$.content",
+                "$.kwargs.content",
+                "$.data.content",
+                "$.text"
+              ]
+            }
           }
         }
       ]
@@ -351,16 +373,15 @@
         ]
       },
       "media": {
-        "media_type": [
-          "$.mime_type"
-        ],
-        "data": [
-          "$.base64"
-        ],
-        "name": [
-          "$.name",
-          "$.filename"
-        ]
+        "media_type": "$.mime_type",
+        "data": "$.base64",
+        "name": {
+          "first_of": [
+            "$.name",
+            "$.filename"
+          ],
+          "mode": "usable"
+        }
       }
     }
   ],

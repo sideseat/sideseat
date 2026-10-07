@@ -92,26 +92,20 @@
     {
       "id": "codex.log_event.user_prompt",
       "name": "codex.user_prompt",
-      "name_from": [
-        "attributes:event.name"
-      ],
+      "name_from": "attr:event.name",
       "payload": "attributes",
       "doc": "Named by the `event.name` attribute only: the record's own event name is the `tracing` call site (`event otel/src/events/session_telemetry.rs:1150`), which the OpenTelemetry bridge writes there."
     },
     {
       "id": "codex.log_event.agent_response",
       "name": "codex.agent_response",
-      "name_from": [
-        "attributes:event.name"
-      ],
+      "name_from": "attr:event.name",
       "payload": "attributes"
     },
     {
       "id": "codex.log_event.tool_result",
       "name": "codex.tool_result",
-      "name_from": [
-        "attributes:event.name"
-      ],
+      "name_from": "attr:event.name",
       "payload": "attributes"
     }
   ],

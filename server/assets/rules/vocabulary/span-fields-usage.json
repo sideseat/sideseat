@@ -1,7 +1,7 @@
 {
   "$schema": "../../rules.schema.json",
   "id": "span-fields-usage",
-  "doc": "Where each token counter is written. **Only** where: the arithmetic, the synthesised total, whether each counter was *supplied*, and every pricing decision stay in Rust, because those are statements about our own accounting rather than about a producer's spelling.\n\nEach counter is one group of aliases followed by a scoped last resort. The group is `attribute_first_present_of` rather than separate sources, and that is load-bearing: the retired chain selected the primary by presence and then converted, so an empty or unreadable primary ended the *flat* chain and an embedded carrier answered - a different producer's statement, not a later spelling of the same one.\n\nThe scoped sources are bare names (`input_tokens`) that any framework might use for anything, so they are read only on spans whose name says which producer wrote them. That gate is the whole reason they are safe to consult at all.\n\nAfter the flat groups come the **embedded** usage objects, in the order the retired fallbacks ran: one dialect's own usage blob, then the usage nested in a serialised response, then a third dialect's response object. Each is consulted only for a counter nothing before it supplied, which is what an ordered chain already means - and the flat groups carry `on_malformed: continue` so an unreadable flat value does not hide the embedded object behind it, which is exactly when the retired chain reached for one.\n\nTwo dialects state usage in a shape the chain alone cannot express. One records it **per message**, so the call's count is the sum across them (`reduce: sum`) - resolved as its own candidate, because that dialect fills both sides together when either summed to anything and a per-side chain cannot say that. The other's embedded object carries a *total* beside its parts, which is usable only when the parts actually stored are the ones it describes - so its four values are resolved as their own `usage_candidate_*` targets, whatever the chains answered, and what may be done with them is decided in Rust.",
+  "doc": "Where each token counter is written. **Only** where: the arithmetic, the synthesised total, whether each counter was *supplied*, and every pricing decision stay in Rust, because those are statements about our own accounting rather than about a producer's spelling.\n\nEach counter is one group of aliases followed by a scoped last resort. The group is one `attribute` source spelled `{\"first_of\": [...]}` rather than separate sources, and that is load-bearing: the retired chain selected the primary by presence and then converted, so an empty or unreadable primary ended the *flat* chain and an embedded carrier answered - a different producer's statement, not a later spelling of the same one.\n\nThe scoped sources are bare names (`input_tokens`) that any framework might use for anything, so they are read only on spans whose name says which producer wrote them. That gate is the whole reason they are safe to consult at all.\n\nAfter the flat groups come the **embedded** usage objects, in the order the retired fallbacks ran: one dialect's own usage blob, then the usage nested in a serialised response, then a third dialect's response object. Each is consulted only for a counter nothing before it supplied, which is what an ordered chain already means - and the flat groups carry `on_malformed: continue` so an unreadable flat value does not hide the embedded object behind it, which is exactly when the retired chain reached for one.\n\nTwo dialects state usage in a shape the chain alone cannot express. One records it **per message**, so the call's count is the sum across them (`reduce: sum`) - resolved as its own candidate, because that dialect fills both sides together when either summed to anything and a per-side chain cannot say that. The other's embedded object carries a *total* beside its parts, which is usable only when the parts actually stored are the ones it describes - so its four values are resolved as their own `usage_candidate_*` targets, whatever the chains answered, and what may be done with them is decided in Rust.",
   "span_fields": [
     {
       "id": "span-fields.usage_input_tokens",
@@ -10,14 +10,16 @@
         {
           "id": "usage_input_tokens",
           "doc": "On a span whose name says which producer wrote it, the bare `input_tokens` is part of the **same** first-present group as the conventional spellings - which is what the retired table did, one selection across primary, aliases and scoped names alike. As a source *after* the group it would answer when a conventional counter was present but unreadable, where the retired chain stopped and let an embedded carrier speak.",
-          "attribute_first_present_of": [
-            "gen_ai.usage.input_tokens",
-            "gen_ai.usage.prompt_tokens",
-            "llm.usage.prompt_tokens",
-            "llm.token_count.prompt",
-            "ai.usage.promptTokens",
-            "input_tokens"
-          ],
+          "attribute": {
+            "first_of": [
+              "gen_ai.usage.input_tokens",
+              "gen_ai.usage.prompt_tokens",
+              "llm.usage.prompt_tokens",
+              "llm.token_count.prompt",
+              "ai.usage.promptTokens",
+              "input_tokens"
+            ]
+          },
           "where": {
             "source": "span_name",
             "starts_with": "claude_code."
@@ -27,23 +29,27 @@
         {
           "id": "usage_input_tokens_2",
           "doc": "Every other span: the conventional spellings only. The bare name is too generic to consult without evidence of who wrote it, and that evidence is the span's name.",
-          "attribute_first_present_of": [
-            "gen_ai.usage.input_tokens",
-            "gen_ai.usage.prompt_tokens",
-            "llm.usage.prompt_tokens",
-            "llm.token_count.prompt",
-            "ai.usage.promptTokens"
-          ],
+          "attribute": {
+            "first_of": [
+              "gen_ai.usage.input_tokens",
+              "gen_ai.usage.prompt_tokens",
+              "llm.usage.prompt_tokens",
+              "llm.token_count.prompt",
+              "ai.usage.promptTokens"
+            ]
+          },
           "on_malformed": "continue"
         },
         {
           "id": "chat_tokenusage_prompt_tokens",
           "json": {
             "attribute": "mlflow.chat.tokenUsage",
-            "first_present_of": [
-              "$.prompt_tokens",
-              "$.input_tokens"
-            ]
+            "path": {
+              "first_of": [
+                "$.prompt_tokens",
+                "$.input_tokens"
+              ]
+            }
           },
           "on_malformed": "continue",
           "doc": "The usage object one dialect serialises, whose two spellings are one statement."
@@ -61,10 +67,12 @@
           "id": "response_data_input_tokens",
           "json": {
             "attribute": "response_data",
-            "first_present_of": [
-              "$.usage.input_tokens",
-              "$.usage.prompt_tokens"
-            ]
+            "path": {
+              "first_of": [
+                "$.usage.input_tokens",
+                "$.usage.prompt_tokens"
+              ]
+            }
           },
           "on_malformed": "continue",
           "doc": "Another dialect's response object, whose member names follow whichever provider answered."
@@ -82,10 +90,12 @@
           "id": "langfuse_usage_input",
           "json": {
             "attribute": "langfuse.observation.usage_details",
-            "first_present_of": [
-              "$.input_tokens",
-              "$.prompt_tokens"
-            ]
+            "path": {
+              "first_of": [
+                "$.input_tokens",
+                "$.prompt_tokens"
+              ]
+            }
           },
           "on_malformed": "continue",
           "doc": "The usage object a generation records, whose member names follow whichever API answered."
@@ -112,14 +122,16 @@
         {
           "id": "usage_output_tokens",
           "doc": "On a span whose name says which producer wrote it, the bare `output_tokens` is part of the **same** first-present group as the conventional spellings - which is what the retired table did, one selection across primary, aliases and scoped names alike. As a source *after* the group it would answer when a conventional counter was present but unreadable, where the retired chain stopped and let an embedded carrier speak.",
-          "attribute_first_present_of": [
-            "gen_ai.usage.output_tokens",
-            "gen_ai.usage.completion_tokens",
-            "llm.usage.completion_tokens",
-            "llm.token_count.completion",
-            "ai.usage.completionTokens",
-            "output_tokens"
-          ],
+          "attribute": {
+            "first_of": [
+              "gen_ai.usage.output_tokens",
+              "gen_ai.usage.completion_tokens",
+              "llm.usage.completion_tokens",
+              "llm.token_count.completion",
+              "ai.usage.completionTokens",
+              "output_tokens"
+            ]
+          },
           "where": {
             "source": "span_name",
             "starts_with": "claude_code."
@@ -129,23 +141,27 @@
         {
           "id": "usage_output_tokens_2",
           "doc": "Every other span: the conventional spellings only. The bare name is too generic to consult without evidence of who wrote it, and that evidence is the span's name.",
-          "attribute_first_present_of": [
-            "gen_ai.usage.output_tokens",
-            "gen_ai.usage.completion_tokens",
-            "llm.usage.completion_tokens",
-            "llm.token_count.completion",
-            "ai.usage.completionTokens"
-          ],
+          "attribute": {
+            "first_of": [
+              "gen_ai.usage.output_tokens",
+              "gen_ai.usage.completion_tokens",
+              "llm.usage.completion_tokens",
+              "llm.token_count.completion",
+              "ai.usage.completionTokens"
+            ]
+          },
           "on_malformed": "continue"
         },
         {
           "id": "chat_tokenusage_completion_tokens",
           "json": {
             "attribute": "mlflow.chat.tokenUsage",
-            "first_present_of": [
-              "$.completion_tokens",
-              "$.output_tokens"
-            ]
+            "path": {
+              "first_of": [
+                "$.completion_tokens",
+                "$.output_tokens"
+              ]
+            }
           },
           "on_malformed": "continue"
         },
@@ -161,10 +177,12 @@
           "id": "response_data_output_tokens",
           "json": {
             "attribute": "response_data",
-            "first_present_of": [
-              "$.usage.output_tokens",
-              "$.usage.completion_tokens"
-            ]
+            "path": {
+              "first_of": [
+                "$.usage.output_tokens",
+                "$.usage.completion_tokens"
+              ]
+            }
           },
           "on_malformed": "continue"
         },
@@ -180,10 +198,12 @@
           "id": "langfuse_usage_output",
           "json": {
             "attribute": "langfuse.observation.usage_details",
-            "first_present_of": [
-              "$.output_tokens",
-              "$.completion_tokens"
-            ]
+            "path": {
+              "first_of": [
+                "$.output_tokens",
+                "$.completion_tokens"
+              ]
+            }
           },
           "on_malformed": "continue"
         },
@@ -209,10 +229,12 @@
       "sources": [
         {
           "id": "usage_total_tokens",
-          "attribute_first_present_of": [
-            "gen_ai.usage.total_tokens",
-            "llm.token_count.total"
-          ]
+          "attribute": {
+            "first_of": [
+              "gen_ai.usage.total_tokens",
+              "llm.token_count.total"
+            ]
+          }
         }
       ]
     },
@@ -223,14 +245,16 @@
         {
           "id": "usage_cache_read_input_tokens",
           "doc": "On a span whose name says which producer wrote it, the bare `cache_read_tokens` is part of the **same** first-present group as the conventional spellings - which is what the retired table did, one selection across primary, aliases and scoped names alike. As a source *after* the group it would answer when a conventional counter was present but unreadable, where the retired chain stopped and let an embedded carrier speak.",
-          "attribute_first_present_of": [
-            "gen_ai.usage.cache_read_input_tokens",
-            "gen_ai.usage.cache_read_tokens",
-            "gen_ai.usage.cache_read.input_tokens",
-            "llm.usage.cache_read_input_tokens",
-            "ai.usage.cachedInputTokens",
-            "cache_read_tokens"
-          ],
+          "attribute": {
+            "first_of": [
+              "gen_ai.usage.cache_read_input_tokens",
+              "gen_ai.usage.cache_read_tokens",
+              "gen_ai.usage.cache_read.input_tokens",
+              "llm.usage.cache_read_input_tokens",
+              "ai.usage.cachedInputTokens",
+              "cache_read_tokens"
+            ]
+          },
           "where": {
             "source": "span_name",
             "starts_with": "claude_code."
@@ -240,13 +264,15 @@
         {
           "id": "usage_cache_read_input_tokens_2",
           "doc": "Every other span: the conventional spellings only. The bare name is too generic to consult without evidence of who wrote it, and that evidence is the span's name.",
-          "attribute_first_present_of": [
-            "gen_ai.usage.cache_read_input_tokens",
-            "gen_ai.usage.cache_read_tokens",
-            "gen_ai.usage.cache_read.input_tokens",
-            "llm.usage.cache_read_input_tokens",
-            "ai.usage.cachedInputTokens"
-          ],
+          "attribute": {
+            "first_of": [
+              "gen_ai.usage.cache_read_input_tokens",
+              "gen_ai.usage.cache_read_tokens",
+              "gen_ai.usage.cache_read.input_tokens",
+              "llm.usage.cache_read_input_tokens",
+              "ai.usage.cachedInputTokens"
+            ]
+          },
           "on_malformed": "continue"
         },
         {
@@ -261,10 +287,12 @@
           "id": "raw_usage_cached_tokens",
           "json": {
             "attribute": "gen_ai.usage.raw",
-            "first_present_of": [
-              "$.input_tokens_details.cached_tokens",
-              "$.prompt_tokens_details.cached_tokens"
-            ]
+            "path": {
+              "first_of": [
+                "$.input_tokens_details.cached_tokens",
+                "$.prompt_tokens_details.cached_tokens"
+              ]
+            }
           },
           "on_malformed": "continue",
           "doc": "The provider's own usage object, kept whole beside the conventional counters; read only after them."
@@ -273,10 +301,12 @@
           "id": "langfuse_usage_cached_tokens",
           "json": {
             "attribute": "langfuse.observation.usage_details",
-            "first_present_of": [
-              "$.input_tokens_details.cached_tokens",
-              "$.prompt_tokens_details.cached_tokens"
-            ]
+            "path": {
+              "first_of": [
+                "$.input_tokens_details.cached_tokens",
+                "$.prompt_tokens_details.cached_tokens"
+              ]
+            }
           },
           "on_malformed": "continue"
         }
@@ -289,14 +319,16 @@
         {
           "id": "usage_cache_creation_input_tokens",
           "doc": "On a span whose name says which producer wrote it, the bare `cache_creation_tokens` is part of the **same** first-present group as the conventional spellings - which is what the retired table did, one selection across primary, aliases and scoped names alike. As a source *after* the group it would answer when a conventional counter was present but unreadable, where the retired chain stopped and let an embedded carrier speak.",
-          "attribute_first_present_of": [
-            "gen_ai.usage.cache_creation_input_tokens",
-            "gen_ai.usage.cache_write_input_tokens",
-            "gen_ai.usage.cache_write_tokens",
-            "gen_ai.usage.cache_creation.input_tokens",
-            "llm.usage.cache_creation_input_tokens",
-            "cache_creation_tokens"
-          ],
+          "attribute": {
+            "first_of": [
+              "gen_ai.usage.cache_creation_input_tokens",
+              "gen_ai.usage.cache_write_input_tokens",
+              "gen_ai.usage.cache_write_tokens",
+              "gen_ai.usage.cache_creation.input_tokens",
+              "llm.usage.cache_creation_input_tokens",
+              "cache_creation_tokens"
+            ]
+          },
           "where": {
             "source": "span_name",
             "starts_with": "claude_code."
@@ -306,13 +338,15 @@
         {
           "id": "usage_cache_creation_input_tokens_2",
           "doc": "Every other span: the conventional spellings only. The bare name is too generic to consult without evidence of who wrote it, and that evidence is the span's name.",
-          "attribute_first_present_of": [
-            "gen_ai.usage.cache_creation_input_tokens",
-            "gen_ai.usage.cache_write_input_tokens",
-            "gen_ai.usage.cache_write_tokens",
-            "gen_ai.usage.cache_creation.input_tokens",
-            "llm.usage.cache_creation_input_tokens"
-          ],
+          "attribute": {
+            "first_of": [
+              "gen_ai.usage.cache_creation_input_tokens",
+              "gen_ai.usage.cache_write_input_tokens",
+              "gen_ai.usage.cache_write_tokens",
+              "gen_ai.usage.cache_creation.input_tokens",
+              "llm.usage.cache_creation_input_tokens"
+            ]
+          },
           "on_malformed": "continue"
         },
         {
@@ -327,10 +361,12 @@
           "id": "raw_usage_cache_write_tokens",
           "json": {
             "attribute": "gen_ai.usage.raw",
-            "first_present_of": [
-              "$.input_tokens_details.cache_write_tokens",
-              "$.prompt_tokens_details.cache_write_tokens"
-            ]
+            "path": {
+              "first_of": [
+                "$.input_tokens_details.cache_write_tokens",
+                "$.prompt_tokens_details.cache_write_tokens"
+              ]
+            }
           },
           "on_malformed": "continue"
         },
@@ -338,10 +374,12 @@
           "id": "langfuse_usage_cache_write_tokens",
           "json": {
             "attribute": "langfuse.observation.usage_details",
-            "first_present_of": [
-              "$.input_tokens_details.cache_write_tokens",
-              "$.prompt_tokens_details.cache_write_tokens"
-            ]
+            "path": {
+              "first_of": [
+                "$.input_tokens_details.cache_write_tokens",
+                "$.prompt_tokens_details.cache_write_tokens"
+              ]
+            }
           },
           "on_malformed": "continue"
         }
@@ -353,23 +391,27 @@
       "sources": [
         {
           "id": "usage_output_reasoning_tokens",
-          "attribute_first_present_of": [
-            "gen_ai.usage.output_reasoning_tokens",
-            "gen_ai.usage.thoughts_token_count",
-            "gen_ai.usage.reasoning.output_tokens",
-            "gen_ai.usage.reasoning_tokens",
-            "ai.usage.reasoningTokens"
-          ]
+          "attribute": {
+            "first_of": [
+              "gen_ai.usage.output_reasoning_tokens",
+              "gen_ai.usage.thoughts_token_count",
+              "gen_ai.usage.reasoning.output_tokens",
+              "gen_ai.usage.reasoning_tokens",
+              "ai.usage.reasoningTokens"
+            ]
+          }
         },
         {
           "id": "raw_usage_reasoning_tokens",
           "json": {
             "attribute": "gen_ai.usage.raw",
-            "first_present_of": [
-              "$.output_tokens_details.reasoning_tokens",
-              "$.completion_tokens_details.reasoning_tokens",
-              "$.output_tokens_details.thinking_tokens"
-            ]
+            "path": {
+              "first_of": [
+                "$.output_tokens_details.reasoning_tokens",
+                "$.completion_tokens_details.reasoning_tokens",
+                "$.output_tokens_details.thinking_tokens"
+              ]
+            }
           },
           "on_malformed": "continue",
           "doc": "The provider's own usage object: OpenAI's Responses and Chat Completions spellings, and the thinking count of the Anthropic shape that nests one."
@@ -378,10 +420,12 @@
           "id": "langfuse_usage_reasoning_tokens",
           "json": {
             "attribute": "langfuse.observation.usage_details",
-            "first_present_of": [
-              "$.output_tokens_details.reasoning_tokens",
-              "$.completion_tokens_details.reasoning_tokens"
-            ]
+            "path": {
+              "first_of": [
+                "$.output_tokens_details.reasoning_tokens",
+                "$.completion_tokens_details.reasoning_tokens"
+              ]
+            }
           },
           "on_malformed": "continue"
         }

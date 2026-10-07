@@ -256,8 +256,7 @@ fn every_span_field_refusal_fires() {
         ),
         (
             "a reduction over a first-present group, which selects one path rather than combining matches",
-            r#"{"id":"t","span_fields":[{"id":"f","target":"usage_input_tokens",
-               "sources":[{"id":"s","json":{"attribute":"a","first_present_of":["$.a","$.b"],"reduce":"sum"}}]}]}"#,
+            r#"{"id": "t", "span_fields": [{"id": "f", "target": "usage_input_tokens", "sources": [{"id": "s", "json": {"attribute": "a", "path": {"first_of": ["$.a", "$.b"]}, "reduce": "sum"}}]}]}"#,
             |e| matches!(e, E::ReductionWithoutAPath { .. }),
         ),
         (
@@ -268,8 +267,7 @@ fn every_span_field_refusal_fires() {
         ),
         (
             "`scalar_only` where it cannot apply",
-            r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
-               "sources":[{"id":"s","json":{"attribute":"a","first_present_of":["$.a"],"scalar_only":true}}]}]}"#,
+            r#"{"id": "t", "span_fields": [{"id": "f", "target": "user_id", "sources": [{"id": "s", "json": {"attribute": "a", "path": "$.a", "scalar_only": true}}]}]}"#,
             |e| matches!(e, E::ScalarOnlyWithoutAPath { .. }),
         ),
         (

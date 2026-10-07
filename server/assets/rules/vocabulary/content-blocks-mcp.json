@@ -30,9 +30,7 @@
         ]
       },
       "unwrap": {
-        "from": [
-          "$.content[0]"
-        ]
+        "from": "$.content[0]"
       }
     }
   ]

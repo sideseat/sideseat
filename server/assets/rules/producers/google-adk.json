@@ -154,9 +154,7 @@
                 },
                 "wrap": {
                   "role_from": "$.role",
-                  "content_from_any_of": [
-                    "$.parts"
-                  ]
+                  "content_from": "$.parts"
                 }
               }
             ]
@@ -176,20 +174,24 @@
                 "select": "$.tools",
                 "each": true,
                 "else_element": true,
-                "then_present_any_of": [
-                  "$.function_declarations",
-                  "$.functionDeclarations"
-                ]
+                "then_select": {
+                  "first_of": [
+                    "$.function_declarations",
+                    "$.functionDeclarations"
+                  ]
+                }
               },
               {
                 "id": "tools_2",
                 "select": "$.config.tools",
                 "each": true,
                 "else_element": true,
-                "then_present_any_of": [
-                  "$.function_declarations",
-                  "$.functionDeclarations"
-                ]
+                "then_select": {
+                  "first_of": [
+                    "$.function_declarations",
+                    "$.functionDeclarations"
+                  ]
+                }
               }
             ]
           }
@@ -244,9 +246,7 @@
                       "after_content": true
                     }
                   ],
-                  "content_from_any_of": [
-                    "$.parts"
-                  ]
+                  "content_from": "$.parts"
                 }
               }
             ]

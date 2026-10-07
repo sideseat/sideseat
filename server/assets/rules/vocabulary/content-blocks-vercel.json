@@ -15,16 +15,15 @@
         ]
       },
       "tool_use": {
-        "id": [
-          "$.toolCallId"
-        ],
-        "name": [
-          "$.toolName"
-        ],
-        "input": [
-          "$.input",
-          "$.args"
-        ]
+        "id": "$.toolCallId",
+        "name": "$.toolName",
+        "input": {
+          "first_of": [
+            "$.input",
+            "$.args"
+          ],
+          "mode": "usable"
+        }
       }
     },
     {
@@ -39,17 +38,21 @@
         ]
       },
       "tool_result": {
-        "tool_use_id": [
-          "$.toolCallId"
-        ],
-        "content": [
-          "$.result",
-          "$.output"
-        ],
-        "is_error": [
-          "$.isError",
-          "$.is_error"
-        ]
+        "tool_use_id": "$.toolCallId",
+        "content": {
+          "first_of": [
+            "$.result",
+            "$.output"
+          ],
+          "mode": "usable"
+        },
+        "is_error": {
+          "first_of": [
+            "$.isError",
+            "$.is_error"
+          ],
+          "mode": "usable"
+        }
       }
     },
     {
@@ -63,9 +66,7 @@
         ]
       },
       "json": {
-        "data": [
-          "$.value"
-        ]
+        "data": "$.value"
       }
     },
     {
@@ -80,9 +81,7 @@
         ]
       },
       "text": {
-        "text": [
-          "$.value"
-        ]
+        "text": "$.value"
       }
     },
     {
@@ -97,13 +96,14 @@
         ]
       },
       "media": {
-        "media_type": [
-          "$.mediaType",
-          "$.mimeType"
-        ],
-        "data": [
-          "$.data"
-        ]
+        "media_type": {
+          "first_of": [
+            "$.mediaType",
+            "$.mimeType"
+          ],
+          "mode": "usable"
+        },
+        "data": "$.data"
       }
     },
     {
@@ -143,9 +143,7 @@
         ]
       },
       "text": {
-        "text": [
-          "$.content"
-        ]
+        "text": "$.content"
       }
     }
   ]

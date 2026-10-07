@@ -527,9 +527,7 @@ mod tests {
                                 ]
                             },
                             "text": {
-                                "text": [
-                                    "$.value"
-                                ]
+                                "text": "$.value"
                             }
                         }
                     ]
@@ -551,9 +549,7 @@ mod tests {
                                 ]
                             },
                             "text": {
-                                "text": [
-                                    "$.value"
-                                ]
+                                "text": "$.value"
                             }
                         }
                     ]

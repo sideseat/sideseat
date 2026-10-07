@@ -132,10 +132,12 @@
       "id": "livekit.user_input",
       "doc": "The user's turn, under either of the two keys this dialect has used. Tagged with the key actually found, so two spans spelling it differently stay distinguishable.",
       "read": {
-        "first_present": [
-          "lk.user_input",
-          "lk.input_text"
-        ]
+        "attribute": {
+          "first_of": [
+            "lk.user_input",
+            "lk.input_text"
+          ]
+        }
       },
       "parse": "text",
       "raw_where": {

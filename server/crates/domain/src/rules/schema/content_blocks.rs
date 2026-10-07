@@ -138,13 +138,14 @@ pub struct ToolUseBlock {
     /// Ordered: the first member holding a non-blank string, else a declared `template`; absent is
     /// reported as null, because a provider that omits an id has still made the call.
     #[serde(default)]
-    pub id: Vec<IdSource>,
+    pub id: FirstOf<IdSource, true>,
     /// Required: a nameless call names nothing to run, so the case does not recognise the block.
-    pub name: Vec<ValueSource>,
+    #[serde(default)]
+    pub name: FirstOf<ValueSource, true>,
     /// Ordered, and an **empty object counts as absent** - a dialect that renamed this member leaves the
     /// unused one present as `{}`, so "the first that resolves" would always pick the empty one.
     #[serde(default)]
-    pub input: Vec<ValueSource>,
+    pub input: FirstOf<ValueSource, true>,
 }
 
 /// One place a call's id may come from.
@@ -180,19 +181,19 @@ pub struct ToolResultBlock {
     #[serde(default)]
     pub doc: Option<String>,
     #[serde(default)]
-    pub tool_use_id: Vec<ValueSource>,
+    pub tool_use_id: FirstOf<ValueSource, true>,
     /// Ordered; omitted when no path resolves. A result may carry both the id that pairs it exactly and the
     /// human-readable tool name, and keeping the latter can make an aggregate snapshot at least as rich as a
     /// duplicate tool-span observation.
     #[serde(default)]
-    pub name: Vec<ValueSource>,
+    pub name: FirstOf<ValueSource, true>,
     #[serde(default)]
-    pub content: Vec<ValueSource>,
+    pub content: FirstOf<ValueSource, true>,
     /// How the selected content is shaped.
     #[serde(default)]
     pub content_as: ResultContent,
     #[serde(default)]
-    pub is_error: Vec<ValueSource>,
+    pub is_error: FirstOf<ValueSource, true>,
 }
 
 /// Structured data that is not prose.
@@ -204,7 +205,7 @@ pub struct JsonDataBlock {
     #[serde(default)]
     pub doc: Option<String>,
     #[serde(default)]
-    pub data: Vec<ValueSource>,
+    pub data: FirstOf<ValueSource, true>,
 }
 
 /// Prose. Only a string is text.
@@ -215,7 +216,8 @@ pub struct TextBlock {
     /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
     #[serde(default)]
     pub doc: Option<String>,
-    pub text: Vec<ValueSource>,
+    #[serde(default)]
+    pub text: FirstOf<ValueSource, true>,
 }
 
 /// A model's own reasoning.
@@ -231,9 +233,9 @@ pub struct ThinkingBlock {
     #[serde(default)]
     pub doc: Option<String>,
     #[serde(default)]
-    pub text: Vec<ValueSource>,
+    pub text: FirstOf<ValueSource, true>,
     #[serde(default)]
-    pub signature: Vec<ValueSource>,
+    pub signature: FirstOf<ValueSource, true>,
 }
 
 /// A model's refusal to answer. Only a string is a refusal message; a case whose member holds anything else
@@ -244,7 +246,8 @@ pub struct ThinkingBlock {
 pub struct RefusalBlock {
     #[serde(default)]
     pub doc: Option<String>,
-    pub message: Vec<ValueSource>,
+    #[serde(default)]
+    pub message: FirstOf<ValueSource, true>,
 }
 
 /// Reasoning the provider withheld, kept as the opaque payload a later request replays. The payload is not
@@ -256,7 +259,7 @@ pub struct RedactedThinkingBlock {
     #[serde(default)]
     pub doc: Option<String>,
     #[serde(default)]
-    pub data: Vec<ValueSource>,
+    pub data: FirstOf<ValueSource, true>,
 }
 
 /// A block of a recognised kind in a variant nothing reads, kept whole rather than misread. For a format
@@ -285,9 +288,10 @@ pub struct UnwrapSpec {
     /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
     #[serde(default)]
     pub doc: Option<String>,
-    /// Ordered; the first member that is present is unwrapped, whether or not it normalises.
-    #[cfg_attr(test, schemars(with = "Vec<String>"))]
-    pub from: Vec<JsonPath>,
+    /// The first member that is present is unwrapped, whether or not it normalises.
+    #[cfg_attr(test, schemars(with = "FirstOf<String, false>"))]
+    #[serde(default)]
+    pub from: FirstOf<JsonPath, false>,
     /// The member is a block serialised as JSON text, decoded before it is normalised. A member that does
     /// not decode leaves the original block to the rest of the chain, as one that does not normalise does.
     #[serde(default)]
@@ -309,9 +313,10 @@ pub struct SpliceSpec {
     /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
     #[serde(default)]
     pub doc: Option<String>,
-    /// Ordered; the first member that is present is the list, whether or not it is one.
-    #[cfg_attr(test, schemars(with = "Vec<String>"))]
-    pub from: Vec<JsonPath>,
+    /// The first member that is present is the list, whether or not it is one.
+    #[cfg_attr(test, schemars(with = "FirstOf<String, false>"))]
+    #[serde(default)]
+    pub from: FirstOf<JsonPath, false>,
 }
 
 /// Bytes, or a reference to them. The block's kind and whether it is a reference are both *derived*.
@@ -328,23 +333,24 @@ pub struct MediaBlock {
     #[serde(default)]
     pub kind: Option<MediaKind>,
     #[serde(default)]
-    pub media_type: Vec<ValueSource>,
+    pub media_type: FirstOf<ValueSource, true>,
     /// The media type when no source states one.
     #[serde(default)]
     pub media_type_default: Option<String>,
     /// What a block whose media type is stated nowhere becomes.
     #[serde(default)]
     pub missing_media_type: MissingMediaType,
-    pub data: Vec<ValueSource>,
+    #[serde(default)]
+    pub data: FirstOf<ValueSource, true>,
     /// What the data is: derived from the value, or stated by the format.
     #[serde(default)]
     pub source: MediaSource,
     /// Optional display name, such as the filename a framework retained beside the bytes.
     #[serde(default)]
-    pub name: Vec<ValueSource>,
+    pub name: FirstOf<ValueSource, true>,
     /// How closely a vision model is asked to look at an image.
     #[serde(default)]
-    pub detail: Vec<ValueSource>,
+    pub detail: FirstOf<ValueSource, true>,
 }
 
 /// A media block's canonical kind, spelled as the SideML block type.

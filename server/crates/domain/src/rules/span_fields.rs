@@ -119,14 +119,13 @@ pub enum FieldCompileError {
     NoSources { file: String, rule: String },
     #[error(
         "span field rule `{rule}` in `{file}` has a source that names nowhere to read from - one of \
-         `attribute`, `attribute_first_present_of`, `json`, `event_attribute`, `raw_span_name`, \
-         `span_name_strip_prefix` or `value`"
+         `attribute`, `json`, `event_attribute`, `raw_span_name`, `span_name_strip_prefix` or `value`"
     )]
     SourceReadsNothing { file: String, rule: String },
     #[error(
         "span field rule `{rule}` in `{file}` has a source naming more than one place to read from - \
-         `attribute`, `attribute_first_present_of`, `json`, `event_attribute`, `raw_span_name`, \
-         `span_name_strip_prefix` and `value` are alternatives, and which one won would be the order of the \
+         `attribute`, `json`, `event_attribute`, `raw_span_name`, `span_name_strip_prefix` and `value` are \
+         alternatives, and which one won would be the order of the \
          reader's branches rather than anything declared"
     )]
     SourceReadsTwoThings { file: String, rule: String },
@@ -229,13 +228,13 @@ impl SpanFieldPlan {
             .flat_map(|source| {
                 source
                     .spec
-                    .attribute
-                    .as_deref()
+                    .attribute()
+                    .map(String::as_str)
                     .into_iter()
                     .chain(
                         source
                             .spec
-                            .attribute_first_present_of
+                            .attribute_first_present_of()
                             .iter()
                             .map(String::as_str),
                     )
@@ -462,14 +461,14 @@ pub fn source_label_for(spec: &FieldSource) -> String {
 }
 
 fn source_label(spec: &FieldSource) -> String {
-    if let Some(attribute) = &spec.attribute {
+    if let Some(attribute) = spec.attribute() {
         return attribute.clone();
     }
-    if let [first, ..] = spec.attribute_first_present_of.as_slice() {
+    if let [first, ..] = spec.attribute_first_present_of() {
         return format!("first of {first} ...");
     }
     if let Some(json) = &spec.json {
-        return match (&json.path, json.first_present_of.as_slice()) {
+        return match (json.path(), json.first_present_of()) {
             (Some(path), _) => format!("{}{}", json.attribute, path),
             (_, [first, ..]) => format!("{} (first of {first} ...)", json.attribute),
             _ => json.attribute.clone(),
@@ -523,7 +522,7 @@ fn read_source<'a>(
     events: &[SpanEvent],
     parsed: &mut HashMap<&'a str, Option<JsonValue>>,
 ) -> Reading {
-    if let Some(attribute) = &spec.attribute {
+    if let Some(attribute) = spec.attribute() {
         let Some(raw) = attrs.get(attribute) else {
             return Reading::Absent;
         };
@@ -532,9 +531,9 @@ fn read_source<'a>(
     // Several spellings of one value: the **first present** one answers, and is then converted. Selecting by
     // conversion instead would answer from a later alias when the first is written badly or empty, where the
     // retired chain let the first one end this group and a *different carrier* answer.
-    if !spec.attribute_first_present_of.is_empty() {
+    if !spec.attribute_first_present_of().is_empty() {
         return match spec
-            .attribute_first_present_of
+            .attribute_first_present_of()
             .iter()
             .find_map(|key| attrs.get(key))
         {
@@ -637,15 +636,15 @@ fn read_json<'a>(
     // Several aliases of one member: the **first present** one answers, and then it is converted. Selecting by
     // conversion instead would answer from a *later alias* when the first is written badly, where the retired
     // code let the badly written one end this carrier and the next carrier answer.
-    if !json.first_present_of.is_empty() {
-        for path in &json.first_present_of {
+    if !json.first_present_of().is_empty() {
+        for path in json.first_present_of() {
             if let Some(found) = path.query(value).first() {
                 return from_json(found, field_type);
             }
         }
         return Reading::Absent;
     }
-    let Some(path) = &json.path else {
+    let Some(path) = json.path() else {
         return Reading::Absent;
     };
     // Every match kept, in the order the path found them.
@@ -808,7 +807,7 @@ fn json_member_present<'a>(
     // Present and unparseable: `?` on the cached parse, which is `None` for exactly that case.
     let value = value.as_ref()?;
     // A witness names one path, or several of which any is enough.
-    Some(match (&witness.path, witness.first_present_of.as_slice()) {
+    Some(match (witness.path(), witness.first_present_of()) {
         (Some(path), _) => !path.query(value).is_empty(),
         (_, paths) => paths.iter().any(|path| !path.query(value).is_empty()),
     })

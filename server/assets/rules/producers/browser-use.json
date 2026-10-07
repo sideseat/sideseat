@@ -117,9 +117,7 @@
           },
           "wrap": {
             "role": "tool",
-            "content_from_any_of": [
-              "$.error"
-            ],
+            "content_from": "$.error",
             "block": {
               "type": "tool_result",
               "attach": [
@@ -151,10 +149,12 @@
           },
           "wrap": {
             "role": "tool",
-            "content_from_any_of": [
-              "$.extracted_content",
-              "$.long_term_memory"
-            ],
+            "content_from": {
+              "first_of": [
+                "$.extracted_content",
+                "$.long_term_memory"
+              ]
+            },
             "block": {
               "type": "tool_result",
               "attach": [

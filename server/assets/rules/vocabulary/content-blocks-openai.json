@@ -17,9 +17,7 @@
         ]
       },
       "text": {
-        "text": [
-          "$.text"
-        ]
+        "text": "$.text"
       }
     },
     {
@@ -35,14 +33,15 @@
       },
       "media": {
         "kind": "image",
-        "data": [
-          "$.image_url.url",
-          "$.image_url"
-        ],
+        "data": {
+          "first_of": [
+            "$.image_url.url",
+            "$.image_url"
+          ],
+          "mode": "usable"
+        },
         "missing_media_type": "null",
-        "detail": [
-          "$.image_url.detail"
-        ],
+        "detail": "$.image_url.detail",
         "doc": "Chat Completions nests the URL in an object beside the detail level; the Responses API writes the URL itself. The value says what it is - a data URL, a stored reference, a location - and a data URL's header is the only media type there is."
       }
     },
@@ -58,15 +57,11 @@
       },
       "media": {
         "kind": "audio",
-        "data": [
-          "$.input_audio.data"
-        ],
-        "media_type": [
-          {
-            "path": "$.input_audio.format",
-            "prepend": "audio/"
-          }
-        ],
+        "data": "$.input_audio.data",
+        "media_type": {
+          "path": "$.input_audio.format",
+          "prepend": "audio/"
+        },
         "missing_media_type": "null",
         "source": {
           "reference_or": "base64"
@@ -86,15 +81,11 @@
       },
       "media": {
         "kind": "audio",
-        "data": [
-          "$.audio.data"
-        ],
-        "media_type": [
-          {
-            "path": "$.audio.format",
-            "prepend": "audio/"
-          }
-        ],
+        "data": "$.audio.data",
+        "media_type": {
+          "path": "$.audio.format",
+          "prepend": "audio/"
+        },
         "missing_media_type": "null",
         "source": {
           "reference_or": "base64"
@@ -113,13 +104,9 @@
         ]
       },
       "media": {
-        "data": [
-          "$.file_data"
-        ],
+        "data": "$.file_data",
         "missing_media_type": "null",
-        "name": [
-          "$.filename"
-        ],
+        "name": "$.filename",
         "doc": "The Responses API's file part holds its members flat. Inline data is a data URL, whose header names the media type and so the block's kind; without one the block is a file."
       }
     },
@@ -135,9 +122,7 @@
       },
       "media": {
         "kind": "file",
-        "data": [
-          "$.file_url"
-        ],
+        "data": "$.file_url",
         "missing_media_type": "omit",
         "source": {
           "literal": "url"
@@ -157,9 +142,7 @@
       },
       "media": {
         "kind": "file",
-        "data": [
-          "$.file_id"
-        ],
+        "data": "$.file_id",
         "missing_media_type": "omit",
         "source": {
           "literal": "file_id"
@@ -187,13 +170,9 @@
         ]
       },
       "media": {
-        "data": [
-          "$.file.file_data"
-        ],
+        "data": "$.file.file_data",
         "missing_media_type": "null",
-        "name": [
-          "$.file.filename"
-        ]
+        "name": "$.file.filename"
       }
     },
     {
@@ -216,9 +195,7 @@
       },
       "media": {
         "kind": "file",
-        "data": [
-          "$.file.file_url"
-        ],
+        "data": "$.file.file_url",
         "missing_media_type": "omit",
         "source": {
           "literal": "url"
@@ -245,9 +222,7 @@
       },
       "media": {
         "kind": "file",
-        "data": [
-          "$.file.file_id"
-        ],
+        "data": "$.file.file_id",
         "missing_media_type": "omit",
         "source": {
           "literal": "file_id"
@@ -265,10 +240,13 @@
         ]
       },
       "refusal": {
-        "message": [
-          "$.message",
-          "$.refusal"
-        ],
+        "message": {
+          "first_of": [
+            "$.message",
+            "$.refusal"
+          ],
+          "mode": "usable"
+        },
         "doc": "The API's own refusal part names its text `refusal`; SideML's names it `message`, which the canonical passthrough already reads."
       }
     },
@@ -284,9 +262,7 @@
         ]
       },
       "json": {
-        "data": [
-          "$.json"
-        ]
+        "data": "$.json"
       }
     }
   ]

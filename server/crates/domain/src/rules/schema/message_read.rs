@@ -201,21 +201,12 @@ pub struct ReadSpec {
     /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
     #[serde(default)]
     pub doc: Option<String>,
-    #[serde(default)]
-    pub attribute: Option<String>,
-    /// Ordered carrier alternatives: **the first** of these the span carries is read, and the observation
-    /// is tagged with that key.
-    ///
-    /// A dialect that renamed a key keeps accepting the old one, and the tag has to be the key actually
-    /// found or two spans carrying different spellings would be indistinguishable downstream.
-    ///
-    /// Spelled `first_present` rather than `attribute_any_of` because that name did not say **how many** of
-    /// the listed keys are read, and the answer depended on a *sibling* member: with `tool_repr` beside it,
-    /// every present key was read; without, only the first. So one syntax meant two things - for CrewAI's
-    /// `["crew_agents", "crew_tasks"]`, both or just the first - and which was decided somewhere else in the
-    /// rule.
-    #[serde(default)]
-    pub first_present: Vec<String>,
+    /// The carrier: one attribute, or `{"first_of": [...]}` - several spellings of it, of which the first the
+    /// span carries is read and the observation tagged with that key. A dialect that renamed a key keeps
+    /// accepting the old one, and the tag has to be the key actually found or two spans carrying different
+    /// spellings would be indistinguishable downstream.
+    #[serde(default, rename = "attribute")]
+    pub keys: Option<FirstOf<String, false>>,
     /// **Every** one of these keys the span carries is read, each as its own observation.
     ///
     /// The other half of the split above. A framework may write the same tools under several keys at
@@ -223,9 +214,9 @@ pub struct ReadSpec {
     /// downstream, rather than the richest hiding behind whichever key was declared first.
     ///
     /// Honoured by `tool_repr` alone today, and a rule declaring it with any other body is **refused**
-    /// rather than silently read as `first_present`. Generalising it - every body iterating its carriers -
+    /// rather than silently read as one `first_of`. Generalising it - every body iterating its carriers -
     /// is the natural extension and is not what the corpus needs yet.
-    #[serde(default)]
+    #[serde(default, rename = "every")]
     pub each: Vec<String>,
     /// An *indexed attribute family*: `<prefix>.0.role`, `<prefix>.0.content`, `<prefix>.1.role`, ...
     ///
@@ -422,8 +413,9 @@ pub struct OverlaySpec {
     #[serde(default)]
     pub parse: Option<ParseMode>,
     /// Ordered paths to the counterpart list; the first that resolves to an array is used.
-    #[cfg_attr(test, schemars(with = "Vec<String>"))]
-    pub select_any_of: Vec<JsonPath>,
+    #[serde(rename = "select")]
+    #[cfg_attr(test, schemars(with = "FirstOf<String, true>"))]
+    pub select_any_of: FirstOf<JsonPath, true>,
     /// Unwrap a list of exactly one list. A serialiser that accepts a batch of conversations writes one
     /// conversation as a batch of one, and the members of *that* are the messages.
     ///
@@ -439,8 +431,9 @@ pub struct OverlaySpec {
     /// that is known to be lossy.
     pub when_member_prefix: String,
     /// Ordered paths to the counterpart's content.
-    #[cfg_attr(test, schemars(with = "Vec<String>"))]
-    pub content_any_of: Vec<JsonPath>,
+    #[serde(rename = "content_from")]
+    #[cfg_attr(test, schemars(with = "FirstOf<String, false>"))]
+    pub content_any_of: FirstOf<JsonPath, false>,
     /// What that content must be for the overlay to be an improvement.
     #[serde(default, rename = "where")]
     pub require: ValueCondition,
@@ -451,11 +444,23 @@ pub struct OverlaySpec {
 impl ReadSpec {
     /// How many carriers this names. Exactly one is required.
     pub fn named_count(&self) -> usize {
-        usize::from(self.attribute.is_some())
+        usize::from(self.keys.is_some())
             + usize::from(self.indexed_family.is_some())
             + usize::from(self.family.is_some())
-            + usize::from(!self.first_present.is_empty())
             + usize::from(!self.each.is_empty())
+    }
+
+    /// The one attribute this reads, where it names one.
+    pub fn attribute(&self) -> Option<&String> {
+        self.keys.as_ref().and_then(FirstOf::single)
+    }
+
+    /// The spellings this reads the first present of, where it names several.
+    pub fn first_present(&self) -> &[String] {
+        match &self.keys {
+            Some(keys) if !keys.is_single() => keys.candidates(),
+            _ => &[],
+        }
     }
 }
 

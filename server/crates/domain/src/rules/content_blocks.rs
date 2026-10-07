@@ -157,7 +157,7 @@ impl ContentBlockPlan {
             };
             // `tool_result` and `json` **always** build something: every one of their members is optional,
             // so they return a block whether their selectors resolved or not. Emptiness of the selector list
-            // was the wrong test - `json: {"data": ["$.missing"]}` resolves nothing and still emits
+            // was the wrong test - `json: {"data": "$.missing"}` resolves nothing and still emits
             // `{data: {}}` for every block it is offered. So the *condition* is what must identify the
             // shape, and these two forms cannot be declared without one.
             // `thinking` joins these two: its members are all optional, so it emits a block whether they

@@ -23,15 +23,11 @@
         ]
       },
       "thinking": {
-        "text": [
-          {
-            "path": "$.thinking[?@.type == 'text'].text",
-            "join": "\n\n"
-          }
-        ],
-        "signature": [
-          "$.signature"
-        ],
+        "text": {
+          "path": "$.thinking[?@.type == 'text'].text",
+          "join": "\n\n"
+        },
+        "signature": "$.signature",
         "doc": "Reasoning as a list of chunks, the text ones joined in order."
       }
     }

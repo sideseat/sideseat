@@ -23,9 +23,7 @@
         ]
       },
       "text": {
-        "text": [
-          "$.text"
-        ]
+        "text": "$.text"
       }
     },
     {
@@ -47,9 +45,7 @@
         ]
       },
       "json": {
-        "data": [
-          "$.json"
-        ],
+        "data": "$.json",
         "doc": "A tool result's structured value: exactly `{\"json\": ...}`. Read as plain data, the value came back wrapped in the member that only labels it."
       }
     },
@@ -62,12 +58,8 @@
         "exists": true
       },
       "thinking": {
-        "text": [
-          "$.reasoningContent.reasoningText.text"
-        ],
-        "signature": [
-          "$.reasoningContent.reasoningText.signature"
-        ]
+        "text": "$.reasoningContent.reasoningText.text",
+        "signature": "$.reasoningContent.reasoningText.signature"
       }
     },
     {
@@ -79,9 +71,7 @@
         "exists": true
       },
       "redacted_thinking": {
-        "data": [
-          "$.reasoningContent.redactedContent.data"
-        ]
+        "data": "$.reasoningContent.redactedContent.data"
       }
     },
     {
@@ -106,15 +96,11 @@
       },
       "media": {
         "kind": "image",
-        "data": [
-          "$.image.source.bytes"
-        ],
-        "media_type": [
-          {
-            "path": "$.image.format",
-            "prepend": "image/"
-          }
-        ],
+        "data": "$.image.source.bytes",
+        "media_type": {
+          "path": "$.image.format",
+          "prepend": "image/"
+        },
         "missing_media_type": "null",
         "source": {
           "reference_or": "base64"
@@ -132,22 +118,16 @@
       },
       "media": {
         "kind": "document",
-        "data": [
-          "$.document.source.bytes"
-        ],
-        "media_type": [
-          {
-            "path": "$.document.format",
-            "prepend": "application/"
-          }
-        ],
+        "data": "$.document.source.bytes",
+        "media_type": {
+          "path": "$.document.format",
+          "prepend": "application/"
+        },
         "missing_media_type": "null",
         "source": {
           "reference_or": "base64"
         },
-        "name": [
-          "$.document.name"
-        ]
+        "name": "$.document.name"
       }
     },
     {
@@ -160,15 +140,11 @@
       },
       "media": {
         "kind": "video",
-        "data": [
-          "$.video.source.bytes"
-        ],
-        "media_type": [
-          {
-            "path": "$.video.format",
-            "prepend": "video/"
-          }
-        ],
+        "data": "$.video.source.bytes",
+        "media_type": {
+          "path": "$.video.format",
+          "prepend": "video/"
+        },
         "missing_media_type": "null",
         "source": {
           "reference_or": "base64"
@@ -184,15 +160,9 @@
         "exists": true
       },
       "tool_use": {
-        "id": [
-          "$.toolUse.toolUseId"
-        ],
-        "name": [
-          "$.toolUse.name"
-        ],
-        "input": [
-          "$.toolUse.input"
-        ]
+        "id": "$.toolUse.toolUseId",
+        "name": "$.toolUse.name",
+        "input": "$.toolUse.input"
       }
     },
     {
@@ -204,21 +174,15 @@
         "exists": true
       },
       "tool_result": {
-        "tool_use_id": [
-          "$.toolResult.toolUseId"
-        ],
-        "content": [
-          "$.toolResult.content"
-        ],
+        "tool_use_id": "$.toolResult.toolUseId",
+        "content": "$.toolResult.content",
         "content_as": "value",
-        "is_error": [
-          {
-            "path": "$.toolResult.status",
-            "map": {
-              "error": true
-            }
+        "is_error": {
+          "path": "$.toolResult.status",
+          "map": {
+            "error": true
           }
-        ],
+        },
         "doc": "The content is a list of blocks, reduced to the value it holds - the canonical form a tool-role message's content takes - so one result reads alike whether a producer wrote it as a block or as a tool message."
       }
     }

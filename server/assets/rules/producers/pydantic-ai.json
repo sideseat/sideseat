@@ -65,15 +65,9 @@
         ]
       },
       "tool_result": {
-        "tool_use_id": [
-          "$.id"
-        ],
-        "name": [
-          "$.name"
-        ],
-        "content": [
-          "$.result"
-        ]
+        "tool_use_id": "$.id",
+        "name": "$.name",
+        "content": "$.result"
       }
     },
     {
@@ -95,12 +89,8 @@
         ]
       },
       "thinking": {
-        "text": [
-          "$.content"
-        ],
-        "signature": [
-          "$.signature"
-        ],
+        "text": "$.content",
+        "signature": "$.signature",
         "doc": "A thinking part with its reasoning under `content`."
       }
     }

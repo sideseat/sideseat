@@ -13,9 +13,7 @@
       "parse": "python_constructor_repr",
       "wrap": {
         "role": "tool",
-        "content_from_any_of": [
-          "$.content"
-        ],
+        "content_from": "$.content",
         "block": {
           "type": "tool_result",
           "attach": [
@@ -29,9 +27,7 @@
               "as": "tool_use_id"
             },
             {
-              "from_value_any_of": [
-                "$.state"
-              ],
+              "from_value": "$.state",
               "where": {
                 "one_of": [
                   "error",
@@ -63,9 +59,7 @@
       "parse": "python_constructor_repr_array",
       "wrap": {
         "role": "tool",
-        "content_from_any_of": [
-          "$"
-        ],
+        "content_from": "$",
         "block": {
           "type": "tool_result",
           "attach": [
@@ -127,17 +121,16 @@
         ]
       },
       "media": {
-        "media_type": [
-          "$.source.media_type"
-        ],
-        "data": [
-          "$.source.data",
-          "$.source.url.__python_args[0]",
-          "$.source.url"
-        ],
-        "name": [
-          "$.name"
-        ]
+        "media_type": "$.source.media_type",
+        "data": {
+          "first_of": [
+            "$.source.data",
+            "$.source.url.__python_args[0]",
+            "$.source.url"
+          ],
+          "mode": "usable"
+        },
+        "name": "$.name"
       }
     },
     {
@@ -160,12 +153,8 @@
         ]
       },
       "thinking": {
-        "text": [
-          "$.thinking"
-        ],
-        "signature": [
-          "$.signature"
-        ]
+        "text": "$.thinking",
+        "signature": "$.signature"
       }
     }
   ],

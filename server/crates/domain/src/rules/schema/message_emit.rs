@@ -54,9 +54,9 @@ pub struct WrapSpec {
     /// question - the runtime simply prepended it to this list - so a rule could state its content source
     /// twice, in two members, with the ordering between them implicit in the code rather than in the
     /// declaration. The 16 singular uses are now one-element lists.
-    #[serde(default)]
-    #[cfg_attr(test, schemars(with = "Vec<String>"))]
-    pub content_from_any_of: Vec<JsonPath>,
+    #[serde(default, rename = "content_from")]
+    #[cfg_attr(test, schemars(with = "FirstOf<String, false>"))]
+    pub content_from_any_of: FirstOf<JsonPath, false>,
     /// The content when none of the paths above resolve. Absent means the reading is not this shape.
     ///
     /// An explicit `null` is a default of JSON null, not the absence of one: a dialect reports a tool that
@@ -152,9 +152,9 @@ pub struct AttachSpec {
     ///
     /// The same serialisation variance as the content: a member may sit at the top level or under the
     /// wrapper a serialiser added.
-    #[serde(default)]
-    #[cfg_attr(test, schemars(with = "Vec<String>"))]
-    pub from_value_any_of: Vec<JsonPath>,
+    #[serde(default, rename = "from_value")]
+    #[cfg_attr(test, schemars(with = "FirstOf<String, false>"))]
+    pub from_value_any_of: FirstOf<JsonPath, false>,
     /// The attached value must satisfy this, or the member is left off.
     ///
     /// An empty list is not a set of tool calls, and attaching one makes a plain reply look like a call.
@@ -356,9 +356,9 @@ pub struct Alternative {
     /// `function_declarations: []` has declared no tools, and picking "the first path that yielded
     /// something" skips the present-but-empty member and falls through to emitting the wrapper itself as a
     /// tool. Presence also settles which of two spellings wins when both appear.
-    #[serde(default)]
-    #[cfg_attr(test, schemars(with = "Vec<String>"))]
-    pub then_present_any_of: Vec<JsonPath>,
+    #[serde(default, rename = "then_select")]
+    #[cfg_attr(test, schemars(with = "FirstOf<String, false>"))]
+    pub then_present_any_of: FirstOf<JsonPath, false>,
     /// Fall back to the element itself when `then_present_any_of` named nothing, or named a member of the wrong
     /// shape.
     ///
@@ -499,9 +499,9 @@ pub struct ComposeMember {
     /// The member's name. Absent for a sweep, which takes its names from the keys it finds.
     #[serde(rename = "as", default)]
     pub as_member: Option<String>,
-    /// Ordered sources; the first the span carries wins.
-    #[serde(default)]
-    pub from_any_of: Vec<String>,
+    /// The attribute, or the first of several the span carries.
+    #[serde(default, rename = "from")]
+    pub from_any_of: FirstOf<String, false>,
     /// How to read it. Defaults to text.
     #[serde(default)]
     pub parse: Option<ParseMode>,

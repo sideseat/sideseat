@@ -329,7 +329,7 @@ fn an_all_or_nothing_reading_cannot_be_starved_by_an_earlier_rank() {
     // A **compose** with several members, which is the shape the retired test covered.
     assert!(
         asset(
-            r#"[{"id": "t.take_x", "where": {"source": "attr:marker", "exists": true}, "read": {"attribute": "x"}, "parse": "text", "tag_as": "taken", "emit": "message", "priority": 1}, {"id": "t.compose", "compose": {"tag": "joined", "members": [{"as": "a", "from_any_of": ["x", "x_backup"], "parse": "text"}, {"as": "b", "from_any_of": ["y"], "parse": "text"}]}, "emit": "message", "priority": 2}]"#,
+            r#"[{"id": "t.take_x", "where": {"source": "attr:marker", "exists": true}, "read": {"attribute": "x"}, "parse": "text", "tag_as": "taken", "emit": "message", "priority": 1}, {"id": "t.compose", "compose": {"tag": "joined", "members": [{"as": "a", "from": {"first_of": ["x", "x_backup"]}, "parse": "text"}, {"as": "b", "from": "y", "parse": "text"}]}, "emit": "message", "priority": 2}]"#,
         )
         .err()
         .is_some_and(|error| matches!(
@@ -354,9 +354,9 @@ fn an_all_or_nothing_reading_cannot_be_starved_by_an_earlier_rank() {
             r#"[{{"id":"t.take_rich","where":{{"source":"attr:marker","exists":true}},"read":{{"attribute":"rich"}},
                  "parse":"text","tag_as":"taken","emit":"message","priority":{taker_rank}}},
                 {{"id":"t.overlaid","read":{{"indexed_family":"fam","entry_member":"message",
-                   "overlay":{{"from":"rich","parse":"json","select_any_of":["$.messages"],
+                   "overlay":{{"from":"rich","parse":"json","select":"$.messages",
                      "witness": {{"path":"$[*].id","exists":true}},
-                     "when_member_prefix":"contents.","content_any_of":["$.content"],
+                     "when_member_prefix":"contents.","content_from":"$.content",
                      "where": {{"kind":"array"}},"as_member":"content"}}}},
                  "emit":"message","priority":{overlaid_rank}}}]"#
         )
@@ -386,11 +386,7 @@ fn an_all_or_nothing_reading_cannot_be_starved_by_an_earlier_rank() {
     // dialect stage claimed - and the inheritance is precisely what makes starvation reach across them.
     assert!(
         asset(
-            r#"[{"id":"t.take_x","read":{"attribute":"x"},"parse":"text","emit":"message","priority":1},
-                {"id":"t.compose","source":{"span":{"stage":"fallback"}},
-                 "compose":{"tag":"joined","members":[
-                    {"as":"a","from_any_of":["x"],"parse":"text"},{"as":"b","from_any_of":["y"],"parse":"text"}]},
-                 "emit":"message","priority":2}]"#,
+            r#"[{"id": "t.take_x", "read": {"attribute": "x"}, "parse": "text", "emit": "message", "priority": 1}, {"id": "t.compose", "source": {"span": {"stage": "fallback"}}, "compose": {"tag": "joined", "members": [{"as": "a", "from": "x", "parse": "text"}, {"as": "b", "from": "y", "parse": "text"}]}, "emit": "message", "priority": 2}]"#,
         )
         .is_err(),
         "a fallback-stage reading inherits the dialect stage's claims, so a dialect rule can starve it"
@@ -398,7 +394,7 @@ fn an_all_or_nothing_reading_cannot_be_starved_by_an_earlier_rank() {
 
     // A single-member compose is not multi-owner: it takes one spelling, so there is no half to lose.
     asset(
-        r#"[{"id": "t.take_x", "where": {"source": "attr:marker", "exists": true}, "read": {"attribute": "x"}, "parse": "text", "tag_as": "taken", "emit": "message", "priority": 1}, {"id": "t.compose", "compose": {"tag": "joined", "members": [{"as": "a", "from_any_of": ["x", "x_backup"], "parse": "text"}]}, "emit": "message", "priority": 2}]"#,
+        r#"[{"id": "t.take_x", "where": {"source": "attr:marker", "exists": true}, "read": {"attribute": "x"}, "parse": "text", "tag_as": "taken", "emit": "message", "priority": 1}, {"id": "t.compose", "compose": {"tag": "joined", "members": [{"as": "a", "from": {"first_of": ["x", "x_backup"]}, "parse": "text"}]}, "emit": "message", "priority": 2}]"#,
     )
     .expect("one member reading two spellings takes exactly one of them, so nothing is starved");
 }

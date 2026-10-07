@@ -67,7 +67,7 @@ pub(super) fn inline_fragments(
             if spec.else_element && spec.then_present_any_of.is_empty() {
                 return Err(MessageCompileError::Inexpressible {
                     rule: spec.id.clone(),
-                    detail: "declares `else_element` with no `then_present_any_of` - it names the fallback \
+                    detail: "declares `else_element` with no `then_select` - it names the fallback \
                              for a coalesce that is not there",
                 });
             }

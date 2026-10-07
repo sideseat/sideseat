@@ -114,9 +114,7 @@
         "attach": [
           {
             "as": "tool_call_id",
-            "from_value_any_of": [
-              "$[*].toolResult.toolUseId"
-            ],
+            "from_value": "$[*].toolResult.toolUseId",
             "doc": "The first identified call in the bundle, which identifies the message; the rest are recovered when it is split."
           }
         ]
@@ -146,9 +144,7 @@
         ]
       },
       "splice": {
-        "from": [
-          "$.content"
-        ]
+        "from": "$.content"
       }
     },
     {
@@ -171,12 +167,8 @@
         ]
       },
       "thinking": {
-        "text": [
-          "$.content.reasoningText.text"
-        ],
-        "signature": [
-          "$.content.reasoningText.signature"
-        ]
+        "text": "$.content.reasoningText.text",
+        "signature": "$.content.reasoningText.signature"
       }
     },
     {
@@ -207,15 +199,9 @@
         ]
       },
       "tool_use": {
-        "id": [
-          "$.id"
-        ],
-        "name": [
-          "$.name"
-        ],
-        "input": [
-          "$.arguments[0].content"
-        ]
+        "id": "$.id",
+        "name": "$.name",
+        "input": "$.arguments[0].content"
       }
     },
     {
@@ -229,15 +215,9 @@
         ]
       },
       "tool_use": {
-        "id": [
-          "$.toolUseId"
-        ],
-        "name": [
-          "$.name"
-        ],
-        "input": [
-          "$.input"
-        ],
+        "id": "$.toolUseId",
+        "name": "$.name",
+        "input": "$.input",
         "doc": "The JavaScript SDK's flat form of a Converse tool call: the members beside a camelCase type tag."
       }
     },
@@ -252,20 +232,14 @@
         ]
       },
       "tool_result": {
-        "tool_use_id": [
-          "$.toolUseId"
-        ],
-        "content": [
-          "$.content"
-        ],
-        "is_error": [
-          {
-            "path": "$.status",
-            "map": {
-              "error": true
-            }
+        "tool_use_id": "$.toolUseId",
+        "content": "$.content",
+        "is_error": {
+          "path": "$.status",
+          "map": {
+            "error": true
           }
-        ],
+        },
         "doc": "Its tool result. A failure is stated as a status rather than a flag."
       }
     }

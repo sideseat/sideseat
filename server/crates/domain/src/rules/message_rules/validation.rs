@@ -539,10 +539,10 @@ pub(super) fn necessarily_owned(rule: &CompiledMessageRule) -> Option<&str> {
     if !rule.read.each.is_empty() {
         return None;
     }
-    match rule.read.first_present.as_slice() {
+    match rule.read.first_present() {
         // One spelling is not a choice.
-        [only] if rule.read.attribute.is_none() => Some(only.as_str()),
-        [] => rule.read.attribute.as_deref(),
+        [only] if rule.read.attribute().is_none() => Some(only.as_str()),
+        [] => rule.read.attribute().map(String::as_str),
         _ => None,
     }
 }
@@ -596,7 +596,7 @@ pub(super) fn owned_all_or_nothing(rule: &CompiledMessageRule) -> Vec<CarrierPat
     }
     if let Some(overlay) = &rule.read.overlay {
         out.push(CarrierPattern::Exact(overlay.from.clone()));
-        if let Some(attribute) = &rule.read.attribute {
+        if let Some(attribute) = rule.read.attribute() {
             out.push(CarrierPattern::Exact(attribute.clone()));
         }
     }
@@ -719,12 +719,12 @@ pub(super) fn consumed_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
             narrowed: true,
         },
     };
-    if let Some(attribute) = rule.read.attribute.as_deref() {
+    if let Some(attribute) = rule.read.attribute().map(String::as_str) {
         out.push(always(CarrierPattern::Exact(attribute.to_string())));
     }
     // Only the *first* alternative is claimed unconditionally: the rest are read where no earlier spelling
     // was present, so a rule reading a later one yields whenever an earlier one is there.
-    for (position, key) in rule.read.first_present.iter().enumerate() {
+    for (position, key) in rule.read.first_present().iter().enumerate() {
         let pattern = CarrierPattern::Exact(key.clone());
         out.push(if position == 0 {
             always(pattern)
@@ -847,14 +847,14 @@ pub(super) fn emitted_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
         return vec![always(CarrierPattern::Exact(compose.tag.clone()))];
     }
     let mut out = Vec::new();
-    if let Some(attribute) = rule.read.attribute.as_deref() {
+    if let Some(attribute) = rule.read.attribute().map(String::as_str) {
         out.push(always(CarrierPattern::Exact(attribute.to_string())));
     }
     // A tag per spelling, and only the first is emitted whatever the span carries.
     for key in &rule.read.each {
         out.push(always(CarrierPattern::Exact(key.clone())));
     }
-    for (position, key) in rule.read.first_present.iter().enumerate() {
+    for (position, key) in rule.read.first_present().iter().enumerate() {
         let pattern = CarrierPattern::Exact(key.clone());
         out.push(if position == 0 {
             always(pattern)

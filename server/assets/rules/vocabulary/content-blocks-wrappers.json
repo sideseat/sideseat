@@ -21,10 +21,12 @@
         ]
       },
       "unwrap": {
-        "from": [
-          "$.message_content",
-          "$.value"
-        ]
+        "from": {
+          "first_of": [
+            "$.message_content",
+            "$.value"
+          ]
+        }
       }
     },
     {
@@ -45,14 +47,20 @@
         ]
       },
       "thinking": {
-        "text": [
-          "$.reasoning_content.text",
-          "$.reasoning.text"
-        ],
-        "signature": [
-          "$.reasoning_content.signature",
-          "$.reasoning.signature"
-        ]
+        "text": {
+          "first_of": [
+            "$.reasoning_content.text",
+            "$.reasoning.text"
+          ],
+          "mode": "usable"
+        },
+        "signature": {
+          "first_of": [
+            "$.reasoning_content.signature",
+            "$.reasoning.signature"
+          ],
+          "mode": "usable"
+        }
       }
     },
     {
@@ -73,9 +81,7 @@
         ]
       },
       "unwrap": {
-        "from": [
-          "$.kwargs"
-        ]
+        "from": "$.kwargs"
       }
     }
   ]

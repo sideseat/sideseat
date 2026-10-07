@@ -764,8 +764,7 @@ fn a_carrier_list_says_how_many_of_its_keys_are_read() {
     // `first_present`: the first spelling the span carries, and nothing after it.
     let plan = compile(
         &ParsedAssets::parse(&asset(
-            r#"{"id":"t","messages":[{"id":"t.alternatives","read":{"first_present":["new","old"]},
-             "parse":"text","emit":"message","priority":1}]}"#,
+            r#"{"id": "t", "messages": [{"id": "t.alternatives", "read": {"attribute": {"first_of": ["new", "old"]}}, "parse": "text", "emit": "message", "priority": 1}]}"#,
         ))
         .expect("the probe assets parse"),
     )
@@ -786,26 +785,19 @@ fn a_carrier_list_says_how_many_of_its_keys_are_read() {
     // whole point of the split: the previous member would have quietly given the first-wins reading here.
     let refused = compile(
         &ParsedAssets::parse(&asset(
-            r#"{"id":"t","messages":[{"id":"t.each","read":{"each":["new","old"]},
-             "parse":"text","emit":"message","priority":1}]}"#,
+            r#"{"id": "t", "messages": [{"id": "t.each", "read": {"every": ["new", "old"]}, "parse": "text", "emit": "message", "priority": 1}]}"#,
         ))
         .expect("the probe assets parse"),
     )
     .expect_err("`each` on a body that cannot iterate its carriers must be refused");
     assert!(
-        refused.to_string().contains("first_present"),
+        refused.to_string().contains("first_of"),
         "the refusal must name the member to use instead: {refused}"
     );
 
     // And `each` **is** honoured where a body iterates: every listed key present is its own observation.
     let plan = compile(&ParsedAssets::parse(&asset(
-        r#"{"id":"t","messages":[{"id":"t.tools","read":{"each":["agents","tasks"]},"parse":"json",
-             "emit":"tool_definitions","priority":1,
-             "tool_repr":{"entries":"$[*]","candidates":["$"],"name_field":"name",
-               "description_field":"description","name_label":"Tool Name:",
-               "description_label":"Tool Description:","arguments_label":"Tool Arguments:",
-               "repr_markers":["name="],"parameter_members":["parameters"],
-               "field_terminators":[","],"type_map":[["str","string"]],"type_default":{"map_to":"string"}}}]}"#,
+        r#"{"id": "t", "messages": [{"id": "t.tools", "read": {"every": ["agents", "tasks"]}, "parse": "json", "emit": "tool_definitions", "priority": 1, "tool_repr": {"entries": "$[*]", "candidates": ["$"], "name_field": "name", "description_field": "description", "name_label": "Tool Name:", "description_label": "Tool Description:", "arguments_label": "Tool Arguments:", "repr_markers": ["name="], "parameter_members": ["parameters"], "field_terminators": [","], "type_map": [["str", "string"]], "type_default": {"map_to": "string"}}}]}"#,
     )).expect("the probe assets parse"))
     .expect("`each` compiles with `tool_repr`");
     let attrs = std::collections::HashMap::from([
@@ -826,9 +818,12 @@ fn a_carrier_list_says_how_many_of_its_keys_are_read() {
     );
 
     // A repeated key can never mean what it says, in either member.
-    for member in ["first_present", "each"] {
+    for member in [
+        r#""attribute":{"first_of":["k","k"]}"#,
+        r#""every":["k","k"]"#,
+    ] {
         let body = format!(
-            r#"{{"id":"t","messages":[{{"id":"t.dup","read":{{"{member}":["k","k"]}},"parse":"json",
+            r#"{{"id":"t","messages":[{{"id":"t.dup","read":{{{member}}},"parse":"json",
                  "emit":"tool_definitions","priority":1,
                  "tool_repr":{{"entries":"$[*]","candidates":["$"],"name_field":"name",
                  "description_field":"d","name_label":"N:","description_label":"D:",

@@ -179,12 +179,8 @@
         "non_empty": true
       },
       "tool_use": {
-        "name": [
-          "$.toolRequest.name"
-        ],
-        "input": [
-          "$.toolRequest.input"
-        ]
+        "name": "$.toolRequest.name",
+        "input": "$.toolRequest.input"
       }
     },
     {
@@ -198,12 +194,8 @@
         "non_empty": true
       },
       "tool_result": {
-        "name": [
-          "$.toolResponse.name"
-        ],
-        "content": [
-          "$.toolResponse.output"
-        ]
+        "name": "$.toolResponse.name",
+        "content": "$.toolResponse.output"
       }
     },
     {
@@ -217,12 +209,8 @@
         "non_empty": true
       },
       "media": {
-        "media_type": [
-          "$.media.contentType"
-        ],
-        "data": [
-          "$.media.url"
-        ]
+        "media_type": "$.media.contentType",
+        "data": "$.media.url"
       }
     },
     {
@@ -236,9 +224,7 @@
         "non_empty": true
       },
       "thinking": {
-        "text": [
-          "$.reasoning"
-        ]
+        "text": "$.reasoning"
       }
     }
   ],

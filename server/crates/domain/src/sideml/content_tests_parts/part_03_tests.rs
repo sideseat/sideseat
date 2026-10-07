@@ -410,16 +410,17 @@ fn the_declared_gemini_parts_match_the_reader_they_replace() {
 #[test]
 fn an_id_template_is_refused_unless_it_can_build_distinct_ids() {
     let rule = |template: &str, id_after: bool| {
-        let mut id = vec![json!({"template": template})];
-        if id_after {
-            id.push(json!("$.id"));
-        }
+        let id = if id_after {
+            json!({"first_of": [{"template": template}, "$.id"], "mode": "usable"})
+        } else {
+            json!({"template": template})
+        };
         serde_json::from_value::<crate::rules::schema::RuleFile>(json!({
             "id": "t",
             "content_blocks": [{
                 "id": "t.call", "at": "after_provider_formats", "priority": 1,
                 "where": {"path": "$.call", "exists": true},
-                "tool_use": {"id": id, "name": ["$.call.name"]}
+                "tool_use": {"id": id, "name": "$.call.name"}
             }]
         }))
         .expect("the test asset parses")

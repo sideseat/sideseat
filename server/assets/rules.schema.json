@@ -958,22 +958,18 @@
           "default": null
         },
         "attribute": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null
+          "description": "The carrier: one attribute, or `{\"first_of\": [...]}` - several spellings of it, of which the first the\nspan carries is read and the observation tagged with that key. A dialect that renamed a key keeps\naccepting the old one, and the tag has to be the key actually found or two spans carrying different\nspellings would be indistinguishable downstream.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FirstPresent_string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
-        "first_present": {
-          "description": "Ordered carrier alternatives: **the first** of these the span carries is read, and the observation\nis tagged with that key.\n\nA dialect that renamed a key keeps accepting the old one, and the tag has to be the key actually\nfound or two spans carrying different spellings would be indistinguishable downstream.\n\nSpelled `first_present` rather than `attribute_any_of` because that name did not say **how many** of\nthe listed keys are read, and the answer depended on a *sibling* member: with `tool_repr` beside it,\nevery present key was read; without, only the first. So one syntax meant two things - for CrewAI's\n`[\"crew_agents\", \"crew_tasks\"]`, both or just the first - and which was decided somewhere else in the\nrule.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": []
-        },
-        "each": {
-          "description": "**Every** one of these keys the span carries is read, each as its own observation.\n\nThe other half of the split above. A framework may write the same tools under several keys at\ndifferent richness, and each is its own observation - so all are read and the best copy per name wins\ndownstream, rather than the richest hiding behind whichever key was declared first.\n\nHonoured by `tool_repr` alone today, and a rule declaring it with any other body is **refused**\nrather than silently read as `first_present`. Generalising it - every body iterating its carriers -\nis the natural extension and is not what the corpus needs yet.",
+        "every": {
+          "description": "**Every** one of these keys the span carries is read, each as its own observation.\n\nThe other half of the split above. A framework may write the same tools under several keys at\ndifferent richness, and each is its own observation - so all are read and the best copy per name wins\ndownstream, rather than the richest hiding behind whichever key was declared first.\n\nHonoured by `tool_repr` alone today, and a rule declaring it with any other body is **refused**\nrather than silently read as one `first_of`. Generalising it - every body iterating its carriers -\nis the natural extension and is not what the corpus needs yet.",
           "type": "array",
           "items": {
             "type": "string"
@@ -1048,6 +1044,38 @@
         }
       },
       "additionalProperties": false
+    },
+    "FirstPresent_string": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "first_of": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 2
+            },
+            "mode": {
+              "const": "present"
+            },
+            "doc": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "first_of"
+          ],
+          "additionalProperties": false
+        }
+      ]
     },
     "Expr_ValuePredicate": {
       "oneOf": [
@@ -1320,12 +1348,9 @@
             }
           ]
         },
-        "select_any_of": {
+        "select": {
           "description": "Ordered paths to the counterpart list; the first that resolves to an array is used.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "$ref": "#/$defs/FirstUsable_string"
         },
         "unwrap_single_element_list": {
           "description": "Unwrap a list of exactly one list. A serialiser that accepts a batch of conversations writes one\nconversation as a batch of one, and the members of *that* are the messages.\n\nExactly one, deliberately: a batch of two is two conversations, and joining a family by position\nagainst the first of them would attribute one conversation's content to another's messages.",
@@ -1340,12 +1365,9 @@
           "description": "Only entries carrying members under this prefix are overlaid - the flattened form of the content\nthat is known to be lossy.",
           "type": "string"
         },
-        "content_any_of": {
+        "content_from": {
           "description": "Ordered paths to the counterpart's content.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "$ref": "#/$defs/FirstPresent_string"
         },
         "where": {
           "description": "What that content must be for the overlay to be an improvement.",
@@ -1359,10 +1381,43 @@
       "additionalProperties": false,
       "required": [
         "from",
-        "select_any_of",
+        "select",
         "when_member_prefix",
-        "content_any_of",
+        "content_from",
         "as_member"
+      ]
+    },
+    "FirstUsable_string": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "first_of": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 2
+            },
+            "mode": {
+              "const": "usable"
+            },
+            "doc": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "first_of",
+            "mode"
+          ],
+          "additionalProperties": false
+        }
       ]
     },
     "ComposeSpec": {
@@ -1430,13 +1485,9 @@
           ],
           "default": null
         },
-        "from_any_of": {
-          "description": "Ordered sources; the first the span carries wins.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": []
+        "from": {
+          "description": "The attribute, or the first of several the span carries.",
+          "$ref": "#/$defs/FirstPresent_string"
         },
         "parse": {
           "description": "How to read it. Defaults to text.",
@@ -1676,13 +1727,9 @@
           "type": "boolean",
           "default": false
         },
-        "content_from_any_of": {
+        "content_from": {
           "description": "Ordered paths for the content; the first that resolves wins.\n\nOne dialect serialises a message three ways depending on how it was constructed, and the content sits\nin a different member each time - so a single path reads two of the three as empty.\n\n**One list, not a singular member beside it.** `content_from` was a second spelling of exactly this\nquestion - the runtime simply prepended it to this list - so a rule could state its content source\ntwice, in two members, with the ordering between them implicit in the code rather than in the\ndeclaration. The 16 singular uses are now one-element lists.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": []
+          "$ref": "#/$defs/FirstPresent_string"
         },
         "content_default": {
           "description": "The content when none of the paths above resolve. Absent means the reading is not this shape.\n\nAn explicit `null` is a default of JSON null, not the absence of one: a dialect reports a tool that\nreturned nothing that way, and the two readings differ.",
@@ -1781,13 +1828,9 @@
           ],
           "default": null
         },
-        "from_value_any_of": {
+        "from_value": {
           "description": "Ordered paths into the value being wrapped; the first that resolves wins.\n\nThe same serialisation variance as the content: a member may sit at the top level or under the\nwrapper a serialiser added.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": []
+          "$ref": "#/$defs/FirstPresent_string"
         },
         "where": {
           "description": "The attached value must satisfy this, or the member is left off.\n\nAn empty list is not a set of tool calls, and attaching one makes a plain reply look like a call.",
@@ -2156,13 +2199,9 @@
             "$ref": "#/$defs/Alternative"
           }
         },
-        "then_present_any_of": {
+        "then_select": {
           "description": "For each selected element, the first of these paths that names a member, chosen by **presence**.\n\nPer *element*, which is the point: one dialect's tool groups each either wrap their declarations\nunder one of two spellings or are a declaration themselves, and deciding once for the whole array\nwould drop the odd group out.\n\nPresence rather than yielding is load-bearing where a wrapper may legitimately be empty: a dialect that writes\n`function_declarations: []` has declared no tools, and picking \"the first path that yielded\nsomething\" skips the present-but-empty member and falls through to emitting the wrapper itself as a\ntool. Presence also settles which of two spellings wins when both appear.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": []
+          "$ref": "#/$defs/FirstPresent_string"
         },
         "else_element": {
           "description": "Fall back to the element itself when `then_present_any_of` named nothing, or named a member of the wrong\nshape.\n\nOne answer for both situations. A wrapper member is a list of declarations, so\n`{\"function_declarations\": {\"name\": \"weather\"}}` has not declared its contents; the wrong-shaped member is\n**reported** either way, and recovered from the element only where the enclosing object independently\ndescribes a valid reading. Once presence has selected a representation, a later spelling is not tried:\nfalling through would answer from a representation the producer did not use.",
@@ -2919,11 +2958,8 @@
           "type": "string"
         },
         "name_from": {
-          "description": "Where a record states its event name, tried in order: the first present source decides.\n\n`event_name` is the log record's own field; `attributes:<key>` is a record attribute, which is how\nproducers that predate the field wrote it.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "description": "Where a record states its event name: `event_name`, the log record's own field, or `attr:<key>`, a\nrecord attribute, which is how producers that predate the field wrote it. Of several, the first that\nholds a non-empty name decides.",
+          "$ref": "#/$defs/FirstUsable_SourceName"
         },
         "payload": {
           "description": "Where the event's attributes are on the record.",
@@ -2942,6 +2978,39 @@
         "name",
         "name_from",
         "payload"
+      ]
+    },
+    "FirstUsable_SourceName": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/SourceName"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "first_of": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SourceName"
+              },
+              "minItems": 2
+            },
+            "mode": {
+              "const": "usable"
+            },
+            "doc": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "first_of",
+            "mode"
+          ],
+          "additionalProperties": false
+        }
       ]
     },
     "LogEventPayload": {
@@ -2983,11 +3052,7 @@
         },
         "each": {
           "description": "Where the definitions are, when one payload holds several. Empty means the payload is one definition.\n\nOrdered, and the first path that **resolves** supplies them - the same rule as `ParametersSpec::from`,\nfor the same reason: one producer writes `functionDeclarations` and another writes\n`function_declarations`, and those are two spellings of one shape rather than two shapes. Spelling them\nas two clauses would duplicate every other member of the rule and give the pair a rank order that means\nnothing.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": []
+          "$ref": "#/$defs/FirstPresent_string"
         },
         "function": {
           "description": "The whole canonical `function` object, for a producer that already writes it.\n\nExclusive with the three members below: a shape either hands over a canonical object or states where each\npart is, and declaring both would be two answers about one output.",
@@ -3048,10 +3113,7 @@
         },
         "from": {
           "description": "Ordered: the first path that resolves is the parameters. One producer writes\n`inputSchema.json` and the same producer sometimes writes `inputSchema` directly.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "$ref": "#/$defs/FirstPresent_string"
         },
         "encoding": {
           "description": "**Declared**, not guessed from the content. It was guessed: a member named `type` inside an argument map\nmade the map look like a finished JSON Schema, so `{\"type\":\"str\",\"query\":\"str\"}` was emitted as a schema\nwhose type is `str`. The argument named `type` decided how the whole representation was read.",
@@ -3060,7 +3122,6 @@
       },
       "additionalProperties": false,
       "required": [
-        "from",
         "encoding"
       ]
     },
@@ -3379,29 +3440,50 @@
         },
         "id": {
           "description": "Ordered: the first member holding a non-blank string, else a declared `template`; absent is\nreported as null, because a provider that omits an id has still made the call.",
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/IdSource"
-          }
+          "$ref": "#/$defs/FirstUsable_IdSource"
         },
         "name": {
           "description": "Required: a nameless call names nothing to run, so the case does not recognise the block.",
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ValueSource"
-          }
+          "$ref": "#/$defs/FirstUsable_ValueSource"
         },
         "input": {
           "description": "Ordered, and an **empty object counts as absent** - a dialect that renamed this member leaves the\nunused one present as `{}`, so \"the first that resolves\" would always pick the empty one.",
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ValueSource"
-          }
+          "$ref": "#/$defs/FirstUsable_ValueSource"
         }
       },
-      "additionalProperties": false,
-      "required": [
-        "name"
+      "additionalProperties": false
+    },
+    "FirstUsable_IdSource": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/IdSource"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "first_of": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/IdSource"
+              },
+              "minItems": 2
+            },
+            "mode": {
+              "const": "usable"
+            },
+            "doc": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "first_of",
+            "mode"
+          ],
+          "additionalProperties": false
+        }
       ]
     },
     "IdSource": {
@@ -3435,6 +3517,39 @@
       "additionalProperties": false,
       "required": [
         "template"
+      ]
+    },
+    "FirstUsable_ValueSource": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ValueSource"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "first_of": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ValueSource"
+              },
+              "minItems": 2
+            },
+            "mode": {
+              "const": "usable"
+            },
+            "doc": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "first_of",
+            "mode"
+          ],
+          "additionalProperties": false
+        }
       ]
     },
     "ValueSource": {
@@ -3519,33 +3634,21 @@
           "default": null
         },
         "tool_use_id": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ValueSource"
-          }
+          "$ref": "#/$defs/FirstUsable_ValueSource"
         },
         "name": {
           "description": "Ordered; omitted when no path resolves. A result may carry both the id that pairs it exactly and the\nhuman-readable tool name, and keeping the latter can make an aggregate snapshot at least as rich as a\nduplicate tool-span observation.",
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ValueSource"
-          }
+          "$ref": "#/$defs/FirstUsable_ValueSource"
         },
         "content": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ValueSource"
-          }
+          "$ref": "#/$defs/FirstUsable_ValueSource"
         },
         "content_as": {
           "description": "How the selected content is shaped.",
           "$ref": "#/$defs/ResultContent"
         },
         "is_error": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ValueSource"
-          }
+          "$ref": "#/$defs/FirstUsable_ValueSource"
         }
       },
       "additionalProperties": false
@@ -3583,10 +3686,7 @@
           "default": null
         },
         "data": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ValueSource"
-          }
+          "$ref": "#/$defs/FirstUsable_ValueSource"
         }
       },
       "additionalProperties": false
@@ -3604,16 +3704,10 @@
           "default": null
         },
         "text": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ValueSource"
-          }
+          "$ref": "#/$defs/FirstUsable_ValueSource"
         }
       },
-      "additionalProperties": false,
-      "required": [
-        "text"
-      ]
+      "additionalProperties": false
     },
     "MediaBlock": {
       "description": "Bytes, or a reference to them. The block's kind and whether it is a reference are both *derived*.",
@@ -3639,10 +3733,7 @@
           ]
         },
         "media_type": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ValueSource"
-          }
+          "$ref": "#/$defs/FirstUsable_ValueSource"
         },
         "media_type_default": {
           "description": "The media type when no source states one.",
@@ -3657,10 +3748,7 @@
           "$ref": "#/$defs/MissingMediaType"
         },
         "data": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ValueSource"
-          }
+          "$ref": "#/$defs/FirstUsable_ValueSource"
         },
         "source": {
           "description": "What the data is: derived from the value, or stated by the format.",
@@ -3668,23 +3756,14 @@
         },
         "name": {
           "description": "Optional display name, such as the filename a framework retained beside the bytes.",
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ValueSource"
-          }
+          "$ref": "#/$defs/FirstUsable_ValueSource"
         },
         "detail": {
           "description": "How closely a vision model is asked to look at an image.",
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ValueSource"
-          }
+          "$ref": "#/$defs/FirstUsable_ValueSource"
         }
       },
-      "additionalProperties": false,
-      "required": [
-        "data"
-      ]
+      "additionalProperties": false
     },
     "MediaKind": {
       "description": "A media block's canonical kind, spelled as the SideML block type.",
@@ -3766,16 +3845,10 @@
           "default": null
         },
         "text": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ValueSource"
-          }
+          "$ref": "#/$defs/FirstUsable_ValueSource"
         },
         "signature": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ValueSource"
-          }
+          "$ref": "#/$defs/FirstUsable_ValueSource"
         }
       },
       "additionalProperties": false
@@ -3793,11 +3866,8 @@
           "default": null
         },
         "from": {
-          "description": "Ordered; the first member that is present is unwrapped, whether or not it normalises.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "description": "The first member that is present is unwrapped, whether or not it normalises.",
+          "$ref": "#/$defs/FirstPresent_string"
         },
         "parse_json": {
           "description": "The member is a block serialised as JSON text, decoded before it is normalised. A member that does\nnot decode leaves the original block to the rest of the chain, as one that does not normalise does.",
@@ -3805,10 +3875,7 @@
           "default": false
         }
       },
-      "additionalProperties": false,
-      "required": [
-        "from"
-      ]
+      "additionalProperties": false
     },
     "SpliceSpec": {
       "description": "Several blocks written as one: the block's member is a **list** of blocks, and each takes the block's place.\n\nThe one form that answers with more than one block, so it is legal only at `message_envelope` - a\nmessage's content is a list a block can be spliced into, while every other caller of the chain asks for a\nsingle block. A dialect that wraps a provider's whole content list in one part of its own (a text part\nwhose content is the list) otherwise renders the list as one unknown block. Each member is normalised on its\nown terms, and may itself be spliced; the recursion is bounded because a member is always strictly inside\nthe block that held it. A member that is not a list leaves the block to the chain.",
@@ -3823,17 +3890,11 @@
           "default": null
         },
         "from": {
-          "description": "Ordered; the first member that is present is the list, whether or not it is one.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "description": "The first member that is present is the list, whether or not it is one.",
+          "$ref": "#/$defs/FirstPresent_string"
         }
       },
-      "additionalProperties": false,
-      "required": [
-        "from"
-      ]
+      "additionalProperties": false
     },
     "RefusalBlock": {
       "description": "A model's refusal to answer. Only a string is a refusal message; a case whose member holds anything else\nhas not recognised one, and the block is left to the rest of the chain.",
@@ -3847,16 +3908,10 @@
           "default": null
         },
         "message": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ValueSource"
-          }
+          "$ref": "#/$defs/FirstUsable_ValueSource"
         }
       },
-      "additionalProperties": false,
-      "required": [
-        "message"
-      ]
+      "additionalProperties": false
     },
     "RedactedThinkingBlock": {
       "description": "Reasoning the provider withheld, kept as the opaque payload a later request replays. The payload is not\nrequired, as reasoning's text is not: a producer that names the block has said what it is.",
@@ -3870,10 +3925,7 @@
           "default": null
         },
         "data": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ValueSource"
-          }
+          "$ref": "#/$defs/FirstUsable_ValueSource"
         }
       },
       "additionalProperties": false
@@ -4558,20 +4610,15 @@
           "default": false
         },
         "attribute": {
-          "description": "A flat span attribute holding the value directly.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null
-        },
-        "attribute_first_present_of": {
-          "description": "Several attribute spellings of one value, where the **first present** one is the answer.\n\nThe flat counterpart of `JsonFieldSource::first_present_of`, and needed for the same reason: as separate\nsources an empty primary would be stepped over and a later alias would answer, while the retired chain\nselected the primary by presence and then converted - so an empty one ended the flat chain and an\n*embedded* carrier answered instead. Which is a different producer's statement, not a later spelling of\nthe same one.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": []
+          "description": "A flat span attribute holding the value directly - or, as `{\"first_of\": [...]}`, several spellings of one\nvalue where the **first present** one is the answer.\n\nNot the same as listing the spellings as separate sources, and the difference is load-bearing: as\nseparate sources an empty primary would be stepped over and a later alias would answer, while one\n`first_of` selects the primary by presence and then converts - so an empty one ends this source and the\nnext *source* (another producer's carrier) answers instead.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FirstPresent_string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "json": {
           "description": "A member of a JSON-valued attribute, reached by RFC 9535 JSONPath.",
@@ -4681,12 +4728,15 @@
           "type": "string"
         },
         "path": {
-          "description": "Where in it the value sits.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null
+          "description": "Where in it the value sits - or, as `{\"first_of\": [...]}`, several spellings of one member where the\n**first present** one is the answer.\n\nNot the same as listing them as separate sources, and the difference is load-bearing: separate sources\nselect the first that *converts*, so a badly written `max_tokens` beside a good `max_completion_tokens`\nwould answer from the second - while presence selects first and then converts, so the badly written one\nends this carrier's contribution and the *next carrier* answers. Two aliases in one object are one\nstatement by one producer; two carriers are two.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FirstPresent_string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "reduce": {
           "description": "Combine every match of a plural path into one value, rather than taking one of them.\n\nA generic reduction, and the only one: a dialect that records usage per message states the call's usage\nas the total across them, which is a statement no single match carries. Yields nothing where the path\nmatches nothing, so \"no such shape\" stays distinguishable from a genuine zero.",
@@ -4703,14 +4753,6 @@
           "description": "Each match must be a **scalar string**; an array at the match is malformed here.\n\nFor a list-valued field whose *sources* are single values. `gen_ai.response.finish_reasons` genuinely\nholds a list, so the field's type has to accept one - but a producer writing one reason per message\nwrites a string, and the retired readers took `as_str()`, so a member holding `[\"stop\"]` was **ignored**\nand the chain moved to the next producer. Read as a list it answered instead, with a different\nproducer's value: not a formatting difference but a different statement about why the model stopped.",
           "type": "boolean",
           "default": false
-        },
-        "first_present_of": {
-          "description": "Several spellings of one member, where the **first present** one is the answer.\n\nNot the same as listing them as separate sources, and the difference is load-bearing: separate sources\nselect the first that *converts*, so a badly written `max_tokens` beside a good `max_completion_tokens`\nwould answer from the second - while the retired `or_else` selected by presence and then converted, so\nthe badly written one ended this carrier's contribution and the *next carrier* answered. Two aliases in\none object are one statement by one producer; two carriers are two.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": []
         }
       },
       "additionalProperties": false,

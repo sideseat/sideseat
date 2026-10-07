@@ -50,9 +50,7 @@ fn two_cases_sharing_a_priority_at_one_position_are_refused() {
                     ]
                 },
                 "text": {
-                    "text": [
-                        "$.value"
-                    ]
+                    "text": "$.value"
                 }
             }),
             serde_json::json!({
@@ -66,9 +64,7 @@ fn two_cases_sharing_a_priority_at_one_position_are_refused() {
                     ]
                 },
                 "text": {
-                    "text": [
-                        "$.value"
-                    ]
+                    "text": "$.value"
                 }
             }),
         ],
@@ -92,9 +88,7 @@ fn the_same_rank_at_different_positions_is_accepted() {
                 ]
             },
             "text": {
-                "text": [
-                    "$.value"
-                ]
+                "text": "$.value"
             }
         }),
         serde_json::json!({
@@ -108,9 +102,7 @@ fn the_same_rank_at_different_positions_is_accepted() {
                 ]
             },
             "text": {
-                "text": [
-                    "$.value"
-                ]
+                "text": "$.value"
             }
         }),
     ]);
@@ -132,9 +124,7 @@ fn a_rule_declares_exactly_one_target_form() {
             ]
         },
         "text": {
-            "text": [
-                "$.value"
-            ]
+            "text": "$.value"
         }
     }));
     assert_eq!(plan.rule_count(), 1);
@@ -161,8 +151,12 @@ fn a_rule_with_two_target_forms_is_refused() {
             "id": "probe.both",
             "at": "after_provider_formats",
             "priority": 1,
-            "text": {"text": ["$.value"]},
-            "json": {"data": ["$.value"]},
+            "text": {
+                "text": "$.value"
+            },
+            "json": {
+                "data": "$.value"
+            }
         }),
         "declares 2 target forms",
     );
@@ -177,7 +171,7 @@ fn a_required_selector_with_no_paths_is_refused() {
             "id": "probe.empty_text",
             "at": "after_provider_formats",
             "priority": 1,
-            "text": {"text": []},
+            "text": {}
         }),
         "names no path for `text.text`",
     );
@@ -207,7 +201,9 @@ fn a_rule_whose_selector_may_resolve_nothing_still_needs_a_condition() {
             "id": "probe.unresolved",
             "at": "before_provider_formats",
             "priority": 1,
-            "json": {"data": ["$.missing"]},
+            "json": {
+                "data": "$.missing"
+            }
         }),
         "swallow the chain",
     );
@@ -228,9 +224,7 @@ fn self_selecting_tool_result_content_is_refused() {
                 ]
             },
             "tool_result": {
-                "content": [
-                    "$"
-                ]
+                "content": "$"
             }
         }),
         "re-enters this plan",
@@ -247,15 +241,9 @@ fn a_tool_result_keeps_its_declared_name() {
             "path": "$.result"
         },
         "tool_result": {
-            "tool_use_id": [
-                "$.id"
-            ],
-            "name": [
-                "$.name"
-            ],
-            "content": [
-                "$.result"
-            ]
+            "tool_use_id": "$.id",
+            "name": "$.name",
+            "content": "$.result"
         }
     }));
 
@@ -324,9 +312,7 @@ fn a_member_path_with_no_condition_is_legal() {
             "path": "$.value"
         },
         "json": {
-            "data": [
-                "$.value"
-            ]
+            "data": "$.value"
         }
     }));
     assert_eq!(plan.rule_count(), 1);
@@ -347,9 +333,7 @@ fn a_contradictory_predicate_is_refused() {
                 "identifier_like": true
             },
             "text": {
-                "text": [
-                    "$.value"
-                ]
+                "text": "$.value"
             }
         }),
         "can never hold",
@@ -371,12 +355,8 @@ fn an_undeclared_media_type_comes_from_the_bytes() {
             "path": "$.content"
         },
         "media": {
-            "media_type": [
-                "$.mime_type"
-            ],
-            "data": [
-                "$.content"
-            ]
+            "media_type": "$.mime_type",
+            "data": "$.content"
         }
     }));
     let normalize =
@@ -401,12 +381,8 @@ fn a_data_uri_reads_as_its_media_type_and_payload() {
             "path": "$.uri"
         },
         "media": {
-            "media_type": [
-                "$.mime_type"
-            ],
-            "data": [
-                "$.uri"
-            ]
+            "media_type": "$.mime_type",
+            "data": "$.uri"
         }
     }));
 
@@ -435,9 +411,7 @@ fn an_unwrap_can_decode_a_serialised_block() {
             "starts_with": "{"
         },
         "unwrap": {
-            "from": [
-                "$.content"
-            ],
+            "from": "$.content",
             "parse_json": true
         }
     }));
@@ -459,7 +433,7 @@ fn splice_rule(at: &str) -> serde_json::Value {
         "at": at,
         "priority": 1,
         "where": {"all": [{"path": "$.type", "one_of": ["text"]}, {"path": "$.content", "kind": "array"}]},
-        "splice": {"from": ["$.content"]},
+        "splice": {"from": "$.content"},
     })
 }
 
@@ -476,7 +450,7 @@ fn a_splice_outside_the_message_envelope_is_refused() {
         "splices at `after_provider_formats`",
     );
     let mut whole = splice_rule("message_envelope");
-    whole["splice"]["from"] = serde_json::json!(["$"]);
+    whole["splice"]["from"] = serde_json::json!("$");
     refused(whole, "unwraps the whole block");
 }
 
@@ -528,12 +502,8 @@ fn a_stored_reference_is_the_authority_on_its_media_type() {
             ]
         },
         "media": {
-            "media_type": [
-                "$.media_type"
-            ],
-            "data": [
-                "$.data"
-            ]
+            "media_type": "$.media_type",
+            "data": "$.data"
         }
     }));
     let normalize = |media_type: &str, data: &str| {

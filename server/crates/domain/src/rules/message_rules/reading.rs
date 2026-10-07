@@ -710,8 +710,8 @@ pub(super) fn carrier_texts<'p, 's>(
     ctx: &MessageContext<'s>,
 ) -> Vec<(&'p str, &'s str)> {
     rule.read
-        .attribute
-        .as_deref()
+        .attribute()
+        .map(String::as_str)
         .into_iter()
         .chain(rule.read.each.iter().map(String::as_str))
         .filter_map(|key| ctx.span_attrs.get(key).map(|raw| (key, raw.as_str())))
@@ -722,10 +722,10 @@ pub(super) fn resolve_attribute<'p, 's>(
     read: &'p ReadSpec,
     attrs: &'s HashMap<String, String>,
 ) -> Option<(&'p str, &'s str)> {
-    if let Some(attribute) = read.attribute.as_deref() {
+    if let Some(attribute) = read.attribute().map(String::as_str) {
         return attrs.get(attribute).map(|raw| (attribute, raw.as_str()));
     }
-    read.first_present
+    read.first_present()
         .iter()
         .find_map(|key| attrs.get(key).map(|raw| (key.as_str(), raw.as_str())))
 }

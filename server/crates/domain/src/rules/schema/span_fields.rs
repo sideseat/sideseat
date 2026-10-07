@@ -351,18 +351,15 @@ pub struct FieldSource {
     /// about the span.
     #[serde(default)]
     pub accept_empty: bool,
-    /// A flat span attribute holding the value directly.
-    #[serde(default)]
-    pub attribute: Option<String>,
-    /// Several attribute spellings of one value, where the **first present** one is the answer.
+    /// A flat span attribute holding the value directly - or, as `{"first_of": [...]}`, several spellings of one
+    /// value where the **first present** one is the answer.
     ///
-    /// The flat counterpart of `JsonFieldSource::first_present_of`, and needed for the same reason: as separate
-    /// sources an empty primary would be stepped over and a later alias would answer, while the retired chain
-    /// selected the primary by presence and then converted - so an empty one ended the flat chain and an
-    /// *embedded* carrier answered instead. Which is a different producer's statement, not a later spelling of
-    /// the same one.
-    #[serde(default)]
-    pub attribute_first_present_of: Vec<String>,
+    /// Not the same as listing the spellings as separate sources, and the difference is load-bearing: as
+    /// separate sources an empty primary would be stepped over and a later alias would answer, while one
+    /// `first_of` selects the primary by presence and then converts - so an empty one ends this source and the
+    /// next *source* (another producer's carrier) answers instead.
+    #[serde(default, rename = "attribute")]
+    pub attribute_keys: Option<FirstOf<String, false>>,
     /// A member of a JSON-valued attribute, reached by RFC 9535 JSONPath.
     #[serde(default)]
     pub json: Option<JsonFieldSource>,
@@ -458,10 +455,17 @@ pub struct JsonFieldSource {
     pub doc: Option<String>,
     /// The attribute whose text is parsed. Parsed once per span however many sources name it.
     pub attribute: String,
-    /// Where in it the value sits.
-    #[serde(default)]
-    #[cfg_attr(test, schemars(with = "Option<String>"))]
-    pub path: Option<JsonPath>,
+    /// Where in it the value sits - or, as `{"first_of": [...]}`, several spellings of one member where the
+    /// **first present** one is the answer.
+    ///
+    /// Not the same as listing them as separate sources, and the difference is load-bearing: separate sources
+    /// select the first that *converts*, so a badly written `max_tokens` beside a good `max_completion_tokens`
+    /// would answer from the second - while presence selects first and then converts, so the badly written one
+    /// ends this carrier's contribution and the *next carrier* answers. Two aliases in one object are one
+    /// statement by one producer; two carriers are two.
+    #[serde(default, rename = "path")]
+    #[cfg_attr(test, schemars(with = "Option<FirstOf<String, false>>"))]
+    pub paths: Option<FirstOf<JsonPath, false>>,
     /// Combine every match of a plural path into one value, rather than taking one of them.
     ///
     /// A generic reduction, and the only one: a dialect that records usage per message states the call's usage
@@ -478,14 +482,34 @@ pub struct JsonFieldSource {
     /// producer's value: not a formatting difference but a different statement about why the model stopped.
     #[serde(default)]
     pub scalar_only: bool,
-    /// Several spellings of one member, where the **first present** one is the answer.
-    ///
-    /// Not the same as listing them as separate sources, and the difference is load-bearing: separate sources
-    /// select the first that *converts*, so a badly written `max_tokens` beside a good `max_completion_tokens`
-    /// would answer from the second - while the retired `or_else` selected by presence and then converted, so
-    /// the badly written one ended this carrier's contribution and the *next carrier* answered. Two aliases in
-    /// one object are one statement by one producer; two carriers are two.
-    #[serde(default)]
-    #[cfg_attr(test, schemars(with = "Vec<String>"))]
-    pub first_present_of: Vec<JsonPath>,
+}
+
+impl FieldSource {
+    /// The one attribute this reads, where it names one.
+    pub fn attribute(&self) -> Option<&String> {
+        self.attribute_keys.as_ref().and_then(FirstOf::single)
+    }
+
+    /// The spellings this reads the first present of, where it names several.
+    pub fn attribute_first_present_of(&self) -> &[String] {
+        match &self.attribute_keys {
+            Some(keys) if !keys.is_single() => keys.candidates(),
+            _ => &[],
+        }
+    }
+}
+
+impl JsonFieldSource {
+    /// The one path, where it names one.
+    pub fn path(&self) -> Option<&JsonPath> {
+        self.paths.as_ref().and_then(FirstOf::single)
+    }
+
+    /// The spellings read by presence, where it names several.
+    pub fn first_present_of(&self) -> &[JsonPath] {
+        match &self.paths {
+            Some(paths) if !paths.is_single() => paths.candidates(),
+            _ => &[],
+        }
+    }
 }

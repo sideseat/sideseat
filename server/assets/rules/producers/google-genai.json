@@ -48,12 +48,8 @@
         ]
       },
       "media": {
-        "media_type": [
-          "$.mime_type"
-        ],
-        "data": [
-          "$.content"
-        ]
+        "media_type": "$.mime_type",
+        "data": "$.content"
       }
     }
   ],

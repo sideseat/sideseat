@@ -17,7 +17,7 @@ fn a_rules_work_is_bounded_by_the_server() {
     let plan = compile(
         &ParsedAssets::parse(&std::collections::BTreeMap::from([(
             "t.json".to_string(),
-            br#"{"id": "t", "messages": [{"id": "t.w", "read": {"attribute": "state"}, "parse": "json", "emit": "message", "priority": 1, "walk": {"max_depth": 3, "stop_on": ["as_message"]}, "also": [{"id": "as_message", "where": {"all": [{"path": "$.role"}, {"path": "$.content"}]}, "wrap": {"role_from": "$.role", "content_from_any_of": ["$.content"]}}]}]}"#
+            br#"{"id": "t", "messages": [{"id": "t.w", "read": {"attribute": "state"}, "parse": "json", "emit": "message", "priority": 1, "walk": {"max_depth": 3, "stop_on": ["as_message"]}, "also": [{"id": "as_message", "where": {"all": [{"path": "$.role"}, {"path": "$.content"}]}, "wrap": {"role_from": "$.role", "content_from": "$.content"}}]}]}"#
                 .to_vec(),
         )]))
         .expect("the probe assets parse"),
@@ -62,10 +62,7 @@ fn a_rules_work_is_bounded_by_the_server() {
     let plan = compile(
         &ParsedAssets::parse(&std::collections::BTreeMap::from([(
             "t.json".to_string(),
-            br#"{"id":"t","messages":[{"id":"t.each","read":{"attribute":"turns"},"parse":"json",
-             "emit":"message","priority":1,
-             "alternatives":[{"id":"every","select":"$[*]",
-               "wrap":{"role":"user","content_from_any_of":["$.text"]}}]}]}"#
+            br#"{"id": "t", "messages": [{"id": "t.each", "read": {"attribute": "turns"}, "parse": "json", "emit": "message", "priority": 1, "alternatives": [{"id": "every", "select": "$[*]", "wrap": {"role": "user", "content_from": "$.text"}}]}]}"#
                 .to_vec(),
         )]))
         .expect("the probe assets parse"),
@@ -256,7 +253,7 @@ fn a_presence_coalesce_falls_back_to_the_element_only_where_declared() {
             r#"{{"id":"t","messages":[{{"id":"t.tools","read":{{"attribute":"tools"}},"parse":"json",
                  "emit":"tool_definitions","priority":1,
                  "alternatives":[{{"id":"decls","select":"$[*]",
-                   "then_present_any_of":["$.function_declarations","$.functionDeclarations"]{fallbacks}}}]}}]}}"#
+                   "then_select":{{"first_of":["$.function_declarations", "$.functionDeclarations"]}}{fallbacks}}}]}}]}}"#
         );
         compile(
             &ParsedAssets::parse(&std::collections::BTreeMap::from([(
@@ -447,9 +444,7 @@ fn a_role_a_rule_states_must_be_a_role() {
         compile(
             &ParsedAssets::parse(&std::collections::BTreeMap::from([(
                 "t.json".to_string(),
-                br#"{"id":"t","messages":[{"id":"t.c","emit":"message","priority":1,
-                 "compose":{"tag":"joined","trailing":{"role":"assisstant"},"members":[
-                   {"as":"content","from_any_of":["x"],"parse":"text"}]}}]}"#
+                br#"{"id": "t", "messages": [{"id": "t.c", "emit": "message", "priority": 1, "compose": {"tag": "joined", "trailing": {"role": "assisstant"}, "members": [{"as": "content", "from": "x", "parse": "text"}]}}]}"#
                     .to_vec(),
             )]))
             .expect("the probe assets parse")
@@ -494,8 +489,7 @@ fn a_closed_role_map_says_what_an_unmapped_value_means() {
 
     // With the fallback - the shape every shipped closed map has - an unmapped value takes it.
     let plan = asset(
-        r#"{"role_from":"$.speaker","role_map":{"user":"user"},"role_map_is_closed":true,
-             "role":"assistant","content_from_any_of":["$.content"]}"#,
+        r#"{"role_from": "$.speaker", "role_map": {"user": "user"}, "role_map_is_closed": true, "role": "assistant", "content_from": "$.content"}"#,
     )
     .expect("a closed map with a fallback compiles");
     let role = |speaker: &str| {
@@ -716,7 +710,7 @@ fn every_tool_shape_refusal_fires() {
         ),
         (
             "parameters with no path to read them from",
-            r#"[{"id":"s","priority":1,"name":"$.name","parameters":{"from":[],"encoding":"json_schema"}}]"#,
+            r#"[{"id": "s", "priority": 1, "name": "$.name", "parameters": {"encoding": "json_schema"}}]"#,
             |e| matches!(e, E::NoParameterPath { .. }),
         ),
         (

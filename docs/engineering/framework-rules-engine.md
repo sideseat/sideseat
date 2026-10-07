@@ -206,6 +206,17 @@ item satisfying both. Where the subject differs the field says so: `parent_where
 out of), `witness` (an overlay's counterpart list), `entry_where` (an assembled indexed entry), `skip_where` (a
 section dropped where it holds), `raw_where` (a carrier's text, as a JSON string, before parsing).
 
+### Sources and fallbacks
+
+Wherever a value may come from one of several places, a field takes one source written bare, or
+`{"first_of": [...]}` naming two or more. A list reads in one of two modes, and says which where it is not the
+default: **present** (omitted, or `"mode": "present"`) commits to the first candidate that is there, whatever it
+holds - two spellings in one payload are one producer's statement, so a badly written primary does not hand over to
+an alias - and **usable** (`"mode": "usable"`, required on the fields that read this way: content-block members,
+call ids, an overlay's counterpart list, a log record's name) steps over a candidate it cannot read as the field
+needs. Attribute sources are `attr:<key>` wherever a name is typed beside other kinds (`event_name` on a log
+record); a message rule reading every one of several keys as its own observation says `every`.
+
 ### Content blocks
 
 A content block is normalised by one chain: the canonical SideML passthrough, then the declared

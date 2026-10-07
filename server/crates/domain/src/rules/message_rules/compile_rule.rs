@@ -138,9 +138,9 @@ pub(super) fn compile_rule(
     // members exist to end, so the wrong pairing is a refusal rather than a quiet reinterpretation.
     if !read.each.is_empty() && tool_repr.is_none() {
         return Err(inexpressible(
-            "`each` reads every listed key as its own observation, and only `tool_repr` iterates its \
-                 carriers - elsewhere it would be read as `first_present`, which is the ambiguity the two \
-                 members replace. Use `first_present` for ordered alternatives",
+            "`every` reads every listed key as its own observation, and only `tool_repr` iterates its \
+                 carriers - elsewhere it would be read as one `first_of`, which is the ambiguity the two \
+                 spellings replace. Use `attribute: {\"first_of\": [...]}` for ordered alternatives",
         ));
     }
     // A repeated key can never mean what it says: under `first_present` the second occurrence is
@@ -148,12 +148,12 @@ pub(super) fn compile_rule(
     // needs no rule of its own - it names no carrier, so `named_count` already refuses a rule whose only
     // source it is. A **single**-key list is deliberately allowed: `single_carrier_of` reads it as the exact
     // carrier it is, which is what lets a renamed key be declared alongside nothing else.
-    for keys in [&read.first_present, &read.each] {
+    for keys in [read.first_present(), &read.each] {
         let mut seen: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
         if keys.iter().any(|key| !seen.insert(key.as_str())) {
             return Err(inexpressible(
-                "a carrier list names one key twice - under `first_present` the repeat is unreachable, and \
-                 under `each` it would read one attribute as two observations",
+                "a carrier list names one key twice - under `first_of` the repeat is unreachable, and \
+                 under `every` it would read one attribute as two observations",
             ));
         }
     }
@@ -309,7 +309,7 @@ pub(super) fn compile_rule(
     // Corpus-neutral: every shipped reading that parses a scalar already declares it, which is what makes this
     // a gate rather than a migration.
     let parses_a_scalar =
-        read.attribute.is_some() || !read.first_present.is_empty() || !read.each.is_empty();
+        read.attribute().is_some() || !read.first_present().is_empty() || !read.each.is_empty();
     if parse.is_none() && compose.is_none() && parses_a_scalar {
         return Err(inexpressible(
             "reads a raw attribute and does not declare `parse`, which means text, JSON or JSON-or-string \
@@ -813,12 +813,12 @@ pub(super) fn compile_rule(
         // Every name the rule could read or tag with must be non-empty: an empty prefix
         // matches every attribute of every span.
         let named = [
-            read.attribute.as_deref(),
+            read.attribute().map(String::as_str),
             read.indexed_family.as_deref(),
             tag_as.as_deref(),
         ];
         if named.iter().flatten().any(|name| name.is_empty())
-            || read.first_present.iter().any(String::is_empty)
+            || read.first_present().iter().any(String::is_empty)
             || read.each.iter().any(String::is_empty)
         {
             return Err(MessageCompileError::EmptyCarrier { rule: id.clone() });

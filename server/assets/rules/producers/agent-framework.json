@@ -41,16 +41,10 @@
         ]
       },
       "media": {
-        "data": [
-          "$.uri"
-        ],
-        "media_type": [
-          "$.media_type"
-        ],
+        "data": "$.uri",
+        "media_type": "$.media_type",
         "missing_media_type": "null",
-        "name": [
-          "$.filename"
-        ],
+        "name": "$.filename",
         "source": {
           "reference_or": "url"
         },

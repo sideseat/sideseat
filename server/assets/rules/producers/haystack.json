@@ -884,15 +884,9 @@
         "exists": true
       },
       "tool_use": {
-        "id": [
-          "$.tool_call.id"
-        ],
-        "name": [
-          "$.tool_call.tool_name"
-        ],
-        "input": [
-          "$.tool_call.arguments"
-        ]
+        "id": "$.tool_call.id",
+        "name": "$.tool_call.tool_name",
+        "input": "$.tool_call.arguments"
       }
     },
     {
@@ -905,18 +899,10 @@
         "exists": true
       },
       "tool_result": {
-        "tool_use_id": [
-          "$.tool_call_result.origin.id"
-        ],
-        "name": [
-          "$.tool_call_result.origin.tool_name"
-        ],
-        "content": [
-          "$.tool_call_result.result"
-        ],
-        "is_error": [
-          "$.tool_call_result.error"
-        ]
+        "tool_use_id": "$.tool_call_result.origin.id",
+        "name": "$.tool_call_result.origin.tool_name",
+        "content": "$.tool_call_result.result",
+        "is_error": "$.tool_call_result.error"
       }
     },
     {
@@ -929,12 +915,8 @@
         "kind": "string"
       },
       "thinking": {
-        "text": [
-          "$.reasoning.reasoning_text"
-        ],
-        "signature": [
-          "$.reasoning.extra.signature"
-        ]
+        "text": "$.reasoning.reasoning_text",
+        "signature": "$.reasoning.extra.signature"
       }
     }
   ]

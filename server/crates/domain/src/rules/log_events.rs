@@ -20,7 +20,7 @@ pub enum LogEventNameSource {
 
 impl LogEventNameSource {
     const EVENT_NAME: &'static str = "event_name";
-    const ATTRIBUTE_PREFIX: &'static str = "attributes:";
+    const ATTRIBUTE_PREFIX: &'static str = "attr:";
 
     fn parse(spelling: &str) -> Result<Self, String> {
         if spelling == Self::EVENT_NAME {
@@ -92,6 +92,7 @@ impl LogEventPlan {
                 }
                 let mut name_from = Vec::with_capacity(event.name_from.len());
                 for spelling in &event.name_from {
+                    let spelling = &spelling.0;
                     let source = LogEventNameSource::parse(spelling).map_err(|error| {
                         format!("`{}`: log event `{}`: {error}", file.id, event.id)
                     })?;
@@ -199,7 +200,7 @@ mod tests {
         let error = compile(&with_message_event(json!([{
             "id": "test.log.unknown",
             "name": "test.nobody.message",
-            "name_from": ["event_name"],
+            "name_from": "event_name",
             "payload": "body_members"
         }])))
         .unwrap_err();
@@ -208,11 +209,14 @@ mod tests {
 
     #[test]
     fn name_sources_are_refused_when_absent_unknown_empty_or_repeated() {
+        // An empty list is not writable: `name_from` is one source or a `first_of` of two or more.
         for (name_from, wanted) in [
-            (json!([]), "no `name_from`"),
-            (json!(["body"]), "not a name source"),
-            (json!(["attributes:"]), "empty key"),
-            (json!(["event_name", "event_name"]), "twice"),
+            (json!("body"), "not a name source"),
+            (json!("attr:"), "empty key"),
+            (
+                json!({"first_of": ["event_name", "event_name"], "mode": "usable"}),
+                "twice",
+            ),
         ] {
             let error = compile(&with_message_event(json!([{
                 "id": "test.log.user",
@@ -230,17 +234,19 @@ mod tests {
         let mut files = with_message_event(json!([{
             "id": "test.log.user",
             "name": "test.user.message",
-            "name_from": ["event_name"],
+            "name_from": "event_name",
             "payload": "body_members"
         }]));
         files.push(file(json!({
             "id": "other",
-            "log_events": [{
-                "id": "other.log.user",
-                "name": "test.user.message",
-                "name_from": ["event_name"],
-                "payload": "attributes"
-            }]
+            "log_events": [
+                {
+                    "id": "other.log.user",
+                    "name": "test.user.message",
+                    "name_from": "event_name",
+                    "payload": "attributes"
+                }
+            ]
         })));
         let error = compile(&files).unwrap_err();
         assert!(error.contains("load order"), "{error}");
@@ -257,13 +263,13 @@ mod tests {
             {
                 "id": "test.log.user",
                 "name": "test.user.message",
-                "name_from": ["event_name", "attributes:legacy.name"],
+                "name_from": {"first_of":["event_name", "attr:legacy.name"],"mode":"usable"},
                 "payload": "body_members"
             },
             {
                 "id": "test.log.details",
                 "name": "inference.details",
-                "name_from": ["event_name", "attributes:legacy.name"],
+                "name_from": {"first_of":["event_name", "attr:legacy.name"],"mode":"usable"},
                 "payload": "attributes"
             }
         ])))
