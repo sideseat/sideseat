@@ -51,6 +51,9 @@ impl Clock for TestClock {
 /// Handles database initialization and background tasks.
 /// Uses a single shared connection protected by a mutex.
 pub struct DuckdbService {
+    /// The one connection. Its being one is load-bearing: `WalDirectory` relies on the only checkpoint that
+    /// can remove or recreate the WAL running on this connection, under this lock - a pool would let another
+    /// connection's checkpoint replace the WAL between a commit and its directory sync.
     conn: Mutex<Option<Connection>>,
     clock: Arc<dyn Clock>,
     wal: WalDirectory,
