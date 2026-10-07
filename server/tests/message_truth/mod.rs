@@ -164,7 +164,6 @@ pub(crate) const ASSERTION_FAMILIES: &[&str] = &[
     "request.duplicated",
     "request.order",
     "request.role",
-    "request.not_exported",
 ];
 
 /// The delivery variations `invariance` checks, by assertion.

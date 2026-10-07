@@ -1098,10 +1098,8 @@
      }
     }
    ],
-   "fires": [
-    "request:request.not_exported:call-001:system.1"
-   ],
-   "why": "the request carried a preamble the payloads do not hold: the producer does not export it, which is its limitation rather than a parsing defect"
+   "fires": [],
+   "why": "the request carried a preamble the payloads do not hold: the producer does not export it, which `absence::request_limitations` documents rather than reports as a defect"
   }
  ]
 }

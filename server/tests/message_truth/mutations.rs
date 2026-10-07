@@ -404,7 +404,7 @@ const CATALOGUE: &[(&str, Expect, Apply)] = &[
     ),
     (
         "claim a sent part no payload carries",
-        Expect::Only(&["request.not_exported"]),
+        Expect::Clean,
         claim_an_unexported_part,
     ),
     (

@@ -184,6 +184,8 @@ fn check_unexplained(
         .collect();
     let mut allowance = Allowance::of(context, assigned);
     let mut system_seen: BTreeSet<(&str, &str)> = BTreeSet::new();
+    // Which request-only content a trace has already been credited with: one copy each.
+    let mut request_seen: BTreeSet<(&str, &str)> = BTreeSet::new();
     let mut unexplained: BTreeMap<&str, (usize, &Block)> = BTreeMap::new();
     // The block an unknowable answer's slot explained last, as (view, index, span): the next block of
     // the same span is that answer's next segment when it is assistant text too - a streamed answer
@@ -193,11 +195,15 @@ fn check_unexplained(
         if claimed.contains(&at) || claimed_digests.contains(block.identity.as_str()) {
             continue;
         }
-        if context.request_accounted.contains(&block.identity) {
-            // What the model was sent, from the request its call recorded: shown, and accounted for.
+        let trace = block.trace.as_str();
+        // What the model was sent, from the request its call recorded, shown once in its trace. A bounded
+        // allowance, not a blanket one: the second copy is a duplicate the views must not show, and
+        // "some request carried these bytes" would otherwise excuse any number of them.
+        if context.request_accounted.contains(&block.identity)
+            && request_seen.insert((trace, block.identity.as_str()))
+        {
             continue;
         }
-        let trace = block.trace.as_str();
         let routed = allowance.routing && allowance.in_conversation(trace);
         let explained = match (block.role.as_str(), block.kind.as_str()) {
             ("system", _) => {

@@ -200,10 +200,11 @@ provider's parallel calls and their results may be shown in completion order. A 
 reissued consistently is resolved first, so a rewrite is reported once, by `tool_call.id_rewritten`.
 What is left over is a violation. A part the span does not show is first searched for in the fixture's own
 payloads, by the same prover the truth gaps use, so a producer's limitation is never reported as a parsing
-defect:
-- `request.not_exported`: no payload carries the part - the producer does not export it;
-- `request.missing`: a payload does carry it, and no input shows it (an unprovable absence fails closed
-  into this, as every absence claim does);
+defect. No payload carries it: the producer does not export that part of a request, which is documented in
+the generated limitations table rather than recorded as a violation. A payload does carry it and no input
+shows it: the reconstruction lost it. An absence that cannot be proven fails closed into the violation, as
+every absence claim does.
+- `request.missing`: a payload carries the part, and no input shows it;
 - `request.extra`: a block the request did not send;
 - `request.duplicated`: a second copy of a sent part;
 - `request.order`: a sent part shown elsewhere;

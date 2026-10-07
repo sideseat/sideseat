@@ -537,11 +537,69 @@ fn kind_label(kind: &str) -> &'static str {
     }
 }
 
+/// A row of the limitations table: the captures a limitation was proven in, by fixture.
+pub(super) type Limitations = BTreeMap<(String, String, String), BTreeMap<String, usize>>;
+
+/// The parts of a recorded request no payload carries: content a call was sent that its producer does not
+/// export.
+///
+/// Decidable per part without any reconstruction, because the request says exactly what was sent, so this
+/// is a property of the telemetry alone. `requests.rs` therefore reports no violation for such a part; it
+/// is documented here, as every proven gap is.
+pub(super) fn request_limitations(
+    truths: &BTreeMap<String, Truth>,
+    fixtures: &BTreeMap<String, Vec<PathBuf>>,
+) -> Limitations {
+    let mut rows: Limitations = BTreeMap::new();
+    for truth in truths.values() {
+        for (fixture, recorded) in &truth.requests {
+            let Some(paths) = fixtures.get(fixture) else {
+                continue;
+            };
+            let haystack = Haystack::of_fixture(paths);
+            for (call, request) in &recorded.calls {
+                let parts = request.system.iter().map(|o| ("system", o)).chain(
+                    request.messages.iter().flat_map(|m| {
+                        m.parts
+                            .iter()
+                            .map(move |o| (super::requests::shown_role(&m.role, &o.part), o))
+                    }),
+                );
+                for (role, occurrence) in parts {
+                    let Some(fact) =
+                        super::requests::as_fact(call, role, &occurrence.part, &BTreeMap::new())
+                    else {
+                        continue;
+                    };
+                    if prove(&fact, &haystack) != Proof::Absent {
+                        continue;
+                    }
+                    *rows
+                        .entry((
+                            truth.producer.clone(),
+                            kind_label(&fact.kind).to_string(),
+                            "sent to the model and absent from every payload: this producer does not \
+                             export that part of a request"
+                                .to_string(),
+                        ))
+                        .or_default()
+                        .entry(fixture.clone())
+                        .or_default() += 1;
+                }
+            }
+        }
+    }
+    rows
+}
+
 /// The documentation's table of proven limitations: per framework and per kind of content, why it is
 /// missing and the captures it was proven missing from.
-pub(super) fn limitations_section(truths: &BTreeMap<String, Truth>) -> String {
+pub(super) fn limitations_section(
+    truths: &BTreeMap<String, Truth>,
+    requests: Limitations,
+) -> String {
     // (producer, kind, detail) -> fixture -> facts withdrawn there.
-    let mut rows: BTreeMap<(String, String, String), BTreeMap<String, usize>> = BTreeMap::new();
+    let mut rows: Limitations = requests;
     for truth in truths.values() {
         for (gap, claim) in absence_gaps(truth) {
             let fixtures = rows
@@ -643,7 +701,9 @@ fn every_absence_gap_is_proven() {
 fn framework_limitations_are_documented() {
     let path = truth::repo_root().join(LIMITATIONS_DOC);
     let doc = std::fs::read_to_string(&path).expect("the limitations page is readable");
-    let section = limitations_section(&truth::load_all());
+    let fixtures: BTreeMap<String, Vec<PathBuf>> = crate::discover_fixtures().into_iter().collect();
+    let truths = truth::load_all();
+    let section = limitations_section(&truths, request_limitations(&truths, &fixtures));
     let (Some(start), Some(end)) = (doc.find(BEGIN), doc.find(END)) else {
         panic!("{LIMITATIONS_DOC} has no generated framework-limitations section");
     };

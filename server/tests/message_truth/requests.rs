@@ -36,7 +36,7 @@ struct Expected {
 
 /// The role a reconstruction shows a part under: a tool's result is the tool's turn, whatever message
 /// carried it, and a provider's own names for the assistant and the tool are normalised.
-fn shown_role(message_role: &str, part: &Value) -> &'static str {
+pub(super) fn shown_role(message_role: &str, part: &Value) -> &'static str {
     if part.get("type").and_then(Value::as_str) == Some("tool_result") {
         return "tool";
     }
@@ -59,7 +59,7 @@ fn requirement(matcher: &str) -> Option<Requirement> {
 }
 
 /// The fact an occurrence must show as, judged by the fact predicates.
-fn as_fact(
+pub(super) fn as_fact(
     label: &str,
     role: &'static str,
     part: &Value,
@@ -403,6 +403,19 @@ pub(super) fn check_requests(
     let Some(recorded) = truth.requests.get(&recon.fixture) else {
         return accounted;
     };
+    // Every view's blocks, so content a request carried is accounted for wherever the reconstruction
+    // shows it. Which span should show it is the assignment's business, below.
+    let everywhere: Vec<&Block> = recon.views.iter().flat_map(|v| v.blocks.iter()).collect();
+    for (call, request) in &recorded.calls {
+        for item in expected(call, request, &BTreeMap::new())
+            .iter()
+            .filter(|item| !item.is_fact)
+        {
+            for block in everywhere.iter().filter(|block| matches(item, block)) {
+                accounted.insert(block.identity.clone());
+            }
+        }
+    }
     for (call, request) in &recorded.calls {
         // Only a call whose span its *output* established. A failed attempt is tied to an ERROR span by
         // its error message, and a call with no asserted output is tied by cardinality: in both the span
@@ -467,11 +480,18 @@ pub(super) fn check_requests(
                 // Proven from the part as the request carried it, never from the id a view reissued:
                 // whether the telemetry holds what the call was sent is a question about the payloads.
                 let sent = as_fact(&item.label, item.role, &item.part, &BTreeMap::new());
+                // A reconstruction that shows the part somewhere disproves any claim that the payloads
+                // lack it: the parser read it from them. So absence counts only when no view shows it.
+                let shown_elsewhere = everywhere.iter().any(|block| matches(item, block));
                 match prove(sent.as_ref().unwrap_or(&item.fact), haystack(recon)) {
+                    // Proven absent: the producer does not export this part of the request. That is a
+                    // limitation of its telemetry, which `absence::request_limitations` documents per
+                    // framework - never a violation, exactly as a declared and proven gap is not one.
+                    Proof::Absent if !shown_elsewhere => continue,
                     Proof::Absent => (
-                        "request.not_exported",
+                        "request.missing",
                         format!(
-                            "no payload carries this {}: the producer does not export it",
+                            "the conversation shows this {} and the span sent it does not",
                             item.fact.kind
                         ),
                     ),
@@ -498,11 +518,6 @@ pub(super) fn check_requests(
                 &item.label,
                 detail,
             ));
-        }
-        for &(e, j) in &pairs {
-            if !wanted[e].is_fact {
-                accounted.insert(blocks[j].identity.clone());
-            }
         }
         for (j, block) in blocks.iter().enumerate() {
             if assigned_block[j] || explained[j] {
