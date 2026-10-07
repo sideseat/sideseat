@@ -530,7 +530,9 @@ obj/
 .astro
 .claude
 .sideseat
-.cargo
+# Local cargo state stays out; the repository's build configuration does not.
+**/.cargo/*
+!/.cargo/config.toml
 .kiro
 traces.jsonl
 traces-openai.jsonl.gz

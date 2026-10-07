@@ -1,0 +1,11 @@
+# Build-time environment for C and C++ dependencies.
+#
+# DuckDB syncs its files with F_FULLFSYNC on Apple platforms only when HAVE_FULLFSYNC is defined, and neither
+# its CMake build nor libduckdb-sys's bundled build defines it - so without this every DuckDB "sync" on macOS
+# is a plain fsync, which leaves the bytes in the drive's write cache, where a power failure loses them. The
+# variable reaches only C++ compiled by the cc and cmake crates for these targets; no other dependency reads
+# the macro. A developer who exports their own CXXFLAGS_<target> replaces this one, and the durability check
+# (make test-durability) fails loudly in that case.
+[env]
+CXXFLAGS_aarch64_apple_darwin = "-DHAVE_FULLFSYNC=1"
+CXXFLAGS_x86_64_apple_darwin = "-DHAVE_FULLFSYNC=1"
