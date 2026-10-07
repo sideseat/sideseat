@@ -438,6 +438,10 @@ CREATE TABLE IF NOT EXISTS otel_raw_pending (
 
 -- Current-version search terms. Corrections replace these rows in the same transaction as
 -- appending the new source revision. An empty term is a field marker, not a searchable token.
+-- No index on `term`. Search drives from the span rows - its leaves are correlated `EXISTS` subqueries keyed by
+-- span identity - so an ART index on `term` alone cannot serve the lookup, and measured on the fixture corpus it
+-- answers no faster than no index at all while costing 588 bytes per span and an ART insert for each of a span's
+-- 35 term rows. If a corpus large enough to change that appears, the index to add is the one the predicate uses.
 CREATE TABLE IF NOT EXISTS span_terms (
     project_id VARCHAR NOT NULL,
     trace_id VARCHAR NOT NULL,
@@ -446,7 +450,6 @@ CREATE TABLE IF NOT EXISTS span_terms (
     term VARCHAR NOT NULL,
     truncated BOOLEAN NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_span_terms_term ON span_terms(term);
 
 CREATE TABLE IF NOT EXISTS log_terms (
     project_id VARCHAR NOT NULL,
@@ -456,7 +459,6 @@ CREATE TABLE IF NOT EXISTS log_terms (
     term VARCHAR NOT NULL,
     truncated BOOLEAN NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_log_terms_term ON log_terms(term);
 
 "#;
 
