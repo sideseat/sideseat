@@ -178,7 +178,7 @@ pub(crate) fn try_parse_python_literal(s: &str) -> Option<JsonValue> {
 /// The caller already knows the surrounding value is a tool response. This helper still requires at least
 /// one constructor to become a recognised content block; an ordinary JSON array remains ordinary JSON
 /// rather than being reinterpreted because it happened to contain strings.
-pub(super) fn try_normalize_python_constructor_content(value: &JsonValue) -> Option<JsonValue> {
+pub(crate) fn try_normalize_python_constructor_content(value: &JsonValue) -> Option<JsonValue> {
     fn constructor_block(raw: &str) -> Option<JsonValue> {
         let parsed = try_parse_python_constructor_repr(raw)?;
         parsed.get("type").and_then(JsonValue::as_str)?;

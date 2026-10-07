@@ -202,6 +202,65 @@
           "$.arguments[0].content"
         ]
       }
+    },
+    {
+      "id": "strands.tool_use_block",
+      "at": "provider_formats",
+      "legacy_rank": 2020,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "toolUse"
+            ]
+          }
+        ]
+      },
+      "tool_use": {
+        "id": [
+          "$.toolUseId"
+        ],
+        "name": [
+          "$.name"
+        ],
+        "input": [
+          "$.input"
+        ],
+        "doc": "The JavaScript SDK's flat form of a Converse tool call: the members beside a camelCase type tag."
+      }
+    },
+    {
+      "id": "strands.tool_result_block",
+      "at": "provider_formats",
+      "legacy_rank": 2030,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "toolResult"
+            ]
+          }
+        ]
+      },
+      "tool_result": {
+        "tool_use_id": [
+          "$.toolUseId"
+        ],
+        "content": [
+          "$.content"
+        ],
+        "is_error": [
+          {
+            "path": "$.status",
+            "map": {
+              "error": true
+            }
+          }
+        ],
+        "doc": "Its tool result. A failure is stated as a status rather than a flag."
+      }
     }
   ]
 }

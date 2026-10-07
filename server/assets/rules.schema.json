@@ -1141,6 +1141,18 @@
             "type": "string"
           },
           "default": []
+        },
+        "equals": {
+          "description": "The value must be exactly this JSON value - for a flag or a number, where `one_of` asks only about\nstrings. `null` cannot be written here (it reads as \"no condition\"); `kind: null` says it.",
+          "default": null
+        },
+        "only_members": {
+          "description": "The value must be an object with no member outside these. A subset: a shape that must also hold one\nof them says so with a predicate of its own.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
         }
       },
       "additionalProperties": false
@@ -1169,6 +1181,11 @@
           "description": "Parse as JSON, keeping the raw text as a string if it does not parse.",
           "type": "string",
           "const": "json_or_string"
+        },
+        {
+          "description": "Parse as JSON where the text encodes an object, an array or a string; keep the raw text otherwise.\n\nFor a value a tool returned and a producer serialised: text that decodes to a number, a boolean or\nnull is kept as the text it was, since `\"4.20\"` decoded and rendered again would be `4.2`.",
+          "type": "string",
+          "const": "json_structure_or_string"
         },
         {
           "description": "Parse as JSON, then parse any *string* member of the resulting array as JSON too.\n\nAn OTLP array attribute whose elements are each a serialised object arrives as an array of strings,\nbecause the attribute type has no nesting. Generic: the encoding is OTLP's, not a producer's.",
@@ -3115,6 +3132,36 @@
               "type": "null"
             }
           ]
+        },
+        "refusal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RefusalBlock"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "redacted_thinking": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RedactedThinkingBlock"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unknown": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UnknownBlock"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false,
@@ -3136,6 +3183,11 @@
           "description": "Tried before any provider format. For a dialect whose own spelling a provider format would\notherwise claim.",
           "type": "string",
           "const": "before_provider_formats"
+        },
+        {
+          "description": "The provider wire formats themselves - the shapes a model API defines and every framework relays.\nBetween the envelopes and `after_provider_formats`, where the retired Rust readers sat.",
+          "type": "string",
+          "const": "provider_formats"
         },
         {
           "description": "Tried after them, which is where a dialect's additions to a provider's vocabulary belong.",
@@ -3167,16 +3219,15 @@
           "description": "Required: a nameless call names nothing to run, so the case does not recognise the block.",
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/ValueSource"
           }
         },
         "input": {
           "description": "Ordered, and an **empty object counts as absent** - a dialect that renamed this member leaves the\nunused one present as `{}`, so \"the first that resolves\" would always pick the empty one.",
           "type": "array",
           "items": {
-            "type": "string"
-          },
-          "default": []
+            "$ref": "#/$defs/ValueSource"
+          }
         }
       },
       "additionalProperties": false,
@@ -3217,6 +3268,75 @@
         "template"
       ]
     },
+    "ValueSource": {
+      "description": "Where one member of a canonical block comes from.\n\nA JSONPath string reads the first value it selects, as it stands. The object form applies exactly one\nbounded transform to it, and a transform that cannot apply leaves the source **absent**, so the next one in\nthe list is tried - which is how \"the first usable spelling\" is written.",
+      "anyOf": [
+        {
+          "description": "A member of the block, by RFC 9535 JSONPath.",
+          "type": "string"
+        },
+        {
+          "description": "A member with one transform applied.",
+          "$ref": "#/$defs/TransformedSource"
+        }
+      ]
+    },
+    "TransformedSource": {
+      "description": "A member with one transform applied. Exactly one of `join`, `parse`, `prepend` and `map`.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "path": {
+          "type": "string"
+        },
+        "join": {
+          "description": "Every **string** the path selects, joined with this separator; absent when it selects none.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "parse": {
+          "description": "A string decoded the way a carrier's text is - the same modes, the same meanings; absent where the\nmode refuses the text. Any other value passes through as it stands.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ParseMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "prepend": {
+          "description": "A string with this prefix put in front; absent for anything that is not a string.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "map": {
+          "description": "A string looked up in this closed table; absent for an unlisted string or a non-string.",
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": true,
+          "default": null
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ]
+    },
     "ToolResultBlock": {
       "description": "What a tool returned.",
       "type": "object",
@@ -3232,34 +3352,54 @@
         "tool_use_id": {
           "type": "array",
           "items": {
-            "type": "string"
-          },
-          "default": []
+            "$ref": "#/$defs/ValueSource"
+          }
         },
         "name": {
           "description": "Ordered; omitted when no path resolves. A result may carry both the id that pairs it exactly and the\nhuman-readable tool name, and keeping the latter can make an aggregate snapshot at least as rich as a\nduplicate tool-span observation.",
           "type": "array",
           "items": {
-            "type": "string"
-          },
-          "default": []
+            "$ref": "#/$defs/ValueSource"
+          }
         },
         "content": {
           "type": "array",
           "items": {
-            "type": "string"
-          },
-          "default": []
+            "$ref": "#/$defs/ValueSource"
+          }
+        },
+        "content_as": {
+          "description": "How the selected content is shaped.",
+          "$ref": "#/$defs/ResultContent"
         },
         "is_error": {
           "type": "array",
           "items": {
-            "type": "string"
-          },
-          "default": []
+            "$ref": "#/$defs/ValueSource"
+          }
         }
       },
       "additionalProperties": false
+    },
+    "ResultContent": {
+      "description": "How a tool result's content is shaped once it has been selected.",
+      "oneOf": [
+        {
+          "description": "Normalised as a returned value: a list's members as blocks, a provider block as that block, anything\nelse as it stands.",
+          "type": "string",
+          "const": "normalized"
+        },
+        {
+          "description": "The same, and then a list of blocks reduced to the value it holds - a lone text is its string, a lone\nstructured value is that value - which is the form a tool-role message's content takes. For a format\nthat writes a result as a list of blocks, so one result reads alike however it was written.",
+          "type": "string",
+          "const": "value"
+        },
+        {
+          "description": "A list of content blocks built from the value: Python constructor reprs where it holds them, otherwise\nstructured data as one `json` block, text as one `text` block, and nothing as an empty list. For a\nformat whose response member holds what the tool returned, encoded or not.",
+          "type": "string",
+          "const": "blocks"
+        }
+      ]
     },
     "JsonDataBlock": {
       "description": "Structured data that is not prose.",
@@ -3276,9 +3416,8 @@
         "data": {
           "type": "array",
           "items": {
-            "type": "string"
-          },
-          "default": []
+            "$ref": "#/$defs/ValueSource"
+          }
         }
       },
       "additionalProperties": false
@@ -3298,7 +3437,7 @@
         "text": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/ValueSource"
           }
         }
       },
@@ -3319,31 +3458,130 @@
           ],
           "default": null
         },
+        "kind": {
+          "description": "The block's kind, where the format states it rather than leaving it to the media type: an image part\nis an image whatever its bytes are labelled. Absent, the kind is derived from the media type, and a\nblock with none is a `file`.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MediaKind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "media_type": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/ValueSource"
           }
+        },
+        "media_type_default": {
+          "description": "The media type when no source states one.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "missing_media_type": {
+          "description": "What a block whose media type is stated nowhere becomes.",
+          "$ref": "#/$defs/MissingMediaType"
         },
         "data": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/ValueSource"
           }
+        },
+        "source": {
+          "description": "What the data is: derived from the value, or stated by the format.",
+          "$ref": "#/$defs/MediaSource"
         },
         "name": {
           "description": "Optional display name, such as the filename a framework retained beside the bytes.",
           "type": "array",
           "items": {
-            "type": "string"
-          },
-          "default": []
+            "$ref": "#/$defs/ValueSource"
+          }
+        },
+        "detail": {
+          "description": "How closely a vision model is asked to look at an image.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ValueSource"
+          }
         }
       },
       "additionalProperties": false,
       "required": [
-        "media_type",
         "data"
+      ]
+    },
+    "MediaKind": {
+      "description": "A media block's canonical kind, spelled as the SideML block type.",
+      "type": "string",
+      "enum": [
+        "image",
+        "audio",
+        "video",
+        "document",
+        "file"
+      ]
+    },
+    "MissingMediaType": {
+      "description": "What a media block whose media type is stated nowhere becomes.",
+      "oneOf": [
+        {
+          "description": "Not media: the case declines. Under `decoded` the bytes are asked first, since base64 names its own\ntype often enough to be worth asking.",
+          "type": "string",
+          "const": "decline"
+        },
+        {
+          "description": "Media of no stated type, recorded as `null`.",
+          "type": "string",
+          "const": "null"
+        },
+        {
+          "description": "Media of no stated type, with no media-type member at all - a reference whose type is the referenced\nobject's business.",
+          "type": "string",
+          "const": "omit"
+        }
+      ]
+    },
+    "MediaSource": {
+      "description": "What a media block's data is.",
+      "oneOf": [
+        {
+          "description": "Derived from the value: a stored file reference, a `data:` URL (whose payload alone is kept), a URL,\nor the bytes themselves. A stored reference's or data URL's media type wins over a declared one.",
+          "type": "string",
+          "const": "decoded"
+        },
+        {
+          "description": "A stored file reference where the value is one, else this: for a member the format defines as holding\nbytes (`base64`) or a location (`url`), which a value's shape must not second-guess. The declared media\ntype stands.",
+          "type": "object",
+          "properties": {
+            "reference_or": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "reference_or"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "description": "Always this, for a member that holds an identifier rather than content.",
+          "type": "object",
+          "properties": {
+            "literal": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "literal"
+          ],
+          "additionalProperties": false
+        }
       ]
     },
     "ThinkingBlock": {
@@ -3361,16 +3599,14 @@
         "text": {
           "type": "array",
           "items": {
-            "type": "string"
-          },
-          "default": []
+            "$ref": "#/$defs/ValueSource"
+          }
         },
         "signature": {
           "type": "array",
           "items": {
-            "type": "string"
-          },
-          "default": []
+            "$ref": "#/$defs/ValueSource"
+          }
         }
       },
       "additionalProperties": false
@@ -3429,6 +3665,63 @@
       "required": [
         "from"
       ]
+    },
+    "RefusalBlock": {
+      "description": "A model's refusal to answer. Only a string is a refusal message; a case whose member holds anything else\nhas not recognised one, and the block is left to the rest of the chain.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "message": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ValueSource"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "message"
+      ]
+    },
+    "RedactedThinkingBlock": {
+      "description": "Reasoning the provider withheld, kept as the opaque payload a later request replays. The payload is not\nrequired, as reasoning's text is not: a producer that names the block has said what it is.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ValueSource"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "UnknownBlock": {
+      "description": "A block of a recognised kind in a variant nothing reads, kept whole rather than misread. For a format\nthat announces new variants of a block: claiming it as unknown stops a later case from reading the\nannouncement as something else, and the raw block survives for whoever reads it next.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false
     },
     "ProviderAlias": {
       "description": "One `gen_ai.system` value, and the catalogue provider it means.",

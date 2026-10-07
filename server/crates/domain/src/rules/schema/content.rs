@@ -64,6 +64,14 @@ pub struct ValuePredicate {
     /// which is how a dialect's unnamed events fall through to the reading that handles them.
     #[serde(default)]
     pub none_of: Vec<String>,
+    /// The value must be exactly this JSON value - for a flag or a number, where `one_of` asks only about
+    /// strings. `null` cannot be written here (it reads as "no condition"); `kind: null` says it.
+    #[serde(default)]
+    pub equals: Option<JsonValue>,
+    /// The value must be an object with no member outside these. A subset: a shape that must also hold one
+    /// of them says so with a predicate of its own.
+    #[serde(default)]
+    pub only_members: Vec<String>,
 }
 
 /// A JSON kind, for `ValuePredicate::kind`.
@@ -459,178 +467,6 @@ pub enum InvalidItem {
     FailMessage,
 }
 
-/// One content-block shape, and the canonical block it becomes.
-///
-/// Exactly one target form per rule, checked at compile time. The forms are the canonical SideML blocks,
-/// so this is not a general object builder: a rule says *where* a call's name is, never what a tool_use
-/// block looks like.
-#[derive(Debug, Deserialize, Clone)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
-#[serde(deny_unknown_fields)]
-pub struct ContentBlockRule {
-    pub id: String,
-    pub doc: Option<String>,
-    /// Where in the normalisation chain this case is tried. Declared, because the chain's order decides
-    /// which dialect answers for a shape more than one of them recognises.
-    pub at: ChainPosition,
-    /// Position among the cases at that point.
-    pub legacy_rank: i32,
-    /// The shape this case recognises.
-    #[serde(default)]
-    pub require: PredicateSet,
-    #[serde(default)]
-    pub tool_use: Option<ToolUseBlock>,
-    #[serde(default)]
-    pub tool_result: Option<ToolResultBlock>,
-    #[serde(default)]
-    pub json: Option<JsonDataBlock>,
-    #[serde(default)]
-    pub text: Option<TextBlock>,
-    #[serde(default)]
-    pub media: Option<MediaBlock>,
-    #[serde(default)]
-    pub thinking: Option<ThinkingBlock>,
-    #[serde(default)]
-    pub unwrap: Option<UnwrapSpec>,
-    #[serde(default)]
-    pub splice: Option<SpliceSpec>,
-}
-
-/// Where a content-block case sits relative to the provider wire formats.
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
-#[serde(rename_all = "snake_case")]
-pub enum ChainPosition {
-    /// Before any provider format, and **only when normalising a message's own content block**.
-    ///
-    /// The nested chain - a tool's returned value - deliberately does not consult this position. An envelope
-    /// around a message's content is not something a tool's *result* carries, and reading it there changes what
-    /// a result means: one dialect writes `{"type": "json", "value": …}` for structured output, and a wrapper
-    /// case looking at `value` would unwrap it instead of letting the dialect's own case read it.
-    MessageEnvelope,
-    /// Tried before any provider format. For a dialect whose own spelling a provider format would
-    /// otherwise claim.
-    BeforeProviderFormats,
-    /// Tried after them, which is where a dialect's additions to a provider's vocabulary belong.
-    AfterProviderFormats,
-}
-
-/// A model asking for a tool to be run.
-#[derive(Debug, Deserialize, Clone)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
-#[serde(deny_unknown_fields)]
-pub struct ToolUseBlock {
-    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
-    #[serde(default)]
-    pub doc: Option<String>,
-    /// Ordered: the first member holding a non-blank string, else a declared `template`; absent is
-    /// reported as null, because a provider that omits an id has still made the call.
-    #[serde(default)]
-    pub id: Vec<IdSource>,
-    /// Required: a nameless call names nothing to run, so the case does not recognise the block.
-    #[cfg_attr(test, schemars(with = "Vec<String>"))]
-    pub name: Vec<JsonPath>,
-    /// Ordered, and an **empty object counts as absent** - a dialect that renamed this member leaves the
-    /// unused one present as `{}`, so "the first that resolves" would always pick the empty one.
-    #[serde(default)]
-    #[cfg_attr(test, schemars(with = "Vec<String>"))]
-    pub input: Vec<JsonPath>,
-}
-
-/// One place a call's id may come from.
-#[derive(Debug, Deserialize, Clone)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
-#[serde(untagged)]
-pub enum IdSource {
-    /// A member of the block, by RFC 9535 JSONPath.
-    Path(#[cfg_attr(test, schemars(with = "String"))] JsonPath),
-    /// An id built from the call itself, for a provider that states none.
-    Template(IdTemplate),
-}
-
-/// A synthetic id: literal text with closed placeholders - `{name}` (the call's resolved name) and
-/// `{stable_hash(input)}` (eight hex digits of FNV-1a over the resolved input's serialisation). The last
-/// source of an id, since it always yields; two calls of one tool with different arguments get different
-/// ids, and the same call re-sent gets the same one.
-#[derive(Debug, Deserialize, Clone)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
-#[serde(deny_unknown_fields)]
-pub struct IdTemplate {
-    #[serde(default)]
-    pub doc: Option<String>,
-    pub template: String,
-}
-
-/// What a tool returned.
-#[derive(Debug, Deserialize, Clone)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
-#[serde(deny_unknown_fields)]
-pub struct ToolResultBlock {
-    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
-    #[serde(default)]
-    pub doc: Option<String>,
-    #[serde(default)]
-    #[cfg_attr(test, schemars(with = "Vec<String>"))]
-    pub tool_use_id: Vec<JsonPath>,
-    /// Ordered; omitted when no path resolves. A result may carry both the id that pairs it exactly and the
-    /// human-readable tool name, and keeping the latter can make an aggregate snapshot at least as rich as a
-    /// duplicate tool-span observation.
-    #[serde(default)]
-    #[cfg_attr(test, schemars(with = "Vec<String>"))]
-    pub name: Vec<JsonPath>,
-    #[serde(default)]
-    #[cfg_attr(test, schemars(with = "Vec<String>"))]
-    pub content: Vec<JsonPath>,
-    #[serde(default)]
-    #[cfg_attr(test, schemars(with = "Vec<String>"))]
-    pub is_error: Vec<JsonPath>,
-}
-
-/// Structured data that is not prose.
-#[derive(Debug, Deserialize, Clone)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
-#[serde(deny_unknown_fields)]
-pub struct JsonDataBlock {
-    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
-    #[serde(default)]
-    pub doc: Option<String>,
-    #[serde(default)]
-    #[cfg_attr(test, schemars(with = "Vec<String>"))]
-    pub data: Vec<JsonPath>,
-}
-
-/// Prose. Only a string is text.
-#[derive(Debug, Deserialize, Clone)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
-#[serde(deny_unknown_fields)]
-pub struct TextBlock {
-    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
-    #[serde(default)]
-    pub doc: Option<String>,
-    #[cfg_attr(test, schemars(with = "Vec<String>"))]
-    pub text: Vec<JsonPath>,
-}
-
-/// A model's own reasoning.
-///
-/// `text` is **not** required: a producer that wraps its reasoning in a member holding no text has still said
-/// the block is reasoning, and the retired reader emitted an empty one rather than falling through - which is
-/// what stops a signature-only block from being read as something else.
-#[derive(Debug, Deserialize, Clone)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
-#[serde(deny_unknown_fields)]
-pub struct ThinkingBlock {
-    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
-    #[serde(default)]
-    pub doc: Option<String>,
-    #[serde(default)]
-    #[cfg_attr(test, schemars(with = "Vec<String>"))]
-    pub text: Vec<JsonPath>,
-    #[serde(default)]
-    #[cfg_attr(test, schemars(with = "Vec<String>"))]
-    pub signature: Vec<JsonPath>,
-}
-
 /// The OpenTelemetry instrumentation scopes accepted by a message rule: exactly one of `name` or `one_of`.
 #[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]
@@ -650,68 +486,6 @@ impl InstrumentationScopeMatch {
     pub fn names(&self) -> impl Iterator<Item = &str> {
         self.name.iter().chain(&self.one_of).map(String::as_str)
     }
-}
-
-/// A wrapper: the block's content is *inside* a member, and the member is normalised in its place.
-///
-/// The one form that does not build a block. Several dialects wrap a content block in a member of their own -
-/// a serialisation envelope, a constructor's keyword arguments - and what is inside is an ordinary block of
-/// whatever shape. So the case selects it and the chain starts again from the top with that value.
-///
-/// A case whose member does not normalise answers nothing, which leaves the **original** block to the rest of
-/// the chain: that is what the retired readers did, and it is why an unwrap is not a claim.
-#[derive(Debug, Deserialize, Clone)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
-#[serde(deny_unknown_fields)]
-pub struct UnwrapSpec {
-    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
-    #[serde(default)]
-    pub doc: Option<String>,
-    /// Ordered; the first member that is present is unwrapped, whether or not it normalises.
-    #[cfg_attr(test, schemars(with = "Vec<String>"))]
-    pub from: Vec<JsonPath>,
-    /// The member is a block serialised as JSON text, decoded before it is normalised. A member that does
-    /// not decode leaves the original block to the rest of the chain, as one that does not normalise does.
-    #[serde(default)]
-    pub parse_json: bool,
-}
-
-/// Several blocks written as one: the block's member is a **list** of blocks, and each takes the block's place.
-///
-/// The one form that answers with more than one block, so it is legal only at `message_envelope` - a
-/// message's content is a list a block can be spliced into, while every other caller of the chain asks for a
-/// single block. A dialect that wraps a provider's whole content list in one part of its own (a text part
-/// whose content is the list) otherwise renders the list as one unknown block. Each member is normalised on its
-/// own terms, and may itself be spliced; the recursion is bounded because a member is always strictly inside
-/// the block that held it. A member that is not a list leaves the block to the chain.
-#[derive(Debug, Deserialize, Clone)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
-#[serde(deny_unknown_fields)]
-pub struct SpliceSpec {
-    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
-    #[serde(default)]
-    pub doc: Option<String>,
-    /// Ordered; the first member that is present is the list, whether or not it is one.
-    #[cfg_attr(test, schemars(with = "Vec<String>"))]
-    pub from: Vec<JsonPath>,
-}
-
-/// Bytes, or a reference to them. The block's kind and whether it is a reference are both *derived*.
-#[derive(Debug, Deserialize, Clone)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
-#[serde(deny_unknown_fields)]
-pub struct MediaBlock {
-    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
-    #[serde(default)]
-    pub doc: Option<String>,
-    #[cfg_attr(test, schemars(with = "Vec<String>"))]
-    pub media_type: Vec<JsonPath>,
-    #[cfg_attr(test, schemars(with = "Vec<String>"))]
-    pub data: Vec<JsonPath>,
-    /// Optional display name, such as the filename a framework retained beside the bytes.
-    #[serde(default)]
-    #[cfg_attr(test, schemars(with = "Vec<String>"))]
-    pub name: Vec<JsonPath>,
 }
 
 /// Where a message rule reads from.

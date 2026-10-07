@@ -1,6 +1,12 @@
-use super::*;
+//! The retired Rust readers of the provider content formats, kept only as equivalence oracles.
+//!
+//! The formats are declared in `rules/vocabulary/content-blocks-*.json` and the conventions, at the
+//! `provider_formats` chain position. `the_declared_provider_formats_match_the_readers_they_replace`
+//! compares the two shape by shape, and the server goldens'
+//! `the_declared_content_chain_matches_the_readers_it_replaced_over_the_corpus` over every object the
+//! captured corpus holds; this module is compiled for nothing else.
 
-// ========== Provider-specific content format handlers ==========
+use super::*;
 
 /// Type-tagged format (OpenAI and compatible providers).
 /// Handles: text, image_url, input_audio, audio, refusal, output_json, thinking, etc.

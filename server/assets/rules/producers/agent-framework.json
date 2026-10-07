@@ -27,5 +27,38 @@
       "slug": "agent-framework",
       "label": "AgentFramework"
     }
+  ],
+  "content_blocks": [
+    {
+      "id": "agent-framework.data_part",
+      "at": "provider_formats",
+      "legacy_rank": 1100,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "data"
+            ]
+          }
+        ]
+      },
+      "media": {
+        "data": [
+          "$.uri"
+        ],
+        "media_type": [
+          "$.media_type"
+        ],
+        "missing_media_type": "null",
+        "name": [
+          "$.filename"
+        ],
+        "source": {
+          "reference_or": "url"
+        },
+        "doc": "Binary data by URI, with the media type and filename beside it. A stored reference is a file; anything else is a location."
+      }
+    }
   ]
 }

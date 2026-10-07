@@ -576,6 +576,10 @@ pub enum JsonSubjectAtom {
     StartsWith { prefix: String },
     /// A string among these. `Unknown` for anything else.
     OneOf { values: Vec<String> },
+    /// Exactly this JSON value. Total: every value is or is not it.
+    Equals { value: serde_json::Value },
+    /// An object with no member outside these. `Unknown` for anything that is not an object.
+    OnlyMembers { names: Vec<String> },
 }
 
 /// A JSON expression.
@@ -614,6 +618,15 @@ impl JsonSubjectAtom {
             },
             Self::OneOf { values } => match subject.as_str() {
                 Some(text) => Truth::total(values.iter().any(|value| value == text)),
+                None => Truth::Unknown,
+            },
+            Self::Equals { value } => Truth::total(subject == value),
+            Self::OnlyMembers { names } => match subject.as_object() {
+                Some(members) => Truth::total(
+                    members
+                        .keys()
+                        .all(|key| names.iter().any(|name| name == key)),
+                ),
                 None => Truth::Unknown,
             },
         }
@@ -736,6 +749,16 @@ pub fn json_expr_of_predicate(predicate: &super::schema::ValuePredicate) -> Opti
             values: predicate.one_of.clone(),
         }));
     }
+    if let Some(value) = &predicate.equals {
+        subject.push(Expr::Atom(JsonSubjectAtom::Equals {
+            value: value.clone(),
+        }));
+    }
+    if !predicate.only_members.is_empty() {
+        subject.push(Expr::Atom(JsonSubjectAtom::OnlyMembers {
+            names: predicate.only_members.clone(),
+        }));
+    }
     let negative_set = !predicate.none_of.is_empty();
     if negative_set {
         // The same widening as `lacks_prefix`, for the same reason.
@@ -765,7 +788,9 @@ pub fn json_expr_of_predicate(predicate: &super::schema::ValuePredicate) -> Opti
         && predicate.identifier_like.is_none()
         && predicate.starts_with.is_none()
         && predicate.lacks_prefix.is_none()
-        && predicate.one_of.is_empty();
+        && predicate.one_of.is_empty()
+        && predicate.equals.is_none()
+        && predicate.only_members.is_empty();
 
     match (predicate.exists, value_question) {
         (Some(true), None) => Some(Expr::Atom(JsonAtom::Exists { path })),
@@ -905,6 +930,10 @@ impl JsonSubjectAtom {
             Self::OneOf { values } if values.is_empty() => {
                 defect("one_of", "an empty set, which no value is in")
             }
+            Self::OnlyMembers { names } if names.is_empty() => defect(
+                "only_members",
+                "an empty set, which only an empty object satisfies",
+            ),
             _ => None,
         }
     }

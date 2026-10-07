@@ -103,6 +103,84 @@ pub mod test_support {
         super::content::normalize_content_block(block)
     }
 
+    /// Where the declared content chain and the retired Rust one answer a value differently, at any of the
+    /// three ways into the chain: a message's content block, a value a tool returned, and a singleton result
+    /// object. Compared as serialised text, so member order counts as it does in a stored result.
+    ///
+    /// The answer says whether the two differ only in **member order**: equal as JSON values, rendered
+    /// differently. That is a difference a stored nested result would show, so it is reported, and kept apart
+    /// so a caller can hold it to a stated list.
+    pub fn content_chain_disagreement(value: &serde_json::Value) -> Option<(bool, String)> {
+        let render = |answer: &Option<serde_json::Value>| {
+            answer
+                .as_ref()
+                .map(|value| serde_json::to_string(value).expect("a value serialises"))
+        };
+        let pairs = [
+            (
+                "message content block",
+                super::content::normalize_content_block(value),
+                super::content::legacy_normalize_block(value, true),
+            ),
+            (
+                "returned value",
+                super::content::normalize_returned_value_block(value),
+                super::content::legacy_normalize_block(value, false),
+            ),
+            (
+                "singleton result",
+                super::content::current_try_normalize_provider_format(value),
+                super::content::legacy_try_normalize_provider_format(value),
+            ),
+        ];
+        // Long strings shortened in the report only - a base64 payload would hide the member that differs.
+        fn abbreviated(text: &str) -> String {
+            let mut out = String::new();
+            let mut in_string = false;
+            let mut run = 0_usize;
+            let mut escaped = false;
+            for c in text.chars() {
+                if in_string {
+                    if escaped {
+                        escaped = false;
+                    } else if c == '\\' {
+                        escaped = true;
+                    } else if c == '"' {
+                        in_string = false;
+                        run = 0;
+                    }
+                    run += 1;
+                    if run == 40 {
+                        out.push('…');
+                    }
+                    if run >= 40 && c != '"' {
+                        continue;
+                    }
+                } else if c == '"' {
+                    in_string = true;
+                    run = 0;
+                }
+                out.push(c);
+            }
+            out
+        }
+        pairs
+            .into_iter()
+            .find_map(|(path, declared_value, retired_value)| {
+                let (declared, retired) = (render(&declared_value), render(&retired_value));
+                (declared != retired).then(|| {
+                    let order_only = declared_value == retired_value;
+                    let report = format!(
+                        "{path}:\n    declared {}\n    retired  {}\n    for      {}",
+                        abbreviated(declared.as_deref().unwrap_or("nothing")),
+                        abbreviated(retired.as_deref().unwrap_or("nothing")),
+                        abbreviated(&value.to_string())
+                    );
+                    (order_only, report)
+                })
+            })
+    }
+
     /// The Python-literal and constructor-repr readers the content chain applies, so a test oracle that
     /// searches raw telemetry decodes every rendering the engine can read.
     pub fn parse_python_rendering(text: &str) -> Option<serde_json::Value> {

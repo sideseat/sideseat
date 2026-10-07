@@ -527,6 +527,11 @@ pub enum ParseMode {
     Json,
     /// Parse as JSON, keeping the raw text as a string if it does not parse.
     JsonOrString,
+    /// Parse as JSON where the text encodes an object, an array or a string; keep the raw text otherwise.
+    ///
+    /// For a value a tool returned and a producer serialised: text that decodes to a number, a boolean or
+    /// null is kept as the text it was, since `"4.20"` decoded and rendered again would be `4.2`.
+    JsonStructureOrString,
     /// Parse as JSON, then parse any *string* member of the resulting array as JSON too.
     ///
     /// An OTLP array attribute whose elements are each a serialised object arrives as an array of strings,

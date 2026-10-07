@@ -146,6 +146,105 @@
           "$.inlineData.data"
         ]
       }
+    },
+    {
+      "id": "gemini.thinking_part",
+      "at": "provider_formats",
+      "legacy_rank": 4000,
+      "require": {
+        "all": [
+          {
+            "path": "$",
+            "only_members": [
+              "thinking"
+            ]
+          },
+          {
+            "path": "$.thinking",
+            "kind": "string"
+          }
+        ]
+      },
+      "thinking": {
+        "text": [
+          "$.thinking"
+        ],
+        "doc": "Reasoning as exactly `{\"thinking\": text}`."
+      }
+    },
+    {
+      "id": "gemini.thought_part",
+      "at": "provider_formats",
+      "legacy_rank": 4010,
+      "require": {
+        "all": [
+          {
+            "path": "$.thought",
+            "equals": true
+          },
+          {
+            "path": "$.text",
+            "kind": "string"
+          }
+        ]
+      },
+      "thinking": {
+        "text": [
+          "$.text"
+        ],
+        "doc": "A text part flagged as a thought."
+      }
+    },
+    {
+      "id": "gemini.inline_data_snake",
+      "at": "provider_formats",
+      "legacy_rank": 4020,
+      "require": {
+        "all": [
+          {
+            "path": "$.inline_data",
+            "exists": true
+          }
+        ]
+      },
+      "media": {
+        "data": [
+          "$.inline_data.data"
+        ],
+        "media_type": [
+          "$.inline_data.mime_type"
+        ],
+        "source": {
+          "reference_or": "base64"
+        },
+        "doc": "Bytes sent inline, under the Python SDK's snake_case member names. The media type is required and names the block's kind."
+      }
+    },
+    {
+      "id": "gemini.file_data_snake",
+      "at": "provider_formats",
+      "legacy_rank": 4030,
+      "require": {
+        "all": [
+          {
+            "path": "$.inline_data",
+            "exists": false,
+            "doc": "A part holding an inline_data member, readable or not, is an inline part; its file_data is not consulted."
+          }
+        ]
+      },
+      "media": {
+        "data": [
+          "$.file_data.file_uri"
+        ],
+        "media_type": [
+          "$.file_data.mime_type"
+        ],
+        "source": {
+          "literal": "url"
+        },
+        "doc": "A file by URI, with its required media type."
+      }
     }
   ]
 }

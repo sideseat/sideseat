@@ -1,0 +1,39 @@
+{
+  "$schema": "../../rules.schema.json",
+  "id": "content-blocks-mistral",
+  "doc": "Mistral's reasoning block, which holds its reasoning as a list of typed chunks rather than a string.",
+  "content_blocks": [
+    {
+      "id": "mistral.thinking_chunks",
+      "at": "provider_formats",
+      "legacy_rank": 1950,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "thinking"
+            ]
+          },
+          {
+            "path": "$.thinking[?@.type == 'text'].text",
+            "kind": "string",
+            "doc": "At least one text chunk: a chunk list with none holds no reasoning here, and the block is read from its other members."
+          }
+        ]
+      },
+      "thinking": {
+        "text": [
+          {
+            "path": "$.thinking[?@.type == 'text'].text",
+            "join": "\n\n"
+          }
+        ],
+        "signature": [
+          "$.signature"
+        ],
+        "doc": "Reasoning as a list of chunks, the text ones joined in order."
+      }
+    }
+  ]
+}

@@ -67,7 +67,7 @@ index construction therefore stay off the per-observation path.
 
 ## Asset organisation
 
-The embedded corpus currently contains **52 assets holding 583 clauses** in three groups:
+The embedded corpus currently contains **56 assets holding 630 clauses** in three groups:
 
 ```text
 server/assets/rules/
@@ -176,6 +176,25 @@ The structural vocabulary includes:
 There are no inline scripts and no rule-selected Rust callbacks. A new primitive is acceptable only when it
 describes a producer-neutral operation, has bounded cost, and can be tested without naming a producer.
 
+### Content blocks
+
+A content block is normalised by one chain: the canonical SideML passthrough, then the declared
+`content_blocks` cases at four positions - `before_provider_formats`, `message_envelope` (consulted only for a
+message's own content, never for a tool's returned value), `provider_formats` (the model APIs' wire
+vocabularies: OpenAI, Anthropic, Bedrock Converse, Gemini, and the conventions' part types) and
+`after_provider_formats` - then the generic media and unknown fallbacks. Within a position the lowest
+`legacy_rank` is tried first; a case that recognises a block and cannot build its target declines, and the
+next case is tried.
+
+Each case names one canonical target form (`text`, `json`, `media`, `thinking`, `redacted_thinking`,
+`refusal`, `tool_use`, `tool_result`, `unknown`, `unwrap`, `splice`) and where its members come from. A
+member source is a JSONPath, or a JSONPath with exactly one bounded transform: `join` (every string
+selected, joined), `parse` (the carriers' decoding modes), `prepend`, or a closed `map`. A transform that
+cannot apply leaves the source absent, so a list of sources means "the first usable spelling". Media cases
+declare what the format states - a block kind, whether the data is a location, bytes or an identifier, what
+a missing media type means - and derive the rest from the value. The `require` predicates add `equals` (any
+JSON value) and `only_members` (an object with no member outside a set) to the value vocabulary.
+
 ## Carrier semantics
 
 A carrier declaration answers independent questions instead of assigning one broad preset:
@@ -270,10 +289,8 @@ The guarantees above have explicit boundaries:
   iterations, or emitted values.
 - Some ordered rule families are scanned linearly.
 - The per-message explain trace is incomplete.
-- The boundary invariant is not yet fully met. Content-block normalisation still runs four hardcoded
-  provider-format handlers between the `before_provider_formats` and `after_provider_formats` chain
-  positions, and SideML normalisation still holds the role alias table and several payload-shape special
-  cases in Rust. Provider spellings, model-name normalisation, and cache and
+- The boundary invariant is not yet fully met. SideML normalisation still holds the role alias table and
+  several payload-shape special cases in Rust. Provider spellings, model-name normalisation, and cache and
   reasoning counter policy used for pricing also remain in Rust; `provider_aliases` covers only a
   framework that names itself where a provider is expected.
 

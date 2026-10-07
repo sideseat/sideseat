@@ -65,7 +65,7 @@ pub fn convert_to_tool_result(
 
 /// Create inner content for tool_result from content blocks.
 /// Single text block becomes string, single json/unknown becomes raw data, multiple become array.
-pub(super) fn create_inner_content(blocks: &[JsonValue]) -> JsonValue {
+pub(crate) fn create_inner_content(blocks: &[JsonValue]) -> JsonValue {
     // Track if single block was json/unknown for optimization
     let single_raw_data = if blocks.len() == 1 {
         match get_block_type(&blocks[0]) {

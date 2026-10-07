@@ -1,0 +1,258 @@
+{
+  "$schema": "../../rules.schema.json",
+  "id": "content-blocks-bedrock",
+  "doc": "The Bedrock Converse content blocks: untyped, each recognised by the one member that names it. Strands and every Converse instrumentation write them. Ranked in the order the members are tried, because a block holding two of them is read as the first.",
+  "content_blocks": [
+    {
+      "id": "bedrock.text",
+      "at": "provider_formats",
+      "legacy_rank": 3000,
+      "require": {
+        "all": [
+          {
+            "path": "$",
+            "only_members": [
+              "text"
+            ],
+            "doc": "Exactly a text member. A structured output that happens to have a `text` field beside others is the producer's data, and reading it as prose would lose the rest."
+          },
+          {
+            "path": "$.text",
+            "kind": "string"
+          }
+        ]
+      },
+      "text": {
+        "text": [
+          "$.text"
+        ]
+      }
+    },
+    {
+      "id": "bedrock.json",
+      "at": "provider_formats",
+      "legacy_rank": 3010,
+      "require": {
+        "all": [
+          {
+            "path": "$",
+            "only_members": [
+              "json"
+            ]
+          },
+          {
+            "path": "$.json",
+            "exists": true
+          }
+        ]
+      },
+      "json": {
+        "data": [
+          "$.json"
+        ],
+        "doc": "A tool result's structured value: exactly `{\"json\": ...}`. Read as plain data, the value came back wrapped in the member that only labels it."
+      }
+    },
+    {
+      "id": "bedrock.reasoning_text",
+      "at": "provider_formats",
+      "legacy_rank": 3020,
+      "require": {
+        "all": [
+          {
+            "path": "$.reasoningContent.reasoningText",
+            "exists": true
+          }
+        ]
+      },
+      "thinking": {
+        "text": [
+          "$.reasoningContent.reasoningText.text"
+        ],
+        "signature": [
+          "$.reasoningContent.reasoningText.signature"
+        ]
+      }
+    },
+    {
+      "id": "bedrock.reasoning_redacted",
+      "at": "provider_formats",
+      "legacy_rank": 3021,
+      "require": {
+        "all": [
+          {
+            "path": "$.reasoningContent.redactedContent",
+            "exists": true
+          }
+        ]
+      },
+      "redacted_thinking": {
+        "data": [
+          "$.reasoningContent.redactedContent.data"
+        ]
+      }
+    },
+    {
+      "id": "bedrock.reasoning_other",
+      "at": "provider_formats",
+      "legacy_rank": 3022,
+      "require": {
+        "all": [
+          {
+            "path": "$.reasoningContent",
+            "exists": true
+          }
+        ]
+      },
+      "unknown": {
+        "doc": "A reasoning variant this vocabulary does not know: kept whole rather than misread, and claimed so nothing later reads it as data."
+      }
+    },
+    {
+      "id": "bedrock.image",
+      "at": "provider_formats",
+      "legacy_rank": 3030,
+      "require": {
+        "all": [
+          {
+            "path": "$.image.source.bytes",
+            "kind": "string"
+          }
+        ]
+      },
+      "media": {
+        "kind": "image",
+        "data": [
+          "$.image.source.bytes"
+        ],
+        "media_type": [
+          {
+            "path": "$.image.format",
+            "prepend": "image/"
+          }
+        ],
+        "missing_media_type": "null",
+        "source": {
+          "reference_or": "base64"
+        },
+        "doc": "Media are bytes beside a bare format name, which is the subtype under the kind's top-level type."
+      }
+    },
+    {
+      "id": "bedrock.document",
+      "at": "provider_formats",
+      "legacy_rank": 3031,
+      "require": {
+        "all": [
+          {
+            "path": "$.document.source.bytes",
+            "kind": "string"
+          }
+        ]
+      },
+      "media": {
+        "kind": "document",
+        "data": [
+          "$.document.source.bytes"
+        ],
+        "media_type": [
+          {
+            "path": "$.document.format",
+            "prepend": "application/"
+          }
+        ],
+        "missing_media_type": "null",
+        "source": {
+          "reference_or": "base64"
+        },
+        "name": [
+          "$.document.name"
+        ]
+      }
+    },
+    {
+      "id": "bedrock.video",
+      "at": "provider_formats",
+      "legacy_rank": 3032,
+      "require": {
+        "all": [
+          {
+            "path": "$.video.source.bytes",
+            "kind": "string"
+          }
+        ]
+      },
+      "media": {
+        "kind": "video",
+        "data": [
+          "$.video.source.bytes"
+        ],
+        "media_type": [
+          {
+            "path": "$.video.format",
+            "prepend": "video/"
+          }
+        ],
+        "missing_media_type": "null",
+        "source": {
+          "reference_or": "base64"
+        }
+      }
+    },
+    {
+      "id": "bedrock.tool_use",
+      "at": "provider_formats",
+      "legacy_rank": 3040,
+      "require": {
+        "all": [
+          {
+            "path": "$.toolUse",
+            "exists": true
+          }
+        ]
+      },
+      "tool_use": {
+        "id": [
+          "$.toolUse.toolUseId"
+        ],
+        "name": [
+          "$.toolUse.name"
+        ],
+        "input": [
+          "$.toolUse.input"
+        ]
+      }
+    },
+    {
+      "id": "bedrock.tool_result",
+      "at": "provider_formats",
+      "legacy_rank": 3050,
+      "require": {
+        "all": [
+          {
+            "path": "$.toolResult",
+            "exists": true
+          }
+        ]
+      },
+      "tool_result": {
+        "tool_use_id": [
+          "$.toolResult.toolUseId"
+        ],
+        "content": [
+          "$.toolResult.content"
+        ],
+        "content_as": "value",
+        "is_error": [
+          {
+            "path": "$.toolResult.status",
+            "map": {
+              "error": true
+            }
+          }
+        ],
+        "doc": "The content is a list of blocks, reduced to the value it holds - the canonical form a tool-role message's content takes - so one result reads alike whether a producer wrote it as a block or as a tool message."
+      }
+    }
+  ]
+}

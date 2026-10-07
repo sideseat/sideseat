@@ -1,0 +1,329 @@
+{
+  "$schema": "../../rules.schema.json",
+  "id": "content-blocks-openai",
+  "doc": "The OpenAI Chat Completions and Responses content parts: a wire vocabulary every framework relays rather than one instrumentation's. Tried at the provider-format position, in the order the API's own part types make irrelevant - each case names its type - except where one type has several readings, which are ranked.",
+  "content_blocks": [
+    {
+      "id": "openai.text",
+      "at": "provider_formats",
+      "legacy_rank": 1000,
+      "doc": "Prose, under the three type names the Chat Completions and Responses APIs use. Only a string is text: a block whose `text` holds anything else is not prose, and is left to the rest of the chain rather than read from another member.",
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "text",
+              "input_text",
+              "output_text"
+            ]
+          }
+        ]
+      },
+      "text": {
+        "text": [
+          "$.text"
+        ]
+      }
+    },
+    {
+      "id": "openai.image_url",
+      "at": "provider_formats",
+      "legacy_rank": 1400,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "image_url",
+              "input_image"
+            ]
+          }
+        ]
+      },
+      "media": {
+        "kind": "image",
+        "data": [
+          "$.image_url.url",
+          "$.image_url"
+        ],
+        "missing_media_type": "null",
+        "detail": [
+          "$.image_url.detail"
+        ],
+        "doc": "Chat Completions nests the URL in an object beside the detail level; the Responses API writes the URL itself. The value says what it is - a data URL, a stored reference, a location - and a data URL's header is the only media type there is."
+      }
+    },
+    {
+      "id": "openai.input_audio",
+      "at": "provider_formats",
+      "legacy_rank": 1700,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "input_audio"
+            ]
+          }
+        ]
+      },
+      "media": {
+        "kind": "audio",
+        "data": [
+          "$.input_audio.data"
+        ],
+        "media_type": [
+          {
+            "path": "$.input_audio.format",
+            "prepend": "audio/"
+          }
+        ],
+        "missing_media_type": "null",
+        "source": {
+          "reference_or": "base64"
+        },
+        "doc": "Audio sent in a request: base64 bytes and a bare format name, which is the audio subtype."
+      }
+    },
+    {
+      "id": "openai.audio",
+      "at": "provider_formats",
+      "legacy_rank": 1701,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "audio"
+            ]
+          }
+        ]
+      },
+      "media": {
+        "kind": "audio",
+        "data": [
+          "$.audio.data"
+        ],
+        "media_type": [
+          {
+            "path": "$.audio.format",
+            "prepend": "audio/"
+          }
+        ],
+        "missing_media_type": "null",
+        "source": {
+          "reference_or": "base64"
+        },
+        "doc": "The same, as a response's audio output."
+      }
+    },
+    {
+      "id": "openai.input_file_data",
+      "at": "provider_formats",
+      "legacy_rank": 1800,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "input_file"
+            ]
+          }
+        ]
+      },
+      "media": {
+        "data": [
+          "$.file_data"
+        ],
+        "missing_media_type": "null",
+        "name": [
+          "$.filename"
+        ],
+        "doc": "The Responses API's file part holds its members flat. Inline data is a data URL, whose header names the media type and so the block's kind; without one the block is a file."
+      }
+    },
+    {
+      "id": "openai.input_file_url",
+      "at": "provider_formats",
+      "legacy_rank": 1801,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "input_file"
+            ]
+          }
+        ]
+      },
+      "media": {
+        "kind": "file",
+        "data": [
+          "$.file_url"
+        ],
+        "missing_media_type": "omit",
+        "source": {
+          "literal": "url"
+        },
+        "doc": "A file by location, where no inline data is given."
+      }
+    },
+    {
+      "id": "openai.input_file_id",
+      "at": "provider_formats",
+      "legacy_rank": 1802,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "input_file"
+            ]
+          }
+        ]
+      },
+      "media": {
+        "kind": "file",
+        "data": [
+          "$.file_id"
+        ],
+        "missing_media_type": "omit",
+        "source": {
+          "literal": "file_id"
+        },
+        "doc": "A file uploaded earlier, by the id the provider gave it."
+      }
+    },
+    {
+      "id": "openai.file_data",
+      "at": "provider_formats",
+      "legacy_rank": 1803,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "file"
+            ]
+          },
+          {
+            "path": "$.file",
+            "kind": "object",
+            "doc": "Chat Completions' file part holds the same members under `file`. A `file` block without that object is another dialect's, and is left to it."
+          }
+        ]
+      },
+      "media": {
+        "data": [
+          "$.file.file_data"
+        ],
+        "missing_media_type": "null",
+        "name": [
+          "$.file.filename"
+        ]
+      }
+    },
+    {
+      "id": "openai.file_url",
+      "at": "provider_formats",
+      "legacy_rank": 1804,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "file"
+            ]
+          },
+          {
+            "path": "$.file",
+            "kind": "object"
+          }
+        ]
+      },
+      "media": {
+        "kind": "file",
+        "data": [
+          "$.file.file_url"
+        ],
+        "missing_media_type": "omit",
+        "source": {
+          "literal": "url"
+        }
+      }
+    },
+    {
+      "id": "openai.file_id",
+      "at": "provider_formats",
+      "legacy_rank": 1805,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "file"
+            ]
+          },
+          {
+            "path": "$.file",
+            "kind": "object"
+          }
+        ]
+      },
+      "media": {
+        "kind": "file",
+        "data": [
+          "$.file.file_id"
+        ],
+        "missing_media_type": "omit",
+        "source": {
+          "literal": "file_id"
+        }
+      }
+    },
+    {
+      "id": "openai.refusal",
+      "at": "provider_formats",
+      "legacy_rank": 1900,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "refusal"
+            ]
+          }
+        ]
+      },
+      "refusal": {
+        "message": [
+          "$.message",
+          "$.refusal"
+        ],
+        "doc": "The API's own refusal part names its text `refusal`; SideML's names it `message`, which the canonical passthrough already reads."
+      }
+    },
+    {
+      "id": "openai.output_json",
+      "at": "provider_formats",
+      "legacy_rank": 1910,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "output_json",
+              "json_object"
+            ]
+          }
+        ]
+      },
+      "json": {
+        "data": [
+          "$.json"
+        ]
+      }
+    }
+  ]
+}

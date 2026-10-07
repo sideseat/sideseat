@@ -545,8 +545,8 @@ use predicates::element_passes;
 #[cfg(test)]
 pub(crate) use predicates::predicate_holds_for_test;
 pub(super) use predicates::predicates_hold;
-pub(super) use reading::query;
 use reading::*;
+pub(super) use reading::{parse_value, query};
 pub(super) use validation::predicate_defect;
 use validation::*;
 use walk::*;

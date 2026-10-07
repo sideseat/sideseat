@@ -40,6 +40,8 @@ pub(in crate::rules) fn predicate_defect(set: &PredicateSet) -> Option<&'static 
             + usize::from(p.lacks_prefix.is_some())
             + usize::from(!p.one_of.is_empty())
             + usize::from(!p.none_of.is_empty())
+            + usize::from(p.equals.is_some())
+            + usize::from(!p.only_members.is_empty())
             == 1
     };
     let complements = |a: &ValuePredicate, b: &ValuePredicate| -> bool {
@@ -175,7 +177,9 @@ pub(in crate::rules) fn predicate_defect(set: &PredicateSet) -> Option<&'static 
                 // absent branch returns before consulting it, so it was silently ignored. `none_of` is
                 // deliberately not here: its documented reading accepts absence, which is how a dialect's
                 // unnamed events fall through to the reading that handles them.
-                || !predicate.one_of.is_empty())
+                || !predicate.one_of.is_empty()
+                || predicate.equals.is_some()
+                || !predicate.only_members.is_empty())
         {
             return Some(
                 "`exists: false` asserts the member is absent, so no other condition on it \
@@ -217,7 +221,9 @@ pub(in crate::rules) fn predicate_defect(set: &PredicateSet) -> Option<&'static 
             && predicate.starts_with.is_none()
             && predicate.lacks_prefix.is_none()
             && predicate.one_of.is_empty()
-            && predicate.none_of.is_empty();
+            && predicate.none_of.is_empty()
+            && predicate.equals.is_none()
+            && predicate.only_members.is_empty();
         if matches!(predicate.kind, Some(ValueKind::Null)) && predicate.not_null == Some(true) {
             return Some("`kind: null` and `not_null: true` on one predicate");
         }

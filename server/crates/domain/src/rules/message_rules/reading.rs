@@ -6,7 +6,7 @@ use super::*;
 /// load-bearing: `Json` *skips* a value it cannot parse, while `JsonOrString` keeps it as a string. An
 /// extractor that used one where the other was meant would either drop a plain-text payload or store a
 /// quoted fragment of JSON as prose.
-pub(super) fn parse_value(raw: &str, mode: ParseMode) -> Option<JsonValue> {
+pub(in crate::rules) fn parse_value(raw: &str, mode: ParseMode) -> Option<JsonValue> {
     match mode {
         ParseMode::Json => serde_json::from_str(raw).ok(),
         // The elements are each serialised, because an OTLP array attribute cannot nest. **An array**, which
@@ -29,6 +29,12 @@ pub(super) fn parse_value(raw: &str, mode: ParseMode) -> Option<JsonValue> {
             Some(value)
         }
         ParseMode::JsonOrString => Some(serde_json::from_str(raw).unwrap_or_else(|_| json!(raw))),
+        ParseMode::JsonStructureOrString => Some(match serde_json::from_str(raw) {
+            Ok(decoded @ (JsonValue::Object(_) | JsonValue::Array(_) | JsonValue::String(_))) => {
+                decoded
+            }
+            _ => json!(raw),
+        }),
         ParseMode::PythonConstructorRepr => {
             crate::sideml::content::try_parse_python_constructor_repr(raw)
         }

@@ -75,6 +75,34 @@
           "$.result"
         ]
       }
+    },
+    {
+      "id": "pydantic-ai.thinking_content",
+      "at": "provider_formats",
+      "legacy_rank": 1953,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "thinking"
+            ]
+          },
+          {
+            "path": "$.content",
+            "kind": "string"
+          }
+        ]
+      },
+      "thinking": {
+        "text": [
+          "$.content"
+        ],
+        "signature": [
+          "$.signature"
+        ],
+        "doc": "A thinking part with its reasoning under `content`."
+      }
     }
   ]
 }

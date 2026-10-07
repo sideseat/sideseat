@@ -10,12 +10,14 @@ use serde_json::Value as JsonValue;
 pub use serde_json_path::JsonPath;
 
 mod content;
+mod content_blocks;
 mod detection;
 mod message_emit;
 mod message_read;
 mod span_fields;
 
 pub use content::*;
+pub use content_blocks::*;
 pub use detection::*;
 pub use message_emit::*;
 pub use message_read::*;

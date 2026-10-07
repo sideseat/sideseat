@@ -36,7 +36,9 @@ pub(super) fn predicate_holds(value: &JsonValue, predicate: &ValuePredicate) -> 
                 && predicate.identifier_like.is_none()
                 && predicate.starts_with.is_none()
                 && predicate.lacks_prefix.is_none()
-                && predicate.one_of.is_empty());
+                && predicate.one_of.is_empty()
+                && predicate.equals.is_none()
+                && predicate.only_members.is_empty());
     };
     condition_holds(subject, predicate)
 }
@@ -105,6 +107,22 @@ pub(super) fn condition_holds(subject: &JsonValue, predicate: &ValuePredicate) -
         && subject
             .as_str()
             .is_some_and(|text| predicate.none_of.iter().any(|reject| reject == text))
+    {
+        return false;
+    }
+    if predicate
+        .equals
+        .as_ref()
+        .is_some_and(|value| subject != value)
+    {
+        return false;
+    }
+    if !predicate.only_members.is_empty()
+        && !subject.as_object().is_some_and(|members| {
+            members
+                .keys()
+                .all(|key| predicate.only_members.iter().any(|name| name == key))
+        })
     {
         return false;
     }

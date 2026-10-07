@@ -64,6 +64,9 @@ const UNUSED: &[(&str, &str)] = &[
 const IMPLICIT_DEFAULTS: &[&str] = &[
     "FieldCombine=first_wins",
     "MalformedPolicy=stop",
+    "MediaSource=decoded",
+    "MissingMediaType=decline",
+    "ResultContent=normalized",
     "MemberPresence=exact",
     "MessageStage=dialect",
     "RawEventForm=message",
@@ -500,7 +503,8 @@ fn every_unused_schema_option_is_declared_with_a_reason() {
 #[test]
 fn every_implicit_default_is_what_omission_means() {
     use super::schema::{
-        FieldCombine, MalformedPolicy, MemberPresence, MessageStage, RawEventForm,
+        FieldCombine, MalformedPolicy, MediaSource, MemberPresence, MessageStage, MissingMediaType,
+        RawEventForm, ResultContent,
     };
     fn omitted<T: serde::de::DeserializeOwned + Default + PartialEq>(spelled: &str) -> bool {
         serde_json::from_value::<T>(Value::String(spelled.to_string())).ok() == Some(T::default())
@@ -510,6 +514,9 @@ fn every_implicit_default_is_what_omission_means() {
         let holds = match definition {
             "FieldCombine" => omitted::<FieldCombine>(value),
             "MalformedPolicy" => omitted::<MalformedPolicy>(value),
+            "MediaSource" => omitted::<MediaSource>(value),
+            "MissingMediaType" => omitted::<MissingMediaType>(value),
+            "ResultContent" => omitted::<ResultContent>(value),
             "MemberPresence" => omitted::<MemberPresence>(value),
             "MessageStage" => omitted::<MessageStage>(value),
             "RawEventForm" => omitted::<RawEventForm>(value),

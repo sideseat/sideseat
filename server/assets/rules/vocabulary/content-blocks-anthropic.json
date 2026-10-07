@@ -1,0 +1,295 @@
+{
+  "$schema": "../../rules.schema.json",
+  "id": "content-blocks-anthropic",
+  "doc": "The Anthropic Messages content blocks that are not already SideML: reasoning and its withheld form, media behind a source object, and a result with nothing in it. SideML's own vocabulary is Anthropic-shaped, so the blocks that match it are read by the canonical passthrough, not here.",
+  "content_blocks": [
+    {
+      "id": "anthropic.thinking",
+      "at": "provider_formats",
+      "legacy_rank": 1951,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "thinking"
+            ]
+          },
+          {
+            "path": "$.thinking",
+            "kind": "string"
+          }
+        ]
+      },
+      "thinking": {
+        "text": [
+          "$.thinking"
+        ],
+        "signature": [
+          "$.signature"
+        ],
+        "doc": "Extended thinking: the reasoning under `thinking`, and the signature a later request replays."
+      }
+    },
+    {
+      "id": "anthropic.thinking_text",
+      "at": "provider_formats",
+      "legacy_rank": 1952,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "thinking"
+            ]
+          },
+          {
+            "path": "$.text",
+            "kind": "string"
+          }
+        ]
+      },
+      "thinking": {
+        "text": [
+          "$.text"
+        ],
+        "signature": [
+          "$.signature"
+        ],
+        "doc": "The same block with its reasoning under `text` beside a `thinking` member that holds none - the first spelling that holds a string is the reasoning."
+      }
+    },
+    {
+      "id": "anthropic.thinking_withheld",
+      "at": "provider_formats",
+      "legacy_rank": 1954,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "thinking"
+            ]
+          }
+        ]
+      },
+      "thinking": {
+        "signature": [
+          "$.signature"
+        ],
+        "doc": "A thinking block whose reasoning is in no member that holds a string: still reasoning, with whatever signature it carries, and never left for a later case to read as something else."
+      }
+    },
+    {
+      "id": "anthropic.redacted_thinking",
+      "at": "provider_formats",
+      "legacy_rank": 1960,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "redacted_thinking"
+            ]
+          }
+        ]
+      },
+      "redacted_thinking": {
+        "data": [
+          "$.data"
+        ]
+      }
+    },
+    {
+      "id": "anthropic.image_base64",
+      "at": "provider_formats",
+      "legacy_rank": 2000,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "image"
+            ]
+          },
+          {
+            "path": "$.source.type",
+            "one_of": [
+              "base64"
+            ]
+          }
+        ]
+      },
+      "media": {
+        "kind": "image",
+        "data": [
+          "$.source.data"
+        ],
+        "media_type": [
+          "$.source.media_type"
+        ],
+        "missing_media_type": "null",
+        "source": {
+          "reference_or": "base64"
+        },
+        "doc": "An image whose source object says it holds base64 bytes. The block's kind is the block's own type, whatever the bytes are labelled."
+      }
+    },
+    {
+      "id": "anthropic.image_url",
+      "at": "provider_formats",
+      "legacy_rank": 2001,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "image"
+            ]
+          },
+          {
+            "path": "$.source.type",
+            "one_of": [
+              "url"
+            ]
+          }
+        ]
+      },
+      "media": {
+        "kind": "image",
+        "data": [
+          "$.source.url"
+        ],
+        "media_type": [
+          "$.source.media_type"
+        ],
+        "missing_media_type": "null",
+        "source": {
+          "literal": "url"
+        }
+      }
+    },
+    {
+      "id": "anthropic.document_base64",
+      "at": "provider_formats",
+      "legacy_rank": 2002,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "document"
+            ]
+          },
+          {
+            "path": "$.source.type",
+            "one_of": [
+              "base64"
+            ]
+          }
+        ]
+      },
+      "media": {
+        "kind": "document",
+        "data": [
+          "$.source.data"
+        ],
+        "media_type": [
+          "$.source.media_type"
+        ],
+        "missing_media_type": "null",
+        "source": {
+          "reference_or": "base64"
+        }
+      }
+    },
+    {
+      "id": "anthropic.document_url",
+      "at": "provider_formats",
+      "legacy_rank": 2003,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "document"
+            ]
+          },
+          {
+            "path": "$.source.type",
+            "one_of": [
+              "url"
+            ]
+          }
+        ]
+      },
+      "media": {
+        "kind": "document",
+        "data": [
+          "$.source.url"
+        ],
+        "media_type": [
+          "$.source.media_type"
+        ],
+        "missing_media_type": "null",
+        "source": {
+          "literal": "url"
+        }
+      }
+    },
+    {
+      "id": "anthropic.tool_use",
+      "at": "provider_formats",
+      "legacy_rank": 2005,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "tool_use"
+            ]
+          }
+        ]
+      },
+      "tool_use": {
+        "id": [
+          "$.id"
+        ],
+        "name": [
+          "$.name"
+        ],
+        "input": [
+          "$.input"
+        ],
+        "doc": "A call. The canonical passthrough reads one inside a message's content; a tool's returned value that is a lone call is read here."
+      }
+    },
+    {
+      "id": "anthropic.tool_result",
+      "at": "provider_formats",
+      "legacy_rank": 2010,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "tool_result"
+            ]
+          }
+        ]
+      },
+      "tool_result": {
+        "tool_use_id": [
+          "$.tool_use_id"
+        ],
+        "content": [
+          "$.content"
+        ],
+        "is_error": [
+          "$.is_error"
+        ],
+        "doc": "A result. The canonical passthrough reads one inside a message's content that carries an id or content; this reads the rest, and a tool's returned value that is a lone result."
+      }
+    }
+  ]
+}

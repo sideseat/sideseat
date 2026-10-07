@@ -785,6 +785,172 @@
           "$.response"
         ]
       }
+    },
+    {
+      "id": "semconv.text_content_part",
+      "at": "provider_formats",
+      "legacy_rank": 1001,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "text",
+              "input_text",
+              "output_text"
+            ]
+          },
+          {
+            "path": "$.text",
+            "exists": false
+          }
+        ]
+      },
+      "text": {
+        "text": [
+          "$.content"
+        ],
+        "doc": "The conventions' text part holds its text under `content`. Read only where `text` is absent: a block whose `text` holds a non-string has already been refused as prose."
+      }
+    },
+    {
+      "id": "semconv.tool_call_part",
+      "at": "provider_formats",
+      "legacy_rank": 1200,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "tool_call"
+            ]
+          }
+        ]
+      },
+      "tool_use": {
+        "id": [
+          "$.id"
+        ],
+        "name": [
+          "$.name"
+        ],
+        "input": [
+          {
+            "path": "$.arguments",
+            "parse": "json_or_string"
+          }
+        ],
+        "doc": "A tool call request part. The arguments may be the object itself or its JSON text; text that is not JSON is the argument as written."
+      }
+    },
+    {
+      "id": "semconv.tool_call_response_part",
+      "at": "provider_formats",
+      "legacy_rank": 1300,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "tool_call_response"
+            ]
+          }
+        ]
+      },
+      "tool_result": {
+        "tool_use_id": [
+          "$.id"
+        ],
+        "content": [
+          {
+            "path": "$.response",
+            "parse": "json_structure_or_string"
+          }
+        ],
+        "content_as": "blocks",
+        "doc": "A tool call response part. Producers serialise the response, so encoded structure is decoded - but text encoding a number stays the text the tool returned. A response holding Python constructor reprs is read as the blocks they describe."
+      }
+    },
+    {
+      "id": "semconv.reasoning_part_text",
+      "at": "provider_formats",
+      "legacy_rank": 1500,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "reasoning"
+            ]
+          },
+          {
+            "path": "$.text",
+            "kind": "string"
+          }
+        ]
+      },
+      "thinking": {
+        "text": [
+          "$.text"
+        ]
+      }
+    },
+    {
+      "id": "semconv.reasoning_part",
+      "at": "provider_formats",
+      "legacy_rank": 1501,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "reasoning"
+            ]
+          },
+          {
+            "path": "$.text",
+            "exists": false
+          },
+          {
+            "path": "$.content",
+            "kind": "string"
+          }
+        ]
+      },
+      "thinking": {
+        "text": [
+          "$.content"
+        ],
+        "doc": "The reasoning part. Without this it rendered as an unknown block rather than reasoning; one with no text at all is left to the chain."
+      }
+    },
+    {
+      "id": "semconv.blob_part_data",
+      "at": "provider_formats",
+      "legacy_rank": 1600,
+      "require": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "blob"
+            ]
+          }
+        ]
+      },
+      "media": {
+        "kind": "document",
+        "data": [
+          "$.data",
+          "$.uri"
+        ],
+        "media_type": [
+          "$.media_type",
+          "$.mime_type"
+        ],
+        "media_type_default": "application/octet-stream",
+        "doc": "A binary part holding its payload under `data` or `uri` rather than `content` (which `semconv.blob_part` reads). A stored reference or data URL names the real media type; otherwise the declared one, and bytes of no stated type are an octet stream."
+      }
     }
   ]
 }

@@ -9,22 +9,25 @@ use super::types::ChatRole;
 use sideseat_core::utils::file_uri as files;
 
 mod canonical;
+#[cfg(any(test, feature = "test-support"))]
 mod provider_formats;
 mod python_repr;
 mod tool_result;
 
+#[cfg(any(test, feature = "test-support"))]
 use provider_formats::{
     try_anthropic_format, try_bedrock_format, try_gemini_format, try_openai_format,
 };
 #[cfg(test)]
 use provider_formats::{try_gemini_function_format, try_vercel_format};
-use python_repr::try_normalize_python_constructor_content;
+pub(crate) use python_repr::try_normalize_python_constructor_content;
 pub(crate) use python_repr::try_parse_python_repr;
 pub(crate) use python_repr::{
     try_parse_python_constructor_repr, try_parse_python_constructor_repr_sequence,
     try_parse_python_literal,
 };
 pub use tool_result::convert_to_tool_result;
+pub(crate) use tool_result::create_inner_content;
 
 /// FNV-1a hash constants (32-bit).
 ///
@@ -288,22 +291,92 @@ fn normalize_block(block: &JsonValue, consult_envelopes: bool) -> Option<JsonVal
                     .normalize(block, crate::rules::schema::ChainPosition::MessageEnvelope)
             })?
         })
-        // Then try provider-specific formats
-        .or_else(|| try_openai_format(block))
-        .or_else(|| try_anthropic_format(block))
-        .or_else(|| try_bedrock_format(block))
-        .or_else(|| try_gemini_format(block))
+        // The provider wire formats, declared in `rules/vocabulary/content-blocks-*.json` and the conventions.
+        .or_else(|| {
+            crate::rules::ruleset()
+                .content_blocks
+                .normalize(block, crate::rules::schema::ChainPosition::ProviderFormats)
+        })
         .or_else(|| {
             crate::rules::ruleset().content_blocks.normalize(
                 block,
                 crate::rules::schema::ChainPosition::AfterProviderFormats,
             )
         })
-        // One dialect's blocks are declared at the position above; see `rules/vocabulary/content-blocks-vercel.json`.
         // Universal media patterns (mime_type fields, nested self-named media)
         .or_else(|| try_media_fallback(block))
         // Finally, handle unknown formats
         .or_else(|| try_unknown_fallback(block))
+}
+
+/// The retired chain: the four Rust provider readers where the declared `provider_formats` position now sits.
+///
+/// The equivalence oracle for that migration. A nested value - a tool result's content - is normalised by the
+/// current chain, so comparing the two on every value of a corpus, nested ones included, compares them all the
+/// way down.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn legacy_normalize_block(
+    block: &JsonValue,
+    consult_envelopes: bool,
+) -> Option<JsonValue> {
+    if let Some(s) = block.as_str() {
+        return if s.is_empty() {
+            None
+        } else {
+            Some(json!({"type": "text", "text": s}))
+        };
+    }
+    try_sideml_passthrough(block)
+        .or_else(|| {
+            crate::rules::ruleset().content_blocks.normalize(
+                block,
+                crate::rules::schema::ChainPosition::BeforeProviderFormats,
+            )
+        })
+        .or_else(|| {
+            consult_envelopes.then(|| {
+                crate::rules::ruleset()
+                    .content_blocks
+                    .normalize(block, crate::rules::schema::ChainPosition::MessageEnvelope)
+            })?
+        })
+        .or_else(|| legacy_provider_formats(block))
+        .or_else(|| {
+            crate::rules::ruleset().content_blocks.normalize(
+                block,
+                crate::rules::schema::ChainPosition::AfterProviderFormats,
+            )
+        })
+        .or_else(|| try_media_fallback(block))
+        .or_else(|| try_unknown_fallback(block))
+}
+
+/// The four retired readers, in the order the chain tried them.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn legacy_provider_formats(block: &JsonValue) -> Option<JsonValue> {
+    try_openai_format(block)
+        .or_else(|| try_anthropic_format(block))
+        .or_else(|| try_bedrock_format(block))
+        .or_else(|| try_gemini_format(block))
+}
+
+/// The retired `try_normalize_provider_format`, for the same oracle.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn legacy_try_normalize_provider_format(block: &JsonValue) -> Option<JsonValue> {
+    crate::rules::ruleset()
+        .content_blocks
+        .normalize(
+            block,
+            crate::rules::schema::ChainPosition::BeforeProviderFormats,
+        )
+        .or_else(|| legacy_provider_formats(block))
+        .or_else(|| {
+            crate::rules::ruleset().content_blocks.normalize(
+                block,
+                crate::rules::schema::ChainPosition::AfterProviderFormats,
+            )
+        })
+        .or_else(|| try_media_fallback(block))
 }
 
 /// Passthrough for already-normalized SideML content blocks.
@@ -420,10 +493,11 @@ fn try_normalize_provider_format(block: &JsonValue) -> Option<JsonValue> {
             block,
             crate::rules::schema::ChainPosition::BeforeProviderFormats,
         )
-        .or_else(|| try_openai_format(block))
-        .or_else(|| try_anthropic_format(block))
-        .or_else(|| try_bedrock_format(block))
-        .or_else(|| try_gemini_format(block))
+        .or_else(|| {
+            crate::rules::ruleset()
+                .content_blocks
+                .normalize(block, crate::rules::schema::ChainPosition::ProviderFormats)
+        })
         .or_else(|| {
             crate::rules::ruleset().content_blocks.normalize(
                 block,
@@ -432,6 +506,12 @@ fn try_normalize_provider_format(block: &JsonValue) -> Option<JsonValue> {
         })
         .or_else(|| try_media_fallback(block))
     // No unknown fallback - returns None if no provider format matches
+}
+
+/// The current single-object provider chain, exposed for the oracle beside its retired twin.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn current_try_normalize_provider_format(block: &JsonValue) -> Option<JsonValue> {
+    try_normalize_provider_format(block)
 }
 
 /// Extract the "type" field from a content block as a string.
@@ -843,12 +923,14 @@ pub(crate) fn mime_to_content_type(mime: &str) -> &'static str {
 }
 
 /// Build media type from format and prefix (e.g., "png" + "image" -> "image/png").
+#[cfg(any(test, feature = "test-support"))]
 fn build_media_type(format: Option<&str>, prefix: &str) -> Option<String> {
     format.map(|f| format!("{}/{}", prefix, f))
 }
 
 /// Extract thinking text from various provider formats.
 /// Handles: Anthropic (thinking), Mistral (thinking array), PydanticAI (content), Legacy (text)
+#[cfg(any(test, feature = "test-support"))]
 fn extract_thinking_text(block: &JsonValue) -> String {
     // 1. Try "thinking" field (Anthropic, Mistral)
     if let Some(thinking) = block.get("thinking") {
