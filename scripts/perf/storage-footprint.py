@@ -897,16 +897,17 @@ def main() -> int:
     args = parser.parse_args()
     if args.update_manifest:
         write_manifest()
-    target = Path(
-        subprocess.run(
-            ["bash", str(ROOT / "scripts/dev/cargo-target-dir.sh")],
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip()
-    )
-    binary = (args.binary or target / "release/sideseat").resolve()
-    if not args.binary:
+    binary = args.binary.resolve() if args.binary else None
+    if binary is None:
+        target = Path(
+            subprocess.run(
+                ["bash", str(ROOT / "scripts/dev/cargo-target-dir.sh")],
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+        )
+        binary = (target / "release/sideseat").resolve()
         log("building release")
         subprocess.run(
             ["cargo", "build", "--locked", "--release", "-q", "-p", "sideseat-server"],
