@@ -139,7 +139,6 @@ fn stale_cleanup_discovers_every_incremental_directory() {
     for required in [
         "target_dir=\"$(bash scripts/dev/cargo-target-dir.sh)\"",
         "find \"$target_dir\" -type d -name incremental",
-        "cargo sweep --installed",
         "cargo sweep --time 3",
     ] {
         assert!(
@@ -147,6 +146,15 @@ fn stale_cleanup_discovers_every_incremental_directory() {
             "stale cleanup must contain `{required}`"
         );
     }
+    // `--installed` fingerprints artifacts against installed toolchains and deleted the active toolchain's
+    // builds mid-build when rustup could not fingerprint it.
+    assert!(
+        !script
+            .lines()
+            .filter(|line| !line.trim_start().starts_with('#'))
+            .any(|line| line.contains("--installed")),
+        "stale cleanup must not run `cargo sweep --installed`"
+    );
     for required in [
         "cargo metadata --locked --no-deps",
         "metadata.target_directory",
