@@ -295,6 +295,8 @@ fn to_normalized_span(
         raw_id: None,
         event_count: u32::try_from(otlp.events.len()).unwrap_or(u32::MAX),
         link_count: u32::try_from(otlp.links.len()).unwrap_or(u32::MAX),
+        // Set by the batch that ingests the span; a span outside a batch is its own export.
+        batch_slot: 0,
     };
     normalized.logical_bytes = crate::accounting::span_logical_bytes(&mut normalized);
     normalized

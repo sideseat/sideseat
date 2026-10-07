@@ -11,11 +11,23 @@ impl TracePipeline {
     /// base64 extraction are all CPU-bound), then DuckDB write + file I/O in parallel,
     /// SSE publish after both complete.
     ///
-    /// Returns true if the DuckDB write succeeded (messages should be ACKed),
-    /// false if it failed (messages should NOT be ACKed for redelivery).
-    /// [`Self::run_batch`], for a benchmark that needs the whole write path rather than its CPU half.
+    /// Whether every export of the batch reached a final outcome - stored or deliberately dropped - so its
+    /// message may be acknowledged. [`Self::run_batch`], for a benchmark that needs the whole write path rather
+    /// than its CPU half.
     #[cfg(any(test, feature = "test-support"))]
     pub async fn run_batch_for_test(&self, requests: &[ExportTraceServiceRequest]) -> bool {
+        self.run_batch_outcomes_for_test(requests)
+            .await
+            .into_iter()
+            .all(IngestOutcome::is_final)
+    }
+
+    /// Each export's outcome from one [`Self::run_batch`] over `requests`.
+    #[cfg(any(test, feature = "test-support"))]
+    pub async fn run_batch_outcomes_for_test(
+        &self,
+        requests: &[ExportTraceServiceRequest],
+    ) -> Vec<IngestOutcome> {
         let received: Vec<ReceivedPayload> = requests
             .iter()
             .map(|request| {
@@ -29,11 +41,17 @@ impl TracePipeline {
     }
 
     /// `received[i]` is the body `requests[i]` was decoded from: each request's raw record.
+    /// Persist a batch of exports and answer each one.
+    ///
+    /// One outcome per request, in order. A failure of the batch's stores fails every export in it - each is
+    /// retried, and ingestion is idempotent by span id - while a fence that drops spans answers only the
+    /// exports those spans came from, exactly as each would have been answered alone.
     pub(super) async fn run_batch(
         &self,
         requests: &[ExportTraceServiceRequest],
         received: &[ReceivedPayload],
-    ) -> bool {
+    ) -> Vec<IngestOutcome> {
+        let failed = || vec![IngestOutcome::Failed; requests.len()];
         let t_batch_start = std::time::Instant::now();
 
         let pricing = &self.pricing;
@@ -118,21 +136,20 @@ impl TracePipeline {
         // Short results mean a worker thread died with its whole chunk, which no per-request outcome can
         // report - so cardinality is checked, not just the outcomes.
         let mut lost_requests = requests.len().saturating_sub(results.len());
-        // Each request's raw record, and which request each span came from, so the rows can name their record.
+        // Each request's raw record, by the slot its spans carry, so the rows can name their record.
         let mut drafts: Vec<(usize, RawDraft)> = Vec::new();
-        let mut span_request: HashMap<(String, String, String), usize> = HashMap::new();
         for (index, result) in results.into_iter().enumerate() {
             match result {
-                Prepared::Ready(db_spans, pending_files, incoming) => {
+                Prepared::Ready(mut db_spans, pending_files, incoming) => {
+                    for span in &mut db_spans {
+                        span.batch_slot = index;
+                    }
                     let project_id = db_spans
                         .first()
                         .and_then(|span| span.project_id.clone())
                         .unwrap_or_else(|| DEFAULT_PROJECT_ID.to_string());
                     let draft = RawDraft::new(&project_id, &received[index], files_enabled);
                     all_pending_files.extend(draft.media_writes(&requests[index]));
-                    for span in &db_spans {
-                        span_request.insert(span_identity(span), index);
-                    }
                     drafts.push((index, draft));
                     all_db_spans.extend(db_spans);
                     all_pending_files.extend(pending_files);
@@ -157,18 +174,19 @@ impl TracePipeline {
                 requests = requests.len(),
                 "Refusing the batch: a request panicked and its spans would otherwise be acknowledged"
             );
-            return false;
+            return failed();
         }
+        let mut ledger = SlotLedger::new(requests.len(), &all_db_spans);
 
         if all_db_spans.is_empty() {
-            return true;
+            return ledger.outcomes();
         }
 
         if let Some(governance) = &self.storage_governance
             && let Err(error) = governance.stamp_spans(&mut all_db_spans).await
         {
             tracing::error!(%error, "Could not apply the legal-hold writer fence");
-            return false;
+            return failed();
         }
 
         // Spans for a project that will not accept writes are dropped, not written.
@@ -201,14 +219,18 @@ impl TracePipeline {
             )
             .await
         {
-            Ok(_) if all_db_spans.is_empty() => return true, // nothing left to write
-            Ok(_) => {}
-            Err(()) => return false,
+            Ok(_) => ledger.tally(&all_db_spans, DropReason::Gone),
+            Err(()) => return failed(),
+        }
+        if all_db_spans.is_empty() {
+            return ledger.outcomes(); // nothing left to write
         }
 
         // Before the files are written, so a rejected span's attachments are never stored either.
-        if drop_unstorable_spans(&mut all_db_spans) > 0 && all_db_spans.is_empty() {
-            return true; // nothing storable, and nothing was queued for a retry that cannot help
+        drop_unstorable_spans(&mut all_db_spans);
+        ledger.tally(&all_db_spans, DropReason::Unstorable);
+        if all_db_spans.is_empty() {
+            return ledger.outcomes(); // nothing storable, and nothing was queued for a retry that cannot help
         }
 
         let t_prepare_done = std::time::Instant::now();
@@ -249,7 +271,7 @@ impl TracePipeline {
                 spans = span_count,
                 "Refusing to commit spans whose extracted files could not be stored"
             );
-            return false;
+            return failed();
         }
         // Deliberate, not transient: retrying will not help, so the spans are still committed - but
         // their references to the rejected files are rewritten first. A reader cannot tell a reference
@@ -290,7 +312,7 @@ impl TracePipeline {
                 failed = reconcile_failed,
                 "Refusing the batch: could not settle whether some file references are backed"
             );
-            return false;
+            return failed();
         }
         unresolvable.extend(unbacked);
         if !unresolvable.is_empty() {
@@ -312,18 +334,19 @@ impl TracePipeline {
         {
             Ok(0) => {}
             Ok(_) => {
+                ledger.tally(&all_db_spans, DropReason::Gone);
                 // Whole or partial, the dropped traces' associations go and leave `created_associations`,
                 // so the write path confirms only survivors and never resolves a dropped one twice.
                 self.release_associations_of_dropped(&mut created_associations, &all_db_spans)
                     .await;
                 if all_db_spans.is_empty() {
-                    return true;
+                    return ledger.outcomes();
                 }
             }
             Err(()) => {
                 self.release_created_associations(&created_associations)
                     .await;
-                return false;
+                return failed();
             }
         }
 
@@ -341,21 +364,23 @@ impl TracePipeline {
         {
             Ok(0) => {}
             Ok(_) if all_db_spans.is_empty() => {
+                ledger.tally(&all_db_spans, DropReason::Gone);
                 self.release_created_associations(&created_associations)
                     .await;
-                return true;
+                return ledger.outcomes();
             }
             // A *partial* deleted-session drop must release the dropped traces' associations too - and this
             // path did not, so a batch mixing a deleted session with a live trace confirmed the dropped
             // session's association as durable, permanently holding its file's quota with no row behind it.
             Ok(_) => {
+                ledger.tally(&all_db_spans, DropReason::Gone);
                 self.release_associations_of_dropped(&mut created_associations, &all_db_spans)
                     .await;
             }
             Err(()) => {
                 self.release_created_associations(&created_associations)
                     .await;
-                return false;
+                return failed();
             }
         }
 
@@ -365,47 +390,58 @@ impl TracePipeline {
         {
             Ok(0) => {}
             Ok(_) if all_db_spans.is_empty() => {
+                ledger.tally(&all_db_spans, DropReason::Gone);
                 self.release_created_associations(&created_associations)
                     .await;
-                return true;
+                return ledger.outcomes();
             }
             Ok(_) => {
+                ledger.tally(&all_db_spans, DropReason::Gone);
                 self.release_associations_of_dropped(&mut created_associations, &all_db_spans)
                     .await;
             }
             Err(()) => {
                 self.release_created_associations(&created_associations)
                     .await;
-                return false;
+                return failed();
             }
         }
 
         match self.drop_spans_for_deleted_traces(&mut all_db_spans).await {
             Ok(0) => {}
             Ok(_) if all_db_spans.is_empty() => {
+                ledger.tally(&all_db_spans, DropReason::Gone);
                 self.release_created_associations(&created_associations)
                     .await;
-                return true;
+                return ledger.outcomes();
             }
             Ok(_) => {
+                ledger.tally(&all_db_spans, DropReason::Gone);
                 self.release_associations_of_dropped(&mut created_associations, &all_db_spans)
                     .await;
             }
             Err(()) => {
                 self.release_created_associations(&created_associations)
                     .await;
-                return false;
+                return failed();
             }
         }
 
         // What each raw record must keep: everything that survived the deletion fences. See `RawDraft::row`.
-        let kept_for_raw: HashSet<(String, String, String)> =
-            all_db_spans.iter().map(span_identity).collect();
+        let mut kept_by_draft: HashMap<usize, HashSet<(String, String)>> = HashMap::new();
+        for span in &all_db_spans {
+            kept_by_draft
+                .entry(span.batch_slot)
+                .or_default()
+                .insert((span.trace_id.clone(), span.span_id.clone()));
+        }
+        // Exact redeliveries are already stored, so they leave the batch without being dropped: the export is
+        // answered as stored.
         if self.drop_exact_redeliveries(&mut all_db_spans).await > 0 {
             self.release_associations_of_dropped(&mut created_associations, &all_db_spans)
                 .await;
             if all_db_spans.is_empty() {
-                return true;
+                return ledger.outcomes();
             }
         }
         sideseat_domain::search::index_spans(&mut all_db_spans);
@@ -413,16 +449,7 @@ impl TracePipeline {
         // The raw records before the rows derived from them; a batch whose records cannot be stored stores
         // nothing, and is redelivered.
         let now = chrono::Utc::now();
-        // Per draft: what its fences kept, and the hold its rows carry.
-        let mut kept_by_draft: HashMap<usize, HashSet<(String, String)>> = HashMap::new();
-        for identity in &kept_for_raw {
-            if let Some(index) = span_request.get(identity) {
-                kept_by_draft
-                    .entry(*index)
-                    .or_default()
-                    .insert((identity.1.clone(), identity.2.clone()));
-            }
-        }
+        // Per draft: the hold its rows carry.
         let mut hold_by_project: HashMap<String, Option<chrono::DateTime<chrono::Utc>>> =
             HashMap::new();
         for span in &all_db_spans {
@@ -449,25 +476,27 @@ impl TracePipeline {
                 tracing::error!(%error, "Could not encode the batch's raw records; refusing the batch");
                 self.release_created_associations(&created_associations)
                     .await;
-                return false;
+                return failed();
             }
         };
         if let Err(error) = self.analytics.insert_raw_records(&raw_rows).await {
             tracing::error!(%error, "Could not store the batch's raw records; refusing the batch");
             self.release_created_associations(&created_associations)
                 .await;
-            return false;
+            return failed();
         }
+        // Each row names its own export's record, by slot: two exports can carry the same span identity.
+        let raw_id_of: HashMap<usize, String> = drafts
+            .iter()
+            .map(|(index, draft)| (*index, draft.raw_id().to_string()))
+            .collect();
         for span in &mut all_db_spans {
-            if let Some(index) = span_request.get(&span_identity(span))
-                && let Some((_, draft)) = drafts.iter().find(|(i, _)| i == index)
-            {
-                span.raw_id = Some(draft.raw_id().to_string());
-            }
+            span.raw_id = raw_id_of.get(&span.batch_slot).cloned();
         }
 
         // Captured before the write consumes the spans: the compensating re-check below needs to know
         // exactly what was written, and only those rows may be removed.
+        let written_slots: Vec<usize> = all_db_spans.iter().map(|s| s.batch_slot).collect();
         let written: Vec<(String, String, String)> = all_db_spans
             .iter()
             .map(|s| {
@@ -496,7 +525,7 @@ impl TracePipeline {
                         %error,
                         "Could not close the writer-admitted-before-hold window"
                     );
-                    return false;
+                    return failed();
                 }
             }
             // Compensate *before* confirming, and the order is load-bearing under the counter model. A
@@ -544,13 +573,12 @@ impl TracePipeline {
             // The rows are written: each latest record must hold them. A failure fails the batch, and the
             // redelivery - idempotent for rows and records alike - repeats the check.
             let mut written_by_draft: HashMap<usize, HashSet<(String, String)>> = HashMap::new();
-            for (project, trace, span) in &surviving {
-                let identity = (project.to_string(), trace.to_string(), span.to_string());
-                if let Some(index) = span_request.get(&identity) {
+            for ((project, trace, span), slot) in written.iter().zip(&written_slots) {
+                if surviving.contains(&(project.as_str(), trace.as_str(), span.as_str())) {
                     written_by_draft
-                        .entry(*index)
+                        .entry(*slot)
                         .or_default()
-                        .insert((identity.1, identity.2));
+                        .insert((trace.clone(), span.clone()));
                 }
             }
             let repairs: Vec<WrittenRecord<'_>> = drafts
@@ -567,7 +595,7 @@ impl TracePipeline {
                 .collect();
             if let Err(error) = self.repair_raw_records(&repairs).await {
                 tracing::error!(%error, "Could not check the raw records against the rows written");
-                return false;
+                return failed();
             }
         } else {
             // Release the associations this batch created, since the rows that would have justified them
@@ -590,17 +618,78 @@ impl TracePipeline {
             "Pipeline batch completed"
         );
 
-        db_ok
+        if db_ok { ledger.outcomes() } else { failed() }
     }
 }
 
-/// The identity a batch keys a span's request by.
-fn span_identity(span: &NormalizedSpan) -> (String, String, String) {
-    (
-        span.project_id
-            .clone()
-            .unwrap_or_else(|| DEFAULT_PROJECT_ID.to_string()),
-        span.trace_id.clone(),
-        span.span_id.clone(),
-    )
+/// How many of each export's spans a batch dropped, and why, so each export is answered for its own spans.
+///
+/// The fences drop spans from the batch as a whole; the slot every span carries says whose they were. The
+/// answer for an export follows the single-export rules: dropped when every one of its spans was, partly when
+/// some were, and `Gone` over `Unstorable` when both took some - it names a target the exporter should stop
+/// sending to, which is the more actionable of the two.
+struct SlotLedger {
+    prepared: Vec<usize>,
+    remaining: Vec<usize>,
+    gone: Vec<usize>,
+    unstorable: Vec<usize>,
+}
+
+impl SlotLedger {
+    fn new(exports: usize, spans: &[NormalizedSpan]) -> Self {
+        let prepared = Self::count(exports, spans);
+        Self {
+            remaining: prepared.clone(),
+            prepared,
+            gone: vec![0; exports],
+            unstorable: vec![0; exports],
+        }
+    }
+
+    fn count(exports: usize, spans: &[NormalizedSpan]) -> Vec<usize> {
+        let mut counts = vec![0; exports];
+        for span in spans {
+            counts[span.batch_slot] += 1;
+        }
+        counts
+    }
+
+    /// Attribute the spans that left the batch since the last tally to `reason`, per export.
+    fn tally(&mut self, spans: &[NormalizedSpan], reason: DropReason) {
+        let now = Self::count(self.prepared.len(), spans);
+        let bucket = match reason {
+            DropReason::Gone => &mut self.gone,
+            DropReason::Unstorable => &mut self.unstorable,
+        };
+        for (slot, left) in now.iter().enumerate() {
+            bucket[slot] += self.remaining[slot] - left;
+        }
+        self.remaining = now;
+    }
+
+    fn outcomes(&self) -> Vec<IngestOutcome> {
+        (0..self.prepared.len())
+            .map(|slot| {
+                let dropped = self.gone[slot] + self.unstorable[slot];
+                let reason = if self.gone[slot] > 0 {
+                    DropReason::Gone
+                } else {
+                    DropReason::Unstorable
+                };
+                if dropped == 0 {
+                    IngestOutcome::Stored
+                } else if dropped == self.prepared[slot] {
+                    IngestOutcome::Dropped {
+                        spans: dropped,
+                        reason,
+                    }
+                } else {
+                    IngestOutcome::PartlyDropped {
+                        spans: dropped,
+                        reason,
+                    }
+                }
+            })
+            .collect()
+    }
 }

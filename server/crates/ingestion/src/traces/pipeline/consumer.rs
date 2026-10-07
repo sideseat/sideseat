@@ -270,9 +270,11 @@ impl TracePipeline {
                         .iter()
                         .map(|(_, _, _, received)| received.clone())
                         .collect::<Vec<_>>();
-                    let db_ok = self.run_batch(&requests, &received).await;
-                    for (msg_id, payload, _, _) in ready {
-                        if db_ok && self.settle_staged_trace(&payload).await {
+                    let outcomes = self.run_batch(&requests, &received).await;
+                    // Each message by its own export's outcome: a fence that dropped another export's spans
+                    // says nothing about this one.
+                    for ((msg_id, payload, _, _), outcome) in ready.into_iter().zip(outcomes) {
+                        if outcome.is_final() && self.settle_staged_trace(&payload).await {
                             ack_ids.push(msg_id);
                         } else if self.note_staging_failure(&payload.id).await {
                             // Cap exhaustion quarantines the blob/registry row. Stop queue churn,
