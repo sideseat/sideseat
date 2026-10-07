@@ -480,9 +480,40 @@ pub(super) fn split_bracket_tag(value: &str) -> (Option<&str>, &str) {
 /// emissions carrying identical evidence, so a diagnostic could name the rule and not the route - which is
 /// exactly what a reader needs when `claude-agent-sdk.new_context`'s `tool_result` and `as_user` routes
 /// disagree.
-pub(super) fn sectioned(raw: &str, spec: &SectionsSpec) -> Vec<(String, JsonValue)> {
+pub(super) fn sectioned(
+    raw: &str,
+    spec: &SectionsSpec,
+    attrs: &HashMap<String, String>,
+) -> Vec<(String, JsonValue)> {
     let mut out = Vec::new();
-    for section in raw.split(spec.split_on.as_str()) {
+    let attribute = |source: &schema::SourceName| -> Option<&String> {
+        source
+            .0
+            .strip_prefix("attr:")
+            .and_then(|key| attrs.get(key))
+    };
+    let mut sections: Vec<&str> = match spec.max_sections {
+        Some(most) => raw.splitn(most, spec.split_on.as_str()).collect(),
+        None => raw.split(spec.split_on.as_str()).collect(),
+    };
+    // A carrier shorter than its stated length was cut, and only its last section can be the cut one.
+    if let Some(witness) = &spec.truncated_unless_length
+        && let Some(stated) =
+            attribute(&witness.source).and_then(|v| v.trim().parse::<usize>().ok())
+        && witness.counts.length_of(raw) < stated
+    {
+        sections.pop();
+    }
+    let carried: Vec<&str> = spec
+        .skip_sections_equal_to
+        .iter()
+        .filter_map(attribute)
+        .map(|value| value.trim())
+        .collect();
+    for section in sections {
+        if carried.contains(&section.trim()) {
+            continue;
+        }
         let (tag, body) = split_bracket_tag(section);
         if body.is_empty() {
             continue;
@@ -534,4 +565,97 @@ pub(super) fn sectioned(raw: &str, spec: &SectionsSpec) -> Vec<(String, JsonValu
         out.push((route.id.clone(), JsonValue::Object(message)));
     }
     out
+}
+
+#[cfg(test)]
+mod section_option_tests {
+    use super::*;
+
+    fn spec(extra: serde_json::Value) -> SectionsSpec {
+        let mut value = serde_json::json!({
+            "split_on": "\n\n",
+            "routes": [{"id": "all", "role": "system"}],
+        });
+        value
+            .as_object_mut()
+            .expect("an object")
+            .extend(extra.as_object().expect("an object").clone());
+        serde_json::from_value(value).expect("the sections spec parses")
+    }
+
+    fn bodies(raw: &str, spec: &SectionsSpec, attrs: &[(&str, &str)]) -> Vec<String> {
+        let attrs: HashMap<String, String> = attrs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+        sectioned(raw, spec, &attrs)
+            .into_iter()
+            .map(|(_, message)| message["content"].as_str().expect("text").to_string())
+            .collect()
+    }
+
+    #[test]
+    fn max_sections_keeps_every_later_separator_in_the_last_section() {
+        let raw = "header\n\npreamble\n\nthe prompt\n\nwith a blank line";
+        assert_eq!(bodies(raw, &spec(serde_json::json!({})), &[]).len(), 4);
+        assert_eq!(
+            bodies(raw, &spec(serde_json::json!({"max_sections": 3})), &[]),
+            ["header", "preamble", "the prompt\n\nwith a blank line"]
+        );
+    }
+
+    #[test]
+    fn a_carrier_shorter_than_its_stated_length_loses_its_cut_section() {
+        let raw = "header\n\npreamble\n\nthe pro";
+        let cut = |counts: &str| {
+            spec(
+                serde_json::json!({"truncated_unless_length": {"source": "attr:len", "counts": counts}}),
+            )
+        };
+        // Complete: as long as stated.
+        let whole = raw.chars().count().to_string();
+        assert_eq!(bodies(raw, &cut("chars"), &[("len", &whole)]).len(), 3);
+        // Cut: the stated length is longer, so the last section is partial and is left out.
+        assert_eq!(
+            bodies(raw, &cut("chars"), &[("len", "500")]),
+            ["header", "preamble"]
+        );
+        // Absent or unreadable: the carrier stands as it is.
+        assert_eq!(bodies(raw, &cut("chars"), &[]).len(), 3);
+        assert_eq!(bodies(raw, &cut("chars"), &[("len", "many")]).len(), 3);
+    }
+
+    /// The unit decides the answer on multibyte text: `é` is one character, one UTF-16 unit and two bytes, and
+    /// `😀` one character, two UTF-16 units and four bytes.
+    #[test]
+    fn the_stated_length_is_compared_in_its_declared_unit() {
+        let raw = "é\n\n😀";
+        assert_eq!(schema::LengthUnit::Chars.length_of(raw), 4);
+        assert_eq!(schema::LengthUnit::Utf16Units.length_of(raw), 5);
+        assert_eq!(schema::LengthUnit::Bytes.length_of(raw), 8);
+        let with = |counts: &str, stated: &str| {
+            let spec = spec(serde_json::json!({
+                "truncated_unless_length": {"source": "attr:len", "counts": counts}
+            }));
+            bodies(raw, &spec, &[("len", stated)]).len()
+        };
+        // Five is complete for a JavaScript producer and cut for a Python one.
+        assert_eq!(with("utf16_units", "5"), 2);
+        assert_eq!(with("chars", "5"), 1);
+        assert_eq!(with("bytes", "8"), 2);
+        assert_eq!(with("bytes", "9"), 1);
+    }
+
+    #[test]
+    fn a_section_another_attribute_states_whole_is_left_out() {
+        let raw = "header\n\nthe prompt\n\nreminder";
+        let spec = spec(serde_json::json!({"skip_sections_equal_to": ["attr:prompt"]}));
+        assert_eq!(
+            bodies(raw, &spec, &[("prompt", " the prompt\n")]),
+            ["header", "reminder"]
+        );
+        // Only the whole value: a section merely containing it stays.
+        assert_eq!(bodies(raw, &spec, &[("prompt", "the")]).len(), 3);
+        assert_eq!(bodies(raw, &spec, &[]).len(), 3);
+    }
 }

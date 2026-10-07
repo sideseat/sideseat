@@ -235,7 +235,7 @@ pub(super) fn emit_rule<'p>(
             }
             // A text carrier read as tagged sections, each emitted on its own.
             if let Some(sections) = &rule.sections {
-                for (route, value) in sectioned(raw, sections) {
+                for (route, value) in sectioned(raw, sections, ctx.span_attrs) {
                     out.push(Emission {
                         rule_id: &rule.rule_id,
                         evidence: rule_evidence(rule, &[vec![route]]),

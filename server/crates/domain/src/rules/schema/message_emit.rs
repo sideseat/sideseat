@@ -545,9 +545,63 @@ pub struct SectionsSpec {
     pub doc: Option<String>,
     /// The separator between sections.
     pub split_on: String,
+    /// Split at most this many times over, so the last section keeps every later separator: a carrier whose
+    /// final part is free text that may itself contain the separator (a prompt with blank lines) stays one
+    /// section. At least one.
+    #[serde(default)]
+    pub max_sections: Option<usize>,
+    /// The final section is **cut** where the carrier holds less text than this integer attribute states, and
+    /// is then left out: a producer that truncates a long carrier states the whole length beside it, and a cut
+    /// section is not what the producer said. SideML has no truncation marker, so the partial text is dropped
+    /// rather than shown as if complete; every section before it is whole and is kept. An absent or unreadable
+    /// length leaves the carrier as it stands.
+    #[serde(default)]
+    pub truncated_unless_length: Option<LengthWitness>,
+    /// Sections that are, once trimmed, exactly the whole value of one of these attributes (`attr:<key>`,
+    /// trimmed) are left out: another carrier states that part of the text whole, and reading it here too
+    /// would show it twice.
+    #[serde(default)]
+    pub skip_sections_equal_to: Vec<SourceName>,
     /// Routes, tried in order; the first whose tag matches wins, and a route with no `tag_prefix` is the
     /// default.
     pub routes: Vec<SectionRoute>,
+}
+
+/// An attribute stating how long a text is, and the unit it counts in.
+#[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct LengthWitness {
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The attribute, as `attr:<key>`, holding a non-negative integer.
+    pub source: SourceName,
+    /// What the producer counted: the language it is written in decides it, so it is declared, not guessed.
+    pub counts: LengthUnit,
+}
+
+/// The unit a stated text length counts.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(rename_all = "snake_case")]
+pub enum LengthUnit {
+    /// Unicode scalar values, as Python's `len` counts.
+    Chars,
+    /// UTF-16 code units, as JavaScript's `length` counts.
+    Utf16Units,
+    /// UTF-8 bytes.
+    Bytes,
+}
+
+impl LengthUnit {
+    /// How long this text is, in this unit.
+    pub fn length_of(self, text: &str) -> usize {
+        match self {
+            Self::Chars => text.chars().count(),
+            Self::Utf16Units => text.encode_utf16().count(),
+            Self::Bytes => text.len(),
+        }
+    }
 }
 
 /// What to do with a section whose tag matches.

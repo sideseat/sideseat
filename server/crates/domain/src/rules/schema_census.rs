@@ -34,6 +34,29 @@ const ASSET_SCHEMA_REF: &str = "../../rules.schema.json";
 /// census options: documentation is metadata, and exercising it shows nothing about the grammar.
 const UNUSED: &[(&str, &str)] = &[
     (
+        "LengthUnit=bytes",
+        "the closed set of units a producer may count a stated length in; the units are a vocabulary, and a set \
+         missing one would be an arbitrary hole",
+    ),
+    (
+        "LengthUnit=chars",
+        "as `bytes`; the first asset to state a length (a prompt preview's) lands with the rubric track",
+    ),
+    ("LengthUnit=utf16_units", "as `chars`"),
+    (
+        "SectionsSpec.max_sections",
+        "requested by the rubric track for a prompt preview whose last part is free text; its asset lands in \
+         that track's next commit, and this entry leaves with it",
+    ),
+    (
+        "SectionsSpec.skip_sections_equal_to",
+        "as `SectionsSpec.max_sections`",
+    ),
+    (
+        "SectionsSpec.truncated_unless_length",
+        "as `SectionsSpec.max_sections`",
+    ),
+    (
         "Facts.carrier_is_atomic_emission",
         "every fact axis of a carrier preset stays independently overridable, so a clause can state an \
          exception without a new preset; no shipped clause needs this one yet",

@@ -385,6 +385,32 @@ pub(super) fn compile_rule(
                  `fallback`, a walk, an aggregate or a `tag_as` would be ignored",
         ));
     }
+    // The section options' own literals: no split at all reads nothing, and a source that is not an attribute
+    // key names nothing this reading is given.
+    if let Some(spec) = sections {
+        if spec.max_sections == Some(0) {
+            return Err(inexpressible(
+                "`max_sections: 0` splits the carrier into nothing, so the reading could never emit",
+            ));
+        }
+        let attribute_source = |source: &super::super::schema::SourceName| {
+            source
+                .0
+                .strip_prefix("attr:")
+                .is_some_and(|key| !key.is_empty())
+        };
+        if spec
+            .truncated_unless_length
+            .iter()
+            .map(|witness| &witness.source)
+            .chain(&spec.skip_sections_equal_to)
+            .any(|source| !attribute_source(source))
+        {
+            return Err(inexpressible(
+                "a section option reads another attribute of the span, so its source is `attr:<key>`",
+            ));
+        }
+    }
     // **An aggregate wraps the array once, so a per-reading envelope beside it is dead.** The runtime built
     // one observation from the entries and discarded every reading's envelope *and* the rule's - while the
     // indexed-family aggregate applies the rule's envelope once, so identical syntax meant different things by
