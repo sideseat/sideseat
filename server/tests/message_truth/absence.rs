@@ -124,6 +124,41 @@ fn prove_text(text: &str, haystack: &Haystack) -> Proof {
     Proof::Absent
 }
 
+/// Where a payload holds a text only cut short: some string ends with a prefix of it, at least `FRAGMENT`
+/// characters long, and nothing holds it whole.
+///
+/// The cut must be the string's end - a preview the producer truncated at a fixed length - so a text a
+/// framework quotes in part and goes on writing after is not taken for one. Such a text is not in the
+/// telemetry: no reconstruction could show it as the model was sent it, and it is that producer's
+/// limitation, documented as one, never a parsing defect.
+pub(super) fn truncated_at(text: &str, haystack: &Haystack) -> Option<String> {
+    let needle = collapse_whitespace(text);
+    if needle.chars().count() <= FRAGMENT || !haystack.undecoded.is_empty() {
+        return None;
+    }
+    if haystack
+        .carriers
+        .iter()
+        .any(|c| find_string(c, &needle).is_some())
+    {
+        return None;
+    }
+    haystack.carriers.iter().find_map(|carrier| {
+        carrier.strings.iter().find_map(|(at, held)| {
+            // The longest suffix of the held string that is a proper prefix of the text: each place the
+            // held string's last `FRAGMENT` characters occur in the text is a candidate cut.
+            let tail_start = held.char_indices().rev().nth(FRAGMENT - 1)?.0;
+            let tail = &held[tail_start..];
+            let cut = needle
+                .match_indices(tail)
+                .map(|(start, _)| start + tail.len())
+                .filter(|&n| n < needle.len() && held.ends_with(&needle[..n]))
+                .max()?;
+            Some(format!("{at} holds its first {cut} bytes and ends there"))
+        })
+    })
+}
+
 /// The pieces of a text a truncated or re-wrapped copy would still hold: its first and last
 /// `FRAGMENT` characters and every sentence at least that long.
 fn fragments(needle: &str) -> Vec<String> {
@@ -571,16 +606,22 @@ pub(super) fn request_limitations(
                     else {
                         continue;
                     };
-                    if prove(&fact, &haystack) != Proof::Absent {
-                        continue;
-                    }
+                    let detail = match prove(&fact, &haystack) {
+                        Proof::Absent => {
+                            "sent to the model and absent from every payload: this producer does not \
+                             export that part of a request"
+                        }
+                        Proof::Partial(_) if truncated_at(fact.text(), &haystack).is_some() => {
+                            "sent to the model and exported only cut short, as a preview: no payload \
+                             holds it whole"
+                        }
+                        _ => continue,
+                    };
                     *rows
                         .entry((
                             truth.producer.clone(),
                             kind_label(&fact.kind).to_string(),
-                            "sent to the model and absent from every payload: this producer does not \
-                             export that part of a request"
-                                .to_string(),
+                            detail.to_string(),
                         ))
                         .or_default()
                         .entry(fixture.clone())

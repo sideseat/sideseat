@@ -361,12 +361,13 @@ fn truth_violation_ledger_is_well_formed() {
 /// base, about a check that existed at the base and a truth fact the base already stated, that the base
 /// did not record.
 ///
-/// Four kinds of addition are baselines instead. A check introduced since the base describes defects
+/// Five kinds of addition are baselines instead. A check introduced since the base describes defects
 /// the rubric could not see before; a fixture introduced since the base had no entries to keep; a fact
 /// the truth gained since the base - content a request carried that the truth then learned to state - is
 /// an obligation the base never imposed; and a request entry whose request part - the one its subject
 /// names, or the call's whole request - the base did not send, because the fixture's transcript was
-/// recorded or re-recorded since with other content there. All still need a triaged backlog issue, which
+/// recorded or re-recorded since with other content there; and an entry about a subject the base recorded
+/// as missing in the same view, which is that defect changing form as its content starts to be shown. All still need a triaged backlog issue, which
 /// `truth_violation_ledger_is_well_formed` enforces.
 fn regressions(
     entries: &[ledger::Entry],
@@ -382,6 +383,31 @@ fn regressions(
         .filter(|e| fact_existed(e))
         .map(|e| e.id.clone())
         .collect()
+}
+
+/// Whether the base recorded the entry's subject as not shown at all, in the same fixture and view.
+///
+/// A fact the base could not find is now shown, and what is wrong with it changed form - shown in a later
+/// trace too, twice, or out of place. That is the same defect closer to fixed, not a new one: the base's
+/// `missing` entry leaves as this one arrives. An order entry names two facts (`fact-009 before fact-003`)
+/// and is about whichever of them the base did not show.
+fn was_missing_at_base(base: &[ledger::Entry], entry: &ledger::Entry) -> bool {
+    let subjects: Vec<&str> = entry
+        .subject
+        .split(" before ")
+        .map(|s| s.split_once('@').map_or(s, |(fact, _)| fact))
+        .collect();
+    base.iter().any(|e| {
+        e.fixture == entry.fixture
+            && e.view == entry.view
+            && e.assertion.ends_with(".missing")
+            && subjects.iter().any(|s| {
+                e.subject
+                    .split_once('@')
+                    .map_or(e.subject.as_str(), |(f, _)| f)
+                    == *s
+            })
+    })
 }
 
 /// Whether the base already sent what a request entry is about, so the entry is a regression.
@@ -530,11 +556,9 @@ fn truth_violation_ledger_only_shrinks_against_main() {
         // The commit that introduces the ledger is its reviewed baseline.
         return;
     };
-    let before: std::collections::BTreeSet<String> = ledger::parse(&before)
-        .entries
-        .into_iter()
-        .map(|e| e.id)
-        .collect();
+    let base_entries = ledger::parse(&before).entries;
+    let before: std::collections::BTreeSet<String> =
+        base_entries.iter().map(|e| e.id.clone()).collect();
     let registry =
         git(&["show", &format!("{base}:server/tests/message_truth/mod.rs")]).unwrap_or_default();
     let fixtures_at_base: std::collections::BTreeSet<String> = git(&[
@@ -572,6 +596,9 @@ fn truth_violation_ledger_only_shrinks_against_main() {
         |family| registry.contains(&format!("\"{family}\"")),
         |fixture| fixtures_at_base.contains(fixture),
         |entry| {
+            if was_missing_at_base(&base_entries, entry) {
+                return false;
+            }
             if entry.view == ViolationView::Request.name() {
                 return request_at_base(&current, &base_truth, &entry.fixture, &entry.subject);
             }
@@ -632,6 +659,46 @@ fn only_a_new_check_or_a_new_fixture_may_add_ledger_entries() {
         |e| e.fixture != "p/native/old",
     );
     assert_eq!(new_fact, vec![entries[1].id.clone()]);
+}
+
+#[test]
+fn a_defect_changing_form_from_missing_is_not_a_new_one() {
+    let entry = |view: &str, assertion: &str, subject: &str| ledger::Entry {
+        id: format!("p/native/s:{view}:{assertion}:{subject}"),
+        fixture: "p/native/s".to_string(),
+        view: view.to_string(),
+        assertion: assertion.to_string(),
+        subject: subject.to_string(),
+        fingerprint: String::new(),
+        reason: "a test entry".to_string(),
+        issue: "rule-language-program#rv3b/system.missing/p".to_string(),
+        introduced: String::new(),
+    };
+    let base = [
+        entry("trace", "system.missing", "fact-010@trace-2"),
+        entry("request", "request.missing", "call-002:m1.0"),
+    ];
+    assert!(was_missing_at_base(
+        &base,
+        &entry("trace", "system.leaked", "fact-010")
+    ));
+    assert!(was_missing_at_base(
+        &base,
+        &entry("trace", "order.sequence", "fact-010 before fact-003")
+    ));
+    assert!(was_missing_at_base(
+        &base,
+        &entry("request", "request.order", "call-002:m1.0")
+    ));
+    // Another view, another fact, or a fact the base showed: a regression still.
+    assert!(!was_missing_at_base(
+        &base,
+        &entry("session", "system.leaked", "fact-010")
+    ));
+    assert!(!was_missing_at_base(
+        &base,
+        &entry("trace", "system.leaked", "fact-011")
+    ));
 }
 
 /// Prints one fixture's views and violations, for triaging a ledger entry:

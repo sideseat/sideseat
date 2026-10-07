@@ -6,9 +6,12 @@
   "session_count": 1,
   "span_views": {
     "trace-1/claude_code.interaction/span-1": {
-      "message_count": 3,
+      "message_count": 6,
       "role_sequence": [
         "user",
+        "system",
+        "system",
+        "system",
         "tool",
         "assistant"
       ],
@@ -25,6 +28,30 @@
         },
         {
           "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.288.074; cc_entrypoint=sdk-cli;",
+          "content_digest": "dca1d76a802933e8",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an interactive agent that helps users with software engineering tasks. IMPORTANT: Assist with authorized security testing, defensive security, CTF challenges, and educational contexts. Refuse requests for destructive techniques, DoS…[3385 chars]",
+          "content_digest": "c6148e48a7dabb59",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "Shell command failed",
@@ -32,7 +59,7 @@
           "observation_type": "span"
         },
         {
-          "index": 2,
+          "index": 5,
           "role": "assistant",
           "entry_type": "text",
           "content": "The command failed because `bookings/london-oslo.txt` doesn't exist in `/private/tmp/sideseat-cli/claude-code/error`, so I couldn't read your booking.",
@@ -176,11 +203,12 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 8,
+      "message_count": 9,
       "role_sequence": [
         "system",
         "system",
         "user",
+        "system",
         "system",
         "assistant",
         "tool",
@@ -218,12 +246,20 @@
           "index": 3,
           "role": "system",
           "entry_type": "text",
+          "content": "You are an interactive agent that helps users with software engineering tasks. IMPORTANT: Assist with authorized security testing, defensive security, CTF challenges, and educational contexts. Refuse requests for destructive techniques, DoS…[3385 chars]",
+          "content_digest": "c6148e48a7dabb59",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
           "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/tmp/sideseat-cli/claude-code/error - Is a git repository: false - Platform: darwin - Shell: unknown - OS Version: Darwin 25.6.0 You are …[455 chars]",
           "content_digest": "07f5b35f9cb39eca",
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 5,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_014fyFv8gXzVWKaftQ16z3he\",\"name\":\"Bash\",\"input\":{\"command\":\"cat bookings/london-oslo.txt\",\"description\":\"Read the flight booking file\"}}",
@@ -232,7 +268,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 5,
+          "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "Shell command failed",
@@ -240,7 +276,7 @@
           "observation_type": "span"
         },
         {
-          "index": 6,
+          "index": 7,
           "role": "system",
           "entry_type": "text",
           "content": "<total_tokens>14996600 tokens left</total_tokens>",
@@ -248,7 +284,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 7,
+          "index": 8,
           "role": "assistant",
           "entry_type": "text",
           "content": "The command failed because `bookings/london-oslo.txt` doesn't exist in `/private/tmp/sideseat-cli/claude-code/error`, so I couldn't read your booking.",
@@ -260,11 +296,12 @@
   },
   "session_views": {
     "32aaf93a-bb02-5608-92e9-4b13c763eee6": {
-      "message_count": 8,
+      "message_count": 9,
       "role_sequence": [
         "system",
         "system",
         "user",
+        "system",
         "system",
         "assistant",
         "tool",
@@ -302,12 +339,20 @@
           "index": 3,
           "role": "system",
           "entry_type": "text",
+          "content": "You are an interactive agent that helps users with software engineering tasks. IMPORTANT: Assist with authorized security testing, defensive security, CTF challenges, and educational contexts. Refuse requests for destructive techniques, DoS…[3385 chars]",
+          "content_digest": "c6148e48a7dabb59",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
           "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/tmp/sideseat-cli/claude-code/error - Is a git repository: false - Platform: darwin - Shell: unknown - OS Version: Darwin 25.6.0 You are …[455 chars]",
           "content_digest": "07f5b35f9cb39eca",
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 5,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_014fyFv8gXzVWKaftQ16z3he\",\"name\":\"Bash\",\"input\":{\"command\":\"cat bookings/london-oslo.txt\",\"description\":\"Read the flight booking file\"}}",
@@ -316,7 +361,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 5,
+          "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "Shell command failed",
@@ -324,7 +369,7 @@
           "observation_type": "span"
         },
         {
-          "index": 6,
+          "index": 7,
           "role": "system",
           "entry_type": "text",
           "content": "<total_tokens>14996600 tokens left</total_tokens>",
@@ -332,7 +377,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 7,
+          "index": 8,
           "role": "assistant",
           "entry_type": "text",
           "content": "The command failed because `bookings/london-oslo.txt` doesn't exist in `/private/tmp/sideseat-cli/claude-code/error`, so I couldn't read your booking.",
@@ -343,12 +388,13 @@
     }
   },
   "feed_view": {
-    "message_count": 8,
+    "message_count": 9,
     "role_sequence": [
       "system",
       "assistant",
       "tool",
       "assistant",
+      "system",
       "system",
       "system",
       "system",
@@ -410,12 +456,20 @@
         "index": 6,
         "role": "system",
         "entry_type": "text",
+        "content": "You are an interactive agent that helps users with software engineering tasks. IMPORTANT: Assist with authorized security testing, defensive security, CTF challenges, and educational contexts. Refuse requests for destructive techniques, DoS…[3385 chars]",
+        "content_digest": "c6148e48a7dabb59",
+        "observation_type": "span"
+      },
+      {
+        "index": 7,
+        "role": "system",
+        "entry_type": "text",
         "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/tmp/sideseat-cli/claude-code/error - Is a git repository: false - Platform: darwin - Shell: unknown - OS Version: Darwin 25.6.0 You are …[455 chars]",
         "content_digest": "07f5b35f9cb39eca",
         "observation_type": "generation"
       },
       {
-        "index": 7,
+        "index": 8,
         "role": "user",
         "entry_type": "text",
         "content": "Run the shell command `cat bookings/london-oslo.txt` to read my flight booking, then tell me in one sentence what happened.",

@@ -13,9 +13,12 @@
       "messages": []
     },
     "trace-1/claude_code.interaction/span-2": {
-      "message_count": 2,
+      "message_count": 5,
       "role_sequence": [
         "user",
+        "system",
+        "system",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -31,6 +34,30 @@
         },
         {
           "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.286.e3d; cc_entrypoint=sdk-py;",
+          "content_digest": "8ea03abcaa39ad34",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "Kyoto is best known as Japan's cultural heart, famed for its thousands of temples and shrines, traditional geisha districts like Gion, and its well-preserved historic architecture from its centuries as the imperial capital.",

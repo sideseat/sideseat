@@ -6,9 +6,12 @@
   "session_count": 1,
   "span_views": {
     "trace-1/claude_code.interaction/span-2": {
-      "message_count": 2,
+      "message_count": 5,
       "role_sequence": [
         "user",
+        "system",
+        "system",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -24,6 +27,30 @@
         },
         {
           "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.286.013; cc_entrypoint=sdk-py;",
+          "content_digest": "c1a2454854b0d460",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "Visit the **Museo del Prado**, Madrid's world-renowned art museum. It houses masterpieces by Velázquez (*Las Meninas*), Goya, and El Greco, and it's a short walk from Retiro Park. Book tickets online ahead of time to skip the queues.",
@@ -103,9 +130,12 @@
       "messages": []
     },
     "trace-2/claude_code.interaction/span-2": {
-      "message_count": 2,
+      "message_count": 5,
       "role_sequence": [
         "user",
+        "system",
+        "system",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -121,6 +151,30 @@
         },
         {
           "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.286.e89; cc_entrypoint=sdk-py;",
+          "content_digest": "5bb42b1f688ee29d",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "Visit **Retiro Park (Parque del Buen Retiro)**. It's Madrid's most beloved green space, with a boating lake, the glass Crystal Palace, and shaded gardens that are ideal for a relaxed stroll. It's also close to the Prado Museum, so you can e…[273 chars]",

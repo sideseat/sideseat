@@ -14,6 +14,17 @@
       }
     },
     {
+      "id": "claude-code.system_prompt.carrier",
+      "doc": "The whole system instruction one request was sent, written once per distinct instruction on the span that made the request: a detached request frame, which precedes every input of that request.",
+      "match": {
+        "event": "system_prompt"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_is_detached_request_frame": true
+      }
+    },
+    {
       "id": "claude-code.tool_error.carrier",
       "doc": "A failed call's error, which answers the call. A snapshot, the cautious reading the resolver gives a carrier nobody classified: one record per turn or call, so it can neither invent a duplicate nor need the stronger guarantees of an emission.",
       "match": {
@@ -52,6 +63,12 @@
       "doc": "The user's prompt. A container: its `prompt` attribute is the turn, and the other attributes are bookkeeping."
     },
     {
+      "id": "claude-code.message_event.system_prompt",
+      "name": "system_prompt",
+      "raw": "replace",
+      "doc": "The system instruction a request was sent. A container: its `system_prompt` attribute is the instruction, and the hash and length beside it are bookkeeping."
+    },
+    {
       "id": "claude-code.message_event.assistant_response",
       "name": "assistant_response",
       "raw": "replace",
@@ -71,6 +88,13 @@
       "name_from": "attr:event.name",
       "payload": "attributes",
       "doc": "`claude_code.user_prompt`."
+    },
+    {
+      "id": "claude-code.log_event.system_prompt",
+      "name": "system_prompt",
+      "name_from": "attr:event.name",
+      "payload": "attributes",
+      "doc": "`claude_code.system_prompt`."
     },
     {
       "id": "claude-code.log_event.assistant_response",
@@ -111,6 +135,41 @@
       "emit": "message",
       "priority": 1445,
       "tag_as": "claude_code.user_prompt"
+    },
+    {
+      "id": "claude-code.system_prompt",
+      "doc": "The system instruction, whole: the client's billing header, its own preamble, then the instruction proper, each a block of its own joined by a blank line. The last block may hold blank lines itself, so the split stops after two. The span's own `system_prompt_preview` is cut at 500 characters on a subagent; this record is not, and the length it states beside it is a JavaScript string length, counted in UTF-16 units.",
+      "source": {
+        "event": {
+          "names": [
+            "system_prompt"
+          ]
+        }
+      },
+      "read": {
+        "attribute": "system_prompt"
+      },
+      "parse": "text",
+      "raw_where": {
+        "non_blank": true
+      },
+      "sections": {
+        "split_on": "\n\n",
+        "max_sections": 3,
+        "truncated_unless_length": {
+          "source": "attr:system_prompt_length",
+          "counts": "utf16_units"
+        },
+        "routes": [
+          {
+            "id": "system_block",
+            "doc": "Every block of the instruction is the system's.",
+            "role": "system"
+          }
+        ]
+      },
+      "emit": "message",
+      "priority": 1440
     },
     {
       "id": "claude-code.tool_error",

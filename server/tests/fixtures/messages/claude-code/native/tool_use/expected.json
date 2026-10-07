@@ -6,9 +6,12 @@
   "session_count": 1,
   "span_views": {
     "trace-1/claude_code.interaction/span-1": {
-      "message_count": 2,
+      "message_count": 5,
       "role_sequence": [
         "user",
+        "system",
+        "system",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -24,6 +27,30 @@
         },
         {
           "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.288.f78; cc_entrypoint=sdk-cli;",
+          "content_digest": "301523e9c500b10e",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are an interactive agent that helps users with software engineering tasks. IMPORTANT: Assist with authorized security testing, defensive security, CTF challenges, and educational contexts. Refuse requests for destructive techniques, DoS…[3385 chars]",
+          "content_digest": "c6148e48a7dabb59",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "`forecast.json` has 32 lines according to `wc -l`. Pack the umbrella for Tokyo, because the file shows rain there on day 1, while Paris is sunny on both days.",
@@ -209,11 +236,12 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 10,
+      "message_count": 11,
       "role_sequence": [
         "system",
         "system",
         "user",
+        "system",
         "system",
         "assistant",
         "assistant",
@@ -253,12 +281,20 @@
           "index": 3,
           "role": "system",
           "entry_type": "text",
+          "content": "You are an interactive agent that helps users with software engineering tasks. IMPORTANT: Assist with authorized security testing, defensive security, CTF challenges, and educational contexts. Refuse requests for destructive techniques, DoS…[3385 chars]",
+          "content_digest": "c6148e48a7dabb59",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
           "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/tmp/sideseat-cli/claude-code/tool_use - Is a git repository: false - Platform: darwin - Shell: unknown - OS Version: Darwin 25.6.0 You a…[458 chars]",
           "content_digest": "105c1be239b03458",
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 5,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01WiVW8ZGCtkTJ5bJpG5JSFH\",\"name\":\"Read\",\"input\":{\"file_path\":\"/private/tmp/sideseat-cli/claude-code/tool_use/forecast.json\"}}",
@@ -267,7 +303,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 5,
+          "index": 6,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01TPdMyvarDc22DmjhwywXGr\",\"name\":\"Bash\",\"input\":{\"command\":\"wc -l forecast.json\",\"description\":\"Count lines in forecast.json\"}}",
@@ -276,7 +312,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 6,
+          "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "1 { 2 \"Paris\": { 3 \"city\": \"Paris\", 4 \"forecast\": [ 5 { 6 \"day\": 1, 7 \"condition\": \"sunny\", 8 \"high_c\": 21 9 }, 10 { 11 \"day\": 2, 12 \"condition\": \"sunny\", 13 \"high_c\": 22 14 } 15 ] 16 }, 17 \"Tokyo\": { 18 \"city\": \"Tokyo\", 19 \"forecast\": [ 20…[383 chars]",
@@ -284,7 +320,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 7,
+          "index": 8,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "32 forecast.json",
@@ -292,7 +328,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 8,
+          "index": 9,
           "role": "system",
           "entry_type": "text",
           "content": "<total_tokens>14996494 tokens left</total_tokens>",
@@ -300,7 +336,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 9,
+          "index": 10,
           "role": "assistant",
           "entry_type": "text",
           "content": "`forecast.json` has 32 lines according to `wc -l`. Pack the umbrella for Tokyo, because the file shows rain there on day 1, while Paris is sunny on both days.",
@@ -312,11 +348,12 @@
   },
   "session_views": {
     "47e392d9-c0e9-567a-9cec-57f2dda66be0": {
-      "message_count": 10,
+      "message_count": 11,
       "role_sequence": [
         "system",
         "system",
         "user",
+        "system",
         "system",
         "assistant",
         "assistant",
@@ -356,12 +393,20 @@
           "index": 3,
           "role": "system",
           "entry_type": "text",
+          "content": "You are an interactive agent that helps users with software engineering tasks. IMPORTANT: Assist with authorized security testing, defensive security, CTF challenges, and educational contexts. Refuse requests for destructive techniques, DoS…[3385 chars]",
+          "content_digest": "c6148e48a7dabb59",
+          "observation_type": "span"
+        },
+        {
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
           "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/tmp/sideseat-cli/claude-code/tool_use - Is a git repository: false - Platform: darwin - Shell: unknown - OS Version: Darwin 25.6.0 You a…[458 chars]",
           "content_digest": "105c1be239b03458",
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 5,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01WiVW8ZGCtkTJ5bJpG5JSFH\",\"name\":\"Read\",\"input\":{\"file_path\":\"/private/tmp/sideseat-cli/claude-code/tool_use/forecast.json\"}}",
@@ -370,7 +415,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 5,
+          "index": 6,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01TPdMyvarDc22DmjhwywXGr\",\"name\":\"Bash\",\"input\":{\"command\":\"wc -l forecast.json\",\"description\":\"Count lines in forecast.json\"}}",
@@ -379,7 +424,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 6,
+          "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "1 { 2 \"Paris\": { 3 \"city\": \"Paris\", 4 \"forecast\": [ 5 { 6 \"day\": 1, 7 \"condition\": \"sunny\", 8 \"high_c\": 21 9 }, 10 { 11 \"day\": 2, 12 \"condition\": \"sunny\", 13 \"high_c\": 22 14 } 15 ] 16 }, 17 \"Tokyo\": { 18 \"city\": \"Tokyo\", 19 \"forecast\": [ 20…[383 chars]",
@@ -387,7 +432,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 7,
+          "index": 8,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "32 forecast.json",
@@ -395,7 +440,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 8,
+          "index": 9,
           "role": "system",
           "entry_type": "text",
           "content": "<total_tokens>14996494 tokens left</total_tokens>",
@@ -403,7 +448,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 9,
+          "index": 10,
           "role": "assistant",
           "entry_type": "text",
           "content": "`forecast.json` has 32 lines according to `wc -l`. Pack the umbrella for Tokyo, because the file shows rain there on day 1, while Paris is sunny on both days.",
@@ -414,7 +459,7 @@
     }
   },
   "feed_view": {
-    "message_count": 10,
+    "message_count": 11,
     "role_sequence": [
       "tool",
       "tool",
@@ -422,6 +467,7 @@
       "assistant",
       "assistant",
       "assistant",
+      "system",
       "system",
       "system",
       "system",
@@ -500,12 +546,20 @@
         "index": 8,
         "role": "system",
         "entry_type": "text",
+        "content": "You are an interactive agent that helps users with software engineering tasks. IMPORTANT: Assist with authorized security testing, defensive security, CTF challenges, and educational contexts. Refuse requests for destructive techniques, DoS…[3385 chars]",
+        "content_digest": "c6148e48a7dabb59",
+        "observation_type": "span"
+      },
+      {
+        "index": 9,
+        "role": "system",
+        "entry_type": "text",
         "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/tmp/sideseat-cli/claude-code/tool_use - Is a git repository: false - Platform: darwin - Shell: unknown - OS Version: Darwin 25.6.0 You a…[458 chars]",
         "content_digest": "105c1be239b03458",
         "observation_type": "generation"
       },
       {
-        "index": 9,
+        "index": 10,
         "role": "user",
         "entry_type": "text",
         "content": "Read forecast.json in this directory, then run the shell command `wc -l forecast.json`. Using what the file says, tell me in two sentences how many lines it has and whether I should pack an umbrella for Paris or for Tokyo.",

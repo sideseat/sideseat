@@ -6,9 +6,11 @@
   "session_count": 1,
   "span_views": {
     "trace-1/claude_code.interaction/span-2": {
-      "message_count": 2,
+      "message_count": 4,
       "role_sequence": [
         "user",
+        "system",
+        "system",
         "assistant"
       ],
       "tool_names": [],
@@ -24,6 +26,22 @@
         },
         {
           "index": 1,
+          "role": "system",
+          "entry_type": "text",
+          "content": "x-anthropic-billing-header: cc_version=2.1.284.323; cc_entrypoint=sdk-ts;",
+          "content_digest": "690a25f855e486cd",
+          "observation_type": "span"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "content_digest": "918d321f250cd6d3",
+          "observation_type": "span"
+        },
+        {
+          "index": 3,
           "role": "assistant",
           "entry_type": "text",
           "content": "**The fastest total is 17 minutes.** | Step | Move | Time | Elapsed | |---|---|---|---| | 1 | 1 and 2 cross together | 2 | 2 | | 2 | 1 returns with the torch | 1 | 3 | | 3 | 5 and 10 cross together | 10 | 13 | | 4 | 2 returns with the torch…[941 chars]",

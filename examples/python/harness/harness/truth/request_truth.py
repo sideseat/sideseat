@@ -175,10 +175,24 @@ class _Lineage:
         self.request_only: dict[str, list[str]] = {}
         #: How many copies of each content the request being read has sent so far.
         self.in_request: dict[str, int] = {}
+        #: Each distinct system instruction, in order of first appearance: a request's thread. Two agents of
+        #: one conversation - a lead and the subagent it starts - are two model contexts, told apart by what
+        #: they were instructed, and a message both are sent was sent twice, once into each.
+        self.threads: list[str] = []
+        self.thread = 0
+        #: Whether the part being read is a message part rather than the system instruction.
+        self.in_messages = False
+        #: Per content, the (thread, copy) slots this fixture has used, in order of first appearance: a
+        #: slot's index is which of the content's facts it is, the same index in every fixture.
+        self.slots: dict[str, list[tuple[int, int]]] = {}
 
-    def next_request(self) -> None:
-        """A new request begins: its copies of request-only content are counted from the first again."""
+    def next_request(self, request: ModelRequest) -> None:
+        """A new request begins: its copies are counted from the first again, in the thread it belongs to."""
         self.in_request = {}
+        instruction = _canonical([part.get("text") for part in request.system])
+        if instruction not in self.threads:
+            self.threads.append(instruction)
+        self.thread = self.threads.index(instruction)
 
     def _mint(
         self, part: dict[str, Any], role: str, conversation: str, call: str, copy: int
@@ -304,8 +318,15 @@ class _Lineage:
         # Copies are counted by what the minted fact states, so two parts that would be one fact - a
         # document sent twice under two file names - are two copies of it, not two first copies.
         key = _canonical([role, conversation, self._identity(part, role)])
-        copy = self.in_request.get(key, 0)
-        self.in_request[key] = copy + 1
+        within = self.in_request.get(key, 0)
+        self.in_request[key] = within + 1
+        # A message is its thread's: the same note sent into two agents' contexts is two facts. The system
+        # instruction is not keyed by thread - it is what tells the threads apart.
+        slot = (self.thread if self.in_messages else 0, within)
+        slots = self.slots.setdefault(key, [])
+        if slot not in slots:
+            slots.append(slot)
+        copy = slots.index(slot)
         copies = self.request_only.setdefault(key, [])
         if copy < len(copies):
             lineage = {"replay_of": copies[copy]}
@@ -350,9 +371,12 @@ def _occurrences(
     def occurrence(part: dict[str, Any], role: str) -> dict[str, Any]:
         return {"part": part, **lineage.assign(part, role, conversation, call)}
 
+    lineage.in_messages = False
+    system = [occurrence(part, "system") for part in request.system]
+    lineage.in_messages = True
     return {
         "api": request.api,
-        "system": [occurrence(part, "system") for part in request.system],
+        "system": system,
         "messages": [
             {
                 "role": message["role"],
@@ -396,7 +420,7 @@ def fixture_requests(
             unanswered.append(entry["request_sha256"])
             continue
         call = calls[call_id]
-        lineage.next_request()
+        lineage.next_request(request)
         out[call_id] = _occurrences(request, lineage, call["conversation"], call_id)
         lineage.outputs(call)
     return {

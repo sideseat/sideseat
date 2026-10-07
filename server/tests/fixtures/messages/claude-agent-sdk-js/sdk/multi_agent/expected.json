@@ -123,11 +123,12 @@
       ]
     },
     "trace-1/claude_code.llm_request/span-19": {
-      "message_count": 4,
+      "message_count": 5,
       "role_sequence": [
         "system",
         "system",
         "user",
+        "system",
         "system"
       ],
       "tool_names": [],
@@ -161,8 +162,16 @@
           "index": 3,
           "role": "system",
           "entry_type": "text",
-          "content": "Your final report is delivered through SubagentHandback: when your work is complete, call SubagentHandback({message: <your full report>}). The call ends your run, so make it your last step. Only a SubagentHandback call reaches your caller a…[752 chars]",
-          "content_digest": "00f368ee7754b91f",
+          "content": "Your final report is delivered through SubagentHandback: when your work is complete, call SubagentHandback({message: <your full report>}). The call ends your run, so make it your last step. Only a SubagentHandback call reaches your caller a…[304 chars]",
+          "content_digest": "c640a113de6d3e2f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk-js - Is a git repository: false - Platform: darwin - Shell: zs…[443 chars]",
+          "content_digest": "c3f3947b6f7e14cf",
           "observation_type": "generation"
         }
       ]
@@ -285,11 +294,12 @@
       ]
     },
     "trace-1/claude_code.llm_request/span-7": {
-      "message_count": 4,
+      "message_count": 5,
       "role_sequence": [
         "system",
         "system",
         "user",
+        "system",
         "system"
       ],
       "tool_names": [],
@@ -323,8 +333,16 @@
           "index": 3,
           "role": "system",
           "entry_type": "text",
-          "content": "Your final report is delivered through SubagentHandback: when your work is complete, call SubagentHandback({message: <your full report>}). The call ends your run, so make it your last step. Only a SubagentHandback call reaches your caller a…[752 chars]",
-          "content_digest": "00f368ee7754b91f",
+          "content": "Your final report is delivered through SubagentHandback: when your work is complete, call SubagentHandback({message: <your full report>}). The call ends your run, so make it your last step. Only a SubagentHandback call reaches your caller a…[304 chars]",
+          "content_digest": "c640a113de6d3e2f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk-js - Is a git repository: false - Platform: darwin - Shell: zs…[443 chars]",
+          "content_digest": "c3f3947b6f7e14cf",
           "observation_type": "generation"
         }
       ]
@@ -504,7 +522,7 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 22,
+      "message_count": 23,
       "role_sequence": [
         "system",
         "system",
@@ -514,6 +532,7 @@
         "assistant",
         "system",
         "user",
+        "system",
         "system",
         "assistant",
         "tool",
@@ -601,12 +620,20 @@
           "index": 8,
           "role": "system",
           "entry_type": "text",
-          "content": "Your final report is delivered through SubagentHandback: when your work is complete, call SubagentHandback({message: <your full report>}). The call ends your run, so make it your last step. Only a SubagentHandback call reaches your caller a…[752 chars]",
-          "content_digest": "00f368ee7754b91f",
+          "content": "Your final report is delivered through SubagentHandback: when your work is complete, call SubagentHandback({message: <your full report>}). The call ends your run, so make it your last step. Only a SubagentHandback call reaches your caller a…[304 chars]",
+          "content_digest": "c640a113de6d3e2f",
           "observation_type": "generation"
         },
         {
           "index": 9,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk-js - Is a git repository: false - Platform: darwin - Shell: zs…[443 chars]",
+          "content_digest": "c3f3947b6f7e14cf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01WBoKmNkAtFK2GLY5VqAJAa\",\"name\":\"mcp__travel__get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
@@ -615,7 +642,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 10,
+          "index": 11,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[{\"type\":\"text\",\"text\":\"{\\\"city\\\":\\\"Barcelona\\\",\\\"forecast\\\":[{\\\"day\\\":1,\\\"condition\\\":\\\"rain\\\",\\\"high_c\\\":21},{\\\"day\\\":2,\\\"condition\\\":\\\"sunny\\\",\\\"high_c\\\":22}]}\"}]",
@@ -623,7 +650,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 11,
+          "index": 12,
           "role": "system",
           "entry_type": "text",
           "content": "<total_tokens>14998373 tokens left</total_tokens>",
@@ -631,7 +658,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 12,
+          "index": 13,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01QgQWRaLVJ5F3Tru6GEVmA9\",\"name\":\"SubagentHandback\",\"input\":{\"message\":\"Barcelona 2-day forecast (from the weather tool):\\n- Day 1: rain, high 21 C.\\n- Day 2: sunny, high 22 C.\\nThe tool returned only con…[375 chars]",
@@ -640,7 +667,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 13,
+          "index": 14,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[{\"type\":\"text\",\"text\":\" This agent's report was delivered to you as a message from \\\"a0000000000000001\\\" (its SubagentHandback call). Read it there; it is not repeated here.\\n \\nagentId: a0000000000000001 (use SendMessage with to: 'a000000…[377 chars]",
@@ -648,7 +675,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 14,
+          "index": 15,
           "role": "system",
           "entry_type": "text",
           "content": "Another Claude session sent a message while you were working: <agent-message from=\"a0000000000000001\"> [Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from t…[1607 chars]",
@@ -656,7 +683,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 15,
+          "index": 16,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01KZVicynwDKdp6xX2v3W8i6\",\"name\":\"Agent\",\"input\":{\"description\":\"Write packing list\",\"prompt\":\"Write a one-paragraph packing list for a trip to Barcelona based on this weather report: Day 1: rain, high 21…[407 chars]",
@@ -665,7 +692,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 16,
+          "index": 17,
           "role": "system",
           "entry_type": "text",
           "content": "x-anthropic-billing-header: cc_version=2.1.289.f33; cc_entrypoint=sdk-ts; cc_is_subagent=true;",
@@ -673,7 +700,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 17,
+          "index": 18,
           "role": "user",
           "entry_type": "text",
           "content": "Write a one-paragraph packing list for a trip to Barcelona based on this weather report: Day 1: rain, high 21 C. Day 2: sunny, high 22 C. (No lows, precipitation amounts, or wind data available.) Return only the paragraph.",
@@ -681,7 +708,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 18,
+          "index": 19,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01X3uZq59g3RMdyn448JjVs4\",\"name\":\"SubagentHandback\",\"input\":{\"message\":\"For your two days in Barcelona, pack light layers suited to mild temperatures, since highs will be 21 to 22 C but no overnight lows …[941 chars]",
@@ -690,7 +717,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 19,
+          "index": 20,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[{\"type\":\"text\",\"text\":\" This agent's report was delivered to you as a message from \\\"a0000000000000002\\\" (its SubagentHandback call). Read it there; it is not repeated here.\\n \\nagentId: a0000000000000002 (use SendMessage with to: 'a000000…[378 chars]",
@@ -698,7 +725,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 20,
+          "index": 21,
           "role": "system",
           "entry_type": "text",
           "content": "Another Claude session sent a message while you were working: <agent-message from=\"a0000000000000002\"> [Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from t…[2176 chars]",
@@ -706,7 +733,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 21,
+          "index": 22,
           "role": "assistant",
           "entry_type": "text",
           "content": "For your two days in Barcelona, pack light layers suited to mild temperatures, since highs will be 21 to 22 C but no overnight lows were reported, so bring a long-sleeve top or light sweater and a thin jacket for mornings and evenings. Brin…[830 chars]",
@@ -718,7 +745,7 @@
   },
   "session_views": {
     "claude-agent-sdk-js-multi_agent": {
-      "message_count": 22,
+      "message_count": 23,
       "role_sequence": [
         "system",
         "system",
@@ -728,6 +755,7 @@
         "assistant",
         "system",
         "user",
+        "system",
         "system",
         "assistant",
         "tool",
@@ -815,12 +843,20 @@
           "index": 8,
           "role": "system",
           "entry_type": "text",
-          "content": "Your final report is delivered through SubagentHandback: when your work is complete, call SubagentHandback({message: <your full report>}). The call ends your run, so make it your last step. Only a SubagentHandback call reaches your caller a…[752 chars]",
-          "content_digest": "00f368ee7754b91f",
+          "content": "Your final report is delivered through SubagentHandback: when your work is complete, call SubagentHandback({message: <your full report>}). The call ends your run, so make it your last step. Only a SubagentHandback call reaches your caller a…[304 chars]",
+          "content_digest": "c640a113de6d3e2f",
           "observation_type": "generation"
         },
         {
           "index": 9,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk-js - Is a git repository: false - Platform: darwin - Shell: zs…[443 chars]",
+          "content_digest": "c3f3947b6f7e14cf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01WBoKmNkAtFK2GLY5VqAJAa\",\"name\":\"mcp__travel__get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
@@ -829,7 +865,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 10,
+          "index": 11,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[{\"type\":\"text\",\"text\":\"{\\\"city\\\":\\\"Barcelona\\\",\\\"forecast\\\":[{\\\"day\\\":1,\\\"condition\\\":\\\"rain\\\",\\\"high_c\\\":21},{\\\"day\\\":2,\\\"condition\\\":\\\"sunny\\\",\\\"high_c\\\":22}]}\"}]",
@@ -837,7 +873,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 11,
+          "index": 12,
           "role": "system",
           "entry_type": "text",
           "content": "<total_tokens>14998373 tokens left</total_tokens>",
@@ -845,7 +881,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 12,
+          "index": 13,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01QgQWRaLVJ5F3Tru6GEVmA9\",\"name\":\"SubagentHandback\",\"input\":{\"message\":\"Barcelona 2-day forecast (from the weather tool):\\n- Day 1: rain, high 21 C.\\n- Day 2: sunny, high 22 C.\\nThe tool returned only con…[375 chars]",
@@ -854,7 +890,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 13,
+          "index": 14,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[{\"type\":\"text\",\"text\":\" This agent's report was delivered to you as a message from \\\"a0000000000000001\\\" (its SubagentHandback call). Read it there; it is not repeated here.\\n \\nagentId: a0000000000000001 (use SendMessage with to: 'a000000…[377 chars]",
@@ -862,7 +898,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 14,
+          "index": 15,
           "role": "system",
           "entry_type": "text",
           "content": "Another Claude session sent a message while you were working: <agent-message from=\"a0000000000000001\"> [Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from t…[1607 chars]",
@@ -870,7 +906,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 15,
+          "index": 16,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01KZVicynwDKdp6xX2v3W8i6\",\"name\":\"Agent\",\"input\":{\"description\":\"Write packing list\",\"prompt\":\"Write a one-paragraph packing list for a trip to Barcelona based on this weather report: Day 1: rain, high 21…[407 chars]",
@@ -879,7 +915,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 16,
+          "index": 17,
           "role": "system",
           "entry_type": "text",
           "content": "x-anthropic-billing-header: cc_version=2.1.289.f33; cc_entrypoint=sdk-ts; cc_is_subagent=true;",
@@ -887,7 +923,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 17,
+          "index": 18,
           "role": "user",
           "entry_type": "text",
           "content": "Write a one-paragraph packing list for a trip to Barcelona based on this weather report: Day 1: rain, high 21 C. Day 2: sunny, high 22 C. (No lows, precipitation amounts, or wind data available.) Return only the paragraph.",
@@ -895,7 +931,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 18,
+          "index": 19,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01X3uZq59g3RMdyn448JjVs4\",\"name\":\"SubagentHandback\",\"input\":{\"message\":\"For your two days in Barcelona, pack light layers suited to mild temperatures, since highs will be 21 to 22 C but no overnight lows …[941 chars]",
@@ -904,7 +940,7 @@
           "observation_type": "tool"
         },
         {
-          "index": 19,
+          "index": 20,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[{\"type\":\"text\",\"text\":\" This agent's report was delivered to you as a message from \\\"a0000000000000002\\\" (its SubagentHandback call). Read it there; it is not repeated here.\\n \\nagentId: a0000000000000002 (use SendMessage with to: 'a000000…[378 chars]",
@@ -912,7 +948,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 20,
+          "index": 21,
           "role": "system",
           "entry_type": "text",
           "content": "Another Claude session sent a message while you were working: <agent-message from=\"a0000000000000002\"> [Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from t…[2176 chars]",
@@ -920,7 +956,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 21,
+          "index": 22,
           "role": "assistant",
           "entry_type": "text",
           "content": "For your two days in Barcelona, pack light layers suited to mild temperatures, since highs will be 21 to 22 C but no overnight lows were reported, so bring a long-sleeve top or light sweater and a thin jacket for mornings and evenings. Brin…[830 chars]",
@@ -931,7 +967,7 @@
     }
   },
   "feed_view": {
-    "message_count": 22,
+    "message_count": 23,
     "role_sequence": [
       "tool",
       "system",
@@ -948,6 +984,7 @@
       "assistant",
       "system",
       "user",
+      "system",
       "system",
       "assistant",
       "system",
@@ -1087,12 +1124,20 @@
         "index": 15,
         "role": "system",
         "entry_type": "text",
-        "content": "Your final report is delivered through SubagentHandback: when your work is complete, call SubagentHandback({message: <your full report>}). The call ends your run, so make it your last step. Only a SubagentHandback call reaches your caller a…[752 chars]",
-        "content_digest": "00f368ee7754b91f",
+        "content": "Your final report is delivered through SubagentHandback: when your work is complete, call SubagentHandback({message: <your full report>}). The call ends your run, so make it your last step. Only a SubagentHandback call reaches your caller a…[304 chars]",
+        "content_digest": "c640a113de6d3e2f",
         "observation_type": "generation"
       },
       {
         "index": 16,
+        "role": "system",
+        "entry_type": "text",
+        "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk-js - Is a git repository: false - Platform: darwin - Shell: zs…[443 chars]",
+        "content_digest": "c3f3947b6f7e14cf",
+        "observation_type": "generation"
+      },
+      {
+        "index": 17,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_013dwbysCkYYviAKxqK8GF5v\",\"name\":\"Agent\",\"input\":{\"description\":\"Barcelona weather research\",\"prompt\":\"Get the weather forecast for Barcelona for the next 2 days and report the details (temperatures, prec…[327 chars]",
@@ -1101,7 +1146,7 @@
         "observation_type": "tool"
       },
       {
-        "index": 17,
+        "index": 18,
         "role": "system",
         "entry_type": "text",
         "content": "x-anthropic-billing-header: cc_version=2.1.289.442; cc_entrypoint=sdk-ts;",
@@ -1109,7 +1154,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 18,
+        "index": 19,
         "role": "system",
         "entry_type": "text",
         "content": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
@@ -1117,7 +1162,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 19,
+        "index": 20,
         "role": "system",
         "entry_type": "text",
         "content": "You coordinate two agents: ask the researcher for the weather, then the writer for the packing list, and return the writer's list.",
@@ -1125,7 +1170,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 20,
+        "index": 21,
         "role": "system",
         "entry_type": "text",
         "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk-js - Is a git repository: false - Platform: darwin - Shell: zs…[2196 chars]",
@@ -1133,7 +1178,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 21,
+        "index": 22,
         "role": "user",
         "entry_type": "text",
         "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",

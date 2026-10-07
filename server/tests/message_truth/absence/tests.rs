@@ -368,6 +368,25 @@ fn a_truncated_text_is_partial_and_a_short_one_unprovable() {
     ));
 }
 
+#[test]
+fn a_text_is_truncated_only_where_a_payload_ends_on_its_prefix() {
+    let cut: String = TEXT.chars().take(40).collect();
+    // A preview the producer cut: the payload ends where the text was cut.
+    assert!(
+        super::truncated_at(TEXT, &attribute(string(&format!("Preamble.\n\n{cut}")))).is_some()
+    );
+    // A framework quoting the text in part and writing on: not a cut, so not a truncation.
+    assert!(
+        super::truncated_at(
+            TEXT,
+            &attribute(string(&format!("{cut} and then something else")))
+        )
+        .is_none()
+    );
+    // Held whole somewhere: nothing was cut.
+    assert!(super::truncated_at(TEXT, &attribute(string(TEXT))).is_none());
+}
+
 fn fact_with_text(text: &str) -> Fact {
     fact("text", serde_json::json!({ "text": text }))
 }

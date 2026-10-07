@@ -412,7 +412,14 @@ pub(super) fn without_unexported_facts(truth: &Truth, recon: &Recon) -> Truth {
         .facts
         .iter()
         .filter(|fact| fact.fixtures.is_some() && fact.require.is_some())
-        .filter(|fact| matches!(prove(fact, haystack(recon)), Proof::Absent))
+        .filter(|fact| match prove(fact, haystack(recon)) {
+            Proof::Absent => true,
+            // Exported only cut short, as a preview: no reconstruction can show it whole either.
+            Proof::Partial(_) => {
+                super::absence::truncated_at(fact.text(), haystack(recon)).is_some()
+            }
+            _ => false,
+        })
         .map(|fact| fact.id.clone())
         .collect();
     let mut out = truth.clone();
@@ -437,18 +444,23 @@ pub(super) fn sent_to(truth: &Truth, recon: &Recon) -> BTreeMap<String, BTreeSet
         .map(|fact| fact.id.as_str())
         .collect();
     for (call, request) in &recorded.calls {
-        let parts = request
+        // The instruction is re-sent with every request and is owed wherever it was sent. A message is
+        // owed where it was first told: one a later request hands back is history, which the views show
+        // once, exactly as they show a conversation's own turns.
+        let system = request
             .system
             .iter()
-            .chain(request.messages.iter().flat_map(|m| m.parts.iter()));
-        for occurrence in parts {
-            for named in [&occurrence.new_fact, &occurrence.replay_of]
-                .into_iter()
-                .flatten()
-                .filter(|named| scoped.contains(named.as_str()))
-            {
-                out.entry(named.clone()).or_default().insert(call.clone());
-            }
+            .flat_map(|o| [&o.new_fact, &o.replay_of].into_iter().flatten());
+        let messages = request
+            .messages
+            .iter()
+            .flat_map(|m| m.parts.iter())
+            .filter_map(|o| o.new_fact.as_ref());
+        for named in system
+            .chain(messages)
+            .filter(|named| scoped.contains(named.as_str()))
+        {
+            out.entry(named.clone()).or_default().insert(call.clone());
         }
     }
     out
@@ -578,6 +590,15 @@ pub(super) fn check_requests(
                     // limitation of its telemetry, which `absence::request_limitations` documents per
                     // framework - never a violation, exactly as a declared and proven gap is not one.
                     Proof::Absent if !shown_elsewhere => continue,
+                    // Exported only as a truncated preview: a limitation of the telemetry too, documented
+                    // beside the absent parts.
+                    Proof::Partial(_)
+                        if !shown_elsewhere
+                            && super::absence::truncated_at(sent_fact.text(), haystack(recon))
+                                .is_some() =>
+                    {
+                        continue;
+                    }
                     Proof::Absent => (
                         "request.missing",
                         format!(
