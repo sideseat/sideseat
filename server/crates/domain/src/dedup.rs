@@ -228,6 +228,28 @@ impl SearchIndex for DedupAnalyticsRepository {
     ) -> Result<bool, DataError> {
         self.inner.search_arrivals_detected(query, through).await
     }
+
+    async fn search_backfill_page(
+        &self,
+        project_id: &ProjectId,
+        signal: sideseat_ports::types::SearchSignal,
+        limit: usize,
+    ) -> Result<Vec<sideseat_ports::types::SearchBackfillSource>, DataError> {
+        self.inner
+            .search_backfill_page(project_id, signal, limit)
+            .await
+    }
+
+    async fn write_search_backfill(
+        &self,
+        project_id: &ProjectId,
+        signal: sideseat_ports::types::SearchSignal,
+        documents: &[sideseat_ports::types::SearchBackfillDocument],
+    ) -> Result<(), DataError> {
+        self.inner
+            .write_search_backfill(project_id, signal, documents)
+            .await
+    }
 }
 
 #[async_trait]
@@ -450,6 +472,18 @@ impl AnalyticsMaintenance for DedupAnalyticsRepository {
         now: chrono::DateTime<chrono::Utc>,
     ) -> Result<u64, DataError> {
         self.inner.project_held_logical_bytes(project_id, now).await
+    }
+
+    async fn oldest_reclaimable_spans(
+        &self,
+        project_id: &ProjectId,
+        target_bytes: u64,
+        now: chrono::DateTime<chrono::Utc>,
+        limit: usize,
+    ) -> Result<Vec<sideseat_ports::types::PressureSpanCandidate>, DataError> {
+        self.inner
+            .oldest_reclaimable_spans(project_id, target_bytes, now, limit)
+            .await
     }
 }
 

@@ -228,12 +228,7 @@ pub trait SearchIndex: Send + Sync {
         project_id: &ProjectId,
         signal: SearchSignal,
         limit: usize,
-    ) -> Result<Vec<SearchBackfillSource>, DataError> {
-        let _ = (project_id, signal, limit);
-        Err(DataError::NotImplemented(
-            "search backfill source page".to_string(),
-        ))
-    }
+    ) -> Result<Vec<SearchBackfillSource>, DataError>;
 
     /// Persist domain-produced term documents and their complete markers.
     async fn write_search_backfill(
@@ -241,12 +236,7 @@ pub trait SearchIndex: Send + Sync {
         project_id: &ProjectId,
         signal: SearchSignal,
         documents: &[SearchBackfillDocument],
-    ) -> Result<(), DataError> {
-        let _ = (project_id, signal, documents);
-        Err(DataError::NotImplemented(
-            "search backfill document write".to_string(),
-        ))
-    }
+    ) -> Result<(), DataError>;
 }
 
 /// Traces, sessions and project statistics: the aggregate views a list page shows.
@@ -462,32 +452,17 @@ pub trait AnalyticsMaintenance: Send + Sync {
         &self,
         project_id: &ProjectId,
         hold_until: DateTime<Utc>,
-    ) -> Result<(), DataError> {
-        let _ = (project_id, hold_until);
-        Err(DataError::NotImplemented(
-            "analytics legal-hold patch".to_string(),
-        ))
-    }
+    ) -> Result<(), DataError>;
 
     /// Logical bytes currently attributable to a project across analytics signals.
-    async fn project_logical_bytes(&self, project_id: &ProjectId) -> Result<u64, DataError> {
-        let _ = project_id;
-        Err(DataError::NotImplemented(
-            "analytics logical-byte accounting".to_string(),
-        ))
-    }
+    async fn project_logical_bytes(&self, project_id: &ProjectId) -> Result<u64, DataError>;
 
     /// Logical bytes protected by an active hold at `now`.
     async fn project_held_logical_bytes(
         &self,
         project_id: &ProjectId,
         now: DateTime<Utc>,
-    ) -> Result<u64, DataError> {
-        let _ = (project_id, now);
-        Err(DataError::NotImplemented(
-            "analytics held-byte accounting".to_string(),
-        ))
-    }
+    ) -> Result<u64, DataError>;
 
     /// Select a bounded oldest-first batch of winning, non-held spans whose bytes cross `target_bytes`.
     async fn oldest_reclaimable_spans(
@@ -496,12 +471,7 @@ pub trait AnalyticsMaintenance: Send + Sync {
         target_bytes: u64,
         now: DateTime<Utc>,
         limit: usize,
-    ) -> Result<Vec<PressureSpanCandidate>, DataError> {
-        let _ = (project_id, target_bytes, now, limit);
-        Err(DataError::NotImplemented(
-            "pressure-reclamation candidate selection".to_string(),
-        ))
-    }
+    ) -> Result<Vec<PressureSpanCandidate>, DataError>;
 }
 
 /// Stored raw exports, keyed per project by `raw_id`, each with its versions.
