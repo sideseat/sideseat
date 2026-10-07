@@ -343,12 +343,25 @@ fn a_presence_coalesce_falls_back_to_the_element_only_where_declared() {
     );
 }
 
+/// A probe corpus with the shipped role vocabulary beside it: which spellings mean a role is declared, so a probe
+/// stating an alias needs the declaration a real corpus carries.
+fn with_role_vocabulary(
+    mut probe: std::collections::BTreeMap<String, Vec<u8>>,
+) -> std::collections::BTreeMap<String, Vec<u8>> {
+    let (path, bytes) = crate::rules::schema::embedded_sources()
+        .into_iter()
+        .find(|(path, _)| path.ends_with("role-authority.json"))
+        .expect("the role vocabulary ships");
+    probe.insert(path, bytes);
+    probe
+}
+
 /// A role a rule **states** must be a role.
 ///
 /// `role_map: {"model": "assisstant"}` compiled, and the typo became **User** - because an unrecognised role
 /// folds to User rather than being refused. So a rule could say "assistant" and mean "user", with nothing
-/// anywhere saying otherwise. Compared against `ChatRole::try_from_str`, which is the same question every reader
-/// asks, rather than a second list that would drift from it.
+/// anywhere saying otherwise. Compared against the canonical spellings and the corpus's declared meanings, which is
+/// the question `ChatRole::try_from_str` asks every reader, rather than a second list that would drift from it.
 ///
 /// The corpus had three: `openinference`'s retrieval and reranker rules said `role: "documents"`, which is not a
 /// role - it folded to User through the unknown-role *default* rather than through any declaration. They say
@@ -364,10 +377,10 @@ fn a_role_a_rule_states_must_be_a_role() {
                  "emit":"message","legacy_rank":1,"wrap":{wrap}}}]}}"#
         );
         compile(
-            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            &ParsedAssets::parse(&with_role_vocabulary(std::collections::BTreeMap::from([(
                 "t.json".to_string(),
                 body.into_bytes(),
-            )]))
+            )])))
             .expect("the probe assets parse"),
         )
     };

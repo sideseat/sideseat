@@ -106,6 +106,9 @@ pub struct RuleFile {
     /// What each spelling of a finish reason means, in this engine's finish categories.
     #[serde(default)]
     pub finish_reasons: Vec<FinishReasonSpellings>,
+    /// The shape of a call id a producer builds itself when the provider gave none, and which names the tool.
+    #[serde(default)]
+    pub synthetic_call_ids: Vec<SyntheticCallId>,
     /// Member names a producer uses, and what each one's presence means.
     ///
     /// Three questions about one vocabulary, which is why they are one section: which member holds a message's
@@ -257,6 +260,7 @@ impl RuleFile {
                 content_blocks: _,
                 provider_aliases: _,
                 finish_reasons: _,
+                synthetic_call_ids: _,
                 message_members: _,
                 span_categories: _,
                 observation_types: _,
@@ -360,6 +364,13 @@ impl RuleFile {
         out.push((
             "finish_reasons".to_string(),
             self.finish_reasons
+                .iter()
+                .map(|entry| entry.id.clone())
+                .collect(),
+        ));
+        out.push((
+            "synthetic_call_ids".to_string(),
+            self.synthetic_call_ids
                 .iter()
                 .map(|entry| entry.id.clone())
                 .collect(),

@@ -250,6 +250,8 @@ pub struct Ruleset {
     pub provider_aliases: std::collections::BTreeMap<String, String>,
     /// What each declared spelling of a finish reason means.
     pub finish_reasons: finish_reasons::FinishReasonPlan,
+    /// The separators of the synthetic call ids producers build as `{name}<separator>{index}`.
+    pub synthetic_call_ids: Vec<String>,
     /// BLAKE3 of the asset bytes that produced this plan, hex-encoded.
     ///
     /// Joins the reconstruction cache key. That cache is a memo over a pure function of the rows, and
@@ -316,6 +318,7 @@ impl Ruleset {
             S::FinishReasons,
             finish_reasons::FinishReasonPlan::compile(files),
         );
+        let synthetic_call_ids = found.take(S::SyntheticCallIds, compile_synthetic_call_ids(files));
         // Every section is `Some` exactly when it compiled, and each `None` recorded its defect - so a full
         // match is a ruleset and anything else is the collected report.
         match (
@@ -335,6 +338,7 @@ impl Ruleset {
             message_members,
             provider_aliases,
             finish_reasons,
+            synthetic_call_ids,
         ) {
             (
                 Some(carriers),
@@ -353,6 +357,7 @@ impl Ruleset {
                 Some(message_members),
                 Some(provider_aliases),
                 Some(finish_reasons),
+                Some(synthetic_call_ids),
             ) => Ok(Ruleset {
                 carriers,
                 detect,
@@ -370,6 +375,7 @@ impl Ruleset {
                 message_members,
                 provider_aliases,
                 finish_reasons,
+                synthetic_call_ids,
                 tagged_source_names,
                 digest: assets.digest().to_owned(),
             }),
@@ -447,6 +453,8 @@ pub struct DeclaredEventRole {
     /// answered for. **Declared**, not synthesized from the asset and the event name: a synthesized id is
     /// not an identity a declaration can be held to.
     pub rule_id: String,
+    /// Which side of a generation the source's messages are on, where declared.
+    pub direction: Option<schema::MessageDirection>,
     /// Every declaration that agrees about the roles, so an agreeing repeat keeps its provenance.
     pub witnesses: expr::EvidenceSet,
     /// Why, for the explain trace.
@@ -534,10 +542,16 @@ pub(super) fn compile_event_roles(
     const ROLES: &[&str] = &["system", "user", "assistant", "tool"];
     // The names that can actually occur: an event a producer emits, or one a rule assigns with `tag_as`. A
     // declaration for anything else can never answer, and a rule that can never answer reads as protection.
+    // A carrier event a `raw: replace` event's readings are named after occurs too.
     let occurring: std::collections::BTreeSet<&str> = files
         .iter()
         .flat_map(|file| file.message_events.iter().map(|event| event.name.as_str()))
         .chain(tagged.iter().map(String::as_str))
+        .chain(files.iter().flat_map(|file| {
+            file.carriers
+                .iter()
+                .filter_map(|carrier| carrier.match_spec.event.as_deref())
+        }))
         .collect();
     let mut out: std::collections::BTreeMap<String, DeclaredEventRole> =
         std::collections::BTreeMap::new();
@@ -566,8 +580,9 @@ pub(super) fn compile_event_roles(
                     ));
                 }
             }
-            let resolve =
-                |named: &Option<String>| named.as_deref().and_then(ChatRole::try_from_str);
+            // Canonical spellings only, which the check above has just required - and the ruleset this builds
+            // is not there to ask for an alias.
+            let resolve = |named: &Option<String>| named.as_deref().and_then(ChatRole::canonical);
             // One spelling per statement. A `role_in_tool_span` equal to `role` says what absence
             // already says, and it was legal: one shipped declaration spelled it while seven omitted it for the
             // same fact.
@@ -580,6 +595,7 @@ pub(super) fn compile_event_roles(
             let declared = DeclaredEventRole {
                 role: resolve(&event.role),
                 in_tool_span: resolve(&event.role_in_tool_span),
+                direction: event.direction,
                 asset: file.id.clone(),
                 rule_id: event.id.clone(),
                 witnesses: expr::EvidenceSet::one(expr::ClausePath::root(event.id.clone())),
@@ -587,10 +603,13 @@ pub(super) fn compile_event_roles(
             };
             // A name that says nothing about the role is not a declaration, and accepting it would let an
             // empty entry silently replace a real one.
-            if declared.role.is_none() && declared.in_tool_span.is_none() {
+            if declared.role.is_none()
+                && declared.in_tool_span.is_none()
+                && declared.direction.is_none()
+            {
                 return Err(format!(
-                    "event role `{}` in `{}` names no role at all, so it states nothing - leave the entry \
-                     out to leave the role to the content",
+                    "event role `{}` in `{}` names no role and no direction, so it states nothing - leave the \
+                     entry out to leave the role to the content",
                     event.name, file.id
                 ));
             }
@@ -600,9 +619,13 @@ pub(super) fn compile_event_roles(
                 }
                 // A repeat that agrees about the *roles* is a dialect re-stating a convention, which is
                 // allowed - the provenance differs by definition and says nothing about the answer.
+                // A repeat that states no direction says nothing about it, so it agrees with one that does.
                 Some(existing)
                     if existing.role == declared.role
-                        && existing.in_tool_span == declared.in_tool_span =>
+                        && existing.in_tool_span == declared.in_tool_span
+                        && (existing.direction == declared.direction
+                            || existing.direction.is_none()
+                            || declared.direction.is_none()) =>
                 {
                     // Agreement keeps *both* witnesses. The previous form discarded the later one, so an
                     // asset that re-stated a convention had no provenance for a fact it declared.
@@ -610,20 +633,22 @@ pub(super) fn compile_event_roles(
                     paths.extend(declared.witnesses.paths().iter().cloned());
                     let merged = expr::EvidenceSet::of(paths)
                         .expect("a non-empty witness list stays non-empty");
-                    out.get_mut(&event.name)
-                        .expect("just looked it up")
-                        .witnesses = merged;
+                    let entry = out.get_mut(&event.name).expect("just looked it up");
+                    entry.witnesses = merged;
+                    entry.direction = entry.direction.or(declared.direction);
                 }
                 Some(existing) => {
                     return Err(format!(
-                        "source name `{}` is declared {:?}/{:?} in `{}` and {:?}/{:?} in `{}` - which \
-                         applies would depend on load order",
+                        "source name `{}` is declared {:?}/{:?}/{:?} in `{}` and {:?}/{:?}/{:?} in `{}` - \
+                         which applies would depend on load order",
                         event.name,
                         existing.role,
                         existing.in_tool_span,
+                        existing.direction,
                         existing.asset,
                         declared.role,
                         declared.in_tool_span,
+                        declared.direction,
                         declared.asset
                     ));
                 }
@@ -641,9 +666,22 @@ pub(super) fn compile_event_roles(
 pub struct RoleAuthorityPlan {
     survives_event_derivation: std::collections::BTreeSet<String>,
     outranks_a_tag: std::collections::BTreeSet<String>,
+    means: std::collections::BTreeMap<String, crate::sideml::ChatRole>,
 }
 
 impl RoleAuthorityPlan {
+    /// The canonical role a declared spelling means. Lower case in, as `ChatRole::try_from_str` folds it.
+    pub fn means(&self, spelling: &str) -> Option<crate::sideml::ChatRole> {
+        self.means.get(spelling).copied()
+    }
+
+    /// Every spelling given a meaning, with it.
+    pub fn meanings(&self) -> impl Iterator<Item = (&str, crate::sideml::ChatRole)> {
+        self.means
+            .iter()
+            .map(|(spelling, role)| (spelling.as_str(), *role))
+    }
+
     /// Whether a stated role of this spelling survives the role an event name would derive.
     pub fn survives_event_derivation(&self, stated: &str) -> bool {
         self.survives_event_derivation
@@ -665,9 +703,25 @@ impl RoleAuthorityPlan {
 
     pub fn rule_count(&self) -> usize {
         self.declared_spellings()
+            .chain(self.means.keys().map(String::as_str))
             .collect::<std::collections::BTreeSet<_>>()
             .len()
     }
+}
+
+/// Every declared spelling's canonical role, read straight from the declarations.
+///
+/// For the compilers that validate a stated role while the ruleset itself is still being built - asking
+/// `ChatRole::try_from_str` there would ask for the ruleset under construction. A defect in the declarations is
+/// reported by `compile_role_authority`, not here.
+pub(super) fn declared_role_meanings(
+    files: &[schema::RuleFile],
+) -> std::collections::BTreeMap<String, crate::sideml::ChatRole> {
+    files
+        .iter()
+        .flat_map(|file| &file.role_authority)
+        .filter_map(|entry| entry.means.map(|role| (entry.role.clone(), role)))
+        .collect()
 }
 
 /// The declared role authorities, gathered across every asset.
@@ -694,10 +748,18 @@ pub(super) fn compile_role_authority(
                     entry.id, file.id, entry.role
                 ));
             }
-            if !entry.survives_event_derivation && !entry.outranks_a_tag {
+            if !entry.survives_event_derivation && !entry.outranks_a_tag && entry.means.is_none() {
                 return Err(format!(
-                    "role authority `{}` in `{}` grants no authority at all, so it states nothing - leave the                      entry out",
+                    "role authority `{}` in `{}` grants no authority and gives no meaning, so it states nothing \
+                     - leave the entry out",
                     entry.id, file.id
+                ));
+            }
+            if entry.means.is_some() && crate::sideml::ChatRole::canonical(&entry.role).is_some() {
+                return Err(format!(
+                    "role authority `{}` in `{}` gives `{}` a meaning, and it is a canonical role, which means \
+                     itself - leave `means` out",
+                    entry.id, file.id, entry.role
                 ));
             }
             if let Some(first) = by_role.get(&entry.role) {
@@ -713,18 +775,43 @@ pub(super) fn compile_role_authority(
             if entry.outranks_a_tag {
                 plan.outranks_a_tag.insert(entry.role.clone());
             }
-        }
-    }
-    // A spelling the alias table folds and nothing declares would silently lose the authority it used to inherit
-    // from being foldable. Forcing the decision is the whole point of separating the two facts.
-    for spelling in crate::sideml::ChatRole::declared_alias_spellings() {
-        if !by_role.contains_key(*spelling) {
-            return Err(format!(
-                "`{spelling}` is a role spelling the alias table folds and no `role_authority` entry declares -                  so whether a payload stating it outranks a tagged name would depend on the folding table, which                  is a statement about spelling rather than about authority"
-            ));
+            if let Some(role) = entry.means {
+                plan.means.insert(entry.role.clone(), role);
+            }
         }
     }
     Ok(plan)
+}
+
+/// The separators of the declared synthetic call ids, refusing a template outside the closed form.
+pub(super) fn compile_synthetic_call_ids(
+    files: &[schema::RuleFile],
+) -> Result<Vec<String>, String> {
+    let mut out: Vec<String> = Vec::new();
+    for file in files {
+        for entry in &file.synthetic_call_ids {
+            let separator = entry
+                .template
+                .strip_prefix("{name}")
+                .and_then(|rest| rest.strip_suffix("{index}"))
+                .filter(|separator| !separator.is_empty() && !separator.contains(['{', '}']))
+                .ok_or_else(|| {
+                    format!(
+                        "synthetic call id `{}` in `{}` declares `{}`, which is not `{{name}}<separator>{{index}}` \
+                         with a non-empty separator",
+                        entry.id, file.id, entry.template
+                    )
+                })?;
+            if out.iter().any(|seen| seen == separator) {
+                return Err(format!(
+                    "synthetic call id `{}` in `{}` restates a separator another declaration states",
+                    entry.id, file.id
+                ));
+            }
+            out.push(separator.to_string());
+        }
+    }
+    Ok(out)
 }
 
 /// The declared `gen_ai.system` → provider aliases.

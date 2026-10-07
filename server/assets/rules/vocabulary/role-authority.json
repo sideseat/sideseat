@@ -1,13 +1,14 @@
 {
   "$schema": "../../rules.schema.json",
   "id": "role-authority",
-  "doc": "Which role spellings, when a payload states one, outrank the name the reading was found under. This engine's own vocabulary rather than any producer's, which is why it declares no `detect` rule.\n\nTwo questions, and they were fused. **Does a stated role survive event-name derivation** was a hardcoded Rust list; **does a stated role outrank a tagged attribute name** was that list *or whatever the role alias table happened to recognise*. The alias table exists to fold spellings onto four canonical roles, which is a different job from deciding authority - so adding an alias for folding silently granted it authority over a declared tag, and removing one silently took it away. Neither change would have named the authority it moved.\n\nDeclared here, both are their own fact. Every spelling the alias table folds must appear in this section, so adding an alias forces an authority decision rather than inheriting one; what that decision *is* stays free.\n\nThe reason authority exists at all: on a tagged attribute reading, a role the pipeline can read is more specific than the name the reading was tagged with, while an unrecognised string is not - it normalises to `user` further down, so treating it as authoritative turned a tool's answer into the user's question on the strength of a value nothing understands.",
+  "doc": "Which role spellings, when a payload states one, outrank the name the reading was found under. This engine's own vocabulary rather than any producer's, which is why it declares no `detect` rule.\n\nTwo questions, and they were fused. **Does a stated role survive event-name derivation** was a hardcoded Rust list; **does a stated role outrank a tagged attribute name** was that list *or whatever the role alias table happened to recognise*. The alias table exists to fold spellings onto four canonical roles, which is a different job from deciding authority - so adding an alias for folding silently granted it authority over a declared tag, and removing one silently took it away. Neither change would have named the authority it moved.\n\nDeclared here, both are their own fact, and so is the third: `means`, the canonical role a spelling folds onto. All three sit on one entry so that adding an alias puts its authority decision in front of whoever adds it, rather than letting it inherit one; what those decisions *are* stays free.\n\nThe reason authority exists at all: on a tagged attribute reading, a role the pipeline can read is more specific than the name the reading was tagged with, while an unrecognised string is not - it normalises to `user` further down, so treating it as authoritative turned a tool's answer into the user's question on the strength of a value nothing understands.",
   "role_authority": [
     {
       "id": "role-authority.tool_call",
       "role": "tool_call",
       "survives_event_derivation": true,
       "outranks_a_tag": true,
+      "means": "assistant",
       "doc": "A tool invocation: the arguments passed to a tool. Extraction knows this from the span's context and no event name states it, so deriving a role from the name would overwrite the more specific fact."
     },
     {
@@ -22,6 +23,7 @@
       "role": "data",
       "survives_event_derivation": true,
       "outranks_a_tag": true,
+      "means": "user",
       "doc": "Conversation history a framework hands back as data."
     },
     {
@@ -29,6 +31,7 @@
       "role": "context",
       "survives_event_derivation": true,
       "outranks_a_tag": true,
+      "means": "user",
       "doc": "Chat context, and retrieved material."
     },
     {
@@ -46,7 +49,8 @@
     {
       "id": "role-authority.developer",
       "role": "developer",
-      "outranks_a_tag": true
+      "outranks_a_tag": true,
+      "means": "system"
     },
     {
       "id": "role-authority.user",
@@ -56,7 +60,8 @@
     {
       "id": "role-authority.human",
       "role": "human",
-      "outranks_a_tag": true
+      "outranks_a_tag": true,
+      "means": "user"
     },
     {
       "id": "role-authority.assistant",
@@ -66,22 +71,26 @@
     {
       "id": "role-authority.ai",
       "role": "ai",
-      "outranks_a_tag": true
+      "outranks_a_tag": true,
+      "means": "assistant"
     },
     {
       "id": "role-authority.bot",
       "role": "bot",
-      "outranks_a_tag": true
+      "outranks_a_tag": true,
+      "means": "assistant"
     },
     {
       "id": "role-authority.model",
       "role": "model",
-      "outranks_a_tag": true
+      "outranks_a_tag": true,
+      "means": "assistant"
     },
     {
       "id": "role-authority.choice",
       "role": "choice",
-      "outranks_a_tag": true
+      "outranks_a_tag": true,
+      "means": "assistant"
     },
     {
       "id": "role-authority.tool",
@@ -92,12 +101,14 @@
     {
       "id": "role-authority.function",
       "role": "function",
-      "outranks_a_tag": true
+      "outranks_a_tag": true,
+      "means": "tool"
     },
     {
       "id": "role-authority.ipython",
       "role": "ipython",
-      "outranks_a_tag": true
+      "outranks_a_tag": true,
+      "means": "tool"
     }
   ]
 }

@@ -151,7 +151,6 @@ pub(super) mod keys {
     pub const GEN_AI_AGENT_NAME: &str = "gen_ai.agent.name";
     pub const GEN_AI_TOOL_NAME: &str = "gen_ai.tool.name";
     pub const GEN_AI_TOOL_CALL_ID: &str = "gen_ai.tool.call.id";
-    pub const GEN_AI_TOOL_STATUS: &str = "gen_ai.tool.status";
     pub const ERROR_TYPE: &str = "error.type";
 
     // GenAI Performance
@@ -515,21 +514,21 @@ pub fn extract_attributes_batch(request: &ExportTraceServiceRequest) -> Vec<Span
                 span.span_category =
                     Some(attributes::categorize_span(&otlp_span.name, &span_attrs));
 
-                // Enhance status from gen_ai.tool.status if OTEL status is not ERROR
-                if span.status_code.as_deref() != Some("ERROR") {
-                    if let Some(tool_status) = span_attrs.get(keys::GEN_AI_TOOL_STATUS) {
-                        if tool_status.eq_ignore_ascii_case("error")
-                            || tool_status.eq_ignore_ascii_case("failed")
-                        {
-                            span.status_code = Some("ERROR".to_string());
-                            let msg = "Tool execution failed".to_string();
-                            if span.status_message.is_none() {
-                                span.status_message = Some(msg.clone());
-                            }
-                            if span.exception_message.is_none() {
-                                span.exception_message = Some(msg);
-                            }
-                        }
+                // A tool the producer says failed makes the span an error, where the span's own status did not
+                // already say so. Which statement says it is declared (`span_facts`, `tool_failed`).
+                if span.status_code.as_deref() != Some("ERROR")
+                    && sideseat_domain::rules::ruleset().span_facts.holds(
+                        sideseat_domain::rules::schema::SpanFact::ToolFailed,
+                        &span_attrs,
+                    )
+                {
+                    span.status_code = Some("ERROR".to_string());
+                    let msg = "Tool execution failed".to_string();
+                    if span.status_message.is_none() {
+                        span.status_message = Some(msg.clone());
+                    }
+                    if span.exception_message.is_none() {
+                        span.exception_message = Some(msg);
                     }
                 }
 

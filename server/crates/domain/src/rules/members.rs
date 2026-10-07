@@ -25,13 +25,17 @@ pub enum MemberCompileError {
     #[error("member rule `{rule}` in `{file}` says nothing about its member")]
     SaysNothing { file: String, rule: String },
     #[error(
-        "member rule `{rule}` in `{file}` holds content and states no rank, so its position among the others is undeclared"
+        "member rule `{rule}` in `{file}` answers an ordered question and states no rank, so its position among the others is undeclared"
     )]
     ContentWithoutARank { file: String, rule: String },
     #[error(
-        "member rule `{rule}` in `{file}` states a rank without holding content, which orders nothing"
+        "member rule `{rule}` in `{file}` states a rank without answering an ordered question, which orders nothing"
     )]
     RankWithoutContent { file: String, rule: String },
+    #[error(
+        "member rule `{rule}` in `{file}` answers two ordered questions with one rank, so its position in one of them is a coincidence"
+    )]
+    TwoOrderedQuestions { file: String, rule: String },
     #[error(
         "member rules `{first}` and `{second}` share content rank {rank}, so which holds a value's content depends on load order"
     )]
@@ -54,6 +58,28 @@ pub struct MemberPlan {
     content_in_order: Vec<String>,
     message_shaped: BTreeSet<String>,
     content_block: BTreeSet<String>,
+    tool_call: BTreeSet<String>,
+    tool_result: BTreeSet<String>,
+    tool_calls: BTreeSet<String>,
+    /// The ordered questions below each pick one member, so each is in rank order - never in the order the
+    /// assets happen to load.
+    bundled_tool_result: Vec<String>,
+    result_call_id_in_order: Vec<String>,
+    streamed_reply: Vec<String>,
+    detached_system: Vec<String>,
+    structured_value_wrapper: Vec<String>,
+    control_block: BTreeSet<String>,
+}
+
+/// The ordered questions a member rule may answer, each with its own ranking.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Ordered {
+    Content,
+    ResultCallId,
+    BundledToolResult,
+    StreamedReply,
+    DetachedSystem,
+    StructuredValueWrapper,
 }
 
 impl MemberPlan {
@@ -82,14 +108,71 @@ impl MemberPlan {
         self.content_block.iter().map(String::as_str)
     }
 
+    /// Whether any member of this block means it is a tool call.
+    pub fn any_means_tool_call<'a>(&self, members: impl Iterator<Item = &'a String>) -> bool {
+        members.into_iter().any(|m| self.tool_call.contains(m))
+    }
+
+    /// Whether any member of this block means it is a tool result.
+    pub fn any_means_tool_result<'a>(&self, members: impl Iterator<Item = &'a String>) -> bool {
+        members.into_iter().any(|m| self.tool_result.contains(m))
+    }
+
+    /// Whether any member of this message holds its tool calls.
+    pub fn any_holds_tool_calls<'a>(&self, members: impl Iterator<Item = &'a String>) -> bool {
+        members.into_iter().any(|m| self.tool_calls.contains(m))
+    }
+
+    /// The members holding one result of a bundle, in the order they are preferred.
+    pub fn bundled_tool_result(&self) -> impl Iterator<Item = &str> {
+        self.bundled_tool_result.iter().map(String::as_str)
+    }
+
+    /// The members holding a bundled result's call id, in the order they are preferred.
+    pub fn result_call_id_in_order(&self) -> impl Iterator<Item = &str> {
+        self.result_call_id_in_order.iter().map(String::as_str)
+    }
+
+    /// The members holding a streamed response's combined text, in the order they are preferred.
+    pub fn streamed_reply(&self) -> impl Iterator<Item = &str> {
+        self.streamed_reply.iter().map(String::as_str)
+    }
+
+    /// Whether a structured-data block holding exactly this member is a provider control instruction.
+    pub fn marks_control_block(&self, member: &str) -> bool {
+        self.control_block.contains(member)
+    }
+
+    /// The members whose object is a wrapper around the value under them, in the order they are preferred.
+    pub fn structured_value_wrapper(&self) -> impl Iterator<Item = &str> {
+        self.structured_value_wrapper.iter().map(String::as_str)
+    }
+
+    /// The members holding a system prompt beside a message array, in the order they are preferred.
+    pub fn detached_system(&self) -> impl Iterator<Item = &str> {
+        self.detached_system.iter().map(String::as_str)
+    }
+
     pub fn rule_count(&self) -> usize {
-        self.message_shaped.len() + self.content_block.len() + self.content_in_order.len()
+        self.message_shaped.len()
+            + self.content_block.len()
+            + self.content_in_order.len()
+            + self.tool_call.len()
+            + self.tool_result.len()
+            + self.tool_calls.len()
+            + self.bundled_tool_result.len()
+            + self.result_call_id_in_order.len()
+            + self.streamed_reply.len()
+            + self.detached_system.len()
+            + self.structured_value_wrapper.len()
+            + self.control_block.len()
     }
 }
 
 pub fn compile(assets: &super::assets::ParsedAssets) -> Result<MemberPlan, MemberCompileError> {
     let mut plan = MemberPlan::default();
-    let mut ranked: Vec<(i32, usize, String, String)> = Vec::new();
+    let mut ranked: std::collections::BTreeMap<Ordered, Vec<(i32, usize, String, String)>> =
+        Default::default();
     // One declaration per member name, across every asset: two would make "what does this member mean" a
     // question with two answers, resolved by load order.
     let mut by_member: std::collections::HashMap<String, String> = std::collections::HashMap::new();
@@ -109,19 +192,49 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<MemberPlan, Membe
                     rule: rule.id.clone(),
                 });
             }
-            if !rule.holds_content && !rule.means_message_shaped && !rule.means_content_block {
+            let says_something = rule.holds_content
+                || rule.means_message_shaped
+                || rule.means_content_block
+                || rule.means_tool_call
+                || rule.means_tool_result
+                || rule.holds_tool_calls
+                || rule.holds_bundled_tool_result
+                || rule.holds_result_call_id
+                || rule.holds_streamed_reply
+                || rule.holds_detached_system
+                || rule.marks_control_block
+                || rule.wraps_structured_value;
+            if !says_something {
                 return Err(MemberCompileError::SaysNothing {
                     file: file_id.clone(),
                     rule: rule.id.clone(),
                 });
             }
-            if rule.holds_content && rule.rank.is_none() {
+            let questions: Vec<Ordered> = [
+                (rule.holds_content, Ordered::Content),
+                (rule.holds_result_call_id, Ordered::ResultCallId),
+                (rule.holds_bundled_tool_result, Ordered::BundledToolResult),
+                (rule.holds_streamed_reply, Ordered::StreamedReply),
+                (rule.holds_detached_system, Ordered::DetachedSystem),
+                (rule.wraps_structured_value, Ordered::StructuredValueWrapper),
+            ]
+            .into_iter()
+            .filter_map(|(answers, question)| answers.then_some(question))
+            .collect();
+            if questions.len() > 1 {
+                return Err(MemberCompileError::TwoOrderedQuestions {
+                    file: file_id.clone(),
+                    rule: rule.id.clone(),
+                });
+            }
+            let ordered = !questions.is_empty();
+            if ordered && rule.rank.is_none() {
                 return Err(MemberCompileError::ContentWithoutARank {
                     file: file_id.clone(),
                     rule: rule.id.clone(),
                 });
             }
-            if !rule.holds_content && rule.rank.is_some() {
+            if !ordered && rule.rank.is_some() {
                 return Err(MemberCompileError::RankWithoutContent {
                     file: file_id.clone(),
                     rule: rule.id.clone(),
@@ -152,29 +265,53 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<MemberPlan, Membe
                 if rule.means_content_block {
                     plan.content_block.insert(member.clone());
                 }
+                if rule.means_tool_call {
+                    plan.tool_call.insert(member.clone());
+                }
+                if rule.means_tool_result {
+                    plan.tool_result.insert(member.clone());
+                }
+                if rule.holds_tool_calls {
+                    plan.tool_calls.insert(member.clone());
+                }
+                if rule.marks_control_block {
+                    plan.control_block.insert(member.clone());
+                }
             }
             // One rank per declaration, so a family's spellings sit together in declaration order - deterministic
             // where two aliases somehow appear on one value, which is pathological but must still have an answer.
-            if let Some(rank) = rule.rank {
+            if let (Some(rank), Some(question)) = (rule.rank, questions.first()) {
+                let into = ranked.entry(*question).or_default();
                 for (offset, member) in rule.members.iter().enumerate() {
-                    ranked.push((rank, offset, member.clone(), rule.id.clone()));
+                    into.push((rank, offset, member.clone(), rule.id.clone()));
                 }
             }
         }
     }
 
-    ranked.sort_by_key(|(rank, offset, _, _)| (*rank, *offset));
-    for pair in ranked.windows(2) {
-        // Two *declarations* sharing a rank is the refusal; a family's own spellings share one by construction.
-        if pair[0].0 == pair[1].0 && pair[0].3 != pair[1].3 {
-            return Err(MemberCompileError::SharedRank {
-                first: pair[0].3.clone(),
-                second: pair[1].3.clone(),
-                rank: pair[0].0,
-            });
+    for (question, mut list) in ranked {
+        list.sort_by_key(|(rank, offset, _, _)| (*rank, *offset));
+        for pair in list.windows(2) {
+            // Two *declarations* sharing a rank is the refusal; a family's own spellings share one by
+            // construction.
+            if pair[0].0 == pair[1].0 && pair[0].3 != pair[1].3 {
+                return Err(MemberCompileError::SharedRank {
+                    first: pair[0].3.clone(),
+                    second: pair[1].3.clone(),
+                    rank: pair[0].0,
+                });
+            }
+        }
+        let members = list.into_iter().map(|(_, _, member, _)| member).collect();
+        match question {
+            Ordered::Content => plan.content_in_order = members,
+            Ordered::ResultCallId => plan.result_call_id_in_order = members,
+            Ordered::BundledToolResult => plan.bundled_tool_result = members,
+            Ordered::StreamedReply => plan.streamed_reply = members,
+            Ordered::DetachedSystem => plan.detached_system = members,
+            Ordered::StructuredValueWrapper => plan.structured_value_wrapper = members,
         }
     }
-    plan.content_in_order = ranked.into_iter().map(|(_, _, member, _)| member).collect();
     Ok(plan)
 }
 
@@ -198,6 +335,26 @@ mod tests {
     /// This is what the merged section could not express: as separate declarations the aliases drifted, and the
     /// compiler had no way to see it because two names carrying different flags is exactly what a vocabulary of
     /// distinct members looks like.
+    /// One rank cannot order two questions: its position in one of them would be a coincidence.
+    #[test]
+    fn a_member_answering_two_ordered_questions_is_refused() {
+        let refused = compile_rules(
+            r#"{"id":"p.both","members":["x"],"rank":1,"holds_content":true,"means_message_shaped":true,"holds_result_call_id":true}"#,
+        );
+        assert!(
+            matches!(refused, Err(MemberCompileError::TwoOrderedQuestions { .. })),
+            "{refused:?}"
+        );
+        // Each question has its own ranking, so one rank in two of them is not a shared-rank collision.
+        assert!(
+            compile_rules(
+                r#"{"id":"p.a","members":["a"],"rank":1,"holds_content":true,"means_message_shaped":true},
+                   {"id":"p.b","members":["b"],"rank":1,"holds_result_call_id":true}"#,
+            )
+            .is_ok()
+        );
+    }
+
     #[test]
     fn a_spelling_family_shares_one_flag_vector() {
         let plan = compile_rules(

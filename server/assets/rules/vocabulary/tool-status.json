@@ -1,0 +1,32 @@
+{
+  "$schema": "../../rules.schema.json",
+  "id": "tool-status",
+  "doc": "A tool's outcome as producers state it beside the conventions' tool attributes. `gen_ai.tool.status` is no published convention, but several producers write it with the same meaning, so it is shared vocabulary rather than one framework's: a failed status makes the span an error even where the span's own status was left unset.",
+  "span_facts": [
+    {
+      "id": "tool-status.failed",
+      "doc": "The tool reported failure.",
+      "fact": "tool_failed",
+      "signals": [
+        {
+          "id": "error",
+          "doc": "The status most producers write.",
+          "attr_equals": {
+            "key": "gen_ai.tool.status",
+            "value": "error"
+          },
+          "ignore_case": true
+        },
+        {
+          "id": "failed",
+          "doc": "The past-tense spelling one producer writes for the same outcome.",
+          "attr_equals": {
+            "key": "gen_ai.tool.status",
+            "value": "failed"
+          },
+          "ignore_case": true
+        }
+      ]
+    }
+  ]
+}

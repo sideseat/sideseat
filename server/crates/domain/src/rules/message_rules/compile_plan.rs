@@ -11,6 +11,9 @@ pub fn compile(
     // makes a shared dialect table shared. Recognised events are collected in the same pass, for the same
     // reason - a rule may name an event another file recognises.
     let mut fragments: HashMap<String, Vec<Alternative>> = HashMap::new();
+    // The spellings a rule may state as a role, from the same corpus: the ruleset this builds is not there to
+    // ask.
+    let roles = super::super::declared_role_meanings(assets.files());
     let mut recognised_events: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut raw_forms: std::collections::BTreeMap<String, super::schema::RawEventForm> =
         std::collections::BTreeMap::new();
@@ -91,7 +94,7 @@ pub fn compile(
                              the others",
                 });
             }
-            rules.push(compile_rule(&file.id, rule, &fragments)?);
+            rules.push(compile_rule(&file.id, rule, &fragments, &roles)?);
         }
     }
 

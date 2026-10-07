@@ -140,8 +140,20 @@
       "members": [
         "toolResult"
       ],
+      "rank": 10,
       "means_message_shaped": true,
-      "means_content_block": true
+      "means_content_block": true,
+      "means_tool_result": true,
+      "holds_bundled_tool_result": true
+    },
+    {
+      "id": "members.tool_result",
+      "doc": "The snake_case spelling of a Converse tool result, as an item of a bundle. Not a content block in its own right: a block holding it that no case recognised is plain data.",
+      "members": [
+        "tool_result"
+      ],
+      "holds_bundled_tool_result": true,
+      "rank": 20
     },
     {
       "id": "members.toolUse",
@@ -149,7 +161,8 @@
         "toolUse"
       ],
       "means_message_shaped": true,
-      "means_content_block": true
+      "means_content_block": true,
+      "means_tool_call": true
     },
     {
       "id": "members.tool_calls",
@@ -157,7 +170,8 @@
         "tool_calls"
       ],
       "means_message_shaped": true,
-      "doc": "Calls attached to a turn, in either spelling."
+      "doc": "Calls attached to a turn, in either spelling.",
+      "holds_tool_calls": true
     },
     {
       "id": "members.type",
@@ -188,7 +202,8 @@
         "functionCall"
       ],
       "means_content_block": true,
-      "doc": "One provider's part naming a call, in both spellings. **One flag vector**, because a spelling is not a fact about meaning - and as two declarations these had drifted: the camelCase one said the value was message-shaped as well as a block, the snake_case one said block only. The evidenced spelling wins: a part is a block *inside* a turn's content, so calling it message-shaped means the enclosing object is not wrapped and normalises to a message with no blocks. Measured - giving the pair the message-shaped flag changes 92 of 33,139 corpus objects; the camelCase spelling appears in none of them, so following the evidenced one changes nothing."
+      "doc": "One provider's part naming a call, in both spellings. **One flag vector**, because a spelling is not a fact about meaning - and as two declarations these had drifted: the camelCase one said the value was message-shaped as well as a block, the snake_case one said block only. The evidenced spelling wins: a part is a block *inside* a turn's content, so calling it message-shaped means the enclosing object is not wrapped and normalises to a message with no blocks. Measured - giving the pair the message-shaped flag changes 92 of 33,139 corpus objects; the camelCase spelling appears in none of them, so following the evidenced one changes nothing.",
+      "means_tool_call": true
     },
     {
       "id": "members.function_response",
@@ -197,7 +212,8 @@
         "functionResponse"
       ],
       "means_content_block": true,
-      "doc": "One provider's part naming its result, in both spellings. **One flag vector**, because a spelling is not a fact about meaning - and as two declarations these had drifted: the camelCase one said the value was message-shaped as well as a block, the snake_case one said block only. The evidenced spelling wins: a part is a block *inside* a turn's content, so calling it message-shaped means the enclosing object is not wrapped and normalises to a message with no blocks. Measured - giving the pair the message-shaped flag changes 92 of 33,139 corpus objects; the camelCase spelling appears in none of them, so following the evidenced one changes nothing."
+      "doc": "One provider's part naming its result, in both spellings. **One flag vector**, because a spelling is not a fact about meaning - and as two declarations these had drifted: the camelCase one said the value was message-shaped as well as a block, the snake_case one said block only. The evidenced spelling wins: a part is a block *inside* a turn's content, so calling it message-shaped means the enclosing object is not wrapped and normalises to a message with no blocks. Measured - giving the pair the message-shaped flag changes 92 of 33,139 corpus objects; the camelCase spelling appears in none of them, so following the evidenced one changes nothing.",
+      "means_tool_result": true
     },
     {
       "id": "members.image",
@@ -247,6 +263,16 @@
         "video"
       ],
       "means_content_block": true
+    },
+    {
+      "id": "members.result_call_id",
+      "doc": "Inside a Converse tool result, the id of the call it answers: the member Converse writes, then its snake_case spelling.",
+      "members": [
+        "toolUseId",
+        "tool_use_id"
+      ],
+      "rank": 10,
+      "holds_result_call_id": true
     }
   ]
 }

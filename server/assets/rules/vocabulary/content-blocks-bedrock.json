@@ -254,5 +254,24 @@
         "doc": "The content is a list of blocks, reduced to the value it holds - the canonical form a tool-role message's content takes - so one result reads alike whether a producer wrote it as a block or as a tool message."
       }
     }
+  ],
+  "message_members": [
+    {
+      "id": "bedrock.cache_point",
+      "doc": "A prompt-cache marker written as content beside the prompt it marks. It instructs the provider and says nothing in the conversation.",
+      "members": [
+        "cachePoint"
+      ],
+      "marks_control_block": true
+    },
+    {
+      "id": "bedrock.json_wrapper",
+      "doc": "A tool result's structured value, wrapped as `{\"json\": value}`: the result is the value, however it was wrapped.",
+      "members": [
+        "json"
+      ],
+      "rank": 10,
+      "wraps_structured_value": true
+    }
   ]
 }

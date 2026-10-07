@@ -592,8 +592,13 @@ fn a_tagged_source_name_takes_its_declared_role() {
 #[test]
 fn the_declared_source_names_are_exactly_the_ones_that_can_occur() {
     let ruleset = crate::rules::ruleset();
-    let declared: std::collections::BTreeSet<&str> =
-        ruleset.event_roles.keys().map(String::as_str).collect();
+    // The names that declare a *role*; a name declaring only a direction says nothing this table did.
+    let declared: std::collections::BTreeSet<&str> = ruleset
+        .event_roles
+        .iter()
+        .filter(|(_, declared)| declared.role.is_some() || declared.in_tool_span.is_some())
+        .map(|(name, _)| name.as_str())
+        .collect();
 
     // Every name the retired table answered for must still be declared, or a role silently disappears.
     let retired = [
@@ -712,12 +717,13 @@ fn role_authority_is_two_declared_facts_and_not_a_by_product_of_folding() {
     assert!(!authority.outranks_a_tag("narrator"));
     assert!(!authority.survives_event_derivation("narrator"));
 
-    // Every spelling the folding table folds is declared. Without this, adding an alias silently makes it
-    // authoritative here or silently leaves it out - the fusion this separation exists to remove.
-    for spelling in ChatRole::declared_alias_spellings() {
+    // Every spelling given a meaning states its authority too. Nothing *requires* that - the meaning and the
+    // authority are separate facts on one entry - but each shipped alias was decided, and a new one declaring
+    // none would be a change worth seeing here.
+    for (spelling, _) in authority.meanings() {
         assert!(
-            authority.declared_spellings().any(|d| d == *spelling),
-            "`{spelling}` is folded by the alias table and declares no authority"
+            authority.declared_spellings().any(|d| d == spelling),
+            "`{spelling}` is given a meaning and declares no authority"
         );
     }
 }
@@ -734,17 +740,22 @@ fn role_authority_is_two_declared_facts_and_not_a_by_product_of_folding() {
 #[test]
 fn the_authority_decision_never_consults_the_folding_table() {
     let source = include_str!("../../rules/mod.rs");
-    let start = source
-        .find("impl RoleAuthorityPlan {")
-        .expect("the authority plan's impl block");
-    let body = &source[start..];
-    let end = body.find("\n}\n").expect("the impl block ends");
-    let body = &body[..end];
-    assert!(
-        !body.contains("try_from_str") && !body.contains("ChatRole"),
-        "the authority plan consults the role folding table, which decides spelling rather than authority - the \
-         fusion this separation removed"
-    );
+    // The two authority questions, each read from its own declarations - the meanings sit in the same plan, and
+    // neither question may consult them.
+    for question in [
+        "pub fn survives_event_derivation(",
+        "pub fn outranks_a_tag(",
+    ] {
+        let start = source.find(question).expect("the authority question");
+        let body = &source[start..];
+        let end = body.find("\n    }\n").expect("the method ends");
+        let body = &body[..end];
+        assert!(
+            !body.contains("try_from_str") && !body.contains("ChatRole") && !body.contains("means"),
+            "the authority plan consults the role meanings, which decide spelling rather than authority - the \
+             fusion this separation removed"
+        );
+    }
 
     // And the two call sites read the plan rather than deciding for themselves.
     let normalize = include_str!("../normalize.rs");

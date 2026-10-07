@@ -33,6 +33,22 @@ pub struct FinishReasonSpellings {
     pub spellings: Vec<String>,
 }
 
+/// A call id a producer synthesises when the provider supplied none, in a form that names the tool.
+///
+/// Correlation reads it to repair a result whose synthetic id dangles: the id's name part may identify the
+/// call it answers. The template is closed - `{name}`, a literal separator, `{index}` - and the name is
+/// everything before the **last** separator, so a tool name that contains the separator survives.
+#[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct SyntheticCallId {
+    pub id: String,
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// `{name}<separator>{index}`: a non-empty name, the separator, and a non-empty run of ASCII digits.
+    pub template: String,
+}
+
 /// One member name, and what its presence means.
 #[derive(Debug, Deserialize, Clone)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]
@@ -49,8 +65,9 @@ pub struct MessageMemberRule {
     /// enforce. Two spellings that genuinely mean different things stay separate declarations, where the
     /// difference is at least visible.
     pub members: Vec<String>,
-    /// Where this sits among the members that hold content. Required when `holds_content` is set, and refused
-    /// otherwise: a rank that orders nothing is a statement the engine does not read.
+    /// Where this sits among the members answering the one **ordered** question it answers - each `holds_*`
+    /// below picks one member, so each is ordered. Required for those, and refused otherwise: a rank that
+    /// orders nothing is a statement the engine does not read.
     #[serde(default)]
     pub rank: Option<i32>,
     /// This member holds a message's content, at the rank above.
@@ -63,6 +80,38 @@ pub struct MessageMemberRule {
     /// a *malformed* block rather than plain data, and is reported as unknown instead of as JSON.
     #[serde(default)]
     pub means_content_block: bool,
+    /// Its presence on a content block means the block is a tool **call** - the calling side of a tool message.
+    #[serde(default)]
+    pub means_tool_call: bool,
+    /// Its presence on a content block means the block is a tool **result**.
+    #[serde(default)]
+    pub means_tool_result: bool,
+    /// This member holds a message's tool calls, so a tool message carrying it is the calling side.
+    #[serde(default)]
+    pub holds_tool_calls: bool,
+    /// This member holds one result of a bundle: a tool message whose content lists several items holding it is
+    /// several results, split so each pairs with its own call.
+    #[serde(default)]
+    pub holds_bundled_tool_result: bool,
+    /// Inside a bundled result, this member holds the id of the call it answers.
+    #[serde(default)]
+    pub holds_result_call_id: bool,
+    /// On a message-array carrier, this member holds a streamed response's combined text instead of messages:
+    /// one assistant reply.
+    #[serde(default)]
+    pub holds_streamed_reply: bool,
+    /// Beside a message array, this member holds the system prompt - as text, or as blocks whose text is
+    /// joined - which the array itself does not carry.
+    #[serde(default)]
+    pub holds_detached_system: bool,
+    /// A structured-data block holding exactly this member, as an object, is a provider **control** instruction
+    /// - a cache marker - and not conversation content, so the feed omits it.
+    #[serde(default)]
+    pub marks_control_block: bool,
+    /// An object holding this member is a wrapper around the structured value under it: a tool result's
+    /// identity is the value's, not the wrapper's.
+    #[serde(default)]
+    pub wraps_structured_value: bool,
 }
 
 /// What authority a **stated role** carries, as two independent facts.
@@ -92,6 +141,13 @@ pub struct RoleAuthority {
     /// survive event derivation, since an event name is real evidence of it.
     #[serde(default)]
     pub outranks_a_tag: bool,
+    /// The canonical role this spelling means, for a spelling that is not itself one.
+    ///
+    /// A third fact beside the two authorities, and independent of them: what a role *is* and whether it
+    /// outranks a name are different questions. The four canonical spellings mean themselves and may not
+    /// restate it.
+    #[serde(default)]
+    pub means: Option<crate::sideml::ChatRole>,
 }
 
 /// One classification rule: the conditions a span must satisfy, and what it is then.

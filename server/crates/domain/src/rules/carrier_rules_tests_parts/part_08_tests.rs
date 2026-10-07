@@ -510,10 +510,10 @@ fn an_aggregate_wraps_the_assembled_array_once() {
     let asset = |rule: &str| {
         let body = format!(r#"{{"id":"t","messages":[{rule}]}}"#);
         compile(
-            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            &ParsedAssets::parse(&with_role_vocabulary(std::collections::BTreeMap::from([(
                 "t.json".to_string(),
                 body.into_bytes(),
-            )]))
+            )])))
             .expect("the probe assets parse"),
         )
     };

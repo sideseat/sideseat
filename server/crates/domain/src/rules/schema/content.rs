@@ -639,7 +639,23 @@ pub struct EventRole {
     /// declared rather than inferred.
     #[serde(default)]
     pub role_in_tool_span: Option<String>,
+    /// Which side of a generation the source's messages are on: what it was given, or what it produced.
+    ///
+    /// Independent of the role: an assistant message handed back to a model is input, and a tool's answer
+    /// read on its own span is output. The feed times an output by its span's end and protects it from
+    /// history marking; an input may be a copy of something said before.
+    #[serde(default)]
+    pub direction: Option<MessageDirection>,
     pub doc: Option<String>,
+}
+
+/// Which side of a generation a source's messages are on.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(rename_all = "snake_case")]
+pub enum MessageDirection {
+    Input,
+    Output,
 }
 
 #[cfg(test)]

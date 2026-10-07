@@ -561,16 +561,19 @@ pub(in crate::sideml::feed) fn flatten_to_blocks(
         // Flatten each content block into its own BlockEntry
         // is_history starts as false; will be set by mark_history()
         for (entry_index, block) in msg.message.content.iter().enumerate() {
-            // Strands emits Bedrock prompt-cache control points as system content alongside the
-            // actual prompt. They affect provider caching but are not conversation content.
+            // A provider's control instruction - a prompt-cache marker - written as content beside the actual
+            // prompt. It affects the provider, not the conversation; which members mark one is declared.
             if matches!(
                 block,
                 ContentBlock::Json { data }
                     if data.as_object().is_some_and(|object| {
                         object.len() == 1
-                            && object
-                                .get("cachePoint")
-                                .is_some_and(serde_json::Value::is_object)
+                            && object.iter().all(|(member, value)| {
+                                value.is_object()
+                                    && crate::rules::ruleset()
+                                        .message_members
+                                        .marks_control_block(member)
+                            })
                     })
             ) {
                 continue;
@@ -726,7 +729,7 @@ fn classify_blocks_with_history(
             && !traces_with_choice.contains(&block.trace_id)
             && let Some(root) = event_root(block)
         {
-            let is_assistant = block.event_name.as_deref() == Some("gen_ai.assistant.message");
+            let is_assistant = block.is_assistant_input_event();
             roots_by_span
                 .entry(block.trace_id.clone())
                 .or_default()
@@ -822,10 +825,7 @@ fn classify_blocks_with_history(
     };
     let mut first_stated_at: HashMap<(String, String), DateTime<Utc>> = HashMap::new();
     for block in blocks.iter() {
-        if block.is_generation_span()
-            && block.event_name.as_deref() == Some("gen_ai.assistant.message")
-            && !block.is_tool_use()
-        {
+        if block.is_generation_span() && block.is_assistant_input_event() && !block.is_tool_use() {
             let start = span_start_of(block);
             first_stated_at
                 .entry((block.trace_id.clone(), block.content_hash.clone()))
@@ -882,7 +882,7 @@ fn classify_blocks_with_history(
         };
         if block.is_generation_span()
             && !traces_with_choice.contains(&block.trace_id)
-            && block.event_name.as_deref() == Some("gen_ai.assistant.message")
+            && block.is_assistant_input_event()
             && is_current
         {
             // Effective direction, in one place: the order resolver reads this to know the span

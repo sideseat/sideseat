@@ -116,6 +116,13 @@
         "$ref": "#/$defs/FinishReasonSpellings"
       }
     },
+    "synthetic_call_ids": {
+      "description": "The shape of a call id a producer builds itself when the provider gave none, and which names the tool.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SyntheticCallId"
+      }
+    },
     "message_members": {
       "description": "Member names a producer uses, and what each one's presence means.\n\nThree questions about one vocabulary, which is why they are one section: which member holds a message's\ncontent (ordered - the first present one wins), which members mean a value is *message-shaped* rather\nthan bare data, and which mean it is a content **block**. A member usually answers more than one, and as\nthree lists in Rust they drifted: `contents` held content and said \"message-shaped\", while `toolCallId`\nsaid \"content block\" only.",
       "type": "array",
@@ -2979,6 +2986,17 @@
           ],
           "default": null
         },
+        "direction": {
+          "description": "Which side of a generation the source's messages are on: what it was given, or what it produced.\n\nIndependent of the role: an assistant message handed back to a model is input, and a tool's answer\nread on its own span is output. The feed times an output by its span's end and protects it from\nhistory marking; an input may be a copy of something said before.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MessageDirection"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "doc": {
           "type": [
             "string",
@@ -2990,6 +3008,14 @@
       "required": [
         "id",
         "name"
+      ]
+    },
+    "MessageDirection": {
+      "description": "Which side of a generation a source's messages are on.",
+      "type": "string",
+      "enum": [
+        "input",
+        "output"
       ]
     },
     "RoleAuthority": {
@@ -3019,12 +3045,34 @@
           "description": "A stated role of this spelling outranks the name a *tagged attribute* reading was found under.\n\nSeparate from the above because the questions differ: `tool` is authoritative over a tag and must **not**\nsurvive event derivation, since an event name is real evidence of it.",
           "type": "boolean",
           "default": false
+        },
+        "means": {
+          "description": "The canonical role this spelling means, for a spelling that is not itself one.\n\nA third fact beside the two authorities, and independent of them: what a role *is* and whether it\noutranks a name are different questions. The four canonical spellings mean themselves and may not\nrestate it.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChatRole"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "additionalProperties": false,
       "required": [
         "id",
         "role"
+      ]
+    },
+    "ChatRole": {
+      "description": "Standard chat roles\n\nOne `strum` declaration for the canonical spelling, which is also the JSON one. The *aliases* - many\nproducers' words for these four roles - are declared beside each spelling's authority in the assets'\n`role_authority` section, and `try_from_str` reads them from there.",
+      "type": "string",
+      "enum": [
+        "system",
+        "user",
+        "assistant",
+        "tool"
       ]
     },
     "ContentBlockRule": {
@@ -3812,6 +3860,31 @@
         }
       ]
     },
+    "SyntheticCallId": {
+      "description": "A call id a producer synthesises when the provider supplied none, in a form that names the tool.\n\nCorrelation reads it to repair a result whose synthetic id dangles: the id's name part may identify the\ncall it answers. The template is closed - `{name}`, a literal separator, `{index}` - and the name is\neverything before the **last** separator, so a tool name that contains the separator survives.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "template": {
+          "description": "`{name}<separator>{index}`: a non-empty name, the separator, and a non-empty run of ASCII digits.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "template"
+      ]
+    },
     "MessageMemberRule": {
       "description": "One member name, and what its presence means.",
       "type": "object",
@@ -3834,7 +3907,7 @@
           }
         },
         "rank": {
-          "description": "Where this sits among the members that hold content. Required when `holds_content` is set, and refused\notherwise: a rank that orders nothing is a statement the engine does not read.",
+          "description": "Where this sits among the members answering the one **ordered** question it answers - each `holds_*`\nbelow picks one member, so each is ordered. Required for those, and refused otherwise: a rank that\norders nothing is a statement the engine does not read.",
           "type": [
             "integer",
             "null"
@@ -3854,6 +3927,51 @@
         },
         "means_content_block": {
           "description": "Its presence means the value is a content **block** - so a block carrying it that no case recognised is\na *malformed* block rather than plain data, and is reported as unknown instead of as JSON.",
+          "type": "boolean",
+          "default": false
+        },
+        "means_tool_call": {
+          "description": "Its presence on a content block means the block is a tool **call** - the calling side of a tool message.",
+          "type": "boolean",
+          "default": false
+        },
+        "means_tool_result": {
+          "description": "Its presence on a content block means the block is a tool **result**.",
+          "type": "boolean",
+          "default": false
+        },
+        "holds_tool_calls": {
+          "description": "This member holds a message's tool calls, so a tool message carrying it is the calling side.",
+          "type": "boolean",
+          "default": false
+        },
+        "holds_bundled_tool_result": {
+          "description": "This member holds one result of a bundle: a tool message whose content lists several items holding it is\nseveral results, split so each pairs with its own call.",
+          "type": "boolean",
+          "default": false
+        },
+        "holds_result_call_id": {
+          "description": "Inside a bundled result, this member holds the id of the call it answers.",
+          "type": "boolean",
+          "default": false
+        },
+        "holds_streamed_reply": {
+          "description": "On a message-array carrier, this member holds a streamed response's combined text instead of messages:\none assistant reply.",
+          "type": "boolean",
+          "default": false
+        },
+        "holds_detached_system": {
+          "description": "Beside a message array, this member holds the system prompt - as text, or as blocks whose text is\njoined - which the array itself does not carry.",
+          "type": "boolean",
+          "default": false
+        },
+        "marks_control_block": {
+          "description": "A structured-data block holding exactly this member, as an object, is a provider **control** instruction\n- a cache marker - and not conversation content, so the feed omits it.",
+          "type": "boolean",
+          "default": false
+        },
+        "wraps_structured_value": {
+          "description": "An object holding this member is a wrapper around the structured value under it: a tool result's\nidentity is the value's, not the wrapper's.",
           "type": "boolean",
           "default": false
         }
@@ -3950,6 +4068,11 @@
           "description": "The span *is a tool running*, so its messages are that tool's input and result rather than a\nmodel's turn. Rules that must not read such a span are gated on it (`reads_tool_spans`).",
           "type": "string",
           "const": "tool_execution"
+        },
+        {
+          "description": "The tool the span ran **failed**, by the producer's own statement, whatever the span's status says:\nthe span is reported as an error.",
+          "type": "string",
+          "const": "tool_failed"
         }
       ]
     },

@@ -573,73 +573,57 @@ pub(crate) fn extract_genai(
     span.gen_ai_usage_cache_write_tokens = tokens.cache_write.unwrap_or(0);
     span.gen_ai_usage_reasoning_tokens = tokens.reasoning.unwrap_or(0);
 
-    // Logfire: cache tokens from response_data.usage (after flat attribute extraction).
-    //
-    // Gated on presence, not on the value being zero - a reported `0` is a fact about the call, and testing
-    // the value replaced it with whatever this payload said, inflating both the total and the cache charge.
-    // The same conflation the input and output sides had.
-
-    // CrewAI: tokens from output.value JSON (CrewOutput.usage)
-    // CrewAI embeds token usage in the serialized CrewOutput object, not as flat attributes.
+    // A payload's own usage object - declared as the `candidate_*` span fields - fills what the flat counters
+    // left unsaid.
     //
     // Gated on what was *supplied*, per side, rather than on the stored value being zero. A zero is two
     // different facts - "the provider said 0" and "nobody said anything" - and testing it conflated them in
     // both directions: with a flat input of 200 and no output attribute the whole fallback was skipped, so
     // the output stayed 0 and its cost was never charged; and an explicit flat `0/0` was overwritten by
-    // whatever the fallback found. The `*_supplied` flags exist precisely to tell those apart.
-    // The *outer* gate is only "is this CrewAI": the block also carries a cache counter and a reported
-    // total, and neither is reachable through a gate that asks whether a *side* is missing. With both flat
-    // sides present, `{prompt:500, completion:600, total:2000, cached:100}` stored a total of 1,100 and no
-    // cache at all. Each value inside decides for itself whether it was already supplied.
+    // whatever the fallback found. The `*_supplied` flags exist precisely to tell those apart. The candidate
+    // also carries a cache counter and a reported total, and each value decides for itself whether it was
+    // already supplied: with both flat sides present, `{prompt:500, completion:600, total:2000, cached:100}`
+    // once stored a total of 1,100 and no cache at all.
     {
+        let mut took_input = false;
+        let mut took_output = false;
+        if !input_supplied && let Some(v) = tokens.candidate_input {
+            span.gen_ai_usage_input_tokens = v;
+            input_supplied = true;
+            took_input = true;
+        }
+        if !output_supplied && let Some(v) = tokens.candidate_output {
+            span.gen_ai_usage_output_tokens = v;
+            output_supplied = true;
+            took_output = true;
+        }
+        if !cache_read_supplied && let Some(v) = tokens.candidate_cache_read {
+            span.gen_ai_usage_cache_read_tokens = v;
+            cache_read_supplied = true;
+        }
+        // The embedded total describes the embedded *parts*, so it is usable exactly when the parts actually
+        // stored are those parts - either this payload supplied a side, or the flat attribute already agreed
+        // with it. Requiring that *this* payload supplied both discarded a perfectly good total whenever one
+        // side happened to be reported twice with the same value; taking it regardless produced a row whose
+        // total did not match its own input and output, claiming 1,099 for 0 + 100 tokens.
+        let side_agrees =
+            |took: bool, stored: i64, candidate: Option<i64>| took || candidate == Some(stored);
+        // And only when the provider did not state a total itself: `max` against an explicit flat total can
+        // only raise it, which replaces the provider's own statement about the call with the framework's -
+        // flat `500/600` and a flat total of 1,100 became 2,000.
+        if !total_supplied
+            && side_agrees(
+                took_input,
+                span.gen_ai_usage_input_tokens,
+                tokens.candidate_input,
+            )
+            && side_agrees(
+                took_output,
+                span.gen_ai_usage_output_tokens,
+                tokens.candidate_output,
+            )
         {
-            {
-                {
-                    let usage_candidate = |member: &str| match member {
-                        "prompt_tokens" => tokens.candidate_input,
-                        "completion_tokens" => tokens.candidate_output,
-                        _ => None,
-                    };
-                    let mut took_input = false;
-                    let mut took_output = false;
-                    if !input_supplied && let Some(v) = tokens.candidate_input {
-                        span.gen_ai_usage_input_tokens = v;
-                        input_supplied = true;
-                        took_input = true;
-                    }
-                    if !output_supplied && let Some(v) = tokens.candidate_output {
-                        span.gen_ai_usage_output_tokens = v;
-                        output_supplied = true;
-                        took_output = true;
-                    }
-                    if !cache_read_supplied && let Some(v) = tokens.candidate_cache_read {
-                        span.gen_ai_usage_cache_read_tokens = v;
-                        cache_read_supplied = true;
-                    }
-                    // The embedded total describes the embedded *parts*, so it is usable exactly when the
-                    // parts actually stored are those parts - either this payload supplied a side, or the
-                    // flat attribute already agreed with it. Requiring that *this* payload supplied both
-                    // discarded a perfectly good total whenever one side happened to be reported twice with
-                    // the same value; taking it regardless produced a row whose total did not match its own
-                    // input and output, claiming 1,099 for 0 + 100 tokens.
-                    let side_agrees = |took: bool, stored: i64, key: &str| {
-                        took || usage_candidate(key) == Some(stored)
-                    };
-                    // And only when the provider did not state a total itself: `max` against an explicit
-                    // flat total can only raise it, which replaces the provider's own statement about the
-                    // call with the framework's - flat `500/600` and a flat total of 1,100 became 2,000.
-                    if !total_supplied
-                        && side_agrees(took_input, span.gen_ai_usage_input_tokens, "prompt_tokens")
-                        && side_agrees(
-                            took_output,
-                            span.gen_ai_usage_output_tokens,
-                            "completion_tokens",
-                        )
-                    {
-                        reported_total = tokens.candidate_total.unwrap_or(0).max(reported_total);
-                    }
-                }
-            }
+            reported_total = tokens.candidate_total.unwrap_or(0).max(reported_total);
         }
     }
 

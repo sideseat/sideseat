@@ -67,7 +67,7 @@ index construction therefore stay off the per-observation path.
 
 ## Asset organisation
 
-The embedded corpus currently contains **56 assets holding 630 clauses** in three groups:
+The embedded corpus currently contains **57 assets holding 640 clauses** in three groups:
 
 ```text
 server/assets/rules/
@@ -93,7 +93,7 @@ Each asset has a stable `id`, optional prose documentation, and any subset of th
 | `message_events` | Events that may contain messages |
 | `log_events` | Log-record shapes that carry one of the `message_events`, and where their attributes are |
 | `event_roles` | Roles implied by source or event names |
-| `role_authority` | Precedence of explicit and inferred role spellings |
+| `role_authority` | What each role spelling means, and its precedence over inferred roles |
 | `message_members` | Content, message-shape, and content-block member vocabulary |
 | `content_blocks` | Provider payloads that represent canonical content blocks, and parts holding a list of blocks that is spliced into a message's content |
 | `tool_shapes` | Provider payloads that represent tool definitions |
@@ -264,7 +264,11 @@ The rules boundary is protected by complementary checks:
    observation types.
 4. Corpus-wide comparisons exercise classification and member-vocabulary behaviour.
 5. Repository tests forbid concrete producer knowledge and asset-declared producer telemetry keys in
-   production Rust outside narrowly scoped non-parser exemptions.
+   production Rust outside narrowly scoped non-parser exemptions. A third sweep forbids, in the crates that
+   interpret telemetry, any string literal equal to a word only a producer or vocabulary asset declares - a
+   payload member, block type, role spelling, or event name - derived from the assets by position, with
+   published conventions and SideSeat's own SideML vocabulary exempt and the remaining sites on a shrink-only
+   list tied to the leak inventory.
 6. Refusal, precedence, ambiguity, determinism, deduplication, tool-id correspondence, and carrier
    subsequence properties have focused tests.
 7. Architecture diagrams and this document have machine-checked asset and clause counts.
@@ -289,8 +293,9 @@ The guarantees above have explicit boundaries:
   iterations, or emitted values.
 - Some ordered rule families are scanned linearly.
 - The per-message explain trace is incomplete.
-- The boundary invariant is not yet fully met. SideML normalisation still holds the role alias table and
-  several payload-shape special cases in Rust. Provider spellings, model-name normalisation, and cache and
+- The boundary invariant is not yet fully met. SideML normalisation still holds several payload-shape
+  special cases in Rust; the leak inventory in the rule-language program lists them, and
+  `no_production_module_spells_a_declared_producer_word` holds the sites it can see to a shrink-only list. Provider spellings, model-name normalisation, and cache and
   reasoning counter policy used for pricing also remain in Rust; `provider_aliases` covers only a
   framework that names itself where a provider is expected.
 

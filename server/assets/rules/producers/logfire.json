@@ -324,5 +324,16 @@
       },
       "action": "suppress_messages"
     }
+  ],
+  "message_members": [
+    {
+      "id": "logfire.combined_chunk_content",
+      "doc": "A streamed response recorded as its chunks' combined text rather than as messages: on a message-array carrier, one assistant reply.",
+      "members": [
+        "combined_chunk_content"
+      ],
+      "rank": 10,
+      "holds_streamed_reply": true
+    }
   ]
 }

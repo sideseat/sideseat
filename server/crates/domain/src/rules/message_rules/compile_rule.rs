@@ -8,6 +8,7 @@ pub(super) fn compile_rule(
     file_id: &str,
     rule: &MessageRule,
     fragments: &HashMap<String, Vec<Alternative>>,
+    roles: &std::collections::BTreeMap<String, crate::sideml::ChatRole>,
 ) -> Result<CompiledMessageRule, MessageCompileError> {
     let MessageRule {
         id,
@@ -173,10 +174,13 @@ pub(super) fn compile_rule(
     // *User*, because an unrecognised role folds to User rather than being refused. So a rule could say
     // "assistant" and mean "user", and nothing anywhere said otherwise.
     //
-    // Compared against `ChatRole::try_from_str`, which is the same question every reader asks - not a second
-    // list, which would drift from it.
+    // Compared against the canonical spellings and the declared meanings - the question
+    // `ChatRole::try_from_str` asks every reader, answered from this corpus rather than the built ruleset.
     {
-        let known = |role: &str| crate::sideml::ChatRole::try_from_str(role).is_some();
+        let known = |role: &str| {
+            let folded = role.to_lowercase();
+            crate::sideml::ChatRole::canonical(&folded).is_some() || roles.contains_key(&folded)
+        };
         let mut stated: Vec<&String> = Vec::new();
         if let Some(wrap) = wrap {
             stated.extend(wrap.role.as_ref());
@@ -845,7 +849,7 @@ pub(super) fn compile_rule(
                                              here - declare them on the rule that owns the branch set",
                                         ));
                                     }
-                                    compile_rule(file_id, sub, fragments)
+                                    compile_rule(file_id, sub, fragments, roles)
                                 })
                                 .collect()
                     };

@@ -224,23 +224,24 @@ pub(crate) mod status {
     pub const ERROR: &str = "ERROR";
 }
 
-/// GenAI output event names (OpenTelemetry semantic conventions).
-/// These represent completion events that should use span_end timestamp.
+/// The retired output-event list, kept as the oracle for the `direction` declarations in `event_roles`, which
+/// replaced it: `the_declared_directions_are_the_lists_they_replace`.
 ///
 /// `gen_ai.output.messages` is the bundled form the current conventions use, carried on the
-/// `gen_ai.client.inference.operation.details` event. Without it here, a bundled output was not
+/// `gen_ai.client.inference.operation.details` event. Without it, a bundled output was not
 /// recognised as output at all: it did not take the span-end timestamp, it was not protected from
 /// history marking, and it shared a response with the input event emitted at the same instant - so
 /// it reported the input's time, which is the defect the direction-keyed batching fixes for
 /// attribute sources.
+#[cfg(test)]
 pub(crate) const GENAI_OUTPUT_EVENTS: &[&str] = &[
     "gen_ai.choice",
     "gen_ai.content.completion",
     "gen_ai.output.messages",
 ];
 
-/// GenAI input event names (OpenTelemetry semantic conventions).
-/// These represent context/input that may be history copies.
+/// The retired input-event list, the oracle for the same declarations.
+#[cfg(test)]
 pub(crate) const GENAI_INPUT_EVENTS: &[&str] = &[
     "gen_ai.user.message",
     "gen_ai.assistant.message",

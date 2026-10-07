@@ -325,6 +325,9 @@ pub enum SpanFact {
     /// The span *is a tool running*, so its messages are that tool's input and result rather than a
     /// model's turn. Rules that must not read such a span are gated on it (`reads_tool_spans`).
     ToolExecution,
+    /// The tool the span ran **failed**, by the producer's own statement, whatever the span's status says:
+    /// the span is reported as an error.
+    ToolFailed,
 }
 
 /// One piece of evidence. At least one form, and both together read as a conjunction.

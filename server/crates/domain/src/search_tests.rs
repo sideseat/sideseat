@@ -221,3 +221,37 @@ async fn duckdb_search_replaces_terms_and_cursor_advances_over_empty_pages() {
     .unwrap();
     assert_eq!(corrected.hits.len(), 1);
 }
+
+/// A message's text is filed under the field its role means, through the one declared role vocabulary.
+///
+/// The search index kept a second, partial table: `model` and `function` were folded, `ai`, `bot`, `ipython`
+/// and a capitalised `Assistant` were not, so an assistant's reply under those spellings was indexed as the
+/// user's prompt and `completion:` never found it.
+#[test]
+fn message_text_is_filed_by_the_declared_role_vocabulary() {
+    for (role, field) in [
+        ("assistant", SearchField::Completion),
+        ("Assistant", SearchField::Completion),
+        ("model", SearchField::Completion),
+        ("ai", SearchField::Completion),
+        ("bot", SearchField::Completion),
+        ("tool", SearchField::ToolArgs),
+        ("function", SearchField::ToolArgs),
+        ("ipython", SearchField::ToolArgs),
+        ("user", SearchField::Prompt),
+        ("human", SearchField::Prompt),
+        ("narrator", SearchField::Prompt),
+    ] {
+        let mut fields: BTreeMap<SearchField, Vec<String>> = BTreeMap::new();
+        collect_message_text(
+            &serde_json::json!([{"role": role, "content": "kestrel"}]),
+            SearchField::Prompt,
+            &mut fields,
+        );
+        assert_eq!(
+            fields.get(&field).map(Vec::as_slice),
+            Some(&["kestrel".to_string()][..]),
+            "`{role}` text belongs under {field:?}: {fields:?}"
+        );
+    }
+}

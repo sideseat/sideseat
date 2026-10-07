@@ -794,7 +794,7 @@ pub(in crate::sideml::feed) fn hash_tool_result_content_into<H: Hasher>(
             }
         }
         JsonValue::Object(obj) => {
-            if let Some(inner) = obj.get("json") {
+            if let Some(inner) = structured_value_under(obj) {
                 return hash_json_into(inner, hasher);
             }
             if obj.get("type").and_then(|t| t.as_str()) == Some("text")
@@ -805,8 +805,8 @@ pub(in crate::sideml::feed) fn hash_tool_result_content_into<H: Hasher>(
             if obj.get("type").and_then(|t| t.as_str()) == Some("json")
                 && let Some(data) = obj.get("data")
             {
-                if let Some(json) = data.get("json") {
-                    return hash_json_into(json, hasher);
+                if let Some(inner) = data.as_object().and_then(structured_value_under) {
+                    return hash_json_into(inner, hasher);
                 }
                 return hash_json_into(data, hasher);
             }
@@ -814,6 +814,16 @@ pub(in crate::sideml::feed) fn hash_tool_result_content_into<H: Hasher>(
         }
         _ => content.to_string().hash(hasher),
     }
+}
+
+/// The value an object wraps, under a member declared `wraps_structured_value`, whatever sits beside it.
+fn structured_value_under(
+    object: &serde_json::Map<String, serde_json::Value>,
+) -> Option<&serde_json::Value> {
+    crate::rules::ruleset()
+        .message_members
+        .structured_value_wrapper()
+        .find_map(|member| object.get(member))
 }
 
 /// Extract text from a content block for normalization.
@@ -828,8 +838,8 @@ fn extract_text_from_block(block: &serde_json::Value) -> Option<String> {
             .map(|s| s.trim().to_string()),
         "json" => {
             if let Some(data) = obj.get("data") {
-                if let Some(json) = data.get("json") {
-                    return Some(normalize_json_for_hash(json));
+                if let Some(inner) = data.as_object().and_then(structured_value_under) {
+                    return Some(normalize_json_for_hash(inner));
                 }
                 return Some(normalize_json_for_hash(data));
             }

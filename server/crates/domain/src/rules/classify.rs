@@ -251,7 +251,7 @@ pub(super) const OBSERVATION_TYPES: &[&str] = &[
     "span",
 ];
 
-const SPAN_CATEGORIES: &[&str] = &[
+pub(super) const SPAN_CATEGORIES: &[&str] = &[
     "llm",
     "tool",
     "agent",

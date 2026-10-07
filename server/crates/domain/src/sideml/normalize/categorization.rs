@@ -103,28 +103,33 @@ fn category_from_event_name(event_name: &str, raw_message: &JsonValue) -> Messag
 }
 
 /// Categorize tool message as input (tool invocation) or output (tool result).
+///
+/// Which members say so is declared (`holds_tool_calls` on a message, `means_tool_call` and
+/// `means_tool_result` on a block); SideML's own block types say it too.
 pub(in crate::sideml) fn categorize_tool_message(raw_message: &JsonValue) -> MessageCategory {
-    // Check for tool INPUT indicators (assistant calling tools)
-    if raw_message.get("tool_calls").is_some() {
+    let members = &crate::rules::ruleset().message_members;
+    // A message carrying its tool calls is the calling side.
+    if raw_message
+        .as_object()
+        .is_some_and(|object| members.any_holds_tool_calls(object.keys()))
+    {
         return MessageCategory::GenAIToolInput;
     }
 
-    // Check content blocks for tool_use (input) vs tool_result (output)
+    // The first block that is a call or a result decides.
     if let Some(content) = raw_message.get("content")
         && let Some(arr) = content.as_array()
     {
         for block in arr {
-            // Tool INPUT indicators in content
-            if block.get("toolUse").is_some()
-                || block.get("functionCall").is_some()
-                || block.get("type").and_then(|t| t.as_str()) == Some("tool_use")
+            let kind = block.get("type").and_then(|t| t.as_str());
+            let object = block.as_object();
+            if object.is_some_and(|object| members.any_means_tool_call(object.keys()))
+                || kind == Some("tool_use")
             {
                 return MessageCategory::GenAIToolInput;
             }
-            // Tool OUTPUT indicators in content
-            if block.get("toolResult").is_some()
-                || block.get("functionResponse").is_some()
-                || block.get("type").and_then(|t| t.as_str()) == Some("tool_result")
+            if object.is_some_and(|object| members.any_means_tool_result(object.keys()))
+                || kind == Some("tool_result")
             {
                 return MessageCategory::GenAIToolMessage;
             }

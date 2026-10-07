@@ -349,7 +349,7 @@ fn span_source_texts(source: &SpanSearchSource) -> BTreeMap<SearchField, String>
     if let Some(messages) = source.messages.as_deref()
         && let Ok(value) = serde_json::from_str::<serde_json::Value>(messages)
     {
-        collect_message_text(&value, None, &mut text);
+        collect_message_text(&value, SearchField::Prompt, &mut text);
     }
     text.into_iter()
         .map(|(field, values)| (field, values.join("\n")))
@@ -391,34 +391,34 @@ fn push(map: &mut BTreeMap<SearchField, Vec<String>>, field: SearchField, value:
 
 fn collect_message_text(
     value: &serde_json::Value,
-    inherited_role: Option<&str>,
+    inherited: SearchField,
     fields: &mut BTreeMap<SearchField, Vec<String>>,
 ) {
     match value {
         serde_json::Value::Array(values) => {
             for value in values {
-                collect_message_text(value, inherited_role, fields);
+                collect_message_text(value, inherited, fields);
             }
         }
         serde_json::Value::Object(object) => {
-            let role = object
-                .get("role")
-                .and_then(serde_json::Value::as_str)
-                .or(inherited_role);
+            // Resolved once per message rather than at every text inside it. The role a spelling means is
+            // declared once, for every reader; this was a second, partial table that read `ai` and `bot` as the
+            // user's prompt.
+            let field = match object.get("role").and_then(serde_json::Value::as_str) {
+                Some(role) => match crate::sideml::ChatRole::try_from_str(role) {
+                    Some(crate::sideml::ChatRole::Assistant) => SearchField::Completion,
+                    Some(crate::sideml::ChatRole::Tool) => SearchField::ToolArgs,
+                    _ => SearchField::Prompt,
+                },
+                None => inherited,
+            };
             for (key, value) in object {
                 if key != "role" {
-                    collect_message_text(value, role, fields);
+                    collect_message_text(value, field, fields);
                 }
             }
         }
-        serde_json::Value::String(value) => {
-            let field = match inherited_role.unwrap_or_default() {
-                "assistant" | "model" => SearchField::Completion,
-                "tool" | "function" => SearchField::ToolArgs,
-                _ => SearchField::Prompt,
-            };
-            push(fields, field, Some(value));
-        }
+        serde_json::Value::String(value) => push(fields, inherited, Some(value)),
         _ => {}
     }
 }

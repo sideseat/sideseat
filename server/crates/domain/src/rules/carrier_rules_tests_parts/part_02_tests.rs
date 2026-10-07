@@ -732,6 +732,7 @@ const SHARED_VOCABULARY: &[&str] = &[
     "content-blocks-anthropic",
     "content-blocks-mistral",
     "content-blocks-bedrock",
+    "tool-status",
     "tool-shapes",
     "role-authority",
     "finish-reasons",

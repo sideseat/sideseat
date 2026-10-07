@@ -35,6 +35,7 @@ pub enum RuleSection {
     MessageMembers,
     ProviderAliases,
     FinishReasons,
+    SyntheticCallIds,
 }
 
 impl RuleSection {
@@ -56,6 +57,7 @@ impl RuleSection {
             Self::MessageMembers => "message_members",
             Self::ProviderAliases => "provider_aliases",
             Self::FinishReasons => "finish_reasons",
+            Self::SyntheticCallIds => "synthetic_call_ids",
         }
     }
 }
@@ -381,7 +383,8 @@ impl SectionDefect for super::members::MemberCompileError {
             | E::ContentWithoutShape { rule, .. }
             | E::SaysNothing { rule, .. }
             | E::ContentWithoutARank { rule, .. }
-            | E::RankWithoutContent { rule, .. } => vec![rule],
+            | E::RankWithoutContent { rule, .. }
+            | E::TwoOrderedQuestions { rule, .. } => vec![rule],
             E::SharedRank { first, second, .. } | E::DuplicateMember { first, second, .. } => {
                 vec![first, second]
             }
@@ -396,7 +399,8 @@ impl SectionDefect for super::members::MemberCompileError {
             | E::ContentWithoutShape { file, .. }
             | E::SaysNothing { file, .. }
             | E::ContentWithoutARank { file, .. }
-            | E::RankWithoutContent { file, .. } => vec![file],
+            | E::RankWithoutContent { file, .. }
+            | E::TwoOrderedQuestions { file, .. } => vec![file],
             E::SharedRank { .. } | E::DuplicateMember { .. } => Vec::new(),
         }
     }

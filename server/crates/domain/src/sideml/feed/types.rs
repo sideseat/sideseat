@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 use super::super::provenance::PositionPath;
 use super::super::types::{ChatRole, ContentBlock, FinishReason};
-use super::{GENAI_INPUT_EVENTS, GENAI_OUTPUT_EVENTS, obs_type, source_type};
+use super::{obs_type, source_type};
 use sideseat_ports::types::MessageCategory;
 
 // ============================================================================
@@ -364,24 +364,37 @@ impl BlockEntry {
     // EVENT CLASSIFICATION HELPERS
     // ========================================================================
 
-    /// Check if this block's event is a GenAI output event (gen_ai.choice, etc.).
-    ///
-    /// Output events represent LLM completions.
+    /// Whether this block's event is declared to carry what a generation produced (`direction: output`).
     #[inline]
     pub fn is_output_event(&self) -> bool {
-        self.event_name
-            .as_ref()
-            .is_some_and(|name| GENAI_OUTPUT_EVENTS.contains(&name.as_str()))
+        self.event_direction() == Some(crate::rules::schema::MessageDirection::Output)
     }
 
-    /// Check if this block's event is a GenAI input event (user.message, etc.).
-    ///
-    /// Input events represent context/history passed to the LLM.
+    /// Whether this block's event is declared to carry what a generation was given (`direction: input`), which
+    /// may be a copy of something said before.
     #[inline]
     pub fn is_input_event(&self) -> bool {
-        self.event_name
-            .as_ref()
-            .is_some_and(|name| GENAI_INPUT_EVENTS.contains(&name.as_str()))
+        self.event_direction() == Some(crate::rules::schema::MessageDirection::Input)
+    }
+
+    /// Whether this block's event is an input that states the assistant's own earlier reply: input by
+    /// declaration, and the assistant's by its declared role on an ordinary span.
+    #[inline]
+    pub fn is_assistant_input_event(&self) -> bool {
+        self.event_declaration().is_some_and(|declared| {
+            declared.direction == Some(crate::rules::schema::MessageDirection::Input)
+                && declared.role_on(false) == Some(crate::sideml::ChatRole::Assistant)
+        })
+    }
+
+    fn event_declaration(&self) -> Option<&'static crate::rules::DeclaredEventRole> {
+        crate::rules::ruleset()
+            .event_roles
+            .get(self.event_name.as_deref()?)
+    }
+
+    fn event_direction(&self) -> Option<crate::rules::schema::MessageDirection> {
+        self.event_declaration()?.direction
     }
 
     // ========================================================================

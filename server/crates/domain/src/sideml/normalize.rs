@@ -5,6 +5,8 @@
 //! processing pipeline.
 
 mod categorization;
+#[cfg(test)]
+mod expansion_oracle;
 
 use std::collections::HashMap;
 
@@ -240,7 +242,8 @@ fn expand_bundled_tool_results(raw_messages: &[RawMessage]) -> Vec<Observed> {
 /// - Nested in "content": `{content: [{role, content}, ...]}`
 /// - Nested in "messages": `{messages: [{role, content}, ...]}`
 /// - Nested in "message": `{message: {role, content}, ...}` (singular — unwrapped)
-/// - Streaming combined: `{combined_chunk_content: "text"}` (synthesized as assistant message)
+/// - A streamed reply's combined text, under a member declared `holds_streamed_reply` (synthesised as an
+///   assistant message)
 fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &PositionPath) {
     // Find an array to expand. Only consider nested "content"/"messages" fields
     // if they ARE arrays. A string "content" field is the message's actual content,
@@ -276,19 +279,24 @@ fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &Pos
                 },
                 path.child_key("message"),
             ));
-        // Streaming combined content: {combined_chunk_content: "...", chunk_count: N}
-        } else if let Some(text) = raw
-            .content
-            .get("combined_chunk_content")
-            .and_then(|c| c.as_str())
-            .filter(|s| !s.is_empty())
+        // A streamed reply's combined text, under a member the assets declare.
+        } else if let Some((member, text)) = crate::rules::ruleset()
+            .message_members
+            .streamed_reply()
+            .find_map(|member| {
+                raw.content
+                    .get(member)
+                    .and_then(|c| c.as_str())
+                    .filter(|s| !s.is_empty())
+                    .map(|text| (member, text))
+            })
         {
             result.push((
                 RawMessage {
                     source: raw.source.clone(),
                     content: json!({"role": "assistant", "content": text}),
                 },
-                path.child_key("combined_chunk_content"),
+                path.child_key(member),
             ));
         } else {
             // Not an expandable structure — keep as-is
@@ -306,9 +314,13 @@ fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &Pos
         return;
     }
 
-    // Anthropic: top-level "system" field is not inside "messages" array.
-    // Synthesize a system message before expanding the messages array.
-    if let Some(system) = raw.content.get("system") {
+    // A system prompt a request carries beside its message array rather than in it, under a member the assets
+    // declare: synthesised as the system message it is, before the array's own messages.
+    if let Some((member, system)) = crate::rules::ruleset()
+        .message_members
+        .detached_system()
+        .find_map(|member| raw.content.get(member).map(|value| (member, value)))
+    {
         let system_text = if let Some(s) = system.as_str() {
             // Simple string: "system": "You are helpful."
             Some(s.to_string())
@@ -332,7 +344,7 @@ fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &Pos
                     source: raw.source.clone(),
                     content: json!({"role": "system", "content": text}),
                 },
-                path.child_key("system"),
+                path.child_key(member),
             ));
         }
     }
@@ -504,9 +516,8 @@ fn is_message_like_object(value: &JsonValue) -> bool {
 
 /// Expand bundled tool results into separate messages.
 ///
-/// Handles multiple formats:
-/// - Strands/Bedrock: `{"content": [{"toolResult": {...}}, {"toolResult": {...}}]}`
-/// - Direct array: `[{"toolResult": {...}}, {"toolResult": {...}}]`
+/// An item of the content list - nested under `content`, or the list itself - is one result when it holds a
+/// member declared `holds_bundled_tool_result`, and its call id is under one declared `holds_result_call_id`.
 ///
 /// Returns true if expansion occurred, false otherwise.
 fn expand_bundled_tool_result(
@@ -524,11 +535,25 @@ fn expand_bundled_tool_result(
             return false;
         };
 
-    // Check if this is bundled format: array containing multiple {toolResult: ...} objects
-    // Also check for snake_case variant: {tool_result: ...}
+    let members = &crate::rules::ruleset().message_members;
+    fn result_of<'v>(
+        members: &crate::rules::members::MemberPlan,
+        item: &'v JsonValue,
+    ) -> Option<&'v JsonValue> {
+        members
+            .bundled_tool_result()
+            .find_map(|member| item.get(member))
+    }
+    let call_id_of = |result: &JsonValue| -> Option<String> {
+        members
+            .result_call_id_in_order()
+            .find_map(|member| result.get(member))
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+    };
     let tool_results: Vec<&JsonValue> = content_array
         .iter()
-        .filter(|item| item.get("toolResult").is_some() || item.get("tool_result").is_some())
+        .filter(|item| result_of(members, item).is_some())
         .collect();
 
     // Not bundled or only one toolResult - don't expand
@@ -549,23 +574,16 @@ fn expand_bundled_tool_result(
         path.clone()
     };
     for (position, &item) in tool_results.iter().enumerate() {
-        // Handle both camelCase (Bedrock) and snake_case variants
-        let tr = item.get("toolResult").or_else(|| item.get("tool_result"));
+        let tr = result_of(members, item);
 
         // Create new content structure
         let new_content = if is_nested {
             // Original had nested "content" field - preserve structure
             let mut new_obj = raw.content.clone();
             new_obj["content"] = json!([item.clone()]);
-            // Set tool_call_id from this specific toolResult
-            if let Some(tr) = tr {
-                let id = tr
-                    .get("toolUseId")
-                    .or_else(|| tr.get("tool_use_id"))
-                    .and_then(|v| v.as_str());
-                if let Some(id) = id {
-                    new_obj["tool_call_id"] = json!(id);
-                }
+            // The call id of this one result.
+            if let Some(id) = tr.and_then(call_id_of) {
+                new_obj["tool_call_id"] = json!(id);
             }
             new_obj
         } else {
@@ -574,15 +592,8 @@ fn expand_bundled_tool_result(
                 "role": "tool",
                 "content": [item.clone()]
             });
-            // Set tool_call_id from this specific toolResult
-            if let Some(tr) = tr {
-                let id = tr
-                    .get("toolUseId")
-                    .or_else(|| tr.get("tool_use_id"))
-                    .and_then(|v| v.as_str());
-                if let Some(id) = id {
-                    new_obj["tool_call_id"] = json!(id);
-                }
+            if let Some(id) = tr.and_then(call_id_of) {
+                new_obj["tool_call_id"] = json!(id);
             }
             new_obj
         };

@@ -291,5 +291,16 @@
         "doc": "A result. The canonical passthrough reads one inside a message's content that carries an id or content; this reads the rest, and a tool's returned value that is a lone result."
       }
     }
+  ],
+  "message_members": [
+    {
+      "id": "anthropic.system",
+      "doc": "The Messages API sends the system prompt beside the `messages` array rather than in it - as text, or as text blocks.",
+      "members": [
+        "system"
+      ],
+      "rank": 10,
+      "holds_detached_system": true
+    }
   ]
 }

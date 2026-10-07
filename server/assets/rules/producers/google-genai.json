@@ -182,5 +182,12 @@
       "legacy_rank": 171,
       "reads_tool_spans": true
     }
+  ],
+  "synthetic_call_ids": [
+    {
+      "id": "google-genai.fallback_call_id",
+      "doc": "Where Gemini states a function name but no call id, the instrumentation builds one as the name and the part's index. A result carrying it may answer a call whose own id is real, so correlation may read the name back out - never on the shape alone, only where a preceding unclaimed call has exactly that name.",
+      "template": "{name}_{index}"
+    }
   ]
 }

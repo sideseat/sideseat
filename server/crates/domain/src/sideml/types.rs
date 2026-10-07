@@ -12,10 +12,9 @@ use serde_json::Value as JsonValue;
 
 /// Standard chat roles
 ///
-/// One `strum` declaration for the canonical spelling, which is also the JSON one. The *aliases* are a
-/// different thing and stay in `try_from_str`: they are a semantic folding of many providers' words onto
-/// these four roles, not alternative spellings of a role, and which of them outrank a span's own name is
-/// decided by the declarations `declared_alias_spellings` is checked against.
+/// One `strum` declaration for the canonical spelling, which is also the JSON one. The *aliases* - many
+/// producers' words for these four roles - are declared beside each spelling's authority in the assets'
+/// `role_authority` section, and `try_from_str` reads them from there.
 #[derive(
     Debug,
     Clone,
@@ -29,6 +28,7 @@ use serde_json::Value as JsonValue;
     strum::IntoStaticStr,
     strum::VariantArray,
 )]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]
 pub enum ChatRole {
@@ -45,52 +45,19 @@ impl ChatRole {
         self.into()
     }
 
-    /// Try to parse a role string, returning None for unknown roles.
-    ///
-    /// Supports role names from multiple providers:
-    /// - OpenAI: system, user, assistant, tool, function, developer
-    /// - Anthropic: user, assistant
-    /// - Google: user, model
-    /// - LangChain/LangGraph: human, ai, tool
-    /// - Code execution: ipython (Jupyter/code interpreters)
+    /// The role a stated spelling means, case-insensitively: a canonical spelling, or one the assets declare a
+    /// meaning for. `None` for anything else.
     pub fn try_from_str(s: &str) -> Option<Self> {
-        Some(match s.to_lowercase().as_str() {
-            // System roles
-            "system" | "developer" => Self::System,
-            // User roles (including context/data which represent user-provided conversation history)
-            "user" | "human" | "data" | "context" => Self::User,
-            // Assistant roles (model outputs, tool invocations)
-            "assistant" | "ai" | "bot" | "model" | "choice" | "tool_call" => Self::Assistant,
-            // Tool roles (function/tool results, code execution output)
-            "tool" | "function" | "ipython" => Self::Tool,
-            _ => return None,
-        })
+        let folded = s.to_lowercase();
+        Self::canonical(&folded).or_else(|| crate::rules::ruleset().role_authority.means(&folded))
     }
 
-    /// Every spelling `try_from_str` folds, so a declaration can be required to exist for each.
-    ///
-    /// The folding table decides which of four canonical roles a spelling means. It used to decide **authority**
-    /// as well - whether a stated role outranks the name its reading was tagged with - so adding a spelling here
-    /// silently granted it that. `compile_role_authority` requires an explicit declaration per spelling, and this
-    /// is the list it checks against, kept beside the match so a new arm is one line from being declared too.
-    pub const fn declared_alias_spellings() -> &'static [&'static str] {
-        &[
-            "system",
-            "developer",
-            "user",
-            "human",
-            "data",
-            "context",
-            "assistant",
-            "ai",
-            "bot",
-            "model",
-            "choice",
-            "tool_call",
-            "tool",
-            "function",
-            "ipython",
-        ]
+    /// The role whose own spelling this is, exactly - no alias, no case folding.
+    pub fn canonical(spelling: &str) -> Option<Self> {
+        <Self as strum::VariantArray>::VARIANTS
+            .iter()
+            .copied()
+            .find(|role| role.as_str() == spelling)
     }
 
     /// Check if role string represents tool definitions (not a conversation role).
@@ -793,11 +760,11 @@ mod spelling_tests {
         assert_eq!(FinishReason::VARIANTS.len(), reasons.len());
     }
 
-    /// Every alias `try_from_str` folds still folds, to the same role.
+    /// Every alias the retired Rust table folded still folds, to the same role - and the declarations fold
+    /// nothing else.
     ///
-    /// The folding table is not a spelling table and did not move to `strum`: it maps many providers'
-    /// words onto four roles. This asserts the mapping rather than just the declaration list that
-    /// `declared_alias_spellings` already guards.
+    /// The table below *is* that retired table, kept as the oracle for the `means` declarations in the assets'
+    /// `role_authority` section, which replaced it.
     #[test]
     fn every_declared_alias_still_folds_to_the_same_role() {
         let folding = [
@@ -825,7 +792,27 @@ mod spelling_tests {
                 "folding was case-insensitive: {spelling}"
             );
         }
-        assert_eq!(ChatRole::declared_alias_spellings().len(), folding.len());
+        let declared: Vec<&str> = crate::rules::ruleset()
+            .role_authority
+            .meanings()
+            .map(|(spelling, _)| spelling)
+            .collect();
+        let aliases: std::collections::BTreeSet<&str> = folding
+            .iter()
+            .map(|(spelling, _)| *spelling)
+            .filter(|spelling| ChatRole::canonical(spelling).is_none())
+            .collect();
+        assert_eq!(
+            declared
+                .into_iter()
+                .collect::<std::collections::BTreeSet<_>>(),
+            aliases,
+            "the declared meanings are exactly the retired table's aliases"
+        );
         assert!(ChatRole::try_from_str("not-a-role").is_none());
+        assert!(
+            ChatRole::try_from_str("tools").is_none(),
+            "a definitions message is no role"
+        );
     }
 }
