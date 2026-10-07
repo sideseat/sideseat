@@ -161,14 +161,14 @@
               "from": "arguments",
               "as": "input",
               "parse": "json",
-              "blank_is_absent": true,
+              "pipe": ["blank_is_absent"],
               "default": {},
               "after_content": true
             },
             {
               "from": "call_id",
               "as": "id",
-              "blank_is_absent": true,
+              "pipe": ["blank_is_absent"],
               "after_content": true
             }
           ]
@@ -203,7 +203,7 @@
             {
               "from": "call_id",
               "as": "tool_use_id",
-              "blank_is_absent": true,
+              "pipe": ["blank_is_absent"],
               "after_content": true
             }
           ]

@@ -288,11 +288,10 @@
             ]
           },
           "wrap": {
-            "role_from": "$.source",
-            "role_map": {
-              "user": "user"
+            "role_from": {
+              "path": "$.source",
+              "pipe": [{"map": {"user": "user"}, "closed": true}]
             },
-            "role_map_is_closed": true,
             "role": "assistant",
             "attach": [
               {
@@ -327,11 +326,10 @@
             ]
           },
           "wrap": {
-            "role_from": "$.source",
-            "role_map": {
-              "user": "user"
+            "role_from": {
+              "path": "$.source",
+              "pipe": [{"map": {"user": "user"}, "closed": true}]
             },
-            "role_map_is_closed": true,
             "role": "assistant",
             "attach": [
               {
@@ -366,11 +364,10 @@
             ]
           },
           "wrap": {
-            "role_from": "$.source",
-            "role_map": {
-              "user": "user"
+            "role_from": {
+              "path": "$.source",
+              "pipe": [{"map": {"user": "user"}, "closed": true}]
             },
-            "role_map_is_closed": true,
             "role": "assistant",
             "attach": [
               {
@@ -749,11 +746,10 @@
             ]
           },
           "wrap": {
-            "role_from": "$.source",
-            "role_map": {
-              "user": "user"
+            "role_from": {
+              "path": "$.source",
+              "pipe": [{"map": {"user": "user"}, "closed": true}]
             },
-            "role_map_is_closed": true,
             "role": "assistant",
             "attach": [
               {

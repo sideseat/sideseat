@@ -236,9 +236,7 @@
         "content": "$.content",
         "is_error": {
           "path": "$.status",
-          "map": {
-            "error": true
-          }
+          "pipe": [{"map": {"error": true}, "closed": true}]
         },
         "doc": "Its tool result. A failure is stated as a status rather than a flag."
       }

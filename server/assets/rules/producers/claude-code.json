@@ -137,7 +137,7 @@
             {
               "from": "tool_use_id",
               "as": "tool_use_id",
-              "blank_is_absent": true,
+              "pipe": ["blank_is_absent"],
               "after_content": true
             }
           ]

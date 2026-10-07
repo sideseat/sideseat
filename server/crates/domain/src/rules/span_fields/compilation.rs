@@ -52,8 +52,16 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
     }
     let mut sources = Vec::with_capacity(rule.sources.len());
     for spec in &rule.sources {
+        // A pipe this source does not run in that order would read as one it does.
+        if let Some(detail) = spec.pipe_defect() {
+            return Err(FieldCompileError::UnrunnablePipe {
+                file: file_id.to_string(),
+                rule: rule.id.clone(),
+                detail,
+            });
+        }
         // A declaration that could not take effect reads as one that does.
-        if spec.lowercase
+        if spec.lowercase()
             && !matches!(
                 rule.target.field_type(),
                 FieldType::Text | FieldType::StringList
@@ -70,9 +78,9 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
         let forms = usize::from(spec.attribute().is_some())
             + usize::from(!spec.attribute_first_present_of().is_empty())
             + usize::from(spec.json.is_some())
-            + usize::from(spec.span_name_strip_prefix.is_some())
+            + usize::from(spec.span_name_strip_prefix().is_some())
             + usize::from(spec.value.is_some())
-            + usize::from(spec.raw_span_name)
+            + usize::from(spec.raw_span_name())
             + usize::from(spec.event_attribute.is_some());
         if forms == 0 {
             return Err(FieldCompileError::SourceReadsNothing {
@@ -166,10 +174,7 @@ fn compile_rule(file_id: &str, rule: &SpanFieldRule) -> Result<CompiledRule, Fie
                 .json
                 .as_ref()
                 .is_some_and(|json| json.attribute.is_empty())
-            || spec
-                .span_name_strip_prefix
-                .as_deref()
-                .is_some_and(str::is_empty)
+            || spec.span_name_strip_prefix().is_some_and(String::is_empty)
             || spec.value.as_deref().is_some_and(str::is_empty)
             || spec
                 .attribute_first_present_of()

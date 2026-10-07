@@ -470,3 +470,110 @@ fn no_production_module_spells_a_framework_attribute_key() {
         offenders.join("\n")
     );
 }
+
+/// **A step a section does not run cannot be written.** `pipe` is one vocabulary across span fields, attachments,
+/// readings, roles and content-block members, but each section runs only some of its steps, and in one order.
+/// A pipe that states another step, or the same steps in another order, would read as a transform that applies -
+/// so each section refuses what it would silently skip.
+#[test]
+fn a_pipe_states_only_the_steps_its_section_runs() {
+    use crate::rules::message_rules::compile;
+    let field = |source: &str| {
+        let body = format!(
+            r#"{{"id":"probe","span_fields":[{{"id":"probe.field","target":"gen_ai_tool_name","sources":[{source}]}}]}}"#
+        );
+        super::span_fields::compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "probe.json".to_string(),
+                body.into_bytes(),
+            )]))
+            .expect("the probe assets parse"),
+        )
+    };
+    assert!(
+        field(r#"{"id":"probe.s","span_name":true,"pipe":[{"strip_prefix":"run "}]}"#).is_ok(),
+        "the span name past a prefix is a field source"
+    );
+    for (source, why) in [
+        (
+            r#"{"id":"probe.s","attribute":"probe.key","pipe":[{"strip_prefix":"run "}]}"#,
+            "a prefix is stripped from the span name only",
+        ),
+        (
+            r#"{"id":"probe.s","attribute":"probe.key","pipe":["trim"]}"#,
+            "a field source does not trim",
+        ),
+        (
+            r#"{"id":"probe.s","span_name":true,"pipe":["lowercase",{"strip_prefix":"run "}]}"#,
+            "folding runs after the prefix is stripped, not before",
+        ),
+    ] {
+        assert!(
+            matches!(
+                field(source),
+                Err(super::span_fields::FieldCompileError::UnrunnablePipe { .. })
+            ),
+            "{why}: {source}"
+        );
+    }
+
+    let message = |wrap: &str, reading: &str| {
+        let body = format!(
+            r#"{{"id":"t","messages":[{{"id":"t.r","read":{{"attribute":"x"}},"parse":"json",
+                 "emit":"message","priority":1,"alternatives":[{{"id":"a","select":"$.raw"{reading}}}],
+                 "wrap":{wrap}}}]}}"#
+        );
+        ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            body.into_bytes(),
+        )]))
+        .map_err(|error| format!("{error:?}"))
+        .and_then(|parsed| {
+            compile(&parsed)
+                .map(drop)
+                .map_err(|error| format!("{error:?}"))
+        })
+    };
+    let plain = r#"{"role":"user","content_from":"$.content"}"#;
+    assert!(
+        message(plain, r#","pipe":["trim"]"#).is_ok(),
+        "a reading trims"
+    );
+    assert!(
+        message(plain, r#","pipe":["lowercase"]"#).is_err(),
+        "a reading runs no step but `trim`"
+    );
+    for (wrap, why) in [
+        (
+            r#"{"role":"user","content_from":"$.content","attach":[{"from":"k","as":"m","pipe":["lowercase","blank_is_absent"]}]}"#,
+            "an attachment drops a blank attribute before anything else",
+        ),
+        (
+            r#"{"role":"user","content_from":"$.content","attach":[{"from":"k","as":"m","pipe":[{"map":{"a":1,"b":2},"closed":true}]}]}"#,
+            "an attachment's map is a one-entry flag",
+        ),
+        (
+            r#"{"role":"user","content_from":"$.content","attach":[{"from":"k","as":"m","parse":"json","pipe":[{"map":{"true":true},"closed":true}]}]}"#,
+            "a flag answers before the attribute is parsed",
+        ),
+        (
+            r#"{"role":"user","content_from":"$.content","attach":[{"from_path":"$.k","as":"m","pipe":["blank_is_absent"]}]}"#,
+            "attribute steps on a member that reads no attribute",
+        ),
+        (
+            r#"{"role":"user","content_from":"$.content","attach":[{"as":"name","or_span_name":["lowercase"]}]}"#,
+            "the span-name fallback strips and trims",
+        ),
+        (
+            r#"{"role":"user","content_from":"$.content","role_from":{"path":"$.r","pipe":[{"prepend":"x"}]}}"#,
+            "a role is renamed through one map, not rewritten",
+        ),
+        (
+            r#"{"role":"user","content_from":"$.content","role_from":{"path":"$.r","pipe":[{"map":{"model":1}}]}}"#,
+            "a role renamed to a number is not a role",
+        ),
+    ] {
+        let outcome = message(wrap, "");
+        assert!(outcome.is_err(), "{why}: {wrap} -> {outcome:?}");
+    }
+}

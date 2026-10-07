@@ -80,7 +80,10 @@ pub enum ValueSource {
     Transformed(TransformedSource),
 }
 
-/// A member with one transform applied. Exactly one of `join`, `parse`, `prepend` and `map`.
+/// A member with one transform applied: `{"path": ..., "pipe": [step]}`, the step one of `join` (every string the
+/// path selects, joined), `parse` (a string decoded the way a carrier's text is; anything else passes through),
+/// `prepend`, or a closed `map` (`{"map": {...}, "closed": true}`). A step that cannot apply leaves the source
+/// **absent**, so the next candidate is tried.
 #[derive(Debug, Deserialize, Clone)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
@@ -89,23 +92,51 @@ pub struct TransformedSource {
     pub doc: Option<String>,
     #[cfg_attr(test, schemars(with = "String"))]
     pub path: JsonPath,
-    /// Every **string** the path selects, joined with this separator; absent when it selects none.
-    #[serde(default)]
-    pub join: Option<String>,
-    /// A string decoded the way a carrier's text is - the same modes, the same meanings; absent where the
-    /// mode refuses the text. Any other value passes through as it stands.
-    #[serde(default)]
-    pub parse: Option<ParseMode>,
-    /// A string with this prefix put in front; absent for anything that is not a string.
-    #[serde(default)]
-    pub prepend: Option<String>,
-    /// A string looked up in this closed table; absent for an unlisted string or a non-string.
-    #[serde(default)]
-    #[cfg_attr(
-        test,
-        schemars(with = "Option<std::collections::BTreeMap<String, serde_json::Value>>")
-    )]
-    pub map: Option<std::collections::BTreeMap<String, JsonValue>>,
+    pub pipe: Vec<Transform>,
+}
+
+impl TransformedSource {
+    fn only(&self) -> Option<&Transform> {
+        match self.pipe.as_slice() {
+            [one] => Some(one),
+            _ => None,
+        }
+    }
+
+    /// The separator, where the step is a join.
+    pub fn join(&self) -> Option<&String> {
+        match self.only()? {
+            Transform::Join(separator) => Some(separator),
+            _ => None,
+        }
+    }
+
+    /// The decoding, where the step is a parse.
+    pub fn parse(&self) -> Option<ParseMode> {
+        match self.only()? {
+            Transform::Parse(mode) => Some(*mode),
+            _ => None,
+        }
+    }
+
+    /// The prefix, where the step prepends one.
+    pub fn prepend(&self) -> Option<&String> {
+        match self.only()? {
+            Transform::Prepend(prefix) => Some(prefix),
+            _ => None,
+        }
+    }
+
+    /// The table, where the step is a closed map.
+    pub fn map(&self) -> Option<&BTreeMap<String, JsonValue>> {
+        match self.only()? {
+            Transform::Map {
+                table,
+                closed: true,
+            } => Some(table),
+            _ => None,
+        }
+    }
 }
 
 /// How a tool result's content is shaped once it has been selected.

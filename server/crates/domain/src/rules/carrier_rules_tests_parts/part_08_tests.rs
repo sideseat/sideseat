@@ -705,7 +705,7 @@ fn a_span_name_can_be_an_attachments_only_source() {
             br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"text",
              "emit":"message","priority":1,
              "wrap":{"role":"tool","block":{"type":"tool_result","attach":[
-               {"as":"name","or_span_name_after":""}]}}}]}"#
+               {"as":"name","or_span_name":["trim"]}]}}}]}"#
                 .to_vec(),
         )]))
         .expect("the probe assets parse"),

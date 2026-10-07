@@ -217,6 +217,23 @@ call ids, an overlay's counterpart list, a log record's name) steps over a candi
 needs. Attribute sources are `attr:<key>` wherever a name is typed beside other kinds (`event_name` on a log
 record); a message rule reading every one of several keys as its own observation says `every`.
 
+### Transforms
+
+What a section does to a value once it has read it is one vocabulary, `pipe`: an ordered list of steps, each a
+name (`lowercase`, `trim`, `strip_bracket_tag`, `blank_is_absent`) or a one-operation object (`{"strip_prefix":
+p}`, `{"map": {...}, "closed": true}`, `{"join": s}`, `{"parse": mode}`, `{"prepend": p}`). An open `map` passes an
+unlisted value through; a closed one makes it absent. Each section runs only some steps, in one order, and refuses
+a pipe stating any other - a step a reader would skip must not be writable:
+
+| Where | Steps it runs |
+| --- | --- |
+| span-field source | `[]`, `["lowercase"]`; with `span_name: true`, also `[{"strip_prefix": p}]` then optionally `"lowercase"` |
+| message attachment | `blank_is_absent`, `strip_bracket_tag`, then `lowercase` or a closed one-entry `map` (a flag) |
+| attachment's span-name fallback (`or_span_name`) | `["trim"]` or `[{"strip_prefix": p}, "trim"]` |
+| reading (`alternatives`, `also`, `fallback`) | `["trim"]` |
+| wrap `role_from` (`{"path", "pipe"}`) | one `map`, open or closed, whose outputs are roles |
+| content-block member (`{"path", "pipe"}`) | exactly one of `join`, `parse`, `prepend`, closed `map` |
+
 ### Content blocks
 
 A content block is normalised by one chain: the canonical SideML passthrough, then the declared
@@ -230,8 +247,8 @@ position only, and a `splice` is tried over the envelopes alone, which one merge
 
 Each case names one canonical target form (`text`, `json`, `media`, `thinking`, `redacted_thinking`,
 `refusal`, `tool_use`, `tool_result`, `unknown`, `unwrap`, `splice`) and where its members come from. A
-member source is a JSONPath, or a JSONPath with exactly one bounded transform: `join` (every string
-selected, joined), `parse` (the carriers' decoding modes), `prepend`, or a closed `map`. A transform that
+member source is a JSONPath, or `{"path": ..., "pipe": [step]}` with exactly one bounded step: `join` (every string
+selected, joined), `parse` (the carriers' decoding modes), `prepend`, or a closed `map`. A step that
 cannot apply leaves the source absent, so a list of sources means "the first usable spelling". Media cases
 declare what the format states - a block kind, whether the data is a location, bytes or an identifier, what
 a missing media type means - and derive the rest from the value. Their `where` conditions add `equals` (any

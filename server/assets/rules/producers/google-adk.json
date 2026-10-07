@@ -234,15 +234,15 @@
                   ]
                 },
                 "wrap": {
-                  "role_from": "$.role",
-                  "role_map": {
-                    "model": "assistant"
+                  "role_from": {
+                    "path": "$.role",
+                    "pipe": [{"map": {"model": "assistant"}}]
                   },
                   "attach": [
                     {
                       "from_path": "$.finish_reason",
                       "as": "finish_reason",
-                      "lowercase": true,
+                      "pipe": ["lowercase"],
                       "after_content": true
                     }
                   ],

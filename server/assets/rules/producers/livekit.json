@@ -193,8 +193,7 @@
           {
             "from": "lk.function_tool.is_error",
             "as": "is_error",
-            "when_equals": "true",
-            "value": true,
+            "pipe": [{"map": {"true": true}, "closed": true}],
             "after_content": true
           }
         ]

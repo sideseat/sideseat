@@ -367,6 +367,9 @@ pub(super) fn wraps(rule: &CompiledMessageRule) -> Vec<&WrapSpec> {
 
 /// Why an attachment can never read what it declares.
 pub(super) fn attach_defect(attach: &AttachSpec) -> Option<&'static str> {
+    if let Some(defect) = attach.pipe_defect() {
+        return Some(defect);
+    }
     attach.select.as_ref()?;
     if attach.from.is_none() {
         return Some("`select` reads inside the `from` attribute, and the attachment names none");

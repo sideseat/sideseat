@@ -20,7 +20,7 @@
             {
               "from": "gen_ai.tool.name",
               "as": "name",
-              "or_span_name_after": "execute_tool "
+              "or_span_name": [{"strip_prefix": "execute_tool "}, "trim"]
             },
             {
               "from": "gen_ai.tool.call.id",
@@ -66,7 +66,7 @@
             {
               "from": "gen_ai.tool.name",
               "as": "name",
-              "or_span_name_after": "execute_tool "
+              "or_span_name": [{"strip_prefix": "execute_tool "}, "trim"]
             },
             {
               "from": "gen_ai.tool.call.id",

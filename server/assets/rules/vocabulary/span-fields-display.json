@@ -19,7 +19,7 @@
         {
           "id": "raw_span_name",
           "doc": "Otherwise the producer's own name. An empty one is *not* declared as acceptable, because it cannot be told from silence here: the sink only writes a value it was given, and an empty raw name leaves the field as `set_core_fields` set it - which is that same empty name. Declaring `accept_empty` would be a statement no test can hold to account.",
-          "raw_span_name": true
+          "span_name": true
         }
       ]
     }

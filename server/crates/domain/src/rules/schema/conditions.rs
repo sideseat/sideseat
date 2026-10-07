@@ -299,3 +299,142 @@ mod tests {
         assert!(parse::<Usable>(serde_json::json!("a")).is_ok());
     }
 }
+
+/// One step of a `pipe`: a bounded operation on the value a source read.
+///
+/// One vocabulary for every field that transforms what it reads. A field states which steps it runs and in
+/// what order - its reading has stages (decode, select, convert) and a step sits where that field applies it -
+/// and refuses any other sequence, so a pipe never says something its field does not do.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Transform {
+    /// Text folded to lower case.
+    Lowercase,
+    /// Text with surrounding whitespace removed.
+    Trim,
+    /// A leading `[tag]` line removed, and the rest trimmed.
+    StripBracketTag,
+    /// Blank text is treated as absent.
+    BlankIsAbsent,
+    /// Text with this prefix removed; text without it is absent.
+    StripPrefix(String),
+    /// Text looked up in a table: `closed` makes an unlisted value absent, open leaves it as it is.
+    Map {
+        table: BTreeMap<String, JsonValue>,
+        closed: bool,
+    },
+    /// Every selected string, joined with this separator.
+    Join(String),
+    /// Text decoded the way a carrier's text is.
+    Parse(ParseMode),
+    /// Text with this put in front.
+    Prepend(String),
+}
+
+impl<'de> Deserialize<'de> for Transform {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        use serde::de::Error;
+        let value = JsonValue::deserialize(deserializer)?;
+        if let Some(name) = value.as_str() {
+            return Ok(match name {
+                "lowercase" => Self::Lowercase,
+                "trim" => Self::Trim,
+                "strip_bracket_tag" => Self::StripBracketTag,
+                "blank_is_absent" => Self::BlankIsAbsent,
+                other => {
+                    return Err(D::Error::custom(format!(
+                        "`{other}` is not a transform: expected `lowercase`, `trim`, `strip_bracket_tag`, \
+                         `blank_is_absent`, or an object `strip_prefix`, `map`, `join`, `parse`, `prepend`"
+                    )));
+                }
+            });
+        }
+        let Some(members) = value.as_object() else {
+            return Err(D::Error::custom(
+                "a transform is a name or a one-operation object",
+            ));
+        };
+        let string = |key: &str| -> Result<String, D::Error> {
+            members
+                .get(key)
+                .and_then(JsonValue::as_str)
+                .map(str::to_string)
+                .ok_or_else(|| D::Error::custom(format!("`{key}` takes a string")))
+        };
+        let allowed = |keys: &[&str]| -> Result<(), D::Error> {
+            match members.keys().find(|key| !keys.contains(&key.as_str())) {
+                Some(key) => Err(D::Error::custom(format!(
+                    "unknown field `{key}` in a transform"
+                ))),
+                None => Ok(()),
+            }
+        };
+        if members.contains_key("map") {
+            allowed(&["map", "closed"])?;
+            let table = serde_json::from_value(members["map"].clone()).map_err(D::Error::custom)?;
+            let closed = match members.get("closed") {
+                None => false,
+                Some(JsonValue::Bool(closed)) => *closed,
+                Some(_) => return Err(D::Error::custom("`closed` is true or false")),
+            };
+            return Ok(Self::Map { table, closed });
+        }
+        let op = match members.keys().next().map(String::as_str) {
+            Some(only) if members.len() == 1 => only,
+            _ => {
+                return Err(D::Error::custom(
+                    "a transform object names exactly one operation",
+                ));
+            }
+        };
+        Ok(match op {
+            "strip_prefix" => Self::StripPrefix(string("strip_prefix")?),
+            "join" => Self::Join(string("join")?),
+            "prepend" => Self::Prepend(string("prepend")?),
+            "parse" => Self::Parse(
+                serde_json::from_value(members["parse"].clone()).map_err(D::Error::custom)?,
+            ),
+            other => return Err(D::Error::custom(format!("unknown transform `{other}`"))),
+        })
+    }
+}
+
+#[cfg(test)]
+impl schemars::JsonSchema for Transform {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "Transform".into()
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        let parse = serde_json::to_value(generator.subschema_for::<ParseMode>())
+            .expect("a schema serialises");
+        let one = |key: &str, body: JsonValue| {
+            serde_json::json!({
+                "type": "object",
+                "properties": {key: body},
+                "required": [key],
+                "additionalProperties": false,
+            })
+        };
+        let text = serde_json::json!({"type": "string"});
+        schemars::Schema::try_from(serde_json::json!({
+            "description": "One step of a pipe. A field states the steps it runs and their order.",
+            "oneOf": [
+                {"enum": ["lowercase", "trim", "strip_bracket_tag", "blank_is_absent"]},
+                one("strip_prefix", text.clone()),
+                one("join", text.clone()),
+                one("prepend", text),
+                one("parse", parse),
+                {
+                    "type": "object",
+                    "properties": {
+                        "map": {"type": "object", "additionalProperties": true},
+                        "closed": {"type": "boolean"},
+                    },
+                    "required": ["map"],
+                    "additionalProperties": false,
+                },
+            ]
+        }))
+        .expect("an object is a schema")
+    }
+}

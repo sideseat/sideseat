@@ -160,7 +160,7 @@
           "id": "raw",
           "doc": "The answer, which is a bare string beside them and so needs its own envelope.",
           "select": "$.raw",
-          "trim": true,
+          "pipe": ["trim"],
           "where": {
             "kind": "string",
             "non_empty": true

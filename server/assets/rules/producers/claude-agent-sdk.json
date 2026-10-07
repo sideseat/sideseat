@@ -264,15 +264,14 @@
               "from": "tool_input",
               "as": "input",
               "parse": "json",
-              "strip_bracket_tag": true,
-              "blank_is_absent": true,
+              "pipe": ["blank_is_absent", "strip_bracket_tag"],
               "default": {},
               "after_content": true
             },
             {
               "from": "tool_use_id",
               "as": "id",
-              "blank_is_absent": true,
+              "pipe": ["blank_is_absent"],
               "after_content": true
             }
           ]

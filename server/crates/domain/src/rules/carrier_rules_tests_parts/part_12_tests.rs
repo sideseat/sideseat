@@ -195,7 +195,10 @@ fn every_block_kind_is_sampled() {
 /// templates - are left out, since a production literal equal to one is no leak of a member name.
 fn declared_producer_vocabulary() -> std::collections::BTreeMap<String, String> {
     fn is_word(text: &str) -> bool {
-        text.len() >= 2
+        // JSON's own literals, which a map keyed by a payload's text writes when the text is a flag: no
+        // producer owns the spelling `true`.
+        !matches!(text, "true" | "false" | "null")
+            && text.len() >= 2
             && !text.contains('.')
             && text
                 .chars()
@@ -269,9 +272,7 @@ fn declared_producer_vocabulary() -> std::collections::BTreeMap<String, String> 
         "prepend",
         "join",
         "template",
-        "or_span_name_after",
-        "span_name_strip_prefix",
-        "when_equals",
+        "strip_prefix",
         "default",
         "name_default",
         "content_default",

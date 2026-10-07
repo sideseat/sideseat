@@ -233,7 +233,7 @@ fn every_span_field_refusal_fires() {
         (
             "a source naming two places, where the reader's branch order would decide",
             r#"{"id":"t","span_fields":[{"id":"f","target":"user_id",
-               "sources":[{"id":"s","attribute":"k","raw_span_name":true}]}]}"#,
+               "sources":[{"id":"s","attribute":"k","span_name":true}]}]}"#,
             |e| matches!(e, E::SourceReadsTwoThings { .. }),
         ),
         (
@@ -262,7 +262,7 @@ fn every_span_field_refusal_fires() {
         (
             "folding a field that holds no text",
             r#"{"id":"t","span_fields":[{"id":"f","target":"usage_input_tokens",
-               "sources":[{"id":"s","attribute":"k","lowercase":true}]}]}"#,
+               "sources":[{"id":"s","attribute":"k","pipe":["lowercase"]}]}]}"#,
             |e| matches!(e, E::FoldWithoutText { .. }),
         ),
         (

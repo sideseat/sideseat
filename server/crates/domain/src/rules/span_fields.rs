@@ -119,12 +119,12 @@ pub enum FieldCompileError {
     NoSources { file: String, rule: String },
     #[error(
         "span field rule `{rule}` in `{file}` has a source that names nowhere to read from - one of \
-         `attribute`, `json`, `event_attribute`, `raw_span_name`, `span_name_strip_prefix` or `value`"
+         `attribute`, `json`, `event_attribute`, `span_name` or `value`"
     )]
     SourceReadsNothing { file: String, rule: String },
     #[error(
         "span field rule `{rule}` in `{file}` has a source naming more than one place to read from - \
-         `attribute`, `json`, `event_attribute`, `raw_span_name`, `span_name_strip_prefix` and `value` are \
+         `attribute`, `json`, `event_attribute`, `span_name` and `value` are \
          alternatives, and which one won would be the order of the \
          reader's branches rather than anything declared"
     )]
@@ -186,6 +186,12 @@ pub enum FieldCompileError {
         file: String,
         rule: String,
         detail: String,
+    },
+    #[error("span field rule `{rule}` in `{file}` has a source whose pipe {detail}")]
+    UnrunnablePipe {
+        file: String,
+        rule: String,
+        detail: &'static str,
     },
 }
 
@@ -328,7 +334,7 @@ impl SpanFieldPlan {
             let reading = within_range(
                 folded_if_declared(
                     read_source(&source.spec, field_type, span_name, attrs, events, parsed),
-                    source.spec.lowercase,
+                    source.spec.lowercase(),
                 ),
                 rule.target,
             );
@@ -474,10 +480,10 @@ fn source_label(spec: &FieldSource) -> String {
             _ => json.attribute.clone(),
         };
     }
-    if spec.raw_span_name {
+    if spec.raw_span_name() {
         return "the span's own name".to_string();
     }
-    if let Some(prefix) = &spec.span_name_strip_prefix {
+    if let Some(prefix) = spec.span_name_strip_prefix() {
         return format!("the span name past `{prefix}`");
     }
     if let Some(value) = &spec.value {
@@ -541,10 +547,10 @@ fn read_source<'a>(
             None => Reading::Absent,
         };
     }
-    if spec.raw_span_name {
+    if spec.raw_span_name() {
         return from_text(span_name, field_type);
     }
-    if let Some(prefix) = &spec.span_name_strip_prefix {
+    if let Some(prefix) = spec.span_name_strip_prefix() {
         // An **empty** suffix is kept as an empty reading rather than dropped, which is what the retired
         // `strip_prefix` produced: a span named exactly the prefix has no name past it.
         return match span_name.strip_prefix(prefix.as_str()) {

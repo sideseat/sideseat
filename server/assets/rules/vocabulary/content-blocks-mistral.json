@@ -25,7 +25,7 @@
       "thinking": {
         "text": {
           "path": "$.thinking[?@.type == 'text'].text",
-          "join": "\n\n"
+          "pipe": [{"join": "\n\n"}]
         },
         "signature": "$.signature",
         "doc": "Reasoning as a list of chunks, the text ones joined in order."

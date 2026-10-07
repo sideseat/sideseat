@@ -1707,25 +1707,15 @@
           "default": null
         },
         "role_from": {
-          "description": "A JSONPath whose value is the role, relative to the reading being wrapped.\n\nSeveral dialects put the role *in* the payload - Gemini's `{parts, role}` is the clearest case - so\na literal here would either be wrong or need one rule per role.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null
-        },
-        "role_map": {
-          "description": "Rename a role the payload supplied.\n\nA provider's own vocabulary: one calls the assistant `model`, and normalising that here keeps the\nalias beside the dialect that uses it rather than in a shared table nothing points at.",
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          },
-          "default": {}
-        },
-        "role_map_is_closed": {
-          "description": "Treat `role_map` as the complete list: a value not in it falls back to `role` rather than being used\nas a role itself.\n\nOne dialect names the *speaker* where another names the role - `source: \"planner\"` means an\nassistant, not a role called `planner` - so which of the two a member is has to be declared.",
-          "type": "boolean",
-          "default": false
+          "description": "A JSONPath whose value is the role, relative to the reading being wrapped, or `{\"path\": ..., \"pipe\":\n[{\"map\": {...}}]}` to rename the roles the payload supplies.\n\nSeveral dialects put the role *in* the payload - Gemini's `{parts, role}` is the clearest case - so\na literal here would either be wrong or need one rule per role. The map is a provider's own vocabulary:\none calls the assistant `model`, and normalising that here keeps the alias beside the dialect that uses\nit. An open map passes an unlisted value through as the role; a `closed` one treats the table as the\ncomplete list, so an unlisted value falls back to `role` - one dialect names the *speaker* where another\nnames the role, and `source: \"planner\"` means an assistant, not a role called `planner`.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ValueSource"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "content_from": {
           "description": "Ordered paths for the content; the first that resolves wins.\n\nOne dialect serialises a message three ways depending on how it was constructed, and the content sits\nin a different member each time - so a single path reads two of the three as empty.\n\n**One list, not a singular member beside it.** `content_from` was a second spelling of exactly this\nquestion - the runtime simply prepended it to this list - so a rule could state its content source\ntwice, in two members, with the ordering between them implicit in the code rather than in the\ndeclaration. The 16 singular uses are now one-element lists.",
@@ -1808,6 +1798,123 @@
       },
       "additionalProperties": false
     },
+    "ValueSource": {
+      "description": "Where one member of a canonical block comes from.\n\nA JSONPath string reads the first value it selects, as it stands. The object form applies exactly one\nbounded transform to it, and a transform that cannot apply leaves the source **absent**, so the next one in\nthe list is tried - which is how \"the first usable spelling\" is written.",
+      "anyOf": [
+        {
+          "description": "A member of the block, by RFC 9535 JSONPath.",
+          "type": "string"
+        },
+        {
+          "description": "A member with one transform applied.",
+          "$ref": "#/$defs/TransformedSource"
+        }
+      ]
+    },
+    "TransformedSource": {
+      "description": "A member with one transform applied: `{\"path\": ..., \"pipe\": [step]}`, the step one of `join` (every string the\npath selects, joined), `parse` (a string decoded the way a carrier's text is; anything else passes through),\n`prepend`, or a closed `map` (`{\"map\": {...}, \"closed\": true}`). A step that cannot apply leaves the source\n**absent**, so the next candidate is tried.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "path": {
+          "type": "string"
+        },
+        "pipe": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Transform"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "pipe"
+      ]
+    },
+    "Transform": {
+      "description": "One step of a pipe. A field states the steps it runs and their order.",
+      "oneOf": [
+        {
+          "enum": [
+            "lowercase",
+            "trim",
+            "strip_bracket_tag",
+            "blank_is_absent"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "strip_prefix": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "strip_prefix"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "join": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "join"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "prepend": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "prepend"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "parse": {
+              "$ref": "#/$defs/ParseMode"
+            }
+          },
+          "required": [
+            "parse"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "map": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "closed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "map"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
     "AttachSpec": {
       "description": "One member taken from a sibling attribute.",
       "type": "object",
@@ -1844,11 +1951,6 @@
           ],
           "default": null
         },
-        "lowercase": {
-          "description": "Lower-case the attached string.\n\nA provider writes finish reasons in upper case and the canonical form is lower; declared because\nlower-casing a payload that is meant to be verbatim would change it.",
-          "type": "boolean",
-          "default": false
-        },
         "as": {
           "description": "The member it becomes.",
           "type": "string"
@@ -1872,35 +1974,23 @@
           ],
           "default": null
         },
-        "when_equals": {
-          "description": "Attach only when the source attribute equals this exactly.\n\nHow a boolean flag arrives: an attribute whose string is `\"true\"`. Without the comparison the\nliteral `\"false\"` would attach as a truthy value.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null
-        },
         "value": {
           "description": "The literal to attach instead of the source's value, for a flag - or on its own, for a member that\nis part of the shape rather than something read.\n\nAn explicit `null` is a value: a content block declares an unsigned signature that way, and the\nmember has to be present rather than omitted.",
           "default": null
         },
-        "blank_is_absent": {
-          "description": "Treat a blank value as absent, so the fallbacks below apply.",
-          "type": "boolean",
-          "default": false
+        "pipe": {
+          "description": "What happens to the value read, in this order: `blank_is_absent` (a blank attribute is treated as\nabsent, so the fallbacks below apply), `strip_bracket_tag` (a leading `[TAG]` line removed before\nparsing - one dialect tags a structured payload with the tool it belongs to and writes the JSON beneath\nit), and then either `lowercase` (after parsing and selecting: a provider writes finish reasons in upper\ncase and the canonical form is lower) or a closed `map` of **one** entry, `{\"map\": {\"true\": true},\n\"closed\": true}`: attach the mapped literal only when the attribute is exactly that text and nothing\notherwise - how a boolean flag arrives as the string `\"true\"`. Only `lowercase` applies to a payload\npath; nothing applies to a value path.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Transform"
+          }
         },
-        "strip_bracket_tag": {
-          "description": "Remove a leading `[TAG]\\n` marker before parsing.\n\nOne dialect tags a structured payload with the tool it belongs to and then writes the JSON beneath\nit; parsing without stripping fails, and the member would silently fall back to its default.",
-          "type": "boolean",
-          "default": false
-        },
-        "or_span_name_after": {
-          "description": "Fall back to the span name with this prefix removed, trimmed, when the other sources are absent.\n\nThe conventions prescribe `execute_tool {name}` as a tool span's name, so a producer that omits\nthe attribute still names the tool - and an unnamed call is unusable downstream. An empty prefix\ndeliberately uses the complete span name for exporters that name a tool span exactly after the tool.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null
+        "or_span_name": {
+          "description": "Fall back to the span name, through `[{\"strip_prefix\": p}, \"trim\"]`, when the other sources are absent:\na name without the prefix, or one that is blank after it, supplies nothing.\n\nThe conventions prescribe `execute_tool {name}` as a tool span's name, so a producer that omits\nthe attribute still names the tool - and an unnamed call is unusable downstream. `[\"trim\"]` alone\ndeliberately uses the complete span name for exporters that name a tool span exactly after the tool.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Transform"
+          }
         },
         "default": {
           "description": "Attach this literal when nothing else supplied a value.\n\nDistinct from omitting the member: a block whose shape *requires* a name carries an empty one\nrather than none, and the two are different values to anything hashing the payload.",
@@ -2168,10 +2258,12 @@
             }
           ]
         },
-        "trim": {
-          "description": "Trim a string before testing and emitting it.\n\nDeclared rather than always-on: trimming a payload that is meant to be verbatim would change it.",
-          "type": "boolean",
-          "default": false
+        "pipe": {
+          "description": "`[\"trim\"]` trims a string before testing and emitting it; no other step applies to a reading.\n\nDeclared rather than always-on: trimming a payload that is meant to be verbatim would change it.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Transform"
+          }
         },
         "then_fragment": {
           "description": "Apply this named fragment's cases to each selected element.\n\nThe fragment decides what the element *is*; this reading decides *where to look*. Splitting them is\nthe point: one dialect's state object holds its messages in four places and recognises them one way.",
@@ -3552,75 +3644,6 @@
         }
       ]
     },
-    "ValueSource": {
-      "description": "Where one member of a canonical block comes from.\n\nA JSONPath string reads the first value it selects, as it stands. The object form applies exactly one\nbounded transform to it, and a transform that cannot apply leaves the source **absent**, so the next one in\nthe list is tried - which is how \"the first usable spelling\" is written.",
-      "anyOf": [
-        {
-          "description": "A member of the block, by RFC 9535 JSONPath.",
-          "type": "string"
-        },
-        {
-          "description": "A member with one transform applied.",
-          "$ref": "#/$defs/TransformedSource"
-        }
-      ]
-    },
-    "TransformedSource": {
-      "description": "A member with one transform applied. Exactly one of `join`, `parse`, `prepend` and `map`.",
-      "type": "object",
-      "properties": {
-        "doc": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null
-        },
-        "path": {
-          "type": "string"
-        },
-        "join": {
-          "description": "Every **string** the path selects, joined with this separator; absent when it selects none.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null
-        },
-        "parse": {
-          "description": "A string decoded the way a carrier's text is - the same modes, the same meanings; absent where the\nmode refuses the text. Any other value passes through as it stands.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ParseMode"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "prepend": {
-          "description": "A string with this prefix put in front; absent for anything that is not a string.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null
-        },
-        "map": {
-          "description": "A string looked up in this closed table; absent for an unlisted string or a non-string.",
-          "type": [
-            "object",
-            "null"
-          ],
-          "additionalProperties": true,
-          "default": null
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "path"
-      ]
-    },
     "ToolResultBlock": {
       "description": "What a tool returned.",
       "type": "object",
@@ -4642,23 +4665,17 @@
             }
           ]
         },
-        "raw_span_name": {
-          "description": "The span's own name, exactly as the producer wrote it.\n\nA source rather than an implicit default, so a display name states where it comes from - and the\nresolver has the raw name whatever the target is.",
+        "span_name": {
+          "description": "The span's own name, as the producer wrote it.\n\nA source rather than an implicit default, so a display name states where it comes from - and the\nresolver has the raw name whatever the target is. With `pipe: [{\"strip_prefix\": p}]` it is the name\nafter that prefix: the conventions prescribe `execute_tool {name}`, so the tool's name is stated *in*\nthe span rather than beside it; a name without the prefix is absent, and one that is only the prefix is\nempty.",
           "type": "boolean",
           "default": false
         },
-        "lowercase": {
-          "description": "Fold the answer to lower case.\n\nFor a field whose values are a **case-insensitive enum** and are stored lower case. One dialect writes\n`STOP` where the conventions write `stop`, and both mean the same thing - so the alternative is a\nstored value whose case depends on which producer wrote the span, which every reader then has to fold\nagain. Generic: it says the producer's casing is not information, and any source may say so.",
-          "type": "boolean",
-          "default": false
-        },
-        "span_name_strip_prefix": {
-          "description": "The span's own name, with this prefix stripped.\n\nA name rather than an attribute, because the conventions prescribe `execute_tool {name}` - the tool's\nname is stated *in* the span rather than beside it. Generic: the prefix is the asset's.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null
+        "pipe": {
+          "description": "What happens to the value read, in this order: `strip_prefix` (on the span name only), then\n`lowercase` - for a field whose values are a **case-insensitive enum** and are stored lower case (one\ndialect writes `STOP` where the conventions write `stop`). No other step and no other order.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Transform"
+          }
         },
         "when_json": {
           "description": "A JSON member whose *presence* admits this source, whatever it holds.\n\nDistinct from `when`, which asks about the span. A substring search over a serialised payload is not a\ntest for a **top-level member**: a request naming a tool `system` contains `\"system\"` and has no\n`system` member, and the retired code asked `req.get(\"system\").is_some()`. Read through the same parse\ncache as a `json` source, so witnessing a payload costs nothing extra.",

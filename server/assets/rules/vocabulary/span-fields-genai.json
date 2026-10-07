@@ -388,7 +388,7 @@
             "path": "$.finish_reason",
             "scalar_only": true
           },
-          "lowercase": true,
+          "pipe": ["lowercase"],
           "on_malformed": "continue",
           "doc": "A dialect that serialises its whole response and writes the reason in upper case. Folded, because the stored form is lower case and whose casing it is carries no information."
         },
@@ -536,7 +536,8 @@
         {
           "id": "span_name_execute_tool",
           "doc": "A span named *exactly* the prefix has an empty name past it, and that is kept rather than dropped - the retired `strip_prefix` produced `Some(\"\")` there, and reporting no tool name instead is a different statement about the span.",
-          "span_name_strip_prefix": "execute_tool ",
+          "span_name": true,
+          "pipe": [{"strip_prefix": "execute_tool "}],
           "accept_empty": true
         }
       ]

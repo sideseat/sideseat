@@ -14,15 +14,17 @@ pub(super) fn wrapped(
     // A content block, when the carrier holds one part of a block rather than a whole message.
     // The role, and the part of the reading that is the content, may both come from the payload.
     let role = wrap
-        .role_from
-        .as_ref()
+        .role_path()
         .and_then(|path| singular(&value, path, "wrap role_from"))
         .and_then(JsonValue::as_str)
-        .and_then(|found| match wrap.role_map.get(found) {
-            Some(mapped) => Some(mapped.clone()),
-            // Closed: the member names a speaker rather than a role, so an unlisted value is not one.
-            None if wrap.role_map_is_closed => None,
+        .and_then(|found| match wrap.role_map() {
             None => Some(found.to_string()),
+            Some((table, closed)) => match table.get(found) {
+                Some(mapped) => mapped.as_str().map(str::to_string),
+                // Closed: the member names a speaker rather than a role, so an unlisted value is not one.
+                None if closed => None,
+                None => Some(found.to_string()),
+            },
         })
         .or_else(|| wrap.role.clone());
     let content_paths: Vec<&serde_json_path::JsonPath> = wrap.content_from_any_of.iter().collect();
@@ -230,7 +232,7 @@ pub(super) fn attached_value(
     if attach.from.is_none()
         && attach.from_value_any_of.is_empty()
         && attach.from_path.is_none()
-        && attach.or_span_name_after.is_none()
+        && attach.or_span_name_after().is_none()
     {
         return attach.value.clone();
     }
@@ -274,7 +276,7 @@ pub(super) fn attached_value(
             if !predicates_hold(found, &attach.require) {
                 return None;
             }
-            let value = match (attach.lowercase, found.as_str()) {
+            let value = match (attach.lowercase(), found.as_str()) {
                 (true, Some(text)) => json!(text.to_lowercase()),
                 _ => found.clone(),
             };
@@ -285,19 +287,19 @@ pub(super) fn attached_value(
         .from
         .as_ref()
         .and_then(|key| ctx.span_attrs.get(key))
-        .filter(|raw| !(attach.blank_is_absent && raw.trim().is_empty()))
+        .filter(|raw| !(attach.blank_is_absent() && raw.trim().is_empty()))
     {
-        let raw = if attach.strip_bracket_tag {
+        let raw = if attach.strip_bracket_tag() {
             split_bracket_tag(raw).1
         } else {
             raw.as_str()
         };
-        if let Some(expected) = &attach.when_equals {
+        if let Some((expected, literal)) = attach.when_equals() {
             if raw != expected {
                 return None;
             }
             // A flag: the literal is the point, not the string that proved it.
-            return Some(attach.value.clone().unwrap_or(json!(true)));
+            return Some(literal.clone());
         }
         // A value that will not parse falls through to the default below, which is what an unparseable
         // structured member should do: the member exists in the shape, so it carries its empty form.
@@ -316,7 +318,7 @@ pub(super) fn attached_value(
             if !predicates_hold(&parsed, &attach.require) {
                 return None;
             }
-            let parsed = match (attach.lowercase, parsed.as_str()) {
+            let parsed = match (attach.lowercase(), parsed.as_str()) {
                 (true, Some(text)) => json!(text.to_lowercase()),
                 _ => parsed,
             };
@@ -324,8 +326,8 @@ pub(super) fn attached_value(
         }
     }
     // The span name, where the conventions put the same fact.
-    if let Some(prefix) = &attach.or_span_name_after
-        && let Some(rest) = ctx.span_name.strip_prefix(prefix.as_str())
+    if let Some(prefix) = attach.or_span_name_after()
+        && let Some(rest) = ctx.span_name.strip_prefix(prefix)
     {
         let trimmed = rest.trim();
         if !trimmed.is_empty() {

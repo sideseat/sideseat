@@ -68,7 +68,7 @@
                 {
                   "from_path": "$.action",
                   "as": "name",
-                  "or_span_name_after": "",
+                  "or_span_name": ["trim"],
                   "default": ""
                 },
                 {
@@ -122,7 +122,7 @@
               "type": "tool_result",
               "attach": [
                 {
-                  "or_span_name_after": "",
+                  "or_span_name": ["trim"],
                   "as": "name"
                 },
                 {
@@ -159,7 +159,7 @@
               "type": "tool_result",
               "attach": [
                 {
-                  "or_span_name_after": "",
+                  "or_span_name": ["trim"],
                   "as": "name"
                 },
                 {
@@ -186,7 +186,7 @@
               "type": "tool_result",
               "attach": [
                 {
-                  "or_span_name_after": "",
+                  "or_span_name": ["trim"],
                   "as": "name"
                 },
                 {

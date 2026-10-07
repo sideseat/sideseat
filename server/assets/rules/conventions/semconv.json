@@ -357,7 +357,7 @@
             {
               "from": "gen_ai.tool.name",
               "as": "name",
-              "or_span_name_after": "execute_tool ",
+              "or_span_name": [{"strip_prefix": "execute_tool "}, "trim"],
               "default": ""
             },
             {
@@ -386,7 +386,7 @@
             {
               "from": "gen_ai.tool.name",
               "as": "name",
-              "or_span_name_after": "execute_tool "
+              "or_span_name": [{"strip_prefix": "execute_tool "}, "trim"]
             },
             {
               "from": "gen_ai.tool.call.id",
@@ -859,7 +859,7 @@
         "name": "$.name",
         "input": {
           "path": "$.arguments",
-          "parse": "json_or_string"
+          "pipe": [{"parse": "json_or_string"}]
         },
         "doc": "A tool call request part. The arguments may be the object itself or its JSON text; text that is not JSON is the argument as written."
       }
@@ -878,7 +878,7 @@
         "tool_use_id": "$.id",
         "content": {
           "path": "$.response",
-          "parse": "json_structure_or_string"
+          "pipe": [{"parse": "json_structure_or_string"}]
         },
         "content_as": "blocks",
         "doc": "A tool call response part. Producers serialise the response, so encoded structure is decoded - but text encoding a number stays the text the tool returned. A response holding Python constructor reprs is read as the blocks they describe."

@@ -342,7 +342,12 @@ pub(super) fn readings(
                     None => candidate,
                 };
                 // Trim declared per reading, because trimming a payload meant to be verbatim would change it.
-                let candidate = match (alternative.trim, candidate.as_str()) {
+                let candidate = match (
+                    alternative
+                        .pipe
+                        .contains(&crate::rules::schema::Transform::Trim),
+                    candidate.as_str(),
+                ) {
                     (true, Some(text)) => json!(text.trim()),
                     _ => candidate,
                 };

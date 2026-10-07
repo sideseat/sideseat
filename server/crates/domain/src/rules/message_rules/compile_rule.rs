@@ -165,18 +165,21 @@ pub(super) fn compile_rule(
     // The fallback is `wrap.role`, which every shipped closed map already declares - so this is a gate rather
     // than a migration. Reporting the unmapped *value* is the other half and waits for the outcome algebra: it
     // wants a recovered role carrying an unknown-role defect, which is exactly the shape a sum type cannot hold.
+    if let Some(defect) = wrap.as_ref().and_then(WrapSpec::role_pipe_defect) {
+        return Err(inexpressible(defect));
+    }
     if let Some(wrap) = wrap
-        && wrap.role_map_is_closed
+        && wrap.role_map().is_some_and(|(_, closed)| closed)
         && wrap.role.is_none()
     {
         return Err(inexpressible(
-            "closes its `role_map` and states no `role` to fall back on - an unmapped value then leaves the \
+            "closes its role `map` and states no `role` to fall back on - an unmapped value then leaves the \
                  message with no role at all, and normalisation infers one from unrelated members of the \
                  payload",
         ));
     }
-    // **A role a rule states must be a role.** `role`, every `role_map` output, and `trailing`'s role literal
-    // are compared against the vocabulary - `role_map: {"model": "assisstant"}` compiled, and the typo became
+    // **A role a rule states must be a role.** `role`, every role `map` output, and `trailing`'s role literal
+    // are compared against the vocabulary - a role `map` of `{"model": "assisstant"}` compiled, and the typo became
     // *User*, because an unrecognised role folds to User rather than being refused. So a rule could say
     // "assistant" and mean "user", and nothing anywhere said otherwise.
     //
@@ -187,10 +190,14 @@ pub(super) fn compile_rule(
             let folded = role.to_lowercase();
             crate::sideml::ChatRole::canonical(&folded).is_some() || roles.contains_key(&folded)
         };
-        let mut stated: Vec<&String> = Vec::new();
+        let mut stated: Vec<&str> = Vec::new();
         if let Some(wrap) = wrap {
-            stated.extend(wrap.role.as_ref());
-            stated.extend(wrap.role_map.values());
+            stated.extend(wrap.role.as_deref());
+            stated.extend(
+                wrap.role_map()
+                    .into_iter()
+                    .flat_map(|(table, _)| table.values().filter_map(JsonValue::as_str)),
+            );
         }
         if stated.iter().any(|role| !known(role)) {
             return Err(inexpressible(

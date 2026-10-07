@@ -346,6 +346,7 @@ impl SectionDefect for super::span_fields::FieldCompileError {
             | E::EmptyAttribute { rule, .. }
             | E::MergeIntoScalar { rule, .. }
             | E::DeadGate { rule, .. }
+            | E::UnrunnablePipe { rule, .. }
             | E::DuplicateId { rule, .. } => vec![rule],
             E::DuplicateTarget { first, second, .. } => vec![first, second],
         }
@@ -365,7 +366,8 @@ impl SectionDefect for super::span_fields::FieldCompileError {
             | E::ScalarOnlyWithoutAPath { file, .. }
             | E::EmptyAttribute { file, .. }
             | E::MergeIntoScalar { file, .. }
-            | E::DeadGate { file, .. } => vec![file],
+            | E::DeadGate { file, .. }
+            | E::UnrunnablePipe { file, .. } => vec![file],
             E::DuplicateId { first, second, .. } => vec![first, second],
             E::DuplicateTarget { .. } => Vec::new(),
         }

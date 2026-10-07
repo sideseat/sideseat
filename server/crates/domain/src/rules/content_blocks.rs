@@ -11,6 +11,7 @@
 use serde_json::{Value as JsonValue, json};
 
 use std::borrow::Cow;
+use std::collections::BTreeMap;
 
 use super::message_rules::{predicate_defect, predicates_hold, query};
 use super::schema::{
@@ -382,7 +383,7 @@ fn member<'b>(
 
 /// A source's value after its one transform, or nothing where the transform cannot apply.
 fn transformed<'b>(block: &'b JsonValue, spec: &TransformedSource) -> Option<Cow<'b, JsonValue>> {
-    if let Some(separator) = &spec.join {
+    if let Some(separator) = spec.join() {
         let texts: Vec<&str> = query(block, &spec.path)
             .into_iter()
             .filter_map(JsonValue::as_str)
@@ -390,18 +391,18 @@ fn transformed<'b>(block: &'b JsonValue, spec: &TransformedSource) -> Option<Cow
         return (!texts.is_empty()).then(|| Cow::Owned(JsonValue::String(texts.join(separator))));
     }
     let found = query(block, &spec.path).into_iter().next()?;
-    if let Some(mode) = spec.parse {
+    if let Some(mode) = spec.parse() {
         let Some(text) = found.as_str() else {
             return Some(Cow::Borrowed(found));
         };
         return super::message_rules::parse_value(text, mode).map(Cow::Owned);
     }
-    if let Some(prefix) = &spec.prepend {
+    if let Some(prefix) = spec.prepend() {
         return found
             .as_str()
             .map(|text| Cow::Owned(JsonValue::String(format!("{prefix}{text}"))));
     }
-    if let Some(table) = &spec.map {
+    if let Some(table) = spec.map() {
         return found
             .as_str()
             .and_then(|text| table.get(text))
@@ -420,21 +421,30 @@ fn source_path(source: &ValueSource) -> &super::schema::JsonPath {
 
 /// Why a transformed source cannot mean what it says.
 fn transform_defect(spec: &TransformedSource) -> Option<&'static str> {
-    let transforms = usize::from(spec.join.is_some())
-        + usize::from(spec.parse.is_some())
-        + usize::from(spec.prepend.is_some())
-        + usize::from(spec.map.is_some());
-    match transforms {
-        0 => Some("names no transform; a plain path is written as a string"),
-        1 if spec.prepend.as_deref() == Some("") => {
-            Some("prepends nothing, which is the plain path written longhand")
-        }
-        1 if spec.map.as_ref().is_some_and(|table| table.is_empty()) => {
-            Some("maps through an empty table, so it can never yield")
-        }
-        1 => None,
-        _ => Some("names more than one transform; each source applies exactly one"),
+    if spec.pipe.len() != 1 {
+        return Some(if spec.pipe.is_empty() {
+            "names no transform; a plain path is written as a string"
+        } else {
+            "names more than one transform; each source applies exactly one"
+        });
     }
+    if spec.prepend().is_some_and(String::is_empty) {
+        return Some("prepends nothing, which is the plain path written longhand");
+    }
+    if spec.map().is_some_and(BTreeMap::is_empty) {
+        return Some("maps through an empty table, so it can never yield");
+    }
+    if spec.join().is_none()
+        && spec.parse().is_none()
+        && spec.prepend().is_none()
+        && spec.map().is_none()
+    {
+        return Some(
+            "names a transform a content-block member cannot apply - `join`, `parse`, `prepend` or a \
+             closed `map`",
+        );
+    }
+    None
 }
 
 /// Every value source a rule declares, in any form.

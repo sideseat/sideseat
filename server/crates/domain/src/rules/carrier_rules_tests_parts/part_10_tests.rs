@@ -395,7 +395,7 @@ fn a_role_a_rule_states_must_be_a_role() {
     for (what, wrap) in [
         (
             "a misspelled mapped role",
-            r#"{"role_from":"$.speaker","role_map":{"model":"assisstant"}}"#,
+            r#"{"role_from":{"path":"$.speaker","pipe":[{"map":{"model":"assisstant"}}]}}"#,
         ),
         ("a literal that is not a role", r#"{"role":"documents"}"#),
         (
@@ -437,7 +437,8 @@ fn a_role_a_rule_states_must_be_a_role() {
 
     // A mapped output is checked as a literal is, and a compose's trailing role too.
     assert!(
-        asset(r#"{"role_from":"$.speaker","role_map":{"planner":"assistant"}}"#).is_ok(),
+        asset(r#"{"role_from":{"path":"$.speaker","pipe":[{"map":{"planner":"assistant"}}]}}"#)
+            .is_ok(),
         "a mapping to a real role is fine - the map's *keys* are the producer's vocabulary, not ours"
     );
     assert!(
@@ -481,15 +482,17 @@ fn a_closed_role_map_says_what_an_unmapped_value_means() {
     };
 
     assert!(
-        asset(r#"{"role_from":"$.speaker","role_map":{"user":"user"},"role_map_is_closed":true}"#)
-            .is_err(),
+        asset(
+            r#"{"role_from":{"path":"$.speaker","pipe":[{"map":{"user":"user"},"closed":true}]}}"#
+        )
+        .is_err(),
         "a closed map with no fallback leaves an unmapped value with no role, and the payload's other members \
          then decide what it was"
     );
 
     // With the fallback - the shape every shipped closed map has - an unmapped value takes it.
     let plan = asset(
-        r#"{"role_from": "$.speaker", "role_map": {"user": "user"}, "role_map_is_closed": true, "role": "assistant", "content_from": "$.content"}"#,
+        r#"{"role_from": {"path": "$.speaker", "pipe": [{"map": {"user": "user"}, "closed": true}]}, "role": "assistant", "content_from": "$.content"}"#,
     )
     .expect("a closed map with a fallback compiles");
     let role = |speaker: &str| {
@@ -513,7 +516,7 @@ fn a_closed_role_map_says_what_an_unmapped_value_means() {
     // An **open** map needs no fallback: an unmapped value passes through as the producer wrote it, which is a
     // different statement and a different defect.
     assert!(
-        asset(r#"{"role_from":"$.speaker","role_map":{"user":"user"}}"#).is_ok(),
+        asset(r#"{"role_from":{"path":"$.speaker","pipe":[{"map":{"user":"user"}}]}}"#).is_ok(),
         "closedness is what creates the obligation"
     );
 }

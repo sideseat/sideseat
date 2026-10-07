@@ -377,7 +377,7 @@ fn a_fold_that_can_do_nothing_is_refused() {
             "span_fields": [{
                 "id": "probe.field",
                 "target": target,
-                "sources": [{"id": "probe.source", "attribute": "probe.attribute", "lowercase": lowercase}],
+                "sources": [{"id": "probe.source", "attribute": "probe.attribute", "pipe": if lowercase { vec!["lowercase"] } else { Vec::new() }}],
             }],
         });
         super::span_fields::compile(

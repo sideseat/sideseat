@@ -371,26 +371,20 @@ pub struct FieldSource {
     /// every declared source, a precedence no producer states.
     #[serde(default)]
     pub event_attribute: Option<EventAttributeSource>,
-    /// The span's own name, exactly as the producer wrote it.
+    /// The span's own name, as the producer wrote it.
     ///
     /// A source rather than an implicit default, so a display name states where it comes from - and the
-    /// resolver has the raw name whatever the target is.
+    /// resolver has the raw name whatever the target is. With `pipe: [{"strip_prefix": p}]` it is the name
+    /// after that prefix: the conventions prescribe `execute_tool {name}`, so the tool's name is stated *in*
+    /// the span rather than beside it; a name without the prefix is absent, and one that is only the prefix is
+    /// empty.
     #[serde(default)]
-    pub raw_span_name: bool,
-    /// Fold the answer to lower case.
-    ///
-    /// For a field whose values are a **case-insensitive enum** and are stored lower case. One dialect writes
-    /// `STOP` where the conventions write `stop`, and both mean the same thing - so the alternative is a
-    /// stored value whose case depends on which producer wrote the span, which every reader then has to fold
-    /// again. Generic: it says the producer's casing is not information, and any source may say so.
+    pub span_name: bool,
+    /// What happens to the value read, in this order: `strip_prefix` (on the span name only), then
+    /// `lowercase` - for a field whose values are a **case-insensitive enum** and are stored lower case (one
+    /// dialect writes `STOP` where the conventions write `stop`). No other step and no other order.
     #[serde(default)]
-    pub lowercase: bool,
-    /// The span's own name, with this prefix stripped.
-    ///
-    /// A name rather than an attribute, because the conventions prescribe `execute_tool {name}` - the tool's
-    /// name is stated *in* the span rather than beside it. Generic: the prefix is the asset's.
-    #[serde(default)]
-    pub span_name_strip_prefix: Option<String>,
+    pub pipe: Vec<Transform>,
     /// A JSON member whose *presence* admits this source, whatever it holds.
     ///
     /// Distinct from `when`, which asks about the span. A substring search over a serialised payload is not a
@@ -485,6 +479,43 @@ pub struct JsonFieldSource {
 }
 
 impl FieldSource {
+    /// The span name, read as it stands.
+    pub fn raw_span_name(&self) -> bool {
+        self.span_name && self.span_name_strip_prefix().is_none()
+    }
+
+    /// The prefix stripped from the span name, where this reads the name after one.
+    pub fn span_name_strip_prefix(&self) -> Option<&String> {
+        match self.pipe.first() {
+            Some(Transform::StripPrefix(prefix)) if self.span_name => Some(prefix),
+            _ => None,
+        }
+    }
+
+    /// Whether the answer is folded to lower case.
+    pub fn lowercase(&self) -> bool {
+        self.pipe.contains(&Transform::Lowercase)
+    }
+
+    /// The steps the pipe states, where they are not ones this source runs in this order.
+    pub fn pipe_defect(&self) -> Option<&'static str> {
+        match self.pipe.as_slice() {
+            [] | [Transform::Lowercase] => None,
+            [Transform::StripPrefix(_)] | [Transform::StripPrefix(_), Transform::Lowercase]
+                if self.span_name =>
+            {
+                None
+            }
+            [Transform::StripPrefix(_), ..] => Some(
+                "strips a prefix from a source that is not the span name, which only the span name runs",
+            ),
+            _ => Some(
+                "states steps a span-field source does not run: `strip_prefix` (span name only), then \
+                 `lowercase`",
+            ),
+        }
+    }
+
     /// The one attribute this reads, where it names one.
     pub fn attribute(&self) -> Option<&String> {
         self.attribute_keys.as_ref().and_then(FirstOf::single)

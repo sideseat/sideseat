@@ -11,6 +11,21 @@ where
     JsonValue::deserialize(deserializer).map(Some)
 }
 
+/// A reading's steps, refused at parse when they name anything but `trim`: a selected value is otherwise
+/// tested and emitted as it stands, and a step the reading would not run must not be writable.
+fn reading_pipe<'de, D>(deserializer: D) -> Result<Vec<Transform>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let pipe = Vec::<Transform>::deserialize(deserializer)?;
+    match pipe.as_slice() {
+        [] | [Transform::Trim] => Ok(pipe),
+        _ => Err(serde::de::Error::custom(
+            "a reading's `pipe` is `[\"trim\"]`; no other step applies to a selected value",
+        )),
+    }
+}
+
 /// The envelope a bare payload is wrapped in.
 ///
 /// Some carriers hold a payload rather than a message - a tool's arguments, an instruction, a response's
@@ -25,26 +40,17 @@ pub struct WrapSpec {
     /// A literal role. One of this and `role_from` is required.
     #[serde(default)]
     pub role: Option<String>,
-    /// A JSONPath whose value is the role, relative to the reading being wrapped.
+    /// A JSONPath whose value is the role, relative to the reading being wrapped, or `{"path": ..., "pipe":
+    /// [{"map": {...}}]}` to rename the roles the payload supplies.
     ///
     /// Several dialects put the role *in* the payload - Gemini's `{parts, role}` is the clearest case - so
-    /// a literal here would either be wrong or need one rule per role.
+    /// a literal here would either be wrong or need one rule per role. The map is a provider's own vocabulary:
+    /// one calls the assistant `model`, and normalising that here keeps the alias beside the dialect that uses
+    /// it. An open map passes an unlisted value through as the role; a `closed` one treats the table as the
+    /// complete list, so an unlisted value falls back to `role` - one dialect names the *speaker* where another
+    /// names the role, and `source: "planner"` means an assistant, not a role called `planner`.
     #[serde(default)]
-    #[cfg_attr(test, schemars(with = "Option<String>"))]
-    pub role_from: Option<JsonPath>,
-    /// Rename a role the payload supplied.
-    ///
-    /// A provider's own vocabulary: one calls the assistant `model`, and normalising that here keeps the
-    /// alias beside the dialect that uses it rather than in a shared table nothing points at.
-    #[serde(default)]
-    pub role_map: BTreeMap<String, String>,
-    /// Treat `role_map` as the complete list: a value not in it falls back to `role` rather than being used
-    /// as a role itself.
-    ///
-    /// One dialect names the *speaker* where another names the role - `source: "planner"` means an
-    /// assistant, not a role called `planner` - so which of the two a member is has to be declared.
-    #[serde(default)]
-    pub role_map_is_closed: bool,
+    pub role_from: Option<ValueSource>,
     /// Ordered paths for the content; the first that resolves wins.
     ///
     /// One dialect serialises a message three ways depending on how it was constructed, and the content sits
@@ -117,6 +123,46 @@ pub struct WrapSpec {
     pub block: Option<BlockSpec>,
 }
 
+impl WrapSpec {
+    /// The path the role is read from.
+    pub fn role_path(&self) -> Option<&JsonPath> {
+        match self.role_from.as_ref()? {
+            ValueSource::Path(path) => Some(path),
+            ValueSource::Transformed(spec) => Some(&spec.path),
+        }
+    }
+
+    /// The renaming table, and whether it is the complete list.
+    pub fn role_map(&self) -> Option<(&BTreeMap<String, JsonValue>, bool)> {
+        match self.role_from.as_ref()? {
+            ValueSource::Transformed(spec) => match spec.pipe.as_slice() {
+                [Transform::Map { table, closed }] => Some((table, *closed)),
+                _ => None,
+            },
+            ValueSource::Path(_) => None,
+        }
+    }
+
+    /// Why the role source cannot be run as written.
+    pub fn role_pipe_defect(&self) -> Option<&'static str> {
+        let Some(ValueSource::Transformed(_)) = &self.role_from else {
+            return None;
+        };
+        match self.role_map() {
+            None => Some(
+                "reads its role through a step other than one `map`; a role is renamed, not rewritten",
+            ),
+            Some((table, _)) if table.is_empty() => Some(
+                "renames its role through an empty table, which is the plain path written longhand",
+            ),
+            Some((table, _)) if table.values().any(|role| !role.is_string()) => {
+                Some("renames a role to something that is not a string")
+            }
+            Some(_) => None,
+        }
+    }
+}
+
 /// A content block built around the read value.
 #[derive(Debug, Deserialize, Clone)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]
@@ -167,12 +213,6 @@ pub struct AttachSpec {
     #[serde(default)]
     #[cfg_attr(test, schemars(with = "Option<String>"))]
     pub from_path: Option<JsonPath>,
-    /// Lower-case the attached string.
-    ///
-    /// A provider writes finish reasons in upper case and the canonical form is lower; declared because
-    /// lower-casing a payload that is meant to be verbatim would change it.
-    #[serde(default)]
-    pub lowercase: bool,
     /// The member it becomes.
     #[serde(rename = "as")]
     pub as_member: String,
@@ -188,12 +228,6 @@ pub struct AttachSpec {
     #[serde(default)]
     #[cfg_attr(test, schemars(with = "Option<String>"))]
     pub select: Option<JsonPath>,
-    /// Attach only when the source attribute equals this exactly.
-    ///
-    /// How a boolean flag arrives: an attribute whose string is `"true"`. Without the comparison the
-    /// literal `"false"` would attach as a truthy value.
-    #[serde(default)]
-    pub when_equals: Option<String>,
     /// The literal to attach instead of the source's value, for a flag - or on its own, for a member that
     /// is part of the shape rather than something read.
     ///
@@ -201,22 +235,24 @@ pub struct AttachSpec {
     /// member has to be present rather than omitted.
     #[serde(default, deserialize_with = "explicit_value")]
     pub value: Option<JsonValue>,
-    /// Treat a blank value as absent, so the fallbacks below apply.
+    /// What happens to the value read, in this order: `blank_is_absent` (a blank attribute is treated as
+    /// absent, so the fallbacks below apply), `strip_bracket_tag` (a leading `[TAG]` line removed before
+    /// parsing - one dialect tags a structured payload with the tool it belongs to and writes the JSON beneath
+    /// it), and then either `lowercase` (after parsing and selecting: a provider writes finish reasons in upper
+    /// case and the canonical form is lower) or a closed `map` of **one** entry, `{"map": {"true": true},
+    /// "closed": true}`: attach the mapped literal only when the attribute is exactly that text and nothing
+    /// otherwise - how a boolean flag arrives as the string `"true"`. Only `lowercase` applies to a payload
+    /// path; nothing applies to a value path.
     #[serde(default)]
-    pub blank_is_absent: bool,
-    /// Remove a leading `[TAG]\n` marker before parsing.
-    ///
-    /// One dialect tags a structured payload with the tool it belongs to and then writes the JSON beneath
-    /// it; parsing without stripping fails, and the member would silently fall back to its default.
-    #[serde(default)]
-    pub strip_bracket_tag: bool,
-    /// Fall back to the span name with this prefix removed, trimmed, when the other sources are absent.
+    pub pipe: Vec<Transform>,
+    /// Fall back to the span name, through `[{"strip_prefix": p}, "trim"]`, when the other sources are absent:
+    /// a name without the prefix, or one that is blank after it, supplies nothing.
     ///
     /// The conventions prescribe `execute_tool {name}` as a tool span's name, so a producer that omits
-    /// the attribute still names the tool - and an unnamed call is unusable downstream. An empty prefix
+    /// the attribute still names the tool - and an unnamed call is unusable downstream. `["trim"]` alone
     /// deliberately uses the complete span name for exporters that name a tool span exactly after the tool.
     #[serde(default)]
-    pub or_span_name_after: Option<String>,
+    pub or_span_name: Vec<Transform>,
     /// Attach this literal when nothing else supplied a value.
     ///
     /// Distinct from omitting the member: a block whose shape *requires* a name carries an empty one
@@ -232,6 +268,87 @@ pub struct AttachSpec {
     /// orders here are what the extractors emitted, which is why they are stated rather than chosen.
     #[serde(default)]
     pub after_content: bool,
+}
+
+impl AttachSpec {
+    /// Whether a blank attribute is treated as absent.
+    pub fn blank_is_absent(&self) -> bool {
+        self.pipe.first() == Some(&Transform::BlankIsAbsent)
+    }
+
+    /// Whether a leading `[TAG]` line is removed.
+    pub fn strip_bracket_tag(&self) -> bool {
+        self.pipe.contains(&Transform::StripBracketTag)
+    }
+
+    /// Whether the attached text is folded to lower case.
+    pub fn lowercase(&self) -> bool {
+        self.pipe.last() == Some(&Transform::Lowercase)
+    }
+
+    /// The one text the attribute must equal, and the literal attached when it does.
+    pub fn when_equals(&self) -> Option<(&String, &JsonValue)> {
+        match self.pipe.last() {
+            Some(Transform::Map {
+                table,
+                closed: true,
+            }) if table.len() == 1 => table.iter().next(),
+            _ => None,
+        }
+    }
+
+    /// The prefix the span-name fallback strips; empty when it strips none.
+    pub fn or_span_name_after(&self) -> Option<&str> {
+        match self.or_span_name.as_slice() {
+            [Transform::StripPrefix(prefix), Transform::Trim] => Some(prefix),
+            [Transform::Trim] => Some(""),
+            _ => None,
+        }
+    }
+
+    /// Steps the pipes state that this attachment does not run, in that order.
+    pub fn pipe_defect(&self) -> Option<&'static str> {
+        let mut rest = self.pipe.as_slice();
+        if rest.first() == Some(&Transform::BlankIsAbsent) {
+            rest = &rest[1..];
+        }
+        if rest.first() == Some(&Transform::StripBracketTag) {
+            rest = &rest[1..];
+        }
+        let ends_well = match rest {
+            [] | [Transform::Lowercase] => true,
+            [
+                Transform::Map {
+                    table,
+                    closed: true,
+                },
+            ] => table.len() == 1,
+            _ => false,
+        };
+        if !ends_well {
+            return Some(
+                "states steps an attachment does not run: `blank_is_absent`, `strip_bracket_tag`, then \
+                 `lowercase` or a closed one-entry `map`",
+            );
+        }
+        if self.from.is_none()
+            && (self.blank_is_absent() || self.strip_bracket_tag() || self.when_equals().is_some())
+        {
+            return Some("states attribute steps on a member that reads no attribute");
+        }
+        // The flag answers before the attribute is parsed, so a parse or a selection beside it never runs.
+        if self.when_equals().is_some() && (self.parse.is_some() || self.select.is_some()) {
+            return Some(
+                "tests the attribute against one text and also parses or selects inside it, which never runs",
+            );
+        }
+        if !self.or_span_name.is_empty() && self.or_span_name_after().is_none() {
+            return Some(
+                "falls back to the span name through anything but `[\"trim\"]` or `[{\"strip_prefix\": p}, \"trim\"]`",
+            );
+        }
+        None
+    }
 }
 
 /// What an emitted observation is.
@@ -322,11 +439,11 @@ pub struct Alternative {
     /// own `wrap` where present.
     #[serde(default)]
     pub wrap: Option<WrapSpec>,
-    /// Trim a string before testing and emitting it.
+    /// `["trim"]` trims a string before testing and emitting it; no other step applies to a reading.
     ///
     /// Declared rather than always-on: trimming a payload that is meant to be verbatim would change it.
-    #[serde(default)]
-    pub trim: bool,
+    #[serde(default, deserialize_with = "reading_pipe")]
+    pub pipe: Vec<Transform>,
     /// Apply this named fragment's cases to each selected element.
     ///
     /// The fragment decides what the element *is*; this reading decides *where to look*. Splitting them is

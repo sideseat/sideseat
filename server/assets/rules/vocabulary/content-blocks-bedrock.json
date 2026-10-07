@@ -99,7 +99,7 @@
         "data": "$.image.source.bytes",
         "media_type": {
           "path": "$.image.format",
-          "prepend": "image/"
+          "pipe": [{"prepend": "image/"}]
         },
         "missing_media_type": "null",
         "source": {
@@ -121,7 +121,7 @@
         "data": "$.document.source.bytes",
         "media_type": {
           "path": "$.document.format",
-          "prepend": "application/"
+          "pipe": [{"prepend": "application/"}]
         },
         "missing_media_type": "null",
         "source": {
@@ -143,7 +143,7 @@
         "data": "$.video.source.bytes",
         "media_type": {
           "path": "$.video.format",
-          "prepend": "video/"
+          "pipe": [{"prepend": "video/"}]
         },
         "missing_media_type": "null",
         "source": {
@@ -179,9 +179,7 @@
         "content_as": "value",
         "is_error": {
           "path": "$.toolResult.status",
-          "map": {
-            "error": true
-          }
+          "pipe": [{"map": {"error": true}, "closed": true}]
         },
         "doc": "The content is a list of blocks, reduced to the value it holds - the canonical form a tool-role message's content takes - so one result reads alike whether a producer wrote it as a block or as a tool message."
       }

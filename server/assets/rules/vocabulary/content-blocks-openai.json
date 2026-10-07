@@ -60,7 +60,7 @@
         "data": "$.input_audio.data",
         "media_type": {
           "path": "$.input_audio.format",
-          "prepend": "audio/"
+          "pipe": [{"prepend": "audio/"}]
         },
         "missing_media_type": "null",
         "source": {
@@ -84,7 +84,7 @@
         "data": "$.audio.data",
         "media_type": {
           "path": "$.audio.format",
-          "prepend": "audio/"
+          "pipe": [{"prepend": "audio/"}]
         },
         "missing_media_type": "null",
         "source": {
