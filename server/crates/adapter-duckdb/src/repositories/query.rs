@@ -313,60 +313,6 @@ pub fn file_reference_fields_for_traces(
     Ok(fields)
 }
 
-pub fn span_body_fields_for_traces(
-    conn: &Connection,
-    project_id: &str,
-    trace_ids: &[String],
-) -> Result<Vec<sideseat_ports::types::SpanBodySource>, DuckdbError> {
-    let Some(query) = analytics::span_body_fields(project_id, trace_ids, Backend::Duckdb) else {
-        return Ok(Vec::new());
-    };
-    let values = duckdb_values(query.params());
-    let mut stmt = conn.prepare(query.sql())?;
-    let mut rows = stmt.query(values.as_slice())?;
-    let mut sources = Vec::new();
-    while let Some(row) = rows.next()? {
-        sources.push(sideseat_ports::types::SpanBodySource {
-            trace_id: row.get(0)?,
-            span_id: row.get(1)?,
-            messages: row.get(2)?,
-            tool_definitions: row.get(3)?,
-            tool_names: row.get(4)?,
-        });
-    }
-    Ok(sources)
-}
-
-pub fn span_body_backfill_page(
-    conn: &Connection,
-    project_id: &str,
-    after: Option<(String, String)>,
-    limit: usize,
-) -> Result<Vec<sideseat_ports::types::SpanBodySource>, DuckdbError> {
-    let query = analytics::span_body_backfill_page(
-        project_id,
-        after
-            .as_ref()
-            .map(|(trace, span)| (trace.as_str(), span.as_str())),
-        limit,
-        Backend::Duckdb,
-    );
-    let values = duckdb_values(query.params());
-    let mut stmt = conn.prepare(query.sql())?;
-    let mut rows = stmt.query(values.as_slice())?;
-    let mut sources = Vec::new();
-    while let Some(row) = rows.next()? {
-        sources.push(sideseat_ports::types::SpanBodySource {
-            trace_id: row.get(0)?,
-            span_id: row.get(1)?,
-            messages: row.get(2)?,
-            tool_definitions: row.get(3)?,
-            tool_names: row.get(4)?,
-        });
-    }
-    Ok(sources)
-}
-
 pub fn delete_traces(
     conn: &Connection,
     project_id: &str,

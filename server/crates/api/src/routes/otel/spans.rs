@@ -575,18 +575,6 @@ pub async fn delete_spans(
             .delete_spans(&auth.project_id, &span_pairs)
             .await
             .map_err(ApiError::from_data)?;
-        if let Err(error) = state
-            .content_bodies
-            .cleanup_spans(&auth.project_id, &span_pairs)
-            .await
-        {
-            tracing::warn!(
-                %error,
-                project_id = %auth.project_id,
-                spans = span_pairs.len(),
-                "Failed to cleanup content bodies after span deletion"
-            );
-        }
 
         // Cleanup favorites for deleted spans
         let span_ids: Vec<String> = body

@@ -101,18 +101,14 @@ impl CoreApp {
             .register(Arc::clone(&self.storage_governance).start(self.shutdown.subscribe()))
             .await;
         self.shutdown
-            .register(
-                Arc::new(
-                    sideseat_domain::content_bodies::ContentBodyService::from_file_service(
-                        &self.files,
-                    ),
-                )
-                .start_backfill_task(
-                    Arc::clone(&self.analytics_port),
-                    Arc::clone(&self.clock),
-                    self.shutdown.subscribe(),
-                ),
-            )
+            .register(sideseat_domain::maintenance::start(
+                sideseat_domain::content_bodies::ContentBodyService::from_file_service(&self.files),
+                Arc::clone(&self.storage_governance),
+                Arc::clone(&self.database_port),
+                Arc::clone(&self.analytics_port),
+                Arc::clone(&self.clock),
+                self.shutdown.subscribe(),
+            ))
             .await;
 
         // Metrics persist in their request path, so they do not need a background pipeline.

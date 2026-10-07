@@ -264,24 +264,6 @@ impl TracePipeline {
             }
             sideseat_domain::search::index_spans(&mut db_spans);
 
-            let mut staged_bodies = match self
-                .content_bodies
-                .stage(&db_spans, self.storage_governance.as_ref())
-                .await
-            {
-                Ok(staged) => Some(staged),
-                Err(error) => {
-                    self.content_bodies
-                        .mark_incomplete_for_spans(&db_spans)
-                        .await;
-                    tracing::warn!(
-                        %error,
-                        "Could not content-address this request's span bodies; retaining inline columns only"
-                    );
-                    None
-                }
-            };
-
             // The raw record is the authority the rows are derived from, so it is stored before them; a request
             // whose raw record cannot be stored stores nothing.
             let hold_until = db_spans.first().and_then(|span| span.hold_until);
@@ -324,9 +306,6 @@ impl TracePipeline {
                 .collect();
             let db_ok = write_to_duckdb(db_spans, self.analytics.as_ref()).await;
             if !db_ok {
-                if let Some(staged) = staged_bodies.as_mut() {
-                    self.content_bodies.release_all(staged).await;
-                }
                 self.release_created_associations(&created_associations)
                     .await;
             }
@@ -337,14 +316,6 @@ impl TracePipeline {
                 let compensated = self
                     .collect_spans_written_for_deleted_traces(&written, &mut created_associations)
                     .await;
-                if let Some(staged) = staged_bodies.as_mut() {
-                    self.content_bodies
-                        .remove_identities(staged, &compensated)
-                        .await;
-                    self.content_bodies
-                        .confirm_winners(staged, self.analytics.as_ref())
-                        .await;
-                }
                 self.confirm_associations(&created_associations, "request")
                     .await;
                 // Only spans that survived every drop and the compensation - see the batch path, including

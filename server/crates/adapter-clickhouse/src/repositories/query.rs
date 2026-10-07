@@ -386,66 +386,6 @@ pub async fn file_reference_fields_for_traces(
         .collect())
 }
 
-pub async fn span_body_fields_for_traces(
-    client: &clickhouse::Client,
-    project_id: &ProjectId,
-    trace_ids: &[String],
-) -> Result<Vec<sideseat_ports::types::SpanBodySource>, ClickhouseError> {
-    let Some(statement) =
-        analytics::span_body_fields(project_id.as_str(), trace_ids, Backend::Clickhouse)
-    else {
-        return Ok(Vec::new());
-    };
-    let query = bind_analytics_values(client.query(statement.sql()), statement.params());
-    let rows: Vec<(String, String, String, String, String)> = query.fetch_all().await?;
-    Ok(rows
-        .into_iter()
-        .map(
-            |(trace_id, span_id, messages, tool_definitions, tool_names)| {
-                sideseat_ports::types::SpanBodySource {
-                    trace_id,
-                    span_id,
-                    messages: (!messages.is_empty()).then_some(messages),
-                    tool_definitions: (!tool_definitions.is_empty()).then_some(tool_definitions),
-                    tool_names: (!tool_names.is_empty()).then_some(tool_names),
-                }
-            },
-        )
-        .collect())
-}
-
-pub async fn span_body_backfill_page(
-    client: &clickhouse::Client,
-    project_id: &ProjectId,
-    after: Option<(String, String)>,
-    limit: usize,
-) -> Result<Vec<sideseat_ports::types::SpanBodySource>, ClickhouseError> {
-    let statement = analytics::span_body_backfill_page(
-        project_id.as_str(),
-        after
-            .as_ref()
-            .map(|(trace, span)| (trace.as_str(), span.as_str())),
-        limit,
-        Backend::Clickhouse,
-    );
-    let query = bind_analytics_values(client.query(statement.sql()), statement.params());
-    let rows: Vec<(String, String, String, String, String)> = query.fetch_all().await?;
-    Ok(rows
-        .into_iter()
-        .map(
-            |(trace_id, span_id, messages, tool_definitions, tool_names)| {
-                sideseat_ports::types::SpanBodySource {
-                    trace_id,
-                    span_id,
-                    messages: (!messages.is_empty()).then_some(messages),
-                    tool_definitions: (!tool_definitions.is_empty()).then_some(tool_definitions),
-                    tool_names: (!tool_names.is_empty()).then_some(tool_names),
-                }
-            },
-        )
-        .collect())
-}
-
 pub async fn delete_traces(
     client: &Client,
     table: &str,

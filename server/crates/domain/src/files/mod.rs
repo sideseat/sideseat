@@ -631,9 +631,6 @@ impl FileService {
             return Ok(());
         }
 
-        crate::content_bodies::ContentBodyService::from_file_service(self)
-            .cleanup_traces(project_id, trace_ids)
-            .await?;
         if !self.config.enabled {
             return Ok(());
         }
@@ -766,8 +763,8 @@ impl FileService {
 
     /// Delete all files for a project
     pub async fn delete_project(&self, project_id: &ProjectId) -> Result<u64, FileServiceError> {
-        // Bodies share the physical project namespace with uploaded files, while ownership metadata is
-        // separate. Delete both metadata families after the one physical project delete.
+        // The retired body objects share the physical project namespace with uploaded files, so the one
+        // physical delete takes both; then both metadata families go.
         let deleted = self.storage.delete_project(project_id).await?;
 
         let repo = self.database.as_ref();
@@ -885,18 +882,6 @@ async fn raw_media_of_survivors(
 impl sideseat_ports::blobs::RetentionFileReconciler for FileService {
     fn is_enabled(&self) -> bool {
         FileService::is_enabled(self)
-    }
-
-    async fn reconcile_body_survivors(
-        &self,
-        project_id: &ProjectId,
-        trace_ids: &[String],
-        analytics: &dyn sideseat_ports::traits::SurvivorReferences,
-    ) -> Result<(), String> {
-        crate::content_bodies::ContentBodyService::from_file_service(self)
-            .reconcile_trace_survivors(project_id, trace_ids, analytics)
-            .await
-            .map_err(|error| error.to_string())
     }
 
     async fn reconcile_trace_survivors(

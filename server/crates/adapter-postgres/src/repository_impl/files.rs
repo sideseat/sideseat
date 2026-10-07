@@ -381,108 +381,9 @@ impl FileMetaStore for PostgresRepository {
 
 #[async_trait]
 impl ContentBodyStore for PostgresRepository {
-    async fn register_content_bodies(
-        &self,
-        objects: &[ContentBodyObject],
-    ) -> Result<Vec<ContentBodyObject>, DataError> {
-        let mut by_project = BTreeMap::<&ProjectId, Vec<ContentBodyObject>>::new();
-        for object in objects {
-            by_project
-                .entry(&object.project_id)
-                .or_default()
-                .push(object.clone());
-        }
-
-        let mut inserted = Vec::new();
-        for (project_id, objects) in by_project {
-            inserted.extend(tenant_transaction!(self, project_id, |connection| {
-                body::register(connection, &objects, self.0.clock().now())
-            })?);
-        }
-        Ok(inserted)
-    }
-
-    async fn unresolved_span_bodies(
-        &self,
-        associations: &[SpanBodyAssociation],
-    ) -> Result<Vec<SpanBodyAssociation>, DataError> {
-        let mut by_project = BTreeMap::<&ProjectId, Vec<SpanBodyAssociation>>::new();
-        for association in associations {
-            by_project
-                .entry(&association.project_id)
-                .or_default()
-                .push(association.clone());
-        }
-
-        let mut unresolved = Vec::new();
-        for (project_id, associations) in by_project {
-            unresolved.extend(tenant_transaction!(self, project_id, |connection| {
-                body::unresolved(connection, &associations)
-            })?);
-        }
-        Ok(unresolved)
-    }
-
-    async fn stage_span_bodies(
-        &self,
-        associations: &[SpanBodyAssociation],
-    ) -> Result<u64, DataError> {
-        let mut by_project = BTreeMap::<&ProjectId, Vec<SpanBodyAssociation>>::new();
-        for association in associations {
-            by_project
-                .entry(&association.project_id)
-                .or_default()
-                .push(association.clone());
-        }
-
-        let mut staged = 0;
-        for (project_id, associations) in by_project {
-            staged += tenant_transaction!(self, project_id, |connection| {
-                body::stage(connection, &associations)
-            })?;
-        }
-        Ok(staged)
-    }
-
-    async fn confirm_span_bodies(
-        &self,
-        associations: &[SpanBodyAssociation],
-    ) -> Result<u64, DataError> {
-        let mut by_project = BTreeMap::<&ProjectId, Vec<SpanBodyAssociation>>::new();
-        for association in associations {
-            by_project
-                .entry(&association.project_id)
-                .or_default()
-                .push(association.clone());
-        }
-
-        let mut confirmed = 0;
-        for (project_id, associations) in by_project {
-            confirmed += tenant_transaction!(self, project_id, |connection| {
-                body::confirm(connection, &associations)
-            })?;
-        }
-        Ok(confirmed)
-    }
-
-    async fn release_span_body(
-        &self,
-        association: &SpanBodyAssociation,
-    ) -> Result<bool, DataError> {
-        tenant_transaction!(self, &association.project_id, |connection| {
-            body::release(connection, association)
-        })
-    }
-
-    async fn get_span_body_hash(
-        &self,
-        project_id: &ProjectId,
-        trace_id: &str,
-        span_id: &str,
-        field: SpanBodyField,
-    ) -> Result<Option<String>, DataError> {
-        tenant_transaction!(self, project_id, |connection| {
-            body::get_hash(connection, project_id, trace_id, span_id, field)
+    async fn retire_span_body_associations(&self, limit: usize) -> Result<u64, DataError> {
+        maintenance_transaction!(self, |connection| {
+            body::retire_associations(connection, limit)
         })
     }
 
@@ -536,67 +437,12 @@ impl ContentBodyStore for PostgresRepository {
         })
     }
 
-    async fn delete_span_bodies(
-        &self,
-        project_id: &ProjectId,
-        spans: &[(String, String)],
-    ) -> Result<Vec<String>, DataError> {
-        tenant_transaction!(self, project_id, |connection| {
-            body::delete_spans(connection, project_id, spans)
-        })
-    }
-
-    async fn delete_trace_bodies(
-        &self,
-        project_id: &ProjectId,
-        trace_ids: &[String],
-    ) -> Result<Vec<String>, DataError> {
-        tenant_transaction!(self, project_id, |connection| {
-            body::delete_traces(connection, project_id, trace_ids)
-        })
-    }
-
     async fn delete_project_bodies(
         &self,
         project_id: &ProjectId,
     ) -> Result<Vec<String>, DataError> {
         tenant_transaction!(self, project_id, |connection| {
             body::delete_project(connection, project_id)
-        })
-    }
-
-    async fn reconcile_span_bodies(
-        &self,
-        project_id: &ProjectId,
-        trace_ids: &[String],
-        keep: &[SpanBodyAssociation],
-    ) -> Result<Vec<String>, DataError> {
-        tenant_transaction!(self, project_id, |connection| {
-            body::reconcile(connection, project_id, trace_ids, keep)
-        })
-    }
-
-    async fn content_body_backfill_progress(
-        &self,
-        project_id: &ProjectId,
-    ) -> Result<Option<ContentBodyBackfillProgress>, DataError> {
-        tenant_transaction!(self, project_id, |connection| {
-            body::backfill_progress(connection, project_id)
-        })
-    }
-
-    async fn save_content_body_backfill_progress(
-        &self,
-        progress: &ContentBodyBackfillProgress,
-    ) -> Result<(), DataError> {
-        tenant_transaction!(self, &progress.project_id, |connection| {
-            body::save_backfill_progress(connection, progress)
-        })
-    }
-
-    async fn reset_content_body_backfill(&self, project_id: &ProjectId) -> Result<(), DataError> {
-        tenant_transaction!(self, project_id, |connection| {
-            body::reset_backfill(connection, project_id, self.0.clock().now())
         })
     }
 }

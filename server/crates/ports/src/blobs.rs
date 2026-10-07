@@ -116,13 +116,6 @@ pub trait FileStorage: Send + Sync {
 pub trait RetentionFileReconciler: Send + Sync {
     fn is_enabled(&self) -> bool;
 
-    async fn reconcile_body_survivors(
-        &self,
-        project_id: &ProjectId,
-        trace_ids: &[String],
-        analytics: &dyn SurvivorReferences,
-    ) -> Result<(), String>;
-
     async fn reconcile_trace_survivors(
         &self,
         project_id: &ProjectId,

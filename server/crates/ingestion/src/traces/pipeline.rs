@@ -53,7 +53,6 @@ pub use raw_lifecycle::Reconciled;
 use raw_lifecycle::WrittenRecord;
 use sideseat_core::constants::{DEFAULT_PROJECT_ID, PIPELINE_CPU_PHASE_MAX_INFLIGHT_BYTES};
 use sideseat_core::utils::time::is_storable;
-use sideseat_domain::content_bodies::ContentBodyService;
 use sideseat_domain::files::FileService;
 use sideseat_domain::pricing::PricingService;
 use sideseat_domain::sideml::to_sideml_batch;
@@ -277,7 +276,6 @@ pub struct TracePipeline {
     file_service: Arc<FileService>,
     staging: Arc<StagingService>,
     storage_governance: Option<Arc<StorageGovernanceService>>,
-    content_bodies: ContentBodyService,
     /// Cross-batch cache for base64 extraction.
     /// Avoids redundant decode + BLAKE3 for repeated images across spans/batches.
     file_cache: FileExtractionCache,

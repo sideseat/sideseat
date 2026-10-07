@@ -10,16 +10,14 @@ use std::collections::{HashMap, HashSet};
 
 use crate::error::DataError;
 use crate::types::{
-    ApiKeyRow, ApiKeyScope, ApiKeyValidation, AuthMethodRow, ContentBodyBackfillProgress,
-    ContentBodyObject, CredentialPermissionRow, CredentialRow, FeedMessagesParams, FeedSpansParams,
-    FileRow, LastOwnerResult, ListLogsParams, ListMetricsParams, ListSessionsParams,
-    ListSpansParams, ListTracesParams, LogRow, MemberWithUser, MembershipRow, MessageQueryParams,
-    MessageQueryResult, MetricAggregateRow, MetricRow, NormalizedLog, NormalizedMetric,
-    NormalizedSpan, OrgWithRole, OrganizationRow, PressureSpanCandidate, ProjectHold, ProjectId,
-    ProjectRow, ProjectStorageUsage, RawPending, RawRecordRow, SearchBackfillDocument,
-    SearchBackfillSource, SearchCursor, SearchPage, SearchQuery, SearchSignal, SessionRow,
-    SpanBodyAssociation, SpanBodyField, SpanBodySource, SpanCounts, SpanRow, StagedPayload,
-    TraceRow, UserRow,
+    ApiKeyRow, ApiKeyScope, ApiKeyValidation, AuthMethodRow, CredentialPermissionRow,
+    CredentialRow, FeedMessagesParams, FeedSpansParams, FileRow, LastOwnerResult, ListLogsParams,
+    ListMetricsParams, ListSessionsParams, ListSpansParams, ListTracesParams, LogRow,
+    MemberWithUser, MembershipRow, MessageQueryParams, MessageQueryResult, MetricAggregateRow,
+    MetricRow, NormalizedLog, NormalizedMetric, NormalizedSpan, OrgWithRole, OrganizationRow,
+    PressureSpanCandidate, ProjectHold, ProjectId, ProjectRow, ProjectStorageUsage, RawPending,
+    RawRecordRow, SearchBackfillDocument, SearchBackfillSource, SearchCursor, SearchPage,
+    SearchQuery, SearchSignal, SessionRow, SpanCounts, SpanRow, StagedPayload, TraceRow, UserRow,
 };
 
 mod analytics;

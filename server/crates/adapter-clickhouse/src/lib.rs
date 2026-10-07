@@ -92,23 +92,6 @@ impl ClickhouseService {
         }
 
         match file_service {
-            Some(files) => {
-                if let Err(error) = files
-                    .reconcile_body_survivors(project_id, trace_ids, analytics)
-                    .await
-                {
-                    clean = false;
-                    tracing::warn!(
-                        project_id = %project_id,
-                        %error,
-                        "Failed to reconcile ClickHouse retention body survivors"
-                    );
-                }
-            }
-            None => clean = false,
-        }
-
-        match file_service {
             Some(files) if files.is_enabled() => {
                 if let Err(error) = files
                     .reconcile_trace_survivors(project_id, trace_ids, analytics)

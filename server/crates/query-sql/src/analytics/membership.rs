@@ -242,63 +242,6 @@ pub fn file_reference_fields(
     )
 }
 
-/// Read every body field with the span identity that owns it.
-pub fn span_body_fields(
-    project_id: &str,
-    trace_ids: &[String],
-    backend: Backend,
-) -> Option<ParameterizedQuery> {
-    let projection = match backend {
-        Backend::Duckdb => "trace_id, span_id, messages, tool_definitions, tool_names",
-        Backend::Clickhouse => {
-            "trace_id, span_id, coalesce(messages, ''), coalesce(tool_definitions, ''), \
-             coalesce(tool_names, '')"
-        }
-    };
-    trace_identity_read(
-        project_id,
-        trace_ids,
-        backend,
-        projection,
-        QueryOperation::SpanBodyFieldsForTraces,
-    )
-}
-
-pub fn span_body_backfill_page(
-    project_id: &str,
-    after: Option<(&str, &str)>,
-    limit: usize,
-    backend: Backend,
-) -> ParameterizedQuery {
-    let source = analytics_dialect(backend).span_page_relation();
-    let projection = match backend {
-        Backend::Duckdb => "trace_id, span_id, messages, tool_definitions, tool_names",
-        Backend::Clickhouse => {
-            "trace_id, span_id, coalesce(messages, ''), coalesce(tool_definitions, ''), \
-             coalesce(tool_names, '')"
-        }
-    };
-    let mut params = vec![QueryValue::String(project_id.to_string())];
-    let cursor = if let Some((trace_id, span_id)) = after {
-        params.extend([
-            QueryValue::String(trace_id.to_string()),
-            QueryValue::String(trace_id.to_string()),
-            QueryValue::String(span_id.to_string()),
-        ]);
-        " AND (trace_id > ? OR (trace_id = ? AND span_id > ?))"
-    } else {
-        ""
-    };
-    params.push(QueryValue::Int64(i64::try_from(limit).unwrap_or(i64::MAX)));
-    ParameterizedQuery {
-        sql: format!(
-            "SELECT {projection} FROM {source} WHERE project_id = ?{cursor} \
-             ORDER BY trace_id, span_id LIMIT ?"
-        ),
-        params,
-    }
-}
-
 fn trace_identity_read(
     project_id: &str,
     trace_ids: &[String],

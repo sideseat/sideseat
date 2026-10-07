@@ -848,36 +848,6 @@ impl SurvivorReferences for ClickhouseRepository {
             trace_ids
         )
     }
-
-    async fn span_body_fields_for_traces(
-        &self,
-        project_id: &ProjectId,
-        trace_ids: &[String],
-    ) -> Result<Vec<sideseat_ports::types::SpanBodySource>, DataError> {
-        tenant_query!(
-            self,
-            project_id,
-            query::span_body_fields_for_traces,
-            project_id,
-            trace_ids
-        )
-    }
-
-    async fn span_body_backfill_page(
-        &self,
-        project_id: &ProjectId,
-        after: Option<(String, String)>,
-        limit: usize,
-    ) -> Result<Vec<sideseat_ports::types::SpanBodySource>, DataError> {
-        tenant_query!(
-            self,
-            project_id,
-            query::span_body_backfill_page,
-            project_id,
-            after,
-            limit
-        )
-    }
 }
 
 // After the query macros, which it uses.

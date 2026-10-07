@@ -378,59 +378,8 @@ impl FileMetaStore for SqliteRepository {
 
 #[async_trait]
 impl ContentBodyStore for SqliteRepository {
-    async fn register_content_bodies(
-        &self,
-        objects: &[ContentBodyObject],
-    ) -> Result<Vec<ContentBodyObject>, DataError> {
-        body::register(self.0.pool(), objects, self.0.clock().now())
-            .await
-            .map_err(Into::into)
-    }
-
-    async fn unresolved_span_bodies(
-        &self,
-        associations: &[SpanBodyAssociation],
-    ) -> Result<Vec<SpanBodyAssociation>, DataError> {
-        body::unresolved(self.0.pool(), associations)
-            .await
-            .map_err(Into::into)
-    }
-
-    async fn stage_span_bodies(
-        &self,
-        associations: &[SpanBodyAssociation],
-    ) -> Result<u64, DataError> {
-        body::stage(self.0.pool(), associations)
-            .await
-            .map_err(Into::into)
-    }
-
-    async fn confirm_span_bodies(
-        &self,
-        associations: &[SpanBodyAssociation],
-    ) -> Result<u64, DataError> {
-        body::confirm(self.0.pool(), associations)
-            .await
-            .map_err(Into::into)
-    }
-
-    async fn release_span_body(
-        &self,
-        association: &SpanBodyAssociation,
-    ) -> Result<bool, DataError> {
-        body::release(self.0.pool(), association)
-            .await
-            .map_err(Into::into)
-    }
-
-    async fn get_span_body_hash(
-        &self,
-        project_id: &ProjectId,
-        trace_id: &str,
-        span_id: &str,
-        field: SpanBodyField,
-    ) -> Result<Option<String>, DataError> {
-        body::get_hash(self.0.pool(), project_id, trace_id, span_id, field)
+    async fn retire_span_body_associations(&self, limit: usize) -> Result<u64, DataError> {
+        body::retire_associations(self.0.pool(), limit)
             .await
             .map_err(Into::into)
     }
@@ -485,66 +434,11 @@ impl ContentBodyStore for SqliteRepository {
             .map_err(Into::into)
     }
 
-    async fn delete_span_bodies(
-        &self,
-        project_id: &ProjectId,
-        spans: &[(String, String)],
-    ) -> Result<Vec<String>, DataError> {
-        body::delete_spans(self.0.pool(), project_id, spans)
-            .await
-            .map_err(Into::into)
-    }
-
-    async fn delete_trace_bodies(
-        &self,
-        project_id: &ProjectId,
-        trace_ids: &[String],
-    ) -> Result<Vec<String>, DataError> {
-        body::delete_traces(self.0.pool(), project_id, trace_ids)
-            .await
-            .map_err(Into::into)
-    }
-
     async fn delete_project_bodies(
         &self,
         project_id: &ProjectId,
     ) -> Result<Vec<String>, DataError> {
         body::delete_project(self.0.pool(), project_id)
-            .await
-            .map_err(Into::into)
-    }
-
-    async fn reconcile_span_bodies(
-        &self,
-        project_id: &ProjectId,
-        trace_ids: &[String],
-        keep: &[SpanBodyAssociation],
-    ) -> Result<Vec<String>, DataError> {
-        body::reconcile(self.0.pool(), project_id, trace_ids, keep)
-            .await
-            .map_err(Into::into)
-    }
-
-    async fn content_body_backfill_progress(
-        &self,
-        project_id: &ProjectId,
-    ) -> Result<Option<ContentBodyBackfillProgress>, DataError> {
-        body::backfill_progress(self.0.pool(), project_id)
-            .await
-            .map_err(Into::into)
-    }
-
-    async fn save_content_body_backfill_progress(
-        &self,
-        progress: &ContentBodyBackfillProgress,
-    ) -> Result<(), DataError> {
-        body::save_backfill_progress(self.0.pool(), progress)
-            .await
-            .map_err(Into::into)
-    }
-
-    async fn reset_content_body_backfill(&self, project_id: &ProjectId) -> Result<(), DataError> {
-        body::reset_backfill(self.0.pool(), project_id, self.0.clock().now())
             .await
             .map_err(Into::into)
     }

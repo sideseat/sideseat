@@ -8,7 +8,6 @@ impl TracePipeline {
         file_service: Arc<FileService>,
         staging: Arc<StagingService>,
     ) -> Self {
-        let content_bodies = ContentBodyService::from_file_service(&file_service);
         Self {
             analytics,
             pricing,
@@ -16,7 +15,6 @@ impl TracePipeline {
             file_service,
             staging,
             storage_governance: None,
-            content_bodies,
             file_cache: FileExtractionCache::new(),
         }
     }

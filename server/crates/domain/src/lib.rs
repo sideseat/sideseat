@@ -4,6 +4,7 @@ pub mod cleanup;
 pub mod content_bodies;
 pub mod dedup;
 pub mod files;
+pub mod maintenance;
 pub mod observations;
 pub mod pricing;
 pub mod providers;

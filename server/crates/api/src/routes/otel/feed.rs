@@ -260,14 +260,10 @@ pub async fn get_feed_messages(
     };
 
     // Fetch raw span rows
-    let mut result = repo
+    let result = repo
         .get_project_messages(&params)
         .await
         .map_err(ApiError::from_data)?;
-    state
-        .content_bodies
-        .hydrate_message_rows(&project_id, &mut result.rows)
-        .await;
 
     let mut spans = result.rows;
 
@@ -379,7 +375,7 @@ pub async fn get_feed_messages(
 
     let context_trace_ids = trace_ids.clone();
 
-    let mut context = repo
+    let context = repo
         .get_messages(&MessageQueryParams {
             project_id: project_id.clone(),
             trace_ids: Some(trace_ids),
@@ -395,10 +391,6 @@ pub async fn get_feed_messages(
         })
         .await
         .map_err(ApiError::from_data)?;
-    state
-        .content_bodies
-        .hydrate_message_rows(&project_id, &mut context.rows)
-        .await;
 
     // Which trace is in which session, from the store rather than from the rows below.
     //

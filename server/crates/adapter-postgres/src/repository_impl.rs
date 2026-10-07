@@ -16,10 +16,10 @@ use sideseat_ports::traits::{
     StorageGovernance,
 };
 use sideseat_ports::types::{
-    ApiKeyRow, ApiKeyScope, ApiKeyValidation, AuthMethodRow, ContentBodyBackfillProgress,
-    ContentBodyObject, CredentialPermissionRow, CredentialRow, FileRow, LastOwnerResult,
-    MemberWithUser, MembershipRow, OrgWithRole, OrganizationRow, ProjectHold, ProjectId,
-    ProjectRow, ProjectStorageUsage, SpanBodyAssociation, SpanBodyField, StagedPayload, UserRow,
+    ApiKeyRow, ApiKeyScope, ApiKeyValidation, AuthMethodRow, CredentialPermissionRow,
+    CredentialRow, FileRow, LastOwnerResult, MemberWithUser, MembershipRow, OrgWithRole,
+    OrganizationRow, ProjectHold, ProjectId, ProjectRow, ProjectStorageUsage, StagedPayload,
+    UserRow,
 };
 
 use super::repositories::{

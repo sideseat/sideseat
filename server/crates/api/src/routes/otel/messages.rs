@@ -79,14 +79,10 @@ pub async fn get_span_messages(
         to_timestamp,
         ..Default::default()
     };
-    let mut result = repo
+    let result = repo
         .get_messages(&params)
         .await
         .map_err(ApiError::from_data)?;
-    state
-        .content_bodies
-        .hydrate_message_rows(project_id, &mut result.rows)
-        .await;
 
     // A span that exists always yields its row: unlike the trace and session queries, this one applies no
     // content filter, so "no rows" means the span is not there. Answering an empty 200 said the span exists
@@ -152,7 +148,7 @@ pub async fn get_trace_messages(
     // so cross-trace prefix stripping can remove history re-sent from prior traces
     let session_id = trace.session_id.as_ref().filter(|s| !s.is_empty());
 
-    let mut result = if let Some(sid) = session_id {
+    let result = if let Some(sid) = session_id {
         let params = MessageQueryParams {
             project_id: project_id.clone(),
             session_id: Some(sid.to_string()),
@@ -175,10 +171,6 @@ pub async fn get_trace_messages(
             .await
             .map_err(ApiError::from_data)?
     };
-    state
-        .content_bodies
-        .hydrate_message_rows(project_id, &mut result.rows)
-        .await;
 
     // When session-loaded, scope tool extraction to the target trace's rows
     // BEFORE consuming rows into process_spans (which needs ownership).
@@ -277,14 +269,10 @@ pub async fn get_session_messages(
         to_timestamp,
         ..Default::default()
     };
-    let mut result = repo
+    let result = repo
         .get_messages(&params)
         .await
         .map_err(ApiError::from_data)?;
-    state
-        .content_bodies
-        .hydrate_message_rows(project_id, &mut result.rows)
-        .await;
 
     // Process through feed pipeline
     let envelopes: Vec<SpanEnvelopeDto> =

@@ -665,47 +665,19 @@ pub trait FileMetaStore: Send + Sync {
     async fn get_user_file_storage_bytes(&self, user_id: &str) -> Result<i64, DataError>;
 }
 
-/// Transactional ownership of content-addressed span bodies.
+/// The retired content-body registry, kept only so it can be drained.
+///
+/// Span bodies used to be dual-written as content-addressed objects beside the analytics columns that already
+/// held them. The analytics columns are the sole authority now; nothing writes or reads a body. These methods
+/// empty what earlier versions left: associations first, then each object through the deletion claim, so a
+/// crash at any point leaves either a claimed row the stale-claim pass finishes or an untouched one.
 #[async_trait]
 pub trait ContentBodyStore: Send + Sync {
-    /// Register content-addressed objects before their bytes are written.
+    /// Delete up to `limit` body associations, of any project, and return how many went.
     ///
-    /// Returns the logical bytes of objects that were new to this project. Registration alone is not a
-    /// readable reference; only a durable `span_bodies` row makes an object live.
-    async fn register_content_bodies(
-        &self,
-        objects: &[ContentBodyObject],
-    ) -> Result<Vec<ContentBodyObject>, DataError>;
-
-    /// Return associations that do not already have this exact durable body.
-    ///
-    /// Re-delivery of an unchanged span is the steady-state ingest path. It must not rewrite the same
-    /// content-addressed object or churn its ownership row on every delivery.
-    async fn unresolved_span_bodies(
-        &self,
-        associations: &[SpanBodyAssociation],
-    ) -> Result<Vec<SpanBodyAssociation>, DataError>;
-
-    async fn stage_span_bodies(
-        &self,
-        associations: &[SpanBodyAssociation],
-    ) -> Result<u64, DataError>;
-
-    async fn confirm_span_bodies(
-        &self,
-        associations: &[SpanBodyAssociation],
-    ) -> Result<u64, DataError>;
-
-    async fn release_span_body(&self, association: &SpanBodyAssociation)
-    -> Result<bool, DataError>;
-
-    async fn get_span_body_hash(
-        &self,
-        project_id: &ProjectId,
-        trace_id: &str,
-        span_id: &str,
-        field: SpanBodyField,
-    ) -> Result<Option<String>, DataError>;
+    /// No reader consults an association and no writer creates one, so removing them changes no answer; it
+    /// turns every registered object into an orphan the claim protocol below can delete.
+    async fn retire_span_body_associations(&self, limit: usize) -> Result<u64, DataError>;
 
     async fn get_orphan_content_bodies(
         &self,
@@ -738,43 +710,9 @@ pub trait ContentBodyStore: Send + Sync {
         body_hash: &str,
     ) -> Result<bool, DataError>;
 
-    async fn delete_span_bodies(
-        &self,
-        project_id: &ProjectId,
-        spans: &[(String, String)],
-    ) -> Result<Vec<String>, DataError>;
-
-    async fn delete_trace_bodies(
-        &self,
-        project_id: &ProjectId,
-        trace_ids: &[String],
-    ) -> Result<Vec<String>, DataError>;
-
+    /// Project deletion: remove the project's registry rows and return the object hashes to delete.
     async fn delete_project_bodies(&self, project_id: &ProjectId)
     -> Result<Vec<String>, DataError>;
-
-    /// Replace durable body ownership for selected traces with the exact winning-span field set.
-    ///
-    /// Provisional rows (`pending_writers > 0`) are never removed; they belong to an ingest that has not
-    /// reached its analytics write yet.
-    async fn reconcile_span_bodies(
-        &self,
-        project_id: &ProjectId,
-        trace_ids: &[String],
-        keep: &[SpanBodyAssociation],
-    ) -> Result<Vec<String>, DataError>;
-
-    async fn content_body_backfill_progress(
-        &self,
-        project_id: &ProjectId,
-    ) -> Result<Option<ContentBodyBackfillProgress>, DataError>;
-
-    async fn save_content_body_backfill_progress(
-        &self,
-        progress: &ContentBodyBackfillProgress,
-    ) -> Result<(), DataError>;
-
-    async fn reset_content_body_backfill(&self, project_id: &ProjectId) -> Result<(), DataError>;
 }
 
 /// API keys, stored as a hash.

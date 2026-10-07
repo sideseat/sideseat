@@ -7,8 +7,6 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use utoipa::ToSchema;
 
-use super::ProjectId;
-
 // ============================================================================
 // User types
 // ============================================================================
@@ -268,72 +266,6 @@ pub struct CredentialPermissionRow {
     pub created_by: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
-}
-
-/// One content-addressed payload field owned by a winning span delivery.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum SpanBodyField {
-    Messages,
-    ToolDefinitions,
-    ToolNames,
-}
-
-impl SpanBodyField {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Messages => "messages",
-            Self::ToolDefinitions => "tool_definitions",
-            Self::ToolNames => "tool_names",
-        }
-    }
-
-    pub fn from_stored(value: &str) -> Option<Self> {
-        match value {
-            "messages" => Some(Self::Messages),
-            "tool_definitions" => Some(Self::ToolDefinitions),
-            "tool_names" => Some(Self::ToolNames),
-            _ => None,
-        }
-    }
-}
-
-/// A provisional or durable reference from one span field to one shared body object.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ContentBodyObject {
-    pub project_id: ProjectId,
-    pub body_hash: String,
-    pub logical_bytes: u64,
-}
-
-/// A provisional or durable reference from one span field to one shared body object.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SpanBodyAssociation {
-    pub project_id: ProjectId,
-    pub trace_id: String,
-    pub span_id: String,
-    pub field: SpanBodyField,
-    pub body_hash: String,
-    pub logical_bytes: u64,
-}
-
-/// Inline body fields from one winning analytics span, used for backfill and survivor reconciliation.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SpanBodySource {
-    pub trace_id: String,
-    pub span_id: String,
-    pub messages: Option<String>,
-    pub tool_definitions: Option<String>,
-    pub tool_names: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ContentBodyBackfillProgress {
-    pub project_id: ProjectId,
-    pub cursor_trace_id: Option<String>,
-    pub cursor_span_id: Option<String>,
-    pub complete: bool,
-    pub updated_at: DateTime<Utc>,
 }
 
 #[cfg(test)]

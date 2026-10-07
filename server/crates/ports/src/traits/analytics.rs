@@ -45,31 +45,6 @@ pub trait SurvivorReferences: Send + Sync {
         project_id: &ProjectId,
         trace_ids: &[String],
     ) -> Result<Vec<Vec<u8>>, DataError>;
-
-    /// Inline body fields of the current winning spans for exact body-ownership reconciliation.
-    async fn span_body_fields_for_traces(
-        &self,
-        project_id: &ProjectId,
-        trace_ids: &[String],
-    ) -> Result<Vec<SpanBodySource>, DataError> {
-        let _ = (project_id, trace_ids);
-        Err(DataError::NotImplemented(
-            "span body survivor fields".to_string(),
-        ))
-    }
-
-    /// One stable identity-ordered page for the resumable body backfill.
-    async fn span_body_backfill_page(
-        &self,
-        project_id: &ProjectId,
-        after: Option<(String, String)>,
-        limit: usize,
-    ) -> Result<Vec<SpanBodySource>, DataError> {
-        let _ = (project_id, after, limit);
-        Err(DataError::NotImplemented(
-            "span body backfill page".to_string(),
-        ))
-    }
 }
 
 // ============================================================================

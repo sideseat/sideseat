@@ -45,10 +45,6 @@ pub enum QueryOperation {
     TracesWithoutSpans,
     /// Read file-reference-bearing fields from selected traces' winning rows.
     FileReferenceFieldsForTraces,
-    /// Read content-addressable body fields with their exact span identities.
-    SpanBodyFieldsForTraces,
-    /// Read one identity-ordered page for resumable content-body backfill.
-    SpanBodyBackfillPage,
     /// Count every analytical row still owned by one project.
     CountProjectRows,
     /// Enumerate projects represented by any analytics signal.
@@ -118,8 +114,6 @@ impl QueryOperation {
             Self::GetSpanCountsBulk => "get_span_counts_bulk",
             Self::TracesWithoutSpans => "traces_without_spans",
             Self::FileReferenceFieldsForTraces => "file_reference_fields_for_traces",
-            Self::SpanBodyFieldsForTraces => "span_body_fields_for_traces",
-            Self::SpanBodyBackfillPage => "span_body_backfill_page",
             Self::CountProjectRows => "count_project_rows",
             Self::AnalyticsProjectIds => "analytics_project_ids",
             Self::CountSpansByProject => "count_spans_by_project",
@@ -200,8 +194,6 @@ impl QueryOperation {
             | Self::GetSpanCountsBulk
             | Self::TracesWithoutSpans
             | Self::FileReferenceFieldsForTraces
-            | Self::SpanBodyFieldsForTraces
-            | Self::SpanBodyBackfillPage
             | Self::CountProjectRows
             | Self::AnalyticsProjectIds
             | Self::CountSpansByProject
@@ -264,8 +256,6 @@ pub const MIGRATED_OPERATIONS: &[QueryOperation] = &[
     QueryOperation::GetSpanCountsBulk,
     QueryOperation::TracesWithoutSpans,
     QueryOperation::FileReferenceFieldsForTraces,
-    QueryOperation::SpanBodyFieldsForTraces,
-    QueryOperation::SpanBodyBackfillPage,
     QueryOperation::CountProjectRows,
     QueryOperation::AnalyticsProjectIds,
     QueryOperation::CountSpansByProject,

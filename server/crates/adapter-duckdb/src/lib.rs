@@ -324,24 +324,6 @@ impl DuckdbService {
             }
         }
 
-        match file_service {
-            Some(files) => {
-                if let Err(e) = files
-                    .reconcile_body_survivors(project_id, trace_ids, analytics)
-                    .await
-                {
-                    clean = false;
-                    tracing::warn!(
-                        error = %e,
-                        project_id = %project_id,
-                        traces = trace_ids.len(),
-                        "Failed to reconcile content bodies during retention; cleanup stays recorded"
-                    );
-                }
-            }
-            None => clean = false,
-        }
-
         // Survivor reconciliation, **not** the trace-wide cleanup. Retention expires individual span
         // identities, so a trace it touched usually still has live spans; `cleanup_traces` removes *every*
         // association for a trace, which left those survivors pointing at bytes that had been reclaimed.

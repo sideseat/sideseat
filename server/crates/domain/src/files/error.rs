@@ -20,9 +20,6 @@ pub enum FileServiceError {
     #[error("Database error: {0}")]
     Database(#[from] DataError),
 
-    #[error("Content-body error: {0}")]
-    ContentBody(#[from] crate::content_bodies::ContentBodyError),
-
     #[error("Invalid hash format: expected 64 hex characters")]
     InvalidHash,
 

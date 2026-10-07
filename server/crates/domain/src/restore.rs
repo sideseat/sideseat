@@ -119,9 +119,6 @@ async fn apply_deletion(
             };
             let spans = [(record.target_id.clone(), span_id.clone())];
             analytics.delete_spans(&record.project_id, &spans).await?;
-            ContentBodyService::from_file_service(files)
-                .cleanup_spans(&record.project_id, &spans)
-                .await?;
             files
                 .reconcile_trace_survivors(
                     &record.project_id,
@@ -166,7 +163,6 @@ pub async fn reconcile_restored_associations(
         ..AssociationRepairReport::default()
     };
     let bodies = ContentBodyService::from_file_service(files);
-
     let mut projects = database
         .restore_project_ids(usize::MAX)
         .await?
@@ -206,15 +202,8 @@ pub async fn reconcile_restored_associations(
                 .map(|trace| trace.trace_id.clone())
                 .collect::<Vec<_>>();
             report.analytics_traces_scanned += trace_ids.len() as u64;
-            reconcile_trace_batch(
-                &project_id,
-                &trace_ids,
-                analytics,
-                files,
-                &bodies,
-                &mut report.files,
-            )
-            .await?;
+            reconcile_trace_batch(&project_id, &trace_ids, analytics, files, &mut report.files)
+                .await?;
             if traces.len() < TRACE_PAGE_SIZE as usize {
                 break;
             }
@@ -234,15 +223,8 @@ pub async fn reconcile_restored_associations(
                 break;
             }
             report.ownership_traces_scanned += trace_ids.len() as u64;
-            reconcile_trace_batch(
-                &project_id,
-                &trace_ids,
-                analytics,
-                files,
-                &bodies,
-                &mut report.files,
-            )
-            .await?;
+            reconcile_trace_batch(&project_id, &trace_ids, analytics, files, &mut report.files)
+                .await?;
             after = trace_ids.last().cloned();
             if trace_ids.len() < TRACE_PAGE_SIZE as usize {
                 break;
@@ -267,16 +249,12 @@ async fn reconcile_trace_batch(
     trace_ids: &[String],
     analytics: &Arc<AnalyticsStore>,
     files: &FileService,
-    bodies: &ContentBodyService,
     file_report: &mut FileRestoreRepairReport,
 ) -> Result<(), RestoreRepairError> {
     let repaired = files
         .repair_trace_associations_after_restore(project_id, trace_ids, analytics.as_ref())
         .await?;
     merge_file_report(file_report, repaired);
-    bodies
-        .reconcile_trace_survivors(project_id, trace_ids, analytics.as_ref())
-        .await?;
     files
         .reconcile_trace_survivors(project_id, trace_ids, analytics.as_ref())
         .await?;
@@ -316,7 +294,7 @@ mod tests {
     use sideseat_core::storage::{AppStorage, DataSubdir};
     use sideseat_ports::blobs::FileStorage;
     use sideseat_ports::clock::Clock;
-    use sideseat_ports::types::{ContentBodyObject, NormalizedSpan, StagedPayload, StagedSignal};
+    use sideseat_ports::types::{NormalizedSpan, StagedPayload, StagedSignal};
     use tempfile::TempDir;
 
     #[derive(Debug)]
@@ -441,11 +419,9 @@ mod tests {
         let present = "c".repeat(64);
         let missing = "d".repeat(64);
         let stale = "e".repeat(64);
-        let orphan_body = ContentBodyService::hash(b"orphan body");
         for (hash, bytes) in [
             (&present, b"live".as_slice()),
             (&stale, b"stale".as_slice()),
-            (&orphan_body, b"orphan body".as_slice()),
         ] {
             stores
                 .files
@@ -470,15 +446,6 @@ mod tests {
             .await
             .expect("stale count");
         stores
-            .database
-            .register_content_bodies(&[ContentBodyObject {
-                project_id: ProjectId::from("default"),
-                body_hash: orphan_body.clone(),
-                logical_bytes: 11,
-            }])
-            .await
-            .expect("orphan body metadata");
-        stores
             .analytics
             .insert_spans(vec![span(
                 "survivor",
@@ -496,7 +463,9 @@ mod tests {
                 .expect("first repair");
         assert_eq!(first.files.metadata_rebuilt, 1);
         assert_eq!(first.files.associations_rebuilt, 1);
-        assert_eq!(first.content_bodies.orphans_deleted, 1);
+        // Nothing writes content bodies any more, so this repair has none to collect. Draining what an older
+        // deployment left is the retired store's own concern and is tested where that code lives.
+        assert_eq!(first.content_bodies.orphans_deleted, 0);
         assert_eq!(
             first.files.missing_content,
             [MissingFileReference {
@@ -520,14 +489,6 @@ mod tests {
                 .exists(&ProjectId::from("default"), &stale)
                 .await
                 .expect("stale blob lookup")
-        );
-        assert!(
-            !stores
-                .files
-                .storage()
-                .exists(&ProjectId::from("default"), &orphan_body)
-                .await
-                .expect("orphan body lookup")
         );
         assert!(
             stores

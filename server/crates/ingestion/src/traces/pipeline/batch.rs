@@ -410,27 +410,6 @@ impl TracePipeline {
         }
         sideseat_domain::search::index_spans(&mut all_db_spans);
 
-        // Transitional dual-write: inline analytics columns remain populated and are the read fallback.
-        // This branch is therefore allowed to fail without refusing an otherwise durable OTLP write, but
-        // every provisional reference it created is rolled back inside `stage`.
-        let mut staged_bodies = match self
-            .content_bodies
-            .stage(&all_db_spans, self.storage_governance.as_ref())
-            .await
-        {
-            Ok(staged) => Some(staged),
-            Err(error) => {
-                self.content_bodies
-                    .mark_incomplete_for_spans(&all_db_spans)
-                    .await;
-                tracing::warn!(
-                    %error,
-                    "Could not content-address this batch's span bodies; retaining inline columns only"
-                );
-                None
-            }
-        };
-
         // The raw records before the rows derived from them; a batch whose records cannot be stored stores
         // nothing, and is redelivered.
         let now = chrono::Utc::now();
@@ -513,11 +492,6 @@ impl TracePipeline {
                     .map(|(project_id, _, _)| ProjectId::from(project_id.as_str()))
                     .collect::<Vec<_>>();
                 if let Err(error) = governance.patch_after_write(&projects).await {
-                    if let Some(staged) = staged_bodies.as_mut() {
-                        self.content_bodies
-                            .confirm_winners(staged, self.analytics.as_ref())
-                            .await;
-                    }
                     tracing::error!(
                         %error,
                         "Could not close the writer-admitted-before-hold window"
@@ -537,14 +511,6 @@ impl TracePipeline {
             let compensated = self
                 .collect_spans_written_for_deleted_traces(&written, &mut created_associations)
                 .await;
-            if let Some(staged) = staged_bodies.as_mut() {
-                self.content_bodies
-                    .remove_identities(staged, &compensated)
-                    .await;
-                self.content_bodies
-                    .confirm_winners(staged, self.analytics.as_ref())
-                    .await;
-            }
             // Now the survivors are durable, and no failure path may take them.
             self.confirm_associations(&created_associations, "batch")
                 .await;
@@ -604,9 +570,6 @@ impl TracePipeline {
                 return false;
             }
         } else {
-            if let Some(staged) = staged_bodies.as_mut() {
-                self.content_bodies.release_all(staged).await;
-            }
             // Release the associations this batch created, since the rows that would have justified them
             // are not there. Files are written before the rows deliberately, so a failed write leaves
             // associations holding `ref_count` above zero - and the orphan sweeper selects on

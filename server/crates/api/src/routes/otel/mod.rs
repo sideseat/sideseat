@@ -25,7 +25,6 @@ use axum::response::Response;
 use axum::routing::get;
 use tokio::sync::watch;
 
-use sideseat_domain::content_bodies::ContentBodyService;
 use sideseat_domain::files::FileService;
 use sideseat_domain::storage_governance::StorageGovernanceService;
 use sideseat_messaging::TopicService;
@@ -40,7 +39,6 @@ pub struct OtelApiState {
     pub analytics: Arc<crate::dependencies::AnalyticsStore>,
     pub topics: Arc<TopicService>,
     pub file_service: Arc<FileService>,
-    pub content_bodies: ContentBodyService,
     pub database: Arc<crate::dependencies::TransactionalStore>,
     pub cache: Arc<crate::dependencies::SharedCache>,
     pub clock: Arc<dyn Clock>,
@@ -63,12 +61,10 @@ pub fn routes(
     storage_governance: Arc<StorageGovernanceService>,
     shutdown_rx: watch::Receiver<bool>,
 ) -> Router<()> {
-    let content_bodies = ContentBodyService::from_file_service(&file_service);
     let state = OtelApiState {
         analytics,
         topics,
         file_service,
-        content_bodies,
         database,
         cache,
         clock,
