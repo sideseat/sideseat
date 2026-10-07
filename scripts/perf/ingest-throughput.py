@@ -29,7 +29,8 @@ A step passes when, at once:
   the distinct span identities the accepted requests carried.
 
 The ramp stops at the first failing step and reports the last passing one as the sustained rate. A step whose
-generator fell behind its own schedule is flagged, since then the figure measures the load generator. The run
+generator fell behind its own schedule, or spent more CPU than the server, cannot pass: then the figure would
+measure the load generator. The run
 exits non-zero when stored spans disagree with accepted ones, or when `--min-sustained` is not reached.
 
 Reported per step: offered, scheduled and achieved spans/s, p50/p99 request latency, peak RSS (or container
@@ -45,6 +46,7 @@ import json
 import multiprocessing
 import os
 import random
+import resource
 import signal
 import subprocess
 import sys
@@ -151,15 +153,30 @@ def keyed(
 
 
 def worker(
-    index, workers, pool_path, projects, rate, seconds, step, ready, go, start, results
+    index,
+    workers,
+    in_flight,
+    pool_path,
+    projects,
+    rate,
+    seconds,
+    step,
+    ready,
+    go,
+    start,
+    results,
 ):
-    """Send this worker's share of the offered rate on a fixed schedule and record each request.
+    """Send this worker's share of the offered rate on a fixed schedule, `in_flight` requests at a time.
 
-    The slice is loaded *before* the clock starts: unpickling tens of megabytes takes seconds, and a schedule
-    that started first made every worker begin late and then burst to catch up, which measured the generator.
-    Each pass through the slice rewrites the ids with that pass's key, so no request is ever sent twice.
+    The schedule is a sequence of send times; each of the worker's connections takes the next one whenever it is
+    free, so the load stays open-loop up to `workers x in_flight` requests in flight and a slow server shows as
+    latency, not as a lower offered rate. The slice is loaded *before* the clock starts: unpickling tens of
+    megabytes takes seconds, and a schedule that started first made every worker begin late and then burst to
+    catch up, which measured the generator. Each pass through the slice rewrites the ids with that pass's key,
+    so no request is ever sent twice.
     """
     import pickle
+    import threading
 
     from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
         ExportTraceServiceRequest,
@@ -167,57 +184,63 @@ def worker(
     )
 
     mine, spans_per_request = pickle.loads(Path(f"{pool_path}.{index}").read_bytes())
-    connection = http.client.HTTPConnection("127.0.0.1", PORT, timeout=60)
     interval = workers * spans_per_request / rate
     records = []
-    cursor = 0
+    lock = threading.Lock()
+    taken = [0]
     ready.put(index)
     go.wait()
     start_at = start.value
     deadline = start_at + seconds
-    next_send = start_at + index * interval / workers
-    previous_done = start_at
-    while True:
-        now = time.monotonic()
-        if next_send >= deadline:
-            break
-        if next_send > now:
-            time.sleep(next_send - now)
-        # Lag the generator caused: time past the moment it could have sent - the schedule, or the previous
-        # response, since one worker holds one request in flight. Waiting on that response is the server's.
-        ready_at = max(next_send, previous_done)
-        lag = max(0.0, time.monotonic() - ready_at)
-        waited = max(0.0, previous_done - next_send)
-        slot, number = cursor % len(mine), cursor // len(mine)
-        template, spans = mine[slot][1], mine[slot][2]
-        message = ExportTraceServiceRequest.FromString(template)
-        body = rewrite(message, pass_key(step, number)).SerializeToString()
-        project = projects[(cursor + index) % len(projects)]
-        cursor += 1
-        sent = time.monotonic()
-        rejected = 0
-        try:
-            connection.request(
-                "POST",
-                f"/otel/{project}/v1/traces",
-                body,
-                {"Content-Type": "application/x-protobuf"},
-            )
-            response = connection.getresponse()
-            payload = response.read()
-            status = response.status
-            if status == 200 and payload:
-                rejected = ExportTraceServiceResponse.FromString(
-                    payload
-                ).partial_success.rejected_spans
-        except (OSError, http.client.HTTPException):
-            status = 0
-            connection.close()
-            connection = http.client.HTTPConnection("127.0.0.1", PORT, timeout=60)
-        done = time.monotonic()
-        previous_done = done
-        records.append(
-            (
+    first = start_at + index * interval / workers
+
+    def connection_loop() -> None:
+        connection = http.client.HTTPConnection("127.0.0.1", PORT, timeout=60)
+        free_at = start_at
+        while True:
+            with lock:
+                cursor = taken[0]
+                taken[0] += 1
+            scheduled = first + cursor * interval
+            if scheduled >= deadline:
+                break
+            now = time.monotonic()
+            if scheduled > now:
+                time.sleep(scheduled - now)
+            # Held back because every connection still waited on a response: the in-flight cap, not the server's
+            # latency alone.
+            waited = max(0.0, free_at - scheduled)
+            slot, number = cursor % len(mine), cursor // len(mine)
+            template, spans = mine[slot][1], mine[slot][2]
+            body = rewrite(
+                ExportTraceServiceRequest.FromString(template), pass_key(step, number)
+            ).SerializeToString()
+            project = projects[(cursor + index) % len(projects)]
+            sent = time.monotonic()
+            # The generator's own delay: past the moment this connection could have sent.
+            lag = max(0.0, sent - max(scheduled, free_at))
+            rejected = 0
+            try:
+                connection.request(
+                    "POST",
+                    f"/otel/{project}/v1/traces",
+                    body,
+                    {"Content-Type": "application/x-protobuf"},
+                )
+                response = connection.getresponse()
+                payload = response.read()
+                status = response.status
+                if status == 200 and payload:
+                    rejected = ExportTraceServiceResponse.FromString(
+                        payload
+                    ).partial_success.rejected_spans
+            except (OSError, http.client.HTTPException):
+                status = 0
+                connection.close()
+                connection = http.client.HTTPConnection("127.0.0.1", PORT, timeout=60)
+            done = time.monotonic()
+            free_at = done
+            record = (
                 sent,
                 done,
                 status,
@@ -230,9 +253,14 @@ def worker(
                 lag,
                 waited,
             )
-        )
+            with lock:
+                records.append(record)
 
-        next_send += interval
+    threads = [threading.Thread(target=connection_loop) for _ in range(in_flight)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
     results.put(records)
 
 
@@ -351,6 +379,33 @@ class Server:
             projects.append(json.loads(connection.getresponse().read())["id"])
         return projects
 
+    def cpu_seconds(self) -> float:
+        """The server's cumulative CPU time: from `ps` locally, from its cgroup in a container."""
+        if self.mode == "local":
+            out = subprocess.run(
+                ["ps", "-o", "cputime=", "-p", str(self.process.pid)],
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            seconds = 0.0
+            for part in out.replace("-", ":").split(":"):
+                seconds = seconds * 60 + float(part or 0)
+            return seconds
+        out = subprocess.run(
+            ["docker", "exec", self.container, "cat", "/sys/fs/cgroup/cpu.stat"],
+            capture_output=True,
+            text=True,
+        ).stdout
+        usage = next(
+            (
+                line.split()[1]
+                for line in out.splitlines()
+                if line.startswith("usage_usec")
+            ),
+            "0",
+        )
+        return int(usage) / 1e6
+
     def stored_spans(self, project: str) -> int:
         """Distinct spans the project stores: the span list's total, which counts each identity once."""
         connection = http.client.HTTPConnection("127.0.0.1", PORT, timeout=60)
@@ -386,6 +441,12 @@ class Server:
         subprocess.run(["rm", "-rf", str(self.work)])
 
 
+def cpu_seconds_of_children() -> float:
+    """User and system CPU of this process's finished children - the generator's worker processes."""
+    usage = resource.getrusage(resource.RUSAGE_CHILDREN)
+    return usage.ru_utime + usage.ru_stime
+
+
 def percentile(values: list[float], fraction: float) -> float:
     if not values:
         return float("nan")
@@ -400,6 +461,7 @@ def run_step(
     rate: int,
     seconds: int,
     workers: int,
+    in_flight: int,
     step: int,
 ) -> tuple[dict, list]:
     results, ready = multiprocessing.Queue(), multiprocessing.Queue()
@@ -410,6 +472,7 @@ def run_step(
             args=(
                 i,
                 workers,
+                in_flight,
                 pool_path,
                 projects,
                 rate,
@@ -423,10 +486,12 @@ def run_step(
         )
         for i in range(workers)
     ]
+    generator_cpu = cpu_seconds_of_children()
     for process in processes:
         process.start()
     for _ in processes:
         ready.get()
+    server_cpu = server.cpu_seconds()
     start_at = time.monotonic() + 0.2
     start.value = start_at
     go.set()
@@ -437,6 +502,8 @@ def run_step(
     records = [r for _ in processes for r in results.get()]
     for process in processes:
         process.join()
+    server_cpu = server.cpu_seconds() - server_cpu
+    generator_cpu = cpu_seconds_of_children() - generator_cpu
     finished = max((r[1] for r in records), default=start_at)
     ok = [r for r in records if r[2] == 200]
     failed = len(records) - len(ok)
@@ -466,6 +533,10 @@ def run_step(
         "p99_ms": percentile(latencies, 0.99),
         "generator_p99_lag_ms": percentile(lags, 0.99),
         "in_flight_capped_fraction": behind,
+        # Mean requests in flight: what the server was actually offered at once.
+        "achieved_concurrency": sum(r[1] - r[0] for r in records) / elapsed,
+        "generator_cpu_s": generator_cpu,
+        "server_cpu_s": server_cpu,
         "peak_memory_bytes": peak,
     }, ok
 
@@ -495,6 +566,12 @@ def main() -> int:
     )
     parser.add_argument("--step-secs", type=int, default=20)
     parser.add_argument("--workers", type=int, default=16)
+    parser.add_argument(
+        "--in-flight",
+        type=int,
+        default=8,
+        help="requests each worker keeps in flight (offered concurrency = workers x in-flight)",
+    )
     parser.add_argument("--projects", type=int, default=8)
     parser.add_argument(
         "--min-sustained",
@@ -556,8 +633,10 @@ def main() -> int:
                         rate,
                         args.step_secs,
                         args.workers,
+                        args.in_flight,
                         number,
                     )
+
                     expected_identities(pool, accepted, number, expected)
                     stored = server.settled_spans(projects)
                     want = {project: len(ids) for project, ids in expected.items()}
@@ -568,12 +647,19 @@ def main() -> int:
                     step["stored_spans"] = sum(stored.values())
                     step["expected_spans"] = sum(want.values())
                     step["stored_matches_accepted"] = agrees
-                    generator_bound = step["generator_p99_lag_ms"] > 50
+                    # The generator must not be what is measured: it falls behind its schedule, or it spends more
+                    # CPU than the server it is loading.
+                    generator_bound = (
+                        step["generator_p99_lag_ms"] > 50
+                        or step["generator_cpu_s"] > step["server_cpu_s"]
+                    )
                     step["generator_bound"] = generator_bound
+                    # A generator-bound step says nothing about the server either way, so it cannot pass.
                     passed = (
                         step["failed"] == 0
                         and step["rejected_spans"] == 0
                         and agrees
+                        and not generator_bound
                         and step["achieved_spans_per_s"]
                         >= 0.95 * step["scheduled_spans_per_s"]
                     )
@@ -587,6 +673,8 @@ def main() -> int:
                         + (f" {step['failures_by_status']}" if step["failed"] else "")
                         + f", {step['rejected_spans']} rejected, "
                         f"stored {step['stored_spans']}/{step['expected_spans']})"
+                        + f"  concurrency {step['achieved_concurrency']:.1f}, cpu gen/server "
+                        + f"{step['generator_cpu_s']:.1f}/{step['server_cpu_s']:.1f} s"
                         + ("  GENERATOR-BOUND" if generator_bound else "")
                         + (
                             f"  in-flight cap reached for {step['in_flight_capped_fraction']:.0%} of sends"
