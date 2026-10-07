@@ -79,7 +79,11 @@ impl SqliteService {
             .create_if_missing(true)
             .foreign_keys(true)
             .journal_mode(SqliteJournalMode::Wal)
-            .synchronous(SqliteSynchronous::Normal)
+            // FULL, not NORMAL: in WAL mode NORMAL does not sync the log on commit, so a committed
+            // transaction survives a process crash but not an OS crash or power loss. Rows written here
+            // stand behind acknowledgements - a staged payload's registry row is all a durable queue's
+            // consumer can find it by - so a commit has to be durable when it returns.
+            .synchronous(SqliteSynchronous::Full)
             .busy_timeout(Duration::from_secs(SQLITE_BUSY_TIMEOUT_SECS))
             .pragma("cache_size", SQLITE_CACHE_SIZE)
             .pragma("temp_store", "MEMORY")
@@ -172,5 +176,44 @@ impl SqliteService {
                 }
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod durability_tests {
+    use super::*;
+    use sideseat_core::storage::AppStorage;
+
+    /// Every pooled connection commits durably: WAL with `synchronous = FULL` (2).
+    ///
+    /// Asserted on several connections because the setting is per connection, and the pool hands out
+    /// whichever is free. Under `NORMAL` (1) a commit returns before the log is synced, so a power loss can
+    /// roll back a staged payload's registry row after its export was acknowledged - and a durable queue's
+    /// consumer, finding no row, acknowledges the message and drops the export.
+    #[tokio::test]
+    async fn every_connection_commits_durably() {
+        let root = tempfile::TempDir::new().expect("temp dir");
+        let storage = AppStorage::init_for_test(root.path().to_path_buf());
+        let service = SqliteService::init(&storage, std::sync::Arc::new(TestClock))
+            .await
+            .expect("sqlite");
+        let mut held = Vec::new();
+        for _ in 0..SQLITE_MAX_CONNECTIONS.min(4) {
+            let mut connection = service.pool().acquire().await.expect("connection");
+            let synchronous: i64 = sqlx::query_scalar("PRAGMA synchronous")
+                .fetch_one(&mut *connection)
+                .await
+                .expect("pragma");
+            let journal: String = sqlx::query_scalar("PRAGMA journal_mode")
+                .fetch_one(&mut *connection)
+                .await
+                .expect("pragma");
+            assert_eq!(
+                synchronous, 2,
+                "synchronous must be FULL on every connection"
+            );
+            assert_eq!(journal, "wal");
+            held.push(connection);
+        }
     }
 }

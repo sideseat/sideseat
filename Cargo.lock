@@ -5454,6 +5454,7 @@ dependencies = [
  "sideseat-core",
  "sideseat-ports",
  "sqlx",
+ "tempfile",
  "thiserror",
  "tokio",
  "tracing",
