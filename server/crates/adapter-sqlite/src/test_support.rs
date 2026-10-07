@@ -41,3 +41,52 @@ pub async fn break_staging_anomalies(service: &SqliteService) -> Result<(), Sqli
         .await?;
     Ok(())
 }
+
+/// A staging registry write that fails, as a broken or full registry would.
+#[derive(Debug, Clone, Copy)]
+pub enum StagingFault {
+    /// Registering a payload fails.
+    Register,
+    /// Retiring a payload fails.
+    Retire,
+}
+
+/// Make the staging registry refuse `fault` until [`clear_staging_fault`]. A trigger raises inside the real
+/// statement, so the failure arrives exactly where a broken registry's would.
+pub async fn inject_staging_fault(
+    service: &SqliteService,
+    fault: StagingFault,
+) -> Result<(), SqliteError> {
+    let (name, event) = match fault {
+        StagingFault::Register => ("staging_fault_register", "INSERT"),
+        StagingFault::Retire => ("staging_fault_retire", "DELETE"),
+    };
+    sqlx::query(&format!(
+        "CREATE TRIGGER {name} BEFORE {event} ON staged_payloads \
+         BEGIN SELECT RAISE(FAIL, 'injected staging fault'); END"
+    ))
+    .execute(service.pool())
+    .await?;
+    Ok(())
+}
+
+pub async fn clear_staging_fault(
+    service: &SqliteService,
+    fault: StagingFault,
+) -> Result<(), SqliteError> {
+    let name = match fault {
+        StagingFault::Register => "staging_fault_register",
+        StagingFault::Retire => "staging_fault_retire",
+    };
+    sqlx::query(&format!("DROP TRIGGER IF EXISTS {name}"))
+        .execute(service.pool())
+        .await?;
+    Ok(())
+}
+
+/// How many payloads the registry holds.
+pub async fn staged_payload_count(service: &SqliteService) -> Result<i64, SqliteError> {
+    Ok(sqlx::query_scalar("SELECT COUNT(*) FROM staged_payloads")
+        .fetch_one(service.pool())
+        .await?)
+}

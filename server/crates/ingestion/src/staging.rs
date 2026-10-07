@@ -739,3 +739,7 @@ mod tests {
 #[cfg(test)]
 #[path = "staging_retirement_tests.rs"]
 mod retirement_tests;
+
+#[cfg(test)]
+#[path = "staging_fault_tests.rs"]
+mod fault_tests;
