@@ -107,9 +107,9 @@ Embedded backend, on the pinned corpus with the derived metric load - what the g
 
 | Signal  |    Items | Raw OTLP | Stored, excluding media | Per item | Measured alone |
 | ------- | -------: | -------: | ----------------------: | -------: | -------------: |
-| traces  |    13,384 | 37.3 MB | 57.7 MB                 |  4,313 B |        4,447 B |
-| logs    |     1,392 | 1.42 MB | 5.68 MB                 |  4,079 B |        5,085 B |
-| metrics | 1,001,300 | 378 MB  | 163 MB                  |    162 B |          159 B |
+| traces  |    13,384 | 37.3 MB | 22.2 MB                 |  1,658 B |        1,814 B |
+| logs    |     1,392 | 1.42 MB | 5.67 MB                 |  4,070 B |        5,085 B |
+| metrics | 1,001,300 | 378 MB  | 163 MB                  |    163 B |          159 B |
 
 The last column is `--signal`, which loads one signal's corpus alone. The two differ because DuckDB's residue -
 its indexes and metadata - cannot be attributed to a table, so it is spread over the signals by rows: a signal
@@ -124,13 +124,18 @@ block residue follows. The regression ceilings sit about 2 % above the measured 
 takes about ten minutes: it generates the million-point load, loads 3,582 exports through a real server, and
 honours the server's back-pressure (a 503 is retried, as a collector would).
 
-Where a trace span's bytes are, measured alone: the content-body registry and its blobs 2,556 B/span, DuckDB's
-indexes and block residue about 1,100, search terms 297, `otel_spans` 274, the raw record 117.5 and its trace
-index 19.6, media 296.5 reported separately. The halving came from retiring the `raw_span` JSON column: it was
-the largest column *and* the largest content-body object, so one copy of each span's OTLP JSON was being kept
-twice over - 3,628 B/span between them - while the raw record already held the whole export. What is left to
-remove, in order of size, is the content-body store (the raw record already holds every body), the indexes, and
-the search terms.
+Where a trace span's bytes are, measured alone: DuckDB's indexes and block residue 1,106 B/span, search terms
+285, `otel_spans` 274, the raw record 117.5 and its trace index 19.6, the file registry 12.3, media 296.5
+reported separately. Two rounds of removing duplication got here from 8,240. The `raw_span` JSON column was the
+largest column *and* the largest content-body object, so each span's OTLP JSON was stored twice while the raw
+record already held the whole export - 3,628 B/span. The content-body store was then redundant in full: with it
+gone the inline columns did not grow by a byte (`otel_spans` stayed at 274.2 B/span), which is the measurement
+that shows its 2,556 B/span was pure duplication of what the columns and the record already held.
+
+What is left, in order of size, is the DuckDB residue - almost all of it index pages, and 588 B/span of that is
+the ART index on `span_terms(term)`, which the search does not drive from (its lookups are keyed by span
+identity and measure no faster with the index than without) - then the term postings themselves, one row per
+term per span.
 
 **Metrics are measured on a derived load, and the gate uses it.** 480 captured points cannot measure a store whose block is 256 KB:
 most of the figure is one partly-filled block per column. `scripts/perf/metrics-load.py` derives a deterministic
