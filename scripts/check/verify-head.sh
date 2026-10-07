@@ -9,7 +9,17 @@
 # directory kept warm between runs, and links the working tree's node_modules so nothing is reinstalled.
 set -euo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# Bash reads a script as it runs, so an edit to this file in the shared tree mid-run would break the run.
+# Execute from a private copy instead.
+if [ -z "${SIDESEAT_VERIFY_HEAD_COPY:-}" ]; then
+    copy="$(mktemp "${TMPDIR:-/tmp}/verify-head.XXXXXX")"
+    cp "${BASH_SOURCE[0]}" "$copy"
+    SIDESEAT_VERIFY_HEAD_COPY="$copy" SIDESEAT_VERIFY_HEAD_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)" \
+        exec bash "$copy" "$@"
+fi
+trap 'rm -f "$SIDESEAT_VERIFY_HEAD_COPY"' EXIT
+
+repo_root="${SIDESEAT_VERIFY_HEAD_ROOT}"
 cd "$repo_root"
 
 checkout="${SIDESEAT_VERIFY_HEAD_DIR:-$repo_root/../$(basename "$repo_root")-head}"
@@ -27,7 +37,7 @@ until mkdir "$lock" 2>/dev/null; do
     sleep 15
 done
 echo $$ >"$lock/pid"
-trap 'rm -rf "$lock"' EXIT
+trap 'rm -rf "$lock"; rm -f "$SIDESEAT_VERIFY_HEAD_COPY"' EXIT
 
 head="$(git rev-parse HEAD)"
 
