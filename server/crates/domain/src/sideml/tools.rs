@@ -28,30 +28,34 @@ pub fn normalize_tool_calls(msg: &JsonValue) -> Option<JsonValue> {
     let normalized: Vec<JsonValue> = tool_calls
         .iter()
         .filter_map(|tc| {
-            // OpenInference unflattened format: {tool_call: {function: {name, arguments}, id}}
-            let tc = if let Some(inner) = tc.get("tool_call") {
-                inner
-            } else {
-                tc
+            // An entry may hold its call under a member the assets declare (`wraps_tool_call`).
+            let members = &crate::rules::ruleset().message_members;
+            let tc = members
+                .tool_call_wrapper()
+                .find_map(|member| tc.get(member))
+                .unwrap_or(tc);
+            let arguments_of = |holder: &JsonValue| {
+                std::iter::once("arguments")
+                    .chain(members.aliases_of("arguments"))
+                    .find_map(|member| holder.get(member))
+                    .map(json_value_to_string)
+                    .unwrap_or_default()
             };
 
             // Extract name and arguments from various formats
+            // SideSeat's intermediate call shape nests the call under `function`; the flat form holds it directly.
             let (name, arguments, id) = if let Some(func) = tc.get("function") {
-                // OpenAI nested format: {function: {name, arguments}}
-                let args = func
-                    .get("arguments")
-                    .or_else(|| func.get("args"))
-                    .map(json_value_to_string)
-                    .unwrap_or_default();
-                (func.get("name")?.as_str()?.to_string(), args, tc.get("id"))
+                (
+                    func.get("name")?.as_str()?.to_string(),
+                    arguments_of(func),
+                    tc.get("id"),
+                )
             } else {
-                // Already flat format (includes LangChain which uses "args")
-                let args = tc
-                    .get("arguments")
-                    .or_else(|| tc.get("args"))
-                    .map(json_value_to_string)
-                    .unwrap_or_default();
-                (tc.get("name")?.as_str()?.to_string(), args, tc.get("id"))
+                (
+                    tc.get("name")?.as_str()?.to_string(),
+                    arguments_of(tc),
+                    tc.get("id"),
+                )
             };
 
             Some(json!({
@@ -90,36 +94,35 @@ pub fn extract_tool_use_id(msg: &JsonValue, role: &str) -> Option<String> {
         return Some(id.to_string());
     }
 
-    // Generic id/call_id fields - only for tool/function roles to avoid
-    // extracting message IDs from assistant/user messages
-    if ChatRole::is_tool_role(role) {
-        if let Some(id) = msg.get("id").and_then(|i| i.as_str()) {
-            return Some(id.to_string());
-        }
-        if let Some(id) = msg.get("call_id").and_then(|i| i.as_str()) {
-            return Some(id.to_string());
-        }
+    let members = &crate::rules::ruleset().message_members;
+    // The message's own id, or a declared spelling of it - only for tool roles, to avoid extracting a message id
+    // from an assistant or user turn.
+    if ChatRole::is_tool_role(role)
+        && let Some(id) = std::iter::once("id")
+            .chain(members.aliases_of("id"))
+            .find_map(|member| msg.get(member).and_then(|i| i.as_str()))
+    {
+        return Some(id.to_string());
     }
 
-    // Nested in content (Bedrock/Strands format)
+    // The call id inside the first content block, where that block holds a tool result or call under a member the
+    // assets declare, and the id is under a declared call-id member. Precedence is declared, never the payload's
+    // member order: the bundled-result members in rank order, then the call members.
     if let Some(content) = msg.get("content").and_then(|c| c.as_array())
         && let Some(first) = content.first()
     {
-        // toolResult.toolUseId
-        if let Some(id) = first
-            .get("toolResult")
-            .and_then(|tr| tr.get("toolUseId"))
-            .and_then(|id| id.as_str())
-        {
-            return Some(id.to_string());
-        }
-        // toolUse.toolUseId
-        if let Some(id) = first
-            .get("toolUse")
-            .and_then(|tu| tu.get("toolUseId"))
-            .and_then(|id| id.as_str())
-        {
-            return Some(id.to_string());
+        let held = members
+            .bundled_tool_result()
+            .chain(members.tool_call_members())
+            .filter_map(|member| first.get(member));
+        for inner in held {
+            let id = members
+                .result_call_id_in_order()
+                .find_map(|member| inner.get(member))
+                .and_then(JsonValue::as_str);
+            if let Some(id) = id {
+                return Some(id.to_string());
+            }
         }
     }
 

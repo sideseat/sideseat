@@ -11,7 +11,8 @@
       "rank": 20,
       "holds_content": true,
       "means_message_shaped": true,
-      "doc": "The conventional member, and the one nearly every producer writes."
+      "doc": "The conventional member, and the one nearly every producer writes.",
+      "holds_prose": true
     },
     {
       "id": "members.contents",
@@ -31,7 +32,8 @@
       "rank": 30,
       "holds_content": true,
       "means_message_shaped": true,
-      "doc": "Some producers wrap the content in a message member of their own."
+      "doc": "Some producers wrap the content in a message member of their own.",
+      "holds_prose": true
     },
     {
       "id": "members.parts",
@@ -52,7 +54,8 @@
       "holds_content": true,
       "means_message_shaped": true,
       "means_content_block": true,
-      "doc": "A text-only message, whose content *is* the text."
+      "doc": "A text-only message, whose content *is* the text.",
+      "holds_prose": true
     },
     {
       "id": "members.object",
@@ -87,7 +90,9 @@
       "members": [
         "finishReason"
       ],
-      "means_message_shaped": true
+      "rank": 10,
+      "means_message_shaped": true,
+      "alias_of": "finish_reason"
     },
     {
       "id": "members.finish_reason",
@@ -133,7 +138,9 @@
       "members": [
         "toolCalls"
       ],
-      "means_message_shaped": true
+      "rank": 10,
+      "means_message_shaped": true,
+      "alias_of": "tool_calls"
     },
     {
       "id": "members.toolResult",
@@ -193,7 +200,8 @@
       "members": [
         "file_data"
       ],
-      "means_content_block": true
+      "means_content_block": true,
+      "may_hold_media_bytes": true
     },
     {
       "id": "members.function_call",
@@ -227,7 +235,8 @@
       "members": [
         "reasoning"
       ],
-      "means_content_block": true
+      "means_content_block": true,
+      "holds_prose": true
     },
     {
       "id": "members.source",
@@ -241,7 +250,10 @@
       "members": [
         "thinking"
       ],
-      "means_content_block": true
+      "means_content_block": true,
+      "holds_prose": true,
+      "marks_producer_shape": true,
+      "doc": "Beside `text` on a thinking block it marks the producer's own shape - reasoning as a list of chunks - rather than SideML's, so the canonical passthrough leaves the block to the declared case that reads it."
     },
     {
       "id": "members.toolCallId",
@@ -273,6 +285,95 @@
       ],
       "rank": 10,
       "holds_result_call_id": true
+    },
+    {
+      "id": "members.prose",
+      "doc": "Members holding text a person wrote or reads - a name, a description, a title, a prompt. Valid base64 under one of these is still prose, and is never replaced as media.",
+      "members": [
+        "name",
+        "description",
+        "title",
+        "prompt"
+      ],
+      "holds_prose": true
+    },
+    {
+      "id": "members.media_bytes",
+      "doc": "Members that may hold inline media bytes, across the providers' spellings: the generic `data`, Converse's `bytes`, `base64` and its shorthand, a data URL under `url` or `image_url`, and the per-kind `*_data` spellings some SDKs write. Ingestion stores such bytes once and leaves a reference.",
+      "members": [
+        "data",
+        "bytes",
+        "base64",
+        "b64",
+        "url",
+        "image_url",
+        "image_data",
+        "audio_data"
+      ],
+      "may_hold_media_bytes": true
+    },
+    {
+      "id": "members.args",
+      "doc": "A tool call's arguments, under the shorter spelling LangChain and CrewAI write.",
+      "members": [
+        "args"
+      ],
+      "rank": 10,
+      "alias_of": "arguments"
+    },
+    {
+      "id": "members.call_id",
+      "doc": "A tool message's call id, under the member the Responses API and OpenInference's function data use.",
+      "members": [
+        "call_id"
+      ],
+      "rank": 10,
+      "alias_of": "id"
+    },
+    {
+      "id": "members.tool_call",
+      "doc": "An entry of a message's tool calls holding the call under `tool_call`, as OpenInference's flattened attributes unflatten to.",
+      "members": [
+        "tool_call"
+      ],
+      "rank": 10,
+      "wraps_tool_call": true
+    },
+    {
+      "id": "members.data_sources",
+      "doc": "The sources a retrieval-augmented reply was grounded in.",
+      "members": [
+        "data_sources"
+      ],
+      "rank": 30,
+      "holds_context": "data_sources"
+    },
+    {
+      "id": "members.search_results",
+      "doc": "Search results a reply was built from.",
+      "members": [
+        "search_results"
+      ],
+      "rank": 40,
+      "holds_context": "search_results"
+    },
+    {
+      "id": "members.citations",
+      "doc": "The citations a reply states.",
+      "members": [
+        "citations"
+      ],
+      "rank": 50,
+      "holds_context": "citations"
+    },
+    {
+      "id": "members.attributions",
+      "doc": "The attributions a reply states.",
+      "members": [
+        "attributions"
+      ],
+      "rank": 60,
+      "holds_context": "attributions"
     }
   ]
 }

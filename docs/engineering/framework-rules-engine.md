@@ -67,7 +67,7 @@ index construction therefore stay off the per-observation path.
 
 ## Asset organisation
 
-The embedded corpus currently contains **57 assets holding 640 clauses** in three groups:
+The embedded corpus currently contains **58 assets holding 656 clauses** in three groups:
 
 ```text
 server/assets/rules/
@@ -293,9 +293,13 @@ The guarantees above have explicit boundaries:
   iterations, or emitted values.
 - Some ordered rule families are scanned linearly.
 - The per-message explain trace is incomplete.
-- The boundary invariant is not yet fully met. SideML normalisation still holds several payload-shape
-  special cases in Rust; the leak inventory in the rule-language program lists them, and
-  `no_production_module_spells_a_declared_producer_word` holds the sites it can see to a shrink-only list. Provider spellings, model-name normalisation, and cache and
+- What Rust still names is named by decision, not by omission: the published conventions (event names,
+  `gen_ai.*` attributes and part shapes), SideSeat's own vocabulary (SideML members and block types, the
+  extraction roles `tool_call`, `tools`, `data`, `context`, `documents`, the intermediate call shape
+  `tool_calls`/`tool_call_id`), generic decodings (JSON, Python literals), and the model providers the pricing
+  catalogue and connectors name. Every producer's member, block type and role spelling is declared; the third
+  sweep holds the telemetry-interpreting crates to that with no allowlist beyond a short reasoned list of sites
+  where a published format or SideSeat itself owns the word. Provider spellings, model-name normalisation, and cache and
   reasoning counter policy used for pricing also remain in Rust; `provider_aliases` covers only a
   framework that names itself where a provider is expected.
 

@@ -33,6 +33,34 @@ pub struct FinishReasonSpellings {
     pub spellings: Vec<String>,
 }
 
+/// What an event a producer names in its own words is, by a word the name contains.
+///
+/// For the events no convention names: a producer's retrieval or evaluation event is recognisable by its name
+/// long before anyone lists it. Ordered by `rank`, lowest first; the first whose word the name contains answers.
+#[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct EventCategoryRule {
+    pub id: String,
+    #[serde(default)]
+    pub doc: Option<String>,
+    pub rank: i32,
+    /// Words any one of which the event name contains, case-sensitively.
+    pub contains: Vec<String>,
+    pub category: EventCategory,
+}
+
+/// The categories an event's name alone may establish.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(rename_all = "snake_case")]
+pub enum EventCategory {
+    /// Material retrieved for the conversation.
+    Retrieval,
+    /// A score, an evaluation, an observation about the run.
+    Observation,
+}
+
 /// A call id a producer synthesises when the provider supplied none, in a form that names the tool.
 ///
 /// Correlation reads it to repair a result whose synthetic id dangles: the id's name part may identify the
@@ -112,6 +140,44 @@ pub struct MessageMemberRule {
     /// identity is the value's, not the wrapper's.
     #[serde(default)]
     pub wraps_structured_value: bool,
+    /// This member is another producer's spelling of one of SideSeat's own members, read where that one is
+    /// absent. Ordered among the spellings of the same member.
+    #[serde(default)]
+    pub alias_of: Option<String>,
+    /// An entry of a message's tool calls holding this member has the call under it rather than in itself.
+    #[serde(default)]
+    pub wraps_tool_call: bool,
+    /// Beside a message's content, this member holds context of this kind - grounding, citations, sources - that
+    /// the message shows as a context block.
+    #[serde(default)]
+    pub holds_context: Option<String>,
+    /// Beside a message's content, this member is an object whose members are contexts: the ones named here
+    /// under their own kind, everything else together under `rest`.
+    #[serde(default)]
+    pub holds_context_parts: Option<ContextParts>,
+    /// A member that may hold inline media bytes, which ingestion stores once and replaces with a reference.
+    #[serde(default)]
+    pub may_hold_media_bytes: bool,
+    /// A member holding prose a person wrote or read, never replaced as media whatever it looks like.
+    #[serde(default)]
+    pub holds_prose: bool,
+    /// A block holding this member beside SideML's own members is a producer's shape, not a canonical block, so
+    /// the canonical passthrough leaves it to the declared cases.
+    #[serde(default)]
+    pub marks_producer_shape: bool,
+}
+
+/// An object member whose own members are contexts.
+#[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct ContextParts {
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// Members read as their own context, by the kind each is.
+    pub parts: std::collections::BTreeMap<String, String>,
+    /// The kind every other member is, together.
+    pub rest: String,
 }
 
 /// What authority a **stated role** carries, as two independent facts.

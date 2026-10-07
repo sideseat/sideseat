@@ -96,9 +96,15 @@ fn category_from_event_name(event_name: &str, raw_message: &JsonValue) -> Messag
         "gen_ai.content.prompt" => MessageCategory::GenAIUserMessage,
         "exception" => MessageCategory::Exception,
         "log" => MessageCategory::Log,
-        n if n.contains("retrieval") || n.contains("search") => MessageCategory::Retrieval,
-        n if n.contains("score") || n.contains("observation") => MessageCategory::Observation,
-        _ => MessageCategory::Other,
+        // A name no convention gives: what a word in it says, as the assets declare (`event_categories`).
+        name => crate::rules::ruleset()
+            .event_categories
+            .iter()
+            .find(|(words, _)| words.iter().any(|word| name.contains(word.as_str())))
+            .map_or(MessageCategory::Other, |(_, category)| match category {
+                crate::rules::schema::EventCategory::Retrieval => MessageCategory::Retrieval,
+                crate::rules::schema::EventCategory::Observation => MessageCategory::Observation,
+            }),
     }
 }
 

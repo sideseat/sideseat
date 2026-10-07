@@ -43,7 +43,6 @@ pub mod messages;
 use std::collections::HashMap;
 
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
-use serde_json::Value as JsonValue;
 
 use crate::otlp::extract_attributes;
 use sideseat_core::constants;
@@ -260,6 +259,8 @@ pub(super) mod keys {
     pub const LANGSMITH_TAGS: &str = "langsmith.tags";
     #[cfg(any(test, feature = "test-support"))]
     pub const TAG_TAGS: &str = "tag.tags";
+    /// Read by the `metadata` span field now; kept for the equivalence oracles.
+    #[cfg(any(test, feature = "test-support"))]
     pub const METADATA: &str = "metadata";
 
     // I/O Attributes
@@ -609,12 +610,6 @@ pub fn extract_attributes_batch(request: &ExportTraceServiceRequest) -> Vec<Span
                         }
                     }
                 }
-
-                // Metadata
-                span.metadata = span_attrs
-                    .get(keys::METADATA)
-                    .and_then(|m| serde_json::from_str(m).ok())
-                    .unwrap_or(JsonValue::Null);
 
                 spans.push(span);
             }

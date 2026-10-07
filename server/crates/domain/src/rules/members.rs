@@ -44,6 +44,14 @@ pub enum MemberCompileError {
         second: String,
         rank: i32,
     },
+    #[error(
+        "member rule `{rule}` in `{file}` spells `{target}`, which is no member of SideSeat's a spelling may stand in for"
+    )]
+    UnknownAliasTarget {
+        file: String,
+        rule: String,
+        target: String,
+    },
     #[error("member `{member}` is declared twice, by `{first}` and `{second}`")]
     DuplicateMember {
         member: String,
@@ -69,10 +77,32 @@ pub struct MemberPlan {
     detached_system: Vec<String>,
     structured_value_wrapper: Vec<String>,
     control_block: BTreeSet<String>,
+    aliases: std::collections::BTreeMap<String, Vec<String>>,
+    tool_call_wrapper: Vec<String>,
+    context: Vec<(String, ContextRead)>,
+    media_bytes: BTreeSet<String>,
+    prose: BTreeSet<String>,
+    producer_shape: BTreeSet<String>,
 }
 
+/// How a context member is read.
+#[derive(Debug, Clone)]
+pub enum ContextRead {
+    /// The member's value is one context of this kind.
+    Whole(String),
+    /// The member is an object: these of its members under their own kinds, the rest together.
+    Parts {
+        parts: std::collections::BTreeMap<String, String>,
+        rest: String,
+    },
+}
+
+/// The SideSeat members a producer's spelling may stand in for. A spelling naming any other member would
+/// never be read, so it is refused rather than accepted as a statement about nothing.
+const ALIAS_TARGETS: &[&str] = &["arguments", "finish_reason", "id", "stop", "tool_calls"];
+
 /// The ordered questions a member rule may answer, each with its own ranking.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum Ordered {
     Content,
     ResultCallId,
@@ -80,6 +110,10 @@ enum Ordered {
     StreamedReply,
     DetachedSystem,
     StructuredValueWrapper,
+    ToolCallWrapper,
+    Context,
+    /// The spellings of one SideSeat member, each target its own ranking.
+    Alias(String),
 }
 
 impl MemberPlan {
@@ -113,6 +147,11 @@ impl MemberPlan {
         members.into_iter().any(|m| self.tool_call.contains(m))
     }
 
+    /// Every member whose presence on a block means a tool call, in a fixed order.
+    pub fn tool_call_members(&self) -> impl Iterator<Item = &str> {
+        self.tool_call.iter().map(String::as_str)
+    }
+
     /// Whether any member of this block means it is a tool result.
     pub fn any_means_tool_result<'a>(&self, members: impl Iterator<Item = &'a String>) -> bool {
         members.into_iter().any(|m| self.tool_result.contains(m))
@@ -143,6 +182,52 @@ impl MemberPlan {
         self.control_block.contains(member)
     }
 
+    /// The other spellings of one of SideSeat's own members, in the order they are preferred.
+    pub fn aliases_of(&self, member: &str) -> impl Iterator<Item = &str> {
+        self.aliases
+            .get(member)
+            .into_iter()
+            .flatten()
+            .map(String::as_str)
+    }
+
+    /// The members an entry of a message's tool calls holds its call under, in the order they are preferred.
+    pub fn tool_call_wrapper(&self) -> impl Iterator<Item = &str> {
+        self.tool_call_wrapper.iter().map(String::as_str)
+    }
+
+    /// The members holding context beside a message's content, in the order the contexts are shown.
+    pub fn context(&self) -> impl Iterator<Item = (&str, &ContextRead)> {
+        self.context
+            .iter()
+            .map(|(member, read)| (member.as_str(), read))
+    }
+
+    /// Whether this member may hold inline media bytes.
+    pub fn may_hold_media_bytes(&self, member: &str) -> bool {
+        self.media_bytes.contains(member)
+    }
+
+    /// Whether any member of this block marks it as a producer's own shape.
+    pub fn any_marks_producer_shape<'a>(&self, members: impl Iterator<Item = &'a String>) -> bool {
+        members.into_iter().any(|m| self.producer_shape.contains(m))
+    }
+
+    /// Whether this member holds prose.
+    pub fn holds_prose(&self, member: &str) -> bool {
+        self.prose.contains(member)
+    }
+
+    /// Every member that may hold media bytes, for a test that checks the vocabulary as a set.
+    pub fn media_byte_members(&self) -> impl Iterator<Item = &str> {
+        self.media_bytes.iter().map(String::as_str)
+    }
+
+    /// Every member that holds prose, for a test that checks the vocabulary as a set.
+    pub fn prose_members(&self) -> impl Iterator<Item = &str> {
+        self.prose.iter().map(String::as_str)
+    }
+
     /// The members whose object is a wrapper around the value under them, in the order they are preferred.
     pub fn structured_value_wrapper(&self) -> impl Iterator<Item = &str> {
         self.structured_value_wrapper.iter().map(String::as_str)
@@ -166,6 +251,12 @@ impl MemberPlan {
             + self.detached_system.len()
             + self.structured_value_wrapper.len()
             + self.control_block.len()
+            + self.aliases.values().map(Vec::len).sum::<usize>()
+            + self.tool_call_wrapper.len()
+            + self.context.len()
+            + self.media_bytes.len()
+            + self.prose.len()
+            + self.producer_shape.len()
     }
 }
 
@@ -173,6 +264,7 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<MemberPlan, Membe
     let mut plan = MemberPlan::default();
     let mut ranked: std::collections::BTreeMap<Ordered, Vec<(i32, usize, String, String)>> =
         Default::default();
+    let mut context_rules: std::collections::HashMap<String, ContextRead> = Default::default();
     // One declaration per member name, across every asset: two would make "what does this member mean" a
     // question with two answers, resolved by load order.
     let mut by_member: std::collections::HashMap<String, String> = std::collections::HashMap::new();
@@ -203,7 +295,14 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<MemberPlan, Membe
                 || rule.holds_streamed_reply
                 || rule.holds_detached_system
                 || rule.marks_control_block
-                || rule.wraps_structured_value;
+                || rule.wraps_structured_value
+                || rule.alias_of.is_some()
+                || rule.wraps_tool_call
+                || rule.holds_context.is_some()
+                || rule.holds_context_parts.is_some()
+                || rule.may_hold_media_bytes
+                || rule.holds_prose
+                || rule.marks_producer_shape;
             if !says_something {
                 return Err(MemberCompileError::SaysNothing {
                     file: file_id.clone(),
@@ -217,10 +316,43 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<MemberPlan, Membe
                 (rule.holds_streamed_reply, Ordered::StreamedReply),
                 (rule.holds_detached_system, Ordered::DetachedSystem),
                 (rule.wraps_structured_value, Ordered::StructuredValueWrapper),
+                (rule.wraps_tool_call, Ordered::ToolCallWrapper),
+                (
+                    rule.holds_context.is_some() || rule.holds_context_parts.is_some(),
+                    Ordered::Context,
+                ),
             ]
             .into_iter()
             .filter_map(|(answers, question)| answers.then_some(question))
+            .chain(rule.alias_of.clone().map(Ordered::Alias))
             .collect();
+            if rule.holds_context.is_some() && rule.holds_context_parts.is_some() {
+                return Err(MemberCompileError::TwoOrderedQuestions {
+                    file: file_id.clone(),
+                    rule: rule.id.clone(),
+                });
+            }
+            if let Some(target) = &rule.alias_of
+                && !ALIAS_TARGETS.contains(&target.as_str())
+            {
+                return Err(MemberCompileError::UnknownAliasTarget {
+                    file: file_id.clone(),
+                    rule: rule.id.clone(),
+                    target: target.clone(),
+                });
+            }
+            if let Some(kind) = &rule.holds_context {
+                context_rules.insert(rule.id.clone(), ContextRead::Whole(kind.clone()));
+            }
+            if let Some(spec) = &rule.holds_context_parts {
+                context_rules.insert(
+                    rule.id.clone(),
+                    ContextRead::Parts {
+                        parts: spec.parts.clone(),
+                        rest: spec.rest.clone(),
+                    },
+                );
+            }
             if questions.len() > 1 {
                 return Err(MemberCompileError::TwoOrderedQuestions {
                     file: file_id.clone(),
@@ -277,11 +409,20 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<MemberPlan, Membe
                 if rule.marks_control_block {
                     plan.control_block.insert(member.clone());
                 }
+                if rule.may_hold_media_bytes {
+                    plan.media_bytes.insert(member.clone());
+                }
+                if rule.holds_prose {
+                    plan.prose.insert(member.clone());
+                }
+                if rule.marks_producer_shape {
+                    plan.producer_shape.insert(member.clone());
+                }
             }
             // One rank per declaration, so a family's spellings sit together in declaration order - deterministic
             // where two aliases somehow appear on one value, which is pathological but must still have an answer.
             if let (Some(rank), Some(question)) = (rule.rank, questions.first()) {
-                let into = ranked.entry(*question).or_default();
+                let into = ranked.entry(question.clone()).or_default();
                 for (offset, member) in rule.members.iter().enumerate() {
                     into.push((rank, offset, member.clone(), rule.id.clone()));
                 }
@@ -302,6 +443,15 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<MemberPlan, Membe
                 });
             }
         }
+        if question == Ordered::Context {
+            for (_, _, member, rule_id) in list {
+                let rule = context_rules
+                    .get(&rule_id)
+                    .expect("every context entry was recorded");
+                plan.context.push((member, rule.clone()));
+            }
+            continue;
+        }
         let members = list.into_iter().map(|(_, _, member, _)| member).collect();
         match question {
             Ordered::Content => plan.content_in_order = members,
@@ -310,6 +460,11 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<MemberPlan, Membe
             Ordered::StreamedReply => plan.streamed_reply = members,
             Ordered::DetachedSystem => plan.detached_system = members,
             Ordered::StructuredValueWrapper => plan.structured_value_wrapper = members,
+            Ordered::ToolCallWrapper => plan.tool_call_wrapper = members,
+            Ordered::Alias(target) => {
+                plan.aliases.insert(target, members);
+            }
+            Ordered::Context => unreachable!("read above"),
         }
     }
     Ok(plan)
@@ -352,6 +507,20 @@ mod tests {
                    {"id":"p.b","members":["b"],"rank":1,"holds_result_call_id":true}"#,
             )
             .is_ok()
+        );
+    }
+
+    /// A spelling of a member no reader asks for would never be read.
+    #[test]
+    fn a_spelling_of_no_member_a_reader_asks_for_is_refused() {
+        let refused =
+            compile_rules(r#"{"id":"p.alias","members":["x"],"rank":1,"alias_of":"nothing"}"#);
+        assert!(
+            matches!(refused, Err(MemberCompileError::UnknownAliasTarget { .. })),
+            "{refused:?}"
+        );
+        assert!(
+            compile_rules(r#"{"id":"p.alias","members":["x"],"rank":1,"alias_of":"stop"}"#).is_ok()
         );
     }
 

@@ -167,7 +167,9 @@ fn every_target_writes_what_its_declared_type_produces() {
         // A value of the target's own type that is inside whatever range it admits, so this measures the sink and
         // not the configured bound.
         let reading = match target.field_type() {
-            FieldType::Text => Reading::Text("probe".to_string()),
+            // Text that is also a JSON object, so a text target storing what the text encodes (`metadata`) is
+            // measured on a value it can hold rather than one it rightly drops.
+            FieldType::Text => Reading::Text(r#"{"probe":true}"#.to_string()),
             FieldType::Integer => Reading::Integer(1),
             FieldType::Float => Reading::Float(0.5),
             FieldType::StringList => Reading::StringList(vec!["probe".to_string()]),
@@ -428,4 +430,31 @@ fn a_reported_cost_is_read_from_the_declared_fields() {
     assert_eq!(span.extracted_cost_total, Some(0.0125));
     assert_eq!(span.extracted_cost_input, Some(0.01));
     assert_eq!(span.extracted_cost_output, None);
+}
+
+/// The declared `metadata` field stores exactly what the retired read did: the JSON the bare attribute encodes,
+/// and nothing for text that encodes none or an attribute that is absent.
+#[test]
+fn the_declared_metadata_field_reads_as_the_constant_it_replaced() {
+    for value in [
+        Some(r#"{"run_id": "r1", "tags": ["a"]}"#),
+        Some("[1, 2]"),
+        Some("\"a string\""),
+        Some("42"),
+        Some("not json"),
+        Some(""),
+        None,
+    ] {
+        let attrs = match value {
+            Some(value) => make_attrs(&[("metadata", value)]),
+            None => make_attrs(&[]),
+        };
+        let retired = attrs
+            .get("metadata")
+            .and_then(|m| serde_json::from_str::<JsonValue>(m).ok())
+            .unwrap_or(JsonValue::Null);
+        let mut span = SpanData::default();
+        apply_span_fields(&mut span, "", &attrs, &[]);
+        assert_eq!(span.metadata, retired, "{value:?}");
+    }
 }

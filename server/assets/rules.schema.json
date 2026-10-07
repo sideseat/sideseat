@@ -123,6 +123,13 @@
         "$ref": "#/$defs/SyntheticCallId"
       }
     },
+    "event_categories": {
+      "description": "What an event no convention names is, by a word its name contains.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/EventCategoryRule"
+      }
+    },
     "message_members": {
       "description": "Member names a producer uses, and what each one's presence means.\n\nThree questions about one vocabulary, which is why they are one section: which member holds a message's\ncontent (ordered - the first present one wins), which members mean a value is *message-shaped* rather\nthan bare data, and which mean it is a content **block**. A member usually answers more than one, and as\nthree lists in Rust they drifted: `contents` held content and said \"message-shaped\", while `toolCallId`\nsaid \"content block\" only.",
       "type": "array",
@@ -3885,6 +3892,58 @@
         "template"
       ]
     },
+    "EventCategoryRule": {
+      "description": "What an event a producer names in its own words is, by a word the name contains.\n\nFor the events no convention names: a producer's retrieval or evaluation event is recognisable by its name\nlong before anyone lists it. Ordered by `rank`, lowest first; the first whose word the name contains answers.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "rank": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "contains": {
+          "description": "Words any one of which the event name contains, case-sensitively.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "category": {
+          "$ref": "#/$defs/EventCategory"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "rank",
+        "contains",
+        "category"
+      ]
+    },
+    "EventCategory": {
+      "description": "The categories an event's name alone may establish.",
+      "oneOf": [
+        {
+          "description": "Material retrieved for the conversation.",
+          "type": "string",
+          "const": "retrieval"
+        },
+        {
+          "description": "A score, an evaluation, an observation about the run.",
+          "type": "string",
+          "const": "observation"
+        }
+      ]
+    },
     "MessageMemberRule": {
       "description": "One member name, and what its presence means.",
       "type": "object",
@@ -3974,12 +4033,88 @@
           "description": "An object holding this member is a wrapper around the structured value under it: a tool result's\nidentity is the value's, not the wrapper's.",
           "type": "boolean",
           "default": false
+        },
+        "alias_of": {
+          "description": "This member is another producer's spelling of one of SideSeat's own members, read where that one is\nabsent. Ordered among the spellings of the same member.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "wraps_tool_call": {
+          "description": "An entry of a message's tool calls holding this member has the call under it rather than in itself.",
+          "type": "boolean",
+          "default": false
+        },
+        "holds_context": {
+          "description": "Beside a message's content, this member holds context of this kind - grounding, citations, sources - that\nthe message shows as a context block.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "holds_context_parts": {
+          "description": "Beside a message's content, this member is an object whose members are contexts: the ones named here\nunder their own kind, everything else together under `rest`.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContextParts"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "may_hold_media_bytes": {
+          "description": "A member that may hold inline media bytes, which ingestion stores once and replaces with a reference.",
+          "type": "boolean",
+          "default": false
+        },
+        "holds_prose": {
+          "description": "A member holding prose a person wrote or read, never replaced as media whatever it looks like.",
+          "type": "boolean",
+          "default": false
+        },
+        "marks_producer_shape": {
+          "description": "A block holding this member beside SideML's own members is a producer's shape, not a canonical block, so\nthe canonical passthrough leaves it to the declared cases.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false,
       "required": [
         "id",
         "members"
+      ]
+    },
+    "ContextParts": {
+      "description": "An object member whose own members are contexts.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "parts": {
+          "description": "Members read as their own context, by the kind each is.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "rest": {
+          "description": "The kind every other member is, together.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "parts",
+        "rest"
       ]
     },
     "ClassifyRule": {
@@ -4283,6 +4418,11 @@
           "description": "The name a reader sees. **Not** the raw span name, which everything behavioural keys on: detection,\ntoken scoping, classification and every rule are given the producer's own name, and this is a\npresentation value stored beside it.",
           "type": "string",
           "const": "display_span_name"
+        },
+        {
+          "description": "A producer's own metadata object, stored as the JSON it encodes; text that is not JSON is no metadata.",
+          "type": "string",
+          "const": "metadata"
         }
       ]
     },

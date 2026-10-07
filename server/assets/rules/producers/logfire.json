@@ -309,6 +309,30 @@
         }
       ],
       "legacy_rank": 420
+    },
+    {
+      "id": "logfire.fallback_raw_input",
+      "doc": "Logfire's stand-in for the framework-neutral `input.value` carrier, read in the same fallback stage and only where that carrier is absent - the same datum under another name, not a second one.",
+      "source": {
+        "span": {
+          "stage": "fallback"
+        }
+      },
+      "read": {
+        "attribute": "raw_input"
+      },
+      "parse": "json",
+      "unless": {
+        "attr_exists": [
+          "input.value"
+        ]
+      },
+      "wrap": {
+        "role": "user",
+        "only_plain_data": true
+      },
+      "emit": "message",
+      "legacy_rank": 9010
     }
   ],
   "message_projections": [

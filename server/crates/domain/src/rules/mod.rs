@@ -252,6 +252,8 @@ pub struct Ruleset {
     pub finish_reasons: finish_reasons::FinishReasonPlan,
     /// The separators of the synthetic call ids producers build as `{name}<separator>{index}`.
     pub synthetic_call_ids: Vec<String>,
+    /// The words an event's name may contain and the category each establishes, in rank order.
+    pub event_categories: Vec<(Vec<String>, schema::EventCategory)>,
     /// BLAKE3 of the asset bytes that produced this plan, hex-encoded.
     ///
     /// Joins the reconstruction cache key. That cache is a memo over a pure function of the rows, and
@@ -319,6 +321,7 @@ impl Ruleset {
             finish_reasons::FinishReasonPlan::compile(files),
         );
         let synthetic_call_ids = found.take(S::SyntheticCallIds, compile_synthetic_call_ids(files));
+        let event_categories = found.take(S::EventCategories, compile_event_categories(files));
         // Every section is `Some` exactly when it compiled, and each `None` recorded its defect - so a full
         // match is a ruleset and anything else is the collected report.
         match (
@@ -339,6 +342,7 @@ impl Ruleset {
             provider_aliases,
             finish_reasons,
             synthetic_call_ids,
+            event_categories,
         ) {
             (
                 Some(carriers),
@@ -358,6 +362,7 @@ impl Ruleset {
                 Some(provider_aliases),
                 Some(finish_reasons),
                 Some(synthetic_call_ids),
+                Some(event_categories),
             ) => Ok(Ruleset {
                 carriers,
                 detect,
@@ -376,6 +381,7 @@ impl Ruleset {
                 provider_aliases,
                 finish_reasons,
                 synthetic_call_ids,
+                event_categories,
                 tagged_source_names,
                 digest: assets.digest().to_owned(),
             }),
@@ -781,6 +787,40 @@ pub(super) fn compile_role_authority(
         }
     }
     Ok(plan)
+}
+
+/// The declared event categories in rank order, refusing an empty word and a shared rank.
+pub(super) fn compile_event_categories(
+    files: &[schema::RuleFile],
+) -> Result<Vec<(Vec<String>, schema::EventCategory)>, String> {
+    let mut ranked: Vec<(i32, String, Vec<String>, schema::EventCategory)> = Vec::new();
+    for file in files {
+        for entry in &file.event_categories {
+            if entry.contains.is_empty() || entry.contains.iter().any(String::is_empty) {
+                return Err(format!(
+                    "event category `{}` in `{}` names no word, or an empty one, which every name contains",
+                    entry.id, file.id
+                ));
+            }
+            ranked.push((
+                entry.rank,
+                entry.id.clone(),
+                entry.contains.clone(),
+                entry.category,
+            ));
+        }
+    }
+    ranked.sort_by_key(|(rank, ..)| *rank);
+    if let Some(pair) = ranked.windows(2).find(|pair| pair[0].0 == pair[1].0) {
+        return Err(format!(
+            "event categories `{}` and `{}` share rank {}, so which answers depends on load order",
+            pair[0].1, pair[1].1, pair[0].0
+        ));
+    }
+    Ok(ranked
+        .into_iter()
+        .map(|(_, _, words, category)| (words, category))
+        .collect())
 }
 
 /// The separators of the declared synthetic call ids, refusing a template outside the closed form.

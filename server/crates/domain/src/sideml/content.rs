@@ -448,8 +448,16 @@ fn try_sideml_passthrough(block: &JsonValue) -> Option<JsonValue> {
             block.get("source").is_some() && block.get("data").is_some()
         }
 
-        // Thinking: must have "text" field (not "thinking" array like Mistral)
-        "thinking" => block.get("text").is_some() && block.get("thinking").is_none(),
+        // Thinking: must have "text", and no member the assets say marks a producer's own shape - a block holding
+        // one beside `text` is that producer's, and its declared case reads it.
+        "thinking" => {
+            block.get("text").is_some()
+                && !block.as_object().is_some_and(|object| {
+                    crate::rules::ruleset()
+                        .message_members
+                        .any_marks_producer_shape(object.keys())
+                })
+        }
 
         // Redacted thinking: must have "data" field
         "redacted_thinking" => block.get("data").is_some(),

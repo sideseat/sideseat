@@ -539,3 +539,41 @@ fn the_declared_members_expand_and_categorise_as_the_tables_they_replace() {
         );
     }
 }
+
+/// The declared event categories answer as the retired substring heuristic did, for names no convention gives.
+#[test]
+fn the_declared_event_categories_match_the_heuristic_they_replace() {
+    use chrono::TimeZone;
+    let time = chrono::Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+    let retired = |name: &str| {
+        if name.contains("retrieval") || name.contains("search") {
+            MessageCategory::Retrieval
+        } else if name.contains("score") || name.contains("observation") {
+            MessageCategory::Observation
+        } else {
+            MessageCategory::Other
+        }
+    };
+    for name in [
+        "rag.retrieval_step",
+        "vector_search",
+        "search_score",
+        "eval.score",
+        "observation",
+        "scoreboard_observation_retrieval",
+        "RETRIEVAL",
+        "Score",
+        "custom.event",
+        "",
+    ] {
+        let source = MessageSource::Event {
+            name: name.to_string(),
+            time,
+        };
+        assert_eq!(
+            super::categorization::determine_category(&source, &json!({})),
+            retired(name),
+            "{name:?}"
+        );
+    }
+}

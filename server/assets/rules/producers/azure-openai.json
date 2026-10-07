@@ -68,5 +68,21 @@
       "slug": "azure-openai",
       "label": "AzureOpenAI"
     }
+  ],
+  "message_members": [
+    {
+      "id": "azure-openai.context",
+      "doc": "\"On your data\" replies carry their retrieval context in one object: its citations as citations, everything else together.",
+      "members": [
+        "context"
+      ],
+      "rank": 70,
+      "holds_context_parts": {
+        "parts": {
+          "citations": "citations"
+        },
+        "rest": "azure_context"
+      }
+    }
   ]
 }

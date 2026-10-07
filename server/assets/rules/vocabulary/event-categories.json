@@ -1,0 +1,27 @@
+{
+  "$schema": "../../rules.schema.json",
+  "id": "event-categories",
+  "doc": "What an event a producer names in its own words is, by a word its name contains. A heuristic over every producer's naming rather than one framework's table: a retrieval or an evaluation event is recognisable by its name before anyone lists it. Consulted only for names no convention gives.",
+  "event_categories": [
+    {
+      "id": "event-categories.retrieval",
+      "doc": "Retrieved material: a retrieval or search event.",
+      "rank": 10,
+      "contains": [
+        "retrieval",
+        "search"
+      ],
+      "category": "retrieval"
+    },
+    {
+      "id": "event-categories.observation",
+      "doc": "A score or an observation about the run.",
+      "rank": 20,
+      "contains": [
+        "score",
+        "observation"
+      ],
+      "category": "observation"
+    }
+  ]
+}

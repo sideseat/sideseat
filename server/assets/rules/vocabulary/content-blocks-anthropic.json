@@ -300,7 +300,17 @@
         "system"
       ],
       "rank": 10,
-      "holds_detached_system": true
+      "holds_detached_system": true,
+      "holds_prose": true
+    },
+    {
+      "id": "anthropic.stop_sequences",
+      "doc": "The Messages API's name for a request's stop sequences.",
+      "members": [
+        "stop_sequences"
+      ],
+      "rank": 10,
+      "alias_of": "stop"
     }
   ]
 }

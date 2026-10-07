@@ -166,58 +166,24 @@ impl FileExtractionCache {
     }
 }
 
-/// Fields that may contain base64 data to extract.
-///
-/// These are field names used by various AI providers to store binary content:
-/// - `data`: Anthropic, Gemini, OpenAI audio, generic
-/// - `bytes`: AWS Bedrock Converse (image, document, video)
-/// - `base64`: Legacy/custom formats
-/// - `b64`: Shorthand used in some frameworks
-/// - `url`: OpenAI image_url (for `data:` URLs only)
-/// - `image_data`: Some custom implementations
-/// - `audio_data`: Some audio-specific implementations
-/// - `file_data`: Some file upload implementations
-const EXTRACTABLE_FIELDS: &[&str] = &[
-    "data",
-    "bytes",
-    "base64",
-    "b64",
-    "url",
-    "image_url",
-    "image_data",
-    "audio_data",
-    "file_data",
-];
-
-/// Fields that should never be modified (contain user text).
-///
-/// Even if these fields contain valid base64 strings, they should not be
-/// extracted because they represent user-generated content, not binary files.
-const PROTECTED_FIELDS: &[&str] = &[
-    "text",
-    "content",
-    "message",
-    "name",
-    "description",
-    "thinking",
-    "reasoning",
-    "title",
-    "prompt",
-    "system",
-];
-
-/// Check if a key (or its last dotted segment) is an extractable field.
-/// Handles OTLP dotted attributes like `llm.input_messages.0.message.contents.1.message_content.image.source.data`
-/// where the last segment `data` is extractable.
+/// Whether a key (or its last dotted segment) may hold inline media bytes, as the assets declare it
+/// (`may_hold_media_bytes`). Handles OTLP dotted attributes like
+/// `llm.input_messages.0.message.contents.1.message_content.image.source.data`, where the last segment is the
+/// member.
 fn is_extractable_key(key: &str) -> bool {
     let leaf = key.rsplit('.').next().unwrap_or(key);
-    EXTRACTABLE_FIELDS.contains(&leaf)
+    sideseat_domain::rules::ruleset()
+        .message_members
+        .may_hold_media_bytes(leaf)
 }
 
-/// Check if a key (or its last dotted segment) is a protected field.
+/// Whether a key (or its last dotted segment) holds prose, which is never replaced as media even when it is
+/// valid base64 (`holds_prose`).
 fn is_protected_key(key: &str) -> bool {
     let leaf = key.rsplit('.').next().unwrap_or(key);
-    PROTECTED_FIELDS.contains(&leaf)
+    sideseat_domain::rules::ruleset()
+        .message_members
+        .holds_prose(leaf)
 }
 
 /// An extracted file ready for storage

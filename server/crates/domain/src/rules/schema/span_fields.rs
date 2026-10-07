@@ -101,6 +101,8 @@ pub enum FieldTarget {
     MessagingSystem,
     MessagingDestination,
     Tags,
+    /// A producer's own metadata object, stored as the JSON it encodes; text that is not JSON is no metadata.
+    Metadata,
 }
 
 impl FieldTarget {
@@ -160,6 +162,7 @@ impl FieldTarget {
         Self::MessagingSystem,
         Self::MessagingDestination,
         Self::Tags,
+        Self::Metadata,
     ];
 
     /// What a source must produce to fill this field.
@@ -193,6 +196,7 @@ impl FieldTarget {
                 FieldType::StringList
             }
             Self::SessionId
+            | Self::Metadata
             | Self::UserId
             | Self::HttpMethod
             | Self::HttpUrl
@@ -272,6 +276,7 @@ impl FieldTarget {
             | Self::GenAiStopSequences
             | Self::GenAiFinishReasons
             | Self::SessionId
+            | Self::Metadata
             | Self::UserId
             | Self::HttpMethod
             | Self::HttpUrl

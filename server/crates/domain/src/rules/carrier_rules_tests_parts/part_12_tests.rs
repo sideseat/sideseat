@@ -236,7 +236,8 @@ fn declared_producer_vocabulary() -> std::collections::BTreeMap<String, String> 
             }
         }
     }
-    /// Keys whose string values hold no producer word, each group with its reason.
+    /// Keys whose free-string values hold no producer word, each group with its reason. Enumerated grammar values
+    /// need no entry here: the schema says where those are (`grammar_value_positions`).
     const NOT_PRODUCER_WORDS: &[&str] = &[
         // Prose and identity.
         "doc",
@@ -248,45 +249,15 @@ fn declared_producer_vocabulary() -> std::collections::BTreeMap<String, String> 
         "ordering_family",
         "label",
         "slug",
-        // What a rule maps a producer's words onto: SideSeat's own observation types, categories, fields,
-        // roles, finish categories and block members.
-        "value",
+        // What a rule maps a producer's words onto, where the schema states it as a free string: SideSeat's own
+        // observation types, categories and block members.
         "result",
         "replaces_legacy_result",
-        "target",
-        "means",
         "as",
         "capture_as",
         "key_as",
-        "observation_type",
-        "fact",
-        "model",
         "as_member",
-        // Grammar choices the schema states as free strings.
-        "at",
-        "parse",
-        "entry_value_parse",
-        "emit",
-        "preset",
-        "kind",
-        "on_malformed",
-        "on_conflict",
-        "on_invalid_item",
-        "presence",
-        "payload",
-        "raw",
-        "reduce",
-        "encoding",
-        "combine",
-        "occurrence",
-        "action",
-        "stage",
-        "missing_media_type",
-        "reference_or",
-        "literal",
-        "map_to",
-        "type_default",
-        "media_type_default",
+        "model",
         // Text a rule matches or splits on rather than a member it names, and the id templates it builds.
         "needles",
         "repr_markers",
@@ -304,30 +275,64 @@ fn declared_producer_vocabulary() -> std::collections::BTreeMap<String, String> 
         "default",
         "name_default",
         "content_default",
+        "media_type_default",
+        "type_default",
         // Published namespaces, which the conventions own.
         "convention_namespaces",
     ];
-    fn walk(value: &serde_json::Value, key: Option<&str>, out: &mut Vec<String>) {
+    fn walk(
+        value: &serde_json::Value,
+        key: Option<&str>,
+        at: &str,
+        grammar: &std::collections::BTreeSet<String>,
+        grammar_at: &std::collections::BTreeSet<String>,
+        out: &mut Vec<String>,
+    ) {
         match value {
             serde_json::Value::String(text) => {
-                if key.is_some_and(|key| NOT_PRODUCER_WORDS.contains(&key)) {
+                if key.is_some_and(|key| NOT_PRODUCER_WORDS.contains(&key))
+                    || grammar_at.contains(at)
+                {
                     return;
                 }
                 if text.starts_with('$') || text.starts_with('@') {
                     path_words(text, out);
                 } else if let Some(rest) = text.strip_prefix("attr:") {
                     out.push(rest.to_string());
+                } else if key == Some("sources") {
+                    // A text source is `attr:<key>` or one of the engine's own source names.
                 } else {
                     out.push(text.clone());
                 }
             }
-            serde_json::Value::Array(items) => items.iter().for_each(|item| walk(item, key, out)),
+            serde_json::Value::Array(items) => {
+                for (index, item) in items.iter().enumerate() {
+                    walk(
+                        item,
+                        key,
+                        &format!("{at}[{index}]"),
+                        grammar,
+                        grammar_at,
+                        out,
+                    );
+                }
+            }
             serde_json::Value::Object(members) => {
                 for (member, inner) in members {
-                    // A member of a map - a role map's, a type map's - is a producer's spelling. Grammar keys
-                    // are dropped below, with the rest of the grammar's words.
-                    out.push(member.clone());
-                    walk(inner, Some(member), out);
+                    // A member the grammar defines is the grammar's; any other is a map's key - a role map's,
+                    // a type map's - which is a producer's spelling. Decided where the key *is*, so a grammar
+                    // word a producer also writes as data is still counted where it is data.
+                    if !grammar.contains(member) {
+                        out.push(member.clone());
+                    }
+                    walk(
+                        inner,
+                        Some(member),
+                        &format!("{at}.{member}"),
+                        grammar,
+                        grammar_at,
+                        out,
+                    );
                 }
             }
             _ => {}
@@ -361,10 +366,25 @@ fn declared_producer_vocabulary() -> std::collections::BTreeMap<String, String> 
     }
     let mut ours: std::collections::BTreeSet<String> = canonical_sideml_vocabulary();
     let generator = schemars::generate::SchemaSettings::draft2020_12().into_generator();
+    let grammar_at = crate::rules::schema_census::grammar_value_positions();
+    let mut grammar = std::collections::BTreeSet::new();
     grammar_words(
         &serde_json::to_value(generator.into_root_schema_for::<crate::rules::schema::RuleFile>())
             .expect("the schema serialises"),
-        &mut ours,
+        &mut grammar,
+    );
+    // SideSeat's own intermediate shape for a tool call - the `tool_calls` list of `{id, function: {name,
+    // arguments}}` the message rules build and every reader consumes - and the member a tool message's call id
+    // is carried in on the way to SideML's `tool_use_id`. Engine vocabulary that one convention's spelling
+    // happens to share; the producers' other spellings of the same things are declared (`alias_of`).
+    ours.extend(["tool_calls", "tool_call_id"].map(String::from));
+    // The same for a tool definition - `{name, description, parameters}` - and the JSON Schema primitive types
+    // its parameters are written in, a published standard the tool-shape rules convert producers' types onto.
+    ours.extend(["description", "parameters"].map(String::from));
+    ours.extend(
+        crate::rules::schema::UnknownType::PRIMITIVES
+            .iter()
+            .map(|primitive| primitive.to_string()),
     );
     // The classifications' answers, which `classify` states are ours.
     ours.extend(
@@ -385,7 +405,7 @@ fn declared_producer_vocabulary() -> std::collections::BTreeMap<String, String> 
             .to_string();
         let value: serde_json::Value = serde_json::from_slice(&bytes).expect("the asset parses");
         let mut words = Vec::new();
-        walk(&value, None, &mut words);
+        walk(&value, None, &path, &grammar, &grammar_at, &mut words);
         let words = words.into_iter().filter(|word| is_word(word));
         if path.starts_with("conventions/") {
             published.extend(words);
@@ -395,12 +415,7 @@ fn declared_producer_vocabulary() -> std::collections::BTreeMap<String, String> 
             }
         }
     }
-    // A model provider's name is one the pricing catalogue and the connectors are entitled to.
-    declared.retain(|word, _| {
-        !published.contains(word)
-            && !ours.contains(word)
-            && crate::pricing::builtin_provider(&word.to_lowercase().replace('-', "_")).is_empty()
-    });
+    declared.retain(|word, _| !published.contains(word) && !ours.contains(word));
     declared
 }
 
@@ -490,8 +505,10 @@ fn test_only_module_files(repository: &std::path::Path) -> std::collections::BTr
 /// (see `declared_producer_vocabulary`), so a word becomes forbidden in Rust the day an asset declares it.
 ///
 /// Exempt, each for a stated reason: a published convention's words (the conventions assets), SideSeat's own
-/// canonical vocabulary (derived from the SideML types), and test code. What it cannot see: a word assembled at
-/// runtime, a word no asset declares yet, and prose.
+/// canonical vocabulary (derived from the SideML types, the classification answers and the rule grammar), a
+/// priced or connected provider's name, and test code; and `ENTITLED`, a short list of sites where the word is a
+/// published format's or SideSeat's own at that site, each with its reason. Zero tolerance beyond that. What it
+/// cannot see: a word assembled at runtime, a word no asset declares yet, and prose.
 #[test]
 fn no_production_module_spells_a_declared_producer_word() {
     let vocabulary = declared_producer_vocabulary();
@@ -542,6 +559,11 @@ fn no_production_module_spells_a_declared_producer_word() {
     }
     // Provider connectors name the provider they connect to, as `no_production_module_names_a_framework` allows.
     const CONNECTORS: &[&str] = &["server/crates/domain/src/providers/"];
+    // And pricing names the providers it prices, as AGENTS.md allows - there, and nowhere else in parsing.
+    const PRICING: &[&str] = &["server/crates/domain/src/pricing/"];
+    let is_provider = |word: &str| {
+        !crate::pricing::builtin_provider(&word.to_lowercase().replace('-', "_")).is_empty()
+    };
     let test_only = test_only_module_files(&repository);
     for oracle in [
         "server/crates/domain/src/sideml/content/provider_formats.rs",
@@ -581,6 +603,9 @@ fn no_production_module_spells_a_declared_producer_word() {
                 continue;
             }
             let literal = literal_text(&text);
+            if PRICING.iter().any(|prefix| relative.starts_with(prefix)) && is_provider(literal) {
+                continue;
+            }
             if let Some(asset) = vocabulary.get(literal) {
                 found
                     .entry((relative.clone(), literal.to_string()))
@@ -614,16 +639,6 @@ fn no_production_module_spells_a_declared_producer_word() {
             "the OTLP span record's own member",
         ),
         (
-            "server/crates/domain/src/rules/schema/message_read.rs",
-            "boolean",
-            "a JSON Schema primitive type",
-        ),
-        (
-            "server/crates/domain/src/rules/schema/message_read.rs",
-            "integer",
-            "a JSON Schema primitive type",
-        ),
-        (
             "server/crates/domain/src/rules/tool_shapes.rs",
             "format",
             "a JSON Schema keyword, copied into a converted schema",
@@ -644,115 +659,35 @@ fn no_production_module_spells_a_declared_producer_word() {
             "the engine's own tree for a parsed constructor, which assets select from",
         ),
         (
+            "server/crates/domain/src/sideml/normalize/categorization.rs",
+            "documents",
+            "one of SideSeat's own extraction roles, which the assets map retrieved material onto; the role-authority \
+             asset declares its authority, not a producer's spelling",
+        ),
+        (
+            "server/crates/domain/src/sideml/mod.rs",
+            "conversation_history",
+            "SideSeat's own context type for a history message, which one producer's asset names as its target",
+        ),
+        (
+            "server/crates/ingestion/src/metrics/extract.rs",
+            "value",
+            "the OTLP summary quantile's own member",
+        ),
+        (
+            "server/crates/domain/src/pricing/mod.rs",
+            "chat",
+            "the pricing catalogue's default model mode, as the price list it loads spells it",
+        ),
+        (
             "server/crates/domain/src/sideml/content/python_repr.rs",
             "__python_args",
             "the engine's own tree for a parsed constructor, which assets select from",
         ),
     ];
-    /// Sites still leaking, each tied to its entry in the leak inventory (`rule-language-program.md`). Shrink-only:
-    /// an entry that no longer occurs must leave, and a site not here fails the sweep.
-    const STILL_LEAKING: &[(&str, &str, &str)] = &[
-        (
-            "server/crates/ingestion/src/traces/extract/files.rs",
-            "bytes",
-            "64",
-        ),
-        (
-            "server/crates/ingestion/src/traces/extract/files.rs",
-            "image_url",
-            "64",
-        ),
-        (
-            "server/crates/ingestion/src/traces/extract/files.rs",
-            "file_data",
-            "64",
-        ),
-        (
-            "server/crates/ingestion/src/traces/extract/files.rs",
-            "prompt",
-            "64",
-        ),
-        (
-            "server/crates/ingestion/src/traces/extract/mod.rs",
-            "metadata",
-            "66",
-        ),
-        (
-            "server/crates/ingestion/src/traces/extract/messages.rs",
-            "tool_call_id",
-            "62",
-        ),
-        (
-            "server/crates/domain/src/sideml/tools.rs",
-            "tool_calls",
-            "24",
-        ),
-        ("server/crates/domain/src/sideml/tools.rs", "args", "24"),
-        (
-            "server/crates/domain/src/sideml/tools.rs",
-            "tool_call_id",
-            "25",
-        ),
-        ("server/crates/domain/src/sideml/tools.rs", "call_id", "25"),
-        (
-            "server/crates/domain/src/sideml/tools.rs",
-            "toolResult",
-            "25",
-        ),
-        (
-            "server/crates/domain/src/sideml/tools.rs",
-            "toolUseId",
-            "25",
-        ),
-        ("server/crates/domain/src/sideml/tools.rs", "toolUse", "25"),
-        (
-            "server/crates/domain/src/sideml/normalize.rs",
-            "tool_call_id",
-            "29",
-        ),
-        (
-            "server/crates/domain/src/sideml/normalize/categorization.rs",
-            "documents",
-            "65",
-        ),
-        (
-            "server/crates/domain/src/sideml/normalize/categorization.rs",
-            "score",
-            "33",
-        ),
-        ("server/crates/domain/src/sideml/mod.rs", "contents", "35"),
-        ("server/crates/domain/src/sideml/mod.rs", "tool_calls", "35"),
-        ("server/crates/domain/src/sideml/mod.rs", "toolCalls", "36"),
-        (
-            "server/crates/domain/src/sideml/mod.rs",
-            "tool_call_id",
-            "34",
-        ),
-        (
-            "server/crates/domain/src/sideml/mod.rs",
-            "finishReason",
-            "37",
-        ),
-        (
-            "server/crates/domain/src/sideml/mod.rs",
-            "conversation_history",
-            "65",
-        ),
-        (
-            "server/crates/domain/src/rules/message_rules/compile_rule.rs",
-            "tool_calls",
-            "engine-internal",
-        ),
-        (
-            "server/crates/domain/src/rules/message_rules/build.rs",
-            "tool_calls",
-            "engine-internal",
-        ),
-    ];
     let listed = |site: &(String, String)| {
         ENTITLED
             .iter()
-            .chain(STILL_LEAKING)
             .any(|(file, word, _)| site.0 == *file && site.1 == *word)
     };
     let offences: Vec<&String> = found
@@ -762,7 +697,6 @@ fn no_production_module_spells_a_declared_producer_word() {
         .collect();
     let stale: Vec<String> = ENTITLED
         .iter()
-        .chain(STILL_LEAKING)
         .filter(|(file, word, _)| !found.contains_key(&(file.to_string(), word.to_string())))
         .map(|(file, word, _)| format!("  {file}: \"{word}\""))
         .collect();
@@ -778,8 +712,8 @@ fn no_production_module_spells_a_declared_producer_word() {
     );
     assert!(
         stale.is_empty(),
-        "these listed sites no longer spell their word - remove them, and close the inventory entry if it was \
-         the last:\n{}",
+        "these entitled sites no longer spell their word - an entitlement for a word a file does not use is \
+         how such a list grows until it covers something that matters:\n{}",
         stale.join("\n")
     );
 }

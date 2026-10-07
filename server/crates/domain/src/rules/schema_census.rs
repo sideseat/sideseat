@@ -130,6 +130,8 @@ fn every_asset_names_the_schema() {
 #[derive(Default, Clone)]
 struct Coverage {
     used: BTreeSet<String>,
+    /// Where in an asset a string matched an enum or a constant: a word of the grammar's, at that position.
+    grammar_at: BTreeSet<String>,
 }
 
 struct Validator<'s> {
@@ -237,6 +239,9 @@ impl<'s> Validator<'s> {
             if let (Some(owner), Some(text)) = (owner, value.as_str()) {
                 seen.used.insert(format!("{owner}={text}"));
             }
+            if value.is_string() {
+                seen.grammar_at.insert(at.to_string());
+            }
         }
         if let Some(expected) = node.get("const") {
             if expected != value {
@@ -244,6 +249,9 @@ impl<'s> Validator<'s> {
             }
             if let (Some(owner), Some(text)) = (owner, value.as_str()) {
                 seen.used.insert(format!("{owner}={text}"));
+            }
+            if value.is_string() {
+                seen.grammar_at.insert(at.to_string());
             }
         }
         if let Some(branches) = node.get("oneOf").and_then(Value::as_array) {
@@ -280,6 +288,7 @@ impl<'s> Validator<'s> {
                     Ok(()) => {
                         any = true;
                         seen.used.extend(trial.used);
+                        seen.grammar_at.extend(trial.grammar_at);
                     }
                     Err(reason) => reasons.push(reason),
                 }
@@ -404,6 +413,28 @@ fn options(schema: &Value) -> BTreeSet<String> {
         walk(owner, node, &mut out);
     }
     out
+}
+
+/// Every position in the embedded assets where a string is one of the grammar's own enum values or constants,
+/// as `<asset path>.<member>[<index>]...` - the form `Validator::check` reports a position in.
+///
+/// For the producer-vocabulary sweep, which must tell a grammar word from the same word written as data: the
+/// schema knows which positions are enumerations, and a list of keys would not.
+pub(super) fn grammar_value_positions() -> BTreeSet<String> {
+    let schema = generated();
+    let defs = schema
+        .get("$defs")
+        .and_then(Value::as_object)
+        .expect("the schema has definitions");
+    let validator = Validator { defs };
+    let mut seen = Coverage::default();
+    for (path, bytes) in schema::embedded_sources() {
+        let value: Value = serde_json::from_slice(&bytes).expect("the asset is JSON");
+        validator
+            .check(&schema, Some("RuleFile"), &value, &path, &mut seen)
+            .unwrap_or_else(|reason| panic!("{path} does not validate: {reason}"));
+    }
+    seen.grammar_at
 }
 
 /// Validate every embedded asset, returning the options they used.

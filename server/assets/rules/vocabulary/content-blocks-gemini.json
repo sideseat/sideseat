@@ -246,5 +246,25 @@
         "doc": "A file by URI, with its required media type."
       }
     }
+  ],
+  "message_members": [
+    {
+      "id": "gemini.grounding_metadata",
+      "doc": "The sources a grounded answer drew on.",
+      "members": [
+        "groundingMetadata"
+      ],
+      "rank": 10,
+      "holds_context": "grounding"
+    },
+    {
+      "id": "gemini.citation_metadata",
+      "doc": "The citations an answer carries.",
+      "members": [
+        "citationMetadata"
+      ],
+      "rank": 20,
+      "holds_context": "citations"
+    }
   ]
 }

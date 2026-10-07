@@ -36,6 +36,7 @@ pub enum RuleSection {
     ProviderAliases,
     FinishReasons,
     SyntheticCallIds,
+    EventCategories,
 }
 
 impl RuleSection {
@@ -58,6 +59,7 @@ impl RuleSection {
             Self::ProviderAliases => "provider_aliases",
             Self::FinishReasons => "finish_reasons",
             Self::SyntheticCallIds => "synthetic_call_ids",
+            Self::EventCategories => "event_categories",
         }
     }
 }
@@ -384,7 +386,8 @@ impl SectionDefect for super::members::MemberCompileError {
             | E::SaysNothing { rule, .. }
             | E::ContentWithoutARank { rule, .. }
             | E::RankWithoutContent { rule, .. }
-            | E::TwoOrderedQuestions { rule, .. } => vec![rule],
+            | E::TwoOrderedQuestions { rule, .. }
+            | E::UnknownAliasTarget { rule, .. } => vec![rule],
             E::SharedRank { first, second, .. } | E::DuplicateMember { first, second, .. } => {
                 vec![first, second]
             }
@@ -400,7 +403,8 @@ impl SectionDefect for super::members::MemberCompileError {
             | E::SaysNothing { file, .. }
             | E::ContentWithoutARank { file, .. }
             | E::RankWithoutContent { file, .. }
-            | E::TwoOrderedQuestions { file, .. } => vec![file],
+            | E::TwoOrderedQuestions { file, .. }
+            | E::UnknownAliasTarget { file, .. } => vec![file],
             E::SharedRank { .. } | E::DuplicateMember { .. } => Vec::new(),
         }
     }

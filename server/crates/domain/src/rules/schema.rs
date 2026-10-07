@@ -109,6 +109,9 @@ pub struct RuleFile {
     /// The shape of a call id a producer builds itself when the provider gave none, and which names the tool.
     #[serde(default)]
     pub synthetic_call_ids: Vec<SyntheticCallId>,
+    /// What an event no convention names is, by a word its name contains.
+    #[serde(default)]
+    pub event_categories: Vec<EventCategoryRule>,
     /// Member names a producer uses, and what each one's presence means.
     ///
     /// Three questions about one vocabulary, which is why they are one section: which member holds a message's
@@ -261,6 +264,7 @@ impl RuleFile {
                 provider_aliases: _,
                 finish_reasons: _,
                 synthetic_call_ids: _,
+                event_categories: _,
                 message_members: _,
                 span_categories: _,
                 observation_types: _,
@@ -364,6 +368,13 @@ impl RuleFile {
         out.push((
             "finish_reasons".to_string(),
             self.finish_reasons
+                .iter()
+                .map(|entry| entry.id.clone())
+                .collect(),
+        ));
+        out.push((
+            "event_categories".to_string(),
+            self.event_categories
                 .iter()
                 .map(|entry| entry.id.clone())
                 .collect(),

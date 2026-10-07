@@ -479,6 +479,11 @@ fn apply_field(
         T::ReportedCostInput => span.extracted_cost_input = float(),
         T::ReportedCostOutput => span.extracted_cost_output = float(),
         T::SessionId => span.session_id = text(),
+        T::Metadata => {
+            span.metadata = text()
+                .and_then(|text| serde_json::from_str(&text).ok())
+                .unwrap_or(JsonValue::Null)
+        }
         T::UserId => span.user_id = text(),
         T::HttpMethod => span.http_method = text(),
         T::HttpUrl => span.http_url = text(),

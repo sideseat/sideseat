@@ -273,6 +273,17 @@
           "attribute": "tag.tags"
         }
       ]
+    },
+    {
+      "id": "span-fields.metadata",
+      "target": "metadata",
+      "doc": "A producer's own metadata object, under the bare `metadata` attribute some frameworks write. Stored as the JSON it encodes, for display and search; text that is not JSON is no metadata.",
+      "sources": [
+        {
+          "id": "metadata",
+          "attribute": "metadata"
+        }
+      ]
     }
   ]
 }

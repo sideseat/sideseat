@@ -43,6 +43,8 @@
 // INTERNAL MODULES
 // ============================================================================
 
+#[cfg(test)]
+mod aliases_oracle;
 pub mod carrier;
 pub(crate) mod content;
 pub(crate) mod provenance;
@@ -310,10 +312,17 @@ pub fn is_plain_data_value_legacy(val: &JsonValue) -> bool {
 /// model's turn. Read as it stands, the message member was the content, and a whole message is not a content
 /// block, so the answer rendered as raw JSON. Only an envelope that is not itself message-shaped is opened.
 fn unwrap_choice_envelope(raw: JsonValue) -> JsonValue {
-    // A role may already be on the envelope: the event's name implies one, and it is assigned before this.
-    let is_envelope = ["content", "contents", "parts", "tool_calls"]
-        .iter()
-        .all(|member| raw.get(member).is_none());
+    // A role may already be on the envelope: the event's name implies one, and it is assigned before this. It is
+    // no envelope if it holds content or tool calls itself - under any member the assets say holds them, other
+    // than the `message` an envelope is made of.
+    let members = &crate::rules::ruleset().message_members;
+    let is_envelope = raw.as_object().is_none_or(|object| {
+        !members
+            .content_in_order()
+            .filter(|member| *member != "message")
+            .any(|member| object.contains_key(member))
+            && !members.any_holds_tool_calls(object.keys())
+    });
     let Some(inner) = raw
         .get("message")
         .and_then(JsonValue::as_object)
@@ -337,9 +346,13 @@ pub fn normalize(raw: &JsonValue) -> ChatMessage {
     // Unflatten dotted keys first (e.g., "tool_calls.0.function.name" -> nested)
     let raw = unwrap_choice_envelope(unflatten::unflatten_dotted_keys(raw));
 
-    // Infer role: explicit role > tool_calls presence > default to user
+    // Infer role: explicit role > tool calls, under SideSeat's member or a declared spelling of it > user.
+    let members = &crate::rules::ruleset().message_members;
     let role_str = raw.get("role").and_then(|r| r.as_str()).unwrap_or_else(|| {
-        if raw.get("tool_calls").is_some() || raw.get("toolCalls").is_some() {
+        if std::iter::once("tool_calls")
+            .chain(members.aliases_of("tool_calls"))
+            .any(|member| raw.get(member).is_some())
+        {
             "assistant"
         } else {
             "user"
@@ -489,10 +502,10 @@ pub fn normalize(raw: &JsonValue) -> ChatMessage {
 
     remove_blank_text_beside_visible_content(&mut content_vec);
 
-    // Parse finish reason (snake_case or camelCase)
-    let finish_reason = raw
-        .get("finish_reason")
-        .or_else(|| raw.get("finishReason"))
+    // Parse finish reason, under SideSeat's member or a declared spelling of it.
+    let finish_reason = std::iter::once("finish_reason")
+        .chain(members.aliases_of("finish_reason"))
+        .find_map(|member| raw.get(member))
         .and_then(|fr| fr.as_str())
         .and_then(|fr_str| match FinishReason::from_str_normalized(fr_str) {
             Some(reason) => Some(reason),
@@ -512,9 +525,9 @@ pub fn normalize(raw: &JsonValue) -> ChatMessage {
     let cache_control = raw
         .get("cache_control")
         .and_then(|cc| serde_json::from_value(cc.clone()).ok());
-    let stop = raw
-        .get("stop")
-        .or_else(|| raw.get("stop_sequences"))
+    let stop = std::iter::once("stop")
+        .chain(members.aliases_of("stop"))
+        .find_map(|member| raw.get(member))
         .and_then(|s| {
             if let Some(arr) = s.as_array() {
                 Some(
@@ -547,15 +560,6 @@ pub fn normalize(raw: &JsonValue) -> ChatMessage {
 // HELPER FUNCTIONS
 // ============================================================================
 
-const CITATION_CONTEXT_FIELDS: &[(&str, &str)] = &[
-    ("groundingMetadata", "grounding"),
-    ("citationMetadata", "citations"),
-    ("data_sources", "data_sources"),
-    ("search_results", "search_results"),
-    ("citations", "citations"),
-    ("attributions", "attributions"),
-];
-
 fn remove_blank_text_beside_visible_content(content: &mut Vec<ContentBlock>) {
     let has_visible_sibling = content
         .iter()
@@ -565,6 +569,11 @@ fn remove_blank_text_beside_visible_content(content: &mut Vec<ContentBlock>) {
             |block| !matches!(block, ContentBlock::Text { text } if text.trim().is_empty()),
         );
     }
+}
+
+#[cfg(test)]
+fn has_meaningful_data_for_oracle(val: &JsonValue) -> bool {
+    has_meaningful_data(val)
 }
 
 fn has_meaningful_data(val: &JsonValue) -> bool {
@@ -578,40 +587,42 @@ fn has_meaningful_data(val: &JsonValue) -> bool {
     }
 }
 
+/// The context blocks a message carries beside its content - grounding, citations, sources - under the members
+/// the assets declare (`holds_context`, `holds_context_parts`), in their declared order.
 fn extract_citation_contexts(raw: &JsonValue) -> Vec<ContentBlock> {
+    use crate::rules::members::ContextRead;
+    let context = |data: JsonValue, kind: &str| ContentBlock::Context {
+        data,
+        context_type: Some(kind.to_string()),
+    };
     let mut blocks = Vec::new();
-
-    for (field, context_type) in CITATION_CONTEXT_FIELDS {
-        if let Some(data) = raw.get(*field).filter(|v| has_meaningful_data(v)) {
-            blocks.push(ContentBlock::Context {
-                data: data.clone(),
-                context_type: Some(context_type.to_string()),
-            });
-        }
-    }
-
-    if let Some(context) = raw.get("context").filter(|v| v.is_object()) {
-        if let Some(citations) = context.get("citations").filter(|v| has_meaningful_data(v)) {
-            blocks.push(ContentBlock::Context {
-                data: citations.clone(),
-                context_type: Some("citations".to_string()),
-            });
-        }
-        if let Some(obj) = context.as_object() {
-            let other: serde_json::Map<String, JsonValue> = obj
-                .iter()
-                .filter(|(k, v)| *k != "citations" && has_meaningful_data(v))
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect();
-            if !other.is_empty() {
-                blocks.push(ContentBlock::Context {
-                    data: JsonValue::Object(other),
-                    context_type: Some("azure_context".to_string()),
-                });
+    for (member, read) in crate::rules::ruleset().message_members.context() {
+        match read {
+            ContextRead::Whole(kind) => {
+                if let Some(data) = raw.get(member).filter(|v| has_meaningful_data(v)) {
+                    blocks.push(context(data.clone(), kind));
+                }
+            }
+            ContextRead::Parts { parts, rest } => {
+                let Some(object) = raw.get(member).and_then(JsonValue::as_object) else {
+                    continue;
+                };
+                for (part, kind) in parts {
+                    if let Some(data) = object.get(part).filter(|v| has_meaningful_data(v)) {
+                        blocks.push(context(data.clone(), kind));
+                    }
+                }
+                let other: serde_json::Map<String, JsonValue> = object
+                    .iter()
+                    .filter(|(k, v)| !parts.contains_key(*k) && has_meaningful_data(v))
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect();
+                if !other.is_empty() {
+                    blocks.push(context(JsonValue::Object(other), rest));
+                }
             }
         }
     }
-
     blocks
 }
 
