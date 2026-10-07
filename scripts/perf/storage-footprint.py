@@ -418,6 +418,10 @@ def start_server(binary: Path, work: Path, extra_env: dict) -> subprocess.Popen:
         "SIDESEAT_UI_PORT": str(PORT + 1),
         "SIDESEAT_OTEL_GRPC_PORT": str(PORT + 2),
         "SIDESEAT_RATE_LIMIT_ENABLED": "false",
+        # The derived metric load alone is over a gigabyte of logical bytes in one project - above the default
+        # 1 GiB project quota, which the server enforces and reclaims against. A measurement must store all it
+        # sends, so the quota is set far above the load.
+        "SIDESEAT_FILES_QUOTA_BYTES": str(1 << 40),
         **extra_env,
     }
     server = subprocess.Popen(
@@ -476,9 +480,12 @@ def load(exports: list[dict]) -> dict[str, str]:
         status, body = http("POST", url, export["body"], headers)
         # 503 and 429 are back-pressure, not failure: the server is telling a collector to slow down, and a
         # collector retries. Treating them as errors made a long load fail on a full durability buffer.
-        for attempt in range(1, 61):
-            if status not in (429, 503):
-                break
+        # Bounded by time, not attempts: how long a full buffer takes to drain depends on the disk - a Mac's
+        # F_FULLFSYNC makes it seconds - and only a server that never drains is a failure.
+        give_up = time.monotonic() + 600
+        attempt = 0
+        while status in (429, 503) and time.monotonic() < give_up:
+            attempt += 1
             time.sleep(min(0.05 * attempt, 1.0))
             status, body = http("POST", url, export["body"], headers)
         if status != 200:
