@@ -165,6 +165,60 @@ mod tests {
         (temp_dir, service)
     }
 
+    fn revision(prompt_terms: &[&str]) -> NormalizedSpan {
+        NormalizedSpan {
+            project_id: Some("p".to_string()),
+            trace_id: "trace".to_string(),
+            span_id: "span".to_string(),
+            span_name: "generation".to_string(),
+            timestamp_start: Utc::now(),
+            search: sideseat_ports::types::SearchDocument {
+                indexed: true,
+                fields: vec![sideseat_ports::types::SearchFieldTerms {
+                    field: sideseat_ports::types::SearchField::Prompt,
+                    terms: prompt_terms.iter().map(|t| t.to_string()).collect(),
+                    truncated: false,
+                    text: prompt_terms.join(" "),
+                }],
+            },
+            ..Default::default()
+        }
+    }
+
+    fn stored_terms(conn: &duckdb::Connection) -> Vec<String> {
+        let mut stmt = conn
+            .prepare("SELECT term FROM span_terms WHERE trace_id = 'trace' AND span_id = 'span' ORDER BY term")
+            .expect("prepare");
+        stmt.query_map([], |row| row.get(0))
+            .expect("query")
+            .collect::<Result<_, _>>()
+            .expect("rows")
+    }
+
+    /// A correction and the export it corrects in one batch leave the correction's terms, as two writes would.
+    ///
+    /// The terms are deleted for the whole batch and then appended; appending every revision would leave both
+    /// vocabularies, so a search would match words the stored span no longer contains.
+    #[tokio::test]
+    async fn two_revisions_in_one_batch_leave_the_last_revisions_terms() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let conn = analytics.conn();
+        insert_batch(&conn, &[revision(&["original"]), revision(&["corrected"])]).expect("batch");
+        let batched = stored_terms(&conn);
+
+        let (_other_dir, sequential) = create_test_service().await;
+        let other = sequential.conn();
+        insert_batch(&other, &[revision(&["original"])]).expect("first");
+        insert_batch(&other, &[revision(&["corrected"])]).expect("second");
+
+        assert_eq!(batched, vec!["corrected".to_string()]);
+        assert_eq!(
+            batched,
+            stored_terms(&other),
+            "batched and sequential writes must agree"
+        );
+    }
+
     #[tokio::test]
     async fn test_insert_empty_batch() {
         let (_temp_dir, analytics) = create_test_service().await;

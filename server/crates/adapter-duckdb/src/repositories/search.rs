@@ -12,6 +12,23 @@ use crate::error::DuckdbError;
 /// thousands of parameters costs more to plan than it saves.
 const DELETE_CHUNK: usize = 500;
 
+/// The last item of each identity, in input order: what writing the items one at a time would have left.
+fn last_per_identity<'a, T, K: Eq + std::hash::Hash>(
+    items: &'a [T],
+    key: impl Fn(&'a T) -> K,
+) -> Vec<&'a T> {
+    let mut last = std::collections::HashMap::with_capacity(items.len());
+    for (index, item) in items.iter().enumerate() {
+        last.insert(key(item), index);
+    }
+    items
+        .iter()
+        .enumerate()
+        .filter(|(index, item)| last.get(&key(item)) == Some(index))
+        .map(|(_, item)| item)
+        .collect()
+}
+
 /// The single empty term an indexed-but-empty field writes.
 const EMPTY_TERM: [String; 1] = [String::new()];
 
@@ -55,10 +72,21 @@ struct LogCandidate {
 /// cost by a wide margin - measured at 3.3 ms per span against 129 microseconds for the span row itself, which
 /// the appender already wrote. The rows go through the same appender now, and the deletes that make a
 /// redelivery idempotent are one statement for the whole batch.
+///
+/// A batch can hold several revisions of one span - a correction and the export it corrects. Writing them one
+/// at a time left the last revision's terms, so only the last revision of each identity is written here: the
+/// batched delete would otherwise leave every revision's vocabulary behind.
 pub fn replace_span_terms(conn: &Connection, spans: &[NormalizedSpan]) -> Result<(), DuckdbError> {
     if spans.is_empty() {
         return Ok(());
     }
+    let spans = last_per_identity(spans, |span| {
+        (
+            span.project_id.as_deref().unwrap_or_default(),
+            span.trace_id.as_str(),
+            span.span_id.as_str(),
+        )
+    });
     let identities: Vec<(String, String, String)> = spans
         .iter()
         .map(|span| {
@@ -75,7 +103,7 @@ pub fn replace_span_terms(conn: &Connection, spans: &[NormalizedSpan]) -> Result
         }
     }
     let mut appender = conn.appender("span_terms")?;
-    for span in spans {
+    for span in &spans {
         let project_id = span.project_id.as_deref().unwrap_or_default();
         for field in &span.search.fields {
             // An empty field is still a fact: it says the field was indexed and held nothing, which is what
@@ -106,6 +134,13 @@ pub fn replace_log_terms(conn: &Connection, logs: &[NormalizedLog]) -> Result<()
     if logs.is_empty() {
         return Ok(());
     }
+    let logs = last_per_identity(logs, |log| {
+        (
+            log.project_id.as_deref().unwrap_or_default(),
+            log.log_digest.as_str(),
+            log.ordinal,
+        )
+    });
     let identities: Vec<(String, String, u32)> = logs
         .iter()
         .map(|log| {
@@ -122,7 +157,7 @@ pub fn replace_log_terms(conn: &Connection, logs: &[NormalizedLog]) -> Result<()
         }
     }
     let mut appender = conn.appender("log_terms")?;
-    for log in logs {
+    for log in &logs {
         let project_id = log.project_id.as_deref().unwrap_or_default();
         for field in &log.search.fields {
             let terms: &[String] = if field.terms.is_empty() {
