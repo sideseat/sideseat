@@ -6,7 +6,9 @@ pub mod raw_views;
 
 pub use extract::SpanData;
 pub use persist::SseSpanEvent;
-pub use pipeline::{DropReason, IngestOutcome, Reconciled, TracePipeline, strip_unstorable_spans};
+pub use pipeline::{
+    DropReason, IngestOutcome, InlineBatcher, Reconciled, TracePipeline, strip_unstorable_spans,
+};
 #[cfg(any(test, feature = "test-support"))]
 pub use pipeline::{process_request_for_test_with_files, process_request_for_test_with_mode};
 pub use sideseat_domain::observations::{MessageSource, RawMessage};

@@ -22,6 +22,24 @@ impl TracePipeline {
             .all(IngestOutcome::is_final)
     }
 
+    /// Each export's outcome from [`Self::run_waves`] over `requests`.
+    #[cfg(any(test, feature = "test-support"))]
+    pub async fn run_waves_outcomes_for_test(
+        &self,
+        requests: &[ExportTraceServiceRequest],
+    ) -> Vec<IngestOutcome> {
+        let received: Vec<ReceivedPayload> = requests
+            .iter()
+            .map(|request| {
+                ReceivedPayload::new(
+                    request.encode_to_vec(),
+                    sideseat_domain::raw_payload::RawContent::Protobuf,
+                )
+            })
+            .collect();
+        self.run_waves(requests, &received).await
+    }
+
     /// Each export's outcome from one [`Self::run_batch`] over `requests`.
     #[cfg(any(test, feature = "test-support"))]
     pub async fn run_batch_outcomes_for_test(

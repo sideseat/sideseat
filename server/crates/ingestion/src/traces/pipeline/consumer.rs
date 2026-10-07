@@ -270,7 +270,7 @@ impl TracePipeline {
                         .iter()
                         .map(|(_, _, _, received)| received.clone())
                         .collect::<Vec<_>>();
-                    let outcomes = self.run_batch(&requests, &received).await;
+                    let outcomes = self.run_waves(&requests, &received).await;
                     // Each message by its own export's outcome: a fence that dropped another export's spans
                     // says nothing about this one.
                     for ((msg_id, payload, _, _), outcome) in ready.into_iter().zip(outcomes) {

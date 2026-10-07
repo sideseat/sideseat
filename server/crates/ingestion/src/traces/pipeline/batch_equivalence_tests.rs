@@ -160,3 +160,44 @@ async fn batch_size_changes_nothing_a_reader_sees() {
         assert_eq!(batched, rows, "batches of {size} stored different rows");
     }
 }
+
+/// Concurrent inline exports are written together and still answered, and stored, as if each were alone.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn concurrent_inline_exports_are_batched_and_answered_alone() {
+    let requests = sample();
+    let (alone, rows) = ingest_singly(&requests).await;
+
+    let (_temp, analytics, _database, pipeline) = pipeline_over_a_temp_store_with(false).await;
+    let batcher = Arc::new(InlineBatcher::new(Arc::new(pipeline)));
+    let tasks: Vec<_> = requests
+        .iter()
+        .cloned()
+        .map(|request| {
+            let batcher = Arc::clone(&batcher);
+            tokio::spawn(async move {
+                let received = ReceivedPayload::new(
+                    request.encode_to_vec(),
+                    sideseat_domain::raw_payload::RawContent::Protobuf,
+                );
+                batcher.ingest(&request, &received).await
+            })
+        })
+        .collect();
+    let mut outcomes = Vec::with_capacity(tasks.len());
+    for task in tasks {
+        outcomes.push(task.await.expect("ingest task"));
+    }
+
+    assert_eq!(outcomes, alone, "a batch answered an export differently");
+    assert_eq!(
+        stored(analytics.as_ref()).await,
+        rows,
+        "batched exports stored different rows"
+    );
+    let batches = batcher.batches.load(std::sync::atomic::Ordering::SeqCst);
+    assert!(
+        batches * 2 <= requests.len(),
+        "{batches} batches for {} concurrent exports: they were not grouped",
+        requests.len()
+    );
+}

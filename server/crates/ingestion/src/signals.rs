@@ -25,7 +25,9 @@ use crate::otlp::{
     PROJECT_ID_ATTR, inject_project_id_logs, inject_project_id_metrics, inject_project_id_traces,
 };
 use crate::staging::{StagedPayloadRef, StagingDisposition, StagingService};
-use crate::traces::{DropReason, IngestOutcome, TracePipeline, strip_unstorable_spans};
+use crate::traces::{
+    DropReason, IngestOutcome, InlineBatcher, TracePipeline, strip_unstorable_spans,
+};
 use sideseat_core::constants::{TOPIC_LOGS, TOPIC_METRICS, TOPIC_TRACES};
 use sideseat_core::utils::debug::write_debug;
 use sideseat_domain::storage_governance::{GovernanceError, StorageGovernanceService};
@@ -368,7 +370,9 @@ fn combine_rejections(
 #[derive(Clone)]
 pub struct TraceSignal {
     topic: Arc<StreamTopic<StagedPayloadRef>>,
-    pipeline: Option<Arc<TracePipeline>>,
+    /// Present exactly when traces persist before acknowledgement; concurrent exports are written together.
+    /// Shared by every clone, so they fill one queue.
+    batcher: Option<Arc<InlineBatcher>>,
 }
 
 impl TraceSignal {
@@ -376,7 +380,10 @@ impl TraceSignal {
         topic: Arc<StreamTopic<StagedPayloadRef>>,
         pipeline: Option<Arc<TracePipeline>>,
     ) -> Self {
-        Self { topic, pipeline }
+        Self {
+            topic,
+            batcher: pipeline.map(|pipeline| Arc::new(InlineBatcher::new(pipeline))),
+        }
     }
 }
 
@@ -400,7 +407,7 @@ impl Signal for TraceSignal {
     }
 
     fn lifecycle(&self) -> LifecycleStrategy {
-        if self.pipeline.is_some() {
+        if self.batcher.is_some() {
             LifecycleStrategy::PersistBeforeAck
         } else {
             LifecycleStrategy::DurableQueue
@@ -499,11 +506,11 @@ impl Signal for TraceSignal {
         request: &Self::Request,
         _context: &SignalContext<'_>,
     ) -> Result<PersistOutcome, String> {
-        let pipeline = self
-            .pipeline
+        let batcher = self
+            .batcher
             .as_ref()
             .ok_or_else(|| "trace persistence lifecycle has no pipeline".to_string())?;
-        match pipeline.ingest_now(request, _context.received).await {
+        match batcher.ingest(request, _context.received).await {
             IngestOutcome::Stored => Ok(PersistOutcome::Stored),
             IngestOutcome::Dropped { spans, reason } => Ok(PersistOutcome::Dropped {
                 records: spans,

@@ -48,6 +48,7 @@ use super::persist::{
 };
 use crate::received::ReceivedPayload;
 use crate::staging::{StagedPayloadRef, StagingDisposition, StagingService};
+pub use inline::InlineBatcher;
 use raw::RawDraft;
 pub use raw_lifecycle::Reconciled;
 use raw_lifecycle::WrittenRecord;
@@ -285,9 +286,11 @@ mod batch;
 mod consumer;
 mod fences_early;
 mod fences_late;
+mod inline;
 mod raw;
 mod raw_lifecycle;
 mod single;
+mod waves;
 
 // ============================================================================
 // PER-REQUEST PROCESSING (free function for thread safety)

@@ -122,3 +122,67 @@ async fn two_exports_of_one_span_each_keep_it_in_their_record() {
         );
     }
 }
+
+/// An export whose attachment cannot be decoded: its data URL passes the size estimate and fails at decode.
+fn poisoned(trace: u8) -> ExportTraceServiceRequest {
+    let undecodable = format!("data:image/png;base64,{}", "A".repeat(4097));
+    export("default", vec![span(trace, 1, &undecodable)])
+}
+
+/// One export that cannot be stored does not take a healthy export grouped with it down.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_poisoned_export_fails_alone() {
+    let (_temp, _analytics, _database, pipeline) = pipeline_over_a_temp_store_with(true).await;
+    let healthy = export("default", vec![span(10, 1, "healthy")]);
+    let requests = [healthy, poisoned(9)];
+
+    // Batched as one, the poison fails both - the hazard waves exist for.
+    assert_eq!(
+        pipeline.run_batch_outcomes_for_test(&requests).await,
+        vec![IngestOutcome::Failed, IngestOutcome::Failed]
+    );
+    assert_eq!(
+        pipeline.run_waves_outcomes_for_test(&requests).await,
+        vec![IngestOutcome::Stored, IngestOutcome::Failed]
+    );
+}
+
+/// The latest of two revisions wins, as it would one at a time, even when both arrive in one batch.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_batch_of_revisions_keeps_the_sequential_winner() {
+    async fn winner(analytics: &(dyn AnalyticsRepository + Send + Sync)) -> String {
+        let (rows, _) = analytics
+            .list_spans(&sideseat_ports::types::ListSpansParams {
+                project_id: ProjectId::from("default"),
+                page: 1,
+                limit: 10,
+                trace_id: Some(hex::encode([11u8; 16])),
+                ..Default::default()
+            })
+            .await
+            .expect("spans");
+        rows.first()
+            .and_then(|row| row.input_preview.clone())
+            .unwrap_or_default()
+    }
+    let a = export("default", vec![span(11, 1, "revision A")]);
+    let b = export("default", vec![span(11, 1, "revision B")]);
+
+    // A is stored; then B and A arrive together. One at a time, A - the later - wins.
+    let (_temp, analytics, _database, pipeline) = pipeline_over_a_temp_store_with(false).await;
+    pipeline
+        .run_batch_outcomes_for_test(std::slice::from_ref(&a))
+        .await;
+    pipeline
+        .run_waves_outcomes_for_test(&[b.clone(), a.clone()])
+        .await;
+    assert_eq!(winner(analytics.as_ref()).await, "revision A");
+
+    // In one batch the redelivery filter dropped the trailing A and B won: the hazard.
+    let (_temp, analytics, _database, pipeline) = pipeline_over_a_temp_store_with(false).await;
+    pipeline
+        .run_batch_outcomes_for_test(std::slice::from_ref(&a))
+        .await;
+    pipeline.run_batch_outcomes_for_test(&[b, a]).await;
+    assert_eq!(winner(analytics.as_ref()).await, "revision B");
+}
