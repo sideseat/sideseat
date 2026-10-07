@@ -10,9 +10,6 @@ use std::sync::Arc;
 use serde::Serialize;
 use thiserror::Error;
 
-use crate::content_bodies::{
-    ContentBodyError, ContentBodyRestoreCleanupReport, ContentBodyService,
-};
 use crate::files::cleanup::{cleanup_orphan_temp_files, cleanup_zero_ref_files_governed};
 use crate::files::{FileRestoreRepairReport, FileService, FileServiceError, MissingFileReference};
 use sideseat_core::constants::FILE_DELETION_CLAIM_STALE_SECS;
@@ -34,8 +31,6 @@ pub enum RestoreRepairError {
     Data(#[from] DataError),
     #[error(transparent)]
     File(#[from] FileServiceError),
-    #[error(transparent)]
-    ContentBody(#[from] ContentBodyError),
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize)]
@@ -60,7 +55,6 @@ pub struct AssociationRepairReport {
     pub unreachable_blobs_deleted: u64,
     pub temp_files_processed: u64,
     pub orphan_files_deleted: u64,
-    pub content_bodies: ContentBodyRestoreCleanupReport,
     pub files: FileRestoreRepairReport,
 }
 
@@ -162,7 +156,6 @@ pub async fn reconcile_restored_associations(
         temp_files_processed: temp.total_processed(),
         ..AssociationRepairReport::default()
     };
-    let bodies = ContentBodyService::from_file_service(files);
     let mut projects = database
         .restore_project_ids(usize::MAX)
         .await?
@@ -232,7 +225,6 @@ pub async fn reconcile_restored_associations(
         }
     }
 
-    report.content_bodies = bodies.cleanup_orphans_after_restore().await?;
     report.orphan_files_deleted = cleanup_zero_ref_files_governed(
         files.storage(),
         files.database(),
@@ -463,9 +455,6 @@ mod tests {
                 .expect("first repair");
         assert_eq!(first.files.metadata_rebuilt, 1);
         assert_eq!(first.files.associations_rebuilt, 1);
-        // Nothing writes content bodies any more, so this repair has none to collect. Draining what an older
-        // deployment left is the retired store's own concern and is tested where that code lives.
-        assert_eq!(first.content_bodies.orphans_deleted, 0);
         assert_eq!(
             first.files.missing_content,
             [MissingFileReference {
@@ -505,7 +494,6 @@ mod tests {
                 .expect("fixed point");
         assert_eq!(second.files.metadata_rebuilt, 0);
         assert_eq!(second.files.associations_rebuilt, 0);
-        assert_eq!(second.content_bodies.orphans_deleted, 0);
         assert_eq!(second.orphan_files_deleted, 0);
         assert_eq!(second.files.missing_content.len(), 1);
     }

@@ -697,11 +697,8 @@ pub async fn get_project_storage_bytes(
     project_id: &str,
 ) -> Result<i64, SqliteError> {
     let result: (i64,) = sqlx::query_as(
-        "SELECT
-             COALESCE((SELECT SUM(size_bytes) FROM files WHERE project_id = ?), 0)
-           + COALESCE((SELECT SUM(logical_bytes) FROM content_bodies WHERE project_id = ?), 0)",
+        "SELECT COALESCE((SELECT SUM(size_bytes) FROM files WHERE project_id = ?), 0)",
     )
-    .bind(project_id)
     .bind(project_id)
     .fetch_one(pool)
     .await?;

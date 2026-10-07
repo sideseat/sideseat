@@ -71,7 +71,6 @@ pub trait TransactionalRepository:
     IdentityStore
     + ProjectStore
     + FileMetaStore
-    + ContentBodyStore
     + ApiKeyStore
     + CredentialStore
     + FavoriteStore
@@ -84,7 +83,6 @@ impl<T> TransactionalRepository for T where
     T: IdentityStore
         + ProjectStore
         + FileMetaStore
-        + ContentBodyStore
         + ApiKeyStore
         + CredentialStore
         + FavoriteStore

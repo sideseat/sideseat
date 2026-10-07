@@ -133,9 +133,6 @@ pub async fn restore_project_ids(
         "SELECT id AS project_id FROM projects WHERE deleting_at IS NULL
          UNION SELECT project_id FROM files
          UNION SELECT project_id FROM trace_files
-         UNION SELECT project_id FROM content_bodies
-         UNION SELECT project_id FROM span_bodies
-         UNION SELECT project_id FROM content_body_backfill
          UNION SELECT project_id FROM staged_payloads
          ORDER BY 1
          LIMIT ?",

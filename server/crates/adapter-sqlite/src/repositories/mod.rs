@@ -4,7 +4,6 @@
 
 pub mod api_key;
 pub mod auth_method;
-pub mod body;
 pub mod credential_permissions;
 pub mod credentials;
 pub mod favorite;

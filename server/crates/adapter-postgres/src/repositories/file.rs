@@ -655,9 +655,7 @@ pub async fn get_project_storage_bytes(
     project_id: &str,
 ) -> Result<i64, PostgresError> {
     let result: (i64,) = sqlx::query_as(
-        "SELECT
-             COALESCE((SELECT SUM(size_bytes) FROM files WHERE project_id = $1), 0)::bigint
-           + COALESCE((SELECT SUM(logical_bytes) FROM content_bodies WHERE project_id = $1), 0)::bigint",
+        "SELECT COALESCE((SELECT SUM(size_bytes) FROM files WHERE project_id = $1), 0)::bigint",
     )
     .bind(project_id)
     .fetch_one(&mut *connection)

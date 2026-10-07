@@ -763,13 +763,8 @@ impl FileService {
 
     /// Delete all files for a project
     pub async fn delete_project(&self, project_id: &ProjectId) -> Result<u64, FileServiceError> {
-        // The retired body objects share the physical project namespace with uploaded files, so the one
-        // physical delete takes both; then both metadata families go.
         let deleted = self.storage.delete_project(project_id).await?;
-
-        let repo = self.database.as_ref();
-        repo.delete_project_files(project_id).await?;
-        repo.delete_project_bodies(project_id).await?;
+        self.database.delete_project_files(project_id).await?;
 
         self.invalidate_quota_cache(&[project_id]).await;
 

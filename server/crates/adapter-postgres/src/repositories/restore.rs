@@ -12,12 +12,9 @@ pub async fn association_trace_ids(
 ) -> Result<Vec<String>, PostgresError> {
     let rows = sqlx::query_scalar(
         "SELECT trace_id
-           FROM (
-                 SELECT trace_id FROM trace_files WHERE project_id = $1
-                 UNION
-                 SELECT trace_id FROM span_bodies WHERE project_id = $1
-                ) AS candidates
-          WHERE ($2::text IS NULL OR trace_id > $2)
+           FROM trace_files
+          WHERE project_id = $1
+            AND ($2::text IS NULL OR trace_id > $2)
           ORDER BY trace_id
           LIMIT $3",
     )

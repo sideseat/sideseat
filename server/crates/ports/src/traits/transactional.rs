@@ -667,54 +667,6 @@ pub trait FileMetaStore: Send + Sync {
 
 /// The retired content-body registry, kept only so it can be drained.
 ///
-/// Span bodies used to be dual-written as content-addressed objects beside the analytics columns that already
-/// held them. The analytics columns are the sole authority now; nothing writes or reads a body. These methods
-/// empty what earlier versions left: associations first, then each object through the deletion claim, so a
-/// crash at any point leaves either a claimed row the stale-claim pass finishes or an untouched one.
-#[async_trait]
-pub trait ContentBodyStore: Send + Sync {
-    /// Delete up to `limit` body associations, of any project, and return how many went.
-    ///
-    /// No reader consults an association and no writer creates one, so removing them changes no answer; it
-    /// turns every registered object into an orphan the claim protocol below can delete.
-    async fn retire_span_body_associations(&self, limit: usize) -> Result<u64, DataError>;
-
-    async fn get_orphan_content_bodies(
-        &self,
-        older_than: DateTime<Utc>,
-        limit: usize,
-    ) -> Result<Vec<(ProjectId, String)>, DataError>;
-
-    /// List deletion claims old enough that their worker may have crashed.
-    async fn get_stale_claimed_content_bodies(
-        &self,
-        older_than: DateTime<Utc>,
-        limit: usize,
-    ) -> Result<Vec<(ProjectId, String)>, DataError>;
-
-    async fn claim_content_body_for_deletion(
-        &self,
-        project_id: &ProjectId,
-        body_hash: &str,
-    ) -> Result<bool, DataError>;
-
-    async fn release_content_body_deletion_claim(
-        &self,
-        project_id: &ProjectId,
-        body_hash: &str,
-    ) -> Result<(), DataError>;
-
-    async fn delete_claimed_content_body(
-        &self,
-        project_id: &ProjectId,
-        body_hash: &str,
-    ) -> Result<bool, DataError>;
-
-    /// Project deletion: remove the project's registry rows and return the object hashes to delete.
-    async fn delete_project_bodies(&self, project_id: &ProjectId)
-    -> Result<Vec<String>, DataError>;
-}
-
 /// API keys, stored as a hash.
 #[async_trait]
 pub trait ApiKeyStore: Send + Sync {

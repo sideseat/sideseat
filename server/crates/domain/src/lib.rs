@@ -1,7 +1,6 @@
 //! SideSeat's driver-independent domain layer.
 
 pub mod cleanup;
-pub mod content_bodies;
 pub mod dedup;
 pub mod files;
 pub mod maintenance;

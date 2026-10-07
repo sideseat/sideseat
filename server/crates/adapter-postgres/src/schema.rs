@@ -16,9 +16,6 @@ pub const TENANT_RLS_TABLES: &[&str] = &[
     "retention_cleanup",
     "deleted_sessions",
     "trace_files",
-    "content_bodies",
-    "span_bodies",
-    "content_body_backfill",
     "favorites",
     "deletion_journal",
     "staged_payloads",
@@ -43,9 +40,6 @@ BEGIN
         'retention_cleanup',
         'deleted_sessions',
         'trace_files',
-        'content_bodies',
-        'span_bodies',
-        'content_body_backfill',
         'favorites',
         'deletion_journal',
         'staged_payloads',
@@ -359,41 +353,6 @@ CREATE INDEX IF NOT EXISTS idx_trace_files_project ON trace_files(project_id);
 -- project_id but separates the two by trace_id, so without this the count scans a project.
 CREATE INDEX IF NOT EXISTS idx_trace_files_project_hash ON trace_files(project_id, file_hash);
 
-CREATE TABLE IF NOT EXISTS content_bodies (
-    project_id TEXT NOT NULL,
-    body_hash TEXT NOT NULL,
-    logical_bytes BIGINT NOT NULL CHECK(logical_bytes >= 0),
-    created_at BIGINT NOT NULL,
-    last_referenced_at BIGINT NOT NULL,
-    deleting_at BIGINT,
-    PRIMARY KEY (project_id, body_hash)
-);
-CREATE TABLE IF NOT EXISTS span_bodies (
-    project_id TEXT NOT NULL,
-    trace_id TEXT NOT NULL,
-    span_id TEXT NOT NULL,
-    field TEXT NOT NULL CHECK(field IN ('messages', 'tool_definitions', 'tool_names')),
-    body_hash TEXT NOT NULL,
-    pending_writers INTEGER NOT NULL DEFAULT 0 CHECK(pending_writers >= 0),
-    durable BOOLEAN NOT NULL DEFAULT FALSE,
-    PRIMARY KEY (project_id, trace_id, span_id, field, body_hash),
-    FOREIGN KEY (project_id, body_hash)
-        REFERENCES content_bodies(project_id, body_hash) ON DELETE CASCADE
-);
-CREATE INDEX IF NOT EXISTS idx_span_bodies_object ON span_bodies(project_id, body_hash);
-CREATE INDEX IF NOT EXISTS idx_span_bodies_identity
-    ON span_bodies(project_id, trace_id, span_id);
-CREATE TABLE IF NOT EXISTS content_body_backfill (
-    project_id TEXT PRIMARY KEY,
-    cursor_trace_id TEXT,
-    cursor_span_id TEXT,
-    complete BOOLEAN NOT NULL DEFAULT FALSE,
-    updated_at BIGINT NOT NULL
-);
-
--- =============================================================================
--- 8. Favorites (user-scoped, references users and projects)
--- =============================================================================
 CREATE TABLE IF NOT EXISTS favorites (
     id SERIAL PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -601,9 +560,6 @@ mod tests {
             "projects",
             "files",
             "trace_files",
-            "content_bodies",
-            "span_bodies",
-            "content_body_backfill",
             "favorites",
             "api_keys",
             "credentials",

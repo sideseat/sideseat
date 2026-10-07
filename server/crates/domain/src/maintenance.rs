@@ -1,6 +1,6 @@
-//! Periodic storage maintenance: drain the retired content-body store and catch up the search index.
+//! Periodic storage maintenance: catch the search index up with what has been stored.
 //!
-//! One task, because both walk every project at a gentle rate and neither has a deadline.
+//! One task that walks every project at a gentle rate, with no deadline.
 
 use std::sync::Arc;
 
@@ -10,21 +10,14 @@ use tokio::task::JoinHandle;
 use sideseat_ports::traits::{AnalyticsRepository, TransactionalRepository};
 use sideseat_ports::types::{ProjectId, SearchSignal};
 
-use crate::content_bodies::ContentBodyService;
-use crate::storage_governance::StorageGovernanceService;
-
 const INTERVAL_SECS: u64 = 30;
 const PROJECT_PAGE_SIZE: u32 = 100;
 const SEARCH_BACKFILL_PAGE_SIZE: usize = 16;
 
-/// Start the maintenance loop. Every tick runs one bounded body-drain pass, reconciles the quota of every
-/// project whose stored bytes it changed, and advances the search backfill by one page per project.
+/// Start the maintenance loop: every tick advances the search backfill by one page per project.
 pub fn start(
-    bodies: ContentBodyService,
-    governance: Arc<StorageGovernanceService>,
     database: Arc<dyn TransactionalRepository + Send + Sync>,
     analytics: Arc<dyn AnalyticsRepository + Send + Sync>,
-    clock: Arc<dyn sideseat_ports::clock::Clock>,
     mut shutdown_rx: watch::Receiver<bool>,
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
@@ -40,39 +33,11 @@ pub fn start(
                     }
                 }
                 _ = interval.tick() => {
-                    drain_bodies(&bodies, &governance, clock.now()).await;
                     backfill_search(database.as_ref(), analytics.as_ref()).await;
                 }
             }
         }
     })
-}
-
-async fn drain_bodies(
-    bodies: &ContentBodyService,
-    governance: &StorageGovernanceService,
-    now: chrono::DateTime<chrono::Utc>,
-) {
-    match bodies.drain_pass(now).await {
-        Ok((report, touched)) => {
-            if !report.is_empty() {
-                tracing::info!(
-                    associations = report.associations_retired,
-                    objects = report.orphans_deleted,
-                    claims = report.stale_claims_finalized,
-                    "Drained retired content bodies"
-                );
-            }
-            for project_id in touched {
-                if let Err(error) = governance.reconcile_project(&project_id).await {
-                    tracing::warn!(%error, %project_id, "Could not reconcile quota after a body drain");
-                }
-            }
-        }
-        Err(error) => {
-            tracing::warn!(%error, "Content-body drain pass failed; it resumes next tick")
-        }
-    }
 }
 
 async fn backfill_search(

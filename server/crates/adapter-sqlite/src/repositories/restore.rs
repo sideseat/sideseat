@@ -12,16 +12,12 @@ pub async fn association_trace_ids(
 ) -> Result<Vec<String>, SqliteError> {
     let rows = sqlx::query_scalar(
         "SELECT trace_id
-           FROM (
-                 SELECT trace_id FROM trace_files WHERE project_id = ?
-                 UNION
-                 SELECT trace_id FROM span_bodies WHERE project_id = ?
-                ) AS candidates
-          WHERE (? IS NULL OR trace_id > ?)
+           FROM trace_files
+          WHERE project_id = ?
+            AND (? IS NULL OR trace_id > ?)
           ORDER BY trace_id
           LIMIT ?",
     )
-    .bind(project_id)
     .bind(project_id)
     .bind(after_trace_id)
     .bind(after_trace_id)
@@ -36,20 +32,16 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn pages_the_union_of_file_and_body_ownership() {
+    async fn pages_file_ownership_in_trace_order() {
         let pool = SqlitePool::connect("sqlite::memory:").await.expect("pool");
-        sqlx::query(
-            "CREATE TABLE trace_files (project_id TEXT NOT NULL, trace_id TEXT NOT NULL);
-             CREATE TABLE span_bodies (project_id TEXT NOT NULL, trace_id TEXT NOT NULL);",
-        )
-        .execute(&pool)
-        .await
-        .expect("schema");
+        sqlx::query("CREATE TABLE trace_files (project_id TEXT NOT NULL, trace_id TEXT NOT NULL);")
+            .execute(&pool)
+            .await
+            .expect("schema");
         for (table, project, trace) in [
             ("trace_files", "p", "a"),
+            ("trace_files", "p", "b"),
             ("trace_files", "p", "c"),
-            ("span_bodies", "p", "b"),
-            ("span_bodies", "p", "c"),
             ("trace_files", "other", "z"),
         ] {
             sqlx::query(&format!(

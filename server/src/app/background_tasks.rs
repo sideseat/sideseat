@@ -102,11 +102,8 @@ impl CoreApp {
             .await;
         self.shutdown
             .register(sideseat_domain::maintenance::start(
-                sideseat_domain::content_bodies::ContentBodyService::from_file_service(&self.files),
-                Arc::clone(&self.storage_governance),
                 Arc::clone(&self.database_port),
                 Arc::clone(&self.analytics_port),
-                Arc::clone(&self.clock),
                 self.shutdown.subscribe(),
             ))
             .await;
