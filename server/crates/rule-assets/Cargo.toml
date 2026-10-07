@@ -3,6 +3,7 @@ name = "sideseat-rule-assets"
 version.workspace = true
 license = "Apache-2.0"
 publish = false
+build = "build.rs"
 edition = "2024"
 rust-version.workspace = true
 
