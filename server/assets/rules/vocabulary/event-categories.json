@@ -6,7 +6,7 @@
     {
       "id": "event-categories.retrieval",
       "doc": "Retrieved material: a retrieval or search event.",
-      "rank": 10,
+      "priority": 10,
       "contains": [
         "retrieval",
         "search"
@@ -16,7 +16,7 @@
     {
       "id": "event-categories.observation",
       "doc": "A score or an observation about the run.",
-      "rank": 20,
+      "priority": 20,
       "contains": [
         "score",
         "observation"

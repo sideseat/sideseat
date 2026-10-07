@@ -17,7 +17,7 @@
           "langsmith."
         ]
       },
-      "legacy_rank": 50,
+      "priority": 50,
       "supersedes": [
         "openinference.detect"
       ]
@@ -327,7 +327,7 @@
     {
       "id": "langchain.standard_data_block",
       "at": "after_provider_formats",
-      "legacy_rank": 10,
+      "priority": 10,
       "doc": "LangChain's standard multimodal block: the kind as its type, the bytes inline as `base64` beside a `mime_type`, and for a document the name it was given. No provider format spells it this way, so it comes after them; a message carrying files in graph state reaches the reader in this form.",
       "require": {
         "all": [
@@ -386,7 +386,7 @@
       },
       "parse": "json",
       "emit": "message",
-      "legacy_rank": 590,
+      "priority": 590,
       "alternatives": [
         {
           "id": "messages",

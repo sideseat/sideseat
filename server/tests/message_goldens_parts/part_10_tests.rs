@@ -1,0 +1,312 @@
+// ============================================================================
+// Equivalence oracle: detection by priority against the retired supersedes-ordered resolution
+// ============================================================================
+
+include!("retired_detect_order.rs");
+
+/// What detection reads of one span: its name, its scope's name, its attributes and its resource's.
+type DetectInput = (
+    String,
+    Option<String>,
+    HashMap<String, String>,
+    HashMap<String, String>,
+);
+
+/// The detection context of one captured span, as ingestion builds it.
+fn detect_inputs(request: &ExportTraceServiceRequest) -> Vec<DetectInput> {
+    use sideseat_ingestion::otlp::extract_attributes;
+    let mut out = Vec::new();
+    for resource in &request.resource_spans {
+        let resource_attrs = resource
+            .resource
+            .as_ref()
+            .map(|r| extract_attributes(&r.attributes))
+            .unwrap_or_default();
+        for scope in &resource.scope_spans {
+            let scope_name = scope.scope.as_ref().map(|s| s.name.clone());
+            for span in &scope.spans {
+                out.push((
+                    span.name.clone(),
+                    scope_name.clone(),
+                    extract_attributes(&span.attributes),
+                    resource_attrs.clone(),
+                ));
+            }
+        }
+    }
+    out
+}
+
+/// Every span of the corpus is labelled alike by the priority order and by the retired resolution.
+///
+/// The retired plan is the frozen ranks and inherited edges of `retired_detect_order.rs` over the current
+/// predicates, resolved the way `supersedes` used to order: the lowest-ranked matching clause no matching clause
+/// transitively beats. The migration moved two producers' evidence (`detection_by_priority_changes_only_the_stated_overlaps`
+/// says exactly where the answers differ); no captured span is in one of those overlaps.
+#[test]
+fn detection_by_priority_matches_the_retired_resolution_over_the_corpus() {
+    let plan = &sideseat_domain::rules::ruleset().detect;
+    let mut spans = 0_usize;
+    let mut disagreements: BTreeSet<String> = BTreeSet::new();
+    for (label, paths) in discover_fixtures() {
+        for path in &paths {
+            for (span_name, scope_name, span_attrs, resource_attrs) in
+                detect_inputs(&decode_request(path))
+            {
+                spans += 1;
+                let ctx = sideseat_domain::rules::DetectContext {
+                    span_name: &span_name,
+                    scope_name: scope_name.as_deref(),
+                    span_attrs: &span_attrs,
+                    resource_attrs: &resource_attrs,
+                };
+                let now = plan.resolve(&ctx).map(|rule| rule.label.as_str());
+                let retired = plan.retired_resolve(&ctx, RETIRED_ORDER, CLAUSE_ORIGIN);
+                if now != retired {
+                    disagreements.insert(format!(
+                        "{label} / {span_name}: now {now:?}, retired {retired:?}"
+                    ));
+                }
+            }
+        }
+    }
+    assert!(spans > 1000, "the oracle compared only {spans} spans");
+    assert!(
+        disagreements.is_empty(),
+        "{} corpus span(s) are labelled differently by priority and by the retired resolution:\n{}",
+        disagreements.len(),
+        disagreements
+            .into_iter()
+            .take(40)
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+    eprintln!("detection oracle: {spans} corpus spans, no disagreement");
+}
+
+/// Where the two resolutions differ, exhaustively over the overlaps the migration moved, and nowhere else.
+///
+/// Two shipped edges pointed at rules ranked ahead of their sources, and with the ranks they made detection a
+/// cycle of preferences (OpenInference over Semantic Kernel, Semantic Kernel over Azure OpenAI, Azure OpenAI over
+/// OpenInference) that no priority order can state. The migration chose, per overlap, and these are the choices:
+///
+/// - Azure OpenAI's own signals beside an OpenInference attribute, without OpenInference's `llm.provider` pair:
+///   OpenInference now, Azure OpenAI before. The edge only existed for OpenInference's Azure spans, which carry
+///   that pair and are still Azure OpenAI's through the alternative at priority 139 - which was always ahead.
+///   Keeping the edge would have needed Azure OpenAI ahead of Semantic Kernel, relabelling Semantic Kernel's own
+///   spans on Azure.
+/// - OpenAI Agents' own scope or attribute namespace beside a later instrumentation library (MLflow, Langfuse,
+///   Genkit, Traceloop, LiveKit): OpenAI Agents now, the library before. Those signals are the framework's own,
+///   which is what the edge over Logfire already said.
+/// - OpenAI Agents' default service name beside Logfire's signals *and* a later library's: OpenAI Agents now, the
+///   library before. The service name alone stays behind every library, as it was; beside Logfire's signals it
+///   is the evidence for the SDK's run-level spans, which Logfire writes without the SDK's scope.
+#[test]
+fn detection_by_priority_changes_only_the_stated_overlaps() {
+    let plan = &sideseat_domain::rules::ruleset().detect;
+    let attrs = |pairs: &[(&str, &str)]| -> HashMap<String, String> {
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
+    };
+    let none = HashMap::new();
+    // (what, scope, span attributes, resource attributes, now, retired)
+    type Case<'a> = (
+        &'a str,
+        Option<&'a str>,
+        HashMap<String, String>,
+        HashMap<String, String>,
+        &'a str,
+        &'a str,
+    );
+    let cases: Vec<Case<'_>> = vec![
+        (
+            "azure signal beside an openinference attribute",
+            None,
+            attrs(&[
+                ("gen_ai.system", "azure_openai"),
+                ("openinference.span.kind", "LLM"),
+            ]),
+            none.clone(),
+            "OpenInference",
+            "AzureOpenAI",
+        ),
+        (
+            "openinference's azure pair is unchanged",
+            None,
+            attrs(&[
+                ("llm.provider", "azure"),
+                ("llm.system", "openai"),
+                ("openinference.span.kind", "LLM"),
+            ]),
+            none.clone(),
+            "AzureOpenAI",
+            "AzureOpenAI",
+        ),
+        (
+            "semantic kernel on azure is unchanged",
+            Some("semantic_kernel.connectors.ai.chat_completion_client_base"),
+            attrs(&[("gen_ai.system", "azure_openai")]),
+            none.clone(),
+            "SemanticKernel",
+            "SemanticKernel",
+        ),
+        (
+            "openai agents scope beside traceloop",
+            Some("logfire.openai_agents"),
+            attrs(&[("traceloop.span.kind", "workflow")]),
+            none.clone(),
+            "OpenAIAgents",
+            "TraceLoop",
+        ),
+        (
+            "openai agents attribute beside mlflow",
+            None,
+            attrs(&[("openai.agents.x", "1"), ("mlflow.spanType", "LLM")]),
+            none.clone(),
+            "OpenAIAgents",
+            "MLflow",
+        ),
+        (
+            "openai agents scope beside logfire is unchanged",
+            Some("logfire.openai_agents"),
+            attrs(&[("logfire.msg", "x")]),
+            none.clone(),
+            "OpenAIAgents",
+            "OpenAIAgents",
+        ),
+        (
+            "openai agents service name beside logfire is unchanged",
+            None,
+            attrs(&[("logfire.msg", "x")]),
+            attrs(&[("service.name", "openai-agents")]),
+            "OpenAIAgents",
+            "OpenAIAgents",
+        ),
+        (
+            "openai agents service name beside logfire and traceloop",
+            None,
+            attrs(&[("logfire.msg", "x"), ("traceloop.span.kind", "workflow")]),
+            attrs(&[("service.name", "openai-agents")]),
+            "OpenAIAgents",
+            "TraceLoop",
+        ),
+        (
+            "openai agents service name beside traceloop alone is unchanged",
+            None,
+            attrs(&[("traceloop.span.kind", "workflow")]),
+            attrs(&[("service.name", "openai-agents")]),
+            "TraceLoop",
+            "TraceLoop",
+        ),
+        (
+            "openai agents service name alone is unchanged",
+            None,
+            none.clone(),
+            attrs(&[("service.name", "openai-agents")]),
+            "OpenAIAgents",
+            "OpenAIAgents",
+        ),
+    ];
+    for (what, scope, span_attrs, resource_attrs, now, retired) in &cases {
+        let ctx = sideseat_domain::rules::DetectContext {
+            span_name: "probe",
+            scope_name: *scope,
+            span_attrs,
+            resource_attrs,
+        };
+        assert_eq!(
+            plan.resolve(&ctx).map(|rule| rule.label.as_str()),
+            Some(*now),
+            "{what}: the current label"
+        );
+        assert_eq!(
+            plan.retired_resolve(&ctx, RETIRED_ORDER, CLAUSE_ORIGIN),
+            Some(*retired),
+            "{what}: the retired label"
+        );
+    }
+
+    // And nowhere else: every pair of single-signal spans drawn from each clause's own literals resolves alike,
+    // except the overlaps above. A clause's literal is the cheapest span it matches, so a pair of them is a span
+    // in the overlap of two clauses - which is where a precedence change can show.
+    // (scope, span attributes, resource attributes)
+    type Probe = (
+        Option<String>,
+        HashMap<String, String>,
+        HashMap<String, String>,
+    );
+    let mut probes: Vec<Probe> = Vec::new();
+    for rule in plan.rules() {
+        let spec = &rule.match_spec;
+        for prefix in &spec.attr_prefix {
+            probes.push((None, attrs(&[(&format!("{prefix}x"), "1")]), none.clone()));
+        }
+        for pair in spec.attr_equals.iter().chain(&spec.attr_equals_ignore_case) {
+            probes.push((None, attrs(&[(&pair.key, &pair.value)]), none.clone()));
+        }
+        for key in &spec.attr_exists {
+            probes.push((None, attrs(&[(key, "1")]), none.clone()));
+        }
+        for scope in &spec.scope_name {
+            probes.push((Some(scope.clone()), none.clone(), none.clone()));
+        }
+        for service in &spec.service_name {
+            probes.push((None, none.clone(), attrs(&[("service.name", service)])));
+        }
+    }
+    let mut moved: BTreeSet<(String, String)> = BTreeSet::new();
+    for (index, (scope_a, span_a, resource_a)) in probes.iter().enumerate() {
+        for (scope_b, span_b, resource_b) in &probes[index..] {
+            if scope_a.is_some() && scope_b.is_some() && scope_a != scope_b {
+                continue;
+            }
+            let scope = scope_a.clone().or_else(|| scope_b.clone());
+            let span_attrs: HashMap<String, String> = span_a
+                .iter()
+                .chain(span_b)
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
+            let resource_attrs: HashMap<String, String> = resource_a
+                .iter()
+                .chain(resource_b)
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
+            let ctx = sideseat_domain::rules::DetectContext {
+                span_name: "probe",
+                scope_name: scope.as_deref(),
+                span_attrs: &span_attrs,
+                resource_attrs: &resource_attrs,
+            };
+            let now = plan.resolve(&ctx).map(|rule| rule.label.clone());
+            let retired = plan
+                .retired_resolve(&ctx, RETIRED_ORDER, CLAUSE_ORIGIN)
+                .map(str::to_string);
+            if now != retired {
+                moved.insert((retired.unwrap_or_default(), now.unwrap_or_default()));
+            }
+        }
+    }
+    let stated: BTreeSet<(String, String)> = [
+        ("AzureOpenAI", "OpenInference"),
+        ("MLflow", "OpenAIAgents"),
+        ("Langfuse", "OpenAIAgents"),
+        ("Genkit", "OpenAIAgents"),
+        ("TraceLoop", "OpenAIAgents"),
+        ("LiveKit", "OpenAIAgents"),
+    ]
+    .into_iter()
+    .map(|(a, b)| (a.to_string(), b.to_string()))
+    .collect();
+    assert!(
+        moved.is_subset(&stated),
+        "detection moved where the migration states nothing (retired -> now): {:?}",
+        moved.difference(&stated).collect::<Vec<_>>()
+    );
+    assert!(
+        moved.contains(&("AzureOpenAI".to_string(), "OpenInference".to_string()))
+            && moved.contains(&("TraceLoop".to_string(), "OpenAIAgents".to_string())),
+        "the probe pairs must reach the stated overlaps, or they prove nothing: {moved:?}"
+    );
+}

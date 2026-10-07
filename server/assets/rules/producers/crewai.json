@@ -20,7 +20,7 @@
           "task_key"
         ]
       },
-      "legacy_rank": 30
+      "priority": 30
     }
   ],
   "sdk_slugs": [
@@ -46,7 +46,7 @@
       },
       "parse": "json",
       "emit": "message",
-      "legacy_rank": 1500
+      "priority": 1500
     },
     {
       "id": "crewai.output",
@@ -64,7 +64,7 @@
       },
       "parse": "json",
       "emit": "message",
-      "legacy_rank": 1510,
+      "priority": 1510,
       "also": [
         {
           "id": "messages",
@@ -245,7 +245,7 @@
           "args_schema"
         ]
       },
-      "legacy_rank": 1520
+      "priority": 1520
     },
     {
       "id": "crewai.input_value_tools",
@@ -352,7 +352,7 @@
           "args_schema"
         ]
       },
-      "legacy_rank": 1530
+      "priority": 1530
     },
     {
       "id": "crewai.aggregate_input",
@@ -423,7 +423,7 @@
           }
         }
       ],
-      "legacy_rank": 1515
+      "priority": 1515
     }
   ]
 }

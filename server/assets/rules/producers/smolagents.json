@@ -13,7 +13,7 @@
           "smolagents."
         ]
       },
-      "legacy_rank": 80,
+      "priority": 80,
       "supersedes": [
         "openinference.detect"
       ]
@@ -43,7 +43,7 @@
       },
       "parse": "json_or_string",
       "emit": "claim",
-      "legacy_rank": 216
+      "priority": 216
     },
     {
       "id": "smolagents.agent_stream_objects",
@@ -73,7 +73,7 @@
         }
       ],
       "emit": "message",
-      "legacy_rank": 186
+      "priority": 186
     },
     {
       "id": "smolagents.agent_chain_output",
@@ -98,7 +98,7 @@
       },
       "parse": "json_or_string",
       "emit": "claim",
-      "legacy_rank": 187
+      "priority": 187
     },
     {
       "id": "smolagents.tool_output",
@@ -135,7 +135,7 @@
         }
       },
       "emit": "message",
-      "legacy_rank": 205,
+      "priority": 205,
       "reads_tool_spans": true
     },
     {
@@ -188,7 +188,7 @@
         }
       },
       "emit": "message",
-      "legacy_rank": 204,
+      "priority": 204,
       "reads_tool_spans": true
     },
     {
@@ -245,7 +245,7 @@
         }
       ],
       "emit": "message",
-      "legacy_rank": 206
+      "priority": 206
     }
   ],
   "sdk_slugs": [

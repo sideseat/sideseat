@@ -66,7 +66,7 @@
           }
         ]
       },
-      "legacy_rank": 200
+      "priority": 200
     }
   ],
   "sdk_slugs": [
@@ -79,7 +79,7 @@
     {
       "id": "logfire.conversation",
       "doc": "Every carrier this dialect writes a conversation to, with the local order between them. The order is asymmetric: `request_data` is a fallback behind the three primary request spellings, while the answer side is unconditional. The paired generic capture proves that a duplicated request is not displayed twice, repeated prompt history collapses across spans, and a response repeated beside `all_messages_events` remains one answer.",
-      "legacy_rank": 400,
+      "priority": 400,
       "branch_set": {
         "doc": "Primary: the three request spellings. Fallback: the request payload, only if none of them supplied anything. Always: the response.",
         "primary": [
@@ -308,7 +308,7 @@
           "each": true
         }
       ],
-      "legacy_rank": 420
+      "priority": 420
     },
     {
       "id": "logfire.fallback_raw_input",
@@ -332,7 +332,7 @@
         "only_plain_data": true
       },
       "emit": "message",
-      "legacy_rank": 9010
+      "priority": 9010
     }
   ],
   "message_projections": [
@@ -356,7 +356,7 @@
       "members": [
         "combined_chunk_content"
       ],
-      "rank": 10,
+      "priority": 10,
       "holds_streamed_reply": true
     }
   ]

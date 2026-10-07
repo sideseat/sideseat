@@ -14,8 +14,8 @@ pub struct ContentBlockRule {
     /// Where in the normalisation chain this case is tried. Declared, because the chain's order decides
     /// which dialect answers for a shape more than one of them recognises.
     pub at: ChainPosition,
-    /// Position among the cases at that point.
-    pub legacy_rank: i32,
+    /// Position among the cases at that point, lowest first. Unique within the position.
+    pub priority: i32,
     /// The shape this case recognises.
     #[serde(default)]
     pub require: PredicateSet,

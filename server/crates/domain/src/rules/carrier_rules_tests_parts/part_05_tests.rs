@@ -13,7 +13,7 @@ fn a_predicate_that_could_never_mean_what_it_says_is_refused() {
         "detect": [{
             "id": "probe.detect",
             "label": "probe",
-            "legacy_rank": 1,
+            "priority": 1,
             "match": {"attr_equals": [{"key": "span.kind", "value": "TOOL", "ignore_case": true}]},
         }],
     }));
@@ -51,7 +51,7 @@ fn a_predicate_that_could_never_mean_what_it_says_is_refused() {
             "id": "probe",
             "messages": [{
                 "id": "probe.family",
-                "legacy_rank": 1,
+                "priority": 1,
                 "read": {"indexed_family": "probe.items"},
                 "emit": "message",
                 "require_members": require,
@@ -742,7 +742,7 @@ fn a_shared_message_rank_is_refused_only_where_the_order_shows() {
     let contending = serde_json::json!([
         {
             "id": "probe.a",
-            "legacy_rank": 10,
+            "priority": 10,
             "read": {"attribute": "shared"},
             "parse": "text",
             "when": {"attr_exists": ["left"]},
@@ -750,7 +750,7 @@ fn a_shared_message_rank_is_refused_only_where_the_order_shows() {
         },
         {
             "id": "probe.z",
-            "legacy_rank": 10,
+            "priority": 10,
             "read": {"attribute": "other"},
             "parse": "text",
             "when": {"attr_exists": ["right"]},
@@ -766,14 +766,14 @@ fn a_shared_message_rank_is_refused_only_where_the_order_shows() {
     let cross_axis = serde_json::json!([
         {
             "id": "probe.message",
-            "legacy_rank": 10,
+            "priority": 10,
             "read": {"attribute": "one"},
             "parse": "text",
             "emit": "message",
         },
         {
             "id": "probe.tools",
-            "legacy_rank": 10,
+            "priority": 10,
             "read": {"attribute": "two"},
             "parse": "json",
             "emit": "tool_definitions",
@@ -788,7 +788,7 @@ fn a_shared_message_rank_is_refused_only_where_the_order_shows() {
     let disjoint_events = serde_json::json!([
         {
             "id": "probe.one",
-            "legacy_rank": 20,
+            "priority": 20,
             "source": {"event": {"names": ["probe.first"]}},
             "read": {"attribute": "one"},
             "parse": "text",
@@ -796,7 +796,7 @@ fn a_shared_message_rank_is_refused_only_where_the_order_shows() {
         },
         {
             "id": "probe.two",
-            "legacy_rank": 20,
+            "priority": 20,
             "source": {"event": {"names": ["probe.second"]}},
             "read": {"attribute": "two"},
             "parse": "text",
@@ -813,7 +813,7 @@ fn a_shared_message_rank_is_refused_only_where_the_order_shows() {
     let event_beside_span = serde_json::json!([
         {
             "id": "probe.event",
-            "legacy_rank": 25,
+            "priority": 25,
             "source": {"event": {"names": ["probe.first"]}},
             "read": {"attribute": "one"},
             "parse": "text",
@@ -821,7 +821,7 @@ fn a_shared_message_rank_is_refused_only_where_the_order_shows() {
         },
         {
             "id": "probe.span",
-            "legacy_rank": 25,
+            "priority": 25,
             "read": {"attribute": "two"},
             "parse": "text",
             "emit": "message",
@@ -836,7 +836,7 @@ fn a_shared_message_rank_is_refused_only_where_the_order_shows() {
     let overlapping_events = serde_json::json!([
         {
             "id": "probe.one",
-            "legacy_rank": 20,
+            "priority": 20,
             "source": {"event": {"names": ["probe.shared"]}},
             "read": {"attribute": "one"},
             "parse": "text",
@@ -844,7 +844,7 @@ fn a_shared_message_rank_is_refused_only_where_the_order_shows() {
         },
         {
             "id": "probe.two",
-            "legacy_rank": 20,
+            "priority": 20,
             "source": {"event": {"names": ["probe.shared", "probe.other"]}},
             "read": {"attribute": "two"},
             "parse": "text",
@@ -860,14 +860,14 @@ fn a_shared_message_rank_is_refused_only_where_the_order_shows() {
     let cross_stage = serde_json::json!([
         {
             "id": "probe.dialect",
-            "legacy_rank": 30,
+            "priority": 30,
             "read": {"attribute": "one"},
             "parse": "text",
             "emit": "message",
         },
         {
             "id": "probe.fallback",
-            "legacy_rank": 30,
+            "priority": 30,
             "source": {"span": {"stage": "fallback"}},
             "read": {"attribute": "two"},
             "parse": "text",

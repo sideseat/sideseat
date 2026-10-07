@@ -1,16 +1,10 @@
-/// A `supersedes` edge that cannot take effect is refused.
+/// A `supersedes` edge that cannot mean what it says is refused.
 ///
-/// The field **orders**, ahead of `legacy_rank`, and it waives the overlap report - the instrument that names
-/// which predicates are not yet sufficient.
-///
-/// It did not always. It used to waive the report *only*, with rank deciding the winner regardless and the waiver
-/// read only from whichever rule rank had already made the winner. So it documented an ordering it took no part
-/// in: every one of the eight shipped edges could have been deleted without changing a single attribution, and an
-/// edge pointing against the ranks was refused as useless - which it was, under those semantics.
-///
-/// That edge is now the useful case: it is how a rule beats one ranked ahead of it **without** moving its own
-/// weaker signals up too. So the refusals that remain are the ones that are still unable to take effect: a target
-/// nothing declares, an edge to a rule itself, and the same target twice.
+/// The field documents an overlap the priorities resolve, and waives the overlap report - the instrument that
+/// names which predicates are not yet sufficient. It once *ordered*, ahead of rank, and that made detection a
+/// preference relation no total order could state; now it is checked against the priorities and never executed.
+/// So the refusals are: an edge pointing at a rule tried first, a target nothing declares, an edge to a rule
+/// itself, and the same target twice.
 #[test]
 fn a_supersedes_edge_that_cannot_take_effect_is_refused() {
     let compiled = |first_rank: i32, second_rank: i32, supersedes: &str| {
@@ -20,14 +14,14 @@ fn a_supersedes_edge_that_cannot_take_effect_is_refused() {
                 {
                     "id": "probe.specific",
                     "label": "strands",
-                    "legacy_rank": first_rank,
+                    "priority": first_rank,
                     "match": {"attr_prefix": ["probe.specific."]},
                     "supersedes": [supersedes],
                 },
                 {
                     "id": "probe.generic",
                     "label": "langchain",
-                    "legacy_rank": second_rank,
+                    "priority": second_rank,
                     "match": {"attr_prefix": ["probe."]},
                 },
             ],
@@ -41,15 +35,9 @@ fn a_supersedes_edge_that_cannot_take_effect_is_refused() {
         )
     };
 
-    // The shape the shipped assets use: the superseding rule already outranks its target.
-    assert!(
-        compiled(10, 20, "probe.generic").is_ok(),
-        "an edge from the rank-winner to the rank-loser is the shape the assets use"
-    );
-    // The shape that used to be refused, and is now the point of the field: the edge points *against* the ranks,
-    // and the ordering it declares is what decides.
-    let plan = compiled(20, 10, "probe.generic")
-        .expect("an edge against the ranks is how a rule beats one ranked ahead of it");
+    // The shape the shipped assets use: the superseding rule is tried first, and it wins by priority.
+    let plan = compiled(10, 20, "probe.generic")
+        .expect("an edge from the earlier rule to the later one is the shape the assets use");
     let attrs: std::collections::HashMap<String, String> =
         [("probe.specific.marker".to_string(), "1".to_string())]
             .into_iter()
@@ -63,54 +51,18 @@ fn a_supersedes_edge_that_cannot_take_effect_is_refused() {
             resource_attrs: &empty,
         })
         .expect("both rules match this span");
-    assert_eq!(
-        found.label, "strands",
-        "the superseding rule wins although its target ranks ahead of it - otherwise `supersedes` orders nothing"
+    assert_eq!(found.label, "strands", "the earlier priority wins");
+    // The shape that once *ordered* - an edge against the priorities - now contradicts them and is refused, with
+    // the two priorities named.
+    let refused = compiled(20, 10, "probe.generic").expect_err(
+        "an edge pointing at a rule tried first states an order the priorities contradict",
     );
-    // **Transitively**, and the middle rule deliberately does *not* match this span - which is the only shape
-    // where transitivity decides anything. With all three matching, the direct edges alone mark both losers and
-    // the answer is the same; with the middle absent, direct edges mark only it, leaving the rank-winner unbeaten
-    // and winning. Resolution is a different reader from the overlap report, whose own transitivity test cannot
-    // see this.
-    {
-        let chain = serde_json::json!({
-            "id": "probe",
-            "detect": [
-                {"id": "probe.c", "label": "c", "legacy_rank": 10,
-                 "match": {"attr_prefix": ["probe."]}},
-                {"id": "probe.b", "label": "b", "legacy_rank": 20,
-                 "match": {"attr_prefix": ["probe.absent."]}, "supersedes": ["probe.c"]},
-                {"id": "probe.a", "label": "a", "legacy_rank": 30,
-                 "match": {"attr_prefix": ["probe.mid.deep."]}, "supersedes": ["probe.b"]},
-            ],
-        });
-        let plan = crate::rules::detect_rules::compile(
-            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
-                "probe.json".to_string(),
-                serde_json::to_vec(&chain).expect("the probe serialises"),
-            )]))
-            .expect("the probe assets parse"),
-        )
-        .expect("a chain of edges compiles");
-        let attrs: std::collections::HashMap<String, String> =
-            [("probe.mid.deep.marker".to_string(), "1".to_string())]
-                .into_iter()
-                .collect();
-        let empty = std::collections::HashMap::new();
-        let found = plan
-            .resolve(&crate::rules::detect_rules::DetectContext {
-                span_name: "chat",
-                scope_name: None,
-                span_attrs: &attrs,
-                resource_attrs: &empty,
-            })
-            .expect("two of the three rules match this span");
-        assert_eq!(
-            found.label, "a",
-            "`a` beats `b` which beats the rank-winner `c`, so `a` wins even though `b` itself does not match - \
-             domination is transitive"
-        );
-    }
+    assert!(
+        refused.to_string().contains("priority 10"),
+        "the refusal names the priorities it disagrees with: {refused}"
+    );
+    // Equal priorities are refused by the tie refusal first; an edge never decides a tie.
+    assert!(compiled(10, 10, "probe.generic").is_err());
 
     // A target nothing declares.
     assert!(
@@ -130,14 +82,14 @@ fn a_supersedes_edge_that_cannot_take_effect_is_refused() {
             {
                 "id": "probe.specific",
                 "label": "strands",
-                "legacy_rank": 10,
+                "priority": 10,
                 "match": {"attr_prefix": ["probe.specific."]},
                 "supersedes": ["probe.generic", "probe.generic"],
             },
             {
                 "id": "probe.generic",
                 "label": "langchain",
-                "legacy_rank": 20,
+                "priority": 20,
                 "match": {"attr_prefix": ["probe."]},
             },
         ],
@@ -173,21 +125,21 @@ fn a_superseded_rule_is_dominated_transitively() {
             {
                 "id": "probe.most_specific",
                 "label": "strands",
-                "legacy_rank": 10,
+                "priority": 10,
                 "match": {"attr_prefix": ["probe.mid.deep."]},
                 "supersedes": ["probe.middle"],
             },
             {
                 "id": "probe.middle",
                 "label": "langchain",
-                "legacy_rank": 20,
+                "priority": 20,
                 "match": {"attr_prefix": ["probe.mid."]},
                 "supersedes": ["probe.generic"],
             },
             {
                 "id": "probe.generic",
                 "label": "crewai",
-                "legacy_rank": 30,
+                "priority": 30,
                 "match": {"attr_prefix": ["probe."]},
             },
         ],
@@ -270,7 +222,7 @@ fn a_clause_id_is_unique_within_its_owner() {
     let two_readings = |first: &str, second: &str| {
         serde_json::json!([{
             "id": "probe.message",
-            "legacy_rank": 1,
+            "priority": 1,
             "read": {"attribute": "probe"},
             "parse": "json",
             "emit": "message",
@@ -296,7 +248,7 @@ fn a_clause_id_is_unique_within_its_owner() {
     let two_rules = serde_json::json!([
         {
             "id": "probe.one",
-            "legacy_rank": 1,
+            "priority": 1,
             "read": {"attribute": "one"},
             "parse": "json",
             "emit": "message",
@@ -304,7 +256,7 @@ fn a_clause_id_is_unique_within_its_owner() {
         },
         {
             "id": "probe.two",
-            "legacy_rank": 2,
+            "priority": 2,
             "read": {"attribute": "two"},
             "parse": "json",
             "emit": "message",
@@ -791,7 +743,7 @@ fn a_carrier_list_says_how_many_of_its_keys_are_read() {
     let plan = compile(
         &ParsedAssets::parse(&asset(
             r#"{"id":"t","messages":[{"id":"t.alternatives","read":{"first_present":["new","old"]},
-             "parse":"text","emit":"message","legacy_rank":1}]}"#,
+             "parse":"text","emit":"message","priority":1}]}"#,
         ))
         .expect("the probe assets parse"),
     )
@@ -813,7 +765,7 @@ fn a_carrier_list_says_how_many_of_its_keys_are_read() {
     let refused = compile(
         &ParsedAssets::parse(&asset(
             r#"{"id":"t","messages":[{"id":"t.each","read":{"each":["new","old"]},
-             "parse":"text","emit":"message","legacy_rank":1}]}"#,
+             "parse":"text","emit":"message","priority":1}]}"#,
         ))
         .expect("the probe assets parse"),
     )
@@ -826,7 +778,7 @@ fn a_carrier_list_says_how_many_of_its_keys_are_read() {
     // And `each` **is** honoured where a body iterates: every listed key present is its own observation.
     let plan = compile(&ParsedAssets::parse(&asset(
         r#"{"id":"t","messages":[{"id":"t.tools","read":{"each":["agents","tasks"]},"parse":"json",
-             "emit":"tool_definitions","legacy_rank":1,
+             "emit":"tool_definitions","priority":1,
              "tool_repr":{"entries":"$[*]","candidates":["$"],"name_field":"name",
                "description_field":"description","name_label":"Tool Name:",
                "description_label":"Tool Description:","arguments_label":"Tool Arguments:",
@@ -855,7 +807,7 @@ fn a_carrier_list_says_how_many_of_its_keys_are_read() {
     for member in ["first_present", "each"] {
         let body = format!(
             r#"{{"id":"t","messages":[{{"id":"t.dup","read":{{"{member}":["k","k"]}},"parse":"json",
-                 "emit":"tool_definitions","legacy_rank":1,
+                 "emit":"tool_definitions","priority":1,
                  "tool_repr":{{"entries":"$[*]","candidates":["$"],"name_field":"name",
                  "description_field":"d","name_label":"N:","description_label":"D:",
                  "arguments_label":"A:","repr_markers":["name="],"parameter_members":["parameters"],

@@ -70,7 +70,7 @@
           "lk."
         ]
       },
-      "legacy_rank": 230
+      "priority": 230
     }
   ],
   "sdk_slugs": [
@@ -92,7 +92,7 @@
         "role": "system"
       },
       "emit": "message",
-      "legacy_rank": 1300
+      "priority": 1300
     },
     {
       "id": "livekit.function_tools",
@@ -102,7 +102,7 @@
       },
       "parse": "json",
       "emit": "tool_definitions",
-      "legacy_rank": 1310
+      "priority": 1310
     },
     {
       "id": "livekit.chat_ctx",
@@ -118,7 +118,7 @@
         }
       },
       "emit": "message",
-      "legacy_rank": 1320
+      "priority": 1320
     },
     {
       "id": "livekit.user_input",
@@ -135,7 +135,7 @@
         "role": "user"
       },
       "emit": "message",
-      "legacy_rank": 1330
+      "priority": 1330
     },
     {
       "id": "livekit.tool_arguments",
@@ -158,7 +158,7 @@
         ]
       },
       "emit": "message",
-      "legacy_rank": 1340
+      "priority": 1340
     },
     {
       "id": "livekit.tool_output",
@@ -188,7 +188,7 @@
         ]
       },
       "emit": "message",
-      "legacy_rank": 1350
+      "priority": 1350
     },
     {
       "id": "livekit.response_text",
@@ -209,7 +209,7 @@
         ]
       },
       "emit": "message",
-      "legacy_rank": 1360
+      "priority": 1360
     },
     {
       "id": "livekit.response_calls_only",
@@ -228,7 +228,7 @@
         "content_as": "tool_calls"
       },
       "emit": "message",
-      "legacy_rank": 1370
+      "priority": 1370
     }
   ]
 }

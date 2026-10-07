@@ -28,12 +28,12 @@ pub enum ToolShapeError {
     )]
     NoName { id: String },
     #[error(
-        "tool shapes `{first}` and `{second}` share rank {rank}, so which reads a payload they both recognise would depend on load order"
+        "tool shapes `{first}` and `{second}` share priority {priority}, so which reads a payload they both recognise would depend on load order"
     )]
-    SharedRank {
+    SharedPriority {
         first: String,
         second: String,
-        rank: i32,
+        priority: i32,
     },
     #[error("tool shape `{id}` declares an empty `carry` member name, which names nothing")]
     EmptyCarry { id: String },
@@ -86,18 +86,17 @@ impl ToolShapePlan {
                 rules.push(rule.clone());
             }
         }
-        rules.sort_by_key(|rule| rule.legacy_rank);
-        // A shared rank is a rule id deciding the answer, which is the refusal every other ordered section
-        // makes.
-        for pair in rules.windows(2) {
-            if pair[0].legacy_rank == pair[1].legacy_rank {
-                return Err(ToolShapeError::SharedRank {
-                    first: pair[0].id.clone(),
-                    second: pair[1].id.clone(),
-                    rank: pair[0].legacy_rank,
-                });
-            }
+        // A shared priority is a rule id deciding the answer, which is the refusal every ordered arena makes.
+        if let Some((first, second)) =
+            super::precedence::shared_priority(&rules, |rule| rule.priority, |_, _| true)
+        {
+            return Err(ToolShapeError::SharedPriority {
+                first: first.id.clone(),
+                second: second.id.clone(),
+                priority: first.priority,
+            });
         }
+        rules.sort_by_key(|rule| rule.priority);
         Ok(Self { rules })
     }
 

@@ -18,15 +18,15 @@ fn attrs(pairs: &[(&str, &str)]) -> HashMap<String, String> {
 #[test]
 fn the_detection_plan_holds_every_rule() {
     let plan = &ruleset().detect;
-    // 31 producers, 35 compiled rules: one alternative separates strong self-identification from a weak
-    // service name, one combines the independently insufficient Azure OpenAI signals, one preserves
+    // 31 producers, 37 compiled rules: three alternatives separate strong self-identification from a weak
+    // service name (one of them only beside the instrumentation that writes it), one combines the independently insufficient Azure OpenAI signals, one preserves
     // historical Vertex AI telemetry alongside the current Google Gen AI SDK signal, and one recognises
     // Browser Use by the Laminar span path its current releases trace through.
     assert_eq!(
         plan.rule_count(),
-        35,
+        37,
         "the assets declare {} detection rules; the table they replaced had 28, Langfuse, Codex and Genkit \
-         added one each, plus four ranked alternatives",
+         added one each, plus six alternatives at their own priorities",
         plan.rule_count()
     );
     assert_eq!(
@@ -63,14 +63,14 @@ fn two_rules_at_one_rank_are_refused() {
     let clash = br#"{
       "id": "t", "doc": "d",
       "detect": [
-        {"id": "a", "doc": "d", "label": "A", "legacy_rank": 5, "match": {"attr_prefix": ["a."]}},
-        {"id": "b", "doc": "d", "label": "B", "legacy_rank": 5, "match": {"attr_prefix": ["b."]}}
+        {"id": "a", "doc": "d", "label": "A", "priority": 5, "match": {"attr_prefix": ["a."]}},
+        {"id": "b", "doc": "d", "label": "B", "priority": 5, "match": {"attr_prefix": ["b."]}}
       ]
     }"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), clash.to_vec())]);
     assert!(matches!(
         compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")),
-        Err(DetectCompileError::DuplicateRank { .. })
+        Err(DetectCompileError::DuplicatePriority { .. })
     ));
 }
 
@@ -78,7 +78,7 @@ fn two_rules_at_one_rank_are_refused() {
 fn a_rule_with_no_signal_is_refused() {
     let bare = br#"{
       "id": "t", "doc": "d",
-      "detect": [{"id": "a", "doc": "d", "label": "A", "legacy_rank": 1, "match": {}}]
+      "detect": [{"id": "a", "doc": "d", "label": "A", "priority": 1, "match": {}}]
     }"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), bare.to_vec())]);
     assert!(matches!(
@@ -105,7 +105,7 @@ fn a_slug_claimed_twice_is_refused() {
 fn a_text_source_must_name_something_the_engine_can_read() {
     let bad = br#"{
       "id": "t", "doc": "d",
-      "detect": [{"id": "a", "doc": "d", "label": "A", "legacy_rank": 1,
+      "detect": [{"id": "a", "doc": "d", "label": "A", "priority": 1,
                   "match": {"text_contains": {"sources": ["whatever"], "needles": ["x"]}}}]
     }"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), bad.to_vec())]);
@@ -120,8 +120,8 @@ fn rank_decides_which_of_two_matching_rules_wins() {
     let ordered = br#"{
       "id": "t", "doc": "d",
       "detect": [
-        {"id": "broad", "doc": "d", "label": "Broad", "legacy_rank": 90, "match": {"attr_prefix": ["x."]}},
-        {"id": "narrow", "doc": "d", "label": "Narrow", "legacy_rank": 10, "match": {"attr_prefix": ["x.y."]}}
+        {"id": "broad", "doc": "d", "label": "Broad", "priority": 90, "match": {"attr_prefix": ["x."]}},
+        {"id": "narrow", "doc": "d", "label": "Narrow", "priority": 10, "match": {"attr_prefix": ["x.y."]}}
       ]
     }"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), ordered.to_vec())]);
@@ -151,7 +151,7 @@ fn detection_can_require_independent_signal_sets() {
         "id": "azure-openai",
         "doc": "d",
         "label": "AzureOpenAI",
-        "legacy_rank": 10,
+        "priority": 10,
         "match": {
           "attr_equals": [{"key": "llm.provider", "value": "azure"}]
         },
@@ -199,7 +199,7 @@ fn every_required_detection_set_must_declare_a_signal() {
         "id": "broken",
         "doc": "d",
         "label": "Broken",
-        "legacy_rank": 10,
+        "priority": 10,
         "match": {"attr_exists": ["one"]},
         "all_of": [{}]
       }]
@@ -257,7 +257,7 @@ fn a_mixed_first_present_search_is_refused_here_too() {
     let mixed = br#"{
       "id": "t", "doc": "d",
       "detect": [
-        {"id": "x", "doc": "d", "label": "X", "legacy_rank": 10,
+        {"id": "x", "doc": "d", "label": "X", "priority": 10,
          "match": {"text_contains": {"sources": ["attr:model", "span_name"], "needles": ["embed"],
                                      "first_present_source": true}}}
       ]
@@ -272,15 +272,15 @@ fn a_mixed_first_present_search_is_refused_here_too() {
     // there is no order to lose.
     for asset in [
         br#"{"id":"t","doc":"d","detect":[
-            {"id":"x","doc":"d","label":"X","legacy_rank":10,
+            {"id":"x","doc":"d","label":"X","priority":10,
              "match":{"text_contains":{"sources":["attr:a","attr:b"],"needles":["e"],"first_present_source":true}}}]}"#
             .to_vec(),
         br#"{"id":"t","doc":"d","detect":[
-            {"id":"x","doc":"d","label":"X","legacy_rank":10,
+            {"id":"x","doc":"d","label":"X","priority":10,
              "match":{"text_contains":{"sources":["span_name"],"needles":["e"],"first_present_source":true}}}]}"#
             .to_vec(),
         br#"{"id":"t","doc":"d","detect":[
-            {"id":"x","doc":"d","label":"X","legacy_rank":10,
+            {"id":"x","doc":"d","label":"X","priority":10,
              "match":{"text_contains":{"sources":["attr:model","span_name"],"needles":["e"]}}}]}"#
             .to_vec(),
     ] {
@@ -323,20 +323,20 @@ fn a_literal_another_already_covers_is_refused() {
 
     // Prefix: the extension is dead beside the bare form. The shape the shipped asset had.
     assert!(subsumed(
-        r#"{"id":"a","doc":"d","label":"A","legacy_rank":1,"match":{"span_name":["LangGraph","LangGraph."]}}"#
+        r#"{"id":"a","doc":"d","label":"A","priority":1,"match":{"span_name":["LangGraph","LangGraph."]}}"#
     ));
     assert!(subsumed(
-        r#"{"id":"a","doc":"d","label":"A","legacy_rank":1,"match":{"attr_prefix":["ai.","ai.telemetry."]}}"#
+        r#"{"id":"a","doc":"d","label":"A","priority":1,"match":{"attr_prefix":["ai.","ai.telemetry."]}}"#
     ));
     // Substring, per key: the quoted form is dead beside the bare one. The other shipped shape.
     assert!(subsumed(
-        r#"{"id":"a","doc":"d","label":"A","legacy_rank":1,"match":{"span_attr_contains":[
+        r#"{"id":"a","doc":"d","label":"A","priority":1,"match":{"span_attr_contains":[
              {"key":"metadata","value":"langgraph_"},{"key":"metadata","value":"\"langgraph_"}]}}"#
     ));
     // Substring under two *different* keys says nothing: they are not in one another's list.
     assert!(
         compiled(
-            r#"{"id":"a","doc":"d","label":"A","legacy_rank":1,"match":{"span_attr_contains":[
+            r#"{"id":"a","doc":"d","label":"A","priority":1,"match":{"span_attr_contains":[
                  {"key":"one","value":"langgraph_"},{"key":"two","value":"\"langgraph_"}]}}"#
         )
         .is_ok(),
@@ -344,11 +344,11 @@ fn a_literal_another_already_covers_is_refused() {
     );
     // Exact: only a duplicate covers, and `LangGraph.` is a perfectly good separate exact name.
     assert!(subsumed(
-        r#"{"id":"a","doc":"d","label":"A","legacy_rank":1,"match":{"span_name_exact":["LangGraph","LangGraph"]}}"#
+        r#"{"id":"a","doc":"d","label":"A","priority":1,"match":{"span_name_exact":["LangGraph","LangGraph"]}}"#
     ));
     assert!(
         compiled(
-            r#"{"id":"a","doc":"d","label":"A","legacy_rank":1,"match":{"span_name_exact":["LangGraph","LangGraph."]}}"#
+            r#"{"id":"a","doc":"d","label":"A","priority":1,"match":{"span_name_exact":["LangGraph","LangGraph."]}}"#
         )
         .is_ok(),
         "an exact list is covered only by a duplicate - a prefix relation between two exact names is not one"
@@ -356,7 +356,7 @@ fn a_literal_another_already_covers_is_refused() {
     // And an exact name beside a prefix in the *other* dimension is the whole point of splitting them.
     assert!(
         compiled(
-            r#"{"id":"a","doc":"d","label":"A","legacy_rank":1,"match":{"span_name_exact":["LangGraph"],"span_name":["LangGraph."]}}"#
+            r#"{"id":"a","doc":"d","label":"A","priority":1,"match":{"span_name_exact":["LangGraph"],"span_name":["LangGraph."]}}"#
         )
         .is_ok(),
         "exactly `LangGraph` beside the `LangGraph.` prefix is two statements, which is what the split is for"
@@ -586,7 +586,7 @@ fn a_rule_an_earlier_one_always_satisfies_is_refused() {
             Err(DetectCompileError::ShadowedRule { .. })
         )
     };
-    let rule = |id: &str, rank: i32, spec: serde_json::Value| serde_json::json!({"id": id, "doc": "d", "label": id, "legacy_rank": rank, "match": spec});
+    let rule = |id: &str, rank: i32, spec: serde_json::Value| serde_json::json!({"id": id, "doc": "d", "label": id, "priority": rank, "match": spec});
 
     // A key's existence covers any statement about that key's value.
     assert!(shadowed(serde_json::json!([
@@ -658,7 +658,7 @@ fn a_rule_an_earlier_one_always_satisfies_is_refused() {
              here none is",
             serde_json::json!([
                 rule("a", 10, serde_json::json!({"attr_exists": ["one"]})),
-                serde_json::json!({"id": "b", "doc": "d", "label": "b", "legacy_rank": 20,
+                serde_json::json!({"id": "b", "doc": "d", "label": "b", "priority": 20,
                     "match": {"attr_exists": ["two"]}}),
             ]),
         ),
@@ -671,15 +671,6 @@ fn a_rule_an_earlier_one_always_satisfies_is_refused() {
                     serde_json::json!({"text_contains": {"sources": ["span_name"], "needles": ["x"]}})
                 ),
                 rule("b", 20, serde_json::json!({"attr_exists": ["k"]})),
-            ]),
-        ),
-        (
-            "a rule that **supersedes** its shadower is reachable: `supersedes` orders ahead of rank, so the \
-             broader rule loses to it - which is the shape `supersedes` exists for",
-            serde_json::json!([
-                rule("a", 10, serde_json::json!({"attr_prefix": ["ai."]})),
-                serde_json::json!({"id": "b", "doc": "d", "label": "b", "legacy_rank": 20,
-                    "match": {"attr_prefix": ["ai.telemetry."]}, "supersedes": ["a"]}),
             ]),
         ),
     ] {
@@ -904,7 +895,7 @@ fn what_an_unseen_producer_can_and_cannot_declare() {
     // Expressible: the flat indexed family, declared entirely in an asset.
     let plan = compiled(
         r#"[{"id":"acme.flat_family","doc":"d","read":{"indexed_family":"chat"},
-             "parse":"text","emit":"message","legacy_rank":1}]"#,
+             "parse":"text","emit":"message","priority":1}]"#,
     )
     .expect("a flat indexed family is an asset edit");
 
@@ -944,7 +935,7 @@ fn what_an_unseen_producer_can_and_cannot_declare() {
     // format behaving correctly - and the limit is that there is nothing else to declare instead.
     let refused = compiled(
         r#"[{"id":"acme.role_from_sibling","doc":"d","read":{"indexed_family":"chat"},
-             "parse":"text","emit":"message","legacy_rank":1,
+             "parse":"text","emit":"message","priority":1,
              "wrap":{"content_from_any_of":["$.content"],"role_from":"$.kind",
                      "role_map":{"in":"user","out":"assistant"}}}]"#,
     )

@@ -60,7 +60,7 @@
           "claude-agent-sdk"
         ]
       },
-      "legacy_rank": 270
+      "priority": 270
     }
   ],
   "sdk_slugs": [
@@ -87,7 +87,7 @@
         "role": "system"
       },
       "emit": "message",
-      "legacy_rank": 1400
+      "priority": 1400
     },
     {
       "id": "claude-agent-sdk.new_context",
@@ -135,7 +135,7 @@
         ]
       },
       "emit": "message",
-      "legacy_rank": 1410
+      "priority": 1410
     },
     {
       "id": "claude-agent-sdk.model_output",
@@ -154,7 +154,7 @@
         "role": "assistant"
       },
       "emit": "message",
-      "legacy_rank": 1420
+      "priority": 1420
     },
     {
       "id": "claude-agent-sdk.tool_call",
@@ -194,7 +194,7 @@
         }
       },
       "emit": "message",
-      "legacy_rank": 1430
+      "priority": 1430
     }
   ],
   "message_events": [

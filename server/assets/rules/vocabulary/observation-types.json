@@ -5,7 +5,7 @@
   "observation_types": [
     {
       "id": "observation.transport",
-      "rank": 10,
+      "priority": 10,
       "doc": "An HTTP, RPC or database call is never a GenAI observation: with a framework SDK present the transport span duplicates the real generation, and showing both counts one call twice. Whether such traces are visible at all is the trace list's business, not this one's.",
       "all_of": [
         {
@@ -21,7 +21,7 @@
     },
     {
       "id": "observation.chat_of_an_embedding_model",
-      "rank": 20,
+      "priority": 20,
       "doc": "Some telemetry reports an embedding call as a chat completion. The model's own name settles it, and the test is case-insensitive because a model id is a provider's string, not a keyword. The two model attributes are two answers to one question, so only the **first present** one is searched: a request for a chat model answered by a mislabelled response model is still a chat completion.",
       "all_of": [
         {
@@ -53,7 +53,7 @@
     },
     {
       "id": "observation.chat",
-      "rank": 30,
+      "priority": 30,
       "all_of": [
         {
           "attr_equals": [
@@ -72,7 +72,7 @@
     },
     {
       "id": "observation.embeddings",
-      "rank": 40,
+      "priority": 40,
       "all_of": [
         {
           "attr_equals": [
@@ -88,7 +88,7 @@
     {
       "id": "observation.execute_tool",
       "doc": "The conventions' own name for a tool execution, which nothing read - so a tool span was classified by whichever weaker signal happened to be present. One framework stamps the *owning agent's* name on its tool spans, and `observation.named_agent` (\"an agent name exists\", rank 100) outranks `observation.named_tool` (110), so 14 corpus spans named `execute_tool <tool>`, carrying `gen_ai.tool.name`, `gen_ai.tool.call.id`, `gen_ai.tool.description` and `gen_ai.tool.type`, were classified `agent` while 86 otherwise identical ones were classified `tool`. Same operation, two answers, decided by an attribute about something else. Ranked with the other operation-name rules, because the operation the producer *names* is the strongest evidence of what it did.",
-      "rank": 45,
+      "priority": 45,
       "all_of": [
         {
           "attr_equals": [
@@ -104,7 +104,7 @@
     {
       "id": "observation.invoke_agent",
       "doc": "The conventions' name for invoking an agent, the mirror of the rule above. Corpus-neutral - all 85 such spans already resolved to `agent` through `observation.named_agent` - and declared anyway, so the answer rests on the producer's statement of the operation rather than on an agent-name attribute that a tool span may also carry.",
-      "rank": 46,
+      "priority": 46,
       "all_of": [
         {
           "attr_equals": [
@@ -120,7 +120,7 @@
     {
       "id": "observation.tool_call_execution",
       "doc": "A span that names both the tool and the tool call it carries out is that execution, whatever else it names. The rule for producers that do not state the operation: Pydantic AI 1.74 to 1.86 (the version matrix's `pydantic-ai/native@1.74.0` to `@1.86.0`) write `running tool` spans with `gen_ai.tool.name`, `gen_ai.tool.call.id` and the owning agent's `gen_ai.agent.name` but no `gen_ai.operation.name`, so `observation.named_agent` (rank 100) classified 30 of them `agent` against their `tool` category - the defect `observation.execute_tool` fixed for releases that name the operation. Both members, not either: `observation.named_tool` (110) stays the weaker reading of one of them. Ranked immediately before `observation.named_agent`, so every rule that states more - an operation name, a producer's own marker - still answers first.",
-      "rank": 99,
+      "priority": 99,
       "all_of": [
         {
           "attr_exists": [
@@ -139,7 +139,7 @@
     {
       "id": "observation.mcp_tool_call",
       "doc": "The MCP conventions' name for calling a tool on a server. An MCP client span inherits whatever its caller propagates, and one SDK copies baggage onto every span, so the client span of an agent's tool call also carries `gen_ai.agent.name` - which `observation.named_agent` (rank 100) would read as an agent, against its `tool` category. The method the span names is what it did.",
-      "rank": 44,
+      "priority": 44,
       "all_of": [
         {
           "attr_equals": [
@@ -155,7 +155,7 @@
     },
     {
       "id": "observation.agent_construction",
-      "rank": 50,
+      "priority": 50,
       "doc": "One dialect emits `create_agent` for the *construction* of an agent, which ran no model and is not an agent invocation. Only that dialect's: the same operation name from anywhere else falls through, which is why this rule names the system as well.",
       "all_of": [
         {
@@ -179,7 +179,7 @@
     },
     {
       "id": "observation.kind.openinference.llm",
-      "rank": 60,
+      "priority": 60,
       "doc": "A dialect's own span-kind attribute. One rule per (key, kind) rather than per kind, and key-major, because the retired sweep returned the *first key* that named a recognised kind - so a span carrying two such attributes is what the earlier key says, not what the earlier kind says. The values are matched whatever their case, since one producer capitalises them and another does not.",
       "all_of": [
         {
@@ -195,7 +195,7 @@
     },
     {
       "id": "observation.kind.openinference.embedding",
-      "rank": 61,
+      "priority": 61,
       "all_of": [
         {
           "attr_equals_ignore_case": [
@@ -210,7 +210,7 @@
     },
     {
       "id": "observation.kind.openinference.agent",
-      "rank": 62,
+      "priority": 62,
       "all_of": [
         {
           "attr_equals_ignore_case": [
@@ -225,7 +225,7 @@
     },
     {
       "id": "observation.kind.openinference.tool",
-      "rank": 63,
+      "priority": 63,
       "all_of": [
         {
           "attr_equals_ignore_case": [
@@ -240,7 +240,7 @@
     },
     {
       "id": "observation.kind.openinference.chain",
-      "rank": 64,
+      "priority": 64,
       "all_of": [
         {
           "attr_equals_ignore_case": [
@@ -255,7 +255,7 @@
     },
     {
       "id": "observation.kind.openinference.retriever",
-      "rank": 65,
+      "priority": 65,
       "all_of": [
         {
           "attr_equals_ignore_case": [
@@ -270,7 +270,7 @@
     },
     {
       "id": "observation.kind.openinference.guardrail",
-      "rank": 66,
+      "priority": 66,
       "all_of": [
         {
           "attr_equals_ignore_case": [
@@ -285,7 +285,7 @@
     },
     {
       "id": "observation.kind.openinference.evaluator",
-      "rank": 67,
+      "priority": 67,
       "all_of": [
         {
           "attr_equals_ignore_case": [
@@ -300,7 +300,7 @@
     },
     {
       "id": "observation.kind.langsmith.llm",
-      "rank": 70,
+      "priority": 70,
       "doc": "The second dialect's spelling of the same fact, after every reading of the first - which is what key-major ordering means.",
       "all_of": [
         {
@@ -316,7 +316,7 @@
     },
     {
       "id": "observation.kind.langsmith.embedding",
-      "rank": 71,
+      "priority": 71,
       "all_of": [
         {
           "attr_equals_ignore_case": [
@@ -331,7 +331,7 @@
     },
     {
       "id": "observation.kind.langsmith.agent",
-      "rank": 72,
+      "priority": 72,
       "all_of": [
         {
           "attr_equals_ignore_case": [
@@ -346,7 +346,7 @@
     },
     {
       "id": "observation.kind.langsmith.tool",
-      "rank": 73,
+      "priority": 73,
       "all_of": [
         {
           "attr_equals_ignore_case": [
@@ -361,7 +361,7 @@
     },
     {
       "id": "observation.kind.langsmith.chain",
-      "rank": 74,
+      "priority": 74,
       "all_of": [
         {
           "attr_equals_ignore_case": [
@@ -376,7 +376,7 @@
     },
     {
       "id": "observation.kind.langsmith.retriever",
-      "rank": 75,
+      "priority": 75,
       "all_of": [
         {
           "attr_equals_ignore_case": [
@@ -391,7 +391,7 @@
     },
     {
       "id": "observation.kind.langsmith.guardrail",
-      "rank": 76,
+      "priority": 76,
       "all_of": [
         {
           "attr_equals_ignore_case": [
@@ -406,7 +406,7 @@
     },
     {
       "id": "observation.kind.langsmith.evaluator",
-      "rank": 77,
+      "priority": 77,
       "all_of": [
         {
           "attr_equals_ignore_case": [
@@ -421,7 +421,7 @@
     },
     {
       "id": "observation.sdk_embedding_call",
-      "rank": 80,
+      "priority": 80,
       "doc": "A dialect that names its model on every span it emits, and says which call it was in an operation id. Case-sensitive, as the retired test was: that id is the SDK's own constant rather than a user's string.",
       "all_of": [
         {
@@ -443,7 +443,7 @@
     },
     {
       "id": "observation.sdk_model_call",
-      "rank": 90,
+      "priority": 90,
       "all_of": [
         {
           "attr_exists": [
@@ -456,7 +456,7 @@
     },
     {
       "id": "observation.named_agent",
-      "rank": 100,
+      "priority": 100,
       "all_of": [
         {
           "attr_exists": [
@@ -469,7 +469,7 @@
     },
     {
       "id": "observation.named_tool",
-      "rank": 110,
+      "priority": 110,
       "all_of": [
         {
           "attr_exists": [
@@ -482,7 +482,7 @@
     },
     {
       "id": "observation.name_says_embedding",
-      "rank": 120,
+      "priority": 120,
       "doc": "The span name, which is the weakest evidence there is and therefore last but for two. Matched case-insensitively, and the order among these six is load-bearing: a name containing both `agent` and `tool` is an agent, because that is what the retired table said.",
       "all_of": [
         {
@@ -500,7 +500,7 @@
     },
     {
       "id": "observation.name_says_agent",
-      "rank": 121,
+      "priority": 121,
       "all_of": [
         {
           "text_contains": {
@@ -517,7 +517,7 @@
     },
     {
       "id": "observation.name_says_tool",
-      "rank": 122,
+      "priority": 122,
       "all_of": [
         {
           "text_contains": {
@@ -534,7 +534,7 @@
     },
     {
       "id": "observation.name_says_retriever",
-      "rank": 123,
+      "priority": 123,
       "all_of": [
         {
           "text_contains": {
@@ -551,7 +551,7 @@
     },
     {
       "id": "observation.name_says_guardrail",
-      "rank": 124,
+      "priority": 124,
       "all_of": [
         {
           "text_contains": {
@@ -568,7 +568,7 @@
     },
     {
       "id": "observation.name_says_evaluator",
-      "rank": 125,
+      "priority": 125,
       "all_of": [
         {
           "text_contains": {
@@ -585,7 +585,7 @@
     },
     {
       "id": "observation.tagged_as_a_model_call",
-      "rank": 130,
+      "priority": 130,
       "doc": "One dialect tags its spans rather than naming an operation, so a tag list mentioning a model call is the only thing that says so.",
       "all_of": [
         {
@@ -603,7 +603,7 @@
     },
     {
       "id": "observation.has_a_model",
-      "rank": 140,
+      "priority": 140,
       "doc": "Last: a span naming a model called one, whatever else it omitted.",
       "all_of": [
         {

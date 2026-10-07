@@ -38,7 +38,7 @@
           "mlflow."
         ]
       },
-      "legacy_rank": 210
+      "priority": 210
     }
   ],
   "sdk_slugs": [
@@ -56,7 +56,7 @@
       },
       "parse": "json",
       "emit": "message",
-      "legacy_rank": 900
+      "priority": 900
     },
     {
       "id": "mlflow.span_outputs",
@@ -66,7 +66,7 @@
       },
       "parse": "json",
       "emit": "message",
-      "legacy_rank": 910
+      "priority": 910
     },
     {
       "id": "mlflow.chat_tools",
@@ -76,7 +76,7 @@
       },
       "parse": "json",
       "emit": "tool_definitions",
-      "legacy_rank": 920
+      "priority": 920
     }
   ]
 }

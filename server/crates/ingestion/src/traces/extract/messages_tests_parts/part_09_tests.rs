@@ -6,9 +6,9 @@ fn two_rules_reading_one_carrier_are_refused() {
       "id": "t", "doc": "d",
       "messages": [
         {"id": "a", "doc": "d", "read": {"attribute": "k"}, "parse": "json", "emit": "message",
-         "legacy_rank": 1},
+         "priority": 1},
         {"id": "b", "doc": "d", "read": {"attribute": "k"}, "parse": "json", "emit": "message",
-         "legacy_rank": 2}
+         "priority": 2}
       ]
     }"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), contested.to_vec())]);
@@ -26,9 +26,9 @@ fn the_two_parse_modes_differ_where_it_matters() {
       "id": "t", "doc": "d",
       "messages": [
         {"id": "strict", "doc": "d", "read": {"attribute": "strict"}, "parse": "json",
-         "emit": "message", "legacy_rank": 1},
+         "emit": "message", "priority": 1},
         {"id": "lenient", "doc": "d", "read": {"attribute": "lenient"}, "parse": "json_or_string",
-         "emit": "message", "legacy_rank": 2}
+         "emit": "message", "priority": 2}
       ]
     }"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), both.to_vec())]);
@@ -164,32 +164,32 @@ fn carrier_ownership_conflicts_are_refused() {
             "tag_as collides with another rule's carrier",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "legacy_rank":1},
+                 "priority":1},
                 {"id":"b","doc":"d","read":{"attribute":"y"},"tag_as":"x","parse":"json",
-                 "emit":"message","legacy_rank":2}]}"#,
+                 "emit":"message","priority":2}]}"#,
         ),
         (
             "an indexed family covers an exact key it generates",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"indexed_family":"f"},"emit":"message","legacy_rank":1},
+                {"id":"a","doc":"d","read":{"indexed_family":"f"},"emit":"message","priority":1},
                 {"id":"b","doc":"d","read":{"attribute":"f.0"},"parse":"json","emit":"message",
-                 "legacy_rank":2}]}"#,
+                 "priority":2}]}"#,
         ),
         (
             "a compose consumes a carrier another rule emits",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"r.text"},"parse":"json","emit":"message",
-                 "legacy_rank":1},
+                 "priority":1},
                 {"id":"b","doc":"d","compose":{"tag":"r","members":[
-                    {"as":"content","from_any_of":["r.text"],"parse":"text"}]},"emit":"message","legacy_rank":2}]}"#,
+                    {"as":"content","from_any_of":["r.text"],"parse":"text"}]},"emit":"message","priority":2}]}"#,
         ),
         (
             "a sweep overlaps an exact source of another rule",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"p.one"},"parse":"json","emit":"message",
-                 "legacy_rank":1},
+                 "priority":1},
                 {"id":"b","doc":"d","compose":{"tag":"q","members":[
-                    {"sweep_prefix":"p."}]},"emit":"message","legacy_rank":2}]}"#,
+                    {"sweep_prefix":"p."}]},"emit":"message","priority":2}]}"#,
         ),
     ];
     for (what, asset) in cases {
@@ -215,25 +215,25 @@ fn inexpressible_rules_are_refused() {
             "`compose` with `wrap`, which would be ignored",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","compose":{"tag":"q","members":[{"as":"c","from_any_of":["k"],"parse":"text"}]},
-                 "wrap":{"role":"user"},"emit":"message","legacy_rank":1}]}"#,
+                 "wrap":{"role":"user"},"emit":"message","priority":1}]}"#,
         ),
         (
             "an indexed family with `wrap`, which would be ignored",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"indexed_family":"f"},"wrap":{"role":"user"},
-                 "emit":"message","legacy_rank":1}]}"#,
+                 "emit":"message","priority":1}]}"#,
         ),
         (
             "`entry_member` without an indexed family",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"k","entry_member":"m"},"parse":"json",
-                 "emit":"message","legacy_rank":1}]}"#,
+                 "emit":"message","priority":1}]}"#,
         ),
         (
             "a default section route before another route, which can never match",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"k"},"parse":"text","emit":"message",
-                 "legacy_rank":1,
+                 "priority":1,
                  "sections":{"split_on":"|","routes":[
                     {"id":"r.default","role":"user"},{"id":"r.tool","tag_prefix":"T:","role":"tool"}]}}]}"#,
         ),
@@ -242,7 +242,7 @@ fn inexpressible_rules_are_refused() {
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","compose":{"tag":"q","members":[
                     {"as":"c","from_any_of":["k"],"sweep_prefix":"p."}]},"emit":"message",
-                 "legacy_rank":1}]}"#,
+                 "priority":1}]}"#,
         ),
         // Every gate a message rule can carry, through the one validator - three call sites had grown the
         // checks separately, so these were refused for a field source and compiled here.
@@ -250,30 +250,30 @@ fn inexpressible_rules_are_refused() {
             "a message gate with no signal at all",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
-                 "legacy_rank":1,"when":{}}]}"#,
+                 "priority":1,"when":{}}]}"#,
         ),
         (
             "a message gate whose phrase search names a source the probe does not read",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
-                 "legacy_rank":1,"when":{"text_contains":{"sources":["span"],"needles":["x"]}}}]}"#,
+                 "priority":1,"when":{"text_contains":{"sources":["span"],"needles":["x"]}}}]}"#,
         ),
         (
             "a message gate searching the first of a mixed pair of sources",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
-                 "legacy_rank":1,"when":{"text_contains":{"sources":["attr:model","span_name"],"needles":["embed"],"first_present_source":true}}}]}"#,
+                 "priority":1,"when":{"text_contains":{"sources":["attr:model","span_name"],"needles":["embed"],"first_present_source":true}}}]}"#,
         ),
         (
             "an `unless` with an empty attribute key",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
-                 "legacy_rank":1,"unless":{"attr_exists":[""]}}]}"#,
+                 "priority":1,"unless":{"attr_exists":[""]}}]}"#,
         ),
         (
             "a compose member's fallback gated on a resource dimension",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","legacy_rank":1,
+                {"id":"a","doc":"d","priority":1,
                  "compose":{"tag":"q","members":[
                     {"as":"c","from_any_of":["k"],
                      "fallback":{"from":"other","when":{"service_name":["svc"]}}}]}}]}"#,
@@ -281,7 +281,7 @@ fn inexpressible_rules_are_refused() {
         (
             "a compose member's fallback gated on nothing",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","legacy_rank":1,
+                {"id":"a","doc":"d","priority":1,
                  "compose":{"tag":"q","members":[
                     {"as":"c","from_any_of":["k"],"fallback":{"from":"other","when":{}}}]}}]}"#,
         ),
@@ -289,14 +289,14 @@ fn inexpressible_rules_are_refused() {
             "a gate on a resource dimension a message rule is never given",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
-                 "legacy_rank":1,"when":{"service_name":["svc"]}}]}"#,
+                 "priority":1,"when":{"service_name":["svc"]}}]}"#,
         ),
         // A branch leaf's own copy of a field only the entry points read. Four spellings, because the
         // parent's no-dead-fields rule had no mirror here and each of these compiled into silence.
         (
             "a branch leaf declaring a stage",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","emit":"message","legacy_rank":1,
+                {"id":"a","doc":"d","emit":"message","priority":1,
                  "branch_set":{"primary":[
                     {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
                      "source":{"span":{"stage":"fallback"}}}]}}]}"#,
@@ -304,7 +304,7 @@ fn inexpressible_rules_are_refused() {
         (
             "a branch leaf declaring an event",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","emit":"message","legacy_rank":1,
+                {"id":"a","doc":"d","emit":"message","priority":1,
                  "branch_set":{"primary":[
                     {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
                      "source":{"event":{"names":["some.event"]}}}]}}]}"#,
@@ -312,17 +312,17 @@ fn inexpressible_rules_are_refused() {
         (
             "a branch leaf declaring a rank, which orders nothing - the branch order is positional",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","emit":"message","legacy_rank":1,
+                {"id":"a","doc":"d","emit":"message","priority":1,
                  "branch_set":{"primary":[
                     {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
-                     "legacy_rank":2}]}}]}"#,
+                     "priority":2}]}}]}"#,
         ),
         // Presence, not value: each of these writes out the field's own default, which is still a statement
         // the engine reads from somewhere else. A check comparing against the default accepted all three.
         (
             "a branch leaf declaring the default stage explicitly",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","legacy_rank":1,
+                {"id":"a","doc":"d","priority":1,
                  "branch_set":{"primary":[
                     {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
                      "source":{"span":{"stage":"dialect"}}}]}}]}"#,
@@ -330,7 +330,7 @@ fn inexpressible_rules_are_refused() {
         (
             "a branch leaf declaring an empty event list",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","legacy_rank":1,
+                {"id":"a","doc":"d","priority":1,
                  "branch_set":{"primary":[
                     {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message",
                      "source":{"event":{"names":[]}}}]}}]}"#,
@@ -340,35 +340,35 @@ fn inexpressible_rules_are_refused() {
         (
             "a branch parent granting tool-span permission its leaves do not have",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","legacy_rank":1,"reads_tool_spans":true,
+                {"id":"a","doc":"d","priority":1,"reads_tool_spans":true,
                  "branch_set":{"primary":[
                     {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message"}]}}]}"#,
         ),
         (
             "a branch parent declaring a parse mode for a carrier it does not read",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","legacy_rank":1,"parse":"json",
+                {"id":"a","doc":"d","priority":1,"parse":"json",
                  "branch_set":{"primary":[
                     {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message"}]}}]}"#,
         ),
         (
             "a branch parent declaring a carrier tag its leaves override",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","legacy_rank":1,"tag_as":"q",
+                {"id":"a","doc":"d","priority":1,"tag_as":"q",
                  "branch_set":{"primary":[
                     {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message"}]}}]}"#,
         ),
         (
             "a branch parent requiring a non-empty value it never reads",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","legacy_rank":1,"require_non_empty":true,
+                {"id":"a","doc":"d","priority":1,"require_non_empty":true,
                  "branch_set":{"primary":[
                     {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message"}]}}]}"#,
         ),
         (
             "a branch parent requiring members of an entry it never assembles",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","legacy_rank":1,
+                {"id":"a","doc":"d","priority":1,
                  "require_members":{"all_of":[{"name":"role"}]},
                  "branch_set":{"primary":[
                     {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message"}]}}]}"#,
@@ -405,25 +405,25 @@ fn a_tautological_requirement_is_not_a_condition() {
         (
             "an `exists` complement, which holds of every payload",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1,
+                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","priority":1,
                  "alternatives":[{"id":"probe.alt","require":{"any":[
                     {"path":"$.v","exists":true},{"path":"$.v","exists":false}]},
                   "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "legacy_rank":2}]}"#,
+                 "priority":2}]}"#,
         ),
         (
             "two rules tagging one carrier from different attributes",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "tag_as":"shared","when":{"attr_exists":["marker"]},"legacy_rank":1},
+                 "tag_as":"shared","when":{"attr_exists":["marker"]},"priority":1},
                 {"id":"b","doc":"d","read":{"attribute":"y"},"parse":"json","emit":"message",
-                 "tag_as":"shared","legacy_rank":2}]}"#,
+                 "tag_as":"shared","priority":2}]}"#,
         ),
         (
             "a compose declaring a tag it does not emit",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","tag_as":"declared","legacy_rank":1,
+                {"id":"a","doc":"d","tag_as":"declared","priority":1,
                  "compose":{"tag":"actual","members":[{"as":"content","from_any_of":["k"],"parse":"text"}]}}]}"#,
         ),
     ];
@@ -444,34 +444,34 @@ fn a_tautological_requirement_is_not_a_condition() {
             "two rules tagging one carrier and reading the same attribute",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "tag_as":"shared","when":{"attr_exists":["marker"]},"legacy_rank":1},
+                 "tag_as":"shared","when":{"attr_exists":["marker"]},"priority":1},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "tag_as":"shared","legacy_rank":2}]}"#,
+                 "tag_as":"shared","priority":2}]}"#,
         ),
         (
             "a single `exists` requirement, which is a real condition",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1,
+                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","priority":1,
                  "alternatives":[{"id":"probe.alt","require":{"any":[{"path":"$.v","exists":true}]},
                   "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "legacy_rank":2}]}"#,
+                 "priority":2}]}"#,
         ),
         (
             "an indexed family requiring members, beside a rule reading one of its keys",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"indexed_family":"f"},"emit":"message","legacy_rank":1,
+                {"id":"a","doc":"d","read":{"indexed_family":"f"},"emit":"message","priority":1,
                  "require_members":{"all_of":[{"name":"content"}]}},
                 {"id":"b","doc":"d","read":{"attribute":"f.0.role"},"parse":"json","emit":"message",
-                 "tag_as":"b.own.tag","legacy_rank":2}]}"#,
+                 "tag_as":"b.own.tag","priority":2}]}"#,
         ),
         (
             "a rule reading a later spelling of a carrier another rule reads first",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"first_present":["first","second"]},"parse":"json",
-                 "emit":"message","tag_as":"a.own.tag","legacy_rank":1},
+                 "emit":"message","tag_as":"a.own.tag","priority":1},
                 {"id":"b","doc":"d","read":{"attribute":"second"},"parse":"json","emit":"message",
-                 "tag_as":"b.own.tag","legacy_rank":2}]}"#,
+                 "tag_as":"b.own.tag","priority":2}]}"#,
         ),
     ];
     for (what, asset) in accepted {
@@ -505,43 +505,43 @@ fn a_condition_separates_two_rules_only_when_it_differs() {
             "two rules gated on the same thing, reading one carrier",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "when":{"attr_exists":["marker"]},"tag_as":"a.tag","legacy_rank":1},
+                 "when":{"attr_exists":["marker"]},"tag_as":"a.tag","priority":1},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "when":{"attr_exists":["marker"]},"tag_as":"b.tag","legacy_rank":2}]}"#,
+                 "when":{"attr_exists":["marker"]},"tag_as":"b.tag","priority":2}]}"#,
         ),
         (
             "a shared tag where ownership does not resolve the pair",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"first_present":["first","second"]},"parse":"json",
-                 "emit":"message","tag_as":"shared","legacy_rank":1},
+                 "emit":"message","tag_as":"shared","priority":1},
                 {"id":"b","doc":"d","read":{"attribute":"second"},"parse":"json","emit":"message",
-                 "tag_as":"shared","legacy_rank":2}]}"#,
+                 "tag_as":"shared","priority":2}]}"#,
         ),
         (
             "a `one_of`/`none_of` complement on a member path",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1,
+                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","priority":1,
                  "alternatives":[{"id":"probe.alt","require":{"any":[
                     {"path":"$.v","one_of":["a"]},{"path":"$.v","none_of":["a"]}]},
                   "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "legacy_rank":2}]}"#,
+                 "priority":2}]}"#,
         ),
         (
             "the same complement with the path written in bracket form",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1,
+                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","priority":1,
                  "alternatives":[{"id":"probe.alt","require":{"any":[
                     {"path":"$.v","exists":true},{"path":"$['v']","exists":false}]},
                   "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "legacy_rank":2}]}"#,
+                 "priority":2}]}"#,
         ),
         (
             "`elements` beside a `tag_as` it never emits",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "tag_as":"declared","legacy_rank":1,
+                 "tag_as":"declared","priority":1,
                  "elements":{"passes":[{"id":"probe.pass","tag_from":"$.name"}]}}]}"#,
         ),
     ];
@@ -559,27 +559,27 @@ fn a_condition_separates_two_rules_only_when_it_differs() {
             "two rules gated on different things",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "when":{"attr_exists":["marker.a"]},"tag_as":"a.tag","legacy_rank":1},
+                 "when":{"attr_exists":["marker.a"]},"tag_as":"a.tag","priority":1},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "when":{"attr_exists":["marker.b"]},"tag_as":"b.tag","legacy_rank":2}]}"#,
+                 "when":{"attr_exists":["marker.b"]},"tag_as":"b.tag","priority":2}]}"#,
         ),
         (
             "a shared tag where both rules necessarily own one carrier",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "tag_as":"shared","when":{"attr_exists":["marker"]},"legacy_rank":1},
+                 "tag_as":"shared","when":{"attr_exists":["marker"]},"priority":1},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "tag_as":"shared","legacy_rank":2}]}"#,
+                 "tag_as":"shared","priority":2}]}"#,
         ),
         (
             "a `none_of` that forbids a value nothing else requires",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1,
+                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","priority":1,
                  "alternatives":[{"id":"probe.alt","require":{"any":[
                     {"path":"$.v","one_of":["a"]},{"path":"$.v","none_of":["a","b"]}]},
                   "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "legacy_rank":2}]}"#,
+                 "priority":2}]}"#,
         ),
     ];
     for (what, asset) in accepted {
@@ -604,12 +604,12 @@ fn a_leaf_runs_under_both_gates() {
     let parent_p_leaf_l = |rank_b_gate: &str| {
         format!(
             r#"{{"id":"t","doc":"d","messages":[
-                {{"id":"a","doc":"d","legacy_rank":1,"when":{{"attr_exists":["p"]}},
+                {{"id":"a","doc":"d","priority":1,"when":{{"attr_exists":["p"]}},
                  "branch_set":{{"primary":[
                     {{"id":"a.1","doc":"d","read":{{"attribute":"x"}},"parse":"json","emit":"message",
                      "when":{{"attr_exists":["l"]}},"tag_as":"a.tag"}}]}}}},
                 {{"id":"b","doc":"d","read":{{"attribute":"x"}},"parse":"json","emit":"message",
-                 "when":{{"attr_exists":[{rank_b_gate}]}},"tag_as":"b.tag","legacy_rank":2}}]}}"#
+                 "when":{{"attr_exists":[{rank_b_gate}]}},"tag_as":"b.tag","priority":2}}]}}"#
         )
     };
     // `l` without `p` runs only the later rule, so the pair is live and must be accepted.
@@ -626,12 +626,12 @@ fn a_leaf_runs_under_both_gates() {
     // The parent's gate covering the leaf's: the conjunction is the leaf's gate, and a later rule on the same
     // gate really is dead.
     let covered = r#"{"id":"t","doc":"d","messages":[
-        {"id":"a","doc":"d","legacy_rank":1,"when":{"attr_exists":["p","l"]},
+        {"id":"a","doc":"d","priority":1,"when":{"attr_exists":["p","l"]},
          "branch_set":{"primary":[
             {"id":"a.1","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
              "when":{"attr_exists":["l"]},"tag_as":"a.tag"}]}},
         {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-         "when":{"attr_exists":["l"]},"tag_as":"b.tag","legacy_rank":2}]}"#;
+         "when":{"attr_exists":["l"]},"tag_as":"b.tag","priority":2}]}"#;
     let sources =
         std::collections::BTreeMap::from([("t.json".to_string(), covered.as_bytes().to_vec())]);
     assert!(

@@ -284,7 +284,7 @@ impl SectionDefect for super::detect_rules::DetectCompileError {
             E::SubsumedLiteral { rule, .. } => vec![rule],
             E::UselessSupersedes { rule, .. } => vec![rule],
             E::ShadowedRule { earlier, later } => vec![later, earlier],
-            E::DuplicateRank { first, second } => vec![first, second],
+            E::DuplicatePriority { first, second } => vec![first, second],
             E::SlugLabelNoRuleProduces { .. } | E::DuplicateSlug { .. } => Vec::new(),
         }
     }
@@ -315,7 +315,7 @@ impl SectionDefect for super::classify::ClassifyCompileError {
             | E::UnknownResult { rule, .. }
             | E::DuplicateId { rule, .. } => vec![rule],
             E::ShadowedRule { earlier, later } => vec![later, earlier],
-            E::SharedRank { first, second, .. } => vec![first, second],
+            E::SharedPriority { first, second, .. } => vec![first, second],
         }
     }
 
@@ -327,7 +327,7 @@ impl SectionDefect for super::classify::ClassifyCompileError {
             | E::NoResult { file, .. }
             | E::UnknownResult { file, .. } => vec![file],
             E::DuplicateId { first, second, .. } => vec![first, second],
-            E::ShadowedRule { .. } | E::SharedRank { .. } => Vec::new(),
+            E::ShadowedRule { .. } | E::SharedPriority { .. } => Vec::new(),
         }
     }
 }
@@ -384,11 +384,11 @@ impl SectionDefect for super::members::MemberCompileError {
             | E::NoMembers { rule, .. }
             | E::ContentWithoutShape { rule, .. }
             | E::SaysNothing { rule, .. }
-            | E::ContentWithoutARank { rule, .. }
-            | E::RankWithoutContent { rule, .. }
+            | E::QuestionWithoutAPriority { rule, .. }
+            | E::PriorityWithoutAQuestion { rule, .. }
             | E::TwoOrderedQuestions { rule, .. }
             | E::UnknownAliasTarget { rule, .. } => vec![rule],
-            E::SharedRank { first, second, .. } | E::DuplicateMember { first, second, .. } => {
+            E::SharedPriority { first, second, .. } | E::DuplicateMember { first, second, .. } => {
                 vec![first, second]
             }
         }
@@ -401,11 +401,11 @@ impl SectionDefect for super::members::MemberCompileError {
             | E::NoMembers { file, .. }
             | E::ContentWithoutShape { file, .. }
             | E::SaysNothing { file, .. }
-            | E::ContentWithoutARank { file, .. }
-            | E::RankWithoutContent { file, .. }
+            | E::QuestionWithoutAPriority { file, .. }
+            | E::PriorityWithoutAQuestion { file, .. }
             | E::TwoOrderedQuestions { file, .. }
             | E::UnknownAliasTarget { file, .. } => vec![file],
-            E::SharedRank { .. } | E::DuplicateMember { .. } => Vec::new(),
+            E::SharedPriority { .. } | E::DuplicateMember { .. } => Vec::new(),
         }
     }
 }
@@ -429,7 +429,7 @@ impl SectionDefect for super::tool_shapes::ToolShapeError {
             | E::EmptyCarry { id }
             | E::NoParameterPath { id }
             | E::Inexpressible { id, .. } => vec![id],
-            E::SharedRank { first, second, .. } => vec![first, second],
+            E::SharedPriority { first, second, .. } => vec![first, second],
         }
     }
 }
@@ -448,7 +448,7 @@ impl SectionDefect for super::content_blocks::ContentBlockCompileError {
             | E::SpliceOutsideMessageContent { rule, .. }
             | E::IdTemplate { rule, .. }
             | E::Source { rule, .. } => vec![rule],
-            E::SharedRank { first, second, .. } => vec![first, second],
+            E::SharedPriority { first, second, .. } => vec![first, second],
         }
     }
 }
@@ -488,7 +488,7 @@ mod tests {
             (
                 "probe/blocks.json",
                 serde_json::json!({"id": "probe-blocks", "content_blocks": [
-                    {"id": "probe.nothing", "at": "after_provider_formats", "legacy_rank": 1}
+                    {"id": "probe.nothing", "at": "after_provider_formats", "priority": 1}
                 ]}),
             ),
             (
@@ -522,7 +522,7 @@ mod tests {
             (
                 "probe/one.json",
                 serde_json::json!({"id": "probe-one", "content_blocks": [
-                    {"id": "probe.a", "at": "after_provider_formats", "legacy_rank": 1,
+                    {"id": "probe.a", "at": "after_provider_formats", "priority": 1,
                      "require": {"all": [{"path": "$.type", "one_of": ["probe_a"]}]},
                      "text": {"text": ["$.value"]}}
                 ]}),
@@ -530,7 +530,7 @@ mod tests {
             (
                 "probe/two.json",
                 serde_json::json!({"id": "probe-two", "content_blocks": [
-                    {"id": "probe.b", "at": "after_provider_formats", "legacy_rank": 1,
+                    {"id": "probe.b", "at": "after_provider_formats", "priority": 1,
                      "require": {"all": [{"path": "$.type", "one_of": ["probe_b"]}]},
                      "text": {"text": ["$.value"]}}
                 ]}),

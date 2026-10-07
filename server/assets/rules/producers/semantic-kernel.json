@@ -19,7 +19,7 @@
           "semantic_kernel."
         ]
       },
-      "legacy_rank": 150
+      "priority": 150
     }
   ],
   "sdk_slugs": [
@@ -57,7 +57,7 @@
         }
       },
       "emit": "message",
-      "legacy_rank": 168,
+      "priority": 168,
       "reads_tool_spans": true
     }
   ]

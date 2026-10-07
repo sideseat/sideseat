@@ -6,7 +6,7 @@
     {
       "id": "openai.text",
       "at": "provider_formats",
-      "legacy_rank": 1000,
+      "priority": 1000,
       "doc": "Prose, under the three type names the Chat Completions and Responses APIs use. Only a string is text: a block whose `text` holds anything else is not prose, and is left to the rest of the chain rather than read from another member.",
       "require": {
         "all": [
@@ -29,7 +29,7 @@
     {
       "id": "openai.image_url",
       "at": "provider_formats",
-      "legacy_rank": 1400,
+      "priority": 1400,
       "require": {
         "all": [
           {
@@ -57,7 +57,7 @@
     {
       "id": "openai.input_audio",
       "at": "provider_formats",
-      "legacy_rank": 1700,
+      "priority": 1700,
       "require": {
         "all": [
           {
@@ -89,7 +89,7 @@
     {
       "id": "openai.audio",
       "at": "provider_formats",
-      "legacy_rank": 1701,
+      "priority": 1701,
       "require": {
         "all": [
           {
@@ -121,7 +121,7 @@
     {
       "id": "openai.input_file_data",
       "at": "provider_formats",
-      "legacy_rank": 1800,
+      "priority": 1800,
       "require": {
         "all": [
           {
@@ -146,7 +146,7 @@
     {
       "id": "openai.input_file_url",
       "at": "provider_formats",
-      "legacy_rank": 1801,
+      "priority": 1801,
       "require": {
         "all": [
           {
@@ -172,7 +172,7 @@
     {
       "id": "openai.input_file_id",
       "at": "provider_formats",
-      "legacy_rank": 1802,
+      "priority": 1802,
       "require": {
         "all": [
           {
@@ -198,7 +198,7 @@
     {
       "id": "openai.file_data",
       "at": "provider_formats",
-      "legacy_rank": 1803,
+      "priority": 1803,
       "require": {
         "all": [
           {
@@ -227,7 +227,7 @@
     {
       "id": "openai.file_url",
       "at": "provider_formats",
-      "legacy_rank": 1804,
+      "priority": 1804,
       "require": {
         "all": [
           {
@@ -256,7 +256,7 @@
     {
       "id": "openai.file_id",
       "at": "provider_formats",
-      "legacy_rank": 1805,
+      "priority": 1805,
       "require": {
         "all": [
           {
@@ -285,7 +285,7 @@
     {
       "id": "openai.refusal",
       "at": "provider_formats",
-      "legacy_rank": 1900,
+      "priority": 1900,
       "require": {
         "all": [
           {
@@ -307,7 +307,7 @@
     {
       "id": "openai.output_json",
       "at": "provider_formats",
-      "legacy_rank": 1910,
+      "priority": 1910,
       "require": {
         "all": [
           {

@@ -6,7 +6,7 @@
     {
       "id": "bedrock.text",
       "at": "provider_formats",
-      "legacy_rank": 3000,
+      "priority": 3000,
       "require": {
         "all": [
           {
@@ -31,7 +31,7 @@
     {
       "id": "bedrock.json",
       "at": "provider_formats",
-      "legacy_rank": 3010,
+      "priority": 3010,
       "require": {
         "all": [
           {
@@ -56,7 +56,7 @@
     {
       "id": "bedrock.reasoning_text",
       "at": "provider_formats",
-      "legacy_rank": 3020,
+      "priority": 3020,
       "require": {
         "all": [
           {
@@ -77,7 +77,7 @@
     {
       "id": "bedrock.reasoning_redacted",
       "at": "provider_formats",
-      "legacy_rank": 3021,
+      "priority": 3021,
       "require": {
         "all": [
           {
@@ -95,7 +95,7 @@
     {
       "id": "bedrock.reasoning_other",
       "at": "provider_formats",
-      "legacy_rank": 3022,
+      "priority": 3022,
       "require": {
         "all": [
           {
@@ -111,7 +111,7 @@
     {
       "id": "bedrock.image",
       "at": "provider_formats",
-      "legacy_rank": 3030,
+      "priority": 3030,
       "require": {
         "all": [
           {
@@ -141,7 +141,7 @@
     {
       "id": "bedrock.document",
       "at": "provider_formats",
-      "legacy_rank": 3031,
+      "priority": 3031,
       "require": {
         "all": [
           {
@@ -173,7 +173,7 @@
     {
       "id": "bedrock.video",
       "at": "provider_formats",
-      "legacy_rank": 3032,
+      "priority": 3032,
       "require": {
         "all": [
           {
@@ -202,7 +202,7 @@
     {
       "id": "bedrock.tool_use",
       "at": "provider_formats",
-      "legacy_rank": 3040,
+      "priority": 3040,
       "require": {
         "all": [
           {
@@ -226,7 +226,7 @@
     {
       "id": "bedrock.tool_result",
       "at": "provider_formats",
-      "legacy_rank": 3050,
+      "priority": 3050,
       "require": {
         "all": [
           {
@@ -270,7 +270,7 @@
       "members": [
         "json"
       ],
-      "rank": 10,
+      "priority": 10,
       "wraps_structured_value": true
     }
   ]

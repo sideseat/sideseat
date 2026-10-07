@@ -141,41 +141,72 @@ impl CompiledDetect {
 }
 
 impl DetectPlan {
-    /// The rule that claims this span.
+    /// The rule that claims this span: the first that matches, by priority.
     ///
-    /// Takes the first by `legacy_rank`, which is what reproduces the table this replaced. Where more
-    /// than one rule matches, that choice is a *migration bridge* and the alternatives are recoverable
-    /// through [`Self::overlapping_candidates`] - the design's target is that no span has two, and the
-    /// only way to get there is to be able to see which spans do.
+    /// Where more than one rule matches, the priority is what decides, and the alternatives are recoverable
+    /// through [`Self::overlapping_candidates`] - the design's target is that no span has two, and the only way
+    /// to get there is to be able to see which spans do. `supersedes` takes no part: compilation has checked
+    /// that every edge agrees with the priorities.
     pub fn resolve(&self, ctx: &DetectContext<'_>) -> Option<&CompiledDetect> {
-        let first = self.rules.iter().find(|rule| rule.matches(ctx))?;
-        // `supersedes` **orders**, which is what `legacy_rank`'s own doc says the accepted design is: "a declared
-        // `supersedes` resolves a known overlap". It used to waive only the overlap *report* while rank decided
-        // the winner regardless - so the field documented an ordering it took no part in, and could be deleted
-        // from an asset without changing a single attribution.
-        //
-        // The fast path is the common one: nothing supersedes this rule, so no later rule can displace it and the
-        // scan stops where it always did. Only a rule some other rule claims to beat pays for the second look.
-        if !self.superseded.contains(first.rule_id.as_str()) {
-            return Some(first);
-        }
-        // The winner is the matching rule that **no** other matching rule beats, lowest rank among those. Not
-        // "the first matching rule that beats the rank-winner": in rank order that test is satisfied by the
-        // rank-winner itself, so the edge ordered nothing. Domination is transitive, since `supersedes` is a DAG
-        // and a rule that beats a rule which beats this one beats it too; compilation refuses a cycle.
-        let matching: Vec<&CompiledDetect> =
-            self.rules.iter().filter(|rule| rule.matches(ctx)).collect();
-        let beaten: std::collections::BTreeSet<&str> = matching
+        self.rules.iter().find(|rule| rule.matches(ctx))
+    }
+
+    /// The retired resolution, for the oracle that states what the precedence migration changed: the first
+    /// matching clause, by the frozen rank, that no other matching clause beats through the frozen and
+    /// transitively closed `supersedes` edges. `retired` is `(clause id, rank, edges)` as the assets stated them;
+    /// a current clause split out of a retired one matches as that one did (`origin`: split id, retired id), so
+    /// the retired plan sees the predicates it had. The table lives with the test that freezes it, since it
+    /// names producers.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn retired_resolve(
+        &self,
+        ctx: &DetectContext<'_>,
+        retired: &[(&str, i32, &[&str])],
+        origin: &[(&str, &str)],
+    ) -> Option<&str> {
+        let origin_of = |id: &str| -> String {
+            origin
+                .iter()
+                .find(|(split, _)| *split == id)
+                .map_or(id, |(_, from)| from)
+                .to_string()
+        };
+        let matching: std::collections::BTreeSet<String> = self
+            .rules
             .iter()
-            .flat_map(|rule| self.dominated_by(rule.rule_id.as_str()))
+            .filter(|rule| rule.matches(ctx))
+            .map(|rule| origin_of(&rule.rule_id))
             .collect();
-        matching
+        let edges = |id: &str| -> Vec<&str> {
+            retired
+                .iter()
+                .find(|(clause, ..)| *clause == id)
+                .map_or_else(Vec::new, |(_, _, edges)| edges.to_vec())
+        };
+        let mut beaten: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+        for id in &matching {
+            let mut queue: Vec<&str> = edges(id);
+            while let Some(target) = queue.pop() {
+                if beaten.insert(target) {
+                    queue.extend(edges(target));
+                }
+            }
+        }
+        let mut ordered: Vec<(i32, &str)> = retired
             .iter()
-            .find(|rule| !beaten.contains(rule.rule_id.as_str()))
-            .copied()
-            // Every candidate beaten by another is only possible in a cycle, which compilation refuses - so this
-            // is unreachable, and falling back to the rank-winner is what it would have answered anyway.
-            .or(Some(first))
+            .filter(|(id, ..)| matching.contains(*id))
+            .map(|(id, rank, _)| (*rank, *id))
+            .collect();
+        ordered.sort();
+        let winner = ordered
+            .iter()
+            .find(|(_, id)| !beaten.contains(id))
+            .or(ordered.first())?
+            .1;
+        self.rules
+            .iter()
+            .find(|rule| rule.rule_id == winner)
+            .map(|rule| rule.label.as_str())
     }
 
     /// Why nothing was attributed: the rules that read a key this span **has**, and disagreed about its value.
@@ -248,9 +279,9 @@ impl DetectPlan {
         out
     }
 
-    /// Every rule that matches, in rank order.
+    /// Every rule that matches, in priority order.
     ///
-    /// The instrument for retiring `legacy_rank`: a span with one candidate needs no ordering, and one
+    /// The instrument for narrowing the predicates: a span with one candidate needs no ordering, and one
     /// with several names exactly which predicates are not yet sufficient. A rule that `supersedes`
     /// another is not reported against it, because that overlap is already owned.
     pub fn overlapping_candidates<'p>(
@@ -262,8 +293,8 @@ impl DetectPlan {
         if matching.len() < 2 {
             return Vec::new();
         }
-        // **Transitively** dominated, not only directly. `supersedes` is a DAG, so a rule that supersedes a
-        // rule which supersedes a third owns that overlap too - reading direct edges only reported an overlap
+        // **Transitively** dominated, not only directly. Every edge agrees with priority, so the edges form a
+        // DAG, and a rule that supersedes a rule which supersedes a third owns that overlap too - reading direct edges only reported an overlap
         // whose ordering is in fact declared, which is noise in the one instrument meant to say where ordering
         // is *not* yet declared.
         let dominated = self.dominated_by(matching[0].rule_id.as_str());
@@ -281,8 +312,8 @@ impl DetectPlan {
 
     /// Every rule the named one supersedes, directly or through another.
     ///
-    /// The transitive closure, because precedence is a DAG: a rule that supersedes one which supersedes a third
-    /// has settled its ordering against all of them. Compilation refuses a cycle, so this terminates.
+    /// The transitive closure: a rule that supersedes one which supersedes a third has documented its overlap with
+    /// all of them. Every edge points to a later priority, so this terminates.
     fn dominated_by(&self, rule_id: &str) -> std::collections::BTreeSet<&str> {
         let mut out: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
         let mut queue: Vec<&str> = vec![rule_id];

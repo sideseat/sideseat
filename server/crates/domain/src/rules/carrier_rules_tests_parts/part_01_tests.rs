@@ -549,6 +549,7 @@ fn the_engine_names_no_framework() {
         ("refusal.rs", include_str!("../refusal.rs")),
         ("tool_shapes.rs", include_str!("../tool_shapes.rs")),
         ("finish_reasons.rs", include_str!("../finish_reasons.rs")),
+        ("precedence.rs", include_str!("../precedence.rs")),
     ];
 
     // The engine directory holds nothing else. A new module would otherwise be exempt by omission -

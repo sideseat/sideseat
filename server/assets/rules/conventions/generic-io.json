@@ -77,7 +77,7 @@
         "only_plain_data": true
       },
       "emit": "message",
-      "legacy_rank": 9000
+      "priority": 9000
     },
     {
       "id": "generic-io.fallback_response",
@@ -107,7 +107,7 @@
         "only_plain_data": true
       },
       "emit": "message",
-      "legacy_rank": 9020
+      "priority": 9020
     },
     {
       "id": "generic-io.fallback_output",
@@ -126,7 +126,7 @@
         "only_plain_data": true
       },
       "emit": "message",
-      "legacy_rank": 9030
+      "priority": 9030
     }
   ]
 }

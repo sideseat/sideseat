@@ -127,7 +127,7 @@
           "haystack."
         ]
       },
-      "legacy_rank": 120,
+      "priority": 120,
       "supersedes": [
         "openinference.detect"
       ]
@@ -160,7 +160,7 @@
     {
       "id": "observation.haystack_agent_step_llm",
       "doc": "A Haystack model step. The exact operation outranks the weaker `agent` substring in its name.",
-      "rank": 47,
+      "priority": 47,
       "all_of": [
         {
           "span_name_exact": [
@@ -174,7 +174,7 @@
     {
       "id": "observation.haystack_agent_step_tool",
       "doc": "A Haystack tool step.",
-      "rank": 48,
+      "priority": 48,
       "all_of": [
         {
           "span_name_exact": [
@@ -188,7 +188,7 @@
     {
       "id": "observation.haystack_agent",
       "doc": "The Agent invocation and its loop steps.",
-      "rank": 49,
+      "priority": 49,
       "all_of": [
         {
           "span_name_exact": [
@@ -202,7 +202,7 @@
     {
       "id": "observation.haystack_chat_generator_component",
       "doc": "A chat-generator component is a model generation even though its generic span name only says `component`.",
-      "rank": 51,
+      "priority": 51,
       "all_of": [
         {
           "span_name_exact": [
@@ -224,7 +224,7 @@
     {
       "id": "observation.haystack_agent_component",
       "doc": "The component wrapper around an Agent invocation.",
-      "rank": 52,
+      "priority": 52,
       "all_of": [
         {
           "span_name_exact": [
@@ -246,7 +246,7 @@
     {
       "id": "observation.haystack_pipeline",
       "doc": "A pipeline coordinates component invocations.",
-      "rank": 53,
+      "priority": 53,
       "all_of": [
         {
           "span_name_exact": [
@@ -260,7 +260,7 @@
     {
       "id": "observation.haystack_component",
       "doc": "A component without a more specific declared operation is one step in a chain.",
-      "rank": 54,
+      "priority": 54,
       "all_of": [
         {
           "span_name_exact": [
@@ -275,7 +275,7 @@
   "span_categories": [
     {
       "id": "category.haystack_agent_step_llm",
-      "rank": 81,
+      "priority": 81,
       "all_of": [
         {
           "span_name_exact": [
@@ -288,7 +288,7 @@
     },
     {
       "id": "category.haystack_agent_step_tool",
-      "rank": 82,
+      "priority": 82,
       "all_of": [
         {
           "span_name_exact": [
@@ -301,7 +301,7 @@
     },
     {
       "id": "category.haystack_chat_generator_component",
-      "rank": 83,
+      "priority": 83,
       "all_of": [
         {
           "span_name_exact": [
@@ -322,7 +322,7 @@
     },
     {
       "id": "category.haystack_agent",
-      "rank": 84,
+      "priority": 84,
       "all_of": [
         {
           "span_name_exact": [
@@ -336,7 +336,7 @@
     },
     {
       "id": "category.haystack_agent_component",
-      "rank": 85,
+      "priority": 85,
       "all_of": [
         {
           "span_name_exact": [
@@ -357,7 +357,7 @@
     },
     {
       "id": "category.haystack_pipeline",
-      "rank": 86,
+      "priority": 86,
       "all_of": [
         {
           "span_name_exact": [
@@ -370,7 +370,7 @@
     },
     {
       "id": "category.haystack_component",
-      "rank": 87,
+      "priority": 87,
       "all_of": [
         {
           "span_name_exact": [
@@ -420,7 +420,7 @@
           "emit": "tool_definitions"
         }
       ],
-      "legacy_rank": 1700
+      "priority": 1700
     },
     {
       "id": "haystack.agent_step_llm_output",
@@ -453,7 +453,7 @@
           }
         }
       ],
-      "legacy_rank": 1710
+      "priority": 1710
     },
     {
       "id": "haystack.agent_input",
@@ -486,7 +486,7 @@
           }
         }
       ],
-      "legacy_rank": 1720
+      "priority": 1720
     },
     {
       "id": "haystack.agent_output",
@@ -519,7 +519,7 @@
           }
         }
       ],
-      "legacy_rank": 1730
+      "priority": 1730
     },
     {
       "id": "haystack.component_input",
@@ -557,7 +557,7 @@
           "emit": "tool_definitions"
         }
       ],
-      "legacy_rank": 1740
+      "priority": 1740
     },
     {
       "id": "haystack.component_output",
@@ -604,7 +604,7 @@
           }
         }
       ],
-      "legacy_rank": 1750
+      "priority": 1750
     },
     {
       "id": "haystack.pipeline_input",
@@ -642,7 +642,7 @@
           "emit": "tool_definitions"
         }
       ],
-      "legacy_rank": 1760
+      "priority": 1760
     },
     {
       "id": "haystack.pipeline_output",
@@ -689,7 +689,7 @@
           }
         }
       ],
-      "legacy_rank": 1770
+      "priority": 1770
     },
     {
       "id": "haystack.agent_step_tool_input",
@@ -721,7 +721,7 @@
         }
       },
       "emit": "message",
-      "legacy_rank": 1780,
+      "priority": 1780,
       "reads_tool_spans": true
     },
     {
@@ -752,7 +752,7 @@
         }
       },
       "emit": "message",
-      "legacy_rank": 1790,
+      "priority": 1790,
       "reads_tool_spans": true
     },
     {
@@ -847,7 +847,7 @@
           "async_function"
         ]
       },
-      "legacy_rank": 1800
+      "priority": 1800
     }
   ],
   "content_blocks": [
@@ -855,7 +855,7 @@
       "id": "haystack.tool_call",
       "doc": "Haystack wraps a model tool call in a `tool_call` member.",
       "at": "before_provider_formats",
-      "legacy_rank": 100,
+      "priority": 100,
       "require": {
         "all": [
           {
@@ -880,7 +880,7 @@
       "id": "haystack.tool_call_result",
       "doc": "Haystack wraps a tool result together with the originating call, preserving the id needed for exact pairing.",
       "at": "before_provider_formats",
-      "legacy_rank": 110,
+      "priority": 110,
       "require": {
         "all": [
           {
@@ -907,7 +907,7 @@
     {
       "id": "haystack.reasoning_content",
       "at": "message_envelope",
-      "legacy_rank": 15,
+      "priority": 15,
       "doc": "Haystack's reasoning part: the text under `reasoning_text` beside an `extra` member holding the provider's own fields. Ranked before the shared reasoning envelope, which reads `text` and would make this an empty block.",
       "require": {
         "all": [

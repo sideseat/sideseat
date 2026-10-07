@@ -6,7 +6,7 @@
     {
       "id": "vercel.tool_call",
       "at": "after_provider_formats",
-      "legacy_rank": 100,
+      "priority": 100,
       "doc": "A call. The name is required, because a nameless call names nothing to run - a block without one is left to the rest of the chain, as the retired reader left it. Two spellings of the arguments, and an empty object counts as absent, so the member this dialect stopped using does not win by being present.",
       "require": {
         "all": [
@@ -34,7 +34,7 @@
     {
       "id": "vercel.tool_result",
       "at": "after_provider_formats",
-      "legacy_rank": 110,
+      "priority": 110,
       "doc": "What it returned, under either of two member names, with the same call id so the pair is joined by an id rather than guessed at by content.",
       "require": {
         "all": [
@@ -63,7 +63,7 @@
     {
       "id": "vercel.json",
       "at": "after_provider_formats",
-      "legacy_rank": 120,
+      "priority": 120,
       "require": {
         "all": [
           {
@@ -83,7 +83,7 @@
     {
       "id": "vercel.text",
       "at": "after_provider_formats",
-      "legacy_rank": 130,
+      "priority": 130,
       "doc": "Prose under `value` rather than `text`, which is this dialect's spelling. The member is *not* declared as required, because it already is: only a string is text, so a block without it builds nothing and falls through - the retired reader's own guard, and stating it again here would be a condition no test could hold to account.",
       "require": {
         "all": [
@@ -104,7 +104,7 @@
     {
       "id": "vercel.file",
       "at": "after_provider_formats",
-      "legacy_rank": 140,
+      "priority": 140,
       "doc": "Bytes or a reference to them. Two spellings of the media type - the newer one first, since the older is what older SDK versions wrote. Which kind of block it becomes, and whether the data is a reference, are both derived from the media type and the data rather than declared.",
       "require": {
         "all": [
@@ -129,7 +129,7 @@
     {
       "id": "vercel.aggregated_response",
       "at": "after_provider_formats",
-      "legacy_rank": 150,
+      "priority": 150,
       "doc": "The whole response as one object, with no block type: prose under `content`, beside a member only this dialect writes. The type condition is what keeps this from claiming a block whose type simply is not one of the five above - the retired reader answered nothing for such a block, and answering *text* instead would turn any unrecognised typed block carrying a `content` string into a message.",
       "require": {
         "all": [

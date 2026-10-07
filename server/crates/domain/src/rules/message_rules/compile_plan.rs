@@ -87,10 +87,10 @@ pub fn compile(
                 }
             }
             // A top-level rule's position among the others is policy somebody owns, so it is stated.
-            if rule.legacy_rank.is_none() {
+            if rule.priority.is_none() {
                 return Err(MessageCompileError::Inexpressible {
                     rule: rule.id.clone(),
-                    detail: "a top-level rule must declare `legacy_rank`, which is its position among \
+                    detail: "a top-level rule must declare `priority`, which is its position among \
                              the others",
                 });
             }
@@ -138,32 +138,29 @@ pub fn compile(
     }
 
     rules.sort_by(|a, b| {
-        a.legacy_rank
-            .cmp(&b.legacy_rank)
+        a.priority
+            .cmp(&b.priority)
             .then_with(|| a.rule_id.cmp(&b.rule_id))
     });
 
-    // A shared rank is refused **within an ordering arena**, because the tie-break above is the rule *id*:
+    // A shared priority is refused **within an ordering arena**, because the tie-break above is the rule *id*:
     // renaming a rule would change which of two contenders reads a carrier, and a rule id must not be a
-    // control-flow primitive. Classification and detection already refuse a shared rank outright; this path
-    // did not, and five pairs in the shipped assets share one.
+    // control-flow primitive.
     //
-    // Not refused globally, because those five pairs are legitimate: each puts a *message* rule beside a
-    // *metadata* rule, and their orders are independent - a tool definition is not a reading of the
-    // conversation and the two paths never contend. So an arena is a set of rules whose relative order is
-    // observable: the same stage, an overlapping output axis, and either both reading a span's attributes or
-    // both reading events whose names intersect.
-    for (index, rule) in rules.iter().enumerate() {
-        for other in rules.iter().skip(index + 1) {
-            if rule.legacy_rank != other.legacy_rank || !share_an_arena(rule, other) {
-                continue;
-            }
-            return Err(MessageCompileError::Inexpressible {
-                rule: format!("{} and {}", rule.rule_id, other.rule_id),
-                detail: "share a rank in one ordering arena, so which of them reads a contested carrier is \
-                         decided by comparing their *ids* - renaming a rule would change the answer",
-            });
-        }
+    // Not refused globally, because five pairs in the shipped assets share one legitimately: each puts a
+    // *message* rule beside a *metadata* rule, and their orders are independent - a tool definition is not a
+    // reading of the conversation and the two paths never contend. So an arena is a set of rules whose relative
+    // order is observable: the same stage, an overlapping output axis, and either both reading a span's
+    // attributes or both reading events whose names intersect. Pairwise, because that relation is not an
+    // equivalence: grouping it into components would refuse ties between rules that never contend.
+    if let Some((rule, other)) =
+        super::super::precedence::shared_priority(&rules, |rule| rule.priority, share_an_arena)
+    {
+        return Err(MessageCompileError::Inexpressible {
+            rule: format!("{} and {}", rule.rule_id, other.rule_id),
+            detail: "share a priority in one ordering arena, so which of them reads a contested carrier is \
+                     decided by comparing their *ids* - renaming a rule would change the answer",
+        });
     }
 
     // Two rules must not claim one carrier, in either direction.

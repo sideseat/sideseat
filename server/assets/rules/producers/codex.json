@@ -56,7 +56,7 @@
           "codex_vscode"
         ]
       },
-      "legacy_rank": 285
+      "priority": 285
     }
   ],
   "message_events": [
@@ -126,7 +126,7 @@
         "role": "user"
       },
       "emit": "message",
-      "legacy_rank": 1950,
+      "priority": 1950,
       "tag_as": "codex.user_prompt.prompt"
     },
     {
@@ -168,7 +168,7 @@
         }
       },
       "emit": "message",
-      "legacy_rank": 1955,
+      "priority": 1955,
       "tag_as": "codex.tool_result.call"
     },
     {
@@ -201,7 +201,7 @@
         }
       },
       "emit": "message",
-      "legacy_rank": 1960,
+      "priority": 1960,
       "tag_as": "codex.tool_result.output"
     },
     {
@@ -223,7 +223,7 @@
         "role": "assistant"
       },
       "emit": "message",
-      "legacy_rank": 1965,
+      "priority": 1965,
       "tag_as": "codex.agent_response.response"
     }
   ]

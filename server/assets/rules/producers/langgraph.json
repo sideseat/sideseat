@@ -25,7 +25,7 @@
           }
         ]
       },
-      "legacy_rank": 40,
+      "priority": 40,
       "supersedes": [
         "langchain.detect"
       ]
@@ -59,7 +59,7 @@
       },
       "parse": "json",
       "emit": "message",
-      "legacy_rank": 600,
+      "priority": 600,
       "walk": {
         "max_depth": 4,
         "prune": [
@@ -139,7 +139,7 @@
       },
       "parse": "json",
       "emit": "message",
-      "legacy_rank": 610,
+      "priority": 610,
       "walk": {
         "max_depth": 4,
         "prune": [
@@ -219,7 +219,7 @@
       },
       "parse": "json",
       "emit": "message",
-      "legacy_rank": 620,
+      "priority": 620,
       "alternatives": [
         {
           "id": "message",

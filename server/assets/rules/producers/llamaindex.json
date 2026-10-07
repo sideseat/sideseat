@@ -16,7 +16,7 @@
           "llama_index."
         ]
       },
-      "legacy_rank": 60,
+      "priority": 60,
       "supersedes": [
         "openinference.detect"
       ]
@@ -42,7 +42,7 @@
       },
       "parse": "json_or_string",
       "emit": "claim",
-      "legacy_rank": 217
+      "priority": 217
     },
     {
       "id": "llamaindex.chain_output",
@@ -63,7 +63,7 @@
       },
       "parse": "json_or_string",
       "emit": "claim",
-      "legacy_rank": 218
+      "priority": 218
     },
     {
       "id": "llamaindex.prepare_chat_input",
@@ -82,7 +82,7 @@
       },
       "parse": "json_or_string",
       "emit": "claim",
-      "legacy_rank": 219
+      "priority": 219
     },
     {
       "id": "llamaindex.prepare_chat_output",
@@ -101,7 +101,7 @@
       },
       "parse": "json_or_string",
       "emit": "claim",
-      "legacy_rank": 221
+      "priority": 221
     }
   ],
   "sdk_slugs": [

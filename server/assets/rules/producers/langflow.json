@@ -13,7 +13,7 @@
           "langflow."
         ]
       },
-      "legacy_rank": 100,
+      "priority": 100,
       "supersedes": [
         "openinference.detect"
       ]

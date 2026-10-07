@@ -6,7 +6,7 @@
     {
       "id": "mistral.thinking_chunks",
       "at": "provider_formats",
-      "legacy_rank": 1950,
+      "priority": 1950,
       "require": {
         "all": [
           {

@@ -16,7 +16,7 @@
           "ag2."
         ]
       },
-      "legacy_rank": 110,
+      "priority": 110,
       "supersedes": [
         "openinference.detect"
       ]

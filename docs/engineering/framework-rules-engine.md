@@ -125,7 +125,7 @@ that one parse into `Ruleset`. Compilation performs the work that must not be re
 - compile RFC 9535 JSONPath expressions;
 - resolve fragment references;
 - validate mutually exclusive or incomplete options;
-- establish ranked and named-chain order;
+- establish priority order in every ordered arena and check `supersedes` against it;
 - build exact-name and prefix indexes where lookup is naturally keyed;
 - calculate the ruleset digest.
 
@@ -183,8 +183,9 @@ A content block is normalised by one chain: the canonical SideML passthrough, th
 message's own content, never for a tool's returned value), `provider_formats` (the model APIs' wire
 vocabularies: OpenAI, Anthropic, Bedrock Converse, Gemini, and the conventions' part types) and
 `after_provider_formats` - then the generic media and unknown fallbacks. Within a position the lowest
-`legacy_rank` is tried first; a case that recognises a block and cannot build its target declines, and the
-next case is tried.
+`priority` is tried first; a case that recognises a block and cannot build its target declines, and the
+next case is tried. Each position is its own arena: a matching `unwrap` whose member cannot be read ends its
+position only, and a `splice` is tried over the envelopes alone, which one merged order could not express.
 
 Each case names one canonical target form (`text`, `json`, `media`, `thinking`, `redacted_thinking`,
 `refusal`, `tool_use`, `tool_result`, `unknown`, `unwrap`, `splice`) and where its members come from. A
@@ -220,13 +221,28 @@ raw message rows do not yet exist.
 
 ## Ordering and precedence
 
-Order is policy and is always explicit.
+Order is policy and is always explicit, and every ordered arena states it the same way
+(`server/crates/domain/src/rules/precedence.rs`):
 
-- Detection, message rules, observation types, span categories, and field sources use declared ranks or
-  ordered source lists.
-- Content-block handlers use named chain positions plus a rank within each position.
-- Carrier ordering uses named ordering families and resolved carrier semantics.
-- Equal-precedence declarations that would make the answer depend on file load order are rejected.
+- **`priority`**, an integer, lowest first: detection rules and their alternatives, message rules,
+  observation types, span categories, the cases of one content-chain position, tool shapes, event categories,
+  and each ordered question of `message_members`. Two clauses of one arena sharing a priority are refused.
+  An arena is the set of clauses whose relative order is observable; for message rules that is a pairwise
+  relation (same stage, an overlapping output axis, an overlapping input domain), so two rules that never
+  contend may share a number.
+- **`supersedes`** (detection) names the rules a clause is meant to beat where both match. It documents an
+  overlap, waives the overlap report for that pair, and is checked: each target must exist, differ from the
+  source, be named once, and come after the source by priority. It is never executed, so deleting an edge
+  changes no answer. A rule beats one tried ahead of it by placing the evidence that should win in an
+  `alternative` at an earlier priority.
+- Span-field sources are ordered lists, and carrier ordering uses named ordering families and resolved
+  carrier semantics; carrier claims are ordered by subsumption of their match keys, which form a lattice.
+
+`server/specs/CheckedPrecedence.tla` model-checks the arena semantics over a bounded space and the hand-written
+cases of `server/specs/instances/CheckedPrecedence.json`: the winner is the lowest-priority match, a shadowed
+clause never wins, and wherever the edges agree with the priorities the retired edge-ordered resolution gives the
+same answer. `checked_precedence_instances` holds the detection and classification compilers to the same
+manifest and space.
 
 The engine does not infer precedence from apparent predicate specificity. Two structural predicates can
 overlap without either being intrinsically more specific, so inferred precedence would be difficult to

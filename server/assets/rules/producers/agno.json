@@ -13,7 +13,7 @@
           "agno."
         ]
       },
-      "legacy_rank": 70,
+      "priority": 70,
       "supersedes": [
         "openinference.detect"
       ]
@@ -82,7 +82,7 @@
         }
       ],
       "emit": "message",
-      "legacy_rank": 2020
+      "priority": 2020
     },
     {
       "id": "agno.tool_output_literal",
@@ -115,7 +115,7 @@
         }
       },
       "emit": "message",
-      "legacy_rank": 2021,
+      "priority": 2021,
       "reads_tool_spans": true
     },
     {
@@ -149,7 +149,7 @@
         }
       },
       "emit": "message",
-      "legacy_rank": 2022,
+      "priority": 2022,
       "reads_tool_spans": true
     }
   ]

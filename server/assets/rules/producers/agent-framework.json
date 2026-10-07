@@ -19,7 +19,7 @@
           "agent-framework-core"
         ]
       },
-      "legacy_rank": 250
+      "priority": 250
     }
   ],
   "sdk_slugs": [
@@ -32,7 +32,7 @@
     {
       "id": "agent-framework.data_part",
       "at": "provider_formats",
-      "legacy_rank": 1100,
+      "priority": 1100,
       "require": {
         "all": [
           {

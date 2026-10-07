@@ -105,7 +105,7 @@
           "openinference."
         ]
       },
-      "legacy_rank": 140
+      "priority": 140
     }
   ],
   "messages": [
@@ -204,7 +204,7 @@
           }
         ]
       },
-      "legacy_rank": 184
+      "priority": 184
     },
     {
       "id": "openinference.output_messages",
@@ -271,7 +271,7 @@
           }
         ]
       },
-      "legacy_rank": 185
+      "priority": 185
     },
     {
       "id": "openinference.tool_output_with_id",
@@ -311,7 +311,7 @@
         }
       },
       "emit": "message",
-      "legacy_rank": 214,
+      "priority": 214,
       "reads_tool_spans": true
     },
     {
@@ -349,7 +349,7 @@
         }
       },
       "emit": "message",
-      "legacy_rank": 212,
+      "priority": 212,
       "reads_tool_spans": true
     },
     {
@@ -387,7 +387,7 @@
         }
       },
       "emit": "message",
-      "legacy_rank": 215,
+      "priority": 215,
       "reads_tool_spans": true
     },
     {
@@ -424,7 +424,7 @@
           "_source": "retrieval.documents"
         }
       },
-      "legacy_rank": 220
+      "priority": 220
     },
     {
       "id": "openinference.reranker_input",
@@ -460,7 +460,7 @@
           "_source": "reranker.input_documents"
         }
       },
-      "legacy_rank": 230
+      "priority": 230
     },
     {
       "id": "openinference.reranker_output",
@@ -496,7 +496,7 @@
           "_source": "reranker.output_documents"
         }
       },
-      "legacy_rank": 240
+      "priority": 240
     },
     {
       "id": "openinference.reranker_query",
@@ -511,7 +511,7 @@
           "_source": "reranker.query"
         }
       },
-      "legacy_rank": 250
+      "priority": 250
     },
     {
       "id": "openinference.embedding_text",
@@ -526,7 +526,7 @@
           "_source": "embedding.text"
         }
       },
-      "legacy_rank": 260
+      "priority": 260
     },
     {
       "id": "openinference.indexed_tool_names",
@@ -538,12 +538,12 @@
       "emit": "tool_names",
       "aggregate_into_array": true,
       "tag_as": "llm.tools.N.tool.json_schema",
-      "legacy_rank": 265
+      "priority": 265
     },
     {
       "id": "openinference.tool_definitions",
       "doc": "This dialect's tool definitions, in the order it reports them: the indexed family first, then the flat list, and the single-tool triple only if neither produced anything. The primary order is the *emission* order where both forms coexist, and persistence keeps it - so it is the retired rank order, not an arbitrary one. A branch set rather than three rules with presence gates, because 'nothing was produced' is the condition the retired code tested.",
-      "legacy_rank": 260,
+      "priority": 260,
       "branch_set": {
         "primary": [
           {

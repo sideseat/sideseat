@@ -417,7 +417,7 @@ fn an_id_template_is_refused_unless_it_can_build_distinct_ids() {
         serde_json::from_value::<crate::rules::schema::RuleFile>(json!({
             "id": "t",
             "content_blocks": [{
-                "id": "t.call", "at": "after_provider_formats", "legacy_rank": 1,
+                "id": "t.call", "at": "after_provider_formats", "priority": 1,
                 "require": {"all": [{"path": "$.call", "exists": true}]},
                 "tool_use": {"id": id, "name": ["$.call.name"]}
             }]

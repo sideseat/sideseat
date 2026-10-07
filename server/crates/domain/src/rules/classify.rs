@@ -38,16 +38,16 @@ pub enum ClassifyCompileError {
     },
     /// A rule an earlier rule always satisfies first, so its result is unreachable.
     #[error(
-        "classification rule `{later}` can never be reached: `{earlier}` is ranked ahead of it and every span `{later}` matches satisfies `{earlier}` too, so `{later}`'s result is unreachable and reads as protection it does not give"
+        "classification rule `{later}` can never be reached: `{earlier}` is tried ahead of it and every span `{later}` matches satisfies `{earlier}` too, so `{later}`'s result is unreachable and reads as protection it does not give"
     )]
     ShadowedRule { earlier: String, later: String },
     #[error(
-        "classification rules `{first}` and `{second}` share rank {rank}, so which answers depends on load order"
+        "classification rules `{first}` and `{second}` share priority {priority}, so which answers depends on load order"
     )]
-    SharedRank {
+    SharedPriority {
         first: String,
         second: String,
-        rank: i32,
+        priority: i32,
     },
     #[error("classification rule id `{rule}` is declared twice, in `{first}` and `{second}`")]
     DuplicateId {
@@ -65,7 +65,7 @@ struct CompiledRule {
     replaces_legacy_result: Option<String>,
 }
 
-/// The ordered rules of each classification, sorted by rank at compile time.
+/// The ordered rules of each classification, sorted by priority at compile time.
 ///
 /// Two questions with two precedences, deliberately not one: a transport call is an HTTP *category* and a plain
 /// *observation*, and one dialect's operation names name an agent in one and nothing in the other.
@@ -186,30 +186,30 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<ClassifyPlan, Cla
                     });
                 }
                 by_id.insert(rule.id.clone(), file_id.clone());
-                into.push((rule.rank, compile_rule(file_id, rule, allowed)?));
+                into.push((rule.priority, compile_rule(file_id, rule, allowed)?));
             }
         }
     }
 
-    // Sorted by rank, and a **shared** rank is refused *within* a classification: the answer is a precedence,
-    // so two rules that could both hold at the same rank would be resolved by whichever asset loaded first,
-    // which is not a statement anybody made. Across the two classifications a rank means nothing, so they are
-    // checked apart.
+    // Sorted by priority, and a **shared** priority is refused *within* a classification: the answer is a
+    // precedence, so two rules that could both hold at the same priority would be resolved by whichever asset
+    // loaded first, which is not a statement anybody made. Across the two classifications a priority means
+    // nothing, so they are separate arenas.
     for rules in [&mut observation_types, &mut span_categories] {
-        rules.sort_by_key(|(rank, _)| *rank);
-        for pair in rules.windows(2) {
-            if pair[0].0 == pair[1].0 {
-                return Err(ClassifyCompileError::SharedRank {
-                    first: pair[0].1.rule_id.clone(),
-                    second: pair[1].1.rule_id.clone(),
-                    rank: pair[0].0,
-                });
-            }
+        if let Some((first, second)) =
+            super::precedence::shared_priority(rules, |(priority, _)| *priority, |_, _| true)
+        {
+            return Err(ClassifyCompileError::SharedPriority {
+                first: first.1.rule_id.clone(),
+                second: second.1.rule_id.clone(),
+                priority: first.0,
+            });
         }
+        rules.sort_by_key(|(priority, _)| *priority);
     }
 
     // A rule an earlier one always satisfies first can never answer, and its result is unreachable - the same
-    // defect as a subsumed literal, one level up. Checked *within* a classification, in rank order, since that is
+    // defect as a subsumed literal, one level up. Checked *within* a classification, in priority order, since that is
     // where the precedence lives. Sound rather than complete (see `detect_rules::shadows`): a false refusal breaks
     // a build for a reason nobody can act on.
     for rules in [&observation_types, &span_categories] {

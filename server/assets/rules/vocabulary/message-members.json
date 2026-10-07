@@ -8,7 +8,7 @@
       "members": [
         "content"
       ],
-      "rank": 20,
+      "priority": 20,
       "holds_content": true,
       "means_message_shaped": true,
       "doc": "The conventional member, and the one nearly every producer writes.",
@@ -19,7 +19,7 @@
       "members": [
         "contents"
       ],
-      "rank": 10,
+      "priority": 10,
       "holds_content": true,
       "means_message_shaped": true,
       "doc": "The plural, which one dialect writes for a nested content list. Read before `content`: a producer that writes both puts the whole message in the list - reasoning beside the answer - and only the answer's text in `content`, so the singular first dropped the reasoning."
@@ -29,7 +29,7 @@
       "members": [
         "message"
       ],
-      "rank": 30,
+      "priority": 30,
       "holds_content": true,
       "means_message_shaped": true,
       "doc": "Some producers wrap the content in a message member of their own.",
@@ -40,7 +40,7 @@
       "members": [
         "parts"
       ],
-      "rank": 40,
+      "priority": 40,
       "holds_content": true,
       "means_message_shaped": true,
       "doc": "One provider's name for the same list."
@@ -50,7 +50,7 @@
       "members": [
         "text"
       ],
-      "rank": 50,
+      "priority": 50,
       "holds_content": true,
       "means_message_shaped": true,
       "means_content_block": true,
@@ -62,7 +62,7 @@
       "members": [
         "object"
       ],
-      "rank": 60,
+      "priority": 60,
       "holds_content": true,
       "means_message_shaped": true,
       "doc": "Structured output, which is content as much as prose is."
@@ -72,7 +72,7 @@
       "members": [
         "arguments"
       ],
-      "rank": 70,
+      "priority": 70,
       "holds_content": true,
       "means_message_shaped": true,
       "doc": "A tool call's arguments, which are the content of a call."
@@ -90,7 +90,7 @@
       "members": [
         "finishReason"
       ],
-      "rank": 10,
+      "priority": 10,
       "means_message_shaped": true,
       "alias_of": "finish_reason"
     },
@@ -138,7 +138,7 @@
       "members": [
         "toolCalls"
       ],
-      "rank": 10,
+      "priority": 10,
       "means_message_shaped": true,
       "alias_of": "tool_calls"
     },
@@ -147,7 +147,7 @@
       "members": [
         "toolResult"
       ],
-      "rank": 10,
+      "priority": 10,
       "means_message_shaped": true,
       "means_content_block": true,
       "means_tool_result": true,
@@ -160,7 +160,7 @@
         "tool_result"
       ],
       "holds_bundled_tool_result": true,
-      "rank": 20
+      "priority": 20
     },
     {
       "id": "members.toolUse",
@@ -283,7 +283,7 @@
         "toolUseId",
         "tool_use_id"
       ],
-      "rank": 10,
+      "priority": 10,
       "holds_result_call_id": true
     },
     {
@@ -318,7 +318,7 @@
       "members": [
         "args"
       ],
-      "rank": 10,
+      "priority": 10,
       "alias_of": "arguments"
     },
     {
@@ -327,7 +327,7 @@
       "members": [
         "call_id"
       ],
-      "rank": 10,
+      "priority": 10,
       "alias_of": "id"
     },
     {
@@ -336,7 +336,7 @@
       "members": [
         "tool_call"
       ],
-      "rank": 10,
+      "priority": 10,
       "wraps_tool_call": true
     },
     {
@@ -345,7 +345,7 @@
       "members": [
         "data_sources"
       ],
-      "rank": 30,
+      "priority": 30,
       "holds_context": "data_sources"
     },
     {
@@ -354,7 +354,7 @@
       "members": [
         "search_results"
       ],
-      "rank": 40,
+      "priority": 40,
       "holds_context": "search_results"
     },
     {
@@ -363,7 +363,7 @@
       "members": [
         "citations"
       ],
-      "rank": 50,
+      "priority": 50,
       "holds_context": "citations"
     },
     {
@@ -372,7 +372,7 @@
       "members": [
         "attributions"
       ],
-      "rank": 60,
+      "priority": 60,
       "holds_context": "attributions"
     }
   ]

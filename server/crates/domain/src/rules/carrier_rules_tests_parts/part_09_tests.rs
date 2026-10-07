@@ -20,7 +20,7 @@ fn a_grouped_run_is_consecutive_in_the_array_the_producer_wrote() {
         &ParsedAssets::parse(&std::collections::BTreeMap::from([(
             "t.json".to_string(),
             br#"{"id":"t","messages":[{"id":"t.e","read":{"attribute":"x"},"parse":"json",
-             "emit":"message","legacy_rank":1,"elements":{"passes":[
+             "emit":"message","priority":1,"elements":{"passes":[
                {"id":"named","when":{"all":[{"path":"$['event.name']","one_of":["assistant"]}]},
                 "tag_from":"$['event.name']"},
                {"id":"blocks",
@@ -74,7 +74,7 @@ fn a_grouped_run_is_consecutive_in_the_array_the_producer_wrote() {
         &ParsedAssets::parse(&std::collections::BTreeMap::from([(
             "t.json".to_string(),
             br#"{"id":"t","messages":[{"id":"t.e","read":{"attribute":"x"},"parse":"json",
-             "emit":"message","legacy_rank":1,"elements":{"passes":[
+             "emit":"message","priority":1,"elements":{"passes":[
                {"id":"blocks","when":{"all":[{"path":"$.data","kind":"object"}]},
                 "group":{"collect":"$.data.text","key_as":"role","by":[
                    {"id":"is_input","when":{"all":[{"path":"$.data.type","starts_with":"input_"}]},
@@ -124,7 +124,7 @@ fn a_lift_states_its_source_and_its_conflict_policy() {
     let asset = |reading: &str| {
         let body = format!(
             r#"{{"id":"t","messages":[{{"id":"t.r","read":{{"attribute":"x"}},"parse":"json",
-                 "emit":"message","legacy_rank":1,"alternatives":[{reading}]}}]}}"#
+                 "emit":"message","priority":1,"alternatives":[{reading}]}}]}}"#
         );
         compile(
             &ParsedAssets::parse(&std::collections::BTreeMap::from([(
@@ -225,7 +225,7 @@ fn a_constructor_and_its_target_describe_the_same_thing() {
             .expect("the probe assets parse"),
         )
     };
-    let read = r#""read":{"attribute":"x"},"parse":"text","legacy_rank":1"#;
+    let read = r#""read":{"attribute":"x"},"parse":"text","priority":1"#;
 
     // Minimal counterexample.
     assert!(
@@ -246,7 +246,7 @@ fn a_constructor_and_its_target_describe_the_same_thing() {
     );
     assert!(
         asset(
-            r#"{"id":"t.r","read":{"attribute":"x"},"parse":"json","legacy_rank":1,
+            r#"{"id":"t.r","read":{"attribute":"x"},"parse":"json","priority":1,
                  "emit":"tool_names","elements":{"passes":[{"id":"p","tag_from":"$.n"}]}}"#
         )
         .is_err(),
@@ -258,7 +258,7 @@ fn a_constructor_and_its_target_describe_the_same_thing() {
     // wrap probe would pass for the wrong reason and say nothing about the claim rule.
     assert!(
         asset(
-            r#"{"id":"t.r","emit":"claim","legacy_rank":1,
+            r#"{"id":"t.r","emit":"claim","priority":1,
                  "compose":{"tag":"joined","members":[
                    {"as":"content","from_any_of":["k"],"parse":"text"}]}}"#
         )
@@ -284,7 +284,7 @@ fn a_tool_call_list_declares_what_an_unbuildable_call_means() {
     let asset = |policy: &str| {
         let body = format!(
             r#"{{"id":"t","messages":[{{"id":"t.r","read":{{"attribute":"x"}},"parse":"json",
-                 "emit":"message","legacy_rank":1,
+                 "emit":"message","priority":1,
                  "wrap":{{"role":"assistant","tool_calls_from":{{"select":"$.content[*]","id":"$.id",
                    "name":"$.name","arguments":"$.arguments","on_invalid_item":"{policy}"}}}},
                  "alternatives":[{{"id":"as_calls"}}],
@@ -330,7 +330,7 @@ fn a_tool_call_list_declares_what_an_unbuildable_call_means() {
 
     // The policy is required: it was hardcoded twice over, and neither answer is right for every producer.
     let body = r#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json",
-         "emit":"message","legacy_rank":1,
+         "emit":"message","priority":1,
          "wrap":{"role":"assistant","tool_calls_from":{"select":"$.content[*]","id":"$.id",
            "name":"$.name","arguments":"$.arguments"}}}]}"#;
     assert!(
@@ -361,7 +361,7 @@ fn an_indexed_family_is_read_in_one_pass() {
             "t.json".to_string(),
             br#"{"id":"t","messages":[{"id":"t.f","read":{"indexed_family":"fam"},
              "require_members":{"all_of":[{"name":"role"},{"name":"content"}]},
-             "emit":"message","legacy_rank":1}]}"#
+             "emit":"message","priority":1}]}"#
                 .to_vec(),
         )]))
         .expect("the probe assets parse"),
@@ -448,7 +448,7 @@ fn a_compose_owns_the_carriers_it_read() {
         &ParsedAssets::parse(&std::collections::BTreeMap::from([(
             "t.json".to_string(),
             br#"{"id":"t","messages":[
-             {"id":"t.compose","legacy_rank":1,"emit":"message",
+             {"id":"t.compose","priority":1,"emit":"message",
               "compose":{"tag":"joined","members":[
                 {"as":"content","from_any_of":["text"],"parse":"text"},
                 {"as":"extra","from_any_of":["structured"],"parse":"json"}]}}]}"#
@@ -512,7 +512,7 @@ fn a_repr_field_respects_identifier_boundaries_and_the_earliest_close() {
         &ParsedAssets::parse(&std::collections::BTreeMap::from([(
             "t.json".to_string(),
             br#"{"id":"t","messages":[{"id":"t.tools","read":{"attribute":"tools"},"parse":"json",
-             "emit":"tool_definitions","legacy_rank":1,
+             "emit":"tool_definitions","priority":1,
              "tool_repr":{"entries":"$[*]","candidates":["$"],
                "name_field":"name","description_field":"description",
                "name_label":"Tool Name:","description_label":"Tool Description:",
@@ -612,7 +612,7 @@ fn a_tool_repr_declares_literals_that_can_match_and_types_that_exist() {
             .collect();
         format!(
             r#"{{"id":"t","messages":[{{"id":"t.tools","read":{{"attribute":"tools"}},"parse":"json",
-                 "emit":"tool_definitions","legacy_rank":1,
+                 "emit":"tool_definitions","priority":1,
                  "tool_repr":{{"entries":"$[*]","name_field":"name"{kept}{overrides}}}}}]}}"#
         )
     };
@@ -710,7 +710,7 @@ fn a_tool_name_is_a_non_blank_string_and_a_bad_one_costs_only_itself() {
         &ParsedAssets::parse(&std::collections::BTreeMap::from([(
             "t.json".to_string(),
             br#"{"id":"t","messages":[{"id":"t.names","read":{"attribute":"tools"},"parse":"json",
-             "emit":"tool_names","legacy_rank":1}]}"#
+             "emit":"tool_names","priority":1}]}"#
                 .to_vec(),
         )]))
         .expect("the probe assets parse"),
@@ -758,7 +758,7 @@ fn a_tool_name_is_a_non_blank_string_and_a_bad_one_costs_only_itself() {
         &ParsedAssets::parse(&std::collections::BTreeMap::from([(
             "t.json".to_string(),
             br#"{"id":"t","messages":[{"id":"t.defs","read":{"attribute":"tools"},"parse":"json",
-             "emit":"tool_definitions","legacy_rank":1}]}"#
+             "emit":"tool_definitions","priority":1}]}"#
                 .to_vec(),
         )]))
         .expect("the probe assets parse"),
@@ -803,9 +803,9 @@ fn metadata_contends_on_the_axis_it_emits_on() {
     assert!(
         asset(
             r#"[{"id":"t.raw","read":{"attribute":"tools"},"parse":"json","emit":"tool_definitions",
-                 "legacy_rank":1},
+                 "priority":1},
                 {"id":"t.projected","read":{"attribute":"tools"},"parse":"json","emit":"tool_definitions",
-                 "legacy_rank":2,"alternatives":[{"id":"inner","select":"$.definitions"}]}]"#
+                 "priority":2,"alternatives":[{"id":"inner","select":"$.definitions"}]}]"#
         )
         .is_err(),
         "two definition readings of one carrier contend, as two message readings of it do"
@@ -814,9 +814,9 @@ fn metadata_contends_on_the_axis_it_emits_on() {
     // **Different** axes on one carrier still stand: that is the case the message-axis check was written for.
     let plan = asset(
         r#"[{"id":"t.defs","read":{"attribute":"tools"},"parse":"json","emit":"tool_definitions",
-             "legacy_rank":1},
+             "priority":1},
             {"id":"t.names","read":{"attribute":"tools"},"parse":"json","emit":"tool_names",
-             "legacy_rank":2,"alternatives":[{"id":"each","select":"$[*].name"}]}]"#,
+             "priority":2,"alternatives":[{"id":"each","select":"$[*].name"}]}]"#,
     )
     .expect("a definition list and a name list from one carrier are two statements, both true");
     let attrs = std::collections::HashMap::from([(
@@ -836,9 +836,9 @@ fn metadata_contends_on_the_axis_it_emits_on() {
     // and on a span where both gates hold, only the first reading of the carrier survives on that axis.
     let plan = asset(
         r#"[{"id":"t.first","when":{"attr_exists":["marker"]},"read":{"attribute":"tools"},
-             "parse":"json","emit":"tool_definitions","legacy_rank":1},
+             "parse":"json","emit":"tool_definitions","priority":1},
             {"id":"t.second","read":{"attribute":"tools"},"parse":"json","emit":"tool_definitions",
-             "legacy_rank":2,"alternatives":[{"id":"inner","select":"$[*]"}]}]"#,
+             "priority":2,"alternatives":[{"id":"inner","select":"$[*]"}]}]"#,
     )
     .expect("a conditional earlier rule beside an unconditional later one is accepted");
     let both = std::collections::HashMap::from([
@@ -860,9 +860,9 @@ fn metadata_contends_on_the_axis_it_emits_on() {
     // And a conversation beside a definition list, which is the documented co-located shape.
     asset(
         r#"[{"id":"t.conversation","read":{"attribute":"payload"},"parse":"json","emit":"message",
-             "legacy_rank":1},
+             "priority":1},
             {"id":"t.tools","read":{"attribute":"payload"},"parse":"json","emit":"tool_definitions",
-             "legacy_rank":2}]"#,
+             "priority":2}]"#,
     )
     .expect("one carrier holding a conversation and the tools it was offered is two statements");
 }
@@ -877,7 +877,7 @@ fn an_indexed_family_filters_assembled_entries() {
         let asset = format!(
             r#"{{"id":"t","messages":[{{"id":"t.family","read":{read},
                  "require_members":{{"all_of":[{{"name":"role"}},{{"name":"content"}}]}},
-                 "emit":"message","legacy_rank":1}}]}}"#
+                 "emit":"message","priority":1}}]}}"#
         );
         compile(
             &ParsedAssets::parse(&std::collections::BTreeMap::from([(
@@ -922,7 +922,7 @@ fn an_indexed_family_filters_assembled_entries() {
              "read":{"attribute":"chat","entry_require":{"all":[
                {"path":"$.role","exists":true}
              ]}},
-             "parse":"json","emit":"message","legacy_rank":1}]}"#
+             "parse":"json","emit":"message","priority":1}]}"#
                 .to_vec(),
         )]))
         .expect("the probe assets parse"),

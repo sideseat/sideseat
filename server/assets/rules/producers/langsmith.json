@@ -46,7 +46,7 @@
       },
       "parse": "json",
       "emit": "message",
-      "legacy_rank": 1200,
+      "priority": 1200,
       "alternatives": [
         {
           "id": "chat_model_prompts",
@@ -112,7 +112,7 @@
       },
       "parse": "json",
       "emit": "message",
-      "legacy_rank": 1210,
+      "priority": 1210,
       "alternatives": [
         {
           "id": "generations",

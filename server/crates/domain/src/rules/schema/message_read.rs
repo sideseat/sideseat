@@ -188,12 +188,12 @@ pub struct MessageRule {
     /// single rule for all of them would either miss entries or invent them.
     #[serde(default)]
     pub require_members: Option<MemberRequirements>,
-    /// Position in the consulted order. See `MessagePlan` for why it is `legacy_`.
+    /// Position in the consulted order, lowest first. Unique among the rules that contend with this one.
     ///
     /// Required at the top level and **forbidden** inside a branch set: there the local order decides, so a
-    /// rank would be a number that looks like it means something and does not.
-    #[serde(rename = "legacy_rank", default)]
-    pub legacy_rank: Option<i32>,
+    /// priority would be a number that looks like it means something and does not.
+    #[serde(default)]
+    pub priority: Option<i32>,
 }
 
 /// The carrier a message rule reads: exactly one form, checked at compile time.

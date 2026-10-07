@@ -36,7 +36,7 @@ pub struct FinishReasonSpellings {
 /// What an event a producer names in its own words is, by a word the name contains.
 ///
 /// For the events no convention names: a producer's retrieval or evaluation event is recognisable by its name
-/// long before anyone lists it. Ordered by `rank`, lowest first; the first whose word the name contains answers.
+/// long before anyone lists it. Ordered by `priority`, lowest first; the first whose word the name contains answers.
 #[derive(Debug, Deserialize, Clone)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
@@ -44,7 +44,7 @@ pub struct EventCategoryRule {
     pub id: String,
     #[serde(default)]
     pub doc: Option<String>,
-    pub rank: i32,
+    pub priority: i32,
     /// Words any one of which the event name contains, case-sensitively.
     pub contains: Vec<String>,
     pub category: EventCategory,
@@ -94,10 +94,10 @@ pub struct MessageMemberRule {
     /// difference is at least visible.
     pub members: Vec<String>,
     /// Where this sits among the members answering the one **ordered** question it answers - each `holds_*`
-    /// below picks one member, so each is ordered. Required for those, and refused otherwise: a rank that
+    /// below picks one member, so each is ordered. Required for those, and refused otherwise: a priority that
     /// orders nothing is a statement the engine does not read.
     #[serde(default)]
-    pub rank: Option<i32>,
+    pub priority: Option<i32>,
     /// This member holds a message's content, at the rank above.
     #[serde(default)]
     pub holds_content: bool,
@@ -224,8 +224,8 @@ pub struct ClassifyRule {
     pub id: String,
     #[serde(default)]
     pub doc: Option<String>,
-    /// Where this sits in the ordered sweep. The first rule that holds answers.
-    pub rank: i32,
+    /// Where this sits in the ordered sweep, lowest first. The first rule that holds answers.
+    pub priority: i32,
     /// **Every** one of these must hold, while each is internally a disjunction of signals.
     ///
     /// Conjunction is what a single signal set cannot express, and three of these rules need it: an operation
@@ -253,30 +253,19 @@ pub struct DetectRule {
     pub doc: Option<String>,
     /// The label written to the span's `framework` column. A display and filtering value.
     pub label: String,
-    /// Where this rule sits in the ordered sweep - a **migration bridge**, not the target design.
+    /// Where this rule sits in the ordered sweep, lowest first: the first rule that holds labels the span.
     ///
-    /// The accepted design is order-independent: each rule states sufficient conditions, a unique
-    /// sufficient candidate wins, and a declared `supersedes` resolves a known overlap. Today's rules do
-    /// not state sufficient conditions - they were transcribed from a first-match table whose order is
-    /// load-bearing, because the SideSeat SDK defaults `service.name` to one framework's name, so a
-    /// service-name signal evaluated early claims every span of every framework using the SDK.
+    /// Detection rules do not state sufficient conditions - the SideSeat SDK defaults `service.name` to one
+    /// framework's name, so a service-name signal evaluated early would claim every span of every framework using
+    /// the SDK - and the order is load-bearing. Overlaps are *collected and reported* rather than silently
+    /// resolved (`overlapping_candidates`), which is the instrument for narrowing the predicates.
+    pub priority: i32,
+    /// Rule ids this rule is meant to beat where both match: an overlap the author owns.
     ///
-    /// So the rank reproduces that answer while the overlaps are *collected and reported* rather than
-    /// silently resolved (`overlapping_candidates`). It goes when the predicates are narrow enough that
-    /// no span has two candidates - and until then, naming it `legacy_rank` is the honest description of
-    /// what it is.
-    #[serde(rename = "legacy_rank")]
-    pub legacy_rank: i32,
-    /// Rule ids this rule beats where both match. Declared, so a genuine overlap is owned rather than
-    /// resolved by a number.
-    ///
-    /// It **orders**, ahead of `legacy_rank`, which is what that field's own doc says the accepted design is. It
-    /// used to waive only the overlap *report* while rank decided the winner regardless - so the field documented
-    /// an ordering it took no part in, and every shipped edge could have been deleted without changing a single
-    /// attribution. Transitive, since it is a DAG; a cycle is refused.
-    ///
-    /// This is what lets a rule beat one ranked ahead of it **without** moving its own weaker signals up too -
-    /// the same problem `alternatives` solves within a rule, here between two.
+    /// Documentation, validated and never executed. Each target must come **after** this rule by priority, so the
+    /// priority alone decides the answer and the edge records why the order is what it is. It also waives the
+    /// overlap report for that pair. A rule beats a rule ranked ahead of it by moving the evidence that should win
+    /// into an `alternative` at its own priority, not by an edge.
     #[serde(default)]
     pub supersedes: Vec<String>,
     #[serde(rename = "match")]
@@ -290,7 +279,7 @@ pub struct DetectRule {
     /// combination in the engine.
     #[serde(default)]
     pub all_of: Vec<DetectMatch>,
-    /// Further evidence for the same label, each at its **own** rank.
+    /// Further evidence for the same label, each at its **own** priority.
     ///
     /// The predicates inside one `match` are independently sufficient, so a rule whose signals differ in
     /// *strength* cannot be ordered by one number. Strands states `gen_ai.system: "strands-agents"` - a producer
@@ -308,7 +297,7 @@ pub struct DetectRule {
     pub alternatives: Vec<DetectAlternative>,
 }
 
-/// One further body of evidence for a rule's label, at its own rank.
+/// One further body of evidence for a rule's label, at its own priority.
 #[derive(Debug, Deserialize, Clone)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
@@ -316,8 +305,11 @@ pub struct DetectAlternative {
     pub id: String,
     #[serde(default)]
     pub doc: Option<String>,
-    #[serde(rename = "legacy_rank")]
-    pub legacy_rank: i32,
+    pub priority: i32,
+    /// This alternative's own documented overlaps, as on a rule. Not inherited from the rule: an alternative
+    /// exists to sit at a different priority, so an edge true of the rule's position may not be true of its.
+    #[serde(default)]
+    pub supersedes: Vec<String>,
     #[serde(rename = "match")]
     pub match_spec: DetectMatch,
     /// Further signal sets that must each match.
@@ -720,9 +712,9 @@ pub fn in_family(key: &str, root: &str) -> bool {
 pub struct ToolShapeRule {
     pub id: String,
     pub doc: Option<String>,
-    /// Ordered, first match wins, and a shared rank is refused - two shapes that both recognise a payload must
-    /// not be separated by which asset loaded first.
-    pub legacy_rank: i32,
+    /// Ordered, lowest first, first match wins, and a shared priority is refused - two shapes that both
+    /// recognise a payload must not be separated by which asset loaded first.
+    pub priority: i32,
     /// What makes a payload this shape. Read on the tool value itself.
     #[serde(default)]
     pub require: PredicateSet,

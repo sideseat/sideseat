@@ -205,49 +205,48 @@ where dedup collapses the same turn re-sent by every generation span.
 The question: _three sweeps are ordered first-match — what decides between two rules that both match, and
 what is refused rather than resolved?_
 
-Framework detection, observation type and span category share this shape. Rank is the declared order; what
-sits above it is `supersedes`, which **orders** rather than annotating. Everything on the right is refused at
-compile time, because a declaration that cannot take effect reads as one that does.
+Framework detection, observation type and span category share this shape, and so does every other ordered
+arena (`server/crates/domain/src/rules/precedence.rs`): `priority` is the declared order and alone decides the
+answer. `supersedes` documents an overlap and is checked against the priorities, never executed. Everything on
+the right is refused at compile time, because a declaration that cannot take effect reads as one that does.
 
 ```mermaid
 flowchart TB
     span["span name · attributes · resource"] --> matching["rules whose conditions hold"]
 
-    matching --> beaten["drop what a matching rule<br/>transitively supersedes"]
-    beaten --> unbeaten["lowest rank among the rest"]
+    matching --> unbeaten["lowest priority among them"]
     unbeaten --> answer["the label, with its EvidenceSet"]
 
     matching -->|"nothing matched"| near["near_misses<br/>rules reading a key this span has,<br/>disagreeing about its value"]
 
     subgraph refused["Refused at compile time"]
         direction TB
-        r1["DuplicateRank<br/>load order would decide"]
+        r1["DuplicatePriority<br/>load order would decide"]
         r2["SubsumedLiteral<br/>a literal another already covers"]
         r3["ShadowedRule<br/>an earlier rule always satisfies it"]
-        r4["UselessSupersedes<br/>an edge that cannot take effect"]
+        r4["UselessSupersedes<br/>an edge against the priorities, or naming nothing"]
         r5["SlugLabelNoRuleProduces<br/>a second name for one producer"]
     end
 
     subgraph express["Expressible instead"]
         direction TB
-        e1["alternatives<br/>one label, several ranks"]
+        e1["alternatives<br/>one label, several priorities"]
         e2["span_name vs span_name_exact<br/>prefix and equality are two operators"]
-        e3["supersedes<br/>beat a rule ranked ahead of you"]
+        e3["an alternative at an earlier priority<br/>beat a rule tried ahead of you"]
     end
 
     refused -.->|"the shape to use"| express
 ```
 
-`supersedes` changes resolution, not only overlap validation. The winner is the matching rule **no** other
-matching rule beats. Selecting the first rule that beats the rank winner would select the rank winner itself
-and therefore would not impose the declared ordering.
-
-`ShadowedRule` and `supersedes` are the same fact from two directions, which is why the refusal exempts a
-rule that beats its shadower: without that exemption it rejected exactly the shape `supersedes` exists for.
-`RefusalIsSound` in `server/specs/OrderedResolution.tla` is that argument as a checked theorem.
+`supersedes` once ordered, ahead of rank, and two shipped edges pointed at rules ranked ahead of their sources.
+Together with the ranks that made detection a preference relation no total order can state (OpenInference beat
+Semantic Kernel, Semantic Kernel beat Azure OpenAI, Azure OpenAI beat OpenInference), so a priority alone is the
+order now and an edge is a checked statement about it. `CheckedPrecedence` in `server/specs/CheckedPrecedence.tla`
+proves, over every bounded instance, that where the edges agree with the priorities the retired resolution and the
+priority give the same answer, and that a shadowed rule never wins.
 
 And `alternatives` exists because the conditions inside one rule are independently sufficient, so a single
-rank has to be placed for the _weakest_ of them — which put one producer's own self-identification behind a
+priority has to be placed for the _weakest_ of them — which put one producer's own self-identification behind a
 convention namespace it merely also emits.
 
 ## 6. The ordering constraint graph

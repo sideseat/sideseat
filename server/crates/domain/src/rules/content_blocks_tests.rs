@@ -33,28 +33,28 @@ fn refused_all(rules: Vec<serde_json::Value>, expected: &str) {
     );
 }
 
-/// Two cases at one rank and one position: which answers a shape they both recognise would depend on
+/// Two cases at one priority and one position: which answers a shape they both recognise would depend on
 /// load order, which is nobody's statement.
 #[test]
-fn two_cases_sharing_a_rank_at_one_position_are_refused() {
+fn two_cases_sharing_a_priority_at_one_position_are_refused() {
     refused_all(
         vec![
             serde_json::json!({
                 "id": "probe.a",
                 "at": "after_provider_formats",
-                "legacy_rank": 1,
+                "priority": 1,
                 "require": {"all": [{"path": "$.type", "one_of": ["text"]}]},
                 "text": {"text": ["$.value"]},
             }),
             serde_json::json!({
                 "id": "probe.b",
                 "at": "after_provider_formats",
-                "legacy_rank": 1,
+                "priority": 1,
                 "require": {"all": [{"path": "$.type", "one_of": ["prose"]}]},
                 "text": {"text": ["$.value"]},
             }),
         ],
-        "share rank 1 at the `after` position",
+        "share priority 1 at the `after` position",
     );
 }
 
@@ -66,14 +66,14 @@ fn the_same_rank_at_different_positions_is_accepted() {
         serde_json::json!({
             "id": "probe.before",
             "at": "before_provider_formats",
-            "legacy_rank": 1,
+            "priority": 1,
             "require": {"all": [{"path": "$.type", "one_of": ["text"]}]},
             "text": {"text": ["$.value"]},
         }),
         serde_json::json!({
             "id": "probe.after",
             "at": "after_provider_formats",
-            "legacy_rank": 1,
+            "priority": 1,
             "require": {"all": [{"path": "$.type", "one_of": ["prose"]}]},
             "text": {"text": ["$.value"]},
         }),
@@ -88,7 +88,7 @@ fn a_rule_declares_exactly_one_target_form() {
     let plan = plan_from(serde_json::json!({
         "id": "probe.text",
         "at": "after_provider_formats",
-        "legacy_rank": 1,
+        "priority": 1,
         "require": {"all": [{"path": "$.type", "one_of": ["text"]}]},
         "text": {"text": ["$.value"]},
     }));
@@ -102,7 +102,7 @@ fn a_rule_with_no_target_form_is_refused() {
         serde_json::json!({
             "id": "probe.nothing",
             "at": "after_provider_formats",
-            "legacy_rank": 1,
+            "priority": 1,
         }),
         "declares 0 target forms",
     );
@@ -115,7 +115,7 @@ fn a_rule_with_two_target_forms_is_refused() {
         serde_json::json!({
             "id": "probe.both",
             "at": "after_provider_formats",
-            "legacy_rank": 1,
+            "priority": 1,
             "text": {"text": ["$.value"]},
             "json": {"data": ["$.value"]},
         }),
@@ -131,7 +131,7 @@ fn a_required_selector_with_no_paths_is_refused() {
         serde_json::json!({
             "id": "probe.empty_text",
             "at": "after_provider_formats",
-            "legacy_rank": 1,
+            "priority": 1,
             "text": {"text": []},
         }),
         "names no path for `text.text`",
@@ -146,7 +146,7 @@ fn a_rule_that_builds_from_nothing_is_refused() {
         serde_json::json!({
             "id": "probe.catch_all",
             "at": "before_provider_formats",
-            "legacy_rank": 1,
+            "priority": 1,
             "json": {},
         }),
         "swallow the chain",
@@ -161,7 +161,7 @@ fn a_rule_whose_selector_may_resolve_nothing_still_needs_a_condition() {
         serde_json::json!({
             "id": "probe.unresolved",
             "at": "before_provider_formats",
-            "legacy_rank": 1,
+            "priority": 1,
             "json": {"data": ["$.missing"]},
         }),
         "swallow the chain",
@@ -175,7 +175,7 @@ fn self_selecting_tool_result_content_is_refused() {
         serde_json::json!({
             "id": "probe.recursive",
             "at": "after_provider_formats",
-            "legacy_rank": 1,
+            "priority": 1,
             "require": {"all": [{"path": "$.type", "one_of": ["tool-result"]}]},
             "tool_result": {"content": ["$"]},
         }),
@@ -188,7 +188,7 @@ fn a_tool_result_keeps_its_declared_name() {
     let plan = plan_from(serde_json::json!({
         "id": "probe.named_result",
         "at": "before_provider_formats",
-        "legacy_rank": 1,
+        "priority": 1,
         "require": {"all": [{"path": "$.result"}]},
         "tool_result": {
             "tool_use_id": ["$.id"],
@@ -225,7 +225,7 @@ fn a_tautological_condition_is_refused() {
         serde_json::json!({
             "id": "probe.tautology",
             "at": "before_provider_formats",
-            "legacy_rank": 1,
+            "priority": 1,
             "require": {"all": [{}]},
             "json": {},
         }),
@@ -240,7 +240,7 @@ fn a_root_path_with_no_condition_is_refused() {
         serde_json::json!({
             "id": "probe.root_path",
             "at": "before_provider_formats",
-            "legacy_rank": 1,
+            "priority": 1,
             "require": {"all": [{"path": "$", "exists": true}]},
             "json": {},
         }),
@@ -254,7 +254,7 @@ fn a_member_path_with_no_condition_is_legal() {
     let plan = plan_from(serde_json::json!({
         "id": "probe.member",
         "at": "before_provider_formats",
-        "legacy_rank": 1,
+        "priority": 1,
         "require": {"all": [{"path": "$.value"}]},
         "json": {"data": ["$.value"]},
     }));
@@ -269,7 +269,7 @@ fn a_contradictory_predicate_is_refused() {
         serde_json::json!({
             "id": "probe.contradiction",
             "at": "after_provider_formats",
-            "legacy_rank": 1,
+            "priority": 1,
             "require": {"all": [{"path": "$.type", "kind": "number", "identifier_like": true}]},
             "text": {"text": ["$.value"]},
         }),
@@ -287,7 +287,7 @@ fn an_undeclared_media_type_comes_from_the_bytes() {
     let plan = plan_from(serde_json::json!({
         "id": "probe.blob",
         "at": "after_provider_formats",
-        "legacy_rank": 1,
+        "priority": 1,
         "require": {"all": [{"path": "$.content"}]},
         "media": {"media_type": ["$.mime_type"], "data": ["$.content"]},
     }));
@@ -308,7 +308,7 @@ fn a_data_uri_reads_as_its_media_type_and_payload() {
     let plan = plan_from(serde_json::json!({
         "id": "probe.uri",
         "at": "after_provider_formats",
-        "legacy_rank": 1,
+        "priority": 1,
         "require": {"all": [{"path": "$.uri"}]},
         "media": {"media_type": ["$.mime_type"], "data": ["$.uri"]},
     }));
@@ -332,7 +332,7 @@ fn an_unwrap_can_decode_a_serialised_block() {
     let plan = plan_from(serde_json::json!({
         "id": "probe.serialised",
         "at": "before_provider_formats",
-        "legacy_rank": 1,
+        "priority": 1,
         "require": {"all": [{"path": "$.content", "starts_with": "{"}]},
         "unwrap": {"from": ["$.content"], "parse_json": true},
     }));
@@ -352,7 +352,7 @@ fn splice_rule(at: &str) -> serde_json::Value {
     serde_json::json!({
         "id": "probe.splice",
         "at": at,
-        "legacy_rank": 1,
+        "priority": 1,
         "require": {"all": [{"path": "$.type", "one_of": ["text"]}, {"path": "$.content", "kind": "array"}]},
         "splice": {"from": ["$.content"]},
     })
@@ -411,7 +411,7 @@ fn a_stored_reference_is_the_authority_on_its_media_type() {
     let plan = plan_from(serde_json::json!({
         "id": "probe.media",
         "at": "after_provider_formats",
-        "legacy_rank": 1,
+        "priority": 1,
         "require": {"all": [{"path": "$.media_type"}, {"path": "$.data"}]},
         "media": {"media_type": ["$.media_type"], "data": ["$.data"]},
     }));

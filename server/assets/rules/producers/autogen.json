@@ -2,9 +2,7 @@
   "$schema": "../../rules.schema.json",
   "id": "autogen",
   "doc": "The AutoGen dialect. Its messages arrive as typed objects - a type name per shape - which is why the table below is a fragment: the same vocabulary is written at five different selection points.",
-  "carriers": [
-
-  ],
+  "carriers": [],
   "detect": [
     {
       "id": "autogen.detect",
@@ -25,7 +23,7 @@
           }
         ]
       },
-      "legacy_rank": 10
+      "priority": 10
     }
   ],
   "sdk_slugs": [
@@ -43,7 +41,7 @@
       },
       "parse": "json",
       "emit": "claim",
-      "legacy_rank": 1600,
+      "priority": 1600,
       "alternatives": [
         {
           "id": "cancellation_token",
@@ -157,7 +155,7 @@
           }
         }
       ],
-      "legacy_rank": 1610,
+      "priority": 1610,
       "also": [
         {
           "id": "inner_messages",

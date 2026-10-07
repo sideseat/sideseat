@@ -118,14 +118,13 @@ fn a_reading_that_parses_a_scalar_declares_how() {
         ("an exact attribute", r#"{"attribute":"x"}"#),
         ("ordered alternatives", r#"{"first_present":["x","y"]}"#),
     ] {
-        let rule = format!(r#"{{"id":"t.r","read":{read},"emit":"message","legacy_rank":1}}"#);
+        let rule = format!(r#"{{"id":"t.r","read":{read},"emit":"message","priority":1}}"#);
         assert!(
             asset(&rule).is_err(),
             "{what} parses a raw string and must say how"
         );
-        let with_mode = format!(
-            r#"{{"id":"t.r","read":{read},"parse":"json","emit":"message","legacy_rank":1}}"#
-        );
+        let with_mode =
+            format!(r#"{{"id":"t.r","read":{read},"parse":"json","emit":"message","priority":1}}"#);
         assert!(
             asset(&with_mode).is_ok(),
             "{what} compiles once the mode is stated"
@@ -136,7 +135,7 @@ fn a_reading_that_parses_a_scalar_declares_how() {
     assert!(
         asset(
             r#"{"id":"t.c","compose":{"tag":"joined","members":[
-                 {"as":"a","from_any_of":["x"]}]},"emit":"message","legacy_rank":1}"#
+                 {"as":"a","from_any_of":["x"]}]},"emit":"message","priority":1}"#
         )
         .is_err(),
         "a compose member naming carriers must declare its own mode"
@@ -151,11 +150,11 @@ fn a_reading_that_parses_a_scalar_declares_how() {
             // will not overwrite one.
             r#"{"id":"t.c","compose":{"tag":"joined","members":[
                  {"as":"a","from_any_of":["x"],"parse":"text"},
-                 {"sweep_prefix":"p.","except":["a"]}]},"emit":"message","legacy_rank":1}"#,
+                 {"sweep_prefix":"p.","except":["a"]}]},"emit":"message","priority":1}"#,
         ),
         (
             "an indexed family, which assembles entries from keys rather than parsing one string",
-            r#"{"id":"t.f","read":{"indexed_family":"fam"},"emit":"message","legacy_rank":1}"#,
+            r#"{"id":"t.f","read":{"indexed_family":"fam"},"emit":"message","priority":1}"#,
         ),
     ] {
         assert!(
@@ -178,7 +177,7 @@ fn a_compose_owns_its_members_and_not_its_own_tag() {
     let plan = compile(
         &ParsedAssets::parse(&std::collections::BTreeMap::from([(
             "t.json".to_string(),
-            br#"{"id":"t","messages":[{"id":"t.compose","legacy_rank":1,
+            br#"{"id":"t","messages":[{"id":"t.compose","priority":1,
              "compose":{"tag":"canonical.response","members":[
                {"as":"content","from_any_of":["x"],"parse":"text"}]},
              "emit":"message"}]}"#
@@ -232,7 +231,7 @@ fn two_declarations_must_not_write_one_output_member() {
             .expect("the probe assets parse"),
         )
     };
-    let read = r#""read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1"#;
+    let read = r#""read":{"attribute":"x"},"parse":"json","emit":"message","priority":1"#;
 
     // A literal overwrites the declared role, then content overwrites both.
     assert!(
@@ -268,7 +267,7 @@ fn two_declarations_must_not_write_one_output_member() {
     // `trailing` over a named compose member.
     assert!(
         asset(
-            r#"{"id":"t.c","emit":"message","legacy_rank":1,
+            r#"{"id":"t.c","emit":"message","priority":1,
                  "compose":{"tag":"joined","trailing":{"role":"assistant"},"members":[
                    {"as":"role","from_any_of":["x"],"parse":"text"}]}}"#
         )
@@ -280,7 +279,7 @@ fn two_declarations_must_not_write_one_output_member() {
     // them is the only way a sweep can state that it will not overwrite one.
     assert!(
         asset(
-            r#"{"id":"t.c","emit":"message","legacy_rank":1,
+            r#"{"id":"t.c","emit":"message","priority":1,
                  "compose":{"tag":"joined","trailing":{"role":"assistant"},"members":[
                    {"as":"content","from_any_of":["x"],"parse":"text"},
                    {"sweep_prefix":"p."}]}}"#
@@ -308,7 +307,7 @@ fn two_declarations_must_not_write_one_output_member() {
         ),
         (
             "a sweep excluding every fixed name",
-            r#"{"id":"t.c","emit":"message","legacy_rank":1,
+            r#"{"id":"t.c","emit":"message","priority":1,
                  "compose":{"tag":"joined","trailing":{"role":"assistant"},"members":[
                    {"as":"content","from_any_of":["x"],"parse":"text"},
                    {"sweep_prefix":"p.","except":["content","role"]}]}}"#
@@ -352,7 +351,7 @@ fn a_construction_branch_refuses_the_siblings_it_would_skip() {
     ] {
         let rule = format!(
             r#"{{"id":"t.s","read":{{"attribute":"x"}},"parse":"text",{sections},{extra},
-                 "emit":"message","legacy_rank":1}}"#
+                 "emit":"message","priority":1}}"#
         );
         assert!(
             asset(&rule).is_err(),
@@ -362,7 +361,7 @@ fn a_construction_branch_refuses_the_siblings_it_would_skip() {
     // The branch itself still compiles, or the refusals are a ban on sections.
     let plain = format!(
         r#"{{"id":"t.s","read":{{"attribute":"x"}},"parse":"text",{sections},
-             "emit":"message","legacy_rank":1}}"#
+             "emit":"message","priority":1}}"#
     );
     assert!(
         asset(&plain).is_ok(),
@@ -374,7 +373,7 @@ fn a_construction_branch_refuses_the_siblings_it_would_skip() {
     let elements = |passes: &str| {
         format!(
             r#"{{"id":"t.e","read":{{"attribute":"x"}},"parse":"json",
-                 "elements":{{"passes":{passes}}},"emit":"message","legacy_rank":1}}"#
+                 "elements":{{"passes":{passes}}},"emit":"message","priority":1}}"#
         )
     };
     for (what, passes) in [
@@ -435,7 +434,7 @@ fn a_reading_whose_envelope_cannot_be_built_lets_the_chain_continue() {
     let plan = compile(&ParsedAssets::parse(&std::collections::BTreeMap::from([(
         "t.json".to_string(),
         br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json",
-             "emit":"message","legacy_rank":1,
+             "emit":"message","priority":1,
              "alternatives":[
                {"id":"first","select":"$.a","wrap":{"role":"user","content_from_any_of":["$.missing"]}},
                {"id":"second","select":"$.b","wrap":{"role":"user","content_from_any_of":["$.text"]}}]}]}"#
@@ -462,7 +461,7 @@ fn a_reading_whose_envelope_cannot_be_built_lets_the_chain_continue() {
     let plan = compile(&ParsedAssets::parse(&std::collections::BTreeMap::from([(
         "t.json".to_string(),
         br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json",
-             "emit":"message","legacy_rank":1,
+             "emit":"message","priority":1,
              "alternatives":[
                {"id":"first","select":"$.a","wrap":{"role":"user","content_from_any_of":["$.missing"]}}],
              "fallback":[
@@ -486,7 +485,7 @@ fn a_reading_whose_envelope_cannot_be_built_lets_the_chain_continue() {
     let plan = compile(&ParsedAssets::parse(&std::collections::BTreeMap::from([(
         "t.json".to_string(),
         br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json",
-             "emit":"message","legacy_rank":1,
+             "emit":"message","priority":1,
              "alternatives":[
                {"id":"only","select":"$.a","wrap":{"role":"user","content_from_any_of":["$.missing"]}}]}]}"#
             .to_vec(),
@@ -521,7 +520,7 @@ fn an_aggregate_wraps_the_assembled_array_once() {
     // The rule's envelope applies to the array.
     let plan = asset(
         r#"{"id":"t.a","read":{"attribute":"docs"},"parse":"json","aggregate_into_array":true,
-             "wrap":{"role":"data"},"emit":"message","legacy_rank":1,
+             "wrap":{"role":"data"},"emit":"message","priority":1,
              "alternatives":[{"id":"each","select":"$[*]"}]}"#,
     )
     .expect("an aggregate with a rule envelope compiles");
@@ -560,7 +559,7 @@ fn an_aggregate_wraps_the_assembled_array_once() {
     assert!(
         asset(
             r#"{"id":"t.a","read":{"attribute":"docs"},"parse":"json","aggregate_into_array":true,
-                 "emit":"message","legacy_rank":1,
+                 "emit":"message","priority":1,
                  "alternatives":[{"id":"each","select":"$[*]","wrap":{"role":"document"}}]}"#,
         )
         .is_err(),
@@ -613,7 +612,7 @@ fn an_alternative_and_a_grouped_run_name_every_clause_that_built_them() {
               "wrap":{"role":"user","content_from_any_of":["$.content"]}},
              {"id":"as_other","wrap":{"role":"assistant","content_from_any_of":["$.content"]}}]}},
              "messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json","emit":"message",
-               "legacy_rank":1,"alternatives":[
+               "priority":1,"alternatives":[
                  {"id":"plain","select":"$.direct"},
                  {"id":"via_fragment","select":"$.wrapped[*]","then_fragment":"t.shape"}]}]}"#
                 .to_vec(),
@@ -652,7 +651,7 @@ fn an_alternative_and_a_grouped_run_name_every_clause_that_built_them() {
     let plan = compile(&ParsedAssets::parse(&std::collections::BTreeMap::from([(
         "t.json".to_string(),
         br#"{"id":"t","messages":[{"id":"t.e","read":{"attribute":"x"},"parse":"json",
-             "emit":"message","legacy_rank":1,"elements":{"passes":[{"id":"blocks","group":{
+             "emit":"message","priority":1,"elements":{"passes":[{"id":"blocks","group":{
                "collect":"$.data","key_as":"role","by":[
                  {"id":"input_block","when":{"all":[{"path":"$.data.type","starts_with":"input_"}]},
                   "value":"user"},
@@ -691,7 +690,7 @@ fn an_attachment_falls_through_to_its_other_sources() {
         &ParsedAssets::parse(&std::collections::BTreeMap::from([(
             "t.json".to_string(),
             br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json",
-             "emit":"message","legacy_rank":1,
+             "emit":"message","priority":1,
              "wrap":{"role":"assistant","content_from_any_of":["$.content"],
                "attach":[{"as":"finish_reason","from_path":"$.finish_reason","from":"finish_reason",
                  "default":"unknown"}]}}]}"#
@@ -745,7 +744,7 @@ fn a_span_name_can_be_an_attachments_only_source() {
         &ParsedAssets::parse(&std::collections::BTreeMap::from([(
             "t.json".to_string(),
             br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"text",
-             "emit":"message","legacy_rank":1,
+             "emit":"message","priority":1,
              "wrap":{"role":"tool","block":{"type":"tool_result","attach":[
                {"as":"name","or_span_name_after":""}]}}}]}"#
                 .to_vec(),
@@ -774,7 +773,7 @@ fn an_attachment_can_select_a_member_of_its_attribute() {
     let plan = compile(&ParsedAssets::parse(&std::collections::BTreeMap::from([(
         "t.json".to_string(),
         br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"text",
-             "emit":"message","legacy_rank":1,
+             "emit":"message","priority":1,
              "wrap":{"role":"tool","block":{"type":"tool_result","attach":[
                {"as":"tool_use_id","from":"path","parse":"json","select":"$[-1]","default":"none"}]}}}]}"#
             .to_vec(),
@@ -806,7 +805,7 @@ fn a_selection_needs_a_structured_attribute() {
     let asset = |attach: &str| {
         let body = format!(
             r#"{{"id":"t","messages":[{{"id":"t.r","read":{{"attribute":"x"}},"parse":"text",
-                 "emit":"message","legacy_rank":1,"alternatives":[{{"id":"a",
+                 "emit":"message","priority":1,"alternatives":[{{"id":"a",
                  "wrap":{{"role":"tool","block":{{"type":"tool_result","attach":[{attach}]}}}}}}]}}]}}"#
         );
         compile(
@@ -845,7 +844,7 @@ fn a_walk_stops_on_the_clauses_it_names() {
     let asset = |stop: &str| {
         let body = format!(
             r#"{{"id":"t","messages":[{{"id":"t.w","read":{{"attribute":"x"}},"parse":"json",
-                 "emit":"message","legacy_rank":1,"walk":{{"max_depth":3,"stop_on":{stop}}},
+                 "emit":"message","priority":1,"walk":{{"max_depth":3,"stop_on":{stop}}},
                  "also":[
                    {{"id":"whole_node","require":{{"all":[{{"path":"$.role"}},{{"path":"$.content"}}]}},
                     "wrap":{{"role_from":"$.role","content_from_any_of":["$.content"]}}}},

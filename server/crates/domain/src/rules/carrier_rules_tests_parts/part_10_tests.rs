@@ -18,7 +18,7 @@ fn a_rules_work_is_bounded_by_the_server() {
         &ParsedAssets::parse(&std::collections::BTreeMap::from([(
             "t.json".to_string(),
             br#"{"id":"t","messages":[{"id":"t.w","read":{"attribute":"state"},"parse":"json",
-             "emit":"message","legacy_rank":1,"walk":{"max_depth":3,"stop_on":["as_message"]},
+             "emit":"message","priority":1,"walk":{"max_depth":3,"stop_on":["as_message"]},
              "also":[{"id":"as_message","require":{"all":[{"path":"$.role"},{"path":"$.content"}]},
                "wrap":{"role_from":"$.role","content_from_any_of":["$.content"]}}]}]}"#
                 .to_vec(),
@@ -66,7 +66,7 @@ fn a_rules_work_is_bounded_by_the_server() {
         &ParsedAssets::parse(&std::collections::BTreeMap::from([(
             "t.json".to_string(),
             br#"{"id":"t","messages":[{"id":"t.each","read":{"attribute":"turns"},"parse":"json",
-             "emit":"message","legacy_rank":1,
+             "emit":"message","priority":1,
              "alternatives":[{"id":"every","select":"$[*]",
                "wrap":{"role":"user","content_from_any_of":["$.text"]}}]}]}"#
                 .to_vec(),
@@ -119,7 +119,7 @@ fn a_singular_path_takes_the_first_match_and_says_when_there_were_more() {
         &ParsedAssets::parse(&std::collections::BTreeMap::from([(
             "t.json".to_string(),
             br#"{"id":"t","messages":[{"id":"t.e","read":{"attribute":"x"},"parse":"json",
-             "emit":"message","legacy_rank":1,
+             "emit":"message","priority":1,
              "elements":{"passes":[{"id":"named","tag_from":"$.*"}]}}]}"#
                 .to_vec(),
         )]))
@@ -245,7 +245,7 @@ fn a_presence_coalesce_falls_back_to_the_element_only_where_declared() {
     let asset = |fallbacks: &str| {
         let body = format!(
             r#"{{"id":"t","messages":[{{"id":"t.tools","read":{{"attribute":"tools"}},"parse":"json",
-                 "emit":"tool_definitions","legacy_rank":1,
+                 "emit":"tool_definitions","priority":1,
                  "alternatives":[{{"id":"decls","select":"$[*]",
                    "then_present_any_of":["$.function_declarations","$.functionDeclarations"]{fallbacks}}}]}}]}}"#
         );
@@ -332,7 +332,7 @@ fn a_presence_coalesce_falls_back_to_the_element_only_where_declared() {
             &ParsedAssets::parse(&std::collections::BTreeMap::from([(
                 "t.json".to_string(),
                 br#"{"id":"t","messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json",
-                 "emit":"message","legacy_rank":1,
+                 "emit":"message","priority":1,
                  "alternatives":[{"id":"a","else_element":true}]}]}"#
                     .to_vec(),
             )]))
@@ -374,7 +374,7 @@ fn a_role_a_rule_states_must_be_a_role() {
     let asset = |wrap: &str| {
         let body = format!(
             r#"{{"id":"t","messages":[{{"id":"t.r","read":{{"attribute":"x"}},"parse":"json",
-                 "emit":"message","legacy_rank":1,"wrap":{wrap}}}]}}"#
+                 "emit":"message","priority":1,"wrap":{wrap}}}]}}"#
         );
         compile(
             &ParsedAssets::parse(&with_role_vocabulary(std::collections::BTreeMap::from([(
@@ -438,7 +438,7 @@ fn a_role_a_rule_states_must_be_a_role() {
         compile(
             &ParsedAssets::parse(&std::collections::BTreeMap::from([(
                 "t.json".to_string(),
-                br#"{"id":"t","messages":[{"id":"t.c","emit":"message","legacy_rank":1,
+                br#"{"id":"t","messages":[{"id":"t.c","emit":"message","priority":1,
                  "compose":{"tag":"joined","trailing":{"role":"assisstant"},"members":[
                    {"as":"content","from_any_of":["x"],"parse":"text"}]}}]}"#
                     .to_vec(),
@@ -465,7 +465,7 @@ fn a_closed_role_map_says_what_an_unmapped_value_means() {
     let asset = |wrap: &str| {
         let body = format!(
             r#"{{"id":"t","messages":[{{"id":"t.r","read":{{"attribute":"x"}},"parse":"json",
-                 "emit":"message","legacy_rank":1,"wrap":{wrap}}}]}}"#
+                 "emit":"message","priority":1,"wrap":{wrap}}}]}}"#
         );
         compile(
             &ParsedAssets::parse(&std::collections::BTreeMap::from([(
@@ -616,52 +616,52 @@ fn every_classification_refusal_fires() {
     let cases: Vec<Case> = vec![
         (
             "a rule with no condition, which would answer for every span",
-            r#"{"id":"t","observation_types":[{"id":"r","rank":1,"all_of":[],"result":"tool"}]}"#,
+            r#"{"id":"t","observation_types":[{"id":"r","priority":1,"all_of":[],"result":"tool"}]}"#,
             |e| matches!(e, E::NoCondition { .. }),
         ),
         (
             "a rule whose result is not one of the answers this classification may give",
-            r#"{"id":"t","observation_types":[{"id":"r","rank":1,
+            r#"{"id":"t","observation_types":[{"id":"r","priority":1,
                "all_of":[{"attr_exists":["k"]}],"result":"narrator"}]}"#,
             |e| matches!(e, E::UnknownResult { .. }),
         ),
         (
             "a rule with no result at all",
-            r#"{"id":"t","observation_types":[{"id":"r","rank":1,
+            r#"{"id":"t","observation_types":[{"id":"r","priority":1,
                "all_of":[{"attr_exists":["k"]}],"result":""}]}"#,
             |e| matches!(e, E::NoResult { .. }),
         ),
         (
             "a condition that can never hold",
-            r#"{"id":"t","observation_types":[{"id":"r","rank":1,
+            r#"{"id":"t","observation_types":[{"id":"r","priority":1,
                "all_of":[{"attr_prefix":[""]}],"result":"tool"}]}"#,
             |e| matches!(e, E::DeadCondition { .. }),
         ),
         (
             "a condition naming a resource dimension classification is never given",
-            r#"{"id":"t","observation_types":[{"id":"r","rank":1,
+            r#"{"id":"t","observation_types":[{"id":"r","priority":1,
                "all_of":[{"service_name":["x"]}],"result":"tool"}]}"#,
             |e| matches!(e, E::DeadCondition { .. }),
         ),
         (
             "two rules of one classification sharing a rank",
             r#"{"id":"t","observation_types":[
-               {"id":"a","rank":1,"all_of":[{"attr_exists":["k"]}],"result":"tool"},
-               {"id":"b","rank":1,"all_of":[{"attr_exists":["j"]}],"result":"agent"}]}"#,
-            |e| matches!(e, E::SharedRank { .. }),
+               {"id":"a","priority":1,"all_of":[{"attr_exists":["k"]}],"result":"tool"},
+               {"id":"b","priority":1,"all_of":[{"attr_exists":["j"]}],"result":"agent"}]}"#,
+            |e| matches!(e, E::SharedPriority { .. }),
         ),
         (
             "two rules sharing an id",
             r#"{"id":"t","observation_types":[
-               {"id":"a","rank":1,"all_of":[{"attr_exists":["k"]}],"result":"tool"},
-               {"id":"a","rank":2,"all_of":[{"attr_exists":["j"]}],"result":"agent"}]}"#,
+               {"id":"a","priority":1,"all_of":[{"attr_exists":["k"]}],"result":"tool"},
+               {"id":"a","priority":2,"all_of":[{"attr_exists":["j"]}],"result":"agent"}]}"#,
             |e| matches!(e, E::DuplicateId { .. }),
         ),
         (
             "a rule an earlier rule always satisfies, whose result can never be reached",
             r#"{"id":"t","observation_types":[
-               {"id":"a","rank":1,"all_of":[{"attr_exists":["k"]}],"result":"tool"},
-               {"id":"b","rank":2,"all_of":[{"attr_equals":[{"key":"k","value":"v"}]}],"result":"agent"}]}"#,
+               {"id":"a","priority":1,"all_of":[{"attr_exists":["k"]}],"result":"tool"},
+               {"id":"b","priority":2,"all_of":[{"attr_equals":[{"key":"k","value":"v"}]}],"result":"agent"}]}"#,
             |e| matches!(e, E::ShadowedRule { .. }),
         ),
     ];
@@ -675,8 +675,8 @@ fn every_classification_refusal_fires() {
     assert!(
         compiled(
             r#"{"id":"t","observation_types":[
-               {"id":"a","rank":1,"all_of":[{"attr_exists":["one"]}],"result":"tool"},
-               {"id":"b","rank":2,"all_of":[{"attr_exists":["two"]}],"result":"agent"}]}"#
+               {"id":"a","priority":1,"all_of":[{"attr_exists":["one"]}],"result":"tool"},
+               {"id":"b","priority":2,"all_of":[{"attr_exists":["two"]}],"result":"agent"}]}"#
         )
         .is_ok()
     );
@@ -699,32 +699,32 @@ fn every_tool_shape_refusal_fires() {
     let cases: Vec<Case> = vec![
         (
             "a shape handing over a canonical object *and* saying where each part is",
-            r#"[{"id":"s","legacy_rank":1,"function":"$.function","name":"$.name"}]"#,
+            r#"[{"id":"s","priority":1,"function":"$.function","name":"$.name"}]"#,
             |e| matches!(e, E::TwoAnswers { .. }),
         ),
         (
             "a shape with no name, which is not a definition",
-            r#"[{"id":"s","legacy_rank":1,"description":"$.d"}]"#,
+            r#"[{"id":"s","priority":1,"description":"$.d"}]"#,
             |e| matches!(e, E::NoName { .. }),
         ),
         (
             "two shapes sharing a rank, where load order would decide",
-            r#"[{"id":"a","legacy_rank":1,"name":"$.name"},{"id":"b","legacy_rank":1,"name":"$.n"}]"#,
-            |e| matches!(e, E::SharedRank { .. }),
+            r#"[{"id":"a","priority":1,"name":"$.name"},{"id":"b","priority":1,"name":"$.n"}]"#,
+            |e| matches!(e, E::SharedPriority { .. }),
         ),
         (
             "an empty carried member name, which names nothing",
-            r#"[{"id":"s","legacy_rank":1,"name":"$.name","carry":[""]}]"#,
+            r#"[{"id":"s","priority":1,"name":"$.name","carry":[""]}]"#,
             |e| matches!(e, E::EmptyCarry { .. }),
         ),
         (
             "parameters with no path to read them from",
-            r#"[{"id":"s","legacy_rank":1,"name":"$.name","parameters":{"from":[],"encoding":"json_schema"}}]"#,
+            r#"[{"id":"s","priority":1,"name":"$.name","parameters":{"from":[],"encoding":"json_schema"}}]"#,
             |e| matches!(e, E::NoParameterPath { .. }),
         ),
         (
             "a requirement that could never mean what it says",
-            r#"[{"id":"s","legacy_rank":1,"name":"$.name","require":{"all":[{"not_null":true},{"not_null":false}]}}]"#,
+            r#"[{"id":"s","priority":1,"name":"$.name","require":{"all":[{"not_null":true},{"not_null":false}]}}]"#,
             |e| matches!(e, E::Inexpressible { .. }),
         ),
     ];
@@ -734,7 +734,7 @@ fn every_tool_shape_refusal_fires() {
             .unwrap_or_else(|| panic!("should have been refused: {what}"));
         assert!(expected(&error), "wrong refusal for {what}: {error}");
     }
-    assert!(compiled(r#"[{"id":"s","legacy_rank":1,"name":"$.name","carry":["strict"]}]"#).is_ok());
+    assert!(compiled(r#"[{"id":"s","priority":1,"name":"$.name","carry":["strict"]}]"#).is_ok());
 }
 
 /// Every carrier refusal fires.
@@ -868,24 +868,24 @@ fn every_message_rule_refusal_fires() {
     let cases: Vec<Case> = vec![
         (
             "a rule naming no carrier",
-            r#"{"id":"t","messages":[{"id":"r","read":{},"parse":"json","emit":"message","legacy_rank":1}]}"#,
+            r#"{"id":"t","messages":[{"id":"r","read":{},"parse":"json","emit":"message","priority":1}]}"#,
             |e| matches!(e, E::NotExactlyOneCarrier { .. }),
         ),
         (
             "a rule naming an empty carrier, which names nothing",
-            r#"{"id":"t","messages":[{"id":"r","read":{"attribute":""},"parse":"json","emit":"message","legacy_rank":2}]}"#,
+            r#"{"id":"t","messages":[{"id":"r","read":{"attribute":""},"parse":"json","emit":"message","priority":2}]}"#,
             |e| matches!(e, E::EmptyCarrier { .. }),
         ),
         (
             "two rules sharing an id",
             r#"{"id":"t","messages":[
-               {"id":"r","read":{"attribute":"a"},"parse":"json","emit":"message","legacy_rank":3},
-               {"id":"r","read":{"attribute":"b"},"parse":"json","emit":"message","legacy_rank":4}]}"#,
+               {"id":"r","read":{"attribute":"a"},"parse":"json","emit":"message","priority":3},
+               {"id":"r","read":{"attribute":"b"},"parse":"json","emit":"message","priority":4}]}"#,
             |e| matches!(e, E::DuplicateRuleId { .. }),
         ),
         (
             "a reading referencing a fragment nobody declares",
-            r#"{"id":"t","messages":[{"id":"r","read":{"attribute":"a"},"parse":"json","emit":"message","legacy_rank":5,
+            r#"{"id":"t","messages":[{"id":"r","read":{"attribute":"a"},"parse":"json","emit":"message","priority":5,
                "alternatives":[{"id":"r.alt","then_fragment":"absent.fragment"}]}]}"#,
             |e| matches!(e, E::UnknownFragment { .. }),
         ),
@@ -899,8 +899,8 @@ fn every_message_rule_refusal_fires() {
         (
             "two rules reading one carrier, where the later can never be reached",
             r#"{"id":"t","messages":[
-               {"id":"a","read":{"attribute":"same"},"parse":"json","emit":"message","legacy_rank":1},
-               {"id":"b","read":{"attribute":"same"},"parse":"json","emit":"message","legacy_rank":2}]}"#,
+               {"id":"a","read":{"attribute":"same"},"parse":"json","emit":"message","priority":1},
+               {"id":"b","read":{"attribute":"same"},"parse":"json","emit":"message","priority":2}]}"#,
             |e| matches!(e, E::ContestedCarrier { .. }),
         ),
     ];
@@ -913,8 +913,8 @@ fn every_message_rule_refusal_fires() {
     assert!(
         compiled(
             r#"{"id":"t","messages":[
-               {"id":"a","read":{"attribute":"one"},"parse":"json","emit":"message","legacy_rank":7},
-               {"id":"b","read":{"attribute":"two"},"parse":"json","emit":"message","legacy_rank":8}]}"#
+               {"id":"a","read":{"attribute":"one"},"parse":"json","emit":"message","priority":7},
+               {"id":"b","read":{"attribute":"two"},"parse":"json","emit":"message","priority":8}]}"#
         )
         .is_ok()
     );

@@ -6,7 +6,7 @@
     {
       "id": "gemini.function_call",
       "at": "after_provider_formats",
-      "legacy_rank": 1,
+      "priority": 1,
       "doc": "A call, under the API's member name.",
       "require": {
         "all": [
@@ -35,7 +35,7 @@
     {
       "id": "gemini.function_call_snake",
       "at": "after_provider_formats",
-      "legacy_rank": 2,
+      "priority": 2,
       "doc": "The same call under the Python SDK's member name, read only when the camelCase envelope is absent.",
       "require": {
         "all": [
@@ -68,7 +68,7 @@
     {
       "id": "gemini.function_response",
       "at": "after_provider_formats",
-      "legacy_rank": 3,
+      "priority": 3,
       "doc": "What the function returned, under the API's member name.",
       "require": {
         "all": [
@@ -94,7 +94,7 @@
     {
       "id": "gemini.function_response_snake",
       "at": "after_provider_formats",
-      "legacy_rank": 4,
+      "priority": 4,
       "doc": "The same, under the Python SDK's member name.",
       "require": {
         "all": [
@@ -124,7 +124,7 @@
     {
       "id": "gemini.inline_data",
       "at": "after_provider_formats",
-      "legacy_rank": 5,
+      "priority": 5,
       "doc": "Bytes sent inline, under the API's camelCase member names (`inlineData`, `mimeType`). The provider format reads only the Python SDK's snake_case spelling, so an attachment ADK for Go sent rendered as raw JSON.",
       "require": {
         "all": [
@@ -150,7 +150,7 @@
     {
       "id": "gemini.thinking_part",
       "at": "provider_formats",
-      "legacy_rank": 4000,
+      "priority": 4000,
       "require": {
         "all": [
           {
@@ -175,7 +175,7 @@
     {
       "id": "gemini.thought_part",
       "at": "provider_formats",
-      "legacy_rank": 4010,
+      "priority": 4010,
       "require": {
         "all": [
           {
@@ -198,7 +198,7 @@
     {
       "id": "gemini.inline_data_snake",
       "at": "provider_formats",
-      "legacy_rank": 4020,
+      "priority": 4020,
       "require": {
         "all": [
           {
@@ -223,7 +223,7 @@
     {
       "id": "gemini.file_data_snake",
       "at": "provider_formats",
-      "legacy_rank": 4030,
+      "priority": 4030,
       "require": {
         "all": [
           {
@@ -254,7 +254,7 @@
       "members": [
         "groundingMetadata"
       ],
-      "rank": 10,
+      "priority": 10,
       "holds_context": "grounding"
     },
     {
@@ -263,7 +263,7 @@
       "members": [
         "citationMetadata"
       ],
-      "rank": 20,
+      "priority": 20,
       "holds_context": "citations"
     }
   ]

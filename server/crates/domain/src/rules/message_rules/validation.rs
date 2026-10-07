@@ -411,7 +411,7 @@ pub(super) fn message_gate_defect(gate: &DetectMatch) -> Option<&'static str> {
 ///
 /// This is what separates a genuine conflict from a shared carrier. The check exists to catch a rule that
 /// can never emit, and a rule whose claim is conditional is not that: it fires on the spans its condition
-/// admits and yields to the other elsewhere, with `legacy_rank` deciding which is tried first. Two
+/// admits and yields to the other elsewhere, with `priority` deciding which is tried first. Two
 /// *unconditional* rules on one carrier really are a defect - the second could never run.
 ///
 /// Reachable in practice: the generic `output.value` is read by one dialect as a gated last resort and by

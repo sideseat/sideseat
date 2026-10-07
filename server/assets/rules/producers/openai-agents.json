@@ -6,7 +6,7 @@
   "detect": [
     {
       "id": "openai-agents.detect",
-      "doc": "Identifies OpenAIAgents by the signals below. Logfire's instrumentation records the SDK's spans under its own `logfire.openai_agents` scope and with Logfire's attributes, so the scope is the evidence that the spans describe this framework rather than Logfire itself, and the relationship to Logfire's detection is declared rather than left to rank.",
+      "doc": "Identifies OpenAIAgents by its own scope and attribute namespace. Logfire's instrumentation records the SDK's spans under its own `logfire.openai_agents` scope and with Logfire's attributes, so the scope is the evidence that the spans describe this framework rather than Logfire itself: placed ahead of Logfire's detection, and the overlap is declared rather than left to priority.",
       "label": "OpenAIAgents",
       "match": {
         "scope_name": [
@@ -14,15 +14,51 @@
         ],
         "attr_prefix": [
           "openai.agents."
-        ],
-        "service_name": [
-          "openai-agents",
-          "openai_agents"
         ]
       },
-      "legacy_rank": 240,
+      "priority": 195,
       "supersedes": [
         "logfire.detect"
+      ],
+      "alternatives": [
+        {
+          "id": "openai-agents.detect.service_name_under_logfire",
+          "doc": "The SDK's default service name on a span Logfire's instrumentation wrote. Logfire records the SDK's run-level spans without its `logfire.openai_agents` scope, so there the service name is the evidence that they describe this framework; ahead of Logfire's own detection for that reason, and only together with Logfire's signals, because on its own a service name is weak.",
+          "priority": 196,
+          "supersedes": [
+            "logfire.detect"
+          ],
+          "match": {
+            "service_name": [
+              "openai-agents",
+              "openai_agents"
+            ]
+          },
+          "all_of": [
+            {
+              "attr_prefix": [
+                "logfire."
+              ],
+              "resource_attr_contains": [
+                {
+                  "key": "telemetry.sdk.name",
+                  "value": "logfire"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "openai-agents.detect.service_name",
+          "doc": "The service names the SDK reports by default, on their own. Weak evidence - a user names their own service - so it sits behind every instrumentation library's own signal.",
+          "priority": 240,
+          "match": {
+            "service_name": [
+              "openai-agents",
+              "openai_agents"
+            ]
+          }
+        }
       ]
     }
   ],
@@ -62,7 +98,7 @@
           }
         ]
       },
-      "legacy_rank": 1380,
+      "priority": 1380,
       "reads_tool_spans": true
     },
     {
@@ -93,7 +129,7 @@
           }
         ]
       },
-      "legacy_rank": 1390,
+      "priority": 1390,
       "reads_tool_spans": true
     },
     {
@@ -121,7 +157,7 @@
           }
         }
       ],
-      "legacy_rank": 1350
+      "priority": 1350
     }
   ],
   "span_facts": [

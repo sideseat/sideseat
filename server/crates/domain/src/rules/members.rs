@@ -25,24 +25,24 @@ pub enum MemberCompileError {
     #[error("member rule `{rule}` in `{file}` says nothing about its member")]
     SaysNothing { file: String, rule: String },
     #[error(
-        "member rule `{rule}` in `{file}` answers an ordered question and states no rank, so its position among the others is undeclared"
+        "member rule `{rule}` in `{file}` answers an ordered question and states no priority, so its position among the others is undeclared"
     )]
-    ContentWithoutARank { file: String, rule: String },
+    QuestionWithoutAPriority { file: String, rule: String },
     #[error(
-        "member rule `{rule}` in `{file}` states a rank without answering an ordered question, which orders nothing"
+        "member rule `{rule}` in `{file}` states a priority without answering an ordered question, which orders nothing"
     )]
-    RankWithoutContent { file: String, rule: String },
+    PriorityWithoutAQuestion { file: String, rule: String },
     #[error(
-        "member rule `{rule}` in `{file}` answers two ordered questions with one rank, so its position in one of them is a coincidence"
+        "member rule `{rule}` in `{file}` answers two ordered questions with one priority, so its position in one of them is a coincidence"
     )]
     TwoOrderedQuestions { file: String, rule: String },
     #[error(
-        "member rules `{first}` and `{second}` share content rank {rank}, so which holds a value's content depends on load order"
+        "member rules `{first}` and `{second}` share priority {priority} in one ordered question, so which answers it depends on load order"
     )]
-    SharedRank {
+    SharedPriority {
         first: String,
         second: String,
-        rank: i32,
+        priority: i32,
     },
     #[error(
         "member rule `{rule}` in `{file}` spells `{target}`, which is no member of SideSeat's a spelling may stand in for"
@@ -360,14 +360,14 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<MemberPlan, Membe
                 });
             }
             let ordered = !questions.is_empty();
-            if ordered && rule.rank.is_none() {
-                return Err(MemberCompileError::ContentWithoutARank {
+            if ordered && rule.priority.is_none() {
+                return Err(MemberCompileError::QuestionWithoutAPriority {
                     file: file_id.clone(),
                     rule: rule.id.clone(),
                 });
             }
-            if !ordered && rule.rank.is_some() {
-                return Err(MemberCompileError::RankWithoutContent {
+            if !ordered && rule.priority.is_some() {
+                return Err(MemberCompileError::PriorityWithoutAQuestion {
                     file: file_id.clone(),
                     rule: rule.id.clone(),
                 });
@@ -419,30 +419,31 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<MemberPlan, Membe
                     plan.producer_shape.insert(member.clone());
                 }
             }
-            // One rank per declaration, so a family's spellings sit together in declaration order - deterministic
-            // where two aliases somehow appear on one value, which is pathological but must still have an answer.
-            if let (Some(rank), Some(question)) = (rule.rank, questions.first()) {
+            // One priority per declaration, so a family's spellings sit together in declaration order -
+            // deterministic where two aliases somehow appear on one value, which is pathological but must still
+            // have an answer.
+            if let (Some(priority), Some(question)) = (rule.priority, questions.first()) {
                 let into = ranked.entry(question.clone()).or_default();
                 for (offset, member) in rule.members.iter().enumerate() {
-                    into.push((rank, offset, member.clone(), rule.id.clone()));
+                    into.push((priority, offset, member.clone(), rule.id.clone()));
                 }
             }
         }
     }
 
     for (question, mut list) in ranked {
-        list.sort_by_key(|(rank, offset, _, _)| (*rank, *offset));
-        for pair in list.windows(2) {
-            // Two *declarations* sharing a rank is the refusal; a family's own spellings share one by
-            // construction.
-            if pair[0].0 == pair[1].0 && pair[0].3 != pair[1].3 {
-                return Err(MemberCompileError::SharedRank {
-                    first: pair[0].3.clone(),
-                    second: pair[1].3.clone(),
-                    rank: pair[0].0,
-                });
-            }
+        // Two *declarations* sharing a priority is the refusal; a family's own spellings share one by
+        // construction, so they do not compete with each other.
+        if let Some((first, second)) =
+            super::precedence::shared_priority(&list, |(priority, ..)| *priority, |a, b| a.3 != b.3)
+        {
+            return Err(MemberCompileError::SharedPriority {
+                first: first.3.clone(),
+                second: second.3.clone(),
+                priority: first.0,
+            });
         }
+        list.sort_by_key(|(priority, offset, _, _)| (*priority, *offset));
         if question == Ordered::Context {
             for (_, _, member, rule_id) in list {
                 let rule = context_rules
@@ -494,7 +495,7 @@ mod tests {
     #[test]
     fn a_member_answering_two_ordered_questions_is_refused() {
         let refused = compile_rules(
-            r#"{"id":"p.both","members":["x"],"rank":1,"holds_content":true,"means_message_shaped":true,"holds_result_call_id":true}"#,
+            r#"{"id":"p.both","members":["x"],"priority":1,"holds_content":true,"means_message_shaped":true,"holds_result_call_id":true}"#,
         );
         assert!(
             matches!(refused, Err(MemberCompileError::TwoOrderedQuestions { .. })),
@@ -503,8 +504,8 @@ mod tests {
         // Each question has its own ranking, so one rank in two of them is not a shared-rank collision.
         assert!(
             compile_rules(
-                r#"{"id":"p.a","members":["a"],"rank":1,"holds_content":true,"means_message_shaped":true},
-                   {"id":"p.b","members":["b"],"rank":1,"holds_result_call_id":true}"#,
+                r#"{"id":"p.a","members":["a"],"priority":1,"holds_content":true,"means_message_shaped":true},
+                   {"id":"p.b","members":["b"],"priority":1,"holds_result_call_id":true}"#,
             )
             .is_ok()
         );
@@ -514,13 +515,14 @@ mod tests {
     #[test]
     fn a_spelling_of_no_member_a_reader_asks_for_is_refused() {
         let refused =
-            compile_rules(r#"{"id":"p.alias","members":["x"],"rank":1,"alias_of":"nothing"}"#);
+            compile_rules(r#"{"id":"p.alias","members":["x"],"priority":1,"alias_of":"nothing"}"#);
         assert!(
             matches!(refused, Err(MemberCompileError::UnknownAliasTarget { .. })),
             "{refused:?}"
         );
         assert!(
-            compile_rules(r#"{"id":"p.alias","members":["x"],"rank":1,"alias_of":"stop"}"#).is_ok()
+            compile_rules(r#"{"id":"p.alias","members":["x"],"priority":1,"alias_of":"stop"}"#)
+                .is_ok()
         );
     }
 
@@ -551,8 +553,8 @@ mod tests {
     #[test]
     fn a_family_shares_its_rank_and_keeps_declaration_order() {
         let plan = compile_rules(
-            r#"{"id":"p.a","members":["content","contents"],"rank":10,"holds_content":true,"means_message_shaped":true},
-               {"id":"p.b","members":["parts"],"rank":20,"holds_content":true,"means_message_shaped":true}"#,
+            r#"{"id":"p.a","members":["content","contents"],"priority":10,"holds_content":true,"means_message_shaped":true},
+               {"id":"p.b","members":["parts"],"priority":20,"holds_content":true,"means_message_shaped":true}"#,
         )
         .expect("one rank per declaration, shared by its spellings");
         assert_eq!(
@@ -567,9 +569,10 @@ mod tests {
     /// bare structured output to be wrapped - two answers about one value, from one declaration.
     #[test]
     fn content_without_message_shape_is_refused() {
-        let error =
-            compile_rules(r#"{"id":"p.c","members":["content"],"rank":10,"holds_content":true}"#)
-                .expect_err("holding content without meaning message-shaped must be refused");
+        let error = compile_rules(
+            r#"{"id":"p.c","members":["content"],"priority":10,"holds_content":true}"#,
+        )
+        .expect_err("holding content without meaning message-shaped must be refused");
         assert!(
             matches!(error, MemberCompileError::ContentWithoutShape { .. }),
             "wrong refusal: {error}"
@@ -579,7 +582,7 @@ mod tests {
     /// Every other refusal, each fired, because none of them had ever been.
     ///
     /// A refusal nobody has exercised is a claim rather than a guard - and two of these are one edit away from
-    /// being unreachable: `SaysNothing` needs all three flags absent, and `RankWithoutContent` is the mirror of
+    /// being unreachable: `SaysNothing` needs all three flags absent, and `PriorityWithoutAQuestion` is the mirror of
     /// the refusal above, so an implementation that dropped either would still compile every shipped asset.
     #[test]
     fn every_member_refusal_fires() {
@@ -598,16 +601,16 @@ mod tests {
             }),
             (
                 r#"{"id":"p","members":["x"],"holds_content":true,"means_message_shaped":true}"#,
-                |e| matches!(e, MemberCompileError::ContentWithoutARank { .. }),
+                |e| matches!(e, MemberCompileError::QuestionWithoutAPriority { .. }),
             ),
             (
-                r#"{"id":"p","members":["x"],"rank":10,"means_content_block":true}"#,
-                |e| matches!(e, MemberCompileError::RankWithoutContent { .. }),
+                r#"{"id":"p","members":["x"],"priority":10,"means_content_block":true}"#,
+                |e| matches!(e, MemberCompileError::PriorityWithoutAQuestion { .. }),
             ),
             (
-                r#"{"id":"a","members":["x"],"rank":10,"holds_content":true,"means_message_shaped":true},
-                   {"id":"b","members":["y"],"rank":10,"holds_content":true,"means_message_shaped":true}"#,
-                |e| matches!(e, MemberCompileError::SharedRank { .. }),
+                r#"{"id":"a","members":["x"],"priority":10,"holds_content":true,"means_message_shaped":true},
+                   {"id":"b","members":["y"],"priority":10,"holds_content":true,"means_message_shaped":true}"#,
+                |e| matches!(e, MemberCompileError::SharedPriority { .. }),
             ),
             (
                 r#"{"id":"a","members":["x"],"means_content_block":true},

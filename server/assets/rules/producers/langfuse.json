@@ -37,7 +37,7 @@
           "langfuse.observation."
         ]
       },
-      "legacy_rank": 215
+      "priority": 215
     }
   ],
   "sdk_slugs": [
@@ -63,7 +63,7 @@
       },
       "parse": "json",
       "emit": "message",
-      "legacy_rank": 1900,
+      "priority": 1900,
       "alternatives": [
         {
           "id": "responses_input",
@@ -104,7 +104,7 @@
       },
       "parse": "json",
       "emit": "message",
-      "legacy_rank": 1910,
+      "priority": 1910,
       "alternatives": [
         {
           "id": "items",
@@ -137,7 +137,7 @@
       "parse": "json",
       "emit": "tool_definitions",
       "aggregate_into_array": true,
-      "legacy_rank": 1920,
+      "priority": 1920,
       "alternatives": [
         {
           "id": "tools",
@@ -150,7 +150,7 @@
   "observation_types": [
     {
       "id": "observation.langfuse_generation",
-      "rank": 78,
+      "priority": 78,
       "all_of": [
         {
           "attr_equals": [
@@ -167,7 +167,7 @@
     },
     {
       "id": "observation.langfuse_tool",
-      "rank": 79,
+      "priority": 79,
       "all_of": [
         {
           "attr_equals": [
@@ -183,7 +183,7 @@
     },
     {
       "id": "observation.langfuse_agent",
-      "rank": 81,
+      "priority": 81,
       "all_of": [
         {
           "attr_equals": [
@@ -199,7 +199,7 @@
     },
     {
       "id": "observation.langfuse_chain",
-      "rank": 82,
+      "priority": 82,
       "all_of": [
         {
           "attr_equals": [
@@ -215,7 +215,7 @@
     },
     {
       "id": "observation.langfuse_retriever",
-      "rank": 83,
+      "priority": 83,
       "all_of": [
         {
           "attr_equals": [
@@ -231,7 +231,7 @@
     },
     {
       "id": "observation.langfuse_embedding",
-      "rank": 84,
+      "priority": 84,
       "all_of": [
         {
           "attr_equals": [
@@ -247,7 +247,7 @@
     },
     {
       "id": "observation.langfuse_evaluator",
-      "rank": 85,
+      "priority": 85,
       "all_of": [
         {
           "attr_equals": [
@@ -263,7 +263,7 @@
     },
     {
       "id": "observation.langfuse_guardrail",
-      "rank": 86,
+      "priority": 86,
       "all_of": [
         {
           "attr_equals": [
@@ -281,7 +281,7 @@
   "span_categories": [
     {
       "id": "category.langfuse_generation",
-      "rank": 93,
+      "priority": 93,
       "all_of": [
         {
           "attr_equals": [
@@ -298,7 +298,7 @@
     },
     {
       "id": "category.langfuse_tool",
-      "rank": 94,
+      "priority": 94,
       "all_of": [
         {
           "attr_equals": [
@@ -314,7 +314,7 @@
     },
     {
       "id": "category.langfuse_agent",
-      "rank": 95,
+      "priority": 95,
       "all_of": [
         {
           "attr_equals": [
@@ -330,7 +330,7 @@
     },
     {
       "id": "category.langfuse_chain",
-      "rank": 96,
+      "priority": 96,
       "all_of": [
         {
           "attr_equals": [
@@ -346,7 +346,7 @@
     },
     {
       "id": "category.langfuse_retriever",
-      "rank": 97,
+      "priority": 97,
       "all_of": [
         {
           "attr_equals": [
@@ -362,7 +362,7 @@
     },
     {
       "id": "category.langfuse_embedding",
-      "rank": 98,
+      "priority": 98,
       "all_of": [
         {
           "attr_equals": [

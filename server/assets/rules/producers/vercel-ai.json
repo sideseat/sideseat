@@ -99,7 +99,7 @@
           "ai.usage."
         ]
       },
-      "legacy_rank": 190
+      "priority": 190
     }
   ],
   "sdk_slugs": [
@@ -121,7 +121,7 @@
       "tag_as": "ai.prompt.messages",
       "parse": "json",
       "emit": "message",
-      "legacy_rank": 300,
+      "priority": 300,
       "alternatives": [
         {
           "id": "the_payload_is_the",
@@ -158,7 +158,7 @@
         ]
       },
       "emit": "message",
-      "legacy_rank": 310,
+      "priority": 310,
       "reads_tool_spans": true
     },
     {
@@ -226,7 +226,7 @@
         ]
       },
       "emit": "message",
-      "legacy_rank": 320
+      "priority": 320
     },
     {
       "id": "vercel-ai.toolcall_result",
@@ -246,7 +246,7 @@
         ]
       },
       "emit": "message",
-      "legacy_rank": 315
+      "priority": 315
     },
     {
       "id": "vercel-ai.prompt_tools",
@@ -256,7 +256,7 @@
       },
       "parse": "stringified_array",
       "emit": "tool_definitions",
-      "legacy_rank": 310
+      "priority": 310
     }
   ],
   "span_facts": [

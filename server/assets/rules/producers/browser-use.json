@@ -46,7 +46,7 @@
       },
       "parse": "json",
       "emit": "message",
-      "legacy_rank": 1810,
+      "priority": 1810,
       "reads_tool_spans": true,
       "alternatives": [
         {
@@ -106,7 +106,7 @@
       },
       "parse": "json_or_string",
       "emit": "message",
-      "legacy_rank": 1820,
+      "priority": 1820,
       "reads_tool_spans": true,
       "alternatives": [
         {
@@ -221,7 +221,7 @@
     {
       "id": "observation.laminar_tool",
       "doc": "Laminar states a span's type directly; Browser Use runs each action under a TOOL span.",
-      "rank": 58,
+      "priority": 58,
       "all_of": [
         {
           "attr_equals": [
@@ -240,7 +240,7 @@
     {
       "id": "category.laminar_tool",
       "doc": "A Laminar TOOL span: one action Browser Use executed.",
-      "rank": 92,
+      "priority": 92,
       "all_of": [
         {
           "attr_equals": [
@@ -284,12 +284,12 @@
           }
         ]
       },
-      "legacy_rank": 130,
+      "priority": 130,
       "alternatives": [
         {
           "id": "browser-use.detect.laminar_agent_run",
           "doc": "A Laminar span inside Browser Use's `agent.run`: the loop itself, each step, the model calls it makes and the actions it runs. The path is an array attribute, compared as its JSON text, so the quoted name matches one element rather than a substring of one.",
-          "legacy_rank": 131,
+          "priority": 131,
           "match": {
             "span_attr_contains": [
               {

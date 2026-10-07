@@ -320,15 +320,14 @@ pub struct CompiledMessageRule {
     pub alternatives: Vec<CompiledReading>,
     pub also: Vec<CompiledReading>,
     pub fallback: Vec<CompiledReading>,
-    pub legacy_rank: i32,
+    pub priority: i32,
 }
 
 /// Message rules in the order they are consulted.
 ///
-/// Order is `legacy_rank`, for the same reason detection's is: these were transcribed from a list whose
+/// Order is `priority`, for the same reason detection's is: these were transcribed from a list whose
 /// position decided which extractor claimed a contested carrier. Where no two rules read the same
-/// carrier - which is true of every rule here, checked at compile time - the order changes nothing, and
-/// that is the state the rank exists to be retired from.
+/// carrier unconditionally - checked at compile time - the order decides only between conditional claims.
 #[derive(Debug, Default)]
 pub struct MessagePlan {
     /// Indices of the rules that can produce a tool definition or a name list.

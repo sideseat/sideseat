@@ -25,7 +25,7 @@
       },
       "parse": "json_or_string",
       "emit": "message",
-      "legacy_rank": 1100,
+      "priority": 1100,
       "wrap": {
         "role": "tool_call"
       }
@@ -38,7 +38,7 @@
       },
       "parse": "json_or_string",
       "emit": "message",
-      "legacy_rank": 1110,
+      "priority": 1110,
       "wrap": {
         "role": "tool"
       }
@@ -49,7 +49,7 @@
       "id": "pydantic-ai.tool_call_response",
       "doc": "This dialect writes a tool's return value under `result` rather than the conventions' `response`. The provider formats read only `response`, so a result no tool span restated - the output tool's acknowledgement, which ends the run - rendered as an empty result with no name.",
       "at": "before_provider_formats",
-      "legacy_rank": 70,
+      "priority": 70,
       "require": {
         "all": [
           {
@@ -79,7 +79,7 @@
     {
       "id": "pydantic-ai.thinking_content",
       "at": "provider_formats",
-      "legacy_rank": 1953,
+      "priority": 1953,
       "require": {
         "all": [
           {

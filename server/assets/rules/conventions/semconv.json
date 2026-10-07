@@ -264,7 +264,7 @@
         "indexed_family": "gen_ai.prompt"
       },
       "emit": "message",
-      "legacy_rank": 100,
+      "priority": 100,
       "reads_tool_spans": true,
       "require_members": {
         "any_of": [
@@ -282,7 +282,7 @@
         "indexed_family": "gen_ai.completion"
       },
       "emit": "message",
-      "legacy_rank": 110,
+      "priority": 110,
       "reads_tool_spans": true,
       "require_members": {
         "any_of": [
@@ -305,7 +305,7 @@
         "content_as": "parts"
       },
       "emit": "message",
-      "legacy_rank": 120,
+      "priority": 120,
       "reads_tool_spans": true
     },
     {
@@ -316,7 +316,7 @@
       },
       "parse": "json",
       "emit": "message",
-      "legacy_rank": 130,
+      "priority": 130,
       "reads_tool_spans": true
     },
     {
@@ -327,7 +327,7 @@
       },
       "parse": "json",
       "emit": "message",
-      "legacy_rank": 140,
+      "priority": 140,
       "reads_tool_spans": true
     },
     {
@@ -338,7 +338,7 @@
       },
       "parse": "json",
       "emit": "message",
-      "legacy_rank": 150,
+      "priority": 150,
       "reads_tool_spans": true
     },
     {
@@ -368,7 +368,7 @@
         }
       },
       "emit": "message",
-      "legacy_rank": 160,
+      "priority": 160,
       "reads_tool_spans": true
     },
     {
@@ -396,7 +396,7 @@
         }
       },
       "emit": "message",
-      "legacy_rank": 170,
+      "priority": 170,
       "reads_tool_spans": true
     },
     {
@@ -407,7 +407,7 @@
       },
       "parse": "json",
       "emit": "tool_definitions",
-      "legacy_rank": 110
+      "priority": 110
     },
     {
       "id": "semconv.agent_tools",
@@ -417,7 +417,7 @@
       },
       "parse": "json",
       "emit": "tool_names",
-      "legacy_rank": 120
+      "priority": 120
     },
     {
       "id": "semconv.event_inference_details_input",
@@ -434,7 +434,7 @@
       },
       "parse": "json",
       "emit": "message",
-      "legacy_rank": 30,
+      "priority": 30,
       "reads_tool_spans": true
     },
     {
@@ -452,7 +452,7 @@
       },
       "parse": "json",
       "emit": "message",
-      "legacy_rank": 31,
+      "priority": 31,
       "reads_tool_spans": true
     },
     {
@@ -495,7 +495,7 @@
         ]
       },
       "emit": "tool_definitions",
-      "legacy_rank": 9500
+      "priority": 9500
     }
   ],
   "span_facts": [
@@ -718,7 +718,7 @@
       "id": "semconv.blob_part",
       "doc": "The conventions' binary part: base64 `content`, with an optional `mime_type`. An earlier draft put the payload under `data`, which the provider formats read; this spelling fell through to an unknown block, so an image or a document a user sent rendered as raw JSON. Logfire's Anthropic instrumentation omits the MIME type, so the bytes name it. AgentScope spells the type `media_type`, which is read too.",
       "at": "before_provider_formats",
-      "legacy_rank": 60,
+      "priority": 60,
       "require": {
         "all": [
           {
@@ -747,7 +747,7 @@
       "id": "semconv.uri_part",
       "doc": "The conventions' reference part: a `uri` with an optional `mime_type`. Logfire writes an inline image this way, as a `data:` URI, so it was kept as an unknown block; the media type comes from the declaration, the URI, or the bytes.",
       "at": "before_provider_formats",
-      "legacy_rank": 61,
+      "priority": 61,
       "require": {
         "all": [
           {
@@ -776,7 +776,7 @@
       "id": "semconv.tool_call_response_parts",
       "doc": "The conventions' tool result part whose `response` is a list of text parts. The conventions leave `response` as whatever the tool returned; Strands writes there the Bedrock content blocks it hands back to the model (`[{\"text\": ...}]`, the same list its `gen_ai.tool.call.result` attribute holds) and Vercel AI writes typed text parts, so such a list is read as the result's content, each member through the returned-value chain. Only a list every member of which is a part with `text`: a tool returning a JSON array of values returned a value, not content, and keeps the provider format's reading as one `json` block. The provider formats wrapped every non-string response that way, so a list of text parts rendered as the list itself and the attribute's copy of the same result no longer matched it.",
       "at": "before_provider_formats",
-      "legacy_rank": 62,
+      "priority": 62,
       "require": {
         "all": [
           {
@@ -808,7 +808,7 @@
     {
       "id": "semconv.text_content_part",
       "at": "provider_formats",
-      "legacy_rank": 1001,
+      "priority": 1001,
       "require": {
         "all": [
           {
@@ -835,7 +835,7 @@
     {
       "id": "semconv.tool_call_part",
       "at": "provider_formats",
-      "legacy_rank": 1200,
+      "priority": 1200,
       "require": {
         "all": [
           {
@@ -865,7 +865,7 @@
     {
       "id": "semconv.tool_call_response_part",
       "at": "provider_formats",
-      "legacy_rank": 1300,
+      "priority": 1300,
       "require": {
         "all": [
           {
@@ -893,7 +893,7 @@
     {
       "id": "semconv.reasoning_part_text",
       "at": "provider_formats",
-      "legacy_rank": 1500,
+      "priority": 1500,
       "require": {
         "all": [
           {
@@ -917,7 +917,7 @@
     {
       "id": "semconv.reasoning_part",
       "at": "provider_formats",
-      "legacy_rank": 1501,
+      "priority": 1501,
       "require": {
         "all": [
           {
@@ -946,7 +946,7 @@
     {
       "id": "semconv.blob_part_data",
       "at": "provider_formats",
-      "legacy_rank": 1600,
+      "priority": 1600,
       "require": {
         "all": [
           {

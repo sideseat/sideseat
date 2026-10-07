@@ -19,20 +19,20 @@ fn every_detection_refusal_fires() {
     let cases: Vec<Case> = vec![
         (
             "an empty attribute prefix, which matches everything",
-            r#"{"id":"t","doc":"d","detect":[{"id":"a","doc":"d","label":"A","legacy_rank":1,
+            r#"{"id":"t","doc":"d","detect":[{"id":"a","doc":"d","label":"A","priority":1,
                "match":{"attr_prefix":[""]}}]}"#,
             |e| matches!(e, E::EmptyLiteral { .. }),
         ),
         (
             "two rules sharing an id",
             r#"{"id":"t","doc":"d","detect":[
-               {"id":"a","doc":"d","label":"A","legacy_rank":1,"match":{"attr_prefix":["one."]}},
-               {"id":"a","doc":"d","label":"B","legacy_rank":2,"match":{"attr_prefix":["two."]}}]}"#,
+               {"id":"a","doc":"d","label":"A","priority":1,"match":{"attr_prefix":["one."]}},
+               {"id":"a","doc":"d","label":"B","priority":2,"match":{"attr_prefix":["two."]}}]}"#,
             |e| matches!(e, E::DuplicateRuleId { .. }),
         ),
         (
             "a supersedes edge naming a rule nothing declares",
-            r#"{"id":"t","doc":"d","detect":[{"id":"a","doc":"d","label":"A","legacy_rank":1,
+            r#"{"id":"t","doc":"d","detect":[{"id":"a","doc":"d","label":"A","priority":1,
                "match":{"attr_prefix":["one."]},"supersedes":["absent"]}]}"#,
             |e| matches!(e, E::UselessSupersedes { .. }),
         ),
@@ -41,14 +41,14 @@ fn every_detection_refusal_fires() {
             // producer - and which one a span gets depends on whether its signals were detected or its SDK
             // declared itself, which a reader filtering on the label sees as one producer split in two.
             "an SDK slug resolving to a label no rule produces",
-            r#"{"id":"t","doc":"d","detect":[{"id":"a","doc":"d","label":"Acme","legacy_rank":1,
+            r#"{"id":"t","doc":"d","detect":[{"id":"a","doc":"d","label":"Acme","priority":1,
                "match":{"attr_prefix":["one."]}}],
                "sdk_slugs":[{"slug":"acme","label":"Acmee"}]}"#,
             |e| matches!(e, E::SlugLabelNoRuleProduces { .. }),
         ),
         (
             "a supersedes edge to the rule itself",
-            r#"{"id":"t","doc":"d","detect":[{"id":"a","doc":"d","label":"A","legacy_rank":1,
+            r#"{"id":"t","doc":"d","detect":[{"id":"a","doc":"d","label":"A","priority":1,
                "match":{"attr_prefix":["one."]},"supersedes":["a"]}]}"#,
             |e| matches!(e, E::UselessSupersedes { .. }),
         ),
@@ -62,7 +62,7 @@ fn every_detection_refusal_fires() {
     // A slug naming a label its own asset's rule produces compiles, which is the shape every asset uses.
     assert!(
         compiled(
-            r#"{"id":"t","doc":"d","detect":[{"id":"a","doc":"d","label":"Acme","legacy_rank":1,
+            r#"{"id":"t","doc":"d","detect":[{"id":"a","doc":"d","label":"Acme","priority":1,
                "match":{"attr_prefix":["one."]}}],
                "sdk_slugs":[{"slug":"acme","label":"Acme"}]}"#
         )
@@ -222,10 +222,10 @@ fn a_scoped_constructor_repr_decoder_yields_to_the_general_carrier_reader() {
                {"from_value_any_of":["$.state"],"require":{"all":[
                  {"one_of":["error","denied","interrupted"]}]},
                 "as":"is_error","value":true,"after_content":true}]}},
-           "emit":"message","reads_tool_spans":true,"legacy_rank":1},
+           "emit":"message","reads_tool_spans":true,"priority":1},
           {"id":"t.general","read":{"attribute":"result"},"parse":"json_or_string",
            "wrap":{"role":"tool","block":{"type":"tool_result"}},
-           "emit":"message","reads_tool_spans":true,"legacy_rank":2}]}"#
+           "emit":"message","reads_tool_spans":true,"priority":2}]}"#
                 .to_vec(),
         )]))
         .expect("the probe assets parse"),
@@ -272,10 +272,10 @@ fn a_list_of_constructor_reprs_is_read_as_blocks_and_only_whole() {
           {"id":"t.blocks","read":{"attribute":"result"},"parse":"python_constructor_repr_array",
            "instrumentation_scope":{"name":"specific"},
            "wrap":{"role":"tool","content_from_any_of":["$"],"block":{"type":"tool_result"}},
-           "emit":"message","reads_tool_spans":true,"legacy_rank":1},
+           "emit":"message","reads_tool_spans":true,"priority":1},
           {"id":"t.general","read":{"attribute":"result"},"parse":"json_or_string",
            "wrap":{"role":"tool","block":{"type":"tool_result"}},
-           "emit":"message","reads_tool_spans":true,"legacy_rank":2}]}"#
+           "emit":"message","reads_tool_spans":true,"priority":2}]}"#
                 .to_vec(),
         )]))
         .expect("the probe assets parse"),

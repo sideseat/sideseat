@@ -22,7 +22,9 @@ pub struct CompiledDetect {
     pub rule_id: String,
     pub doc: Option<String>,
     pub label: String,
-    pub legacy_rank: i32,
+    pub priority: i32,
+    /// The overlaps this clause documents. Validated against `priority` at compile time and read only by the
+    /// overlap report: the priority alone decides which rule answers.
     pub supersedes: Vec<String>,
     pub match_spec: DetectMatch,
     /// Further disjunctive signal sets that must each hold.
@@ -50,12 +52,10 @@ pub struct NearMiss {
     pub found: String,
 }
 
-/// The compiled detection plan: rules in rank order, plus the declaration fallback.
+/// The compiled detection plan: rules in priority order, plus the declaration fallback.
 #[derive(Debug, Default)]
 pub struct DetectPlan {
     rules: Vec<CompiledDetect>,
-    /// Rule ids some rule claims to beat, so `resolve` can keep its early exit for everything else.
-    superseded: std::collections::BTreeSet<String>,
     /// SDK-declared slug → label.
     sdk_slugs: BTreeMap<String, String>,
 }
@@ -99,7 +99,7 @@ pub enum DetectCompileError {
     DuplicateRuleId {
         rule: String,
     },
-    DuplicateRank {
+    DuplicatePriority {
         first: String,
         second: String,
     },
@@ -109,11 +109,11 @@ pub enum DetectCompileError {
     DuplicateSlug {
         slug: String,
     },
-    /// A `supersedes` edge that cannot take effect.
+    /// A `supersedes` edge that cannot mean what it says.
     UselessSupersedes {
         rule: String,
         target: String,
-        detail: &'static str,
+        detail: String,
     },
     BadTextSource {
         rule: String,
@@ -132,7 +132,7 @@ impl std::fmt::Display for DetectCompileError {
             ),
             Self::ShadowedRule { earlier, later } => write!(
                 f,
-                "rule `{later}` can never be reached: `{earlier}` is ranked ahead of it and every span `{later}` \
+                "rule `{later}` can never be reached: `{earlier}` is tried ahead of it and every span `{later}` \
                  matches satisfies `{earlier}` too, so `{later}`'s answer is unreachable and reads as protection \
                  it does not give"
             ),
@@ -153,9 +153,9 @@ impl std::fmt::Display for DetectCompileError {
                 detail,
             } => write!(
                 f,
-                "detection rule `{rule}` supersedes `{target}`, which {detail}. `supersedes` decides which \
-                 of two matching rules wins, ahead of `legacy_rank`, and waives the overlap report that names \
-                 which predicates are not yet sufficient. An edge that cannot take effect reads as one that does"
+                "detection rule `{rule}` supersedes `{target}`, which {detail}. `supersedes` documents an \
+                 overlap the priorities resolve and waives the overlap report for that pair; an edge that \
+                 contradicts them, or names nothing, reads as an ordering it does not state"
             ),
             Self::EmptyLiteral { rule, dimension } => write!(
                 f,
@@ -164,9 +164,9 @@ impl std::fmt::Display for DetectCompileError {
             Self::DuplicateRuleId { rule } => {
                 write!(f, "detection rule id `{rule}` is declared more than once")
             }
-            Self::DuplicateRank { first, second } => write!(
+            Self::DuplicatePriority { first, second } => write!(
                 f,
-                "detection rules `{first}` and `{second}` share a rank: their relative order would \
+                "detection rules `{first}` and `{second}` share a priority: their relative order would \
                  depend on load order, and detection order is policy"
             ),
             Self::NoSignal { rule } => write!(
@@ -226,7 +226,7 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<DetectPlan, Detec
         // them.
         let compile_one = |id: &str,
                            doc: Option<String>,
-                           legacy_rank: i32,
+                           priority: i32,
                            label: &str,
                            supersedes: Vec<String>,
                            spec: &DetectMatch,
@@ -299,7 +299,7 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<DetectPlan, Detec
                 rule_id: id.to_string(),
                 doc,
                 label: label.to_string(),
-                legacy_rank,
+                priority,
                 supersedes,
                 match_spec: spec.clone(),
                 required: all_of.iter().map(probe_for).collect(),
@@ -324,22 +324,22 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<DetectPlan, Detec
             rules.push(compile_one(
                 &rule.id,
                 rule.doc.clone(),
-                rule.legacy_rank,
+                rule.priority,
                 &rule.label,
                 rule.supersedes.clone(),
                 &rule.match_spec,
                 &rule.all_of,
             )?);
             for alternative in &rule.alternatives {
-                // The label and the overlap edges are the *rule's*, not the alternative's: an alternative is
-                // further evidence for one producer, so declaring its own label would make it a separate rule
-                // wearing a rule's id.
+                // The label is the *rule's*: an alternative is further evidence for one producer, so declaring its
+                // own label would make it a separate rule wearing a rule's id. Its documented overlaps are its own,
+                // because it exists to sit at a different priority.
                 rules.push(compile_one(
                     &alternative.id,
                     alternative.doc.clone(),
-                    alternative.legacy_rank,
+                    alternative.priority,
                     &rule.label,
-                    rule.supersedes.clone(),
+                    alternative.supersedes.clone(),
                     &alternative.match_spec,
                     &alternative.all_of,
                 )?);
@@ -347,79 +347,42 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<DetectPlan, Detec
         }
     }
 
-    rules.sort_by_key(|r| r.legacy_rank);
-    // A shared rank is refused: two rules that both match one span would be separated by load order,
-    // and the whole reason rank is explicit is that this order is policy somebody has to own.
-    for pair in rules.windows(2) {
-        if pair[0].legacy_rank == pair[1].legacy_rank {
-            return Err(DetectCompileError::DuplicateRank {
-                first: pair[0].rule_id.clone(),
-                second: pair[1].rule_id.clone(),
+    // A shared priority is refused: two rules that both match one span would be separated by load order, and the
+    // whole reason the order is explicit is that it is policy somebody has to own.
+    if let Some((first, second)) =
+        super::precedence::shared_priority(&rules, |rule| rule.priority, |_, _| true)
+    {
+        return Err(DetectCompileError::DuplicatePriority {
+            first: first.rule_id.clone(),
+            second: second.rule_id.clone(),
+        });
+    }
+    rules.sort_by_key(|rule| rule.priority);
+
+    // Every `supersedes` edge must agree with the priorities it documents. It once *ordered*, ahead of rank, and
+    // that made the order a preference relation no total order could state (two shipped edges pointed at rules
+    // ranked ahead of their sources); now the priority is the order and the edge is a checked statement about it.
+    let priority_of: HashMap<&str, i32> = rules
+        .iter()
+        .map(|rule| (rule.rule_id.as_str(), rule.priority))
+        .collect();
+    for rule in &rules {
+        if let Some((target, defect)) =
+            super::precedence::edge_defect(&rule.rule_id, rule.priority, &rule.supersedes, |id| {
+                priority_of.get(id).copied()
+            })
+        {
+            return Err(DetectCompileError::UselessSupersedes {
+                rule: rule.rule_id.clone(),
+                target: target.to_string(),
+                detail: defect.describe(),
             });
         }
     }
 
-    // Every `supersedes` edge must be able to take effect. The field waives the overlap *report*, and that
-    // waiver is only consulted for the rule that already won by rank - so an edge from a higher-ranked rule
-    // to a lower-ranked one is inspected by nobody, and an edge naming a rule that does not exist or itself
-    // is inspected by nobody either. All three compiled silently, which is how a reader comes to believe the
-    // field orders things.
-    let rank_of: HashMap<&str, i32> = rules
-        .iter()
-        .map(|rule| (rule.rule_id.as_str(), rule.legacy_rank))
-        .collect();
-    for rule in &rules {
-        let mut seen: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
-        for target in &rule.supersedes {
-            if !seen.insert(target.as_str()) {
-                return Err(DetectCompileError::UselessSupersedes {
-                    rule: rule.rule_id.clone(),
-                    target: target.clone(),
-                    detail: "is named twice by this rule",
-                });
-            }
-            let detail = if target == &rule.rule_id {
-                Some("is the rule itself")
-            } else {
-                match rank_of.get(target.as_str()) {
-                    None => Some("no asset declares"),
-                    // An edge pointing at a rule that **outranks** this one used to be refused, because the
-                    // waiver was only read from whichever rule rank had already made the winner. Now that
-                    // `supersedes` orders, that edge is the useful case: it is how a rule beats one ranked ahead
-                    // of it without moving its own weaker signals up with it.
-                    Some(_) => None,
-                }
-            };
-            if let Some(detail) = detail {
-                return Err(DetectCompileError::UselessSupersedes {
-                    rule: rule.rule_id.clone(),
-                    target: target.clone(),
-                    detail,
-                });
-            }
-        }
-    }
-
     // A rule an earlier one always satisfies first can never answer. The same defect as a subsumed literal, one
-    // level up - and a *detection* rule shadowed this way silently never attributes its producer at all.
-    // Transitive domination, computed here because a rule that **supersedes** its shadower is reachable after all:
-    // `supersedes` orders ahead of rank, so the broader rule loses to it. Without this the refusal rejected exactly
-    // the shape `supersedes` exists for - a narrow rule ranked after the broad one it beats.
-    let beats = |from: &str| -> std::collections::BTreeSet<&str> {
-        let mut out: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
-        let mut queue: Vec<&str> = vec![from];
-        while let Some(current) = queue.pop() {
-            let Some(rule) = rules.iter().find(|r| r.rule_id == current) else {
-                continue;
-            };
-            for target in &rule.supersedes {
-                if out.insert(target.as_str()) {
-                    queue.push(target.as_str());
-                }
-            }
-        }
-        out
-    };
+    // level up - and a *detection* rule shadowed this way silently never attributes its producer at all. Sound
+    // rather than complete (see `shadows`).
     for (index, earlier) in rules.iter().enumerate() {
         for later in &rules[index + 1..] {
             let earlier_specs: Vec<DetectMatch> = std::iter::once(&earlier.match_spec)
@@ -430,9 +393,7 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<DetectPlan, Detec
                 .chain(later.required.iter().map(|probe| &probe.match_spec))
                 .cloned()
                 .collect();
-            if shadows(&earlier_specs, &later_specs)
-                && !beats(later.rule_id.as_str()).contains(earlier.rule_id.as_str())
-            {
+            if shadows(&earlier_specs, &later_specs) {
                 return Err(DetectCompileError::ShadowedRule {
                     earlier: earlier.rule_id.clone(),
                     later: later.rule_id.clone(),
@@ -458,11 +419,6 @@ pub fn compile(assets: &super::assets::ParsedAssets) -> Result<DetectPlan, Detec
         });
     }
 
-    // Every id some rule claims to beat, so `resolve` keeps its early exit for the rules nothing contests.
-    plan.superseded = rules
-        .iter()
-        .flat_map(|rule| rule.supersedes.iter().cloned())
-        .collect();
     plan.rules = rules;
     Ok(plan)
 }
@@ -920,7 +876,7 @@ fn probe_for(spec: &DetectMatch) -> CompiledDetect {
         rule_id: String::new(),
         doc: None,
         label: String::new(),
-        legacy_rank: 0,
+        priority: 0,
         supersedes: Vec::new(),
         match_spec: spec.clone(),
         required: Vec::new(),

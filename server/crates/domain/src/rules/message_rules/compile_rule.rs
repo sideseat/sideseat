@@ -36,7 +36,7 @@ pub(super) fn compile_rule(
         unless,
         when,
         instrumentation_scope,
-        legacy_rank,
+        priority,
     } = rule;
     // The values every check below reads, resolved once. The *declarations* above keep their presence, which
     // is a separate question and is asked only by the branch-seam refusals: a field written out with its
@@ -839,13 +839,13 @@ pub(super) fn compile_rule(
                                     // The mirror of the parent's no-dead-fields rule. A leaf is reached
                                     // through its parent, so the fields the *entry points* consult are read
                                     // from the parent alone: `source` selects which entry point runs the
-                                    // rule at all, and a branch's order is positional, so a leaf's rank
+                                    // rule at all, and a branch's order is positional, so a leaf's priority
                                     // orders nothing. Each compiled silently and stated something the
                                     // engine never reads.
-                                    if sub.source.is_some() || sub.legacy_rank.is_some() {
+                                    if sub.source.is_some() || sub.priority.is_some() {
                                         return Err(inexpressible(
                                             "a branch leaf is reached through its parent, so `source` and \
-                                             `legacy_rank` are read from the parent and would be ignored \
+                                             `priority` are read from the parent and would be ignored \
                                              here - declare them on the rule that owns the branch set",
                                         ));
                                     }
@@ -936,6 +936,6 @@ pub(super) fn compile_rule(
         alternatives: inline_fragments(alternatives, fragments)?,
         also: inline_fragments(also, fragments)?,
         fallback: inline_fragments(fallback, fragments)?,
-        legacy_rank: legacy_rank.unwrap_or(0),
+        priority: priority.unwrap_or(0),
     })
 }

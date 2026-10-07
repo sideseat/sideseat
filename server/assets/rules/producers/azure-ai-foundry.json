@@ -13,7 +13,7 @@
           "az.ai."
         ]
       },
-      "legacy_rank": 170
+      "priority": 170
     }
   ],
   "sdk_slugs": [

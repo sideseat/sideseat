@@ -6,7 +6,7 @@
     {
       "id": "anthropic.thinking",
       "at": "provider_formats",
-      "legacy_rank": 1951,
+      "priority": 1951,
       "require": {
         "all": [
           {
@@ -34,7 +34,7 @@
     {
       "id": "anthropic.thinking_text",
       "at": "provider_formats",
-      "legacy_rank": 1952,
+      "priority": 1952,
       "require": {
         "all": [
           {
@@ -62,7 +62,7 @@
     {
       "id": "anthropic.thinking_withheld",
       "at": "provider_formats",
-      "legacy_rank": 1954,
+      "priority": 1954,
       "require": {
         "all": [
           {
@@ -83,7 +83,7 @@
     {
       "id": "anthropic.redacted_thinking",
       "at": "provider_formats",
-      "legacy_rank": 1960,
+      "priority": 1960,
       "require": {
         "all": [
           {
@@ -103,7 +103,7 @@
     {
       "id": "anthropic.image_base64",
       "at": "provider_formats",
-      "legacy_rank": 2000,
+      "priority": 2000,
       "require": {
         "all": [
           {
@@ -138,7 +138,7 @@
     {
       "id": "anthropic.image_url",
       "at": "provider_formats",
-      "legacy_rank": 2001,
+      "priority": 2001,
       "require": {
         "all": [
           {
@@ -172,7 +172,7 @@
     {
       "id": "anthropic.document_base64",
       "at": "provider_formats",
-      "legacy_rank": 2002,
+      "priority": 2002,
       "require": {
         "all": [
           {
@@ -206,7 +206,7 @@
     {
       "id": "anthropic.document_url",
       "at": "provider_formats",
-      "legacy_rank": 2003,
+      "priority": 2003,
       "require": {
         "all": [
           {
@@ -240,7 +240,7 @@
     {
       "id": "anthropic.tool_use",
       "at": "provider_formats",
-      "legacy_rank": 2005,
+      "priority": 2005,
       "require": {
         "all": [
           {
@@ -267,7 +267,7 @@
     {
       "id": "anthropic.tool_result",
       "at": "provider_formats",
-      "legacy_rank": 2010,
+      "priority": 2010,
       "require": {
         "all": [
           {
@@ -299,7 +299,7 @@
       "members": [
         "system"
       ],
-      "rank": 10,
+      "priority": 10,
       "holds_detached_system": true,
       "holds_prose": true
     },
@@ -309,7 +309,7 @@
       "members": [
         "stop_sequences"
       ],
-      "rank": 10,
+      "priority": 10,
       "alias_of": "stop"
     }
   ]

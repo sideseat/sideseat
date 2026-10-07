@@ -14,17 +14,17 @@ fn a_branch_leaf_keeps_its_own_gate() {
         (
             "a gated leaf under an ungated parent, beside a rule its gate excludes",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","legacy_rank":1,
+                {"id":"a","doc":"d","priority":1,
                  "branch_set":{"primary":[
                     {"id":"a.1","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
                      "when":{"attr_exists":["only.a"]},"tag_as":"a.tag"}]}},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "when":{"attr_exists":["only.b"]},"tag_as":"b.tag","legacy_rank":2}]}"#,
+                 "when":{"attr_exists":["only.b"]},"tag_as":"b.tag","priority":2}]}"#,
         ),
         (
             "a fallback-group leaf, which reads only where the primaries found nothing",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","legacy_rank":1,
+                {"id":"a","doc":"d","priority":1,
                  "branch_set":{"primary":[
                     {"id":"a.1","doc":"d","read":{"attribute":"p"},"parse":"json","emit":"message",
                      "tag_as":"a.1.tag"}],
@@ -32,7 +32,7 @@ fn a_branch_leaf_keeps_its_own_gate() {
                     {"id":"a.2","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
                      "tag_as":"a.2.tag"}]}},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "tag_as":"b.tag","legacy_rank":2}]}"#,
+                 "tag_as":"b.tag","priority":2}]}"#,
         ),
     ];
     for (what, asset) in accepted {
@@ -50,28 +50,28 @@ fn a_branch_leaf_keeps_its_own_gate() {
             "an `attr_exists` rule ahead of an `attr_equals` one on the same key",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "when":{"attr_exists":["marker"]},"tag_as":"a.tag","legacy_rank":1},
+                 "when":{"attr_exists":["marker"]},"tag_as":"a.tag","priority":1},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
                  "when":{"attr_equals":[{"key":"marker","value":"yes"}]},"tag_as":"b.tag",
-                 "legacy_rank":2}]}"#,
+                 "priority":2}]}"#,
         ),
         (
             "an `attr_prefix` rule ahead of an exact key beneath that prefix",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "when":{"attr_prefix":["dialect."]},"tag_as":"a.tag","legacy_rank":1},
+                 "when":{"attr_prefix":["dialect."]},"tag_as":"a.tag","priority":1},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "when":{"attr_exists":["dialect.node"]},"tag_as":"b.tag","legacy_rank":2}]}"#,
+                 "when":{"attr_exists":["dialect.node"]},"tag_as":"b.tag","priority":2}]}"#,
         ),
         (
             "an ungated leaf under an ungated parent, which really does suppress",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","legacy_rank":1,
+                {"id":"a","doc":"d","priority":1,
                  "branch_set":{"primary":[
                     {"id":"a.1","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
                      "tag_as":"a.tag"}]}},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "tag_as":"b.tag","legacy_rank":2}]}"#,
+                 "tag_as":"b.tag","priority":2}]}"#,
         ),
     ];
     for (what, asset) in refused {
@@ -106,42 +106,42 @@ fn a_wider_gate_suppresses_a_narrower_one() {
             // applies to a gated `tag_as` beside an ungated one.
             "two composes sharing a tag while reading different carriers",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","legacy_rank":1,"when":{"attr_exists":["m.a"]},
+                {"id":"a","doc":"d","priority":1,"when":{"attr_exists":["m.a"]},
                  "compose":{"tag":"shared","members":[{"as":"content","from_any_of":["k1"],"parse":"text"}]}},
-                {"id":"b","doc":"d","legacy_rank":2,"when":{"attr_exists":["m.b"]},
+                {"id":"b","doc":"d","priority":2,"when":{"attr_exists":["m.b"]},
                  "compose":{"tag":"shared","members":[{"as":"content","from_any_of":["k2"],"parse":"text"}]}}]}"#,
         ),
         (
             "a superset gate at the earlier rank",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "when":{"attr_exists":["a","b"]},"tag_as":"a.tag","legacy_rank":1},
+                 "when":{"attr_exists":["a","b"]},"tag_as":"a.tag","priority":1},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "when":{"attr_exists":["a"]},"tag_as":"b.tag","legacy_rank":2}]}"#,
+                 "when":{"attr_exists":["a"]},"tag_as":"b.tag","priority":2}]}"#,
         ),
         (
             "a shorter span-name prefix, which covers every longer one",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "when":{"span_name":["chat"]},"tag_as":"a.tag","legacy_rank":1},
+                 "when":{"span_name":["chat"]},"tag_as":"a.tag","priority":1},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "when":{"span_name":["chat.completions"]},"tag_as":"b.tag","legacy_rank":2}]}"#,
+                 "when":{"span_name":["chat.completions"]},"tag_as":"b.tag","priority":2}]}"#,
         ),
         (
             "a root `starts_with` beside its own negation, which holds of every value",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1,
+                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","priority":1,
                  "alternatives":[{"id":"probe.alt","require":{"any":[
                     {"starts_with":"a"},{"lacks_prefix":"a"}]},
                   "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "legacy_rank":2}]}"#,
+                 "priority":2}]}"#,
         ),
         (
             "`elements` beside an explicitly false aggregate, which it also ignores",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "aggregate_into_array":false,"legacy_rank":1,
+                 "aggregate_into_array":false,"priority":1,
                  "elements":{"passes":[{"id":"probe.pass","tag_from":"$.name"}]}}]}"#,
         ),
     ];
@@ -159,37 +159,37 @@ fn a_wider_gate_suppresses_a_narrower_one() {
             "the subset gate at the earlier rank, which leaves spans for the wider one",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "when":{"attr_exists":["a"]},"tag_as":"a.tag","legacy_rank":1},
+                 "when":{"attr_exists":["a"]},"tag_as":"a.tag","priority":1},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "when":{"attr_exists":["a","b"]},"tag_as":"b.tag","legacy_rank":2}]}"#,
+                 "when":{"attr_exists":["a","b"]},"tag_as":"b.tag","priority":2}]}"#,
         ),
         (
             "the same gate, where the earlier rule may read nothing on a span it runs on",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "when":{"attr_exists":["marker"]},"tag_as":"a.tag","legacy_rank":1,
+                 "when":{"attr_exists":["marker"]},"tag_as":"a.tag","priority":1,
                  "alternatives":[{"id":"probe.alt","require":{"any":[{"path":"$.kind","one_of":["first"]}]},
                   "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "when":{"attr_exists":["marker"]},"tag_as":"b.tag","legacy_rank":2}]}"#,
+                 "when":{"attr_exists":["marker"]},"tag_as":"b.tag","priority":2}]}"#,
         ),
         (
             "a reading narrowed only by `require_parent`, which narrows as `require` does",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "tag_as":"a.tag","legacy_rank":1,
+                 "tag_as":"a.tag","priority":1,
                  "alternatives":[{"id":"probe.alt","require_parent":{"any":[{"path":"$.kind","one_of":["k"]}]},
                   "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
                 {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "tag_as":"b.tag","legacy_rank":2}]}"#,
+                 "tag_as":"b.tag","priority":2}]}"#,
         ),
         (
             "a single-spelling `first_present`, which is not a choice",
             r#"{"id":"t","doc":"d","messages":[
                 {"id":"a","doc":"d","read":{"first_present":["only"]},"parse":"json","emit":"message",
-                 "tag_as":"shared","when":{"attr_exists":["m"]},"legacy_rank":1},
+                 "tag_as":"shared","when":{"attr_exists":["m"]},"priority":1},
                 {"id":"b","doc":"d","read":{"attribute":"only"},"parse":"json","emit":"message",
-                 "tag_as":"shared","legacy_rank":2}]}"#,
+                 "tag_as":"shared","priority":2}]}"#,
         ),
     ];
     for (what, asset) in accepted {
@@ -220,7 +220,7 @@ fn a_wider_gate_suppresses_a_narrower_one() {
 fn conditionality_is_a_property_of_the_carrier_not_of_the_rule() {
     // Rule A reads family `f` always and `side` only where the witness holds; rule B reads `f.0.content`.
     let family_key_conflict = r#"{"id":"t","doc":"d","messages":[
-        {"id":"a","doc":"d","legacy_rank":1,
+        {"id":"a","doc":"d","priority":1,
          "read":{"indexed_family":"f","overlay":{
             "from":"side","parse":"json","select_any_of":["$"],
             "witness":{"any":[{"path":"$[*].id","kind":"array"}]},
@@ -228,11 +228,11 @@ fn conditionality_is_a_property_of_the_carrier_not_of_the_rule() {
             "as_member":"content"}},
          "emit":"message"},
         {"id":"b","doc":"d","read":{"attribute":"f.0.content"},"parse":"json","emit":"message",
-         "tag_as":"b.own.tag","legacy_rank":2}]}"#;
+         "tag_as":"b.own.tag","priority":2}]}"#;
     // The same overlay, against a rule reading the payload the overlay joins against. Genuinely conditional:
     // A consumes `side` only where the witness holds, and yields it elsewhere.
     let side_payload_pair = r#"{"id":"t","doc":"d","messages":[
-        {"id":"a","doc":"d","legacy_rank":1,
+        {"id":"a","doc":"d","priority":1,
          "read":{"indexed_family":"f","overlay":{
             "from":"side","parse":"json","select_any_of":["$"],
             "witness":{"any":[{"path":"$[*].id","kind":"array"}]},
@@ -240,24 +240,24 @@ fn conditionality_is_a_property_of_the_carrier_not_of_the_rule() {
             "as_member":"content"}},
          "emit":"message"},
         {"id":"b","doc":"d","read":{"attribute":"side"},"parse":"json","emit":"message",
-         "legacy_rank":2}]}"#;
+         "priority":2}]}"#;
     // Rule A reads `x` through one required alternative *and* an unconditional fallback, so it claims `x` on
     // every span; rule B reads `x` too.
     let unconditional_fallback = r#"{"id":"t","doc":"d","messages":[
-        {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1,
+        {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","priority":1,
          "alternatives":[{"id":"probe.alt","require":{"any":[{"path":"$.marker","exists":true}]},
                           "wrap":{"role":"user","content_from_any_of":["$.content"]}}],
          "fallback":[{"id":"probe.fallback","wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
         {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-         "legacy_rank":2}]}"#;
+         "priority":2}]}"#;
     // The same rule with no unconditional path: every reading is required, so it yields on a payload none
     // recognises and the pair is genuine.
     let all_readings_required = r#"{"id":"t","doc":"d","messages":[
-        {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","legacy_rank":1,
+        {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","priority":1,
          "alternatives":[{"id":"probe.alt","require":{"any":[{"path":"$.marker","exists":true}]},
                           "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
         {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-         "legacy_rank":2}]}"#;
+         "priority":2}]}"#;
 
     for (what, asset) in [
         (
@@ -312,10 +312,10 @@ fn an_event_rules_gate_asks_about_its_span_not_about_the_event() {
       "messages":[
         {"id":"by_name","doc":"d","source":{"event":{"names":["some.event"]}},
          "when":{"span_name":["chat "]},
-         "read":{"attribute":"payload"},"parse":"json","emit":"message","legacy_rank":1},
+         "read":{"attribute":"payload"},"parse":"json","emit":"message","priority":1},
         {"id":"by_attr","doc":"d","source":{"event":{"names":["some.event"]}},
          "when":{"attr_exists":["framework.marker"]},
-         "read":{"attribute":"other"},"parse":"json","emit":"message","legacy_rank":2}]}"#;
+         "read":{"attribute":"other"},"parse":"json","emit":"message","priority":2}]}"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), asset.to_vec())]);
     let plan = compile(&ParsedAssets::parse(&sources).expect("the probe assets parse"))
         .expect("an event rule may be gated on the span that carries it");

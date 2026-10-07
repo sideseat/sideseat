@@ -30,7 +30,7 @@
       "id": "google-genai.blob_part",
       "doc": "An inline image or document. The semantic conventions' BlobPart holds its bytes, base64-encoded, under `content` beside `mime_type` and `modality`; this instrumentation writes it without the `type` member, so it reached no media reading and was kept as an unknown block.",
       "at": "before_provider_formats",
-      "legacy_rank": 85,
+      "priority": 85,
       "require": {
         "all": [
           {
@@ -100,7 +100,7 @@
         }
       },
       "emit": "message",
-      "legacy_rank": 155,
+      "priority": 155,
       "reads_tool_spans": true
     },
     {
@@ -144,7 +144,7 @@
         }
       },
       "emit": "message",
-      "legacy_rank": 156,
+      "priority": 156,
       "reads_tool_spans": true,
       "tag_as": "google_genai.tool_call.parameters"
     },
@@ -179,7 +179,7 @@
         }
       },
       "emit": "message",
-      "legacy_rank": 171,
+      "priority": 171,
       "reads_tool_spans": true
     }
   ],

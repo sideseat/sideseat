@@ -21,15 +21,15 @@ fn a_rule_declares_where_it_reads_with_one_member() {
     // differing only in a stage the event path does not read.
     let refused = compile(&ParsedAssets::parse(&asset(
         r#"[{"id":"a","source":{"event":{"names":["acme.event"]}},"read":{"attribute":"payload"},
-             "parse":"text","emit":"message","legacy_rank":1},
+             "parse":"text","emit":"message","priority":1},
             {"id":"b","source":{"event":{"names":["acme.event"]}},"read":{"attribute":"payload"},
-             "parse":"text","emit":"message","legacy_rank":1}]"#,
+             "parse":"text","emit":"message","priority":1}]"#,
     )).expect("the probe assets parse"))
     .expect_err("two event rules over one event at one rank must be refused");
     let message = refused.to_string();
     assert!(
-        message.contains("rank") || message.contains("carrier"),
-        "the refusal must be about the rank or the contested carrier, not something incidental: {message}"
+        message.contains("priority") || message.contains("carrier"),
+        "the refusal must be about the priority or the contested carrier, not something incidental: {message}"
     );
 
     // The case the *arena* rule owns on its own: two event rules over one event at one rank reading
@@ -39,9 +39,9 @@ fn a_rule_declares_where_it_reads_with_one_member() {
     let refused = compile(
         &ParsedAssets::parse(&asset(
             r#"[{"id":"a","source":{"event":{"names":["acme.event"]}},"read":{"attribute":"one"},
-             "parse":"text","emit":"message","legacy_rank":1},
+             "parse":"text","emit":"message","priority":1},
             {"id":"b","source":{"event":{"names":["acme.event"]}},"read":{"attribute":"two"},
-             "parse":"text","emit":"message","legacy_rank":1}]"#,
+             "parse":"text","emit":"message","priority":1}]"#,
         ))
         .expect("the probe assets parse"),
     )
@@ -49,17 +49,17 @@ fn a_rule_declares_where_it_reads_with_one_member() {
         "two event rules over one event at one rank share an arena, so the rank must be refused",
     );
     assert!(
-        refused.to_string().contains("rank"),
-        "the refusal must be about the shared rank: {refused}"
+        refused.to_string().contains("priority"),
+        "the refusal must be about the shared priority: {refused}"
     );
 
     // And distinct ranks over one event are fine - the ranks are what order them.
     compile(
         &ParsedAssets::parse(&asset(
             r#"[{"id":"a","source":{"event":{"names":["acme.event"]}},"read":{"attribute":"one"},
-             "parse":"text","emit":"message","legacy_rank":1},
+             "parse":"text","emit":"message","priority":1},
             {"id":"b","source":{"event":{"names":["acme.event"]}},"read":{"attribute":"two"},
-             "parse":"text","emit":"message","legacy_rank":2}]"#,
+             "parse":"text","emit":"message","priority":2}]"#,
         ))
         .expect("the probe assets parse"),
     )
@@ -70,7 +70,7 @@ fn a_rule_declares_where_it_reads_with_one_member() {
     let refused = compile(
         &ParsedAssets::parse(&asset(
             r#"[{"id":"a","source":{"event":{"names":[]}},"read":{"attribute":"payload"},
-             "parse":"text","emit":"message","legacy_rank":1}]"#,
+             "parse":"text","emit":"message","priority":1}]"#,
         ))
         .expect("the probe assets parse"),
     )
@@ -88,7 +88,7 @@ fn a_rule_declares_where_it_reads_with_one_member() {
     ] {
         let body = format!(
             r#"[{{"id":"a","source":{half},"read":{{"attribute":"payload"}},"parse":"text",
-                 "emit":"message","legacy_rank":1}}]"#
+                 "emit":"message","priority":1}}]"#
         );
         assert!(
             ParsedAssets::parse(&asset(&body)).map_or(true, |assets| compile(&assets).is_err()),
@@ -98,7 +98,7 @@ fn a_rule_declares_where_it_reads_with_one_member() {
 
     // The ordinary case still needs no `source` at all, or the migration would be a tax on 340 rules.
     compile(&ParsedAssets::parse(&asset(
-        r#"[{"id":"a","read":{"attribute":"payload"},"parse":"text","emit":"message","legacy_rank":1}]"#,
+        r#"[{"id":"a","read":{"attribute":"payload"},"parse":"text","emit":"message","priority":1}]"#,
     )).expect("the probe assets parse"))
     .expect("a span rule at the dialect stage is the default and declares nothing");
 }
@@ -314,8 +314,8 @@ fn an_all_or_nothing_reading_cannot_be_starved_by_an_earlier_rank() {
     // An indexed family is starved by an earlier conditional rule reading one of its keys.
     let refused = asset(
         r#"[{"id":"t.take_role","when":{"attr_exists":["marker"]},"read":{"attribute":"family.0.role"},
-             "parse":"text","tag_as":"taken","emit":"message","legacy_rank":1},
-            {"id":"t.read_family","read":{"indexed_family":"family"},"emit":"message","legacy_rank":2}]"#,
+             "parse":"text","tag_as":"taken","emit":"message","priority":1},
+            {"id":"t.read_family","read":{"indexed_family":"family"},"emit":"message","priority":2}]"#,
     )
     .expect_err("an indexed family starved by an earlier conditional rule must be refused");
     let message = refused.to_string();
@@ -332,10 +332,10 @@ fn an_all_or_nothing_reading_cannot_be_starved_by_an_earlier_rank() {
     assert!(
         asset(
             r#"[{"id":"t.take_x","when":{"attr_exists":["marker"]},"read":{"attribute":"x"},
-                 "parse":"text","tag_as":"taken","emit":"message","legacy_rank":1},
+                 "parse":"text","tag_as":"taken","emit":"message","priority":1},
                 {"id":"t.compose","compose":{"tag":"joined","members":[
                     {"as":"a","from_any_of":["x","x_backup"],"parse":"text"},{"as":"b","from_any_of":["y"],"parse":"text"}]},
-                 "emit":"message","legacy_rank":2}]"#,
+                 "emit":"message","priority":2}]"#,
         )
         .err()
         .is_some_and(|error| matches!(
@@ -358,13 +358,13 @@ fn an_all_or_nothing_reading_cannot_be_starved_by_an_earlier_rank() {
     let overlaid = |taker_rank: i32, overlaid_rank: i32| {
         format!(
             r#"[{{"id":"t.take_rich","when":{{"attr_exists":["marker"]}},"read":{{"attribute":"rich"}},
-                 "parse":"text","tag_as":"taken","emit":"message","legacy_rank":{taker_rank}}},
+                 "parse":"text","tag_as":"taken","emit":"message","priority":{taker_rank}}},
                 {{"id":"t.overlaid","read":{{"indexed_family":"fam","entry_member":"message",
                    "overlay":{{"from":"rich","parse":"json","select_any_of":["$.messages"],
                      "witness":{{"any":[{{"path":"$[*].id","exists":true}}]}},
                      "when_member_prefix":"contents.","content_any_of":["$.content"],
                      "require":{{"all":[{{"kind":"array"}}]}},"as_member":"content"}}}},
-                 "emit":"message","legacy_rank":{overlaid_rank}}}]"#
+                 "emit":"message","priority":{overlaid_rank}}}]"#
         )
     };
     let refused = asset(&overlaid(1, 2)).expect_err(
@@ -384,9 +384,9 @@ fn an_all_or_nothing_reading_cannot_be_starved_by_an_earlier_rank() {
     // check does not fire either - which is what leaves the starvation question the only one being asked.
     asset(
         r#"[{"id":"t.read_family","when":{"attr_exists":["family_marker"]},
-             "read":{"indexed_family":"family"},"emit":"message","legacy_rank":1},
+             "read":{"indexed_family":"family"},"emit":"message","priority":1},
             {"id":"t.take_role","when":{"attr_exists":["marker"]},"read":{"attribute":"family.0.role"},
-             "parse":"text","tag_as":"taken","emit":"message","legacy_rank":2}]"#,
+             "parse":"text","tag_as":"taken","emit":"message","priority":2}]"#,
     )
     .expect("a multi-owner reading at the earlier rank is not starved - it goes first");
 
@@ -395,11 +395,11 @@ fn an_all_or_nothing_reading_cannot_be_starved_by_an_earlier_rank() {
     // dialect stage claimed - and the inheritance is precisely what makes starvation reach across them.
     assert!(
         asset(
-            r#"[{"id":"t.take_x","read":{"attribute":"x"},"parse":"text","emit":"message","legacy_rank":1},
+            r#"[{"id":"t.take_x","read":{"attribute":"x"},"parse":"text","emit":"message","priority":1},
                 {"id":"t.compose","source":{"span":{"stage":"fallback"}},
                  "compose":{"tag":"joined","members":[
                     {"as":"a","from_any_of":["x"],"parse":"text"},{"as":"b","from_any_of":["y"],"parse":"text"}]},
-                 "emit":"message","legacy_rank":2}]"#,
+                 "emit":"message","priority":2}]"#,
         )
         .is_err(),
         "a fallback-stage reading inherits the dialect stage's claims, so a dialect rule can starve it"
@@ -408,10 +408,10 @@ fn an_all_or_nothing_reading_cannot_be_starved_by_an_earlier_rank() {
     // A single-member compose is not multi-owner: it takes one spelling, so there is no half to lose.
     asset(
         r#"[{"id":"t.take_x","when":{"attr_exists":["marker"]},"read":{"attribute":"x"},
-             "parse":"text","tag_as":"taken","emit":"message","legacy_rank":1},
+             "parse":"text","tag_as":"taken","emit":"message","priority":1},
             {"id":"t.compose","compose":{"tag":"joined","members":[
                 {"as":"a","from_any_of":["x","x_backup"],"parse":"text"}]},
-             "emit":"message","legacy_rank":2}]"#,
+             "emit":"message","priority":2}]"#,
     )
     .expect("one member reading two spellings takes exactly one of them, so nothing is starved");
 }
@@ -435,7 +435,7 @@ fn an_emission_names_the_clause_inside_its_rule() {
     let plan = compile(&ParsedAssets::parse(&std::collections::BTreeMap::from([(
         "t.json".to_string(),
         br#"{"id":"t","messages":[{"id":"t.events","read":{"attribute":"events"},"parse":"json",
-             "emit":"message","legacy_rank":1,"elements":{"passes":[
+             "emit":"message","priority":1,"elements":{"passes":[
                {"id":"named","when":{"all":[{"path":"$['event.name']","one_of":["gen_ai.choice"]}]},
                 "tag_from":"$['event.name']"},
                {"id":"blocks",
@@ -509,7 +509,7 @@ fn a_claim_on_a_container_event_suppresses_its_raw_form() {
         let body = format!(
             r#"{{"id":"t","message_events":[{{"id":"t.e","name":"acme.container","raw":"replace"}}],
                  "messages":[{{"id":"t.read","source":{{"event":{{"names":["acme.container"]}}}},
-                   "read":{{"attribute":"payload"}},"parse":"json","emit":"{emit}","legacy_rank":1}}]}}"#
+                   "read":{{"attribute":"payload"}},"parse":"json","emit":"{emit}","priority":1}}]}}"#
         );
         compile(
             &ParsedAssets::parse(&std::collections::BTreeMap::from([(

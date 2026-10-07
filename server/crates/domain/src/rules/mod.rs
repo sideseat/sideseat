@@ -30,6 +30,7 @@ pub mod log_events;
 pub mod members;
 pub mod message_projection;
 pub mod message_rules;
+pub mod precedence;
 pub mod refusal;
 pub mod schema;
 pub mod span_fields;
@@ -40,6 +41,8 @@ pub mod tool_shapes;
 mod carrier_rules_tests;
 #[cfg(test)]
 mod detect_rules_tests;
+#[cfg(test)]
+mod precedence_instances_tests;
 #[cfg(test)]
 mod schema_census;
 
@@ -789,7 +792,7 @@ pub(super) fn compile_role_authority(
     Ok(plan)
 }
 
-/// The declared event categories in rank order, refusing an empty word and a shared rank.
+/// The declared event categories in priority order, refusing an empty word and a shared priority.
 pub(super) fn compile_event_categories(
     files: &[schema::RuleFile],
 ) -> Result<Vec<(Vec<String>, schema::EventCategory)>, String> {
@@ -803,20 +806,22 @@ pub(super) fn compile_event_categories(
                 ));
             }
             ranked.push((
-                entry.rank,
+                entry.priority,
                 entry.id.clone(),
                 entry.contains.clone(),
                 entry.category,
             ));
         }
     }
-    ranked.sort_by_key(|(rank, ..)| *rank);
-    if let Some(pair) = ranked.windows(2).find(|pair| pair[0].0 == pair[1].0) {
+    if let Some((first, second)) =
+        precedence::shared_priority(&ranked, |(priority, ..)| *priority, |_, _| true)
+    {
         return Err(format!(
-            "event categories `{}` and `{}` share rank {}, so which answers depends on load order",
-            pair[0].1, pair[1].1, pair[0].0
+            "event categories `{}` and `{}` share priority {}, so which answers depends on load order",
+            first.1, second.1, first.0
         ));
     }
+    ranked.sort_by_key(|(priority, ..)| *priority);
     Ok(ranked
         .into_iter()
         .map(|(_, _, words, category)| (words, category))

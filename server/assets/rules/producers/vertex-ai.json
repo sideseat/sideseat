@@ -23,7 +23,7 @@
           ]
         }
       ],
-      "legacy_rank": 180,
+      "priority": 180,
       "supersedes": [
         "logfire.detect"
       ],
@@ -31,7 +31,7 @@
         {
           "id": "vertex-ai.detect.legacy-openllmetry",
           "doc": "Historical opentelemetry-instrumentation-vertexai releases identified themselves only through vertexai.* span names.",
-          "legacy_rank": 181,
+          "priority": 181,
           "match": {
             "span_name": [
               "vertexai."

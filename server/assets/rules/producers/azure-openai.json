@@ -31,16 +31,19 @@
           }
         ]
       },
-      "legacy_rank": 160,
+      "priority": 160,
       "supersedes": [
-        "azure-ai-foundry.detect",
-        "openinference.detect"
+        "azure-ai-foundry.detect"
       ],
       "alternatives": [
         {
           "id": "azure-openai.detect.openinference",
           "doc": "OpenInference 0.1.62 identifies the Azure cloud separately from the OpenAI API. Neither attribute is sufficient alone: Azure also serves non-OpenAI models, and OpenAI may be served directly. Together they identify Azure OpenAI and outrank the shared OpenInference convention.",
-          "legacy_rank": 139,
+          "priority": 139,
+          "supersedes": [
+            "openinference.detect",
+            "azure-ai-foundry.detect"
+          ],
           "match": {
             "attr_equals": [
               {
@@ -76,7 +79,7 @@
       "members": [
         "context"
       ],
-      "rank": 70,
+      "priority": 70,
       "holds_context_parts": {
         "parts": {
           "citations": "citations"

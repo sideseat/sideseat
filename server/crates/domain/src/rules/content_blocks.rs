@@ -50,13 +50,13 @@ pub enum ContentBlockCompileError {
     )]
     EmptyRequiredSelector { rule: String, member: &'static str },
     #[error(
-        "content-block rules `{first}` and `{second}` share rank {rank} at the `{position}` position, so which \
-         one answers a shape they both recognise depends on load order"
+        "content-block rules `{first}` and `{second}` share priority {priority} at the `{position}` position, so \
+         which one answers a shape they both recognise depends on load order"
     )]
-    SharedRank {
+    SharedPriority {
         first: String,
         second: String,
-        rank: i32,
+        priority: i32,
         position: &'static str,
     },
     #[error(
@@ -85,7 +85,8 @@ pub enum ContentBlockCompileError {
 ///
 /// The position is declared because the chain's order is load-bearing: two dialects can write a block that
 /// the other would also recognise, and which one answers is decided by who is asked first. Inferring the
-/// position from a rank alone would silently re-order that.
+/// position from a priority alone would silently re-order that: a failed unwrap ends only its own position, and
+/// a splice is tried over the envelopes alone, so each position is an arena of its own.
 #[derive(Debug, Default)]
 pub struct ContentBlockPlan {
     /// Consulted only by the message-content chain; see `ChainPosition::MessageEnvelope`.
@@ -100,7 +101,7 @@ impl ContentBlockPlan {
         let mut plan = Self::default();
         let mut all: Vec<&ContentBlockRule> =
             files.iter().flat_map(|f| &f.content_blocks).collect();
-        all.sort_by_key(|rule| rule.legacy_rank);
+        all.sort_by_key(|rule| rule.priority);
         for rule in &all {
             // **Exactly one** target form. Zero means the rule recognises a block and builds nothing - and
             // with an empty `require` it recognises *every* block, so it would swallow the rest of the
@@ -278,25 +279,25 @@ impl ContentBlockPlan {
                 ChainPosition::AfterProviderFormats => plan.after.push(rule.clone()),
             }
         }
-        // A **shared rank within one chain position** is refused: the chain's order decides which dialect
-        // answers for a shape more than one of them recognises, so two cases at the same rank would be
-        // resolved by whichever asset loaded first. Across positions a rank means nothing - one runs before
-        // the provider formats and the other after - so they are checked apart.
+        // A **shared priority within one chain position** is refused: the chain's order decides which dialect
+        // answers for a shape more than one of them recognises, so two cases at the same priority would be
+        // resolved by whichever asset loaded first. Across positions a priority means nothing - one runs before
+        // the provider formats and the other after - so each position is its own arena.
         for (position, rules) in [
             ("message_envelope", &plan.envelopes),
             ("before", &plan.before),
             ("provider_formats", &plan.providers),
             ("after", &plan.after),
         ] {
-            for pair in rules.windows(2) {
-                if pair[0].legacy_rank == pair[1].legacy_rank {
-                    return Err(ContentBlockCompileError::SharedRank {
-                        first: pair[0].id.clone(),
-                        second: pair[1].id.clone(),
-                        rank: pair[0].legacy_rank,
-                        position,
-                    });
-                }
+            if let Some((first, second)) =
+                super::precedence::shared_priority(rules, |rule| rule.priority, |_, _| true)
+            {
+                return Err(ContentBlockCompileError::SharedPriority {
+                    first: first.id.clone(),
+                    second: second.id.clone(),
+                    priority: first.priority,
+                    position,
+                });
             }
         }
         Ok(plan)

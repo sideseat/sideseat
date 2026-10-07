@@ -37,7 +37,7 @@
           "genkit:"
         ]
       },
-      "legacy_rank": 217
+      "priority": 217
     }
   ],
   "sdk_slugs": [
@@ -63,7 +63,7 @@
       },
       "parse": "json",
       "emit": "message",
-      "legacy_rank": 1930,
+      "priority": 1930,
       "alternatives": [
         {
           "id": "messages",
@@ -102,7 +102,7 @@
       },
       "parse": "json",
       "emit": "message",
-      "legacy_rank": 1940,
+      "priority": 1940,
       "alternatives": [
         {
           "id": "provider_content",
@@ -174,7 +174,7 @@
       "parse": "json",
       "emit": "tool_definitions",
       "aggregate_into_array": true,
-      "legacy_rank": 1950,
+      "priority": 1950,
       "alternatives": [
         {
           "id": "tools",
@@ -188,7 +188,7 @@
     {
       "id": "genkit.tool_request",
       "at": "after_provider_formats",
-      "legacy_rank": 160,
+      "priority": 160,
       "doc": "A tool the model asked for: Genkit's `toolRequest` part. Its `ref` is not read: Genkit assigns it only after the model call, so the model span's own copy has none while later restatements do, and reading it would make one call two.",
       "require": {
         "all": [
@@ -211,7 +211,7 @@
     {
       "id": "genkit.tool_response",
       "at": "after_provider_formats",
-      "legacy_rank": 170,
+      "priority": 170,
       "doc": "What a tool returned, paired with its request by name and order, for the reason the request's `ref` is not read.",
       "require": {
         "all": [
@@ -234,7 +234,7 @@
     {
       "id": "genkit.media",
       "at": "after_provider_formats",
-      "legacy_rank": 180,
+      "priority": 180,
       "doc": "An image or document, usually inline as a data URL under `url`, with its media type beside it.",
       "require": {
         "all": [
@@ -257,7 +257,7 @@
     {
       "id": "genkit.reasoning",
       "at": "after_provider_formats",
-      "legacy_rank": 190,
+      "priority": 190,
       "doc": "The model's visible reasoning, Genkit's `reasoning` part.",
       "require": {
         "all": [
@@ -278,7 +278,7 @@
   "observation_types": [
     {
       "id": "observation.genkit_model",
-      "rank": 88,
+      "priority": 88,
       "all_of": [
         {
           "attr_equals": [
@@ -295,7 +295,7 @@
     },
     {
       "id": "observation.genkit_tool",
-      "rank": 89,
+      "priority": 89,
       "all_of": [
         {
           "attr_equals": [
@@ -311,7 +311,7 @@
     },
     {
       "id": "observation.genkit_tool_v1",
-      "rank": 91,
+      "priority": 91,
       "all_of": [
         {
           "attr_equals": [
@@ -327,7 +327,7 @@
     },
     {
       "id": "observation.genkit_flow",
-      "rank": 92,
+      "priority": 92,
       "all_of": [
         {
           "attr_equals": [
@@ -345,7 +345,7 @@
   "span_categories": [
     {
       "id": "category.genkit_model",
-      "rank": 101,
+      "priority": 101,
       "all_of": [
         {
           "attr_equals": [
@@ -362,7 +362,7 @@
     },
     {
       "id": "category.genkit_tool",
-      "rank": 102,
+      "priority": 102,
       "all_of": [
         {
           "attr_equals": [
@@ -378,7 +378,7 @@
     },
     {
       "id": "category.genkit_tool_v1",
-      "rank": 103,
+      "priority": 103,
       "all_of": [
         {
           "attr_equals": [
@@ -394,7 +394,7 @@
     },
     {
       "id": "category.genkit_flow",
-      "rank": 104,
+      "priority": 104,
       "all_of": [
         {
           "attr_equals": [

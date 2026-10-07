@@ -389,13 +389,13 @@
           "description": "The label written to the span's `framework` column. A display and filtering value.",
           "type": "string"
         },
-        "legacy_rank": {
-          "description": "Where this rule sits in the ordered sweep - a **migration bridge**, not the target design.\n\nThe accepted design is order-independent: each rule states sufficient conditions, a unique\nsufficient candidate wins, and a declared `supersedes` resolves a known overlap. Today's rules do\nnot state sufficient conditions - they were transcribed from a first-match table whose order is\nload-bearing, because the SideSeat SDK defaults `service.name` to one framework's name, so a\nservice-name signal evaluated early claims every span of every framework using the SDK.\n\nSo the rank reproduces that answer while the overlaps are *collected and reported* rather than\nsilently resolved (`overlapping_candidates`). It goes when the predicates are narrow enough that\nno span has two candidates - and until then, naming it `legacy_rank` is the honest description of\nwhat it is.",
+        "priority": {
+          "description": "Where this rule sits in the ordered sweep, lowest first: the first rule that holds labels the span.\n\nDetection rules do not state sufficient conditions - the SideSeat SDK defaults `service.name` to one\nframework's name, so a service-name signal evaluated early would claim every span of every framework using\nthe SDK - and the order is load-bearing. Overlaps are *collected and reported* rather than silently\nresolved (`overlapping_candidates`), which is the instrument for narrowing the predicates.",
           "type": "integer",
           "format": "int32"
         },
         "supersedes": {
-          "description": "Rule ids this rule beats where both match. Declared, so a genuine overlap is owned rather than\nresolved by a number.\n\nIt **orders**, ahead of `legacy_rank`, which is what that field's own doc says the accepted design is. It\nused to waive only the overlap *report* while rank decided the winner regardless - so the field documented\nan ordering it took no part in, and every shipped edge could have been deleted without changing a single\nattribution. Transitive, since it is a DAG; a cycle is refused.\n\nThis is what lets a rule beat one ranked ahead of it **without** moving its own weaker signals up too -\nthe same problem `alternatives` solves within a rule, here between two.",
+          "description": "Rule ids this rule is meant to beat where both match: an overlap the author owns.\n\nDocumentation, validated and never executed. Each target must come **after** this rule by priority, so the\npriority alone decides the answer and the edge records why the order is what it is. It also waives the\noverlap report for that pair. A rule beats a rule ranked ahead of it by moving the evidence that should win\ninto an `alternative` at its own priority, not by an edge.",
           "type": "array",
           "items": {
             "type": "string"
@@ -413,7 +413,7 @@
           }
         },
         "alternatives": {
-          "description": "Further evidence for the same label, each at its **own** rank.\n\nThe predicates inside one `match` are independently sufficient, so a rule whose signals differ in\n*strength* cannot be ordered by one number. Strands states `gen_ai.system: \"strands-agents\"` - a producer\nnaming itself, the strongest evidence there is - beside a `service.name` the SDK defaults and a phrase in\na span name. One rank for all three has to be placed for the weakest, which put the self-identification\nbehind `openinference.`: a Strands span carrying any OpenInference attribute was labelled OpenInference,\nand moving the whole rule earlier would instead let its defaulted service name claim every framework using\nthe SDK.\n\nEach alternative is compiled into its own ordered rule with the same label, so resolution is unchanged -\nwhat changes is that a rule can place its strong evidence and its weak evidence separately. An explicit\n`id` per alternative rather than one synthesized from the rule's, for the reason every other clause here\nhas one: a synthesized id is not an identity a declaration can be held to.",
+          "description": "Further evidence for the same label, each at its **own** priority.\n\nThe predicates inside one `match` are independently sufficient, so a rule whose signals differ in\n*strength* cannot be ordered by one number. Strands states `gen_ai.system: \"strands-agents\"` - a producer\nnaming itself, the strongest evidence there is - beside a `service.name` the SDK defaults and a phrase in\na span name. One rank for all three has to be placed for the weakest, which put the self-identification\nbehind `openinference.`: a Strands span carrying any OpenInference attribute was labelled OpenInference,\nand moving the whole rule earlier would instead let its defaulted service name claim every framework using\nthe SDK.\n\nEach alternative is compiled into its own ordered rule with the same label, so resolution is unchanged -\nwhat changes is that a rule can place its strong evidence and its weak evidence separately. An explicit\n`id` per alternative rather than one synthesized from the rule's, for the reason every other clause here\nhas one: a synthesized id is not an identity a declaration can be held to.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/DetectAlternative"
@@ -424,7 +424,7 @@
       "required": [
         "id",
         "label",
-        "legacy_rank",
+        "priority",
         "match"
       ]
     },
@@ -570,7 +570,7 @@
       ]
     },
     "DetectAlternative": {
-      "description": "One further body of evidence for a rule's label, at its own rank.",
+      "description": "One further body of evidence for a rule's label, at its own priority.",
       "type": "object",
       "properties": {
         "id": {
@@ -583,9 +583,17 @@
           ],
           "default": null
         },
-        "legacy_rank": {
+        "priority": {
           "type": "integer",
           "format": "int32"
+        },
+        "supersedes": {
+          "description": "This alternative's own documented overlaps, as on a rule. Not inherited from the rule: an alternative\nexists to sit at a different priority, so an edge true of the rule's position may not be true of its.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
         },
         "match": {
           "$ref": "#/$defs/DetectMatch"
@@ -601,7 +609,7 @@
       "additionalProperties": false,
       "required": [
         "id",
-        "legacy_rank",
+        "priority",
         "match"
       ]
     },
@@ -837,8 +845,8 @@
             }
           ]
         },
-        "legacy_rank": {
-          "description": "Position in the consulted order. See `MessagePlan` for why it is `legacy_`.\n\nRequired at the top level and **forbidden** inside a branch set: there the local order decides, so a\nrank would be a number that looks like it means something and does not.",
+        "priority": {
+          "description": "Position in the consulted order, lowest first. Unique among the rules that contend with this one.\n\nRequired at the top level and **forbidden** inside a branch set: there the local order decides, so a\npriority would be a number that looks like it means something and does not.",
           "type": [
             "integer",
             "null"
@@ -2858,8 +2866,8 @@
             "null"
           ]
         },
-        "legacy_rank": {
-          "description": "Ordered, first match wins, and a shared rank is refused - two shapes that both recognise a payload must\nnot be separated by which asset loaded first.",
+        "priority": {
+          "description": "Ordered, lowest first, first match wins, and a shared priority is refused - two shapes that both\nrecognise a payload must not be separated by which asset loaded first.",
           "type": "integer",
           "format": "int32"
         },
@@ -2919,7 +2927,7 @@
       "additionalProperties": false,
       "required": [
         "id",
-        "legacy_rank"
+        "priority"
       ]
     },
     "ParametersSpec": {
@@ -3099,8 +3107,8 @@
           "description": "Where in the normalisation chain this case is tried. Declared, because the chain's order decides\nwhich dialect answers for a shape more than one of them recognises.",
           "$ref": "#/$defs/ChainPosition"
         },
-        "legacy_rank": {
-          "description": "Position among the cases at that point.",
+        "priority": {
+          "description": "Position among the cases at that point, lowest first. Unique within the position.",
           "type": "integer",
           "format": "int32"
         },
@@ -3223,7 +3231,7 @@
       "required": [
         "id",
         "at",
-        "legacy_rank"
+        "priority"
       ]
     },
     "ChainPosition": {
@@ -3893,7 +3901,7 @@
       ]
     },
     "EventCategoryRule": {
-      "description": "What an event a producer names in its own words is, by a word the name contains.\n\nFor the events no convention names: a producer's retrieval or evaluation event is recognisable by its name\nlong before anyone lists it. Ordered by `rank`, lowest first; the first whose word the name contains answers.",
+      "description": "What an event a producer names in its own words is, by a word the name contains.\n\nFor the events no convention names: a producer's retrieval or evaluation event is recognisable by its name\nlong before anyone lists it. Ordered by `priority`, lowest first; the first whose word the name contains answers.",
       "type": "object",
       "properties": {
         "id": {
@@ -3906,7 +3914,7 @@
           ],
           "default": null
         },
-        "rank": {
+        "priority": {
           "type": "integer",
           "format": "int32"
         },
@@ -3924,7 +3932,7 @@
       "additionalProperties": false,
       "required": [
         "id",
-        "rank",
+        "priority",
         "contains",
         "category"
       ]
@@ -3965,8 +3973,8 @@
             "type": "string"
           }
         },
-        "rank": {
-          "description": "Where this sits among the members answering the one **ordered** question it answers - each `holds_*`\nbelow picks one member, so each is ordered. Required for those, and refused otherwise: a rank that\norders nothing is a statement the engine does not read.",
+        "priority": {
+          "description": "Where this sits among the members answering the one **ordered** question it answers - each `holds_*`\nbelow picks one member, so each is ordered. Required for those, and refused otherwise: a priority that\norders nothing is a statement the engine does not read.",
           "type": [
             "integer",
             "null"
@@ -4131,8 +4139,8 @@
           ],
           "default": null
         },
-        "rank": {
-          "description": "Where this sits in the ordered sweep. The first rule that holds answers.",
+        "priority": {
+          "description": "Where this sits in the ordered sweep, lowest first. The first rule that holds answers.",
           "type": "integer",
           "format": "int32"
         },
@@ -4159,7 +4167,7 @@
       "additionalProperties": false,
       "required": [
         "id",
-        "rank",
+        "priority",
         "all_of",
         "result"
       ]

@@ -1,0 +1,154 @@
+{
+  "doc": "Finite instances of one ordered arena, shared by server/specs/CheckedPrecedence.tla and the Rust property test `checked_precedence_instances` (server/crates/domain/src/rules/precedence_instances_tests.rs). Each clause matches the listed spans and nothing else; the expectations are written by hand, independently of either checker, and both must reproduce them. `bounds` is the space both also enumerate exhaustively: every priority function over `clauses` into `priorities`, every match table over `spans`, and every list of at most `max_edges` supersedes edges (the Rust test enumerates lists of at most one edge, the model of at most `max_edges`). `diagnostic` is the first refusal in the compilers' order - shared priority, then a defective edge, then a shadowed clause - or `none`; `winners` and `retired_winners` give, per span, the clause the priority order and the retired supersedes-ordered resolution answer with, or null.",
+  "version": 1,
+  "bounds": {
+    "clauses": ["a", "b", "c"],
+    "spans": ["s1", "s2"],
+    "priorities": [-1, 0, 1],
+    "max_edges": 2
+  },
+  "instances": [
+    {
+      "id": "lowest_priority_wins",
+      "spans": ["s1", "s2", "s3"],
+      "clauses": [
+        {"id": "a", "priority": 10, "supersedes": [], "matches": ["s1", "s2"]},
+        {"id": "b", "priority": 20, "supersedes": [], "matches": ["s2", "s3"]}
+      ],
+      "diagnostic": "none",
+      "winners": {"s1": "a", "s2": "a", "s3": "b"},
+      "retired_winners": {"s1": "a", "s2": "a", "s3": "b"}
+    },
+    {
+      "id": "an_agreeing_edge_changes_no_answer",
+      "spans": ["s1", "s2", "s3"],
+      "clauses": [
+        {"id": "a", "priority": 10, "supersedes": ["b"], "matches": ["s1", "s2"]},
+        {"id": "b", "priority": 20, "supersedes": [], "matches": ["s2", "s3"]}
+      ],
+      "diagnostic": "none",
+      "winners": {"s1": "a", "s2": "a", "s3": "b"},
+      "retired_winners": {"s1": "a", "s2": "a", "s3": "b"}
+    },
+    {
+      "id": "a_transitive_chain_of_agreeing_edges",
+      "spans": ["s1", "s2", "s3", "s4"],
+      "clauses": [
+        {"id": "a", "priority": 1, "supersedes": ["b"], "matches": ["s1", "s4"]},
+        {"id": "b", "priority": 2, "supersedes": ["c"], "matches": ["s2", "s4"]},
+        {"id": "c", "priority": 3, "supersedes": [], "matches": ["s3", "s4"]}
+      ],
+      "diagnostic": "none",
+      "winners": {"s1": "a", "s2": "b", "s3": "c", "s4": "a"},
+      "retired_winners": {"s1": "a", "s2": "b", "s3": "c", "s4": "a"}
+    },
+    {
+      "id": "an_edge_against_the_priorities_is_refused",
+      "spans": ["s1", "s2", "s3"],
+      "clauses": [
+        {"id": "a", "priority": 10, "supersedes": [], "matches": ["s1", "s2"]},
+        {"id": "b", "priority": 20, "supersedes": ["a"], "matches": ["s2", "s3"]}
+      ],
+      "diagnostic": "UselessSupersedes",
+      "winners": {"s1": "a", "s2": "a", "s3": "b"},
+      "retired_winners": {"s1": "a", "s2": "b", "s3": "b"}
+    },
+    {
+      "id": "the_retired_cycle_of_preferences",
+      "spans": ["ab", "bc", "ca", "abc"],
+      "clauses": [
+        {"id": "a", "priority": 1, "supersedes": [], "matches": ["ab", "ca", "abc"]},
+        {"id": "b", "priority": 2, "supersedes": [], "matches": ["ab", "bc", "abc"]},
+        {"id": "c", "priority": 3, "supersedes": ["a"], "matches": ["bc", "ca", "abc"]}
+      ],
+      "diagnostic": "UselessSupersedes",
+      "winners": {"ab": "a", "bc": "b", "ca": "a", "abc": "a"},
+      "retired_winners": {"ab": "a", "bc": "b", "ca": "c", "abc": "b"}
+    },
+    {
+      "id": "a_shared_priority_is_refused",
+      "spans": ["s1", "s2"],
+      "clauses": [
+        {"id": "a", "priority": 5, "supersedes": [], "matches": ["s1"]},
+        {"id": "b", "priority": 5, "supersedes": [], "matches": ["s2"]}
+      ],
+      "diagnostic": "DuplicatePriority",
+      "winners": {},
+      "retired_winners": {}
+    },
+    {
+      "id": "an_edge_naming_nothing_is_refused",
+      "spans": ["s1"],
+      "clauses": [
+        {"id": "a", "priority": 1, "supersedes": ["ghost"], "matches": ["s1"]}
+      ],
+      "diagnostic": "UselessSupersedes",
+      "winners": {"s1": "a"},
+      "retired_winners": {"s1": "a"}
+    },
+    {
+      "id": "an_edge_to_itself_is_refused",
+      "spans": ["s1"],
+      "clauses": [
+        {"id": "a", "priority": 1, "supersedes": ["a"], "matches": ["s1"]}
+      ],
+      "diagnostic": "UselessSupersedes",
+      "winners": {"s1": "a"},
+      "retired_winners": {"s1": "a"}
+    },
+    {
+      "id": "a_repeated_edge_is_refused",
+      "spans": ["s1", "s2"],
+      "clauses": [
+        {"id": "a", "priority": 1, "supersedes": ["b", "b"], "matches": ["s1"]},
+        {"id": "b", "priority": 2, "supersedes": [], "matches": ["s2"]}
+      ],
+      "diagnostic": "UselessSupersedes",
+      "winners": {"s1": "a", "s2": "b"},
+      "retired_winners": {"s1": "a", "s2": "b"}
+    },
+    {
+      "id": "a_clause_an_earlier_one_covers_is_refused",
+      "spans": ["s1", "s2"],
+      "clauses": [
+        {"id": "a", "priority": 1, "supersedes": [], "matches": ["s1", "s2"]},
+        {"id": "b", "priority": 2, "supersedes": [], "matches": ["s2"]}
+      ],
+      "diagnostic": "ShadowedRule",
+      "winners": {"s1": "a", "s2": "a"},
+      "retired_winners": {"s1": "a", "s2": "a"}
+    },
+    {
+      "id": "a_later_broader_clause_is_not_shadowed",
+      "spans": ["s1", "s2"],
+      "clauses": [
+        {"id": "a", "priority": 1, "supersedes": ["b"], "matches": ["s2"]},
+        {"id": "b", "priority": 2, "supersedes": [], "matches": ["s1", "s2"]}
+      ],
+      "diagnostic": "none",
+      "winners": {"s1": "b", "s2": "a"},
+      "retired_winners": {"s1": "b", "s2": "a"}
+    },
+    {
+      "id": "signed_priorities_order_as_integers",
+      "spans": ["s1"],
+      "clauses": [
+        {"id": "a", "priority": 1, "supersedes": [], "matches": ["s1"]},
+        {"id": "b", "priority": -1, "supersedes": ["a"], "matches": ["s1"]}
+      ],
+      "diagnostic": "ShadowedRule",
+      "winners": {"s1": "b"},
+      "retired_winners": {"s1": "b"}
+    },
+    {
+      "id": "nothing_matches",
+      "spans": ["s1", "s2"],
+      "clauses": [
+        {"id": "a", "priority": 1, "supersedes": [], "matches": ["s1"]}
+      ],
+      "diagnostic": "none",
+      "winners": {"s1": "a", "s2": null},
+      "retired_winners": {"s1": "a", "s2": null}
+    }
+  ]
+}

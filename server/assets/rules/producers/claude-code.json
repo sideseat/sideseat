@@ -113,7 +113,7 @@
         "role": "user"
       },
       "emit": "message",
-      "legacy_rank": 1445,
+      "priority": 1445,
       "tag_as": "claude_code.user_prompt"
     },
     {
@@ -146,7 +146,7 @@
         }
       },
       "emit": "message",
-      "legacy_rank": 1455,
+      "priority": 1455,
       "tag_as": "claude_code.tool_result.error"
     },
     {
@@ -168,7 +168,7 @@
         "role": "assistant"
       },
       "emit": "message",
-      "legacy_rank": 1460,
+      "priority": 1460,
       "tag_as": "claude_code.assistant_response"
     },
     {
@@ -198,7 +198,7 @@
       },
       "emit": "message",
       "reads_tool_spans": true,
-      "legacy_rank": 1465,
+      "priority": 1465,
       "tag_as": "claude_code.tool.output"
     }
   ]
