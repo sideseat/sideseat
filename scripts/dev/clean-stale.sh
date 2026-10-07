@@ -13,7 +13,16 @@ fi
 before="$(du -sk "$target_dir" 2>/dev/null | awk '{print $1}')"
 before="${before:-0}"
 
-if command -v cargo-sweep >/dev/null 2>&1; then
+# A running build reads and rewrites fingerprints and artifacts that cargo-sweep judges by timestamp, so sweeping
+# under it deletes files the build is about to write beside (`failed to write .../invoked.timestamp`).
+build_running=false
+if pgrep -x cargo >/dev/null 2>&1 || pgrep -x rustc >/dev/null 2>&1; then
+  build_running=true
+fi
+
+if [ "$build_running" = true ]; then
+  echo "[clean-stale] a cargo or rustc process is running; not sweeping artifacts"
+elif command -v cargo-sweep >/dev/null 2>&1; then
   # Not `--installed`: it decides which artifacts belong to an installed toolchain by fingerprinting every
   # one, and a toolchain rustup cannot fingerprint (a missing manifest) made it delete the active
   # toolchain's release and profiling builds while they were being built.
@@ -42,7 +51,7 @@ echo "[clean-stale] removed $stale_sessions incremental sessions and $stale_obje
 incremental_dirs=0
 # Another build reads and writes the current ones while it runs, so deleting them under it fails that build
 # with missing dep-graph files. Only an idle target directory loses all of its incremental state.
-if pgrep -x cargo >/dev/null 2>&1 || pgrep -x rustc >/dev/null 2>&1; then
+if [ "$build_running" = true ]; then
   echo "[clean-stale] a cargo or rustc process is running; keeping current incremental directories"
   after="$(du -sk "$target_dir" 2>/dev/null | awk '{print $1}')"
   echo "[clean-stale] target: $((before / 1024)) MB -> $((${after:-0} / 1024)) MB"

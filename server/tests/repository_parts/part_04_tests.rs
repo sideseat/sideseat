@@ -140,6 +140,7 @@ fn stale_cleanup_discovers_every_incremental_directory() {
         "target_dir=\"$(bash scripts/dev/cargo-target-dir.sh)\"",
         "find \"$target_dir\" -type d -name incremental",
         "cargo sweep --time 3",
+        "not sweeping artifacts",
     ] {
         assert!(
             script.contains(required),
