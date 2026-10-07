@@ -10,7 +10,8 @@ where
     F: FnOnce(&duckdb::Connection) -> Result<T, crate::DuckdbError> + Send + 'static,
 {
     let db = Arc::clone(db);
-    DuckdbService::run_query(move || call(&db.conn()))
+    // Through `write` for reads too: a read never creates a WAL, so for it the check is one stat.
+    DuckdbService::run_query(move || db.write(call))
         .await
         .map_err(DataError::from)?
         .map_err(Into::into)

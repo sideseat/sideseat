@@ -202,13 +202,10 @@ impl SpanStore for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let keys = span_keys.to_vec();
-        DuckdbService::run_query(move || {
-            let conn = db.conn();
-            query::delete_spans(&conn, &pid, &keys)
-        })
-        .await
-        .map_err(DataError::from)?
-        .map_err(Into::into)
+        DuckdbService::run_query(move || db.write(|conn| query::delete_spans(conn, &pid, &keys)))
+            .await
+            .map_err(DataError::from)?
+            .map_err(Into::into)
     }
 
     // ==================== Ingestion Operations ====================
@@ -219,13 +216,10 @@ impl SpanStore for DuckdbRepository {
             span.ingested_at.get_or_insert(now);
         }
         let db = Arc::clone(&self.0);
-        DuckdbService::run_query(move || {
-            let conn = db.conn();
-            span::insert_batch(&conn, &spans)
-        })
-        .await
-        .map_err(DataError::from)?
-        .map_err(Into::into)
+        DuckdbService::run_query(move || db.write(|conn| span::insert_batch(conn, &spans)))
+            .await
+            .map_err(DataError::from)?
+            .map_err(Into::into)
     }
 
     async fn spans_match_content(
@@ -267,13 +261,10 @@ impl MetricStore for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let metrics = metrics.to_vec();
         let now = self.0.clock().now();
-        DuckdbService::run_query(move || {
-            let conn = db.conn();
-            metric::insert_batch(&conn, &metrics, now)
-        })
-        .await
-        .map_err(DataError::from)?
-        .map_err(Into::into)
+        DuckdbService::run_query(move || db.write(|conn| metric::insert_batch(conn, &metrics, now)))
+            .await
+            .map_err(DataError::from)?
+            .map_err(Into::into)
     }
 
     async fn list_metrics(
@@ -372,13 +363,10 @@ impl LogStore for DuckdbRepository {
         for log in &mut logs {
             log.ingested_at.get_or_insert(now);
         }
-        DuckdbService::run_query(move || {
-            let conn = db.conn();
-            log::insert_batch(&conn, &logs)
-        })
-        .await
-        .map_err(DataError::from)?
-        .map_err(Into::into)
+        DuckdbService::run_query(move || db.write(|conn| log::insert_batch(conn, &logs)))
+            .await
+            .map_err(DataError::from)?
+            .map_err(Into::into)
     }
 
     async fn list_logs(&self, params: &ListLogsParams) -> Result<(Vec<LogRow>, u64), DataError> {
@@ -502,7 +490,7 @@ impl SearchIndex for DuckdbRepository {
         let project_id = project_id.to_string();
         let documents = documents.to_vec();
         DuckdbService::run_query(move || {
-            search::write_backfill(&db.conn(), &project_id, signal, &documents)
+            db.write(|conn| search::write_backfill(conn, &project_id, signal, &documents))
         })
         .await
         .map_err(DataError::from)?
@@ -631,13 +619,10 @@ impl EntityQuery for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let tids = trace_ids.to_vec();
-        DuckdbService::run_query(move || {
-            let conn = db.conn();
-            query::delete_traces(&conn, &pid, &tids)
-        })
-        .await
-        .map_err(DataError::from)?
-        .map_err(Into::into)
+        DuckdbService::run_query(move || db.write(|conn| query::delete_traces(conn, &pid, &tids)))
+            .await
+            .map_err(DataError::from)?
+            .map_err(Into::into)
     }
 
     // ==================== Session Operations ====================
@@ -787,13 +772,10 @@ impl EntityQuery for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
         let sids = session_ids.to_vec();
-        DuckdbService::run_query(move || {
-            let conn = db.conn();
-            query::delete_sessions(&conn, &pid, &sids)
-        })
-        .await
-        .map_err(DataError::from)?
-        .map_err(Into::into)
+        DuckdbService::run_query(move || db.write(|conn| query::delete_sessions(conn, &pid, &sids)))
+            .await
+            .map_err(DataError::from)?
+            .map_err(Into::into)
     }
 
     // ==================== Stats Operations ====================

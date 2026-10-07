@@ -7,8 +7,11 @@ mod error;
 mod migrations;
 mod repositories;
 mod repository_impl;
+mod wal;
 pub use error::DuckdbError;
 pub use repository_impl::DuckdbRepository;
+pub use wal::ConnectionGuard;
+use wal::WalDirectory;
 mod retention;
 mod schema;
 mod sql_types;
@@ -50,6 +53,7 @@ impl Clock for TestClock {
 pub struct DuckdbService {
     conn: Mutex<Option<Connection>>,
     clock: Arc<dyn Clock>,
+    wal: WalDirectory,
 }
 
 impl Drop for DuckdbService {
@@ -156,9 +160,13 @@ impl DuckdbService {
         .map_err(|e| DuckdbError::Io(std::io::Error::other(e)))??;
 
         tracing::debug!(path = %storage.subdir(DataSubdir::Duckdb).join(DUCKDB_DB_FILENAME).display(), "DuckdbService initialized");
+        let wal = WalDirectory::new(&storage.subdir(DataSubdir::Duckdb).join(DUCKDB_DB_FILENAME));
+        // Startup's own commits may have created the WAL.
+        wal.sync_if_new()?;
         Ok(Self {
             conn: Mutex::new(Some(conn)),
             clock,
+            wal,
         })
     }
 
@@ -166,11 +174,36 @@ impl DuckdbService {
     ///
     /// # Panics
     /// Panics if the connection has been closed via `close()`.
-    pub fn conn(&self) -> parking_lot::MappedMutexGuard<'_, Connection> {
-        MutexGuard::map(self.conn.lock(), |opt| {
-            opt.as_mut()
-                .expect("DuckDB connection already closed - do not call conn() after close()")
-        })
+    pub fn conn(&self) -> ConnectionGuard<'_> {
+        ConnectionGuard {
+            connection: MutexGuard::map(self.conn.lock(), |opt| {
+                opt.as_mut()
+                    .expect("DuckDB connection already closed - do not call conn() after close()")
+            }),
+            wal: &self.wal,
+            checked: false,
+        }
+    }
+
+    /// Run a write and make it durable before reporting success.
+    ///
+    /// DuckDB syncs what it writes, but not the directory entry of a WAL it has just created; this syncs that
+    /// too, under the same lock, and fails the write if it cannot - so nothing acknowledged rests on a WAL a
+    /// power failure could make disappear. See [`WalDirectory`].
+    pub fn write<T>(
+        &self,
+        work: impl FnOnce(&Connection) -> Result<T, DuckdbError>,
+    ) -> Result<T, DuckdbError> {
+        let mut conn = self.conn();
+        // Synced whatever the work returned: a failed statement can still have created the WAL, and what
+        // the connection does next must not rest on a directory entry that may vanish.
+        let out = work(&conn);
+        let synced = self.wal.sync_if_new();
+        conn.checked = true;
+        drop(conn);
+        let out = out?;
+        synced?;
+        Ok(out)
     }
 
     pub fn clock(&self) -> &dyn Clock {
@@ -787,7 +820,6 @@ impl DuckdbService {
         // panics off-runtime, and `spawn_blocking` threads are off it.
         let handle = tokio::runtime::Handle::current();
         tokio::task::spawn_blocking(move || {
-            let conn = db.conn();
             // The recorder runs between selecting a batch and deleting it, so the intent is durable before the
             // spans go. `block_on` inside `spawn_blocking` is the legal direction - this thread is not a
             // runtime worker, so blocking it cannot stall the reactor - and the retention sweep is sync DuckDB
@@ -865,14 +897,17 @@ impl DuckdbService {
                     .extend(written);
                 Ok(())
             };
-            let outcome = retention::run_retention_for_project_with_pressure(
-                &conn,
-                &config,
-                &project_id,
-                &record_intent,
-                &record_pressure,
-                now,
-            );
+            // Through `write`: deletions made durable before the sweep reports them.
+            let outcome = db.write(|conn| {
+                retention::run_retention_for_project_with_pressure(
+                    conn,
+                    &config,
+                    &project_id,
+                    &record_intent,
+                    &record_pressure,
+                    now,
+                )
+            });
             let recorded = tokens.into_inner().unwrap_or_else(|e| e.into_inner());
             outcome.map(|mut result| {
                 result.cleanup_tokens = recorded;

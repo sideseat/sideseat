@@ -18,13 +18,10 @@ impl AnalyticsMaintenance for DuckdbRepository {
     async fn delete_project_data(&self, project_id: &ProjectId) -> Result<u64, DataError> {
         let db = Arc::clone(&self.0);
         let pid = project_id.to_string();
-        DuckdbService::run_query(move || {
-            let conn = db.conn();
-            query::delete_project_data(&conn, &pid)
-        })
-        .await
-        .map_err(DataError::from)?
-        .map_err(Into::into)
+        DuckdbService::run_query(move || db.write(|conn| query::delete_project_data(conn, &pid)))
+            .await
+            .map_err(DataError::from)?
+            .map_err(Into::into)
     }
 
     async fn count_project_rows(&self, project_id: &ProjectId) -> Result<u64, DataError> {
@@ -77,8 +74,7 @@ impl AnalyticsMaintenance for DuckdbRepository {
         let db = Arc::clone(&self.0);
         let id = project_id.to_string();
         DuckdbService::run_query(move || {
-            let conn = db.conn();
-            query::patch_project_hold(&conn, &id, hold_until)
+            db.write(|conn| query::patch_project_hold(conn, &id, hold_until))
         })
         .await
         .map_err(DataError::from)?
