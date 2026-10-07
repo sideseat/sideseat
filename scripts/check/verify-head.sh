@@ -13,6 +13,22 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
 
 checkout="${SIDESEAT_VERIFY_HEAD_DIR:-$repo_root/../$(basename "$repo_root")-head}"
+
+# One run at a time: a second run would check out a newer HEAD under the first one's tests. mkdir is atomic,
+# so whoever creates the directory holds the lock; a lock whose holder has died is taken over.
+lock="$checkout.lock"
+until mkdir "$lock" 2>/dev/null; do
+    holder="$(cat "$lock/pid" 2>/dev/null || true)"
+    if [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; then
+        rm -rf "$lock"
+        continue
+    fi
+    echo "[verify-head] waiting for the run holding $lock"
+    sleep 15
+done
+echo $$ >"$lock/pid"
+trap 'rm -rf "$lock"' EXIT
+
 head="$(git rev-parse HEAD)"
 
 if [ ! -d "$checkout/.git" ] && [ ! -f "$checkout/.git" ]; then
