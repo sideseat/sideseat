@@ -111,7 +111,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "1 { 2 \"Paris\": { 3 \"city\": \"Paris\", 4 \"forecast\": [ 5 { 6 \"day\": 1, 7 \"condition\": \"sunny\", 8 \"high_c\": 21 9 }, 10 { 11 \"day\": 2, 12 \"condition\": \"sunny\", 13 \"high_c\": 22 14 } 15 ] 16 }, 17 \"Tokyo\": { 18 \"city\": \"Tokyo\", 19 \"forecast\": [ 20…[383 chars]",
-          "content_digest": "52d554d709513273",
+          "content_digest": "b0572d485d99da51",
           "observation_type": "generation"
         },
         {
@@ -119,7 +119,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "32 forecast.json",
-          "content_digest": "9941150578542f14",
+          "content_digest": "28b6de0639cae956",
           "observation_type": "generation"
         },
         {
@@ -280,7 +280,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "1 { 2 \"Paris\": { 3 \"city\": \"Paris\", 4 \"forecast\": [ 5 { 6 \"day\": 1, 7 \"condition\": \"sunny\", 8 \"high_c\": 21 9 }, 10 { 11 \"day\": 2, 12 \"condition\": \"sunny\", 13 \"high_c\": 22 14 } 15 ] 16 }, 17 \"Tokyo\": { 18 \"city\": \"Tokyo\", 19 \"forecast\": [ 20…[383 chars]",
-          "content_digest": "52d554d709513273",
+          "content_digest": "b0572d485d99da51",
           "observation_type": "generation"
         },
         {
@@ -288,7 +288,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "32 forecast.json",
-          "content_digest": "9941150578542f14",
+          "content_digest": "28b6de0639cae956",
           "observation_type": "generation"
         },
         {
@@ -383,7 +383,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "1 { 2 \"Paris\": { 3 \"city\": \"Paris\", 4 \"forecast\": [ 5 { 6 \"day\": 1, 7 \"condition\": \"sunny\", 8 \"high_c\": 21 9 }, 10 { 11 \"day\": 2, 12 \"condition\": \"sunny\", 13 \"high_c\": 22 14 } 15 ] 16 }, 17 \"Tokyo\": { 18 \"city\": \"Tokyo\", 19 \"forecast\": [ 20…[383 chars]",
-          "content_digest": "52d554d709513273",
+          "content_digest": "b0572d485d99da51",
           "observation_type": "generation"
         },
         {
@@ -391,7 +391,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "32 forecast.json",
-          "content_digest": "9941150578542f14",
+          "content_digest": "28b6de0639cae956",
           "observation_type": "generation"
         },
         {
@@ -435,7 +435,7 @@
         "role": "tool",
         "entry_type": "tool_result",
         "content": "1 { 2 \"Paris\": { 3 \"city\": \"Paris\", 4 \"forecast\": [ 5 { 6 \"day\": 1, 7 \"condition\": \"sunny\", 8 \"high_c\": 21 9 }, 10 { 11 \"day\": 2, 12 \"condition\": \"sunny\", 13 \"high_c\": 22 14 } 15 ] 16 }, 17 \"Tokyo\": { 18 \"city\": \"Tokyo\", 19 \"forecast\": [ 20…[383 chars]",
-        "content_digest": "52d554d709513273",
+        "content_digest": "b0572d485d99da51",
         "observation_type": "generation"
       },
       {
@@ -443,7 +443,7 @@
         "role": "tool",
         "entry_type": "tool_result",
         "content": "32 forecast.json",
-        "content_digest": "9941150578542f14",
+        "content_digest": "28b6de0639cae956",
         "observation_type": "generation"
       },
       {

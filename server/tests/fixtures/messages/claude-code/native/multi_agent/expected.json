@@ -64,7 +64,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "1 { 2 \"Paris\": { 3 \"city\": \"Paris\", 4 \"forecast\": [ 5 { 6 \"day\": 1, 7 \"condition\": \"sunny\", 8 \"high_c\": 21 9 }, 10 { 11 \"day\": 2, 12 \"condition\": \"sunny\", 13 \"high_c\": 22 14 } 15 ] 16 }, 17 \"Tokyo\": { 18 \"city\": \"Tokyo\", 19 \"forecast\": [ 20…[383 chars]",
-          "content_digest": "9366ecc734e64540",
+          "content_digest": "7a3944e118276288",
           "observation_type": "generation"
         },
         {
@@ -208,7 +208,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Read forecast.json in /private/tmp/sideseat-cli/claude-code/multi_agent and report the Tokyo forecast (conditions, temperatures, precipitation, and anything else relevant). Be concise and report only what the file says.",
-          "content_digest": "605eaaa51b162695",
+          "content_digest": "4eee5efcf7cf1462",
           "observation_type": "generation"
         },
         {
@@ -398,7 +398,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Read forecast.json in /private/tmp/sideseat-cli/claude-code/multi_agent and report the Tokyo forecast (conditions, temperatures, precipitation, and anything else relevant). Be concise and report only what the file says.",
-          "content_digest": "605eaaa51b162695",
+          "content_digest": "4eee5efcf7cf1462",
           "observation_type": "generation"
         },
         {
@@ -423,7 +423,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "1 { 2 \"Paris\": { 3 \"city\": \"Paris\", 4 \"forecast\": [ 5 { 6 \"day\": 1, 7 \"condition\": \"sunny\", 8 \"high_c\": 21 9 }, 10 { 11 \"day\": 2, 12 \"condition\": \"sunny\", 13 \"high_c\": 22 14 } 15 ] 16 }, 17 \"Tokyo\": { 18 \"city\": \"Tokyo\", 19 \"forecast\": [ 20…[383 chars]",
-          "content_digest": "9366ecc734e64540",
+          "content_digest": "7a3944e118276288",
           "observation_type": "generation"
         },
         {
@@ -547,7 +547,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Read forecast.json in /private/tmp/sideseat-cli/claude-code/multi_agent and report the Tokyo forecast (conditions, temperatures, precipitation, and anything else relevant). Be concise and report only what the file says.",
-          "content_digest": "605eaaa51b162695",
+          "content_digest": "4eee5efcf7cf1462",
           "observation_type": "generation"
         },
         {
@@ -572,7 +572,7 @@
           "role": "tool",
           "entry_type": "tool_result",
           "content": "1 { 2 \"Paris\": { 3 \"city\": \"Paris\", 4 \"forecast\": [ 5 { 6 \"day\": 1, 7 \"condition\": \"sunny\", 8 \"high_c\": 21 9 }, 10 { 11 \"day\": 2, 12 \"condition\": \"sunny\", 13 \"high_c\": 22 14 } 15 ] 16 }, 17 \"Tokyo\": { 18 \"city\": \"Tokyo\", 19 \"forecast\": [ 20…[383 chars]",
-          "content_digest": "9366ecc734e64540",
+          "content_digest": "7a3944e118276288",
           "observation_type": "generation"
         },
         {
@@ -679,7 +679,7 @@
         "role": "tool",
         "entry_type": "tool_result",
         "content": "1 { 2 \"Paris\": { 3 \"city\": \"Paris\", 4 \"forecast\": [ 5 { 6 \"day\": 1, 7 \"condition\": \"sunny\", 8 \"high_c\": 21 9 }, 10 { 11 \"day\": 2, 12 \"condition\": \"sunny\", 13 \"high_c\": 22 14 } 15 ] 16 }, 17 \"Tokyo\": { 18 \"city\": \"Tokyo\", 19 \"forecast\": [ 20…[383 chars]",
-        "content_digest": "9366ecc734e64540",
+        "content_digest": "7a3944e118276288",
         "observation_type": "generation"
       },
       {
@@ -712,7 +712,7 @@
         "role": "user",
         "entry_type": "text",
         "content": "Read forecast.json in /private/tmp/sideseat-cli/claude-code/multi_agent and report the Tokyo forecast (conditions, temperatures, precipitation, and anything else relevant). Be concise and report only what the file says.",
-        "content_digest": "605eaaa51b162695",
+        "content_digest": "4eee5efcf7cf1462",
         "observation_type": "generation"
       },
       {

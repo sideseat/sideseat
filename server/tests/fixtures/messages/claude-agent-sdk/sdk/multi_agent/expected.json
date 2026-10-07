@@ -64,7 +64,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Get the weather forecast for Barcelona for the next 2 days using the weather tool, and report the details (temperatures, precipitation, wind, conditions) for each day.",
-          "content_digest": "604c45ae628a3003",
+          "content_digest": "d3d6e91e9914c4b1",
           "observation_type": "generation"
         },
         {
@@ -208,7 +208,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Write a one-paragraph packing list for a trip to Barcelona based on this forecast: Day 1: rain, high 21 C. Day 2: sunny, high 22 C. No data on lows, precipitation amounts, or wind is available, so don't invent any. Return only the paragraph…[241 chars]",
-          "content_digest": "4761ecc438c975b9",
+          "content_digest": "9b2783572ff29cb8",
           "observation_type": "generation"
         },
         {
@@ -631,7 +631,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Get the weather forecast for Barcelona for the next 2 days using the weather tool, and report the details (temperatures, precipitation, wind, conditions) for each day.",
-          "content_digest": "604c45ae628a3003",
+          "content_digest": "d3d6e91e9914c4b1",
           "observation_type": "generation"
         },
         {
@@ -714,7 +714,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Write a one-paragraph packing list for a trip to Barcelona based on this forecast: Day 1: rain, high 21 C. Day 2: sunny, high 22 C. No data on lows, precipitation amounts, or wind is available, so don't invent any. Return only the paragraph…[241 chars]",
-          "content_digest": "4761ecc438c975b9",
+          "content_digest": "9b2783572ff29cb8",
           "observation_type": "generation"
         },
         {
@@ -845,7 +845,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Get the weather forecast for Barcelona for the next 2 days using the weather tool, and report the details (temperatures, precipitation, wind, conditions) for each day.",
-          "content_digest": "604c45ae628a3003",
+          "content_digest": "d3d6e91e9914c4b1",
           "observation_type": "generation"
         },
         {
@@ -928,7 +928,7 @@
           "role": "user",
           "entry_type": "text",
           "content": "Write a one-paragraph packing list for a trip to Barcelona based on this forecast: Day 1: rain, high 21 C. Day 2: sunny, high 22 C. No data on lows, precipitation amounts, or wind is available, so don't invent any. Return only the paragraph…[241 chars]",
-          "content_digest": "4761ecc438c975b9",
+          "content_digest": "9b2783572ff29cb8",
           "observation_type": "generation"
         },
         {
@@ -1042,7 +1042,7 @@
         "role": "user",
         "entry_type": "text",
         "content": "Write a one-paragraph packing list for a trip to Barcelona based on this forecast: Day 1: rain, high 21 C. Day 2: sunny, high 22 C. No data on lows, precipitation amounts, or wind is available, so don't invent any. Return only the paragraph…[241 chars]",
-        "content_digest": "4761ecc438c975b9",
+        "content_digest": "9b2783572ff29cb8",
         "observation_type": "generation"
       },
       {
@@ -1117,7 +1117,7 @@
         "role": "user",
         "entry_type": "text",
         "content": "Get the weather forecast for Barcelona for the next 2 days using the weather tool, and report the details (temperatures, precipitation, wind, conditions) for each day.",
-        "content_digest": "604c45ae628a3003",
+        "content_digest": "d3d6e91e9914c4b1",
         "observation_type": "generation"
       },
       {

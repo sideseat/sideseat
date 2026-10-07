@@ -461,7 +461,8 @@ pub(super) fn composed(
     Some(JsonValue::Object(object))
 }
 
-/// A leading `[TAG]\n` marker split from its body, both trimmed.
+/// A leading `[TAG]\n` marker split from its body. The tag is trimmed; the body is the producer's bytes after
+/// the tag line, untouched.
 ///
 /// The tag is recognised only with the newline: a body that merely opens with a bracket is not a tagged
 /// section, and treating it as one would swallow its first line.
@@ -470,8 +471,8 @@ pub(super) fn split_bracket_tag(value: &str) -> (Option<&str>, &str) {
         .strip_prefix('[')
         .and_then(|rest| rest.split_once("]\n"))
     {
-        Some((tag, body)) => (Some(tag.trim()), body.trim()),
-        None => (None, value.trim()),
+        Some((tag, body)) => (Some(tag.trim()), body),
+        None => (None, value),
     }
 }
 
@@ -517,7 +518,8 @@ pub(super) fn sectioned(
             continue;
         }
         let (tag, body) = split_bracket_tag(section);
-        if body.is_empty() {
+        // A section of nothing but whitespace holds no turn, whatever a route would do with it.
+        if body.trim().is_empty() {
             continue;
         }
         // The first route whose prefix the tag carries, else the default.
@@ -659,5 +661,29 @@ mod section_option_tests {
         // Only the whole value: a section merely containing it stays.
         assert_eq!(bodies(raw, &spec, &[("prompt", "the")]).len(), 3);
         assert_eq!(bodies(raw, &spec, &[]).len(), 3);
+    }
+
+    /// A body is the producer's bytes: only the tag line and the separator are removed, so the whitespace and
+    /// multibyte text around a turn survive.
+    #[test]
+    fn a_section_body_keeps_its_own_bytes() {
+        let spec = spec(serde_json::json!({
+            "routes": [{"id": "u", "tag_prefix": "user", "role": "user"}],
+        }));
+        assert_eq!(
+            bodies(
+                "[user]\n  Grüße, 😀 each day.\n\n[user]\n\t日本語 \n",
+                &spec,
+                &[]
+            ),
+            ["  Grüße, 😀 each day.", "\t日本語 \n"]
+        );
+        // The tag is the line it is on, so a body opening with a bracket keeps it.
+        assert_eq!(
+            bodies("[user]\n[draft]\nné\n", &spec, &[]),
+            ["[draft]\nné\n"]
+        );
+        // A section of whitespace alone holds no turn.
+        assert!(bodies("[user]\n \n", &spec, &[]).is_empty());
     }
 }
