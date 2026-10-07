@@ -109,8 +109,23 @@ pub fn compile(
         }
         if let Some(detail) = wraps(rule)
             .into_iter()
-            .flat_map(wrap_attachments)
-            .find_map(attach_defect)
+            .find_map(|wrap| wrap_role_defect(wrap, &roles))
+            .or_else(|| {
+                // A section route's role is stated as literally as an envelope's, and folds the same way.
+                rule.sections
+                    .iter()
+                    .flat_map(|sections| &sections.routes)
+                    .any(|route| !role_is_known(&route.role, &roles))
+                    .then_some(
+                        "routes a section to a role that is not one - an unrecognised role folds to `user`",
+                    )
+            })
+            .or_else(|| {
+                wraps(rule)
+                    .into_iter()
+                    .flat_map(wrap_attachments)
+                    .find_map(attach_defect)
+            })
         {
             return Err(MessageCompileError::Inexpressible {
                 rule: rule.rule_id.clone(),
@@ -361,4 +376,52 @@ pub fn compile(
         metadata_candidates,
         raw_forms,
     })
+}
+
+/// Whether a stated role is a role: a canonical spelling or one the corpus declares a meaning for - the question
+/// `ChatRole::try_from_str` asks every reader, answered from this corpus rather than the built ruleset.
+pub(super) fn role_is_known(
+    role: &str,
+    roles: &std::collections::BTreeMap<String, crate::sideml::ChatRole>,
+) -> bool {
+    let folded = role.to_lowercase();
+    crate::sideml::ChatRole::canonical(&folded).is_some() || roles.contains_key(&folded)
+}
+
+/// Why an envelope's role cannot be what it says. Asked of **every** envelope a rule holds - its own, each
+/// reading's, a fragment's cases - because an unrecognised role folds to `user`, so a misspelt role in an
+/// alternative's envelope meant `user` as surely as one in the rule's.
+///
+/// - **A closed role map must say what an unmapped value means.** Closedness is enforced - an unlisted value is
+///   discarded, which is the point - but with no literal fallback the message is emitted with **no role**, and
+///   normalisation then infers one from unrelated payload members. The fallback is `role`.
+/// - **A role a rule states must be a role.** `role` and every role `map` output are compared against the
+///   vocabulary: a role `map` of `{"model": "assisstant"}` compiled, and the typo became *User*.
+pub(super) fn wrap_role_defect(
+    wrap: &WrapSpec,
+    roles: &std::collections::BTreeMap<String, crate::sideml::ChatRole>,
+) -> Option<&'static str> {
+    if let Some(defect) = wrap.role_pipe_defect() {
+        return Some(defect);
+    }
+    if wrap.role_map().is_some_and(|(_, closed)| closed) && wrap.role.is_none() {
+        return Some(
+            "closes its role `map` and states no `role` to fall back on - an unmapped value then leaves the \
+             message with no role at all, and normalisation infers one from unrelated members of the payload",
+        );
+    }
+    let stated = wrap.role.as_deref().into_iter().chain(
+        wrap.role_map()
+            .into_iter()
+            .flat_map(|(table, _)| table.values().filter_map(JsonValue::as_str)),
+    );
+    for role in stated {
+        if !role_is_known(role, roles) {
+            return Some(
+                "states a role that is not one - an unrecognised role folds to `user`, so the declaration \
+                 would silently mean something other than it says",
+            );
+        }
+    }
+    None
 }

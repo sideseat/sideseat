@@ -336,6 +336,13 @@ impl AttachSpec {
         {
             return Some("states attribute steps on a member that reads no attribute");
         }
+        // A value read out of the wrapped value is attached as it stands: folding applies to an attribute or a
+        // payload path only.
+        if self.lowercase() && self.from.is_none() && self.from_path.is_none() {
+            return Some(
+                "folds a member read from the wrapped value, which is attached as it stands",
+            );
+        }
         // The flag answers before the attribute is parsed, so a parse or a selection beside it never runs.
         if self.when_equals().is_some() && (self.parse.is_some() || self.select.is_some()) {
             return Some(

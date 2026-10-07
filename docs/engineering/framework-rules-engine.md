@@ -1,7 +1,9 @@
 # Framework rules engine
 
 This document describes the rules engine as it exists today. It is normative for the boundary between
-producer-specific telemetry knowledge and the generic Rust implementation.
+producer-specific telemetry knowledge and the generic Rust implementation. How to write an asset - every
+operator, with compiled examples, and a reference generated from the schema - is
+[rule-language.md](rule-language.md).
 
 ## Purpose
 

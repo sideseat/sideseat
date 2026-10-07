@@ -543,6 +543,45 @@ fn a_pipe_states_only_the_steps_its_section_runs() {
         message(plain, r#","pipe":["lowercase"]"#).is_err(),
         "a reading runs no step but `trim`"
     );
+    // An envelope's role is checked wherever the envelope is, not only on the rule.
+    assert!(
+        message(plain, r#","wrap":{"role":"assisstant"}"#).is_err(),
+        "an alternative's misspelt role folds to `user` as surely as the rule's"
+    );
+    assert!(
+        message(
+            plain,
+            r#","wrap":{"role_from":{"path":"$.r","pipe":[{"map":{"a":"user"},"closed":true}]}}"#
+        )
+        .is_err(),
+        "an alternative's closed role map needs its fallback too"
+    );
+    assert!(
+        message(plain, r#","wrap":{"role":"assistant"}"#).is_ok(),
+        "and a real role in an alternative's envelope compiles"
+    );
+    let routed = |role: &str| {
+        let body = format!(
+            r#"{{"id":"t","messages":[{{"id":"t.r","read":{{"attribute":"x"}},"parse":"text",
+                 "emit":"message","priority":1,"sections":{{"split_on":"\n\n","routes":[{{"id":"r","role":"{role}"}}]}}}}]}}"#
+        );
+        compile(
+            &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+                "t.json".to_string(),
+                body.into_bytes(),
+            )]))
+            .expect("the probe assets parse"),
+        )
+        .map(drop)
+    };
+    assert!(
+        routed("system").is_ok(),
+        "a section routed to a role compiles"
+    );
+    assert!(
+        routed("narrator").is_err(),
+        "a section routed to a word that is not a role would fold to `user`"
+    );
     for (wrap, why) in [
         (
             r#"{"role":"user","content_from":"$.content","attach":[{"from":"k","as":"m","pipe":["lowercase","blank_is_absent"]}]}"#,
@@ -559,6 +598,10 @@ fn a_pipe_states_only_the_steps_its_section_runs() {
         (
             r#"{"role":"user","content_from":"$.content","attach":[{"from_path":"$.k","as":"m","pipe":["blank_is_absent"]}]}"#,
             "attribute steps on a member that reads no attribute",
+        ),
+        (
+            r#"{"role":"user","content_from":"$.content","attach":[{"from_value":"$.k","as":"m","pipe":["lowercase"]}]}"#,
+            "a member of the wrapped value is attached as it stands",
         ),
         (
             r#"{"role":"user","content_from":"$.content","attach":[{"as":"name","or_span_name":["lowercase"]}]}"#,
