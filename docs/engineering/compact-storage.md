@@ -103,29 +103,43 @@ file keeps for reuse rather than bytes the corpus stores, and counting them made
 differently depending on the churn of the run. ClickHouse is read the same way through its own accounting, per
 part.
 
-Embedded backend, on the pinned corpus (1,347 trace exports, 127 log, 72 metric), 2026-10-07:
+Embedded backend, on the pinned corpus with the derived metric load - what the gate measures - 2026-10-07:
 
-| Signal  |  Items | Raw OTLP | Stored, excluding media | Per item | Before the raw store |
-| ------- | -----: | -------: | ----------------------: | -------: | -------------------: |
-| traces  | 13,384 | 37.3 MB  | 61.7 MB                 |  4,612 B |              8,240 B |
-| logs    |  1,392 | 1.42 MB  | 6.36 MB                 |  4,570 B |              4,467 B |
-| metrics |    480 | 0.19 MB  | 0.28 MB                 |    581 B |                579 B |
+| Signal  |    Items | Raw OTLP | Stored, excluding media | Per item | Measured alone |
+| ------- | -------: | -------: | ----------------------: | -------: | -------------: |
+| traces  |    13,384 | 37.3 MB | 57.7 MB                 |  4,313 B |        4,447 B |
+| logs    |     1,392 | 1.42 MB | 5.68 MB                 |  4,079 B |        5,085 B |
+| metrics | 1,001,300 | 378 MB  | 163 MB                  |    162 B |          159 B |
 
-Where a trace span's bytes are now: the content-body registry and its blobs 2,556 B/span, DuckDB's indexes and
-block residue 1,263, `otel_spans` 274, search terms 297, the raw record 117.5 and its trace index 19.6, media 296.5
-reported separately. The halving came from retiring the `raw_span` JSON column: it was the largest column *and*
-the largest content-body object, so one copy of each span's OTLP JSON was being kept twice over - 3,628 B/span
-between them - while the raw record already held the whole export. Logs and metrics move by about 100 B and 2 B
-because the shared DuckDB residue is spread over the signals by rows; their own columns are unchanged.
+The last column is `--signal`, which loads one signal's corpus alone. The two differ because DuckDB's residue -
+its indexes and metadata - cannot be attributed to a table, so it is spread over the signals by rows: a signal
+measured alone carries all of it, and a signal sharing the file with a million metric points carries less. The
+gate measures the pinned mix, which is reproducible because both the fixture manifest and the load's parameters
+are pinned; `--signal` is the figure to read when asking what one signal costs. Before the raw store landed,
+traces cost 8,240 B/span on the same mix.
 
-**Metrics are measured on a derived load.** 480 captured points cannot measure a store whose block is 256 KB:
+The measurement itself is exact - the same database measures identically every time - but the figure still moves
+by about half a percent between runs, because which spans end up in one write batch depends on timing, and the
+block residue follows. The regression ceilings sit about 2 % above the measured figures for that reason. The run
+takes about ten minutes: it generates the million-point load, loads 3,582 exports through a real server, and
+honours the server's back-pressure (a 503 is retried, as a collector would).
+
+Where a trace span's bytes are, measured alone: the content-body registry and its blobs 2,556 B/span, DuckDB's
+indexes and block residue about 1,100, search terms 297, `otel_spans` 274, the raw record 117.5 and its trace
+index 19.6, media 296.5 reported separately. The halving came from retiring the `raw_span` JSON column: it was
+the largest column *and* the largest content-body object, so one copy of each span's OTLP JSON was being kept
+twice over - 3,628 B/span between them - while the raw record already held the whole export. What is left to
+remove, in order of size, is the content-body store (retired once the gRPC raw-bytes codec lands, since the raw
+record already holds every body), the indexes, and the search terms.
+
+**Metrics are measured on a derived load, and the gate uses it.** 480 captured points cannot measure a store whose block is 256 KB:
 most of the figure is one partly-filled block per column. `scripts/perf/metrics-load.py` derives a deterministic
 load of about a million points from the captured *shapes* - every series keeps its resource, scope, instrument
 kind, unit, temporality and attribute set, from a fleet of replicas distinguished by `service.instance.id`,
 cumulative every interval, with values that only grow - and `--metrics-load` measures that instead. The parameters
 are committed (`metrics-load.json`), not the data, so the same parameters and the same corpus give the same exports
-byte for byte. On that load a point costs 172 B, against 581 B on the captured corpus; the captured corpus stays as
-the correctness fixture.
+byte for byte. On that load a point costs 162 B, against 581 B on the captured corpus, where almost all of the figure was one
+partly-filled block per column; the captured corpus stays as the correctness fixture.
 
 **Arithmetic for media.** Media cannot be compressed losslessly: six generated PNGs, a JPEG, a PDF and encrypted
 reasoning signatures, 15.3 MB unique per project out of 74.6 MB. However well everything else is stored, traces

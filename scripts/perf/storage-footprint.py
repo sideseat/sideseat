@@ -475,11 +475,20 @@ def load(exports: list[dict]) -> dict[str, str]:
             "application/json" if export["json"] else "application/x-protobuf"
         )
         url = f"{base}/otel/{projects[export['tenant']]}/v1/{export['signal']}"
-        status, body = http("POST", url, export["body"], {"Content-Type": content_type})
+        headers = {"Content-Type": content_type}
+        status, body = http("POST", url, export["body"], headers)
+        # 503 and 429 are back-pressure, not failure: the server is telling a collector to slow down, and a
+        # collector retries. Treating them as errors made a long load fail on a full durability buffer.
+        for attempt in range(1, 61):
+            if status not in (429, 503):
+                break
+            time.sleep(min(0.05 * attempt, 1.0))
+            status, body = http("POST", url, export["body"], headers)
         if status != 200:
-            sys.exit(
-                f"[storage] {export['path'].relative_to(ROOT)} returned {status}: {body[:300]!r}"
-            )
+            # A derived load lives in the work directory, not in the repository, so the path is named as it is.
+            path = export["path"]
+            named = path.relative_to(ROOT) if path.is_relative_to(ROOT) else path
+            sys.exit(f"[storage] {named} returned {status}: {body[:300]!r}")
     log(f"posted {len(exports)} exports in {time.monotonic() - started:.1f}s")
     return projects
 
@@ -848,8 +857,16 @@ def report(exports: list[dict], measured: dict, mode: str) -> dict:
     return result
 
 
-def gate(result: dict) -> int:
+def gate(result: dict, only: str | None = None) -> int:
+    """Fail the run when a signal is above its ceiling. With `only`, that signal alone is judged.
+
+    One signal at a time is how the gate is meant to run: DuckDB's residue - its indexes and metadata - cannot
+    be attributed to a table, so it is spread over the signals by rows, and a corpus that holds a million metric
+    points therefore moves the figure for traces. Measuring one signal per run leaves nothing to share.
+    """
     ceilings = json.loads(CEILING.read_text())[result["mode"]]
+    if only:
+        ceilings = {only: ceilings[only]}
     failures = []
     for s, limits in ceilings.items():
         figure = result["signals"][s]["stored_excluding_media_per_item"]
@@ -877,6 +894,11 @@ def main() -> int:
         "--metrics-load",
         action="store_true",
         help="measure metrics on the derived load of scripts/perf/metrics-load.json instead of the captures",
+    )
+    parser.add_argument(
+        "--signal",
+        choices=SIGNALS,
+        help="load only this signal's corpus, so the figure is not affected by what else is stored",
     )
     parser.add_argument(
         "--verify-raw",
@@ -912,7 +934,9 @@ def main() -> int:
         )
     exports = corpus()
     work = Path(tempfile.mkdtemp(prefix="sideseat-storage-"))
-    if args.metrics_load:
+    if args.signal:
+        exports = [e for e in exports if e["signal"] == args.signal]
+    if args.metrics_load and args.signal in (None, "metrics"):
         exports = [e for e in exports if e["signal"] != "metrics"] + derived_metrics(
             work
         )
@@ -947,7 +971,7 @@ def main() -> int:
     result = report(exports, measured, args.mode)
     if args.json:
         args.json.write_text(json.dumps(result, indent=1, default=str))
-    return max(gate(result) if args.gate else 0, raw_failed)
+    return max(gate(result, args.signal) if args.gate else 0, raw_failed)
 
 
 if __name__ == "__main__":
