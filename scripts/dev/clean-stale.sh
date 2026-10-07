@@ -48,6 +48,14 @@ done < <(find "$target_dir" -path '*/incremental/*' -mindepth 1 -maxdepth 4 -typ
 stale_objects="$(find "$target_dir" -name '*.rcgu.o' -mmin "+$stale_minutes" -print -delete 2>/dev/null | wc -l | tr -d ' ')"
 echo "[clean-stale] removed $stale_sessions incremental sessions and $stale_objects objects untouched for ${STALE_HOURS:-6} h"
 
+# Every edit of a crate links a new test executable beside the old ones (hundreds per day for the goldens), and
+# nothing reuses the old ones. A build judges an executable fresh only when nothing changed since it was linked,
+# so while builds run only a day-old one goes; on an idle target, anything untouched for STALE_HOURS.
+executable_minutes=$stale_minutes
+[ "$build_running" = true ] && executable_minutes=1440
+stale_executables="$(find "$target_dir"/*/deps -maxdepth 1 -type f -perm -u+x ! -name '*.*' -mmin "+$executable_minutes" -print -delete 2>/dev/null | wc -l | tr -d ' ')"
+echo "[clean-stale] removed $stale_executables linked executables untouched for $((executable_minutes / 60)) h"
+
 incremental_dirs=0
 # Another build reads and writes the current ones while it runs, so deleting them under it fails that build
 # with missing dep-graph files. Only an idle target directory loses all of its incremental state.
