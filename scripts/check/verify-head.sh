@@ -56,6 +56,8 @@ while IFS= read -r manifest; do
 done < <(git ls-files '*package.json' | grep -v node_modules)
 
 export CARGO_TARGET_DIR="$checkout/target"
+# Each run checks a different commit, so incremental state is rarely reused and only fills the disk.
+export CARGO_INCREMENTAL=0
 cd "$checkout"
 echo "[verify-head] $(git log --oneline -1)"
 cargo check --locked --workspace --all-targets
