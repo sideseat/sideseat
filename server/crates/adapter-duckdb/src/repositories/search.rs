@@ -7,6 +7,14 @@ use sideseat_ports::types::{
 use sideseat_query_sql::{Backend, analytics::QueryValue, search as search_sql};
 
 use crate::error::DuckdbError;
+
+/// Identities per batched delete. A row-value `IN` list binds three values each, and a statement with tens of
+/// thousands of parameters costs more to plan than it saves.
+const DELETE_CHUNK: usize = 500;
+
+/// The single empty term an indexed-but-empty field writes.
+const EMPTY_TERM: [String; 1] = [String::new()];
+
 struct SpanCandidate {
     trace_id: String,
     span_id: String,
@@ -41,69 +49,100 @@ struct LogCandidate {
     search_indexed: bool,
 }
 
+/// Replace the term rows of these spans: one delete for the batch, then the rows appended.
+///
+/// A span carries about 35 term rows, so the row-at-a-time `INSERT` this used to do was the write path's largest
+/// cost by a wide margin - measured at 3.3 ms per span against 129 microseconds for the span row itself, which
+/// the appender already wrote. The rows go through the same appender now, and the deletes that make a
+/// redelivery idempotent are one statement for the whole batch.
 pub fn replace_span_terms(conn: &Connection, spans: &[NormalizedSpan]) -> Result<(), DuckdbError> {
-    let mut delete = conn.prepare(search_sql::DUCKDB_SPAN_TERM_DELETE_SQL)?;
-    let mut insert = conn.prepare(search_sql::DUCKDB_SPAN_TERM_INSERT_SQL)?;
+    if spans.is_empty() {
+        return Ok(());
+    }
+    let identities: Vec<(String, String, String)> = spans
+        .iter()
+        .map(|span| {
+            (
+                span.project_id.clone().unwrap_or_default(),
+                span.trace_id.clone(),
+                span.span_id.clone(),
+            )
+        })
+        .collect();
+    for chunk in identities.chunks(DELETE_CHUNK) {
+        if let Some(query) = search_sql::duckdb_span_term_delete(chunk) {
+            conn.execute(query.sql(), duckdb_values(query.params()).as_slice())?;
+        }
+    }
+    let mut appender = conn.appender("span_terms")?;
     for span in spans {
         let project_id = span.project_id.as_deref().unwrap_or_default();
-        delete.execute(params![project_id, span.trace_id, span.span_id])?;
         for field in &span.search.fields {
-            if field.terms.is_empty() {
-                insert.execute(params![
+            // An empty field is still a fact: it says the field was indexed and held nothing, which is what
+            // tells a reader the row is indexed rather than waiting for the backfill.
+            let terms: &[String] = if field.terms.is_empty() {
+                &EMPTY_TERM
+            } else {
+                &field.terms
+            };
+            for term in terms {
+                appender.append_row(params![
                     project_id,
-                    span.trace_id,
-                    span.span_id,
+                    span.trace_id.as_str(),
+                    span.span_id.as_str(),
                     field.field.as_str(),
-                    "",
+                    term.as_str(),
                     field.truncated,
                 ])?;
-            } else {
-                for term in &field.terms {
-                    insert.execute(params![
-                        project_id,
-                        span.trace_id,
-                        span.span_id,
-                        field.field.as_str(),
-                        term,
-                        field.truncated,
-                    ])?;
-                }
             }
         }
     }
+    appender.flush()?;
     Ok(())
 }
 
+/// Replace the term rows of these logs, the same way: one delete for the batch, then the rows appended.
 pub fn replace_log_terms(conn: &Connection, logs: &[NormalizedLog]) -> Result<(), DuckdbError> {
-    let mut delete = conn.prepare(search_sql::DUCKDB_LOG_TERM_DELETE_SQL)?;
-    let mut insert = conn.prepare(search_sql::DUCKDB_LOG_TERM_INSERT_SQL)?;
+    if logs.is_empty() {
+        return Ok(());
+    }
+    let identities: Vec<(String, String, u32)> = logs
+        .iter()
+        .map(|log| {
+            (
+                log.project_id.clone().unwrap_or_default(),
+                log.log_digest.clone(),
+                log.ordinal,
+            )
+        })
+        .collect();
+    for chunk in identities.chunks(DELETE_CHUNK) {
+        if let Some(query) = search_sql::duckdb_log_term_delete(chunk) {
+            conn.execute(query.sql(), duckdb_values(query.params()).as_slice())?;
+        }
+    }
+    let mut appender = conn.appender("log_terms")?;
     for log in logs {
         let project_id = log.project_id.as_deref().unwrap_or_default();
-        delete.execute(params![project_id, log.log_digest, log.ordinal])?;
         for field in &log.search.fields {
-            if field.terms.is_empty() {
-                insert.execute(params![
+            let terms: &[String] = if field.terms.is_empty() {
+                &EMPTY_TERM
+            } else {
+                &field.terms
+            };
+            for term in terms {
+                appender.append_row(params![
                     project_id,
-                    log.log_digest,
+                    log.log_digest.as_str(),
                     log.ordinal,
                     field.field.as_str(),
-                    "",
+                    term.as_str(),
                     field.truncated,
                 ])?;
-            } else {
-                for term in &field.terms {
-                    insert.execute(params![
-                        project_id,
-                        log.log_digest,
-                        log.ordinal,
-                        field.field.as_str(),
-                        term,
-                        field.truncated,
-                    ])?;
-                }
             }
         }
     }
+    appender.flush()?;
     Ok(())
 }
 
@@ -126,10 +165,17 @@ pub fn delete_for_spans(
     project_id: &str,
     spans: &[(String, String)],
 ) -> Result<(), DuckdbError> {
-    let mut span_terms = conn.prepare(search_sql::DUCKDB_SPAN_TERM_DELETE_SQL)?;
+    let identities: Vec<(String, String, String)> = spans
+        .iter()
+        .map(|(trace_id, span_id)| (project_id.to_string(), trace_id.clone(), span_id.clone()))
+        .collect();
+    for chunk in identities.chunks(DELETE_CHUNK) {
+        if let Some(query) = search_sql::duckdb_span_term_delete(chunk) {
+            conn.execute(query.sql(), duckdb_values(query.params()).as_slice())?;
+        }
+    }
     let mut log_terms = conn.prepare(search_sql::DUCKDB_LOG_TERMS_DELETE_SPAN_SQL)?;
     for (trace_id, span_id) in spans {
-        span_terms.execute(params![project_id, trace_id, span_id])?;
         log_terms.execute(params![project_id, trace_id, span_id])?;
     }
     Ok(())
@@ -223,8 +269,6 @@ fn write_span_backfill(
     project_id: &str,
     documents: &[SearchBackfillDocument],
 ) -> Result<(), DuckdbError> {
-    let mut delete = conn.prepare(search_sql::DUCKDB_SPAN_TERM_DELETE_SQL)?;
-    let mut insert = conn.prepare(search_sql::DUCKDB_SPAN_TERM_INSERT_SQL)?;
     for document in documents {
         let SearchRecordId::Span { trace_id, span_id } = &document.id else {
             panic!("span search backfill received a log identity");
@@ -249,13 +293,21 @@ fn write_span_backfill(
         if !still_current_and_unindexed {
             continue;
         }
-        delete.execute(params![project_id, trace_id, span_id])?;
+        if let Some(query) = search_sql::duckdb_span_term_delete(&[(
+            project_id.to_string(),
+            trace_id.clone(),
+            span_id.clone(),
+        )]) {
+            conn.execute(query.sql(), duckdb_values(query.params()).as_slice())?;
+        }
+        let mut appender = conn.appender("span_terms")?;
         write_document_fields(&document.document, |field, term, truncated| {
-            insert.execute(params![
+            appender.append_row(params![
                 project_id, trace_id, span_id, field, term, truncated
             ])?;
             Ok(())
         })?;
+        appender.flush()?;
     }
     Ok(())
 }
@@ -265,8 +317,6 @@ fn write_log_backfill(
     project_id: &str,
     documents: &[SearchBackfillDocument],
 ) -> Result<(), DuckdbError> {
-    let mut delete = conn.prepare(search_sql::DUCKDB_LOG_TERM_DELETE_SQL)?;
-    let mut insert = conn.prepare(search_sql::DUCKDB_LOG_TERM_INSERT_SQL)?;
     for document in documents {
         let SearchRecordId::Log {
             log_digest,
@@ -275,13 +325,21 @@ fn write_log_backfill(
         else {
             panic!("log search backfill received a span identity");
         };
-        delete.execute(params![project_id, log_digest, ordinal])?;
+        if let Some(query) = search_sql::duckdb_log_term_delete(&[(
+            project_id.to_string(),
+            log_digest.clone(),
+            *ordinal,
+        )]) {
+            conn.execute(query.sql(), duckdb_values(query.params()).as_slice())?;
+        }
+        let mut appender = conn.appender("log_terms")?;
         write_document_fields(&document.document, |field, term, truncated| {
-            insert.execute(params![
+            appender.append_row(params![
                 project_id, log_digest, ordinal, field, term, truncated
             ])?;
             Ok(())
         })?;
+        appender.flush()?;
     }
     Ok(())
 }

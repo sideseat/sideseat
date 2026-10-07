@@ -9,14 +9,51 @@ use sideseat_ports::types::{SearchCursor, SearchExpr, SearchField, SearchQuery, 
 use crate::Backend;
 use crate::analytics::{ParameterizedQuery, QueryValue};
 
-pub const DUCKDB_SPAN_TERM_DELETE_SQL: &str =
-    "DELETE FROM span_terms WHERE project_id = ? AND trace_id = ? AND span_id = ?";
-pub const DUCKDB_SPAN_TERM_INSERT_SQL: &str = "INSERT INTO span_terms(project_id, trace_id, span_id, field, term, truncated) \
-     VALUES (?, ?, ?, ?, ?, ?)";
-pub const DUCKDB_LOG_TERM_DELETE_SQL: &str =
-    "DELETE FROM log_terms WHERE project_id = ? AND log_digest = ? AND ordinal = ?";
-pub const DUCKDB_LOG_TERM_INSERT_SQL: &str = "INSERT INTO log_terms(project_id, log_digest, ordinal, field, term, truncated) \
-     VALUES (?, ?, ?, ?, ?, ?)";
+/// Remove the term rows of many span identities in one statement.
+///
+/// A span writes about 35 term rows, so a batch of a thousand spans used to issue a thousand deletes and
+/// thirty-five thousand inserts; the rows are appended now (DuckDB's bulk path, which the span rows already
+/// use) and the deletes are one statement per batch. Row-value `IN` so the index on the identity can serve it.
+pub fn duckdb_span_term_delete(
+    identities: &[(String, String, String)],
+) -> Option<ParameterizedQuery> {
+    if identities.is_empty() {
+        return None;
+    }
+    let tuples = std::iter::repeat_n("(?, ?, ?)", identities.len())
+        .collect::<Vec<_>>()
+        .join(", ");
+    let mut params = Vec::with_capacity(identities.len() * 3);
+    for (project_id, trace_id, span_id) in identities {
+        params.push(QueryValue::String(project_id.clone()));
+        params.push(QueryValue::String(trace_id.clone()));
+        params.push(QueryValue::String(span_id.clone()));
+    }
+    Some(ParameterizedQuery::new(
+        format!("DELETE FROM span_terms WHERE (project_id, trace_id, span_id) IN ({tuples})"),
+        params,
+    ))
+}
+
+/// The same for log term rows, keyed by the log identity.
+pub fn duckdb_log_term_delete(identities: &[(String, String, u32)]) -> Option<ParameterizedQuery> {
+    if identities.is_empty() {
+        return None;
+    }
+    let tuples = std::iter::repeat_n("(?, ?, ?)", identities.len())
+        .collect::<Vec<_>>()
+        .join(", ");
+    let mut params = Vec::with_capacity(identities.len() * 3);
+    for (project_id, log_digest, ordinal) in identities {
+        params.push(QueryValue::String(project_id.clone()));
+        params.push(QueryValue::String(log_digest.clone()));
+        params.push(QueryValue::Int64(i64::from(*ordinal)));
+    }
+    Some(ParameterizedQuery::new(
+        format!("DELETE FROM log_terms WHERE (project_id, log_digest, ordinal) IN ({tuples})"),
+        params,
+    ))
+}
 pub const DUCKDB_SPAN_TERMS_DELETE_TRACE_SQL: &str =
     "DELETE FROM span_terms WHERE project_id = ? AND trace_id = ?";
 pub const DUCKDB_LOG_TERMS_DELETE_TRACE_SQL: &str = "DELETE FROM log_terms WHERE project_id = ? AND EXISTS (\
