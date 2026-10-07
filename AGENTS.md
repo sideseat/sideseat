@@ -286,7 +286,9 @@ The container-free aggregate does not substitute for live backend parity.
 - When several agents share one working tree, never stage in the shared index: commit with
   `scripts/dev/commit-paths.sh -m "<message>" -- <paths>`, which builds the commit in a private index from HEAD
   (so it cannot sweep in another agent's work) and then refreshes the shared index for those paths (so it
-  never lags HEAD). Restore a file with `git checkout HEAD -- <path>`, never `git checkout -- <path>`.
+  never lags HEAD). Undo your own change with `git checkout -p HEAD -- <path>`, choosing only your hunks: a file is
+  often shared (documented counts, schemas, READMEs), and restoring it whole reverts other agents' work. Never
+  use `git checkout -- <path>`, which restores from the index.
   Before reporting a commit as green, run `make verify-head` (`ARGS=--test` for the goldens): a green run in
   the shared tree includes everyone else's uncommitted work and says nothing about HEAD.
 - Remove dead code instead of suppressing warnings.
