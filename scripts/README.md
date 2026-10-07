@@ -6,7 +6,7 @@ its own location, so it works from any directory.
 
 | Directory   | Purpose                                                     | Entry points                                  |
 | ----------- | ----------------------------------------------------------- | --------------------------------------------- |
-| `check/`    | The inner loop, static gates, capped model checking and the supply-chain audit | `make quick`, `make file-length-check`, `make deps-check`, `make node-floor`, `make harden-spec`, `make audit` |
+| `check/`    | The inner loop, static gates, capped model checking, the durability proof and the supply-chain audit | `make quick`, `make file-length-check`, `make deps-check`, `make node-floor`, `make harden-spec`, `make test-durability`, `make audit` |
 | `hooks/`    | Git hooks: pre-commit (format, file length, secrets), pre-push (`make check`) | `make setup-hooks` |
 | `test/`     | Suites that need containers, SDK toolchains or sample envs  | `make test-postgres` and the other `test-*` targets |
 | `perf/`     | Latency and ingest benchmarks, footprint ceilings, storage  | `make bench-http`, `make bench-ingest`, `make footprint`, `make footprint-storage`, `storage-entropy.py` |
@@ -15,7 +15,7 @@ its own location, so it works from any directory.
 | `release/`  | Versioning, release cutting, packaging metadata             | `make release`, `make version`                |
 | `ops/`      | Operator tools shipped in the docs: backup and restore      | see the backup-restore reference              |
 | `deploy/`   | The container image and a local distributed compose stack   | `make build-docker`, `scripts/deploy/local/`  |
-| `tools/`    | Standalone developer utilities with their own environments  | `otel-replay`, `mcp-calculator`, `audit`, `tla/` (downloaded TLA+ tools) |
+| `tools/`    | Standalone developer utilities with their own environments  | `otel-replay`, `mcp-calculator`, `audit`, `synctrace` (the write and sync tracer `make test-durability` loads), `tla/` (downloaded TLA+ tools) |
 
 Rules:
 

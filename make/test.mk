@@ -3,7 +3,7 @@
 # nextest runs the workspace in parallel processes; plain `cargo test` is the fallback.
 CARGO_TEST := $(if $(shell command -v cargo-nextest 2>/dev/null),cargo nextest run --locked,cargo test --locked)
 
-.PHONY: test test-rust test-server test-backup-restore test-clickhouse test-clickhouse-replicated test-clickhouse-two-shard test-postgres test-redis test-redpanda bench-http bench-http-distributed bench-ingest footprint footprint-storage footprint-storage-distributed test-web test-sdk-js test-sdk-python test-python-frameworks test-sdk-dotnet coverage
+.PHONY: test test-rust test-server test-backup-restore test-durability test-clickhouse test-clickhouse-replicated test-clickhouse-two-shard test-postgres test-redis test-redpanda bench-http bench-http-distributed bench-ingest footprint footprint-storage footprint-storage-distributed test-web test-sdk-js test-sdk-python test-python-frameworks test-sdk-dotnet coverage
 
 test: test-rust test-web test-sdk-js test-sdk-python test-sdk-dotnet ## Run all regular test suites
 
@@ -16,6 +16,13 @@ test-rust: ## Test the complete Rust workspace
 test-server: ## Test the server package
 	@echo "[test-server] Running server tests..."
 	$(call run-with-disk-guard,$(CARGO_TEST) -p sideseat-server)
+
+# That an OTLP success is sent only once everything it stands for is durable, on each acknowledgement path:
+# traces every write and sync the release server makes (scripts/tools/synctrace) and fails if any write or new
+# directory entry before the 200 was left unsynced - or synced with plain fsync on macOS, where only
+# F_FULLFSYNC reaches the disk. Opt-in: it builds the release binary and starts a Redis container.
+test-durability: ## Prove every acknowledgement waits for durable storage
+	$(call run-with-disk-guard,uv run --locked --script scripts/check/durability.py)
 
 # Destructive restore proof, isolated in a temporary directory. It is kept out of `make check` because it
 # builds and launches the release-facing binary twice and deliberately destroys its fixture between phases.

@@ -530,6 +530,8 @@ obj/
 .astro
 .claude
 .sideseat
+# The sync tracer is compiled per platform by make test-durability.
+scripts/tools/synctrace/build/
 # Local cargo state stays out; the repository's build configuration does not.
 **/.cargo/*
 !/.cargo/config.toml
