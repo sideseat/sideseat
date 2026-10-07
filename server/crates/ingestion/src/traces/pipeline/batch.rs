@@ -63,7 +63,7 @@ impl TracePipeline {
         // so parallel processing across CPU cores significantly reduces batch time.
         // The FileExtractionCache is shared across threads to skip
         // redundant decode + BLAKE3 for the same base64 content.
-        let results: Vec<Prepared> = tokio::task::block_in_place(|| {
+        let prepare_all = || {
             let num_workers = std::thread::available_parallelism()
                 .map(|p| p.get())
                 .unwrap_or(4);
@@ -83,33 +83,34 @@ impl TracePipeline {
             for wave in byte_bounded_waves(requests, num_workers) {
                 // Each request is wrapped in `catch_unwind` so a panic in one does not propagate through
                 // `thread::scope` and drop the batch.
+                let prepare = |request: &ExportTraceServiceRequest| match std::panic::catch_unwind(
+                    std::panic::AssertUnwindSafe(|| {
+                        process_request(
+                            request,
+                            pricing,
+                            files_enabled,
+                            file_cache,
+                            ExtractionMode::PerCarrier,
+                        )
+                    }),
+                ) {
+                    Ok(Some((spans, files, incoming))) => Prepared::Ready(spans, files, incoming),
+                    Ok(None) => Prepared::Nothing,
+                    Err(_) => {
+                        tracing::error!("process_request panicked, refusing the batch");
+                        Prepared::Panicked
+                    }
+                };
+                // A wave of one runs on this thread: a thread per export was most of the cost of a small batch,
+                // and on one core it bought nothing.
+                if wave.len() == 1 {
+                    results.push(prepare(&wave[0]));
+                    continue;
+                }
                 let wave_results: Vec<Prepared> = std::thread::scope(|s| {
                     let handles: Vec<_> = wave
                         .iter()
-                        .map(|request| {
-                            s.spawn(|| {
-                                match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                                    process_request(
-                                        request,
-                                        pricing,
-                                        files_enabled,
-                                        file_cache,
-                                        ExtractionMode::PerCarrier,
-                                    )
-                                })) {
-                                    Ok(Some((spans, files, incoming))) => {
-                                        Prepared::Ready(spans, files, incoming)
-                                    }
-                                    Ok(None) => Prepared::Nothing,
-                                    Err(_) => {
-                                        tracing::error!(
-                                            "process_request panicked, refusing the batch"
-                                        );
-                                        Prepared::Panicked
-                                    }
-                                }
-                            })
-                        })
+                        .map(|request| s.spawn(|| prepare(request)))
                         .collect();
                     handles
                         .into_iter()
@@ -128,7 +129,14 @@ impl TracePipeline {
                 results.extend(wave_results);
             }
             results
-        });
+        };
+        // `block_in_place` hands this worker's other tasks to the rest of the runtime while the CPU phase runs,
+        // which only a multi-threaded runtime can do; a current-thread runtime (a test, a single-core embed)
+        // simply runs it.
+        let results: Vec<Prepared> = match tokio::runtime::Handle::current().runtime_flavor() {
+            tokio::runtime::RuntimeFlavor::MultiThread => tokio::task::block_in_place(prepare_all),
+            _ => prepare_all(),
+        };
 
         let mut all_db_spans: Vec<NormalizedSpan> = Vec::new();
         let mut all_pending_files: Vec<PendingFileWrite> = Vec::new();

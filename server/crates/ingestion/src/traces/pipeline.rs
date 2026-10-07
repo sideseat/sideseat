@@ -631,6 +631,8 @@ fn drop_unstorable_spans(spans: &mut Vec<NormalizedSpan>) -> usize {
 #[cfg(test)]
 mod association_leak_tests;
 #[cfg(test)]
+mod batch_equivalence_tests;
+#[cfg(test)]
 mod batch_outcome_tests;
 #[cfg(test)]
 mod fan_out_tests;
