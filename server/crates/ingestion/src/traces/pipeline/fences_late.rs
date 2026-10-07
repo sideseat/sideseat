@@ -439,16 +439,40 @@ impl TracePipeline {
                 .iter()
                 .map(|(_, trace, span, digest)| (trace.clone(), span.clone(), digest.clone()))
                 .collect::<Vec<_>>();
-            match self
+            let matching = match self
                 .analytics
                 .spans_with_matching_content(&project_id, &digests)
                 .await
             {
-                Ok(matching) => exact.extend(
+                Ok(matching) => matching,
+                Err(error) => {
+                    tracing::warn!(
+                        %error,
+                        %project_id,
+                        "Could not check exact span redeliveries; preserving the revisions"
+                    );
+                    continue;
+                }
+            };
+            let candidates: Vec<(String, String)> = records
+                .iter()
+                .filter(|(_, trace, span, digest)| {
+                    matching.contains(&(trace.clone(), span.clone(), digest.clone()))
+                })
+                .map(|(_, trace, span, _)| (trace.clone(), span.clone()))
+                .collect();
+            // Matching rows make a redelivery skippable only if the raw authority holds them too: rows a failed
+            // repair left uncovered are written again, which repairs the record, instead of being skipped for
+            // ever while the export can never settle.
+            match crate::raw_coverage::covered(self.analytics.as_ref(), &project_id, &candidates)
+                .await
+            {
+                Ok(covered) => exact.extend(
                     records
                         .into_iter()
                         .filter(|(_, trace, span, digest)| {
                             matching.contains(&(trace.clone(), span.clone(), digest.clone()))
+                                && covered.contains(&(trace.clone(), span.clone()))
                         })
                         .map(|(index, _, _, _)| index),
                 ),

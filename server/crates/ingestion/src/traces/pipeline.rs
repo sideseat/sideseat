@@ -644,6 +644,8 @@ mod missing_reference_tests;
 #[cfg(test)]
 mod pipeline_tests;
 #[cfg(test)]
+mod raw_authority_tests;
+#[cfg(test)]
 mod raw_lifecycle_tests;
 #[cfg(test)]
 mod storable_timestamp_tests;

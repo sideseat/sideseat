@@ -231,7 +231,11 @@ impl StagingService {
         payload: &StagedPayload,
     ) -> Result<StagingDisposition, StagingError> {
         if self.all_confirmed(payload).await? {
-            return Ok(StagingDisposition::Confirmed);
+            return Ok(if self.raw_covers(payload, &payload.records).await? {
+                StagingDisposition::Confirmed
+            } else {
+                StagingDisposition::Pending
+            });
         }
 
         if !self
@@ -244,8 +248,10 @@ impl StagingService {
         }
 
         let mut saw_absence = false;
+        let mut confirmed = Vec::new();
         for record in &payload.records {
             if self.record_confirmed(&payload.project_id, record).await? {
+                confirmed.push(record.clone());
                 continue;
             }
             if self
@@ -258,11 +264,47 @@ impl StagingService {
             return Ok(StagingDisposition::Pending);
         }
 
+        if !self.raw_covers(payload, &confirmed).await? {
+            return Ok(StagingDisposition::Pending);
+        }
         Ok(if saw_absence {
             StagingDisposition::DeliberatelyAbsent
         } else {
             StagingDisposition::Confirmed
         })
+    }
+
+    /// Whether the raw authority holds every span of `records`: each in the record its winning row names.
+    ///
+    /// Rows matching the export's content are not enough to settle it. The rows are a cache of the raw record,
+    /// so an export is stored only when a record holds its spans - and the write path can commit rows whose
+    /// record it then failed to repair. An exact redelivery, re-encoded or not, is covered by the record its
+    /// rows already name: the telemetry is the same, and keeping a second encoding of it would be a second
+    /// copy. Only traces have raw records.
+    async fn raw_covers(
+        &self,
+        payload: &StagedPayload,
+        records: &[StagedRecord],
+    ) -> Result<bool, StagingError> {
+        if payload.signal != StagedSignal::Traces {
+            return Ok(true);
+        }
+        let spans: Vec<(String, String)> = records
+            .iter()
+            .filter_map(|record| match record {
+                StagedRecord::Span {
+                    trace_id, span_id, ..
+                } => Some((trace_id.clone(), span_id.clone())),
+                _ => None,
+            })
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        let covered =
+            crate::raw_coverage::covered(self.analytics.as_ref(), &payload.project_id, &spans)
+                .await
+                .map_err(|error| StagingError::Registry(error.to_string()))?;
+        Ok(spans.iter().all(|span| covered.contains(span)))
     }
 
     /// Release terminal payloads. Returns the observed disposition.

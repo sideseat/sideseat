@@ -234,17 +234,32 @@ pub async fn export_signal<S: Signal>(
 
     match signal.lifecycle() {
         LifecycleStrategy::PersistBeforeAck => {
-            let mut last_outcome = None;
-            loop {
-                match signal.persist(&request, &context).await {
-                    Ok(outcome) => last_outcome = Some(outcome),
-                    Err(error) => tracing::error!(
-                        signal = descriptor.name,
-                        project_id = context.project_id,
-                        %error,
-                        "Failed to persist staged OTLP signal"
-                    ),
-                }
+            // The outcome of the write that settled: every path out of the loop passes a successful one.
+            let last_outcome = loop {
+                let outcome = match signal.persist(&request, &context).await {
+                    Ok(outcome) => outcome,
+                    Err(error) => {
+                        tracing::error!(
+                            signal = descriptor.name,
+                            project_id = context.project_id,
+                            %error,
+                            "Failed to persist staged OTLP signal"
+                        );
+                        // A failed write is never settled against what happens to be stored: its rows may be
+                        // in place while its raw record was not repaired to hold them, and confirming by rows
+                        // alone would acknowledge an export the raw authority does not have.
+                        let exhausted = context
+                            .staging
+                            .note_failed_attempt(&payload_ref.id)
+                            .await
+                            .map_err(|_| SignalExportError::StoreUnavailable)?;
+                        if exhausted {
+                            return Err(SignalExportError::StoreUnavailable);
+                        }
+                        tokio::time::sleep(Duration::from_millis(PUBLISH_BASE_DELAY_MS)).await;
+                        continue;
+                    }
+                };
 
                 let Some((payload, _)) = context
                     .staging
@@ -253,11 +268,11 @@ pub async fn export_signal<S: Signal>(
                     .map_err(|_| SignalExportError::StoreUnavailable)?
                 else {
                     // Another worker/sweep already proved it terminal.
-                    break;
+                    break outcome;
                 };
                 match context.staging.settle(&payload).await {
                     Ok(StagingDisposition::Confirmed | StagingDisposition::DeliberatelyAbsent) => {
-                        break;
+                        break outcome;
                     }
                     Ok(StagingDisposition::Pending) | Err(_) => {
                         let exhausted = context
@@ -271,9 +286,9 @@ pub async fn export_signal<S: Signal>(
                         tokio::time::sleep(Duration::from_millis(PUBLISH_BASE_DELAY_MS)).await;
                     }
                 }
-            }
+            };
 
-            match last_outcome.unwrap_or(PersistOutcome::Stored) {
+            match last_outcome {
                 PersistOutcome::Stored => {
                     Ok(signal.response((rejected_unstorable > 0).then_some((
                         rejected_unstorable,

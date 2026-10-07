@@ -150,8 +150,11 @@ async fn pipeline_stops_when_the_shutdown_sender_is_dropped() {
         .expect("pipeline task should not panic");
 }
 
+/// A row matching the redelivery is not enough to skip it: this one names no raw record, so both revisions are
+/// written - which re-creates the authority - rather than the matching one being dropped as already stored.
+/// Dropping an exact redelivery the raw authority does hold is `raw_authority_tests`'.
 #[tokio::test]
-async fn exact_redelivery_is_dropped_but_a_correction_of_the_same_identity_is_kept() {
+async fn a_redelivery_matching_only_unbacked_rows_is_kept() {
     let (_temp, analytics, _database, pipeline) = pipeline_over_a_temp_store().await;
     let mut stored = at("p", "trace", "span", None, 0);
     stored.content_digest = "same".to_string();
@@ -163,11 +166,8 @@ async fn exact_redelivery_is_dropped_but_a_correction_of_the_same_identity_is_ke
     let mut correction = stored.clone();
     correction.content_digest = "changed".to_string();
     let mut incoming = vec![stored, correction];
-    assert_eq!(pipeline.drop_exact_redeliveries(&mut incoming).await, 1);
-    assert_eq!(incoming.len(), 1);
-    assert_eq!(incoming[0].trace_id, "trace");
-    assert_eq!(incoming[0].span_id, "span");
-    assert_eq!(incoming[0].content_digest, "changed");
+    assert_eq!(pipeline.drop_exact_redeliveries(&mut incoming).await, 0);
+    assert_eq!(incoming.len(), 2);
 }
 
 /// An SSE event names the session **a read will return**, not the one this batch happens to know.
