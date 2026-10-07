@@ -83,11 +83,8 @@ METRIC_TABLES = {"otel_metrics": "metrics"}
 ANALYTICS_OWNER = {**RAW_TABLES, **SPAN_TABLES, **LOG_TABLES, **METRIC_TABLES}
 # Transactional tables whose rows exist per stored span or file. Everything else there is fixed.
 TRANSACTIONAL_OWNER = {
-    "content_bodies": "traces",
-    "span_bodies": "traces",
     "files": "traces",
     "trace_files": "traces",
-    "content_body_backfill": "traces",
 }
 PORT = int(os.environ.get("FOOTPRINT_STORAGE_PORT", "5621"))
 SCOPE = str(abs(hash(str(ROOT))) % 1_000_000)
@@ -597,15 +594,13 @@ def sqlite_tables(path: Path) -> dict[str, int]:
     return dict(sizes)
 
 
-def blob_bytes(roots: list[Path], bodies: set[str]) -> dict[str, int]:
-    """Object bytes split into content bodies and extracted files by the registry that owns each hash."""
+def blob_bytes(roots: list[Path]) -> dict[str, int]:
+    """Object bytes. Every object is media now: the content-body store is retired."""
     sizes = collections.Counter()
     for root in roots:
         for path in root.rglob("*") if root.exists() else []:
             if path.is_file():
-                sizes["content_bodies" if path.name in bodies else "files"] += (
-                    path.stat().st_size
-                )
+                sizes["files"] += path.stat().st_size
     return dict(sizes)
 
 
@@ -647,11 +642,6 @@ def measure_embedded(work: Path) -> dict:
     if wal:
         log(f"warning: {wal} bytes of write-ahead log survived the checkpoint")
     sqlite_path = work / "sqlite/sideseat.db"
-    connection = sqlite3.connect(f"file:{sqlite_path}?mode=ro", uri=True)
-    bodies = {
-        row[0] for row in connection.execute("SELECT body_hash FROM content_bodies")
-    }
-    connection.close()
     return {
         "analytics_columns": {f"{t}.{c}": b for (t, c), b in columns.items()},
         "analytics_total": used,
@@ -659,7 +649,7 @@ def measure_embedded(work: Path) -> dict:
         "analytics_wal": wal,
         "analytics_rows": rows,
         "transactional": sqlite_tables(sqlite_path),
-        "blobs": blob_bytes([work / "files"], bodies),
+        "blobs": blob_bytes([work / "files"]),
     }
 
 
@@ -703,20 +693,6 @@ def measure_distributed() -> dict:
     transactional = {
         t: int(b) for t, b in (line.split("\t") for line in pg.splitlines() if line)
     }
-    bodies = set(
-        docker(
-            "exec",
-            PG_NAME,
-            "psql",
-            "-U",
-            "sideseat",
-            "-d",
-            "sideseat",
-            "-At",
-            "-c",
-            "SELECT body_hash FROM content_bodies",
-        ).stdout.split()
-    )
     listing = docker(
         "exec",
         MINIO_NAME,
@@ -726,10 +702,8 @@ def measure_distributed() -> dict:
     ).stdout
     blobs = collections.Counter()
     for line in listing.splitlines():
-        size, name = line.split(" ", 1)
-        blobs["content_bodies" if Path(name).parent.name in bodies else "files"] += int(
-            size
-        )
+        size, _name = line.split(" ", 1)
+        blobs["files"] += int(size)
     return {
         "analytics_columns": columns,
         "analytics_uncompressed": uncompressed,
