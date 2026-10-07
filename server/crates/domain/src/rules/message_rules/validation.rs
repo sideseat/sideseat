@@ -11,7 +11,21 @@ use super::*;
 /// after fragments and extra cases are inlined. Checking the direct alternatives only left the same
 /// contradiction reachable through `require_parent`, an attachment, an overlay, a prepended block, or any
 /// case a fragment contributed: the pass that ran before inlining could not see those at all.
-pub(in crate::rules) fn predicate_defect(set: &PredicateSet) -> Option<&'static str> {
+pub(in crate::rules) fn predicate_defect(condition: &ValueCondition) -> Option<&'static str> {
+    // A condition of the two-list shape is analysed as one, cross-member contradictions included; any other shape
+    // has its atoms checked one by one, which is every per-predicate refusal and none of the cross-member ones -
+    // sound, since an atom that can never mean what it says is a defect wherever it sits.
+    match condition.set_view() {
+        Some(set) => set_defect(&set),
+        None => condition
+            .atoms()
+            .into_iter()
+            .find_map(|atom| set_defect(&PredicateSet::new(vec![atom.clone()], Vec::new()))),
+    }
+}
+
+/// The defects of a two-list predicate set.
+fn set_defect(set: &PredicateSet) -> Option<&'static str> {
     // Defects between *members* of a set, which no per-predicate check can see - and restricted to the
     // **root**, because only there is the reasoning sound. My first version compared any two members on the
     // same path and was wrong three ways at once:
@@ -34,6 +48,7 @@ pub(in crate::rules) fn predicate_defect(set: &PredicateSet) -> Option<&'static 
         usize::from(p.exists.is_some())
             + usize::from(p.kind.is_some())
             + usize::from(p.non_empty.is_some())
+            + usize::from(p.non_blank.is_some())
             + usize::from(p.not_null.is_some())
             + usize::from(p.identifier_like.is_some())
             + usize::from(p.starts_with.is_some())
@@ -169,6 +184,7 @@ pub(in crate::rules) fn predicate_defect(set: &PredicateSet) -> Option<&'static 
         if predicate.exists == Some(false)
             && (predicate.kind.is_some()
                 || predicate.non_empty.is_some()
+                || predicate.non_blank.is_some()
                 || predicate.not_null.is_some()
                 || predicate.identifier_like.is_some()
                 || predicate.starts_with.is_some()
@@ -216,6 +232,7 @@ pub(in crate::rules) fn predicate_defect(set: &PredicateSet) -> Option<&'static 
         }
         let asserts_only_presence = predicate.kind.is_none()
             && predicate.non_empty.is_none()
+            && predicate.non_blank.is_none()
             && predicate.not_null.is_none()
             && predicate.identifier_like.is_none()
             && predicate.starts_with.is_none()
@@ -250,6 +267,7 @@ pub(in crate::rules) fn predicate_defect(set: &PredicateSet) -> Option<&'static 
         // Every text condition needs a string. Declared beside a kind that is not one, it can never hold -
         // and a predicate that can never hold is the same defect as one that asserts nothing.
         if (predicate.identifier_like.is_some()
+            || predicate.non_blank.is_some()
             || predicate.starts_with.is_some()
             || predicate.lacks_prefix.is_some()
             || !predicate.one_of.is_empty())
@@ -274,8 +292,8 @@ pub(in crate::rules) fn predicate_defect(set: &PredicateSet) -> Option<&'static 
 }
 
 /// Every predicate set a compiled rule holds, wherever the declaration put it.
-pub(super) fn predicate_sets(rule: &CompiledMessageRule) -> Vec<&PredicateSet> {
-    let mut out = Vec::new();
+pub(super) fn predicate_sets(rule: &CompiledMessageRule) -> Vec<&ValueCondition> {
+    let mut out = vec![&rule.raw_where];
     if let Some(set) = &rule.branch_set {
         for sub in set.primary.iter().chain(&set.fallback).chain(&set.always) {
             out.extend(predicate_sets(sub));
@@ -301,9 +319,7 @@ pub(super) fn predicate_sets(rule: &CompiledMessageRule) -> Vec<&PredicateSet> {
         out.push(&overlay.witness);
         out.push(&overlay.require);
     }
-    if let Some(require) = &rule.read.entry_require {
-        out.push(require);
-    }
+    out.push(&rule.read.entry_require);
     for reading in rule
         .alternatives
         .iter()
@@ -378,8 +394,8 @@ pub(super) fn wrap_attachments(wrap: &WrapSpec) -> impl Iterator<Item = &AttachS
 }
 
 /// Every predicate set an envelope holds.
-pub(super) fn wrap_predicate_sets(wrap: &WrapSpec) -> Vec<&PredicateSet> {
-    let mut out: Vec<&PredicateSet> = wrap.attach.iter().map(|attach| &attach.require).collect();
+pub(super) fn wrap_predicate_sets(wrap: &WrapSpec) -> Vec<&ValueCondition> {
+    let mut out: Vec<&ValueCondition> = wrap.attach.iter().map(|attach| &attach.require).collect();
     if let Some(block) = &wrap.prepend_block {
         out.push(&block.require);
     }
@@ -729,7 +745,7 @@ pub(super) fn consumed_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
         // reading one of the family's keys is live on a span whose entries this rule rejects.
         let pattern = CarrierPattern::Prefix(format!("{family}."));
         out.push(
-            if rule.require_members.is_some() || rule.read.entry_require.is_some() {
+            if rule.require_members.is_some() || !rule.read.entry_require.is_empty() {
                 only_sometimes(pattern)
             } else {
                 always(pattern)
@@ -857,7 +873,7 @@ pub(super) fn emitted_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
         // for entries that satisfy the required members, which is why the condition mirrors the read side.
         let pattern = CarrierPattern::Prefix(format!("{family}."));
         out.push(
-            if rule.require_members.is_some() || rule.read.entry_require.is_some() {
+            if rule.require_members.is_some() || !rule.read.entry_require.is_empty() {
                 Consumed {
                     pattern,
                     condition: Condition {

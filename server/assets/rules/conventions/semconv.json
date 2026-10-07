@@ -461,14 +461,10 @@
       "compose": {
         "tag": "gen_ai.tool.name",
         "as_tool_definition": true,
-        "require": {
-          "all": [
-            {
-              "path": "$.name",
-              "identifier_like": true,
-              "doc": "A synthetic aggregate is reported under a parenthesised name; a tool anyone can call begins like an identifier."
-            }
-          ]
+        "where": {
+          "path": "$.name",
+          "identifier_like": true,
+          "doc": "A synthetic aggregate is reported under a parenthesised name; a tool anyone can call begins like an identifier."
         },
         "members": [
           {
@@ -727,7 +723,7 @@
       "doc": "The conventions' binary part: base64 `content`, with an optional `mime_type`. An earlier draft put the payload under `data`, which the provider formats read; this spelling fell through to an unknown block, so an image or a document a user sent rendered as raw JSON. Logfire's Anthropic instrumentation omits the MIME type, so the bytes name it. AgentScope spells the type `media_type`, which is read too.",
       "at": "before_provider_formats",
       "priority": 60,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.type",
@@ -756,7 +752,7 @@
       "doc": "The conventions' reference part: a `uri` with an optional `mime_type`. Logfire writes an inline image this way, as a `data:` URI, so it was kept as an unknown block; the media type comes from the declaration, the URI, or the bytes.",
       "at": "before_provider_formats",
       "priority": 61,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.type",
@@ -785,7 +781,7 @@
       "doc": "The conventions' tool result part whose `response` is a list of text parts. The conventions leave `response` as whatever the tool returned; Strands writes there the Bedrock content blocks it hands back to the model (`[{\"text\": ...}]`, the same list its `gen_ai.tool.call.result` attribute holds) and Vercel AI writes typed text parts, so such a list is read as the result's content, each member through the returned-value chain. Only a list every member of which is a part with `text`: a tool returning a JSON array of values returned a value, not content, and keeps the provider format's reading as one `json` block. The provider formats wrapped every non-string response that way, so a list of text parts rendered as the list itself and the attribute's copy of the same result no longer matched it.",
       "at": "before_provider_formats",
       "priority": 62,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.type",
@@ -817,7 +813,7 @@
       "id": "semconv.text_content_part",
       "at": "provider_formats",
       "priority": 1001,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.type",
@@ -844,14 +840,10 @@
       "id": "semconv.tool_call_part",
       "at": "provider_formats",
       "priority": 1200,
-      "require": {
-        "all": [
-          {
-            "path": "$.type",
-            "one_of": [
-              "tool_call"
-            ]
-          }
+      "where": {
+        "path": "$.type",
+        "one_of": [
+          "tool_call"
         ]
       },
       "tool_use": {
@@ -874,14 +866,10 @@
       "id": "semconv.tool_call_response_part",
       "at": "provider_formats",
       "priority": 1300,
-      "require": {
-        "all": [
-          {
-            "path": "$.type",
-            "one_of": [
-              "tool_call_response"
-            ]
-          }
+      "where": {
+        "path": "$.type",
+        "one_of": [
+          "tool_call_response"
         ]
       },
       "tool_result": {
@@ -902,7 +890,7 @@
       "id": "semconv.reasoning_part_text",
       "at": "provider_formats",
       "priority": 1500,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.type",
@@ -926,7 +914,7 @@
       "id": "semconv.reasoning_part",
       "at": "provider_formats",
       "priority": 1501,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.type",
@@ -955,14 +943,10 @@
       "id": "semconv.blob_part_data",
       "at": "provider_formats",
       "priority": 1600,
-      "require": {
-        "all": [
-          {
-            "path": "$.type",
-            "one_of": [
-              "blob"
-            ]
-          }
+      "where": {
+        "path": "$.type",
+        "one_of": [
+          "blob"
         ]
       },
       "media": {

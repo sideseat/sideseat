@@ -47,13 +47,9 @@
           "doc": "A chat model run: `messages` holds one list of LangChain-serialised messages per prompt. Graph and chain runs write a flat list of state messages here instead, which is what the array test on the first element tells apart - their state re-states the conversation and is not read.",
           "select": "$.messages[*][*]",
           "then_fragment": "langchain.message",
-          "require_parent": {
-            "all": [
-              {
-                "path": "$.messages[0]",
-                "kind": "array"
-              }
-            ]
+          "parent_where": {
+            "path": "$.messages[0]",
+            "kind": "array"
           }
         },
         {
@@ -61,7 +57,7 @@
           "doc": "A messages array. Each element must be a message - role and content both - so a request's other members are not mistaken for turns.",
           "select": "$.messages",
           "each": true,
-          "require": {
+          "where": {
             "all": [
               {
                 "path": "$.role"
@@ -75,7 +71,7 @@
         {
           "id": "role",
           "doc": "One message, written directly.",
-          "require": {
+          "where": {
             "all": [
               {
                 "path": "$.role"
@@ -124,7 +120,7 @@
               "on_conflict": "replace_target"
             }
           ],
-          "require": {
+          "where": {
             "any": [
               {
                 "path": "$.role"
@@ -138,7 +134,7 @@
         {
           "id": "role",
           "doc": "One message, written directly. `any_of` here rather than `all_of`: a response may carry content with no role, which a request may not.",
-          "require": {
+          "where": {
             "any": [
               {
                 "path": "$.role"

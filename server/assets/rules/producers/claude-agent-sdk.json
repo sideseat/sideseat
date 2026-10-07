@@ -88,7 +88,9 @@
         "attribute": "user_system_prompt"
       },
       "parse": "text",
-      "require_non_blank": true,
+      "raw_where": {
+        "non_blank": true
+      },
       "wrap": {
         "role": "system"
       },
@@ -106,7 +108,9 @@
         "attribute": "new_context"
       },
       "parse": "text",
-      "require_non_blank": true,
+      "raw_where": {
+        "non_blank": true
+      },
       "sections": {
         "split_on": "\n\n---\n\n",
         "routes": [
@@ -119,7 +123,7 @@
               "type": "tool_result",
               "capture_as": "tool_use_id"
             },
-            "skip_when": {
+            "skip_where": {
               "all": [
                 {
                   "path": "$.capture",
@@ -153,7 +157,9 @@
         "attribute": "response.model_output"
       },
       "parse": "text",
-      "require_non_blank": true,
+      "raw_where": {
+        "non_blank": true
+      },
       "wrap": {
         "role": "assistant"
       },
@@ -171,7 +177,9 @@
         "attribute": "tool_name"
       },
       "parse": "text",
-      "require_non_blank": true,
+      "raw_where": {
+        "non_blank": true
+      },
       "wrap": {
         "role": "assistant",
         "block": {

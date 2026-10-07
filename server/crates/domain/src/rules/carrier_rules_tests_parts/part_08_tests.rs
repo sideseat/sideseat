@@ -384,7 +384,7 @@ fn a_construction_branch_refuses_the_siblings_it_would_skip() {
         ),
         (
             "a pass with both, where `group` silently wins",
-            r#"[{"id":"p","tag_from":"$.n","group":{"by":[{"id":"c","when":{},"value":"user"}],
+            r#"[{"id":"p","tag_from":"$.n","group":{"by":[{"id":"c","value":"user"}],
                "collect":"$.d","key_as":"role","tag_by_key":{"user":"gen_ai.user.message"}}}]"#,
         ),
         (
@@ -393,7 +393,7 @@ fn a_construction_branch_refuses_the_siblings_it_would_skip() {
         ),
         (
             "a derived value with no tag, so the run it matched is discarded",
-            r#"[{"id":"p","group":{"by":[{"id":"c","when":{},"value":"user"}],
+            r#"[{"id":"p","group":{"by":[{"id":"c","value":"user"}],
                "collect":"$.d","key_as":"role","tag_by_key":{"assistant":"gen_ai.assistant.message"}}}]"#,
         ),
     ] {
@@ -406,14 +406,14 @@ fn a_construction_branch_refuses_the_siblings_it_would_skip() {
     assert!(
         asset(&elements(
             r#"[{"id":"named","tag_from":"$.n"},
-                {"id":"grouped","group":{"by":[{"id":"c","when":{},"value":"user"}],
+                {"id":"grouped","group":{"by":[{"id":"c","value":"user"}],
                  "collect":"$.d","key_as":"role","tag_by_key":{"user":"gen_ai.user.message"}}}]"#
         ))
         .is_ok(),
         "a tagging pass beside a grouping pass is the shipped shape: {:?}",
         asset(&elements(
             r#"[{"id":"named","tag_from":"$.n"},
-                {"id":"grouped","group":{"by":[{"id":"c","when":{},"value":"user"}],
+                {"id":"grouped","group":{"by":[{"id":"c","value":"user"}],
                  "collect":"$.d","key_as":"role","tag_by_key":{"user":"gen_ai.user.message"}}}]"#
         ))
         .err()
@@ -607,14 +607,7 @@ fn an_alternative_and_a_grouped_run_name_every_clause_that_built_them() {
     let plan = compile(
         &ParsedAssets::parse(&std::collections::BTreeMap::from([(
             "t.json".to_string(),
-            br#"{"id":"t","fragments":{"shape":{"cases":[
-             {"id":"as_user","require":{"all":[{"path":"$.role","one_of":["user"]}]},
-              "wrap":{"role":"user","content_from_any_of":["$.content"]}},
-             {"id":"as_other","wrap":{"role":"assistant","content_from_any_of":["$.content"]}}]}},
-             "messages":[{"id":"t.r","read":{"attribute":"x"},"parse":"json","emit":"message",
-               "priority":1,"alternatives":[
-                 {"id":"plain","select":"$.direct"},
-                 {"id":"via_fragment","select":"$.wrapped[*]","then_fragment":"t.shape"}]}]}"#
+            br#"{"id": "t", "fragments": {"shape": {"cases": [{"id": "as_user", "where": {"path": "$.role", "one_of": ["user"]}, "wrap": {"role": "user", "content_from_any_of": ["$.content"]}}, {"id": "as_other", "wrap": {"role": "assistant", "content_from_any_of": ["$.content"]}}]}}, "messages": [{"id": "t.r", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "alternatives": [{"id": "plain", "select": "$.direct"}, {"id": "via_fragment", "select": "$.wrapped[*]", "then_fragment": "t.shape"}]}]}"#
                 .to_vec(),
         )]))
         .expect("the probe assets parse"),
@@ -650,14 +643,7 @@ fn an_alternative_and_a_grouped_run_name_every_clause_that_built_them() {
     // A grouped element run built from two cases that derive one key: two witnesses under one pass.
     let plan = compile(&ParsedAssets::parse(&std::collections::BTreeMap::from([(
         "t.json".to_string(),
-        br#"{"id":"t","messages":[{"id":"t.e","read":{"attribute":"x"},"parse":"json",
-             "emit":"message","priority":1,"elements":{"passes":[{"id":"blocks","group":{
-               "collect":"$.data","key_as":"role","by":[
-                 {"id":"input_block","when":{"all":[{"path":"$.data.type","starts_with":"input_"}]},
-                  "value":"user"},
-                 {"id":"legacy_input","when":{"all":[{"path":"$.data.type","starts_with":"legacy_"}]},
-                  "value":"user"}],
-               "tag_by_key":{"user":"gen_ai.user.message"}}}]}}]}"#
+        br#"{"id": "t", "messages": [{"id": "t.e", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "elements": {"passes": [{"id": "blocks", "group": {"collect": "$.data", "key_as": "role", "by": [{"id": "input_block", "where": {"path": "$.data.type", "starts_with": "input_"}, "value": "user"}, {"id": "legacy_input", "where": {"path": "$.data.type", "starts_with": "legacy_"}, "value": "user"}], "tag_by_key": {"user": "gen_ai.user.message"}}}]}}]}"#
             .to_vec(),
     )])).expect("the probe assets parse"))
     .expect("the probe compiles");
@@ -846,10 +832,10 @@ fn a_walk_stops_on_the_clauses_it_names() {
             r#"{{"id":"t","messages":[{{"id":"t.w","read":{{"attribute":"x"}},"parse":"json",
                  "emit":"message","priority":1,"walk":{{"max_depth":3,"stop_on":{stop}}},
                  "also":[
-                   {{"id":"whole_node","require":{{"all":[{{"path":"$.role"}},{{"path":"$.content"}}]}},
+                   {{"id":"whole_node","where": {{"all":[{{"path":"$.role"}},{{"path":"$.content"}}]}},
                     "wrap":{{"role_from":"$.role","content_from_any_of":["$.content"]}}}},
                    {{"id":"any_member","select":"$.*",
-                    "require":{{"all":[{{"path":"$.role"}},{{"path":"$.content"}}]}},
+                    "where": {{"all":[{{"path":"$.role"}},{{"path":"$.content"}}]}},
                     "wrap":{{"role_from":"$.role","content_from_any_of":["$.content"]}}}}]}}]}}"#
         );
         compile(

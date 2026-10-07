@@ -43,7 +43,7 @@
         {
           "id": "as_user",
           "doc": "A user turn.",
-          "require": {
+          "where": {
             "any": [
               {
                 "path": "$.type",
@@ -66,8 +66,7 @@
                   "HumanMessage"
                 ]
               }
-            ],
-            "all": []
+            ]
           },
           "wrap": {
             "role": "user",
@@ -82,7 +81,7 @@
         {
           "id": "as_assistant",
           "doc": "The assistant's turn. Its tool calls may sit at the top level or under the kwargs wrapper, and an **empty** list is not a set of calls - attaching one makes a plain reply look like a call. A legacy single `function_call` is carried under its own member, and only when no `tool_calls` were found, which is the precedence the library itself uses.",
-          "require": {
+          "where": {
             "any": [
               {
                 "path": "$.type",
@@ -126,13 +125,9 @@
                   "$.kwargs.additional_kwargs.tool_calls",
                   "$.data.additional_kwargs.tool_calls"
                 ],
-                "require": {
-                  "all": [
-                    {
-                      "kind": "array",
-                      "non_empty": true
-                    }
-                  ]
+                "where": {
+                  "kind": "array",
+                  "non_empty": true
                 },
                 "after_content": true
               },
@@ -151,7 +146,7 @@
         {
           "id": "as_system",
           "doc": "A system turn.",
-          "require": {
+          "where": {
             "any": [
               {
                 "path": "$.type",
@@ -189,7 +184,7 @@
         {
           "id": "as_tool",
           "doc": "A tool's reply, carrying the call id that pairs it with its call, and the tool's name.",
-          "require": {
+          "where": {
             "any": [
               {
                 "path": "$.type",
@@ -247,7 +242,7 @@
         {
           "id": "as_function",
           "doc": "The older function-call form. Its name defaults rather than being omitted: the shape requires one, and an absent name and an empty one are different values to anything hashing the payload.",
-          "require": {
+          "where": {
             "any": [
               {
                 "path": "$.type",
@@ -296,7 +291,7 @@
         {
           "id": "role",
           "doc": "Already in canonical form: a role and content, kept exactly as it arrived. Structural rather than rebuilt, so the provider's member order survives.",
-          "require": {
+          "where": {
             "all": [
               {
                 "path": "$.role"
@@ -310,12 +305,8 @@
         {
           "id": "role_2",
           "doc": "A role with the content somewhere else. Last, so it cannot claim a message a typed case above would have recognised.",
-          "require": {
-            "all": [
-              {
-                "path": "$.role"
-              }
-            ]
+          "where": {
+            "path": "$.role"
           },
           "wrap": {
             "role_from": "$.role",
@@ -336,7 +327,7 @@
       "at": "after_provider_formats",
       "priority": 10,
       "doc": "LangChain's standard multimodal block: the kind as its type, the bytes inline as `base64` beside a `mime_type`, and for a document the name it was given. No provider format spells it this way, so it comes after them; a message carrying files in graph state reaches the reader in this form.",
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.type",

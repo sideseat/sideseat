@@ -108,7 +108,9 @@
         "attribute": "prompt"
       },
       "parse": "text",
-      "require_non_blank": true,
+      "raw_where": {
+        "non_blank": true
+      },
       "wrap": {
         "role": "user"
       },
@@ -130,7 +132,9 @@
         "attribute": "error"
       },
       "parse": "text",
-      "require_non_blank": true,
+      "raw_where": {
+        "non_blank": true
+      },
       "wrap": {
         "role": "tool",
         "block": {
@@ -163,7 +167,9 @@
         "attribute": "response"
       },
       "parse": "text",
-      "require_non_blank": true,
+      "raw_where": {
+        "non_blank": true
+      },
       "wrap": {
         "role": "assistant"
       },
@@ -189,7 +195,9 @@
         ]
       },
       "parse": "text",
-      "require_non_empty": true,
+      "raw_where": {
+        "non_empty": true
+      },
       "wrap": {
         "role": "tool",
         "block": {

@@ -36,8 +36,8 @@ use super::expr::Expr;
 use super::schema::{
     Alternative, AttachSpec, BlockSpec, ComposeMember, ComposeSpec, ElementsSpec, EmitTarget,
     MemberPresence, MemberRequirements, MessageRule, OverlaySpec, ParseMode, PredicateSet,
-    ReadSpec, SectionsSpec, SingleToolCallSpec, ToolCallsSpec, ToolReprSpec, ValueKind,
-    ValuePredicate, WrapSpec,
+    ReadSpec, SectionsSpec, SingleToolCallSpec, ToolCallsSpec, ToolReprSpec, ValueCondition,
+    ValueKind, ValuePredicate, WrapSpec,
 };
 use super::span_conditions::{self, SpanExpr};
 use super::{expr, refusal, schema, tool_repr};
@@ -302,8 +302,8 @@ pub struct CompiledMessageRule {
     pub aggregate_into_array: bool,
     /// The rule's `where`, lowered: consulted only where it holds.
     pub gate: Option<super::span_conditions::SpanExpr>,
-    pub require_non_empty: bool,
-    pub require_non_blank: bool,
+    /// A condition on the raw carrier text, asked before parsing.
+    pub raw_where: ValueCondition,
     pub branch_set: Option<CompiledBranchSet>,
     /// Where this rule reads: a span's attributes at a stage, or a named event's.
     ///
@@ -466,7 +466,7 @@ pub struct CompiledBranchSet {
 #[derive(Debug, Clone)]
 pub struct CompiledCompose {
     /// A condition on the assembled object, checked before it is emitted.
-    pub require: PredicateSet,
+    pub require: ValueCondition,
     /// The assembled members are one canonical tool definition, not a message.
     pub as_tool_definition: bool,
     pub tag: String,

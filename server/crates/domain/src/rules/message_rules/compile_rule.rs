@@ -25,8 +25,7 @@ pub(super) fn compile_rule(
         also,
         fallback,
         require_members,
-        require_non_empty,
-        require_non_blank,
+        raw_where,
         branch_set,
         elements,
         walk,
@@ -41,8 +40,6 @@ pub(super) fn compile_rule(
     // default value is still a statement the engine does not read where it was written.
     let emit_target = emit.unwrap_or(EmitTarget::Message);
     let aggregate = aggregate_into_array.unwrap_or(false);
-    let non_empty = require_non_empty.unwrap_or(false);
-    let non_blank = require_non_blank.unwrap_or(false);
     let tool_spans = reads_tool_spans.unwrap_or(false);
     // A family is already an object: there is no text to parse, split or test for blankness.
     if let Some(family) = read.family.as_deref()
@@ -51,8 +48,7 @@ pub(super) fn compile_rule(
             || parse.is_some()
             || elements.is_some()
             || sections.is_some()
-            || require_non_empty.is_some()
-            || require_non_blank.is_some())
+            || !raw_where.is_empty())
     {
         return Err(MessageCompileError::Inexpressible {
             rule: id.clone(),
@@ -128,8 +124,7 @@ pub(super) fn compile_rule(
             || aggregate_into_array.is_some()
             || elements.is_some()
             || walk.is_some()
-            || require_non_empty.is_some()
-            || require_non_blank.is_some()
+            || !raw_where.is_empty()
             || require_members.is_some())
     {
         return Err(inexpressible(
@@ -333,15 +328,15 @@ pub(super) fn compile_rule(
             }
         }
     }
-    // `require_non_empty` / `require_non_blank` ask about a **raw carrier string**, and an indexed family has
+    // `raw_where` asks about a **raw carrier string**, and an indexed family has
     // none: its entries are assembled from many keys, so there is nothing for the check to be about. The branch
     // reading a family returns before these checks run, so such a declaration was read from nowhere - refused
     // rather than silently ignored, because the asset would otherwise state a filter it does not have.
     // (`require_members` is the entry-level filter that family reads *do* honour.)
-    if read.indexed_family.is_some() && (non_empty || non_blank) {
+    if read.indexed_family.is_some() && !raw_where.is_empty() {
         return Err(inexpressible(
             "an indexed family assembles each entry from several keys, so there is no raw string for \
-                 `require_non_empty` or `require_non_blank` to ask about - use `require_members`",
+                 `raw_where` to ask about - use `require_members` or `entry_where`",
         ));
     }
     // A wrap is meaningful on an *aggregated* family: the entries become one array, and one array needs an
@@ -613,20 +608,10 @@ pub(super) fn compile_rule(
                  `indexed_family`",
         ));
     }
-    if read.entry_require.is_some() && read.indexed_family.is_none() {
+    if !read.entry_require.is_empty() && read.indexed_family.is_none() {
         return Err(inexpressible(
-            "`entry_require` is checked against each assembled indexed entry and means nothing without \
+            "`entry_where` is checked against each assembled indexed entry and means nothing without \
                  `indexed_family`",
-        ));
-    }
-    if read
-        .entry_require
-        .as_ref()
-        .is_some_and(PredicateSet::is_empty)
-    {
-        return Err(inexpressible(
-            "`entry_require` is declared with no predicate, which keeps every entry - leave it out to \
-                 require nothing",
         ));
     }
     // The requirement's own literals, which nothing checked. An empty member name makes the evaluator look
@@ -731,8 +716,7 @@ pub(super) fn compile_rule(
         && (emit_target != EmitTarget::ToolDefinitions
             || read.indexed_family.is_some()
             || aggregate
-            || non_empty
-            || non_blank
+            || !raw_where.is_empty()
             || wrap.is_some()
             || compose.is_some()
             || sections.is_some()
@@ -901,8 +885,7 @@ pub(super) fn compile_rule(
                 // `tag_as` and the two emptiness requirements describe a reading the parent does not perform.
                 || parse.is_some()
                 || tag_as.is_some()
-                || require_non_empty.is_some()
-                || require_non_blank.is_some()
+                || !raw_where.is_empty()
                 || reads_tool_spans.is_some()
                 || require_members.is_some()
             {
@@ -936,8 +919,7 @@ pub(super) fn compile_rule(
         target: emit_target,
         aggregate_into_array: aggregate,
         gate,
-        require_non_empty: non_empty,
-        require_non_blank: non_blank,
+        raw_where: raw_where.clone(),
         branch_set: compiled_branch_set,
         source: compiled_source,
         elements: elements.clone(),

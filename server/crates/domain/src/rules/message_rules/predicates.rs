@@ -142,8 +142,8 @@ pub(super) fn matches_kind(value: &JsonValue, kind: ValueKind) -> bool {
 }
 
 /// Whether a predicate set holds of a value. An empty set holds.
-pub(in crate::rules) fn predicates_hold(value: &JsonValue, set: &PredicateSet) -> bool {
-    match set.expression() {
+pub(in crate::rules) fn predicates_hold(value: &JsonValue, condition: &ValueCondition) -> bool {
+    match condition.expression() {
         // Nothing declared places no condition, so it holds - a different answer from an expression that is
         // false, which is the distinction `Truth` exists to keep.
         None => true,

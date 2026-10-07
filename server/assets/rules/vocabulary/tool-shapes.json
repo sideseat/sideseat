@@ -7,7 +7,7 @@
       "id": "tool-shapes.canonical_function",
       "doc": "A producer that already writes the canonical wrapper. The function object is taken as it stands rather than re-derived member by member, because re-deriving drops whatever else it carries. `strict` is carried from beside it: it says what the model may send, so losing it changes what the tool permits.",
       "priority": 10,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.type",
@@ -30,13 +30,9 @@
       "id": "tool-shapes.tool_spec",
       "doc": "The definition nested under `toolSpec`, whose schema is written either wrapped in `json` or directly. Both spellings, in that order, because the same producer writes both.",
       "priority": 30,
-      "require": {
-        "all": [
-          {
-            "path": "$.toolSpec.name",
-            "exists": true
-          }
-        ]
+      "where": {
+        "path": "$.toolSpec.name",
+        "exists": true
       },
       "name": "$.toolSpec.name",
       "description": "$.toolSpec.description",
@@ -56,7 +52,7 @@
         "$.functionDeclarations[*]",
         "$.function_declarations[*]"
       ],
-      "require": {
+      "where": {
         "any": [
           {
             "path": "$.functionDeclarations",
@@ -81,7 +77,7 @@
       "id": "tool-shapes.parameter_definitions",
       "doc": "Arguments as a map from name to facts rather than as a schema. Declared as `argument_map` rather than guessed from the content, which is how a member named `type` inside such a map came to be read as a finished schema. Refused beside `input_schema` or a canonical `function`, both of which describe the same payload more precisely.",
       "priority": 50,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.name",
@@ -114,7 +110,7 @@
       "id": "tool-shapes.named_object",
       "doc": "A named object: a name, optionally a description, optionally a schema under any of the three spellings a producer writes it under, and `strict`. Ranked last, so every shape that says more about itself is tried first - a schema encoded as an argument map, or a definition nested under a spec. This clause absorbed two things. A separate `input_schema` clause used to sit at rank 20 and was **entirely subsumed** by this one: same requirement modulo which member holds the schema, same output, so no mutation could reach it and the redundancy was untestable. And a second hand-written canonicaliser downstream (`feed::canonicalize_tool_definition`) used to wrap whatever reached it unrecognised, which is why the same tool was shown wrapped on the path that ran it and raw on the path that did not.",
       "priority": 90,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.name",

@@ -375,7 +375,7 @@ fn three_valued_predicate_instances() {
     }
     // Single value conditions, through the production value-predicate evaluator.
     for case in &manifest.json_atoms {
-        let set: super::schema::PredicateSet = serde_json::from_value(case.condition.clone())
+        let set: super::schema::ValueCondition = serde_json::from_value(case.condition.clone())
             .unwrap_or_else(|e| panic!("{}: the condition parses: {e}", case.id));
         let answer = set
             .expression()

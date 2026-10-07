@@ -50,7 +50,7 @@
       "doc": "This dialect writes a tool's return value under `result` rather than the conventions' `response`. The provider formats read only `response`, so a result no tool span restated - the output tool's acknowledgement, which ends the run - rendered as an empty result with no name.",
       "at": "before_provider_formats",
       "priority": 70,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.type",
@@ -80,7 +80,7 @@
       "id": "pydantic-ai.thinking_content",
       "at": "provider_formats",
       "priority": 1953,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.type",

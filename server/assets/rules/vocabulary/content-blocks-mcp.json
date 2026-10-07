@@ -8,7 +8,7 @@
       "at": "before_provider_formats",
       "priority": 50,
       "doc": "A successful result holding one content part is that part - what the server returned and what the model was given. Recognised by the protocol's two members together, a part list and an error flag. An error result is left whole, because unwrapping it would drop the flag that says it failed; the condition reads the flag from the root inside a filter, since the vocabulary compares strings and the flag is a boolean. One part only, because an unwrap re-enters the chain with one block, and a list is not one.",
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.content",

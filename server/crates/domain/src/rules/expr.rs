@@ -383,6 +383,8 @@ pub enum JsonSubjectAtom {
     /// A string, array or object with something in it. `Unknown` for a scalar, which is neither empty nor
     /// non-empty in this vocabulary.
     NonEmpty,
+    /// A string holding something other than whitespace. `Unknown` for anything else.
+    NonBlank,
     /// A string that looks like an identifier. `Unknown` for anything else.
     IdentifierLike,
     /// A string beginning with this. `Unknown` for anything else.
@@ -416,6 +418,10 @@ impl JsonSubjectAtom {
                 Value::Object(members) => Truth::total(!members.is_empty()),
                 // A scalar cannot answer: it is neither empty nor non-empty here.
                 _ => Truth::Unknown,
+            },
+            Self::NonBlank => match subject.as_str() {
+                Some(text) => Truth::total(!text.trim().is_empty()),
+                None => Truth::Unknown,
             },
             Self::IdentifierLike => match subject.as_str() {
                 // The retired test exactly: the *first* character is alphanumeric or an underscore. A
@@ -519,6 +525,14 @@ pub fn json_expr_of_predicate(predicate: &super::schema::ValuePredicate) -> Opti
             Expr::Not(Box::new(atom))
         });
     }
+    if let Some(want) = predicate.non_blank {
+        let atom = Expr::Atom(JsonSubjectAtom::NonBlank);
+        subject.push(if want {
+            atom
+        } else {
+            Expr::Not(Box::new(atom))
+        });
+    }
     if let Some(want) = predicate.identifier_like {
         let atom = Expr::Atom(JsonSubjectAtom::IdentifierLike);
         subject.push(if want {
@@ -597,6 +611,7 @@ pub fn json_expr_of_predicate(predicate: &super::schema::ValuePredicate) -> Opti
         && predicate.exists.is_none()
         && predicate.kind.is_none()
         && predicate.non_empty.is_none()
+        && predicate.non_blank.is_none()
         && predicate.not_null.is_none()
         && predicate.identifier_like.is_none()
         && predicate.starts_with.is_none()

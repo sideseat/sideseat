@@ -181,6 +181,7 @@ fn every_predicate_set_in_the_schema_is_validated() {
     // `Struct::field` → where its validation lives. The first group is reached by
     // `message_rules::predicate_sets`; the rest are separate domains, named so an exemption is a statement.
     const VALIDATED: &[(&str, &str)] = &[
+        ("MessageRule::raw_where", "predicate_sets"),
         ("OverlaySpec::witness", "predicate_sets"),
         ("OverlaySpec::require", "predicate_sets"),
         ("ReadSpec::entry_require", "predicate_sets"),
@@ -227,7 +228,7 @@ fn every_predicate_set_in_the_schema_is_validated() {
             && let Some((name, kind)) = rest.split_once(": ")
             && matches!(
                 kind.trim_end_matches(','),
-                "PredicateSet" | "Option<PredicateSet>"
+                "ValueCondition" | "Option<ValueCondition>"
             )
         {
             declared.push(format!("{current}::{name}"));
@@ -241,7 +242,7 @@ fn every_predicate_set_in_the_schema_is_validated() {
     for location in &declared {
         assert!(
             VALIDATED.iter().any(|(known, _)| known == location),
-            "`{location}` is a `PredicateSet` the validation does not know about. Add it to \
+            "`{location}` is a value condition the validation does not know about. Add it to \
              `message_rules::predicate_sets`, or - if it belongs to a separate domain - name it in \
              VALIDATED with where that validation lives."
         );
@@ -296,7 +297,10 @@ fn exists_false_beside_a_value_condition_is_refused() {
     ];
     for (name, set) in cases {
         assert!(
-            crate::rules::message_rules::predicate_defect(&set).is_some(),
+            crate::rules::message_rules::predicate_defect(
+                &crate::rules::schema::ValueCondition::from_set(&set)
+            )
+            .is_some(),
             "`exists: false` beside `{name}` compiled, and the condition is ignored at runtime"
         );
     }
@@ -305,7 +309,10 @@ fn exists_false_beside_a_value_condition_is_refused() {
     // dialect's unnamed events fall through to the reading that handles them.
     let none_of = with(|p| p.none_of = vec!["a".to_string()]);
     assert!(
-        crate::rules::message_rules::predicate_defect(&none_of).is_none(),
+        crate::rules::message_rules::predicate_defect(
+            &crate::rules::schema::ValueCondition::from_set(&none_of)
+        )
+        .is_none(),
         "`none_of` accepts absence by design and must stay legal beside `exists: false`"
     );
 }
@@ -393,7 +400,10 @@ fn the_selected_root_level_predicate_defects_are_refused() {
     ];
     for (why, value) in refused {
         assert!(
-            predicate_defect(&set(value.clone())).is_some(),
+            predicate_defect(&crate::rules::schema::ValueCondition::from_set(&set(
+                value.clone()
+            )))
+            .is_some(),
             "{why}: accepted, and it says nothing - {value}"
         );
     }
@@ -457,7 +467,10 @@ fn the_selected_root_level_predicate_defects_are_refused() {
     ];
     for (why, value) in accepted {
         assert!(
-            predicate_defect(&set(value.clone())).is_none(),
+            predicate_defect(&crate::rules::schema::ValueCondition::from_set(&set(
+                value.clone()
+            )))
+            .is_none(),
             "{why}: refused, and it is satisfiable - {value}"
         );
     }

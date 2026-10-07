@@ -158,8 +158,8 @@ pub struct AttachSpec {
     /// The attached value must satisfy this, or the member is left off.
     ///
     /// An empty list is not a set of tool calls, and attaching one makes a plain reply look like a call.
-    #[serde(default)]
-    pub require: PredicateSet,
+    #[serde(default, rename = "where")]
+    pub require: ValueCondition,
     /// A path into the rule's *own parsed payload*, rather than a sibling attribute.
     ///
     /// Relative to the whole payload, deliberately: a dialect reports why a turn stopped beside the
@@ -307,14 +307,14 @@ pub struct Alternative {
     ///
     /// What a batch of tool results *is* is stated on the message enclosing them - its type - while the
     /// reading is one message per element, so the discriminator and the selection sit at different levels.
-    #[serde(default)]
-    pub require_parent: PredicateSet,
+    #[serde(default, rename = "parent_where")]
+    pub require_parent: ValueCondition,
     /// The shape an observation must have to be emitted.
     ///
     /// A predicate set, so "has a role and content", "is an object" and "is a non-empty string" are one
     /// vocabulary rather than three fields that grew one at a time.
-    #[serde(default)]
-    pub require: PredicateSet,
+    #[serde(default, rename = "where")]
+    pub require: ValueCondition,
     /// An envelope for *this* reading only.
     ///
     /// One reading of a payload may be a bare value needing a role while its siblings are already
@@ -469,8 +469,8 @@ pub struct ComposeSpec {
     ///
     /// Some shapes can only be judged once the members are together - whether the name a dialect reported is a tool anyone could
     /// call, for instance.
-    #[serde(default)]
-    pub require: PredicateSet,
+    #[serde(default, rename = "where")]
+    pub require: ValueCondition,
     /// Emit the assembled object as a canonical **tool definition** rather than as a message.
     ///
     /// A dialect that reports one tool per span writes its name, documentation and parameter schema as
@@ -585,8 +585,8 @@ pub struct SectionRoute {
     /// structured telemetry tagged with the tool's name, and emitting both shows every result twice. The
     /// conditions stay conjunctive so that if the id prefix ever changes, an unrecognised section reaches
     /// the feed unlinked rather than vanishing from it.
-    #[serde(default)]
-    pub skip_when: PredicateSet,
+    #[serde(default, rename = "skip_where")]
+    pub skip_when: ValueCondition,
 }
 
 /// A block built from a section, carrying what the tag captured.

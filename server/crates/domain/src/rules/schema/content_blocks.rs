@@ -17,8 +17,8 @@ pub struct ContentBlockRule {
     /// Position among the cases at that point, lowest first. Unique within the position.
     pub priority: i32,
     /// The shape this case recognises.
-    #[serde(default)]
-    pub require: PredicateSet,
+    #[serde(default, rename = "where")]
+    pub require: ValueCondition,
     #[serde(default)]
     pub tool_use: Option<ToolUseBlock>,
     #[serde(default)]

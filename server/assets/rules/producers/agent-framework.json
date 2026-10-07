@@ -34,14 +34,10 @@
       "id": "agent-framework.data_part",
       "at": "provider_formats",
       "priority": 1100,
-      "require": {
-        "all": [
-          {
-            "path": "$.type",
-            "one_of": [
-              "data"
-            ]
-          }
+      "where": {
+        "path": "$.type",
+        "one_of": [
+          "data"
         ]
       },
       "media": {

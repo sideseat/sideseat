@@ -45,6 +45,9 @@ pub struct ValuePredicate {
     /// what every other carrier accepts, silently.
     #[serde(default)]
     pub identifier_like: Option<bool>,
+    /// A string holding something other than whitespace. Meaningless for other kinds, and unknown there.
+    #[serde(default)]
+    pub non_blank: Option<bool>,
     /// The value is not JSON null. Distinct from `exists`, which a null member satisfies, and from
     /// `non_empty`, which is about a string, array or object having contents.
     #[serde(default)]
@@ -136,6 +139,16 @@ impl Clone for PredicateSet {
 }
 
 impl PredicateSet {
+    /// A set of these members, with no documentation.
+    pub fn new(all: Vec<ValuePredicate>, any: Vec<ValuePredicate>) -> Self {
+        Self {
+            doc: None,
+            all,
+            any,
+            compiled: std::sync::OnceLock::new(),
+        }
+    }
+
     /// Nothing to check.
     pub fn is_empty(&self) -> bool {
         self.all.is_empty() && self.any.is_empty()
@@ -149,6 +162,146 @@ impl PredicateSet {
         self.compiled
             .get_or_init(|| crate::rules::expr::json_expr_of(self))
             .as_ref()
+    }
+}
+
+/// A condition on a JSON value: the `where` of a reading, a content-block case, a tool shape, an attachment.
+///
+/// The expression grammar of `rules::expr` - an atom, `{"all": [...]}`, `{"any": [...]}`, `{"not": ...}` - over
+/// [`ValuePredicate`] atoms, each a `path` into the value and the tests asked of what it selects, on one witness.
+/// It replaced a two-list form (`{"all": [...], "any": [...]}`) that could say `A and B and (C or D)` and not
+/// `(A and B) or (C and D)`. Absent means no condition: it holds.
+///
+/// A condition of that two-list shape - atoms, or atoms and one trailing `any` of atoms - is lowered exactly as
+/// the two-list form was ([`PredicateSet`], [`crate::rules::expr::json_expr_of`]) and checked by the same
+/// contradiction analysis; any other shape is lowered structurally and its atoms checked one by one.
+#[derive(Debug, Default)]
+pub struct ValueCondition {
+    expr: Option<crate::rules::expr::Expr<ValuePredicate>>,
+    compiled: std::sync::OnceLock<Option<crate::rules::expr::JsonExpr>>,
+}
+
+impl Clone for ValueCondition {
+    fn clone(&self) -> Self {
+        Self {
+            expr: self.expr.clone(),
+            compiled: std::sync::OnceLock::new(),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for ValueCondition {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(Self {
+            expr: Some(crate::rules::expr::Expr::deserialize(deserializer)?),
+            compiled: std::sync::OnceLock::new(),
+        })
+    }
+}
+
+#[cfg(test)]
+impl schemars::JsonSchema for ValueCondition {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        <crate::rules::expr::Expr<ValuePredicate> as schemars::JsonSchema>::schema_name()
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        <crate::rules::expr::Expr<ValuePredicate> as schemars::JsonSchema>::json_schema(generator)
+    }
+}
+
+impl ValueCondition {
+    /// The condition a two-list predicate set states, for a caller that builds one.
+    pub fn from_set(set: &PredicateSet) -> Self {
+        use crate::rules::expr::Expr;
+        let atoms = |list: &[ValuePredicate]| -> Vec<Expr<ValuePredicate>> {
+            list.iter().cloned().map(Expr::Atom).collect()
+        };
+        let any = Expr::any(atoms(&set.any));
+        let mut all = atoms(&set.all);
+        all.extend(any);
+        Self {
+            expr: Expr::all(all),
+            compiled: std::sync::OnceLock::new(),
+        }
+    }
+
+    /// No condition: it holds.
+    pub fn is_empty(&self) -> bool {
+        self.expr.is_none()
+    }
+
+    /// The declared expression.
+    pub fn declared(&self) -> Option<&crate::rules::expr::Expr<ValuePredicate>> {
+        self.expr.as_ref()
+    }
+
+    /// The condition as a two-list set, where it has that shape.
+    pub fn set_view(&self) -> Option<PredicateSet> {
+        use crate::rules::expr::Expr;
+        let atom = |e: &Expr<ValuePredicate>| match e {
+            Expr::Atom(a) => Some(a.clone()),
+            _ => None,
+        };
+        let view = |all: Vec<ValuePredicate>, any: Vec<ValuePredicate>| PredicateSet {
+            doc: None,
+            all,
+            any,
+            compiled: std::sync::OnceLock::new(),
+        };
+        match self.expr.as_ref()? {
+            Expr::Atom(a) => Some(view(vec![a.clone()], Vec::new())),
+            Expr::Any(group) => Some(view(
+                Vec::new(),
+                group.children().iter().map(atom).collect::<Option<_>>()?,
+            )),
+            Expr::All(group) => {
+                let children = group.children();
+                let (last, init) = children.split_last()?;
+                let all: Option<Vec<ValuePredicate>> = init.iter().map(atom).collect();
+                match last {
+                    Expr::Atom(a) => {
+                        let mut all = all?;
+                        all.push(a.clone());
+                        Some(view(all, Vec::new()))
+                    }
+                    Expr::Any(any) => Some(view(
+                        all?,
+                        any.children().iter().map(atom).collect::<Option<_>>()?,
+                    )),
+                    _ => None,
+                }
+            }
+            Expr::Not(_) => None,
+        }
+    }
+
+    /// Every atom, wherever it sits.
+    pub fn atoms(&self) -> Vec<&ValuePredicate> {
+        self.expr.as_ref().map(|e| e.atoms()).unwrap_or_default()
+    }
+
+    /// The evaluated form, built on first use; `None` where nothing is declared.
+    pub fn expression(&self) -> Option<&crate::rules::expr::JsonExpr> {
+        self.compiled
+            .get_or_init(|| match self.set_view() {
+                Some(set) => crate::rules::expr::json_expr_of(&set),
+                None => self.expr.as_ref().and_then(lower_value),
+            })
+            .as_ref()
+    }
+}
+
+/// A value condition of any shape, lowered structurally.
+fn lower_value(
+    expr: &crate::rules::expr::Expr<ValuePredicate>,
+) -> Option<crate::rules::expr::JsonExpr> {
+    use crate::rules::expr::Expr;
+    match expr {
+        Expr::Atom(atom) => crate::rules::expr::json_expr_of_predicate(atom),
+        Expr::All(group) => Expr::all(group.children().iter().filter_map(lower_value).collect()),
+        Expr::Any(group) => Expr::any(group.children().iter().filter_map(lower_value).collect()),
+        Expr::Not(child) => lower_value(child).map(|inner| Expr::Not(Box::new(inner))),
     }
 }
 
@@ -190,8 +343,8 @@ pub struct ElementPass {
     #[serde(default)]
     pub doc: Option<String>,
     /// Which elements this pass reads.
-    #[serde(default)]
-    pub when: PredicateSet,
+    #[serde(default, rename = "where")]
+    pub when: ValueCondition,
     /// Emit the element itself, tagged with the value at this path.
     ///
     /// A carrier named by the *data* rather than by the rule: these elements are events, and an event's
@@ -247,7 +400,9 @@ pub struct DerivedCase {
     pub id: String,
     #[serde(default)]
     pub doc: Option<String>,
-    pub when: PredicateSet,
+    /// The case holds where this does; absent, it always holds, which is how a table states its default.
+    #[serde(default, rename = "where")]
+    pub when: ValueCondition,
     pub value: String,
 }
 
@@ -419,8 +574,8 @@ pub struct PrependSpec {
     pub from: JsonPath,
     /// A condition on the value found there. A dialect writes this member as `null` when there was no
     /// reasoning, and a null is not a thought.
-    #[serde(default)]
-    pub require: PredicateSet,
+    #[serde(default, rename = "where")]
+    pub require: ValueCondition,
     /// The block to build. Nested rather than flattened into this object: serde does not support `flatten`
     /// beside `deny_unknown_fields`, so a flattened block made key refusal depend on serde's buffering.
     pub block: BlockSpec,

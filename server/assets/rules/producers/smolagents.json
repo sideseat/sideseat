@@ -172,12 +172,8 @@
         {
           "id": "kwargs",
           "select": "$.kwargs",
-          "require": {
-            "all": [
-              {
-                "kind": "object"
-              }
-            ]
+          "where": {
+            "kind": "object"
           }
         }
       ],
@@ -235,7 +231,7 @@
           "select": "$.messages",
           "each": true,
           "parse": "python_constructor_repr",
-          "require": {
+          "where": {
             "all": [
               {
                 "path": "$.role",
@@ -275,7 +271,7 @@
         {
           "id": "tool_call",
           "doc": "A call the model asked for, with the model's id.",
-          "require": {
+          "where": {
             "all": [
               {
                 "path": "$.__python_constructor",
@@ -303,7 +299,7 @@
         {
           "id": "tool_output",
           "doc": "What the call's execution returned, answering the call's id.",
-          "require": {
+          "where": {
             "all": [
               {
                 "path": "$.__python_constructor",

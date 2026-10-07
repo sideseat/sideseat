@@ -332,7 +332,7 @@ fn inexpressible_rules_are_refused() {
         (
             "a branch parent requiring a non-empty value it never reads",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","priority":1,"require_non_empty":true,
+                {"id":"a","doc":"d","priority":1,"raw_where":{"non_empty":true},
                  "branch_set":{"primary":[
                     {"id":"a.1","doc":"d","read":{"attribute":"k"},"parse":"json","emit":"message"}]}}]}"#,
         ),
@@ -375,13 +375,7 @@ fn a_tautological_requirement_is_not_a_condition() {
     let refused = [
         (
             "an `exists` complement, which holds of every payload",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","priority":1,
-                 "alternatives":[{"id":"probe.alt","require":{"any":[
-                    {"path":"$.v","exists":true},{"path":"$.v","exists":false}]},
-                  "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
-                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "priority":2}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "alternatives": [{"id": "probe.alt", "where": {"any": [{"path": "$.v", "exists": true}, {"path": "$.v", "exists": false}]}, "wrap": {"role": "user", "content_from_any_of": ["$.content"]}}]}, {"id": "b", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 2}]}"#,
         ),
         (
             "two rules tagging one carrier from different attributes",
@@ -413,12 +407,7 @@ fn a_tautological_requirement_is_not_a_condition() {
         ),
         (
             "a single `exists` requirement, which is a real condition",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","priority":1,
-                 "alternatives":[{"id":"probe.alt","require":{"any":[{"path":"$.v","exists":true}]},
-                  "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
-                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "priority":2}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "alternatives": [{"id": "probe.alt", "where": {"path": "$.v", "exists": true}, "wrap": {"role": "user", "content_from_any_of": ["$.content"]}}]}, {"id": "b", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 2}]}"#,
         ),
         (
             "an indexed family requiring members, beside a rule reading one of its keys",
@@ -478,23 +467,11 @@ fn a_condition_separates_two_rules_only_when_it_differs() {
         ),
         (
             "a `one_of`/`none_of` complement on a member path",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","priority":1,
-                 "alternatives":[{"id":"probe.alt","require":{"any":[
-                    {"path":"$.v","one_of":["a"]},{"path":"$.v","none_of":["a"]}]},
-                  "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
-                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "priority":2}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "alternatives": [{"id": "probe.alt", "where": {"any": [{"path": "$.v", "one_of": ["a"]}, {"path": "$.v", "none_of": ["a"]}]}, "wrap": {"role": "user", "content_from_any_of": ["$.content"]}}]}, {"id": "b", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 2}]}"#,
         ),
         (
             "the same complement with the path written in bracket form",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","priority":1,
-                 "alternatives":[{"id":"probe.alt","require":{"any":[
-                    {"path":"$.v","exists":true},{"path":"$['v']","exists":false}]},
-                  "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
-                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "priority":2}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "alternatives": [{"id": "probe.alt", "where": {"any": [{"path": "$.v", "exists": true}, {"path": "$['v']", "exists": false}]}, "wrap": {"role": "user", "content_from_any_of": ["$.content"]}}]}, {"id": "b", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 2}]}"#,
         ),
         (
             "`elements` beside a `tag_as` it never emits",
@@ -524,13 +501,7 @@ fn a_condition_separates_two_rules_only_when_it_differs() {
         ),
         (
             "a `none_of` that forbids a value nothing else requires",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","priority":1,
-                 "alternatives":[{"id":"probe.alt","require":{"any":[
-                    {"path":"$.v","one_of":["a"]},{"path":"$.v","none_of":["a","b"]}]},
-                  "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
-                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "priority":2}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "alternatives": [{"id": "probe.alt", "where": {"any": [{"path": "$.v", "one_of": ["a"]}, {"path": "$.v", "none_of": ["a", "b"]}]}, "wrap": {"role": "user", "content_from_any_of": ["$.content"]}}]}, {"id": "b", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 2}]}"#,
         ),
     ];
     for (what, asset) in accepted {

@@ -32,15 +32,11 @@
               "from_value_any_of": [
                 "$.state"
               ],
-              "require": {
-                "all": [
-                  {
-                    "one_of": [
-                      "error",
-                      "denied",
-                      "interrupted"
-                    ]
-                  }
+              "where": {
+                "one_of": [
+                  "error",
+                  "denied",
+                  "interrupted"
                 ]
               },
               "as": "is_error",
@@ -100,7 +96,7 @@
       "doc": "AgentScope DataBlock reprs retain a nested base64 or URL source. Constructor parsing exposes those fields; this declaration maps them to a canonical media block and leaves generated block ids and timestamps behind.",
       "at": "before_provider_formats",
       "priority": 80,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.type",
@@ -111,20 +107,22 @@
           {
             "path": "$.source.media_type",
             "kind": "string"
-          }
-        ],
-        "any": [
-          {
-            "path": "$.source.data",
-            "kind": "string"
           },
           {
-            "path": "$.source.url.__python_args[0]",
-            "kind": "string"
-          },
-          {
-            "path": "$.source.url",
-            "kind": "string"
+            "any": [
+              {
+                "path": "$.source.data",
+                "kind": "string"
+              },
+              {
+                "path": "$.source.url.__python_args[0]",
+                "kind": "string"
+              },
+              {
+                "path": "$.source.url",
+                "kind": "string"
+              }
+            ]
           }
         ]
       },
@@ -147,7 +145,7 @@
       "doc": "AgentScope calls the reasoning text `thinking`; the canonical SideML block calls it `text`.",
       "at": "before_provider_formats",
       "priority": 90,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.type",

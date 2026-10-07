@@ -385,7 +385,7 @@
         {
           "id": "messages",
           "select": "$.messages[*]",
-          "require": {
+          "where": {
             "all": [
               {
                 "path": "$.role"
@@ -428,7 +428,7 @@
         {
           "id": "replies",
           "select": "$.replies[*]",
-          "require": {
+          "where": {
             "all": [
               {
                 "path": "$.role"
@@ -465,7 +465,7 @@
         {
           "id": "messages",
           "select": "$.messages[*]",
-          "require": {
+          "where": {
             "all": [
               {
                 "path": "$.role"
@@ -502,7 +502,7 @@
         {
           "id": "messages",
           "select": "$.messages[*]",
-          "require": {
+          "where": {
             "all": [
               {
                 "path": "$.role"
@@ -539,7 +539,7 @@
         {
           "id": "messages",
           "select": "$.messages[*]",
-          "require": {
+          "where": {
             "all": [
               {
                 "path": "$.role"
@@ -581,7 +581,7 @@
         {
           "id": "messages",
           "select": "$.messages[*]",
-          "require": {
+          "where": {
             "all": [
               {
                 "path": "$.role"
@@ -595,7 +595,7 @@
         {
           "id": "replies",
           "select": "$.replies[*]",
-          "require": {
+          "where": {
             "all": [
               {
                 "path": "$.role"
@@ -632,7 +632,7 @@
         {
           "id": "messages",
           "select": "$.*.messages[*]",
-          "require": {
+          "where": {
             "all": [
               {
                 "path": "$.role"
@@ -674,7 +674,7 @@
         {
           "id": "messages",
           "select": "$.*.messages[*]",
-          "require": {
+          "where": {
             "all": [
               {
                 "path": "$.role"
@@ -688,7 +688,7 @@
         {
           "id": "replies",
           "select": "$.*.replies[*]",
-          "require": {
+          "where": {
             "all": [
               {
                 "path": "$.role"
@@ -879,13 +879,9 @@
       "doc": "Haystack wraps a model tool call in a `tool_call` member.",
       "at": "before_provider_formats",
       "priority": 100,
-      "require": {
-        "all": [
-          {
-            "path": "$.tool_call.tool_name",
-            "exists": true
-          }
-        ]
+      "where": {
+        "path": "$.tool_call.tool_name",
+        "exists": true
       },
       "tool_use": {
         "id": [
@@ -904,13 +900,9 @@
       "doc": "Haystack wraps a tool result together with the originating call, preserving the id needed for exact pairing.",
       "at": "before_provider_formats",
       "priority": 110,
-      "require": {
-        "all": [
-          {
-            "path": "$.tool_call_result.origin.tool_name",
-            "exists": true
-          }
-        ]
+      "where": {
+        "path": "$.tool_call_result.origin.tool_name",
+        "exists": true
       },
       "tool_result": {
         "tool_use_id": [
@@ -932,13 +924,9 @@
       "at": "message_envelope",
       "priority": 15,
       "doc": "Haystack's reasoning part: the text under `reasoning_text` beside an `extra` member holding the provider's own fields. Ranked before the shared reasoning envelope, which reads `text` and would make this an empty block.",
-      "require": {
-        "all": [
-          {
-            "path": "$.reasoning.reasoning_text",
-            "kind": "string"
-          }
-        ]
+      "where": {
+        "path": "$.reasoning.reasoning_text",
+        "kind": "string"
       },
       "thinking": {
         "text": [

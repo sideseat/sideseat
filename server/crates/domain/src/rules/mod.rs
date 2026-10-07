@@ -50,6 +50,8 @@ mod expr_instances_tests;
 mod precedence_instances_tests;
 #[cfg(test)]
 mod schema_census;
+#[cfg(test)]
+mod value_conditions_tests;
 
 pub use carrier_rules::CarrierContext;
 pub use detect_rules::DetectContext;

@@ -844,21 +844,9 @@
             }
           ]
         },
-        "require_non_blank": {
-          "description": "Reject a carrier whose value is blank once trimmed.\n\nDistinct from `require_non_empty`, which rejects only the empty string: one dialect treats\nwhitespace as absence and another does not, and collapsing the two would change both.",
-          "type": [
-            "boolean",
-            "null"
-          ],
-          "default": null
-        },
-        "require_non_empty": {
-          "description": "Skip a carrier whose value is empty.\n\nAn attribute present and empty is not evidence of a message, and wrapping it produces a turn with\nnothing in it - which the no-empty-content invariant then rejects downstream.",
-          "type": [
-            "boolean",
-            "null"
-          ],
-          "default": null
+        "raw_where": {
+          "description": "A condition on the carrier's **raw text**, asked before it is parsed: the carrier is read only where it\nholds, the text standing as a JSON string. How a reading says an attribute present and empty - or blank -\nis not evidence of a message: `{\"non_empty\": true}` skips the empty string, `{\"non_blank\": true}` the\nwhitespace too, and the two stay distinct because one dialect treats whitespace as absence and another\ndoes not.",
+          "$ref": "#/$defs/Expr_ValuePredicate"
         },
         "require_members": {
           "description": "What an indexed entry must carry to count as one.\n\nAn index exists as soon as *any* key mentions it, and a family legitimately holds keys that are not\nmessages - so without this a request's settings each become a turn.\n\nEach member declares how its presence is decided, because the dialects genuinely differ and the\ndifference is observable: one writes `content` directly *and* `content.0.text`, so either proves it,\nwhile another writes `contents.0.type` and never a bare `contents`, so only a nested key does. A\nsingle rule for all of them would either miss entries or invent them.",
@@ -1008,16 +996,9 @@
           ],
           "default": null
         },
-        "entry_require": {
+        "entry_where": {
           "description": "A predicate applied to each fully assembled indexed entry.\n\n`require_members` decides whether the flattened carrier contains enough physical members to form an\nentry. This is the semantic counterpart: it sees the resulting object and can keep only entries whose\nvalues mean something to this reading. One OpenInference integration, for example, writes framework\nbookkeeping beside actual conversation roles in the same family.\n\nOptional rather than an empty default so an explicitly empty predicate can be refused as a dead\ndeclaration. Absent means every entry that satisfies `require_members` is read.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/PredicateSet"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/$defs/Expr_ValuePredicate"
         },
         "entry_member": {
           "description": "A sub-level of each indexed entry whose members are read at the top of the object.\n\nOne dialect nests the message inside the entry - `<prefix>.0.message.role` - while also putting\nentry-level members beside it. Both are collected, the sub-level's names unprefixed and the rest as\nthey stand, and the observation is tagged with `<prefix>.<index>.<member>` because that is the\npayload it came from.",
@@ -1068,32 +1049,72 @@
       },
       "additionalProperties": false
     },
-    "PredicateSet": {
-      "description": "A set of value predicates, combined.\n\n`all` and `any` both, because the dialects need both and the difference is real: a request's message\nneeds a role *and* content, while a response may carry either a structured message *or* streamed text.",
-      "type": "object",
-      "properties": {
-        "doc": {
-          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
-          "type": [
-            "string",
-            "null"
+    "Expr_ValuePredicate": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ValuePredicate"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "all": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Expr_ValuePredicate"
+              }
+            },
+            "doc": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "all"
           ],
-          "default": null
+          "additionalProperties": false
         },
-        "all": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ValuePredicate"
-          }
+        {
+          "type": "object",
+          "properties": {
+            "any": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Expr_ValuePredicate"
+              }
+            },
+            "doc": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "any"
+          ],
+          "additionalProperties": false
         },
-        "any": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ValuePredicate"
-          }
+        {
+          "type": "object",
+          "properties": {
+            "not": {
+              "$ref": "#/$defs/Expr_ValuePredicate"
+            },
+            "doc": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "not"
+          ],
+          "additionalProperties": false
         }
-      },
-      "additionalProperties": false
+      ]
     },
     "ValuePredicate": {
       "description": "A condition on a JSON value, or on a member of it.\n\nOne vocabulary for every question the rules ask *about a value*: whether an alternative's shape holds,\nwhether a source is eligible, whether a section is dropped. Before this there were three bespoke\nspellings - a member-name list, an `is_object` flag, and a fused \"capture lacks prefix and body starts\nwith\" pair - and a fourth was about to be added for a dialect that needs \"this member is an object, or\nthat one is a non-empty string\". Three narrow predicates are harder to reason about than one, and the\nfused pair was producer policy wearing a generic name.\n\nDeliberately *not* used for attribute-key presence (`MemberRequirements`): that asks about a flat map of\ndotted keys, where \"nested\" means \"some other key starts with this one\". Same word, different domain -\nand one type spanning both would have to mean different things depending on where it was used.",
@@ -1144,6 +1165,14 @@
         },
         "identifier_like": {
           "description": "The value begins like an identifier - a letter, a digit or an underscore.\n\nGeneric in form, and declared per rule rather than folded into the tool-definition constructor: one\ndialect reports a synthetic aggregate under a name in parentheses, which is not a tool anyone can\ncall, while another dialect's carriers have never needed the test. Making it canonical would change\nwhat every other carrier accepts, silently.",
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
+        },
+        "non_blank": {
+          "description": "A string holding something other than whitespace. Meaningless for other kinds, and unknown there.",
           "type": [
             "boolean",
             "null"
@@ -1305,7 +1334,7 @@
         },
         "witness": {
           "description": "What the list must look like to be this dialect's own serialisation. Without it, any array of\nobjects at that path would be treated as the same messages.",
-          "$ref": "#/$defs/PredicateSet"
+          "$ref": "#/$defs/Expr_ValuePredicate"
         },
         "when_member_prefix": {
           "description": "Only entries carrying members under this prefix are overlaid - the flattened form of the content\nthat is known to be lossy.",
@@ -1318,9 +1347,9 @@
             "type": "string"
           }
         },
-        "require": {
+        "where": {
           "description": "What that content must be for the overlay to be an improvement.",
-          "$ref": "#/$defs/PredicateSet"
+          "$ref": "#/$defs/Expr_ValuePredicate"
         },
         "as_member": {
           "description": "The member the content becomes, replacing every member under `when_member_prefix`.",
@@ -1359,9 +1388,9 @@
             "$ref": "#/$defs/ComposeMember"
           }
         },
-        "require": {
+        "where": {
           "description": "A condition on the **assembled** object, checked before it is emitted.\n\nSome shapes can only be judged once the members are together - whether the name a dialect reported is a tool anyone could\ncall, for instance.",
-          "$ref": "#/$defs/PredicateSet"
+          "$ref": "#/$defs/Expr_ValuePredicate"
         },
         "as_tool_definition": {
           "description": "Emit the assembled object as a canonical **tool definition** rather than as a message.\n\nA dialect that reports one tool per span writes its name, documentation and parameter schema as\nthree separate attributes. Assembling them is what `compose` does; the shape they become -\n`[{type: \"function\", function: {…}}]` - is a canonical target, so it lives here and only the sources\nare rule data.",
@@ -1760,9 +1789,9 @@
           },
           "default": []
         },
-        "require": {
+        "where": {
           "description": "The attached value must satisfy this, or the member is left off.\n\nAn empty list is not a set of tool calls, and attaching one makes a plain reply look like a call.",
-          "$ref": "#/$defs/PredicateSet"
+          "$ref": "#/$defs/Expr_ValuePredicate"
         },
         "from_path": {
           "description": "A path into the rule's *own parsed payload*, rather than a sibling attribute.\n\nRelative to the whole payload, deliberately: a dialect reports why a turn stopped beside the\ncontent rather than inside it, so the member being attached sits outside the part being wrapped.",
@@ -1861,9 +1890,9 @@
           "description": "Where the block's content is, relative to the value being wrapped. Absent means no block is added,\nwhich is the ordinary case for a dialect that reports reasoning only sometimes.",
           "type": "string"
         },
-        "require": {
+        "where": {
           "description": "A condition on the value found there. A dialect writes this member as `null` when there was no\nreasoning, and a null is not a thought.",
-          "$ref": "#/$defs/PredicateSet"
+          "$ref": "#/$defs/Expr_ValuePredicate"
         },
         "block": {
           "description": "The block to build. Nested rather than flattened into this object: serde does not support `flatten`\nbeside `deny_unknown_fields`, so a flattened block made key refusal depend on serde's buffering.",
@@ -2077,13 +2106,13 @@
             "$ref": "#/$defs/LiftSpec"
           }
         },
-        "require_parent": {
+        "parent_where": {
           "description": "A condition on the value this selection came from, rather than on the selected element.\n\nWhat a batch of tool results *is* is stated on the message enclosing them - its type - while the\nreading is one message per element, so the discriminator and the selection sit at different levels.",
-          "$ref": "#/$defs/PredicateSet"
+          "$ref": "#/$defs/Expr_ValuePredicate"
         },
-        "require": {
+        "where": {
           "description": "The shape an observation must have to be emitted.\n\nA predicate set, so \"has a role and content\", \"is an object\" and \"is a non-empty string\" are one\nvocabulary rather than three fields that grew one at a time.",
-          "$ref": "#/$defs/PredicateSet"
+          "$ref": "#/$defs/Expr_ValuePredicate"
         },
         "wrap": {
           "description": "An envelope for *this* reading only.\n\nOne reading of a payload may be a bare value needing a role while its siblings are already\nmessages - a dialect's answer sits in a string member beside a list of turns. Overrides the rule's\nown `wrap` where present.",
@@ -2332,9 +2361,9 @@
           ],
           "default": null
         },
-        "when": {
+        "where": {
           "description": "Which elements this pass reads.",
-          "$ref": "#/$defs/PredicateSet"
+          "$ref": "#/$defs/Expr_ValuePredicate"
         },
         "tag_from": {
           "description": "Emit the element itself, tagged with the value at this path.\n\nA carrier named by the *data* rather than by the rule: these elements are events, and an event's\nname is what downstream keys role derivation and ordering on, so tagging them all alike would erase\nthe distinction the payload carries.",
@@ -2419,8 +2448,9 @@
           ],
           "default": null
         },
-        "when": {
-          "$ref": "#/$defs/PredicateSet"
+        "where": {
+          "description": "The case holds where this does; absent, it always holds, which is how a table states its default.",
+          "$ref": "#/$defs/Expr_ValuePredicate"
         },
         "value": {
           "type": "string"
@@ -2429,7 +2459,6 @@
       "additionalProperties": false,
       "required": [
         "id",
-        "when",
         "value"
       ]
     },
@@ -2565,9 +2594,9 @@
             }
           ]
         },
-        "skip_when": {
+        "skip_where": {
           "description": "Drop the section entirely when every one of these holds, tested against\n`{\"capture\": <tag remainder>, \"body\": <section body>}`.\n\nPredicates rather than a fused pair. It was `capture_lacks_prefix` **and** `body_starts_with`,\nwhich is one producer's policy in the shape of a field - the weakest feature in the vocabulary by\nits own test. What it expresses is unchanged and still narrow on purpose: a dialect writes each\ntool result twice, once as the text the model saw tagged with the call id and once as raw\nstructured telemetry tagged with the tool's name, and emitting both shows every result twice. The\nconditions stay conjunctive so that if the id prefix ever changes, an unrecognised section reaches\nthe feed unlinked rather than vanishing from it.",
-          "$ref": "#/$defs/PredicateSet"
+          "$ref": "#/$defs/Expr_ValuePredicate"
         }
       },
       "additionalProperties": false,
@@ -2874,9 +2903,9 @@
           "type": "integer",
           "format": "int32"
         },
-        "require": {
+        "where": {
           "description": "What makes a payload this shape. Read on the tool value itself.",
-          "$ref": "#/$defs/PredicateSet"
+          "$ref": "#/$defs/Expr_ValuePredicate"
         },
         "each": {
           "description": "Where the definitions are, when one payload holds several. Empty means the payload is one definition.\n\nOrdered, and the first path that **resolves** supplies them - the same rule as `ParametersSpec::from`,\nfor the same reason: one producer writes `functionDeclarations` and another writes\n`function_declarations`, and those are two spellings of one shape rather than two shapes. Spelling them\nas two clauses would duplicate every other member of the rule and give the pair a rank order that means\nnothing.",
@@ -3115,9 +3144,9 @@
           "type": "integer",
           "format": "int32"
         },
-        "require": {
+        "where": {
           "description": "The shape this case recognises.",
-          "$ref": "#/$defs/PredicateSet"
+          "$ref": "#/$defs/Expr_ValuePredicate"
         },
         "tool_use": {
           "anyOf": [

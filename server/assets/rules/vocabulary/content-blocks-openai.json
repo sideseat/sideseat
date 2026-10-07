@@ -8,16 +8,12 @@
       "at": "provider_formats",
       "priority": 1000,
       "doc": "Prose, under the three type names the Chat Completions and Responses APIs use. Only a string is text: a block whose `text` holds anything else is not prose, and is left to the rest of the chain rather than read from another member.",
-      "require": {
-        "all": [
-          {
-            "path": "$.type",
-            "one_of": [
-              "text",
-              "input_text",
-              "output_text"
-            ]
-          }
+      "where": {
+        "path": "$.type",
+        "one_of": [
+          "text",
+          "input_text",
+          "output_text"
         ]
       },
       "text": {
@@ -30,15 +26,11 @@
       "id": "openai.image_url",
       "at": "provider_formats",
       "priority": 1400,
-      "require": {
-        "all": [
-          {
-            "path": "$.type",
-            "one_of": [
-              "image_url",
-              "input_image"
-            ]
-          }
+      "where": {
+        "path": "$.type",
+        "one_of": [
+          "image_url",
+          "input_image"
         ]
       },
       "media": {
@@ -58,14 +50,10 @@
       "id": "openai.input_audio",
       "at": "provider_formats",
       "priority": 1700,
-      "require": {
-        "all": [
-          {
-            "path": "$.type",
-            "one_of": [
-              "input_audio"
-            ]
-          }
+      "where": {
+        "path": "$.type",
+        "one_of": [
+          "input_audio"
         ]
       },
       "media": {
@@ -90,14 +78,10 @@
       "id": "openai.audio",
       "at": "provider_formats",
       "priority": 1701,
-      "require": {
-        "all": [
-          {
-            "path": "$.type",
-            "one_of": [
-              "audio"
-            ]
-          }
+      "where": {
+        "path": "$.type",
+        "one_of": [
+          "audio"
         ]
       },
       "media": {
@@ -122,14 +106,10 @@
       "id": "openai.input_file_data",
       "at": "provider_formats",
       "priority": 1800,
-      "require": {
-        "all": [
-          {
-            "path": "$.type",
-            "one_of": [
-              "input_file"
-            ]
-          }
+      "where": {
+        "path": "$.type",
+        "one_of": [
+          "input_file"
         ]
       },
       "media": {
@@ -147,14 +127,10 @@
       "id": "openai.input_file_url",
       "at": "provider_formats",
       "priority": 1801,
-      "require": {
-        "all": [
-          {
-            "path": "$.type",
-            "one_of": [
-              "input_file"
-            ]
-          }
+      "where": {
+        "path": "$.type",
+        "one_of": [
+          "input_file"
         ]
       },
       "media": {
@@ -173,14 +149,10 @@
       "id": "openai.input_file_id",
       "at": "provider_formats",
       "priority": 1802,
-      "require": {
-        "all": [
-          {
-            "path": "$.type",
-            "one_of": [
-              "input_file"
-            ]
-          }
+      "where": {
+        "path": "$.type",
+        "one_of": [
+          "input_file"
         ]
       },
       "media": {
@@ -199,7 +171,7 @@
       "id": "openai.file_data",
       "at": "provider_formats",
       "priority": 1803,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.type",
@@ -228,7 +200,7 @@
       "id": "openai.file_url",
       "at": "provider_formats",
       "priority": 1804,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.type",
@@ -257,7 +229,7 @@
       "id": "openai.file_id",
       "at": "provider_formats",
       "priority": 1805,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.type",
@@ -286,14 +258,10 @@
       "id": "openai.refusal",
       "at": "provider_formats",
       "priority": 1900,
-      "require": {
-        "all": [
-          {
-            "path": "$.type",
-            "one_of": [
-              "refusal"
-            ]
-          }
+      "where": {
+        "path": "$.type",
+        "one_of": [
+          "refusal"
         ]
       },
       "refusal": {
@@ -308,15 +276,11 @@
       "id": "openai.output_json",
       "at": "provider_formats",
       "priority": 1910,
-      "require": {
-        "all": [
-          {
-            "path": "$.type",
-            "one_of": [
-              "output_json",
-              "json_object"
-            ]
-          }
+      "where": {
+        "path": "$.type",
+        "one_of": [
+          "output_json",
+          "json_object"
         ]
       },
       "json": {

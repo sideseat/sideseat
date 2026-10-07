@@ -65,7 +65,7 @@
           "doc": "One message each.",
           "select": "$.messages",
           "each": true,
-          "require": {
+          "where": {
             "all": [
               {
                 "path": "$.role",
@@ -109,7 +109,7 @@
               "on_conflict": "keep_target"
             }
           ],
-          "require": {
+          "where": {
             "all": [
               {
                 "path": "$.role",
@@ -137,13 +137,9 @@
               "on_conflict": "keep_target"
             }
           ],
-          "require": {
-            "all": [
-              {
-                "path": "$.content",
-                "kind": "array"
-              }
-            ]
+          "where": {
+            "path": "$.content",
+            "kind": "array"
           }
         }
       ]
@@ -177,14 +173,10 @@
       "at": "after_provider_formats",
       "priority": 160,
       "doc": "A tool the model asked for: Genkit's `toolRequest` part. Its `ref` is not read: Genkit assigns it only after the model call, so the model span's own copy has none while later restatements do, and reading it would make one call two.",
-      "require": {
-        "all": [
-          {
-            "path": "$.toolRequest.name",
-            "kind": "string",
-            "non_empty": true
-          }
-        ]
+      "where": {
+        "path": "$.toolRequest.name",
+        "kind": "string",
+        "non_empty": true
       },
       "tool_use": {
         "name": [
@@ -200,14 +192,10 @@
       "at": "after_provider_formats",
       "priority": 170,
       "doc": "What a tool returned, paired with its request by name and order, for the reason the request's `ref` is not read.",
-      "require": {
-        "all": [
-          {
-            "path": "$.toolResponse.name",
-            "kind": "string",
-            "non_empty": true
-          }
-        ]
+      "where": {
+        "path": "$.toolResponse.name",
+        "kind": "string",
+        "non_empty": true
       },
       "tool_result": {
         "name": [
@@ -223,14 +211,10 @@
       "at": "after_provider_formats",
       "priority": 180,
       "doc": "An image or document, usually inline as a data URL under `url`, with its media type beside it.",
-      "require": {
-        "all": [
-          {
-            "path": "$.media.url",
-            "kind": "string",
-            "non_empty": true
-          }
-        ]
+      "where": {
+        "path": "$.media.url",
+        "kind": "string",
+        "non_empty": true
       },
       "media": {
         "media_type": [
@@ -246,14 +230,10 @@
       "at": "after_provider_formats",
       "priority": 190,
       "doc": "The model's visible reasoning, Genkit's `reasoning` part.",
-      "require": {
-        "all": [
-          {
-            "path": "$.reasoning",
-            "kind": "string",
-            "non_empty": true
-          }
-        ]
+      "where": {
+        "path": "$.reasoning",
+        "kind": "string",
+        "non_empty": true
       },
       "thinking": {
         "text": [

@@ -154,18 +154,13 @@ pub struct MessageRule {
     /// one per parallel tool call. Each is read on its own so every result keeps its own id.
     #[serde(default)]
     pub sections: Option<SectionsSpec>,
-    /// Reject a carrier whose value is blank once trimmed.
-    ///
-    /// Distinct from `require_non_empty`, which rejects only the empty string: one dialect treats
-    /// whitespace as absence and another does not, and collapsing the two would change both.
+    /// A condition on the carrier's **raw text**, asked before it is parsed: the carrier is read only where it
+    /// holds, the text standing as a JSON string. How a reading says an attribute present and empty - or blank -
+    /// is not evidence of a message: `{"non_empty": true}` skips the empty string, `{"non_blank": true}` the
+    /// whitespace too, and the two stay distinct because one dialect treats whitespace as absence and another
+    /// does not.
     #[serde(default)]
-    pub require_non_blank: Option<bool>,
-    /// Skip a carrier whose value is empty.
-    ///
-    /// An attribute present and empty is not evidence of a message, and wrapping it produces a turn with
-    /// nothing in it - which the no-empty-content invariant then rejects downstream.
-    #[serde(default)]
-    pub require_non_empty: Option<bool>,
+    pub raw_where: ValueCondition,
     /// What an indexed entry must carry to count as one.
     ///
     /// An index exists as soon as *any* key mentions it, and a family legitimately holds keys that are not
@@ -259,8 +254,8 @@ pub struct ReadSpec {
     ///
     /// Optional rather than an empty default so an explicitly empty predicate can be refused as a dead
     /// declaration. Absent means every entry that satisfies `require_members` is read.
-    #[serde(default)]
-    pub entry_require: Option<PredicateSet>,
+    #[serde(default, rename = "entry_where")]
+    pub entry_require: ValueCondition,
     /// A sub-level of each indexed entry whose members are read at the top of the object.
     ///
     /// One dialect nests the message inside the entry - `<prefix>.0.message.role` - while also putting
@@ -439,7 +434,7 @@ pub struct OverlaySpec {
     /// What the list must look like to be this dialect's own serialisation. Without it, any array of
     /// objects at that path would be treated as the same messages.
     #[serde(default)]
-    pub witness: PredicateSet,
+    pub witness: ValueCondition,
     /// Only entries carrying members under this prefix are overlaid - the flattened form of the content
     /// that is known to be lossy.
     pub when_member_prefix: String,
@@ -447,8 +442,8 @@ pub struct OverlaySpec {
     #[cfg_attr(test, schemars(with = "Vec<String>"))]
     pub content_any_of: Vec<JsonPath>,
     /// What that content must be for the overlay to be an improvement.
-    #[serde(default)]
-    pub require: PredicateSet,
+    #[serde(default, rename = "where")]
+    pub require: ValueCondition,
     /// The member the content becomes, replacing every member under `when_member_prefix`.
     pub as_member: String,
 }

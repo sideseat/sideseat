@@ -19,17 +19,7 @@ fn a_grouped_run_is_consecutive_in_the_array_the_producer_wrote() {
     let plan = compile(
         &ParsedAssets::parse(&std::collections::BTreeMap::from([(
             "t.json".to_string(),
-            br#"{"id":"t","messages":[{"id":"t.e","read":{"attribute":"x"},"parse":"json",
-             "emit":"message","priority":1,"elements":{"passes":[
-               {"id":"named","when":{"all":[{"path":"$['event.name']","one_of":["assistant"]}]},
-                "tag_from":"$['event.name']"},
-               {"id":"blocks",
-                "when":{"all":[{"path":"$['event.name']","none_of":["assistant"]},
-                               {"path":"$.data","kind":"object"}]},
-                "group":{"collect":"$.data","key_as":"role","by":[
-                   {"id":"is_input","when":{"all":[{"path":"$.data.type","starts_with":"input_"}]},
-                    "value":"user"}],
-                 "tag_by_key":{"user":"gen_ai.user.message"}}}]}}]}"#
+            br#"{"id": "t", "messages": [{"id": "t.e", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "elements": {"passes": [{"id": "named", "where": {"path": "$['event.name']", "one_of": ["assistant"]}, "tag_from": "$['event.name']"}, {"id": "blocks", "where": {"all": [{"path": "$['event.name']", "none_of": ["assistant"]}, {"path": "$.data", "kind": "object"}]}, "group": {"collect": "$.data", "key_as": "role", "by": [{"id": "is_input", "where": {"path": "$.data.type", "starts_with": "input_"}, "value": "user"}], "tag_by_key": {"user": "gen_ai.user.message"}}}]}}]}"#
                 .to_vec(),
         )]))
         .expect("the probe assets parse"),
@@ -73,13 +63,7 @@ fn a_grouped_run_is_consecutive_in_the_array_the_producer_wrote() {
     let collecting = compile(
         &ParsedAssets::parse(&std::collections::BTreeMap::from([(
             "t.json".to_string(),
-            br#"{"id":"t","messages":[{"id":"t.e","read":{"attribute":"x"},"parse":"json",
-             "emit":"message","priority":1,"elements":{"passes":[
-               {"id":"blocks","when":{"all":[{"path":"$.data","kind":"object"}]},
-                "group":{"collect":"$.data.text","key_as":"role","by":[
-                   {"id":"is_input","when":{"all":[{"path":"$.data.type","starts_with":"input_"}]},
-                    "value":"user"}],
-                 "tag_by_key":{"user":"gen_ai.user.message"}}}]}}]}"#
+            br#"{"id": "t", "messages": [{"id": "t.e", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "elements": {"passes": [{"id": "blocks", "where": {"path": "$.data", "kind": "object"}, "group": {"collect": "$.data.text", "key_as": "role", "by": [{"id": "is_input", "where": {"path": "$.data.type", "starts_with": "input_"}, "value": "user"}], "tag_by_key": {"user": "gen_ai.user.message"}}}]}}]}"#
                 .to_vec(),
         )]))
         .expect("the probe assets parse"),
@@ -886,9 +870,7 @@ fn an_indexed_family_filters_assembled_entries() {
     };
 
     let plan = compiled(
-        r#"{"indexed_family":"chat","entry_require":{"all":[
-               {"path":"$.role","none_of":["tool-call","tool-response"]}
-             ]}}"#,
+        r#"{"indexed_family": "chat", "entry_where": {"path": "$.role", "none_of": ["tool-call", "tool-response"]}}"#,
     )
     .expect("an assembled-entry predicate is a declarative indexed-family filter");
     let attrs = std::collections::HashMap::from([
@@ -915,11 +897,7 @@ fn an_indexed_family_filters_assembled_entries() {
     let without_family = compile(
         &ParsedAssets::parse(&std::collections::BTreeMap::from([(
             "t.json".to_string(),
-            br#"{"id":"t","messages":[{"id":"t.scalar",
-             "read":{"attribute":"chat","entry_require":{"all":[
-               {"path":"$.role","exists":true}
-             ]}},
-             "parse":"json","emit":"message","priority":1}]}"#
+            br#"{"id": "t", "messages": [{"id": "t.scalar", "read": {"attribute": "chat", "entry_where": {"path": "$.role", "exists": true}}, "parse": "json", "emit": "message", "priority": 1}]}"#
                 .to_vec(),
         )]))
         .expect("the probe assets parse"),
@@ -930,10 +908,14 @@ fn an_indexed_family_filters_assembled_entries() {
         "the refusal names the missing carrier shape: {without_family}"
     );
 
-    let empty = compiled(r#"{"indexed_family":"chat","entry_require":{}}"#)
-        .expect_err("an explicitly empty entry predicate is a dead declaration");
+    // An explicitly empty entry predicate states nothing and does not parse: omitting it says there is none.
+    let empty = br#"{"id":"t","messages":[{"id":"t.family","read":{"indexed_family":"chat","entry_where":{}},"emit":"message","priority":1}]}"#;
     assert!(
-        empty.to_string().contains("keeps every entry"),
-        "the refusal explains why the declaration has no effect: {empty}"
+        ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            empty.to_vec()
+        )]))
+        .is_err(),
+        "an explicitly empty entry predicate is a dead declaration"
     );
 }

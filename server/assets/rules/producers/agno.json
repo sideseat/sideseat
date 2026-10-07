@@ -56,28 +56,20 @@
           "doc": "One message each.",
           "select": "$.messages",
           "each": true,
-          "require": {
-            "all": [
-              {
-                "path": "$.role",
-                "kind": "string",
-                "non_empty": true
-              }
-            ]
+          "where": {
+            "path": "$.role",
+            "kind": "string",
+            "non_empty": true
           }
         },
         {
           "id": "list",
           "doc": "A call that only called tools writes the bare list.",
           "select": "$",
-          "require": {
-            "all": [
-              {
-                "path": "$.role",
-                "kind": "string",
-                "non_empty": true
-              }
-            ]
+          "where": {
+            "path": "$.role",
+            "kind": "string",
+            "non_empty": true
           },
           "each": true
         }

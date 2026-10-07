@@ -118,13 +118,9 @@
                 "id": "systeminstruction",
                 "doc": "The same instruction written as a string.",
                 "select": "$.systemInstruction",
-                "require": {
-                  "all": [
-                    {
-                      "kind": "string",
-                      "non_empty": true
-                    }
-                  ]
+                "where": {
+                  "kind": "string",
+                  "non_empty": true
                 },
                 "wrap": {
                   "role": "system"
@@ -134,13 +130,9 @@
                 "id": "system_instruction",
                 "doc": "And the framework's own spelling.",
                 "select": "$.config.system_instruction",
-                "require": {
-                  "all": [
-                    {
-                      "kind": "string",
-                      "non_empty": true
-                    }
-                  ]
+                "where": {
+                  "kind": "string",
+                  "non_empty": true
                 },
                 "wrap": {
                   "role": "system"
@@ -150,7 +142,7 @@
                 "id": "contents",
                 "doc": "The conversation. Gemini writes `{parts, role}`, so the role comes from the payload rather than a literal - one rule per role would be the alternative. Read structurally so the provider's payload is cloned unchanged; see the projection-language section of `docs/engineering/framework-rules-engine.md` for why.",
                 "select": "$.contents[*]",
-                "require": {
+                "where": {
                   "all": [
                     {
                       "path": "$.role"
@@ -229,7 +221,7 @@
               {
                 "id": "content",
                 "select": "$.content",
-                "require": {
+                "where": {
                   "all": [
                     {
                       "path": "$.role"
@@ -282,12 +274,8 @@
             "alternatives": [
               {
                 "id": "alternative_1",
-                "require": {
-                  "all": [
-                    {
-                      "non_empty": true
-                    }
-                  ]
+                "where": {
+                  "non_empty": true
                 }
               }
             ],
@@ -323,7 +311,7 @@
           "id": "content",
           "doc": "The model API's own message: a role and its parts.",
           "select": "$",
-          "require": {
+          "where": {
             "all": [
               {
                 "path": "$.role",
@@ -365,7 +353,7 @@
           "id": "content",
           "doc": "The model API's own message: a role and its parts.",
           "select": "$",
-          "require": {
+          "where": {
             "all": [
               {
                 "path": "$.role",

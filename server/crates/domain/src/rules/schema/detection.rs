@@ -585,8 +585,8 @@ pub struct ToolShapeRule {
     /// recognise a payload must not be separated by which asset loaded first.
     pub priority: i32,
     /// What makes a payload this shape. Read on the tool value itself.
-    #[serde(default)]
-    pub require: PredicateSet,
+    #[serde(default, rename = "where")]
+    pub require: ValueCondition,
     /// Where the definitions are, when one payload holds several. Empty means the payload is one definition.
     ///
     /// Ordered, and the first path that **resolves** supplies them - the same rule as `ParametersSpec::from`,

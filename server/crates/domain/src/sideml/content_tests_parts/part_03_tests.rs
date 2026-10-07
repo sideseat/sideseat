@@ -418,7 +418,7 @@ fn an_id_template_is_refused_unless_it_can_build_distinct_ids() {
             "id": "t",
             "content_blocks": [{
                 "id": "t.call", "at": "after_provider_formats", "priority": 1,
-                "require": {"all": [{"path": "$.call", "exists": true}]},
+                "where": {"path": "$.call", "exists": true},
                 "tool_use": {"id": id, "name": ["$.call.name"]}
             }]
         }))

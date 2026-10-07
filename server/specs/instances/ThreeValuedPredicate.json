@@ -1,45 +1,337 @@
 {
   "doc": "The three-valued logic of every `where`, shared by server/specs/ThreeValuedPredicate.tla and the Rust test `three_valued_predicate_instances` (server/crates/domain/src/rules/expr_instances_tests.rs). `tables` are the strong-Kleene operators, written by hand: both checkers must reproduce them, the model from its own definitions and the test from the production `Expr::eval`. `bounds` is the space of expressions both enumerate, every tree of at most `depth` levels over `leaves` truth values, over which the algebraic laws are checked. `span_atoms` and `json_atoms` are single conditions with the answer they must give, through the production lowering and evaluators: where absence is unknown, where presence is total, and the witness and first-present cases a translation gets wrong.",
   "version": 1,
-  "bounds": {"depth": 2, "leaves": 3},
+  "bounds": {
+    "depth": 2,
+    "leaves": 3
+  },
   "tables": {
-    "not": {"T": "F", "F": "T", "U": "U"},
+    "not": {
+      "T": "F",
+      "F": "T",
+      "U": "U"
+    },
     "all": {
-      "TT": "T", "TF": "F", "TU": "U",
-      "FT": "F", "FF": "F", "FU": "F",
-      "UT": "U", "UF": "F", "UU": "U"
+      "TT": "T",
+      "TF": "F",
+      "TU": "U",
+      "FT": "F",
+      "FF": "F",
+      "FU": "F",
+      "UT": "U",
+      "UF": "F",
+      "UU": "U"
     },
     "any": {
-      "TT": "T", "TF": "T", "TU": "T",
-      "FT": "T", "FF": "F", "FU": "U",
-      "UT": "T", "UF": "U", "UU": "U"
+      "TT": "T",
+      "TF": "T",
+      "TU": "T",
+      "FT": "T",
+      "FF": "F",
+      "FU": "U",
+      "UT": "T",
+      "UF": "U",
+      "UU": "U"
     }
   },
   "span_atoms": [
-    {"id": "equality_on_a_present_value", "where": {"source": "attr:k", "equals": "v"}, "attrs": {"k": "v"}, "expect": "T"},
-    {"id": "equality_on_another_value", "where": {"source": "attr:k", "equals": "v"}, "attrs": {"k": "w"}, "expect": "F"},
-    {"id": "equality_on_an_absent_value_is_unknown", "where": {"source": "attr:k", "equals": "v"}, "attrs": {}, "expect": "U"},
-    {"id": "its_negation_is_unknown_too", "where": {"not": {"source": "attr:k", "equals": "v"}}, "attrs": {}, "expect": "U"},
-    {"id": "presence_is_total", "where": {"source": "attr:k", "exists": true}, "attrs": {}, "expect": "F"},
-    {"id": "presence_of_an_empty_value", "where": {"source": "attr:k", "exists": true}, "attrs": {"k": ""}, "expect": "T"},
-    {"id": "presence_beside_a_test_makes_it_total", "where": {"source": "attr:k", "exists": true, "equals": "v"}, "attrs": {}, "expect": "F"},
-    {"id": "so_its_negation_holds", "where": {"not": {"source": "attr:k", "exists": true, "equals": "v"}}, "attrs": {}, "expect": "T"},
-    {"id": "a_key_prefix_over_no_keys_is_false", "where": {"source": "attr_keys", "starts_with": "p."}, "attrs": {}, "expect": "F"},
-    {"id": "any_present_searches_every_source", "where": {"source": ["attr:a", "attr:b"], "contains_ignore_case": "x"}, "attrs": {"a": "no", "b": "aXb"}, "expect": "T"},
-    {"id": "first_present_asks_only_the_first", "where": {"source": {"first_of": ["attr:a", "attr:b"]}, "contains_ignore_case": "x"}, "attrs": {"a": "no", "b": "aXb"}, "expect": "F"},
-    {"id": "first_present_skips_an_absent_source", "where": {"source": {"first_of": ["attr:a", "attr:b"]}, "contains_ignore_case": "x"}, "attrs": {"b": "aXb"}, "expect": "T"},
-    {"id": "a_search_with_no_present_source_is_unknown", "where": {"source": ["attr:a", "attr:b"], "contains_ignore_case": "x"}, "attrs": {}, "expect": "U"},
-    {"id": "one_of_on_an_absent_value_is_unknown", "where": {"source": "attr:k", "one_of": ["a", "b"]}, "attrs": {}, "expect": "U"},
-    {"id": "unknown_does_not_spoil_a_true_disjunct", "where": {"any": [{"source": "attr:k", "equals": "v"}, {"source": "attr:j", "exists": true}]}, "attrs": {"j": "1"}, "expect": "T"},
-    {"id": "unknown_spoils_a_false_disjunct", "where": {"any": [{"source": "attr:k", "equals": "v"}, {"source": "attr:j", "exists": true}]}, "attrs": {}, "expect": "U"},
-    {"id": "false_decides_a_conjunction_over_unknown", "where": {"all": [{"source": "attr:k", "equals": "v"}, {"source": "attr:j", "exists": true}]}, "attrs": {}, "expect": "F"}
+    {
+      "id": "equality_on_a_present_value",
+      "where": {
+        "source": "attr:k",
+        "equals": "v"
+      },
+      "attrs": {
+        "k": "v"
+      },
+      "expect": "T"
+    },
+    {
+      "id": "equality_on_another_value",
+      "where": {
+        "source": "attr:k",
+        "equals": "v"
+      },
+      "attrs": {
+        "k": "w"
+      },
+      "expect": "F"
+    },
+    {
+      "id": "equality_on_an_absent_value_is_unknown",
+      "where": {
+        "source": "attr:k",
+        "equals": "v"
+      },
+      "attrs": {},
+      "expect": "U"
+    },
+    {
+      "id": "its_negation_is_unknown_too",
+      "where": {
+        "not": {
+          "source": "attr:k",
+          "equals": "v"
+        }
+      },
+      "attrs": {},
+      "expect": "U"
+    },
+    {
+      "id": "presence_is_total",
+      "where": {
+        "source": "attr:k",
+        "exists": true
+      },
+      "attrs": {},
+      "expect": "F"
+    },
+    {
+      "id": "presence_of_an_empty_value",
+      "where": {
+        "source": "attr:k",
+        "exists": true
+      },
+      "attrs": {
+        "k": ""
+      },
+      "expect": "T"
+    },
+    {
+      "id": "presence_beside_a_test_makes_it_total",
+      "where": {
+        "source": "attr:k",
+        "exists": true,
+        "equals": "v"
+      },
+      "attrs": {},
+      "expect": "F"
+    },
+    {
+      "id": "so_its_negation_holds",
+      "where": {
+        "not": {
+          "source": "attr:k",
+          "exists": true,
+          "equals": "v"
+        }
+      },
+      "attrs": {},
+      "expect": "T"
+    },
+    {
+      "id": "a_key_prefix_over_no_keys_is_false",
+      "where": {
+        "source": "attr_keys",
+        "starts_with": "p."
+      },
+      "attrs": {},
+      "expect": "F"
+    },
+    {
+      "id": "any_present_searches_every_source",
+      "where": {
+        "source": [
+          "attr:a",
+          "attr:b"
+        ],
+        "contains_ignore_case": "x"
+      },
+      "attrs": {
+        "a": "no",
+        "b": "aXb"
+      },
+      "expect": "T"
+    },
+    {
+      "id": "first_present_asks_only_the_first",
+      "where": {
+        "source": {
+          "first_of": [
+            "attr:a",
+            "attr:b"
+          ]
+        },
+        "contains_ignore_case": "x"
+      },
+      "attrs": {
+        "a": "no",
+        "b": "aXb"
+      },
+      "expect": "F"
+    },
+    {
+      "id": "first_present_skips_an_absent_source",
+      "where": {
+        "source": {
+          "first_of": [
+            "attr:a",
+            "attr:b"
+          ]
+        },
+        "contains_ignore_case": "x"
+      },
+      "attrs": {
+        "b": "aXb"
+      },
+      "expect": "T"
+    },
+    {
+      "id": "a_search_with_no_present_source_is_unknown",
+      "where": {
+        "source": [
+          "attr:a",
+          "attr:b"
+        ],
+        "contains_ignore_case": "x"
+      },
+      "attrs": {},
+      "expect": "U"
+    },
+    {
+      "id": "one_of_on_an_absent_value_is_unknown",
+      "where": {
+        "source": "attr:k",
+        "one_of": [
+          "a",
+          "b"
+        ]
+      },
+      "attrs": {},
+      "expect": "U"
+    },
+    {
+      "id": "unknown_does_not_spoil_a_true_disjunct",
+      "where": {
+        "any": [
+          {
+            "source": "attr:k",
+            "equals": "v"
+          },
+          {
+            "source": "attr:j",
+            "exists": true
+          }
+        ]
+      },
+      "attrs": {
+        "j": "1"
+      },
+      "expect": "T"
+    },
+    {
+      "id": "unknown_spoils_a_false_disjunct",
+      "where": {
+        "any": [
+          {
+            "source": "attr:k",
+            "equals": "v"
+          },
+          {
+            "source": "attr:j",
+            "exists": true
+          }
+        ]
+      },
+      "attrs": {},
+      "expect": "U"
+    },
+    {
+      "id": "false_decides_a_conjunction_over_unknown",
+      "where": {
+        "all": [
+          {
+            "source": "attr:k",
+            "equals": "v"
+          },
+          {
+            "source": "attr:j",
+            "exists": true
+          }
+        ]
+      },
+      "attrs": {},
+      "expect": "F"
+    }
   ],
   "json_atoms": [
-    {"id": "one_witness_for_every_test", "where": {"all": [{"path": "$.items[*]", "starts_with": "a", "one_of": ["apple", "banana"]}]}, "value": {"items": ["avocado", "banana"]}, "expect": "F"},
-    {"id": "a_witness_that_satisfies_both", "where": {"all": [{"path": "$.items[*]", "starts_with": "b", "one_of": ["apple", "banana"]}]}, "value": {"items": ["avocado", "banana"]}, "expect": "T"},
-    {"id": "a_null_member_is_present", "where": {"all": [{"path": "$.m", "exists": true}]}, "value": {"m": null}, "expect": "T"},
-    {"id": "an_absent_member_is_not", "where": {"all": [{"path": "$.m", "exists": true}]}, "value": {}, "expect": "F"},
-    {"id": "a_scalar_is_neither_empty_nor_non_empty", "where": {"all": [{"path": "$.m", "non_empty": true}]}, "value": {"m": 0}, "expect": "U"},
-    {"id": "a_bare_none_of_holds_for_an_absent_member", "where": {"all": [{"path": "$.m", "none_of": ["x"]}]}, "value": {}, "expect": "T"}
+    {
+      "id": "one_witness_for_every_test",
+      "where": {
+        "path": "$.items[*]",
+        "starts_with": "a",
+        "one_of": [
+          "apple",
+          "banana"
+        ]
+      },
+      "value": {
+        "items": [
+          "avocado",
+          "banana"
+        ]
+      },
+      "expect": "F"
+    },
+    {
+      "id": "a_witness_that_satisfies_both",
+      "where": {
+        "path": "$.items[*]",
+        "starts_with": "b",
+        "one_of": [
+          "apple",
+          "banana"
+        ]
+      },
+      "value": {
+        "items": [
+          "avocado",
+          "banana"
+        ]
+      },
+      "expect": "T"
+    },
+    {
+      "id": "a_null_member_is_present",
+      "where": {
+        "path": "$.m",
+        "exists": true
+      },
+      "value": {
+        "m": null
+      },
+      "expect": "T"
+    },
+    {
+      "id": "an_absent_member_is_not",
+      "where": {
+        "path": "$.m",
+        "exists": true
+      },
+      "value": {},
+      "expect": "F"
+    },
+    {
+      "id": "a_scalar_is_neither_empty_nor_non_empty",
+      "where": {
+        "path": "$.m",
+        "non_empty": true
+      },
+      "value": {
+        "m": 0
+      },
+      "expect": "U"
+    },
+    {
+      "id": "a_bare_none_of_holds_for_an_absent_member",
+      "where": {
+        "path": "$.m",
+        "none_of": [
+          "x"
+        ]
+      },
+      "value": {},
+      "expect": "T"
+    }
   ]
 }

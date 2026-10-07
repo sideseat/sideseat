@@ -31,7 +31,7 @@
       "doc": "An inline image or document. The semantic conventions' BlobPart holds its bytes, base64-encoded, under `content` beside `mime_type` and `modality`; this instrumentation writes it without the `type` member, so it reached no media reading and was kept as an unknown block.",
       "at": "before_provider_formats",
       "priority": 85,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.mime_type",

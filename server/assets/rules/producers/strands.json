@@ -85,7 +85,9 @@
         "attribute": "system_prompt"
       },
       "parse": "text",
-      "require_non_blank": true,
+      "raw_where": {
+        "non_blank": true
+      },
       "wrap": {
         "role": "system"
       },
@@ -129,7 +131,7 @@
       "doc": "Strands 1.12's semconv-latest telemetry writes a whole Bedrock content list as one part: `{\"type\": \"text\", \"content\": [{\"text\": ...}, {\"toolUse\": ...}]}`, whatever the blocks are. Each member is a block in the message's place - the prompt's text, the calls, the results handed back - so the list is spliced in and each is read as the provider block it is. A text part whose content is a string is the conventions' own and is not touched.",
       "at": "message_envelope",
       "priority": 5,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.type",
@@ -154,7 +156,7 @@
       "doc": "Strands' semconv-latest telemetry writes a Bedrock content block the conventions have no part for as a part typed with the block's own key, its value under `content`: reasoning arrives as `{\"type\": \"reasoningContent\", \"content\": {\"reasoningText\": {...}}}`. Nothing read that, so the model's reasoning rendered as an unknown block holding raw JSON. A redacted block carries no text and keeps its opaque payload out of the text.",
       "at": "before_provider_formats",
       "priority": 92,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.type",
@@ -182,7 +184,7 @@
       "doc": "Strands 1.12's semconv-latest tool span writes a call's arguments as a one-member list holding them under `content`, `[{\"content\": {\"city\": \"Paris\"}}]`, where later releases write the object itself. Read through the list, or the tool span's copy of the call disagreed with the model's and both survived.",
       "at": "before_provider_formats",
       "priority": 93,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.type",
@@ -220,14 +222,10 @@
       "id": "strands.tool_use_block",
       "at": "provider_formats",
       "priority": 2020,
-      "require": {
-        "all": [
-          {
-            "path": "$.type",
-            "one_of": [
-              "toolUse"
-            ]
-          }
+      "where": {
+        "path": "$.type",
+        "one_of": [
+          "toolUse"
         ]
       },
       "tool_use": {
@@ -247,14 +245,10 @@
       "id": "strands.tool_result_block",
       "at": "provider_formats",
       "priority": 2030,
-      "require": {
-        "all": [
-          {
-            "path": "$.type",
-            "one_of": [
-              "toolResult"
-            ]
-          }
+      "where": {
+        "path": "$.type",
+        "one_of": [
+          "toolResult"
         ]
       },
       "tool_result": {

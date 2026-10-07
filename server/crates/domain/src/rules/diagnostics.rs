@@ -513,19 +513,51 @@ mod tests {
         let assets = embedded_with(&[
             (
                 "probe/one.json",
-                serde_json::json!({"id": "probe-one", "content_blocks": [
-                    {"id": "probe.a", "at": "after_provider_formats", "priority": 1,
-                     "require": {"all": [{"path": "$.type", "one_of": ["probe_a"]}]},
-                     "text": {"text": ["$.value"]}}
-                ]}),
+                serde_json::json!({
+                    "id": "probe-one",
+                    "content_blocks": [
+                        {
+                            "id": "probe.a",
+                            "at": "after_provider_formats",
+                            "priority": 1,
+                            "where": {
+                                "path": "$.type",
+                                "one_of": [
+                                    "probe_a"
+                                ]
+                            },
+                            "text": {
+                                "text": [
+                                    "$.value"
+                                ]
+                            }
+                        }
+                    ]
+                }),
             ),
             (
                 "probe/two.json",
-                serde_json::json!({"id": "probe-two", "content_blocks": [
-                    {"id": "probe.b", "at": "after_provider_formats", "priority": 1,
-                     "require": {"all": [{"path": "$.type", "one_of": ["probe_b"]}]},
-                     "text": {"text": ["$.value"]}}
-                ]}),
+                serde_json::json!({
+                    "id": "probe-two",
+                    "content_blocks": [
+                        {
+                            "id": "probe.b",
+                            "at": "after_provider_formats",
+                            "priority": 1,
+                            "where": {
+                                "path": "$.type",
+                                "one_of": [
+                                    "probe_b"
+                                ]
+                            },
+                            "text": {
+                                "text": [
+                                    "$.value"
+                                ]
+                            }
+                        }
+                    ]
+                }),
             ),
         ]);
         let report = super::super::Ruleset::build(&assets)

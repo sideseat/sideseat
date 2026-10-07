@@ -194,6 +194,18 @@ implication (shadowing, and which of two contending message rules suppresses the
 assuming excluded middle. `server/specs/ThreeValuedPredicate.tla` checks the logic's laws, and
 `three_valued_predicate_instances` holds `Expr::eval` to them.
 
+### Conditions about a value
+
+A condition on a JSON value - which shape a content-block case or tool shape recognises, which readings,
+elements, sections, attachments and overlay entries apply, what a carrier's raw text must be before it is
+parsed - is a `where` in the same expression grammar, over atoms that name a `path` into the value (absent: the
+value itself) and the tests asked of what it selects: `exists`, `kind`, `non_empty`, `non_blank`, `not_null`,
+`identifier_like`, `starts_with`, `lacks_prefix`, `one_of`, `none_of`, `equals`, `only_members`. Every test of
+an atom is asked of one selected value, so `{path: "$.items[*]", starts_with: "a", one_of: [...]}` needs a single
+item satisfying both. Where the subject differs the field says so: `parent_where` (the value a selection came
+out of), `witness` (an overlay's counterpart list), `entry_where` (an assembled indexed entry), `skip_where` (a
+section dropped where it holds), `raw_where` (a carrier's text, as a JSON string, before parsing).
+
 ### Content blocks
 
 A content block is normalised by one chain: the canonical SideML passthrough, then the declared
@@ -211,7 +223,7 @@ member source is a JSONPath, or a JSONPath with exactly one bounded transform: `
 selected, joined), `parse` (the carriers' decoding modes), `prepend`, or a closed `map`. A transform that
 cannot apply leaves the source absent, so a list of sources means "the first usable spelling". Media cases
 declare what the format states - a block kind, whether the data is a location, bytes or an identifier, what
-a missing media type means - and derive the rest from the value. The `require` predicates add `equals` (any
+a missing media type means - and derive the rest from the value. Their `where` conditions add `equals` (any
 JSON value) and `only_members` (an object with no member outside a set) to the value vocabulary.
 
 ## Carrier semantics

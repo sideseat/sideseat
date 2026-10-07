@@ -168,7 +168,7 @@ impl ContentBlockPlan {
                 || rule.thinking.is_some()
                 || rule.redacted_thinking.is_some()
                 || rule.unknown.is_some();
-            if always_builds && rule.require.all.is_empty() && rule.require.any.is_empty() {
+            if always_builds && rule.require.is_empty() {
                 return Err(ContentBlockCompileError::NoCondition {
                     rule: rule.id.clone(),
                 });

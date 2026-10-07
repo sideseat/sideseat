@@ -7,7 +7,7 @@
       "id": "bedrock.text",
       "at": "provider_formats",
       "priority": 3000,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$",
@@ -32,7 +32,7 @@
       "id": "bedrock.json",
       "at": "provider_formats",
       "priority": 3010,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$",
@@ -57,13 +57,9 @@
       "id": "bedrock.reasoning_text",
       "at": "provider_formats",
       "priority": 3020,
-      "require": {
-        "all": [
-          {
-            "path": "$.reasoningContent.reasoningText",
-            "exists": true
-          }
-        ]
+      "where": {
+        "path": "$.reasoningContent.reasoningText",
+        "exists": true
       },
       "thinking": {
         "text": [
@@ -78,13 +74,9 @@
       "id": "bedrock.reasoning_redacted",
       "at": "provider_formats",
       "priority": 3021,
-      "require": {
-        "all": [
-          {
-            "path": "$.reasoningContent.redactedContent",
-            "exists": true
-          }
-        ]
+      "where": {
+        "path": "$.reasoningContent.redactedContent",
+        "exists": true
       },
       "redacted_thinking": {
         "data": [
@@ -96,13 +88,9 @@
       "id": "bedrock.reasoning_other",
       "at": "provider_formats",
       "priority": 3022,
-      "require": {
-        "all": [
-          {
-            "path": "$.reasoningContent",
-            "exists": true
-          }
-        ]
+      "where": {
+        "path": "$.reasoningContent",
+        "exists": true
       },
       "unknown": {
         "doc": "A reasoning variant this vocabulary does not know: kept whole rather than misread, and claimed so nothing later reads it as data."
@@ -112,13 +100,9 @@
       "id": "bedrock.image",
       "at": "provider_formats",
       "priority": 3030,
-      "require": {
-        "all": [
-          {
-            "path": "$.image.source.bytes",
-            "kind": "string"
-          }
-        ]
+      "where": {
+        "path": "$.image.source.bytes",
+        "kind": "string"
       },
       "media": {
         "kind": "image",
@@ -142,13 +126,9 @@
       "id": "bedrock.document",
       "at": "provider_formats",
       "priority": 3031,
-      "require": {
-        "all": [
-          {
-            "path": "$.document.source.bytes",
-            "kind": "string"
-          }
-        ]
+      "where": {
+        "path": "$.document.source.bytes",
+        "kind": "string"
       },
       "media": {
         "kind": "document",
@@ -174,13 +154,9 @@
       "id": "bedrock.video",
       "at": "provider_formats",
       "priority": 3032,
-      "require": {
-        "all": [
-          {
-            "path": "$.video.source.bytes",
-            "kind": "string"
-          }
-        ]
+      "where": {
+        "path": "$.video.source.bytes",
+        "kind": "string"
       },
       "media": {
         "kind": "video",
@@ -203,13 +179,9 @@
       "id": "bedrock.tool_use",
       "at": "provider_formats",
       "priority": 3040,
-      "require": {
-        "all": [
-          {
-            "path": "$.toolUse",
-            "exists": true
-          }
-        ]
+      "where": {
+        "path": "$.toolUse",
+        "exists": true
       },
       "tool_use": {
         "id": [
@@ -227,13 +199,9 @@
       "id": "bedrock.tool_result",
       "at": "provider_formats",
       "priority": 3050,
-      "require": {
-        "all": [
-          {
-            "path": "$.toolResult",
-            "exists": true
-          }
-        ]
+      "where": {
+        "path": "$.toolResult",
+        "exists": true
       },
       "tool_result": {
         "tool_use_id": [

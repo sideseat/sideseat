@@ -8,13 +8,9 @@
       "at": "after_provider_formats",
       "priority": 1,
       "doc": "A call, under the API's member name.",
-      "require": {
-        "all": [
-          {
-            "path": "$.functionCall",
-            "exists": true
-          }
-        ]
+      "where": {
+        "path": "$.functionCall",
+        "exists": true
       },
       "tool_use": {
         "id": [
@@ -37,7 +33,7 @@
       "at": "after_provider_formats",
       "priority": 2,
       "doc": "The same call under the Python SDK's member name, read only when the camelCase envelope is absent.",
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.function_call",
@@ -70,13 +66,9 @@
       "at": "after_provider_formats",
       "priority": 3,
       "doc": "What the function returned, under the API's member name.",
-      "require": {
-        "all": [
-          {
-            "path": "$.functionResponse",
-            "exists": true
-          }
-        ]
+      "where": {
+        "path": "$.functionResponse",
+        "exists": true
       },
       "tool_result": {
         "doc": "The call id where the part states one, as ADK does; otherwise none, and the feed's correlation pairs the result with its call by name, the only place both halves are visible at once.",
@@ -96,7 +88,7 @@
       "at": "after_provider_formats",
       "priority": 4,
       "doc": "The same, under the Python SDK's member name.",
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.function_response",
@@ -126,7 +118,7 @@
       "at": "after_provider_formats",
       "priority": 5,
       "doc": "Bytes sent inline, under the API's camelCase member names (`inlineData`, `mimeType`). The provider format reads only the Python SDK's snake_case spelling, so an attachment ADK for Go sent rendered as raw JSON.",
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.inlineData.data",
@@ -151,7 +143,7 @@
       "id": "gemini.thinking_part",
       "at": "provider_formats",
       "priority": 4000,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$",
@@ -176,7 +168,7 @@
       "id": "gemini.thought_part",
       "at": "provider_formats",
       "priority": 4010,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.thought",
@@ -199,13 +191,9 @@
       "id": "gemini.inline_data_snake",
       "at": "provider_formats",
       "priority": 4020,
-      "require": {
-        "all": [
-          {
-            "path": "$.inline_data",
-            "exists": true
-          }
-        ]
+      "where": {
+        "path": "$.inline_data",
+        "exists": true
       },
       "media": {
         "data": [
@@ -224,14 +212,10 @@
       "id": "gemini.file_data_snake",
       "at": "provider_formats",
       "priority": 4030,
-      "require": {
-        "all": [
-          {
-            "path": "$.inline_data",
-            "exists": false,
-            "doc": "A part holding an inline_data member, readable or not, is an inline part; its file_data is not consulted."
-          }
-        ]
+      "where": {
+        "path": "$.inline_data",
+        "exists": false,
+        "doc": "A part holding an inline_data member, readable or not, is an inline part; its file_data is not consulted."
       },
       "media": {
         "data": [

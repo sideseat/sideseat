@@ -147,12 +147,8 @@
           "id": "the_payload_is_the",
           "doc": "The payload is the array itself.",
           "each": true,
-          "require": {
-            "all": [
-              {
-                "kind": "object"
-              }
-            ]
+          "where": {
+            "kind": "object"
           }
         }
       ]

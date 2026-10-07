@@ -43,15 +43,33 @@ fn two_cases_sharing_a_priority_at_one_position_are_refused() {
                 "id": "probe.a",
                 "at": "after_provider_formats",
                 "priority": 1,
-                "require": {"all": [{"path": "$.type", "one_of": ["text"]}]},
-                "text": {"text": ["$.value"]},
+                "where": {
+                    "path": "$.type",
+                    "one_of": [
+                        "text"
+                    ]
+                },
+                "text": {
+                    "text": [
+                        "$.value"
+                    ]
+                }
             }),
             serde_json::json!({
                 "id": "probe.b",
                 "at": "after_provider_formats",
                 "priority": 1,
-                "require": {"all": [{"path": "$.type", "one_of": ["prose"]}]},
-                "text": {"text": ["$.value"]},
+                "where": {
+                    "path": "$.type",
+                    "one_of": [
+                        "prose"
+                    ]
+                },
+                "text": {
+                    "text": [
+                        "$.value"
+                    ]
+                }
             }),
         ],
         "share priority 1 at the `after` position",
@@ -67,15 +85,33 @@ fn the_same_rank_at_different_positions_is_accepted() {
             "id": "probe.before",
             "at": "before_provider_formats",
             "priority": 1,
-            "require": {"all": [{"path": "$.type", "one_of": ["text"]}]},
-            "text": {"text": ["$.value"]},
+            "where": {
+                "path": "$.type",
+                "one_of": [
+                    "text"
+                ]
+            },
+            "text": {
+                "text": [
+                    "$.value"
+                ]
+            }
         }),
         serde_json::json!({
             "id": "probe.after",
             "at": "after_provider_formats",
             "priority": 1,
-            "require": {"all": [{"path": "$.type", "one_of": ["prose"]}]},
-            "text": {"text": ["$.value"]},
+            "where": {
+                "path": "$.type",
+                "one_of": [
+                    "prose"
+                ]
+            },
+            "text": {
+                "text": [
+                    "$.value"
+                ]
+            }
         }),
     ]);
     assert_eq!(plan.rule_count(), 2);
@@ -89,8 +125,17 @@ fn a_rule_declares_exactly_one_target_form() {
         "id": "probe.text",
         "at": "after_provider_formats",
         "priority": 1,
-        "require": {"all": [{"path": "$.type", "one_of": ["text"]}]},
-        "text": {"text": ["$.value"]},
+        "where": {
+            "path": "$.type",
+            "one_of": [
+                "text"
+            ]
+        },
+        "text": {
+            "text": [
+                "$.value"
+            ]
+        }
     }));
     assert_eq!(plan.rule_count(), 1);
 }
@@ -176,8 +221,17 @@ fn self_selecting_tool_result_content_is_refused() {
             "id": "probe.recursive",
             "at": "after_provider_formats",
             "priority": 1,
-            "require": {"all": [{"path": "$.type", "one_of": ["tool-result"]}]},
-            "tool_result": {"content": ["$"]},
+            "where": {
+                "path": "$.type",
+                "one_of": [
+                    "tool-result"
+                ]
+            },
+            "tool_result": {
+                "content": [
+                    "$"
+                ]
+            }
         }),
         "re-enters this plan",
     );
@@ -189,11 +243,19 @@ fn a_tool_result_keeps_its_declared_name() {
         "id": "probe.named_result",
         "at": "before_provider_formats",
         "priority": 1,
-        "require": {"all": [{"path": "$.result"}]},
+        "where": {
+            "path": "$.result"
+        },
         "tool_result": {
-            "tool_use_id": ["$.id"],
-            "name": ["$.name"],
-            "content": ["$.result"]
+            "tool_use_id": [
+                "$.id"
+            ],
+            "name": [
+                "$.name"
+            ],
+            "content": [
+                "$.result"
+            ]
         }
     }));
 
@@ -226,8 +288,8 @@ fn a_tautological_condition_is_refused() {
             "id": "probe.tautology",
             "at": "before_provider_formats",
             "priority": 1,
-            "require": {"all": [{}]},
-            "json": {},
+            "where": {"exists": true},
+            "json": {}
         }),
         "tautology",
     );
@@ -241,8 +303,11 @@ fn a_root_path_with_no_condition_is_refused() {
             "id": "probe.root_path",
             "at": "before_provider_formats",
             "priority": 1,
-            "require": {"all": [{"path": "$", "exists": true}]},
-            "json": {},
+            "where": {
+                "path": "$",
+                "exists": true
+            },
+            "json": {}
         }),
         "tautology",
     );
@@ -255,8 +320,14 @@ fn a_member_path_with_no_condition_is_legal() {
         "id": "probe.member",
         "at": "before_provider_formats",
         "priority": 1,
-        "require": {"all": [{"path": "$.value"}]},
-        "json": {"data": ["$.value"]},
+        "where": {
+            "path": "$.value"
+        },
+        "json": {
+            "data": [
+                "$.value"
+            ]
+        }
     }));
     assert_eq!(plan.rule_count(), 1);
 }
@@ -270,8 +341,16 @@ fn a_contradictory_predicate_is_refused() {
             "id": "probe.contradiction",
             "at": "after_provider_formats",
             "priority": 1,
-            "require": {"all": [{"path": "$.type", "kind": "number", "identifier_like": true}]},
-            "text": {"text": ["$.value"]},
+            "where": {
+                "path": "$.type",
+                "kind": "number",
+                "identifier_like": true
+            },
+            "text": {
+                "text": [
+                    "$.value"
+                ]
+            }
         }),
         "can never hold",
     );
@@ -288,8 +367,17 @@ fn an_undeclared_media_type_comes_from_the_bytes() {
         "id": "probe.blob",
         "at": "after_provider_formats",
         "priority": 1,
-        "require": {"all": [{"path": "$.content"}]},
-        "media": {"media_type": ["$.mime_type"], "data": ["$.content"]},
+        "where": {
+            "path": "$.content"
+        },
+        "media": {
+            "media_type": [
+                "$.mime_type"
+            ],
+            "data": [
+                "$.content"
+            ]
+        }
     }));
     let normalize =
         |block: serde_json::Value| plan.normalize(&block, ChainPosition::AfterProviderFormats);
@@ -309,8 +397,17 @@ fn a_data_uri_reads_as_its_media_type_and_payload() {
         "id": "probe.uri",
         "at": "after_provider_formats",
         "priority": 1,
-        "require": {"all": [{"path": "$.uri"}]},
-        "media": {"media_type": ["$.mime_type"], "data": ["$.uri"]},
+        "where": {
+            "path": "$.uri"
+        },
+        "media": {
+            "media_type": [
+                "$.mime_type"
+            ],
+            "data": [
+                "$.uri"
+            ]
+        }
     }));
 
     let block = plan
@@ -333,8 +430,16 @@ fn an_unwrap_can_decode_a_serialised_block() {
         "id": "probe.serialised",
         "at": "before_provider_formats",
         "priority": 1,
-        "require": {"all": [{"path": "$.content", "starts_with": "{"}]},
-        "unwrap": {"from": ["$.content"], "parse_json": true},
+        "where": {
+            "path": "$.content",
+            "starts_with": "{"
+        },
+        "unwrap": {
+            "from": [
+                "$.content"
+            ],
+            "parse_json": true
+        }
     }));
     let normalize = |content: &str| {
         plan.normalize(
@@ -353,7 +458,7 @@ fn splice_rule(at: &str) -> serde_json::Value {
         "id": "probe.splice",
         "at": at,
         "priority": 1,
-        "require": {"all": [{"path": "$.type", "one_of": ["text"]}, {"path": "$.content", "kind": "array"}]},
+        "where": {"all": [{"path": "$.type", "one_of": ["text"]}, {"path": "$.content", "kind": "array"}]},
         "splice": {"from": ["$.content"]},
     })
 }
@@ -412,8 +517,24 @@ fn a_stored_reference_is_the_authority_on_its_media_type() {
         "id": "probe.media",
         "at": "after_provider_formats",
         "priority": 1,
-        "require": {"all": [{"path": "$.media_type"}, {"path": "$.data"}]},
-        "media": {"media_type": ["$.media_type"], "data": ["$.data"]},
+        "where": {
+            "all": [
+                {
+                    "path": "$.media_type"
+                },
+                {
+                    "path": "$.data"
+                }
+            ]
+        },
+        "media": {
+            "media_type": [
+                "$.media_type"
+            ],
+            "data": [
+                "$.data"
+            ]
+        }
     }));
     let normalize = |media_type: &str, data: &str| {
         plan.normalize(

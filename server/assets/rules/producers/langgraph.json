@@ -114,13 +114,9 @@
           "doc": "The final answer beside the conversation rather than inside it: one framework running through this one writes the history under `messages` and the answer under `raw`. Reading only the list claimed the carrier and left the answer unread by anything, so the trace showed the question and no reply. Only a string is taken - anything structured is a state member rather than a reply.",
           "select": "$.raw",
           "trim": true,
-          "require": {
-            "all": [
-              {
-                "kind": "string",
-                "non_empty": true
-              }
-            ]
+          "where": {
+            "kind": "string",
+            "non_empty": true
           },
           "wrap": {
             "role": "assistant"
@@ -201,13 +197,9 @@
           "doc": "The final answer beside the conversation rather than inside it: one framework running through this one writes the history under `messages` and the answer under `raw`. Reading only the list claimed the carrier and left the answer unread by anything, so the trace showed the question and no reply. Only a string is taken - anything structured is a state member rather than a reply.",
           "select": "$.raw",
           "trim": true,
-          "require": {
-            "all": [
-              {
-                "kind": "string",
-                "non_empty": true
-              }
-            ]
+          "where": {
+            "kind": "string",
+            "non_empty": true
           },
           "wrap": {
             "role": "assistant"

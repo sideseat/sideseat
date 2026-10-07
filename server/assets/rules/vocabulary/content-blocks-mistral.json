@@ -7,7 +7,7 @@
       "id": "mistral.thinking_chunks",
       "at": "provider_formats",
       "priority": 1950,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.type",

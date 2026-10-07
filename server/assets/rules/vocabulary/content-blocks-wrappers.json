@@ -8,7 +8,7 @@
       "at": "message_envelope",
       "priority": 10,
       "doc": "The content is inside a member and is an ordinary block of whatever shape, so the chain starts again with it. Two member names: one dialect's own, and the generic one several SDKs use. The condition is that the member is *there*, so a match claims the block: a wrapper whose content this chain cannot read answers nothing and leaves the **original** block to the rest of the chain - not to a lower-ranked envelope beside it, which is what the retired reader did and what a fall-through would get wrong.",
-      "require": {
+      "where": {
         "any": [
           {
             "path": "$.message_content",
@@ -32,7 +32,7 @@
       "at": "message_envelope",
       "priority": 20,
       "doc": "A model's own reasoning, under either of two member names - one written by a dialect's Python SDK and one by its TypeScript SDK, with the same structure. Neither the text nor the signature is required: naming the block as reasoning is itself the statement, and a signature-only block must not fall through to something that reads it as prose.",
-      "require": {
+      "where": {
         "any": [
           {
             "path": "$.reasoning_content",
@@ -60,7 +60,7 @@
       "at": "message_envelope",
       "priority": 30,
       "doc": "A serialised message, whose constructor arguments hold the block. Recognised by the envelope carrying either a content member or a type inside it - an envelope with neither says nothing about a block, and unwrapping it would hand the chain an object it cannot read while hiding the one it could.",
-      "require": {
+      "where": {
         "any": [
           {
             "path": "$.kwargs.content",

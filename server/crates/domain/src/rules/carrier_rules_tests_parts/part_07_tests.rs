@@ -355,9 +355,9 @@ fn an_all_or_nothing_reading_cannot_be_starved_by_an_earlier_rank() {
                  "parse":"text","tag_as":"taken","emit":"message","priority":{taker_rank}}},
                 {{"id":"t.overlaid","read":{{"indexed_family":"fam","entry_member":"message",
                    "overlay":{{"from":"rich","parse":"json","select_any_of":["$.messages"],
-                     "witness":{{"any":[{{"path":"$[*].id","exists":true}}]}},
+                     "witness": {{"path":"$[*].id","exists":true}},
                      "when_member_prefix":"contents.","content_any_of":["$.content"],
-                     "require":{{"all":[{{"kind":"array"}}]}},"as_member":"content"}}}},
+                     "where": {{"kind":"array"}},"as_member":"content"}}}},
                  "emit":"message","priority":{overlaid_rank}}}]"#
         )
     };
@@ -421,19 +421,7 @@ fn an_emission_names_the_clause_inside_its_rule() {
 
     let plan = compile(&ParsedAssets::parse(&std::collections::BTreeMap::from([(
         "t.json".to_string(),
-        br#"{"id":"t","messages":[{"id":"t.events","read":{"attribute":"events"},"parse":"json",
-             "emit":"message","priority":1,"elements":{"passes":[
-               {"id":"named","when":{"all":[{"path":"$['event.name']","one_of":["gen_ai.choice"]}]},
-                "tag_from":"$['event.name']"},
-               {"id":"blocks",
-                "when":{"all":[{"path":"$['event.name']","none_of":["gen_ai.choice"]},
-                               {"path":"$.data","kind":"object"}]},
-                "group":{"collect":"$.data","key_as":"role","by":[
-                   {"id":"is_input","when":{"all":[{"path":"$.data.type","starts_with":"input_"}]},
-                    "value":"user"},
-                   {"id":"is_output","when":{"all":[{"path":"$.data.type","starts_with":"output_"}]},
-                    "value":"assistant"}],
-                 "tag_by_key":{"user":"gen_ai.user.message","assistant":"gen_ai.assistant.message"}}}]}}]}"#
+        br#"{"id": "t", "messages": [{"id": "t.events", "read": {"attribute": "events"}, "parse": "json", "emit": "message", "priority": 1, "elements": {"passes": [{"id": "named", "where": {"path": "$['event.name']", "one_of": ["gen_ai.choice"]}, "tag_from": "$['event.name']"}, {"id": "blocks", "where": {"all": [{"path": "$['event.name']", "none_of": ["gen_ai.choice"]}, {"path": "$.data", "kind": "object"}]}, "group": {"collect": "$.data", "key_as": "role", "by": [{"id": "is_input", "where": {"path": "$.data.type", "starts_with": "input_"}, "value": "user"}, {"id": "is_output", "where": {"path": "$.data.type", "starts_with": "output_"}, "value": "assistant"}], "tag_by_key": {"user": "gen_ai.user.message", "assistant": "gen_ai.assistant.message"}}}]}}]}"#
             .to_vec(),
     )])).expect("the probe assets parse"))
     .expect("the element-pass shape compiles");

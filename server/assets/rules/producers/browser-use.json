@@ -54,14 +54,10 @@
           "id": "action_params",
           "doc": "`{action, params}`: the action's name and its parameters.",
           "select": "$.params",
-          "require_parent": {
-            "all": [
-              {
-                "path": "$.action",
-                "kind": "string",
-                "non_empty": true
-              }
-            ]
+          "parent_where": {
+            "path": "$.action",
+            "kind": "string",
+            "non_empty": true
           },
           "wrap": {
             "role": "assistant",
@@ -114,14 +110,10 @@
         {
           "id": "failed",
           "doc": "A failed action: the error is what the model is told.",
-          "require": {
-            "all": [
-              {
-                "path": "$.error",
-                "kind": "string",
-                "non_empty": true
-              }
-            ]
+          "where": {
+            "path": "$.error",
+            "kind": "string",
+            "non_empty": true
           },
           "wrap": {
             "role": "tool",
@@ -153,13 +145,9 @@
         {
           "id": "action_result",
           "doc": "A completed built-in action. Its long-term memory is the fallback for an action that extracted nothing.",
-          "require": {
-            "all": [
-              {
-                "path": "$.is_done",
-                "kind": "bool"
-              }
-            ]
+          "where": {
+            "path": "$.is_done",
+            "kind": "bool"
           },
           "wrap": {
             "role": "tool",
@@ -188,13 +176,9 @@
         {
           "id": "text",
           "doc": "A custom action that returned text.",
-          "require": {
-            "all": [
-              {
-                "kind": "string",
-                "non_empty": true
-              }
-            ]
+          "where": {
+            "kind": "string",
+            "non_empty": true
           },
           "wrap": {
             "role": "tool",

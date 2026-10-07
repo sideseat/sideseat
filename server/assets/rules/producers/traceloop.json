@@ -134,7 +134,7 @@
       "doc": "TraceLoop's Bedrock instrumentation writes a Converse content block it has no part type for - the model's reasoning - into a semconv text part as JSON text, so the reasoning rendered as raw JSON beside the answer. The block is decoded and read as the Converse block it is.",
       "at": "before_provider_formats",
       "priority": 87,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.type",

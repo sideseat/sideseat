@@ -1,0 +1,5199 @@
+{
+ "doc": "The value predicate sets `where` replaced, frozen from the assets of ad4b52da, each with where it now sits (an array element is named by its `id` where it has one). Read by every_value_where_lowers_as_the_set_it_replaced.",
+ "sets": [
+  {
+   "asset": "assets/rules/conventions/semconv.json",
+   "path": [
+    "messages",
+    {
+     "id": "semconv.single_tool"
+    },
+    "compose",
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.name",
+      "identifier_like": true,
+      "doc": "A synthetic aggregate is reported under a parenthesised name; a tool anyone can call begins like an identifier."
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/conventions/semconv.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "semconv.blob_part"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "blob"
+      ]
+     },
+     {
+      "path": "$.content",
+      "kind": "string"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/conventions/semconv.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "semconv.uri_part"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "uri"
+      ]
+     },
+     {
+      "path": "$.uri",
+      "kind": "string"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/conventions/semconv.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "semconv.tool_call_response_parts"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "tool_call_response"
+      ]
+     },
+     {
+      "path": "$.response[0].text",
+      "kind": "string"
+     },
+     {
+      "path": "$.response[?!@.text]",
+      "exists": false,
+      "doc": "No member lacks a `text`: the list is content parts throughout, not a value that happens to start with one."
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/conventions/semconv.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "semconv.text_content_part"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "text",
+       "input_text",
+       "output_text"
+      ]
+     },
+     {
+      "path": "$.text",
+      "exists": false
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/conventions/semconv.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "semconv.tool_call_part"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "tool_call"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/conventions/semconv.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "semconv.tool_call_response_part"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "tool_call_response"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/conventions/semconv.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "semconv.reasoning_part_text"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "reasoning"
+      ]
+     },
+     {
+      "path": "$.text",
+      "kind": "string"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/conventions/semconv.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "semconv.reasoning_part"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "reasoning"
+      ]
+     },
+     {
+      "path": "$.text",
+      "exists": false
+     },
+     {
+      "path": "$.content",
+      "kind": "string"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/conventions/semconv.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "semconv.blob_part_data"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "blob"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/agent-framework.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "agent-framework.data_part"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "data"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/agentscope.json",
+   "path": [
+    "messages",
+    {
+     "id": "agentscope.tool_call_result"
+    },
+    "wrap",
+    "block",
+    "attach",
+    2,
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "one_of": [
+       "error",
+       "denied",
+       "interrupted"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/agentscope.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "agentscope.data_block"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "data"
+      ]
+     },
+     {
+      "path": "$.source.media_type",
+      "kind": "string"
+     }
+    ],
+    "any": [
+     {
+      "path": "$.source.data",
+      "kind": "string"
+     },
+     {
+      "path": "$.source.url.__python_args[0]",
+      "kind": "string"
+     },
+     {
+      "path": "$.source.url",
+      "kind": "string"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/agentscope.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "agentscope.thinking_block"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "thinking"
+      ]
+     },
+     {
+      "path": "$.thinking",
+      "kind": "string"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/agno.json",
+   "path": [
+    "messages",
+    {
+     "id": "agno.llm_output_messages"
+    },
+    "alternatives",
+    {
+     "id": "messages"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.role",
+      "kind": "string",
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/agno.json",
+   "path": [
+    "messages",
+    {
+     "id": "agno.llm_output_messages"
+    },
+    "alternatives",
+    {
+     "id": "list"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.role",
+      "kind": "string",
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen-runtime.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.body"
+    },
+    "also",
+    {
+     "id": "messages"
+    },
+    "where"
+   ],
+   "retired": {},
+   "dropped": true
+  },
+  {
+   "asset": "assets/rules/producers/autogen-runtime.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.body"
+    },
+    "also",
+    {
+     "id": "messages"
+    },
+    "extra_cases",
+    {
+     "id": "role"
+    },
+    "where"
+   ],
+   "retired": {
+    "any": [
+     {
+      "path": "$.role",
+      "exists": true
+     },
+     {
+      "path": "$.content",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen-runtime.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.body"
+    },
+    "also",
+    {
+     "id": "messages"
+    },
+    "parent_where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "LLMCall",
+       "LLMStreamEnd"
+      ]
+     },
+     {
+      "path": "$.messages",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen-runtime.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.body"
+    },
+    "also",
+    {
+     "id": "response"
+    },
+    "where"
+   ],
+   "retired": {},
+   "dropped": true
+  },
+  {
+   "asset": "assets/rules/producers/autogen-runtime.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.body"
+    },
+    "also",
+    {
+     "id": "response"
+    },
+    "wrap",
+    "attach",
+    0,
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen-runtime.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.body"
+    },
+    "also",
+    {
+     "id": "response"
+    },
+    "parent_where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "LLMCall",
+       "LLMStreamEnd"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen-runtime.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.body"
+    },
+    "also",
+    {
+     "id": "tools"
+    },
+    "where"
+   ],
+   "retired": {},
+   "dropped": true
+  },
+  {
+   "asset": "assets/rules/producers/autogen-runtime.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.body"
+    },
+    "also",
+    {
+     "id": "tools"
+    },
+    "parent_where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "LLMCall",
+       "LLMStreamEnd"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen-runtime.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.body"
+    },
+    "also",
+    {
+     "id": "as_tool"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "ToolCall"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen-runtime.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.log_body"
+    },
+    "also",
+    {
+     "id": "messages"
+    },
+    "where"
+   ],
+   "retired": {},
+   "dropped": true
+  },
+  {
+   "asset": "assets/rules/producers/autogen-runtime.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.log_body"
+    },
+    "also",
+    {
+     "id": "messages"
+    },
+    "extra_cases",
+    {
+     "id": "role"
+    },
+    "where"
+   ],
+   "retired": {
+    "any": [
+     {
+      "path": "$.role",
+      "exists": true
+     },
+     {
+      "path": "$.content",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen-runtime.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.log_body"
+    },
+    "also",
+    {
+     "id": "messages"
+    },
+    "parent_where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "LLMCall",
+       "LLMStreamEnd"
+      ]
+     },
+     {
+      "path": "$.messages",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen-runtime.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.log_body"
+    },
+    "also",
+    {
+     "id": "response"
+    },
+    "where"
+   ],
+   "retired": {},
+   "dropped": true
+  },
+  {
+   "asset": "assets/rules/producers/autogen-runtime.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.log_body"
+    },
+    "also",
+    {
+     "id": "response"
+    },
+    "wrap",
+    "attach",
+    0,
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen-runtime.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.log_body"
+    },
+    "also",
+    {
+     "id": "response"
+    },
+    "parent_where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "LLMCall",
+       "LLMStreamEnd"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen-runtime.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.log_body"
+    },
+    "also",
+    {
+     "id": "tools"
+    },
+    "where"
+   ],
+   "retired": {},
+   "dropped": true
+  },
+  {
+   "asset": "assets/rules/producers/autogen-runtime.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.log_body"
+    },
+    "also",
+    {
+     "id": "tools"
+    },
+    "parent_where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "LLMCall",
+       "LLMStreamEnd"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen-runtime.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.log_body"
+    },
+    "also",
+    {
+     "id": "as_tool"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "ToolCall"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen-runtime.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.autogen_event"
+    },
+    "also",
+    {
+     "id": "messages"
+    },
+    "where"
+   ],
+   "retired": {},
+   "dropped": true
+  },
+  {
+   "asset": "assets/rules/producers/autogen-runtime.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.autogen_event"
+    },
+    "also",
+    {
+     "id": "messages"
+    },
+    "extra_cases",
+    {
+     "id": "role"
+    },
+    "where"
+   ],
+   "retired": {
+    "any": [
+     {
+      "path": "$.role",
+      "exists": true
+     },
+     {
+      "path": "$.content",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen-runtime.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.autogen_event"
+    },
+    "also",
+    {
+     "id": "messages"
+    },
+    "parent_where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "LLMCall",
+       "LLMStreamEnd"
+      ]
+     },
+     {
+      "path": "$.messages",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen-runtime.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.autogen_event"
+    },
+    "also",
+    {
+     "id": "response"
+    },
+    "where"
+   ],
+   "retired": {},
+   "dropped": true
+  },
+  {
+   "asset": "assets/rules/producers/autogen-runtime.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.autogen_event"
+    },
+    "also",
+    {
+     "id": "response"
+    },
+    "wrap",
+    "attach",
+    0,
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen-runtime.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.autogen_event"
+    },
+    "also",
+    {
+     "id": "response"
+    },
+    "parent_where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "LLMCall",
+       "LLMStreamEnd"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen-runtime.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.autogen_event"
+    },
+    "also",
+    {
+     "id": "tools"
+    },
+    "where"
+   ],
+   "retired": {},
+   "dropped": true
+  },
+  {
+   "asset": "assets/rules/producers/autogen-runtime.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.autogen_event"
+    },
+    "also",
+    {
+     "id": "tools"
+    },
+    "parent_where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "LLMCall",
+       "LLMStreamEnd"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen-runtime.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.autogen_event"
+    },
+    "also",
+    {
+     "id": "as_tool"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "ToolCall"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.aggregate_input"
+    },
+    "alternatives",
+    {
+     "id": "cancellation_token"
+    },
+    "where"
+   ],
+   "retired": {
+    "any": [
+     {
+      "path": "$.cancellation_token",
+      "exists": true
+     },
+     {
+      "path": "$.output_task_messages",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.message"
+    },
+    "alternatives",
+    {
+     "id": "messages"
+    },
+    "extra_cases",
+    {
+     "id": "content"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.content",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.message"
+    },
+    "alternatives",
+    {
+     "id": "message_2"
+    },
+    "extra_cases",
+    {
+     "id": "content_2"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.content",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "messages",
+    {
+     "id": "autogen.message"
+    },
+    "alternatives",
+    {
+     "id": "content_3"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "kind": "object"
+     }
+    ],
+    "any": [
+     {
+      "path": "$.content",
+      "exists": true
+     },
+     {
+      "path": "$.role",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "as_system"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "SystemMessage"
+      ]
+     },
+     {
+      "path": "$.content",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "as_user"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "UserMessage"
+      ]
+     },
+     {
+      "path": "$.content",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "as_assistant"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "AssistantMessage"
+      ]
+     },
+     {
+      "path": "$.content",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "as_assistant"
+    },
+    "wrap",
+    "prepend_block",
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "not_null": true
+     },
+     {
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "as_assistant_2"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "TextMessage"
+      ]
+     },
+     {
+      "path": "$.content",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "as_assistant_2"
+    },
+    "wrap",
+    "attach",
+    0,
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "none_of": [
+       "user"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "as_assistant_3"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "MultiModalMessage"
+      ]
+     },
+     {
+      "path": "$.content",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "as_assistant_3"
+    },
+    "wrap",
+    "attach",
+    0,
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "none_of": [
+       "user"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "as_assistant_4"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "StopMessage"
+      ]
+     },
+     {
+      "path": "$.content",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "as_assistant_4"
+    },
+    "wrap",
+    "attach",
+    0,
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "none_of": [
+       "user"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "as_assistant_5"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "HandoffMessage"
+      ]
+     },
+     {
+      "path": "$.content",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "as_assistant_5"
+    },
+    "wrap",
+    "attach",
+    0,
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "kind": "string"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "as_assistant_6"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "ThoughtEvent"
+      ]
+     },
+     {
+      "path": "$.content",
+      "exists": true
+     },
+     {
+      "path": "$.content",
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "as_assistant_7"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "ToolCallRequestEvent"
+      ]
+     },
+     {
+      "path": "$.content",
+      "kind": "array"
+     },
+     {
+      "path": "$.content[?@.id && @.name]",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "content"
+    },
+    "where"
+   ],
+   "retired": {
+    "any": [
+     {
+      "path": "$.call_id",
+      "exists": true
+     },
+     {
+      "path": "$.name",
+      "exists": true
+     },
+     {
+      "path": "$.content",
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "content"
+    },
+    "parent_where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "ToolCallExecutionEvent",
+       "FunctionExecutionResultMessage"
+      ]
+     },
+     {
+      "path": "$.content",
+      "kind": "array"
+     },
+     {
+      "path": "$.content",
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "toolcallsummarymessage"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "ToolCallSummaryMessage"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "type"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "exists": true
+     }
+    ],
+    "any": [
+     {
+      "path": "$.role",
+      "exists": true
+     },
+     {
+      "path": "$.content",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "type_2"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "exists": false
+     },
+     {
+      "path": "$.role",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "as_assistant_8"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "exists": false
+     },
+     {
+      "path": "$.content",
+      "kind": "array"
+     },
+     {
+      "path": "$.content[0].arguments",
+      "exists": true
+     },
+     {
+      "path": "$.content[?@.id && @.name]",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "content_2"
+    },
+    "where"
+   ],
+   "retired": {
+    "any": [
+     {
+      "path": "$.call_id",
+      "exists": true
+     },
+     {
+      "path": "$.name",
+      "exists": true
+     },
+     {
+      "path": "$.content",
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "content_2"
+    },
+    "parent_where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "exists": false
+     },
+     {
+      "path": "$.content",
+      "kind": "array"
+     }
+    ],
+    "any": [
+     {
+      "path": "$.content[0].call_id",
+      "exists": true
+     },
+     {
+      "path": "$.content[0].name",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "as_assistant_9"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "exists": false
+     },
+     {
+      "path": "$.content",
+      "kind": "string"
+     },
+     {
+      "path": "$.content",
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/autogen.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "as_assistant_9"
+    },
+    "wrap",
+    "attach",
+    0,
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "none_of": [
+       "user"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/browser-use.json",
+   "path": [
+    "messages",
+    {
+     "id": "browser-use.action_call"
+    },
+    "alternatives",
+    {
+     "id": "action_params"
+    },
+    "parent_where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.action",
+      "kind": "string",
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/browser-use.json",
+   "path": [
+    "messages",
+    {
+     "id": "browser-use.action_result"
+    },
+    "alternatives",
+    {
+     "id": "failed"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.error",
+      "kind": "string",
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/browser-use.json",
+   "path": [
+    "messages",
+    {
+     "id": "browser-use.action_result"
+    },
+    "alternatives",
+    {
+     "id": "action_result"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.is_done",
+      "kind": "bool"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/browser-use.json",
+   "path": [
+    "messages",
+    {
+     "id": "browser-use.action_result"
+    },
+    "alternatives",
+    {
+     "id": "text"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "kind": "string",
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/claude-agent-sdk.json",
+   "path": [
+    "messages",
+    {
+     "id": "claude-agent-sdk.new_context"
+    },
+    "sections",
+    "routes",
+    {
+     "id": "tool_result"
+    },
+    "skip_where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.capture",
+      "lacks_prefix": "toolu"
+     },
+     {
+      "path": "$.body",
+      "starts_with": "{"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/crewai.json",
+   "path": [
+    "messages",
+    {
+     "id": "crewai.output"
+    },
+    "also",
+    {
+     "id": "messages"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.role"
+     }
+    ],
+    "any": [
+     {
+      "path": "$.content"
+     },
+     {
+      "path": "$.tool_calls"
+     },
+     {
+      "path": "$.toolCalls"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/crewai.json",
+   "path": [
+    "messages",
+    {
+     "id": "crewai.output"
+    },
+    "also",
+    {
+     "id": "messages_2"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.role"
+     }
+    ],
+    "any": [
+     {
+      "path": "$.content"
+     },
+     {
+      "path": "$.tool_calls"
+     },
+     {
+      "path": "$.toolCalls"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/crewai.json",
+   "path": [
+    "messages",
+    {
+     "id": "crewai.output"
+    },
+    "also",
+    {
+     "id": "raw"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "kind": "string",
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/crewai.json",
+   "path": [
+    "messages",
+    {
+     "id": "crewai.aggregate_input"
+    },
+    "alternatives",
+    {
+     "id": "context"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.context",
+      "exists": false,
+      "doc": "The conversation, where this carrier has one."
+     },
+     {
+      "path": "$.messages",
+      "exists": false,
+      "doc": "A conversation under its other name - CrewAI-through-LangGraph writes `messages`. Claiming a carrier that has one would take the turn away, which `crewai/error` already proved for `context`."
+     }
+    ],
+    "any": [
+     {
+      "path": "$.tools",
+      "non_empty": true
+     },
+     {
+      "path": "$.tool",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/crewai.json",
+   "path": [
+    "messages",
+    {
+     "id": "crewai.aggregate_input"
+    },
+    "alternatives",
+    {
+     "id": "empty_agent_snapshot"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.agent",
+      "kind": "object"
+     },
+     {
+      "path": "$.context",
+      "one_of": [
+       ""
+      ]
+     },
+     {
+      "path": "$.messages",
+      "exists": false
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/genkit.json",
+   "path": [
+    "messages",
+    {
+     "id": "genkit.model_request"
+    },
+    "alternatives",
+    {
+     "id": "messages"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.role",
+      "kind": "string",
+      "non_empty": true
+     },
+     {
+      "path": "$.content",
+      "kind": "array"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/genkit.json",
+   "path": [
+    "messages",
+    {
+     "id": "genkit.model_response"
+    },
+    "alternatives",
+    {
+     "id": "provider_content"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.role",
+      "kind": "string",
+      "non_empty": true
+     },
+     {
+      "path": "$.parts",
+      "kind": "array"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/genkit.json",
+   "path": [
+    "messages",
+    {
+     "id": "genkit.model_response"
+    },
+    "alternatives",
+    {
+     "id": "message"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.content",
+      "kind": "array"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/genkit.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "genkit.tool_request"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.toolRequest.name",
+      "kind": "string",
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/genkit.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "genkit.tool_response"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.toolResponse.name",
+      "kind": "string",
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/genkit.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "genkit.media"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.media.url",
+      "kind": "string",
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/genkit.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "genkit.reasoning"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.reasoning",
+      "kind": "string",
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/google-adk.json",
+   "path": [
+    "messages",
+    {
+     "id": "google-adk.conversation"
+    },
+    "branch_set",
+    "primary",
+    {
+     "id": "google-adk.llm_request"
+    },
+    "also",
+    {
+     "id": "systeminstruction"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "kind": "string",
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/google-adk.json",
+   "path": [
+    "messages",
+    {
+     "id": "google-adk.conversation"
+    },
+    "branch_set",
+    "primary",
+    {
+     "id": "google-adk.llm_request"
+    },
+    "also",
+    {
+     "id": "system_instruction"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "kind": "string",
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/google-adk.json",
+   "path": [
+    "messages",
+    {
+     "id": "google-adk.conversation"
+    },
+    "branch_set",
+    "primary",
+    {
+     "id": "google-adk.llm_request"
+    },
+    "also",
+    {
+     "id": "contents"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.role"
+     },
+     {
+      "path": "$.parts"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/google-adk.json",
+   "path": [
+    "messages",
+    {
+     "id": "google-adk.conversation"
+    },
+    "branch_set",
+    "always",
+    {
+     "id": "google-adk.llm_response"
+    },
+    "alternatives",
+    {
+     "id": "content"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.role"
+     },
+     {
+      "path": "$.parts"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/google-adk.json",
+   "path": [
+    "messages",
+    {
+     "id": "google-adk.conversation"
+    },
+    "branch_set",
+    "always",
+    {
+     "id": "google-adk.data"
+    },
+    "alternatives",
+    {
+     "id": "alternative_1"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/google-adk.json",
+   "path": [
+    "messages",
+    {
+     "id": "google-adk.event_content_request"
+    },
+    "alternatives",
+    {
+     "id": "content"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.role",
+      "kind": "string",
+      "non_empty": true
+     },
+     {
+      "path": "$.parts",
+      "kind": "array"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/google-adk.json",
+   "path": [
+    "messages",
+    {
+     "id": "google-adk.event_content_choice"
+    },
+    "alternatives",
+    {
+     "id": "content"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.role",
+      "kind": "string",
+      "non_empty": true
+     },
+     {
+      "path": "$.parts",
+      "kind": "array"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/google-genai.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "google-genai.blob_part"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.mime_type",
+      "kind": "string"
+     },
+     {
+      "path": "$.modality",
+      "kind": "string"
+     },
+     {
+      "path": "$.content",
+      "kind": "string"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/haystack.json",
+   "path": [
+    "messages",
+    {
+     "id": "haystack.agent_step_llm_input"
+    },
+    "also",
+    {
+     "id": "messages"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.role"
+     },
+     {
+      "path": "$.content"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/haystack.json",
+   "path": [
+    "messages",
+    {
+     "id": "haystack.agent_step_llm_output"
+    },
+    "alternatives",
+    {
+     "id": "replies"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.role"
+     },
+     {
+      "path": "$.content"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/haystack.json",
+   "path": [
+    "messages",
+    {
+     "id": "haystack.agent_input"
+    },
+    "alternatives",
+    {
+     "id": "messages"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.role"
+     },
+     {
+      "path": "$.content"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/haystack.json",
+   "path": [
+    "messages",
+    {
+     "id": "haystack.agent_output"
+    },
+    "alternatives",
+    {
+     "id": "messages"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.role"
+     },
+     {
+      "path": "$.content"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/haystack.json",
+   "path": [
+    "messages",
+    {
+     "id": "haystack.component_input"
+    },
+    "also",
+    {
+     "id": "messages"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.role"
+     },
+     {
+      "path": "$.content"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/haystack.json",
+   "path": [
+    "messages",
+    {
+     "id": "haystack.component_output"
+    },
+    "also",
+    {
+     "id": "messages"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.role"
+     },
+     {
+      "path": "$.content"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/haystack.json",
+   "path": [
+    "messages",
+    {
+     "id": "haystack.component_output"
+    },
+    "also",
+    {
+     "id": "replies"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.role"
+     },
+     {
+      "path": "$.content"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/haystack.json",
+   "path": [
+    "messages",
+    {
+     "id": "haystack.pipeline_input"
+    },
+    "also",
+    {
+     "id": "messages"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.role"
+     },
+     {
+      "path": "$.content"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/haystack.json",
+   "path": [
+    "messages",
+    {
+     "id": "haystack.pipeline_output"
+    },
+    "also",
+    {
+     "id": "messages"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.role"
+     },
+     {
+      "path": "$.content"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/haystack.json",
+   "path": [
+    "messages",
+    {
+     "id": "haystack.pipeline_output"
+    },
+    "also",
+    {
+     "id": "replies"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.role"
+     },
+     {
+      "path": "$.content"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/haystack.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "haystack.tool_call"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.tool_call.tool_name",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/haystack.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "haystack.tool_call_result"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.tool_call_result.origin.tool_name",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/haystack.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "haystack.reasoning_content"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.reasoning.reasoning_text",
+      "kind": "string"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/langchain.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "as_user"
+    },
+    "where"
+   ],
+   "retired": {
+    "any": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "human",
+       "HumanMessage"
+      ]
+     },
+     {
+      "path": "$.lc.type",
+      "one_of": [
+       "human",
+       "HumanMessage"
+      ]
+     },
+     {
+      "path": "$.kwargs.type",
+      "one_of": [
+       "human",
+       "HumanMessage"
+      ]
+     }
+    ],
+    "all": []
+   }
+  },
+  {
+   "asset": "assets/rules/producers/langchain.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "as_assistant"
+    },
+    "where"
+   ],
+   "retired": {
+    "any": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "ai",
+       "AIMessage"
+      ]
+     },
+     {
+      "path": "$.lc.type",
+      "one_of": [
+       "ai",
+       "AIMessage"
+      ]
+     },
+     {
+      "path": "$.kwargs.type",
+      "one_of": [
+       "ai",
+       "AIMessage"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/langchain.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "as_assistant"
+    },
+    "wrap",
+    "attach",
+    0,
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "kind": "array",
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/langchain.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "as_system"
+    },
+    "where"
+   ],
+   "retired": {
+    "any": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "system",
+       "SystemMessage"
+      ]
+     },
+     {
+      "path": "$.lc.type",
+      "one_of": [
+       "system",
+       "SystemMessage"
+      ]
+     },
+     {
+      "path": "$.kwargs.type",
+      "one_of": [
+       "system",
+       "SystemMessage"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/langchain.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "as_tool"
+    },
+    "where"
+   ],
+   "retired": {
+    "any": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "tool",
+       "ToolMessage"
+      ]
+     },
+     {
+      "path": "$.lc.type",
+      "one_of": [
+       "tool",
+       "ToolMessage"
+      ]
+     },
+     {
+      "path": "$.kwargs.type",
+      "one_of": [
+       "tool",
+       "ToolMessage"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/langchain.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "as_function"
+    },
+    "where"
+   ],
+   "retired": {
+    "any": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "function",
+       "FunctionMessage"
+      ]
+     },
+     {
+      "path": "$.lc.type",
+      "one_of": [
+       "function",
+       "FunctionMessage"
+      ]
+     },
+     {
+      "path": "$.kwargs.type",
+      "one_of": [
+       "function",
+       "FunctionMessage"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/langchain.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "role"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.role"
+     },
+     {
+      "path": "$.content"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/langchain.json",
+   "path": [
+    "fragments",
+    "message",
+    "cases",
+    {
+     "id": "role_2"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.role"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/langchain.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "langchain.standard_data_block"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "image",
+       "file",
+       "audio",
+       "video"
+      ]
+     },
+     {
+      "path": "$.base64",
+      "kind": "string",
+      "non_empty": true
+     },
+     {
+      "path": "$.mime_type",
+      "kind": "string",
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/langfuse.json",
+   "path": [
+    "messages",
+    {
+     "id": "langfuse.generation_input"
+    },
+    "alternatives",
+    {
+     "id": "responses_input"
+    },
+    "parent_where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.input",
+      "kind": "array",
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/langfuse.json",
+   "path": [
+    "fragments",
+    "item",
+    "cases",
+    {
+     "id": "function_call"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "function_call"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/langfuse.json",
+   "path": [
+    "fragments",
+    "item",
+    "cases",
+    {
+     "id": "function_call_output"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "function_call_output"
+      ]
+     },
+     {
+      "path": "$.call_id",
+      "kind": "string",
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/langfuse.json",
+   "path": [
+    "fragments",
+    "item",
+    "cases",
+    {
+     "id": "message"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.role",
+      "kind": "string",
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/langgraph.json",
+   "path": [
+    "messages",
+    {
+     "id": "langgraph.input_value"
+    },
+    "also",
+    {
+     "id": "raw"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "kind": "string",
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/langgraph.json",
+   "path": [
+    "messages",
+    {
+     "id": "langgraph.output_value"
+    },
+    "also",
+    {
+     "id": "raw"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "kind": "string",
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/langsmith.json",
+   "path": [
+    "messages",
+    {
+     "id": "langsmith.prompt"
+    },
+    "alternatives",
+    {
+     "id": "chat_model_prompts"
+    },
+    "parent_where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.messages[0]",
+      "kind": "array"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/langsmith.json",
+   "path": [
+    "messages",
+    {
+     "id": "langsmith.prompt"
+    },
+    "alternatives",
+    {
+     "id": "messages"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.role"
+     },
+     {
+      "path": "$.content"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/langsmith.json",
+   "path": [
+    "messages",
+    {
+     "id": "langsmith.prompt"
+    },
+    "alternatives",
+    {
+     "id": "role"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.role"
+     },
+     {
+      "path": "$.content"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/langsmith.json",
+   "path": [
+    "messages",
+    {
+     "id": "langsmith.completion"
+    },
+    "alternatives",
+    {
+     "id": "choices"
+    },
+    "where"
+   ],
+   "retired": {
+    "any": [
+     {
+      "path": "$.role"
+     },
+     {
+      "path": "$.content"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/langsmith.json",
+   "path": [
+    "messages",
+    {
+     "id": "langsmith.completion"
+    },
+    "alternatives",
+    {
+     "id": "role"
+    },
+    "where"
+   ],
+   "retired": {
+    "any": [
+     {
+      "path": "$.role"
+     },
+     {
+      "path": "$.content"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/logfire.json",
+   "path": [
+    "messages",
+    {
+     "id": "logfire.conversation"
+    },
+    "branch_set",
+    "primary",
+    {
+     "id": "logfire.events"
+    },
+    "elements",
+    "passes",
+    {
+     "id": "name"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$['event.name']",
+      "one_of": [
+       "gen_ai.system.message",
+       "gen_ai.user.message",
+       "gen_ai.content.prompt",
+       "gen_ai.assistant.message",
+       "gen_ai.choice",
+       "gen_ai.content.completion",
+       "gen_ai.tool.message",
+       "gen_ai.client.inference.operation.details",
+       "tool.output"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/logfire.json",
+   "path": [
+    "messages",
+    {
+     "id": "logfire.conversation"
+    },
+    "branch_set",
+    "primary",
+    {
+     "id": "logfire.events"
+    },
+    "elements",
+    "passes",
+    {
+     "id": "everything_else_that_carries"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$['event.name']",
+      "none_of": [
+       "gen_ai.system.message",
+       "gen_ai.user.message",
+       "gen_ai.content.prompt",
+       "gen_ai.assistant.message",
+       "gen_ai.choice",
+       "gen_ai.content.completion",
+       "gen_ai.tool.message",
+       "gen_ai.client.inference.operation.details",
+       "tool.output"
+      ]
+     },
+     {
+      "path": "$.data",
+      "kind": "object"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/logfire.json",
+   "path": [
+    "messages",
+    {
+     "id": "logfire.conversation"
+    },
+    "branch_set",
+    "primary",
+    {
+     "id": "logfire.events"
+    },
+    "elements",
+    "passes",
+    {
+     "id": "everything_else_that_carries"
+    },
+    "group",
+    "by",
+    {
+     "id": "user"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.data.type",
+      "starts_with": "input_"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/logfire.json",
+   "path": [
+    "messages",
+    {
+     "id": "logfire.conversation"
+    },
+    "branch_set",
+    "primary",
+    {
+     "id": "logfire.events"
+    },
+    "elements",
+    "passes",
+    {
+     "id": "everything_else_that_carries"
+    },
+    "group",
+    "by",
+    {
+     "id": "assistant"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.data.type",
+      "starts_with": "output_"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/logfire.json",
+   "path": [
+    "messages",
+    {
+     "id": "logfire.conversation"
+    },
+    "branch_set",
+    "primary",
+    {
+     "id": "logfire.prompt"
+    },
+    "alternatives",
+    {
+     "id": "the_payload_is_an"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "kind": "object"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/logfire.json",
+   "path": [
+    "messages",
+    {
+     "id": "logfire.conversation"
+    },
+    "branch_set",
+    "primary",
+    {
+     "id": "logfire.all_messages_events"
+    },
+    "alternatives",
+    {
+     "id": "the_payload_is_an_2"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "kind": "object"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/logfire.json",
+   "path": [
+    "messages",
+    {
+     "id": "logfire.conversation"
+    },
+    "branch_set",
+    "fallback_if_primary_empty",
+    {
+     "id": "logfire.request_data"
+    },
+    "alternatives",
+    {
+     "id": "messages"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.messages",
+      "kind": "array",
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/logfire.json",
+   "path": [
+    "messages",
+    {
+     "id": "logfire.conversation"
+    },
+    "branch_set",
+    "always",
+    {
+     "id": "logfire.response_data"
+    },
+    "alternatives",
+    {
+     "id": "message"
+    },
+    "where"
+   ],
+   "retired": {
+    "any": [
+     {
+      "path": "$.message",
+      "kind": "object"
+     },
+     {
+      "path": "$.combined_chunk_content",
+      "kind": "string",
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/openai-agents.json",
+   "path": [
+    "messages",
+    {
+     "id": "openai-agents.response_tools"
+    },
+    "alternatives",
+    {
+     "id": "tools"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "kind": "array"
+     },
+     {
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/openinference.json",
+   "path": [
+    "messages",
+    {
+     "id": "openinference.input_messages"
+    },
+    "read",
+    "entry_where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.role",
+      "none_of": [
+       "tool-call",
+       "tool-response"
+      ],
+      "doc": "Smolagents writes its rendered `Calling tools` and `Observation` bookkeeping back into the next model request under these pseudo-roles. The structured model output and TOOL span are the lossless call and result; retaining these renderings as user turns duplicates both and invents a role."
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/openinference.json",
+   "path": [
+    "messages",
+    {
+     "id": "openinference.input_messages"
+    },
+    "read",
+    "overlay",
+    "witness"
+   ],
+   "retired": {
+    "any": [
+     {
+      "path": "$[*].id",
+      "kind": "array",
+      "doc": "This dialect writes a message class path as an array. Asked of every member, not the first: a list may open with a shape that omits it."
+     },
+     {
+      "path": "$[?@.lc]",
+      "exists": true
+     },
+     {
+      "path": "$[?@.kwargs]",
+      "exists": true
+     },
+     {
+      "path": "$[*].role",
+      "one_of": [
+       "system",
+       "developer"
+      ],
+      "doc": "A Chat Completions request body, which the OpenAI instrumentor serialises whole and flattens message by message. Its system turn sits inside the list, so the list is indexed exactly as the family is. A request whose system prompt sits beside the list (Converse, Messages) would shift every position by one, which is why a role list alone is not enough."
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/openinference.json",
+   "path": [
+    "messages",
+    {
+     "id": "openinference.input_messages"
+    },
+    "read",
+    "overlay",
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "kind": "array"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/openinference.json",
+   "path": [
+    "messages",
+    {
+     "id": "openinference.output_messages"
+    },
+    "read",
+    "overlay",
+    "witness"
+   ],
+   "retired": {
+    "any": [
+     {
+      "path": "$[*].message.id",
+      "kind": "array",
+      "doc": "A generation's message carries its class path as an array."
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/openinference.json",
+   "path": [
+    "messages",
+    {
+     "id": "openinference.output_messages"
+    },
+    "read",
+    "overlay",
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "kind": "array"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/pydantic-ai.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "pydantic-ai.tool_call_response"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "tool_call_response"
+      ]
+     },
+     {
+      "path": "$.result",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/pydantic-ai.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "pydantic-ai.thinking_content"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "thinking"
+      ]
+     },
+     {
+      "path": "$.content",
+      "kind": "string"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/smolagents.json",
+   "path": [
+    "messages",
+    {
+     "id": "smolagents.tool_input"
+    },
+    "alternatives",
+    {
+     "id": "kwargs"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "kind": "object"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/smolagents.json",
+   "path": [
+    "messages",
+    {
+     "id": "smolagents.llm_input_reprs"
+    },
+    "alternatives",
+    {
+     "id": "chat_message_reprs"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.role",
+      "exists": true
+     },
+     {
+      "path": "$.role",
+      "none_of": [
+       "tool-call",
+       "tool-response"
+      ],
+      "doc": "Smolagents' rendered `Calling tools` and `Observation` bookkeeping, as the indexed family's reading excludes it: the model's call and the TOOL span are the lossless copies."
+     },
+     {
+      "path": "$.content[0].text",
+      "doc": "The agent's memory re-sends a step whose model output was empty as an assistant turn with one blank text part; it says nothing.",
+      "non_empty": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/smolagents.json",
+   "path": [
+    "fragments",
+    "stream_object",
+    "cases",
+    {
+     "id": "tool_call"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.__python_constructor",
+      "one_of": [
+       "ToolCall"
+      ]
+     },
+     {
+      "path": "$.name",
+      "kind": "string"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/smolagents.json",
+   "path": [
+    "fragments",
+    "stream_object",
+    "cases",
+    {
+     "id": "tool_output"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.__python_constructor",
+      "one_of": [
+       "ToolOutput"
+      ]
+     },
+     {
+      "path": "$.id",
+      "kind": "string"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/strands.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "strands.content_list_part"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "text"
+      ]
+     },
+     {
+      "path": "$.content",
+      "kind": "array"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/strands.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "strands.reasoning_content_part"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "reasoningContent"
+      ]
+     },
+     {
+      "path": "$.content",
+      "kind": "object"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/strands.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "strands.tool_call_argument_list"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "tool_call"
+      ]
+     },
+     {
+      "path": "$.name",
+      "kind": "string"
+     },
+     {
+      "path": "$.arguments[0].content",
+      "kind": "object"
+     },
+     {
+      "path": "$.arguments[1]",
+      "exists": false
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/strands.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "strands.tool_use_block"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "toolUse"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/strands.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "strands.tool_result_block"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "toolResult"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/traceloop.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "traceloop.serialised_converse_block"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "text"
+      ]
+     },
+     {
+      "path": "$.content",
+      "starts_with": "{\"reasoningContent\""
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/producers/vercel-ai.json",
+   "path": [
+    "messages",
+    {
+     "id": "vercel-ai.prompt"
+    },
+    "alternatives",
+    {
+     "id": "the_payload_is_the"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "kind": "object"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-anthropic.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "anthropic.thinking"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "thinking"
+      ]
+     },
+     {
+      "path": "$.thinking",
+      "kind": "string"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-anthropic.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "anthropic.thinking_text"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "thinking"
+      ]
+     },
+     {
+      "path": "$.text",
+      "kind": "string"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-anthropic.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "anthropic.thinking_withheld"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "thinking"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-anthropic.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "anthropic.redacted_thinking"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "redacted_thinking"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-anthropic.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "anthropic.image_base64"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "image"
+      ]
+     },
+     {
+      "path": "$.source.type",
+      "one_of": [
+       "base64"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-anthropic.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "anthropic.image_url"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "image"
+      ]
+     },
+     {
+      "path": "$.source.type",
+      "one_of": [
+       "url"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-anthropic.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "anthropic.document_base64"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "document"
+      ]
+     },
+     {
+      "path": "$.source.type",
+      "one_of": [
+       "base64"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-anthropic.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "anthropic.document_url"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "document"
+      ]
+     },
+     {
+      "path": "$.source.type",
+      "one_of": [
+       "url"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-anthropic.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "anthropic.tool_use"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "tool_use"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-anthropic.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "anthropic.tool_result"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "tool_result"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-bedrock.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "bedrock.text"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$",
+      "only_members": [
+       "text"
+      ],
+      "doc": "Exactly a text member. A structured output that happens to have a `text` field beside others is the producer's data, and reading it as prose would lose the rest."
+     },
+     {
+      "path": "$.text",
+      "kind": "string"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-bedrock.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "bedrock.json"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$",
+      "only_members": [
+       "json"
+      ]
+     },
+     {
+      "path": "$.json",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-bedrock.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "bedrock.reasoning_text"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.reasoningContent.reasoningText",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-bedrock.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "bedrock.reasoning_redacted"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.reasoningContent.redactedContent",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-bedrock.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "bedrock.reasoning_other"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.reasoningContent",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-bedrock.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "bedrock.image"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.image.source.bytes",
+      "kind": "string"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-bedrock.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "bedrock.document"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.document.source.bytes",
+      "kind": "string"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-bedrock.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "bedrock.video"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.video.source.bytes",
+      "kind": "string"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-bedrock.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "bedrock.tool_use"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.toolUse",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-bedrock.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "bedrock.tool_result"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.toolResult",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-gemini.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "gemini.function_call"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.functionCall",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-gemini.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "gemini.function_call_snake"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.function_call",
+      "exists": true
+     },
+     {
+      "path": "$.functionCall",
+      "exists": false
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-gemini.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "gemini.function_response"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.functionResponse",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-gemini.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "gemini.function_response_snake"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.function_response",
+      "exists": true
+     },
+     {
+      "path": "$.functionResponse",
+      "exists": false
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-gemini.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "gemini.inline_data"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.inlineData.data",
+      "kind": "string"
+     },
+     {
+      "path": "$.inline_data",
+      "exists": false
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-gemini.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "gemini.thinking_part"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$",
+      "only_members": [
+       "thinking"
+      ]
+     },
+     {
+      "path": "$.thinking",
+      "kind": "string"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-gemini.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "gemini.thought_part"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.thought",
+      "equals": true
+     },
+     {
+      "path": "$.text",
+      "kind": "string"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-gemini.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "gemini.inline_data_snake"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.inline_data",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-gemini.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "gemini.file_data_snake"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.inline_data",
+      "exists": false,
+      "doc": "A part holding an inline_data member, readable or not, is an inline part; its file_data is not consulted."
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-mcp.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "mcp.call_tool_result"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.content",
+      "kind": "array"
+     },
+     {
+      "path": "$.content[1]",
+      "exists": false
+     },
+     {
+      "path": "$.isError",
+      "exists": true
+     },
+     {
+      "path": "$[?$.isError == true]",
+      "exists": false,
+      "doc": "Selects every member when the flag is true, and nothing otherwise."
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-mistral.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "mistral.thinking_chunks"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "thinking"
+      ]
+     },
+     {
+      "path": "$.thinking[?@.type == 'text'].text",
+      "kind": "string",
+      "doc": "At least one text chunk: a chunk list with none holds no reasoning here, and the block is read from its other members."
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-openai.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "openai.text"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "text",
+       "input_text",
+       "output_text"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-openai.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "openai.image_url"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "image_url",
+       "input_image"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-openai.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "openai.input_audio"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "input_audio"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-openai.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "openai.audio"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "audio"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-openai.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "openai.input_file_data"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "input_file"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-openai.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "openai.input_file_url"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "input_file"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-openai.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "openai.input_file_id"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "input_file"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-openai.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "openai.file_data"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "file"
+      ]
+     },
+     {
+      "path": "$.file",
+      "kind": "object",
+      "doc": "Chat Completions' file part holds the same members under `file`. A `file` block without that object is another dialect's, and is left to it."
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-openai.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "openai.file_url"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "file"
+      ]
+     },
+     {
+      "path": "$.file",
+      "kind": "object"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-openai.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "openai.file_id"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "file"
+      ]
+     },
+     {
+      "path": "$.file",
+      "kind": "object"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-openai.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "openai.refusal"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "refusal"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-openai.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "openai.output_json"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "output_json",
+       "json_object"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-vercel.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "vercel.tool_call"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "tool-call"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-vercel.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "vercel.tool_result"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "tool-result"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-vercel.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "vercel.json"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "json"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-vercel.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "vercel.text"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "text"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-vercel.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "vercel.file"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "file"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-vercel.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "vercel.aggregated_response"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.content",
+      "kind": "string"
+     },
+     {
+      "path": "$.type",
+      "exists": false,
+      "doc": "No block type at all. The retired reader also reached this case for a type that is not a *string*, which is one predicate this vocabulary cannot spell - so such a block is left to the rest of the chain instead of being claimed as text. The safe direction, and no producer of this dialect writes a non-string type; pinned as a test rather than left to be discovered."
+     }
+    ],
+    "any": [
+     {
+      "path": "$.finishReason",
+      "exists": true
+     },
+     {
+      "path": "$.providerMetadata",
+      "exists": true
+     },
+     {
+      "path": "$.role",
+      "one_of": [
+       "assistant"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-wrappers.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "wrappers.content_member"
+    },
+    "where"
+   ],
+   "retired": {
+    "any": [
+     {
+      "path": "$.message_content",
+      "exists": true
+     },
+     {
+      "path": "$.value",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-wrappers.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "wrappers.reasoning"
+    },
+    "where"
+   ],
+   "retired": {
+    "any": [
+     {
+      "path": "$.reasoning_content",
+      "exists": true
+     },
+     {
+      "path": "$.reasoning",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/content-blocks-wrappers.json",
+   "path": [
+    "content_blocks",
+    {
+     "id": "wrappers.serialisation_envelope"
+    },
+    "where"
+   ],
+   "retired": {
+    "any": [
+     {
+      "path": "$.kwargs.content",
+      "exists": true
+     },
+     {
+      "path": "$.kwargs.type",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/tool-shapes.json",
+   "path": [
+    "tool_shapes",
+    {
+     "id": "tool-shapes.canonical_function"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.type",
+      "one_of": [
+       "function"
+      ]
+     },
+     {
+      "path": "$.function",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/tool-shapes.json",
+   "path": [
+    "tool_shapes",
+    {
+     "id": "tool-shapes.tool_spec"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.toolSpec.name",
+      "exists": true
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/tool-shapes.json",
+   "path": [
+    "tool_shapes",
+    {
+     "id": "tool-shapes.function_declarations"
+    },
+    "where"
+   ],
+   "retired": {
+    "any": [
+     {
+      "path": "$.functionDeclarations",
+      "kind": "array"
+     },
+     {
+      "path": "$.function_declarations",
+      "kind": "array"
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/tool-shapes.json",
+   "path": [
+    "tool_shapes",
+    {
+     "id": "tool-shapes.parameter_definitions"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.name",
+      "exists": true
+     },
+     {
+      "path": "$.parameter_definitions",
+      "exists": true
+     },
+     {
+      "path": "$.input_schema",
+      "exists": false
+     },
+     {
+      "path": "$.function",
+      "exists": false
+     }
+    ]
+   }
+  },
+  {
+   "asset": "assets/rules/vocabulary/tool-shapes.json",
+   "path": [
+    "tool_shapes",
+    {
+     "id": "tool-shapes.named_object"
+    },
+    "where"
+   ],
+   "retired": {
+    "all": [
+     {
+      "path": "$.name",
+      "exists": true
+     },
+     {
+      "path": "$.function",
+      "exists": false
+     }
+    ]
+   }
+  }
+ ]
+}

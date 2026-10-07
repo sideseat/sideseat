@@ -65,14 +65,10 @@
           "doc": "A Responses request: its items under `input`.",
           "select": "$.input[*]",
           "then_fragment": "langfuse.item",
-          "require_parent": {
-            "all": [
-              {
-                "path": "$.input",
-                "kind": "array",
-                "non_empty": true
-              }
-            ]
+          "parent_where": {
+            "path": "$.input",
+            "kind": "array",
+            "non_empty": true
           }
         },
         {
@@ -287,14 +283,10 @@
         {
           "id": "function_call",
           "doc": "The model asking for one tool to run.",
-          "require": {
-            "all": [
-              {
-                "path": "$.type",
-                "one_of": [
-                  "function_call"
-                ]
-              }
+          "where": {
+            "path": "$.type",
+            "one_of": [
+              "function_call"
             ]
           },
           "wrap": {
@@ -311,7 +303,7 @@
         {
           "id": "function_call_output",
           "doc": "What the application returned for that call, paired to it by the call id.",
-          "require": {
+          "where": {
             "all": [
               {
                 "path": "$.type",
@@ -344,14 +336,10 @@
         {
           "id": "message",
           "doc": "A chat message or a Responses message item: it states its own role, and its content is read structurally at query time.",
-          "require": {
-            "all": [
-              {
-                "path": "$.role",
-                "kind": "string",
-                "non_empty": true
-              }
-            ]
+          "where": {
+            "path": "$.role",
+            "kind": "string",
+            "non_empty": true
           }
         }
       ]

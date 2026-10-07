@@ -8,14 +8,10 @@
       "at": "after_provider_formats",
       "priority": 100,
       "doc": "A call. The name is required, because a nameless call names nothing to run - a block without one is left to the rest of the chain, as the retired reader left it. Two spellings of the arguments, and an empty object counts as absent, so the member this dialect stopped using does not win by being present.",
-      "require": {
-        "all": [
-          {
-            "path": "$.type",
-            "one_of": [
-              "tool-call"
-            ]
-          }
+      "where": {
+        "path": "$.type",
+        "one_of": [
+          "tool-call"
         ]
       },
       "tool_use": {
@@ -36,14 +32,10 @@
       "at": "after_provider_formats",
       "priority": 110,
       "doc": "What it returned, under either of two member names, with the same call id so the pair is joined by an id rather than guessed at by content.",
-      "require": {
-        "all": [
-          {
-            "path": "$.type",
-            "one_of": [
-              "tool-result"
-            ]
-          }
+      "where": {
+        "path": "$.type",
+        "one_of": [
+          "tool-result"
         ]
       },
       "tool_result": {
@@ -64,14 +56,10 @@
       "id": "vercel.json",
       "at": "after_provider_formats",
       "priority": 120,
-      "require": {
-        "all": [
-          {
-            "path": "$.type",
-            "one_of": [
-              "json"
-            ]
-          }
+      "where": {
+        "path": "$.type",
+        "one_of": [
+          "json"
         ]
       },
       "json": {
@@ -85,14 +73,10 @@
       "at": "after_provider_formats",
       "priority": 130,
       "doc": "Prose under `value` rather than `text`, which is this dialect's spelling. The member is *not* declared as required, because it already is: only a string is text, so a block without it builds nothing and falls through - the retired reader's own guard, and stating it again here would be a condition no test could hold to account.",
-      "require": {
-        "all": [
-          {
-            "path": "$.type",
-            "one_of": [
-              "text"
-            ]
-          }
+      "where": {
+        "path": "$.type",
+        "one_of": [
+          "text"
         ]
       },
       "text": {
@@ -106,14 +90,10 @@
       "at": "after_provider_formats",
       "priority": 140,
       "doc": "Bytes or a reference to them. Two spellings of the media type - the newer one first, since the older is what older SDK versions wrote. Which kind of block it becomes, and whether the data is a reference, are both derived from the media type and the data rather than declared.",
-      "require": {
-        "all": [
-          {
-            "path": "$.type",
-            "one_of": [
-              "file"
-            ]
-          }
+      "where": {
+        "path": "$.type",
+        "one_of": [
+          "file"
         ]
       },
       "media": {
@@ -131,7 +111,7 @@
       "at": "after_provider_formats",
       "priority": 150,
       "doc": "The whole response as one object, with no block type: prose under `content`, beside a member only this dialect writes. The type condition is what keeps this from claiming a block whose type simply is not one of the five above - the retired reader answered nothing for such a block, and answering *text* instead would turn any unrecognised typed block carrying a `content` string into a message.",
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.content",
@@ -141,21 +121,23 @@
             "path": "$.type",
             "exists": false,
             "doc": "No block type at all. The retired reader also reached this case for a type that is not a *string*, which is one predicate this vocabulary cannot spell - so such a block is left to the rest of the chain instead of being claimed as text. The safe direction, and no producer of this dialect writes a non-string type; pinned as a test rather than left to be discovered."
-          }
-        ],
-        "any": [
-          {
-            "path": "$.finishReason",
-            "exists": true
           },
           {
-            "path": "$.providerMetadata",
-            "exists": true
-          },
-          {
-            "path": "$.role",
-            "one_of": [
-              "assistant"
+            "any": [
+              {
+                "path": "$.finishReason",
+                "exists": true
+              },
+              {
+                "path": "$.providerMetadata",
+                "exists": true
+              },
+              {
+                "path": "$.role",
+                "one_of": [
+                  "assistant"
+                ]
+              }
             ]
           }
         ]

@@ -93,7 +93,9 @@
         "attribute": "lk.instructions"
       },
       "parse": "text",
-      "require_non_empty": true,
+      "raw_where": {
+        "non_empty": true
+      },
       "wrap": {
         "role": "system"
       },
@@ -136,7 +138,9 @@
         ]
       },
       "parse": "text",
-      "require_non_empty": true,
+      "raw_where": {
+        "non_empty": true
+      },
       "wrap": {
         "role": "user"
       },

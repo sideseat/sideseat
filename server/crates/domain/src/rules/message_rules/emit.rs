@@ -125,12 +125,7 @@ pub(super) fn emit_rule<'p>(
             rule.require_members.as_ref(),
         )
         .into_iter()
-        .filter(|entry| {
-            rule.read
-                .entry_require
-                .as_ref()
-                .is_none_or(|require| predicates_hold(&entry.value, require))
-        })
+        .filter(|entry| predicates_hold(&entry.value, &rule.read.entry_require))
         .collect::<Vec<_>>();
         // A result set is one observation. Its entries are the array, and the envelope says what the array
         // is - so the whole family is tagged once rather than one carrier per document.
@@ -210,10 +205,7 @@ pub(super) fn emit_rule<'p>(
             let Some((attribute, raw)) = resolve_attribute(&rule.read, ctx.span_attrs) else {
                 return out;
             };
-            if rule.require_non_empty && raw.is_empty() {
-                return out;
-            }
-            if rule.require_non_blank && raw.trim().is_empty() {
+            if !predicates_hold(&JsonValue::String(raw.to_string()), &rule.raw_where) {
                 return out;
             }
             // An array-valued carrier read element by element, in declared passes.

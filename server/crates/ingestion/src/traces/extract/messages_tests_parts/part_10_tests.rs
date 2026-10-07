@@ -102,13 +102,7 @@ fn a_wider_gate_suppresses_a_narrower_one() {
         ),
         (
             "a root `starts_with` beside its own negation, which holds of every value",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","priority":1,
-                 "alternatives":[{"id":"probe.alt","require":{"any":[
-                    {"starts_with":"a"},{"lacks_prefix":"a"}]},
-                  "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
-                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "priority":2}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "alternatives": [{"id": "probe.alt", "where": {"any": [{"starts_with": "a"}, {"lacks_prefix": "a"}]}, "wrap": {"role": "user", "content_from_any_of": ["$.content"]}}]}, {"id": "b", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 2}]}"#,
         ),
         (
             "`elements` beside an explicitly false aggregate, which it also ignores",
@@ -134,17 +128,11 @@ fn a_wider_gate_suppresses_a_narrower_one() {
         ),
         (
             "the same gate, where the earlier rule may read nothing on a span it runs on",
-            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "where": {"source": "attr:marker", "exists": true}, "tag_as": "a.tag", "priority": 1, "alternatives": [{"id": "probe.alt", "require": {"any": [{"path": "$.kind", "one_of": ["first"]}]}, "wrap": {"role": "user", "content_from_any_of": ["$.content"]}}]}, {"id": "b", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "where": {"source": "attr:marker", "exists": true}, "tag_as": "b.tag", "priority": 2}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "where": {"source": "attr:marker", "exists": true}, "tag_as": "a.tag", "priority": 1, "alternatives": [{"id": "probe.alt", "where": {"path": "$.kind", "one_of": ["first"]}, "wrap": {"role": "user", "content_from_any_of": ["$.content"]}}]}, {"id": "b", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "where": {"source": "attr:marker", "exists": true}, "tag_as": "b.tag", "priority": 2}]}"#,
         ),
         (
             "a reading narrowed only by `require_parent`, which narrows as `require` does",
-            r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "tag_as":"a.tag","priority":1,
-                 "alternatives":[{"id":"probe.alt","require_parent":{"any":[{"path":"$.kind","one_of":["k"]}]},
-                  "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
-                {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-                 "tag_as":"b.tag","priority":2}]}"#,
+            r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "tag_as": "a.tag", "priority": 1, "alternatives": [{"id": "probe.alt", "parent_where": {"path": "$.kind", "one_of": ["k"]}, "wrap": {"role": "user", "content_from_any_of": ["$.content"]}}]}, {"id": "b", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "tag_as": "b.tag", "priority": 2}]}"#,
         ),
         (
             "a single-spelling `first_present`, which is not a choice",
@@ -178,45 +166,16 @@ fn a_wider_gate_suppresses_a_narrower_one() {
 #[test]
 fn conditionality_is_a_property_of_the_carrier_not_of_the_rule() {
     // Rule A reads family `f` always and `side` only where the witness holds; rule B reads `f.0.content`.
-    let family_key_conflict = r#"{"id":"t","doc":"d","messages":[
-        {"id":"a","doc":"d","priority":1,
-         "read":{"indexed_family":"f","overlay":{
-            "from":"side","parse":"json","select_any_of":["$"],
-            "witness":{"any":[{"path":"$[*].id","kind":"array"}]},
-            "when_member_prefix":"contents.","content_any_of":["$.content"],
-            "as_member":"content"}},
-         "emit":"message"},
-        {"id":"b","doc":"d","read":{"attribute":"f.0.content"},"parse":"json","emit":"message",
-         "tag_as":"b.own.tag","priority":2}]}"#;
+    let family_key_conflict = r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "priority": 1, "read": {"indexed_family": "f", "overlay": {"from": "side", "parse": "json", "select_any_of": ["$"], "witness": {"path": "$[*].id", "kind": "array"}, "when_member_prefix": "contents.", "content_any_of": ["$.content"], "as_member": "content"}}, "emit": "message"}, {"id": "b", "doc": "d", "read": {"attribute": "f.0.content"}, "parse": "json", "emit": "message", "tag_as": "b.own.tag", "priority": 2}]}"#;
     // The same overlay, against a rule reading the payload the overlay joins against. Genuinely conditional:
     // A consumes `side` only where the witness holds, and yields it elsewhere.
-    let side_payload_pair = r#"{"id":"t","doc":"d","messages":[
-        {"id":"a","doc":"d","priority":1,
-         "read":{"indexed_family":"f","overlay":{
-            "from":"side","parse":"json","select_any_of":["$"],
-            "witness":{"any":[{"path":"$[*].id","kind":"array"}]},
-            "when_member_prefix":"contents.","content_any_of":["$.content"],
-            "as_member":"content"}},
-         "emit":"message"},
-        {"id":"b","doc":"d","read":{"attribute":"side"},"parse":"json","emit":"message",
-         "priority":2}]}"#;
+    let side_payload_pair = r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "priority": 1, "read": {"indexed_family": "f", "overlay": {"from": "side", "parse": "json", "select_any_of": ["$"], "witness": {"path": "$[*].id", "kind": "array"}, "when_member_prefix": "contents.", "content_any_of": ["$.content"], "as_member": "content"}}, "emit": "message"}, {"id": "b", "doc": "d", "read": {"attribute": "side"}, "parse": "json", "emit": "message", "priority": 2}]}"#;
     // Rule A reads `x` through one required alternative *and* an unconditional fallback, so it claims `x` on
     // every span; rule B reads `x` too.
-    let unconditional_fallback = r#"{"id":"t","doc":"d","messages":[
-        {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","priority":1,
-         "alternatives":[{"id":"probe.alt","require":{"any":[{"path":"$.marker","exists":true}]},
-                          "wrap":{"role":"user","content_from_any_of":["$.content"]}}],
-         "fallback":[{"id":"probe.fallback","wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
-        {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-         "priority":2}]}"#;
+    let unconditional_fallback = r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "alternatives": [{"id": "probe.alt", "where": {"path": "$.marker", "exists": true}, "wrap": {"role": "user", "content_from_any_of": ["$.content"]}}], "fallback": [{"id": "probe.fallback", "wrap": {"role": "user", "content_from_any_of": ["$.content"]}}]}, {"id": "b", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 2}]}"#;
     // The same rule with no unconditional path: every reading is required, so it yields on a payload none
     // recognises and the pair is genuine.
-    let all_readings_required = r#"{"id":"t","doc":"d","messages":[
-        {"id":"a","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message","priority":1,
-         "alternatives":[{"id":"probe.alt","require":{"any":[{"path":"$.marker","exists":true}]},
-                          "wrap":{"role":"user","content_from_any_of":["$.content"]}}]},
-        {"id":"b","doc":"d","read":{"attribute":"x"},"parse":"json","emit":"message",
-         "priority":2}]}"#;
+    let all_readings_required = r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 1, "alternatives": [{"id": "probe.alt", "where": {"path": "$.marker", "exists": true}, "wrap": {"role": "user", "content_from_any_of": ["$.content"]}}]}, {"id": "b", "doc": "d", "read": {"attribute": "x"}, "parse": "json", "emit": "message", "priority": 2}]}"#;
 
     for (what, asset) in [
         (

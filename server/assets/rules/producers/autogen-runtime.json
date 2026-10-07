@@ -14,7 +14,6 @@
       "also": [
         {
           "id": "messages",
-          "require": {},
           "select": "$.messages",
           "each": true,
           "then_fragment": "autogen.message",
@@ -22,7 +21,7 @@
             {
               "id": "role",
               "doc": "A shape the table refused that carries a role or content.",
-              "require": {
+              "where": {
                 "any": [
                   {
                     "path": "$.role",
@@ -36,7 +35,7 @@
               }
             }
           ],
-          "require_parent": {
+          "parent_where": {
             "all": [
               {
                 "path": "$.type",
@@ -54,7 +53,6 @@
         },
         {
           "id": "response",
-          "require": {},
           "select": "$.response",
           "wrap": {
             "role": "assistant",
@@ -69,57 +67,40 @@
                   "$.tool_calls",
                   "$.choices[0].message.tool_calls"
                 ],
-                "require": {
-                  "all": [
-                    {
-                      "non_empty": true
-                    }
-                  ]
+                "where": {
+                  "non_empty": true
                 },
                 "as": "tool_calls"
               }
             ]
           },
-          "require_parent": {
-            "all": [
-              {
-                "path": "$.type",
-                "one_of": [
-                  "LLMCall",
-                  "LLMStreamEnd"
-                ]
-              }
+          "parent_where": {
+            "path": "$.type",
+            "one_of": [
+              "LLMCall",
+              "LLMStreamEnd"
             ]
           }
         },
         {
           "id": "tools",
-          "require": {},
           "select": "$.tools",
           "emit": "tool_definitions",
           "doc": "The tools the call was offered. A set, not a sequence of turns.",
-          "require_parent": {
-            "all": [
-              {
-                "path": "$.type",
-                "one_of": [
-                  "LLMCall",
-                  "LLMStreamEnd"
-                ]
-              }
+          "parent_where": {
+            "path": "$.type",
+            "one_of": [
+              "LLMCall",
+              "LLMStreamEnd"
             ]
           }
         },
         {
           "id": "as_tool",
-          "require": {
-            "all": [
-              {
-                "path": "$.type",
-                "one_of": [
-                  "ToolCall"
-                ]
-              }
+          "where": {
+            "path": "$.type",
+            "one_of": [
+              "ToolCall"
             ]
           },
           "wrap": {
@@ -158,7 +139,6 @@
       "also": [
         {
           "id": "messages",
-          "require": {},
           "select": "$.messages",
           "each": true,
           "then_fragment": "autogen.message",
@@ -166,7 +146,7 @@
             {
               "id": "role",
               "doc": "A shape the table refused that carries a role or content.",
-              "require": {
+              "where": {
                 "any": [
                   {
                     "path": "$.role",
@@ -180,7 +160,7 @@
               }
             }
           ],
-          "require_parent": {
+          "parent_where": {
             "all": [
               {
                 "path": "$.type",
@@ -198,7 +178,6 @@
         },
         {
           "id": "response",
-          "require": {},
           "select": "$.response",
           "wrap": {
             "role": "assistant",
@@ -213,57 +192,40 @@
                   "$.tool_calls",
                   "$.choices[0].message.tool_calls"
                 ],
-                "require": {
-                  "all": [
-                    {
-                      "non_empty": true
-                    }
-                  ]
+                "where": {
+                  "non_empty": true
                 },
                 "as": "tool_calls"
               }
             ]
           },
-          "require_parent": {
-            "all": [
-              {
-                "path": "$.type",
-                "one_of": [
-                  "LLMCall",
-                  "LLMStreamEnd"
-                ]
-              }
+          "parent_where": {
+            "path": "$.type",
+            "one_of": [
+              "LLMCall",
+              "LLMStreamEnd"
             ]
           }
         },
         {
           "id": "tools",
-          "require": {},
           "select": "$.tools",
           "emit": "tool_definitions",
           "doc": "The tools the call was offered. A set, not a sequence of turns.",
-          "require_parent": {
-            "all": [
-              {
-                "path": "$.type",
-                "one_of": [
-                  "LLMCall",
-                  "LLMStreamEnd"
-                ]
-              }
+          "parent_where": {
+            "path": "$.type",
+            "one_of": [
+              "LLMCall",
+              "LLMStreamEnd"
             ]
           }
         },
         {
           "id": "as_tool",
-          "require": {
-            "all": [
-              {
-                "path": "$.type",
-                "one_of": [
-                  "ToolCall"
-                ]
-              }
+          "where": {
+            "path": "$.type",
+            "one_of": [
+              "ToolCall"
             ]
           },
           "wrap": {
@@ -302,7 +264,6 @@
       "also": [
         {
           "id": "messages",
-          "require": {},
           "select": "$.messages",
           "each": true,
           "then_fragment": "autogen.message",
@@ -310,7 +271,7 @@
             {
               "id": "role",
               "doc": "A shape the table refused that carries a role or content.",
-              "require": {
+              "where": {
                 "any": [
                   {
                     "path": "$.role",
@@ -324,7 +285,7 @@
               }
             }
           ],
-          "require_parent": {
+          "parent_where": {
             "all": [
               {
                 "path": "$.type",
@@ -342,7 +303,6 @@
         },
         {
           "id": "response",
-          "require": {},
           "select": "$.response",
           "wrap": {
             "role": "assistant",
@@ -357,57 +317,40 @@
                   "$.tool_calls",
                   "$.choices[0].message.tool_calls"
                 ],
-                "require": {
-                  "all": [
-                    {
-                      "non_empty": true
-                    }
-                  ]
+                "where": {
+                  "non_empty": true
                 },
                 "as": "tool_calls"
               }
             ]
           },
-          "require_parent": {
-            "all": [
-              {
-                "path": "$.type",
-                "one_of": [
-                  "LLMCall",
-                  "LLMStreamEnd"
-                ]
-              }
+          "parent_where": {
+            "path": "$.type",
+            "one_of": [
+              "LLMCall",
+              "LLMStreamEnd"
             ]
           }
         },
         {
           "id": "tools",
-          "require": {},
           "select": "$.tools",
           "emit": "tool_definitions",
           "doc": "The tools the call was offered. A set, not a sequence of turns.",
-          "require_parent": {
-            "all": [
-              {
-                "path": "$.type",
-                "one_of": [
-                  "LLMCall",
-                  "LLMStreamEnd"
-                ]
-              }
+          "parent_where": {
+            "path": "$.type",
+            "one_of": [
+              "LLMCall",
+              "LLMStreamEnd"
             ]
           }
         },
         {
           "id": "as_tool",
-          "require": {
-            "all": [
-              {
-                "path": "$.type",
-                "one_of": [
-                  "ToolCall"
-                ]
-              }
+          "where": {
+            "path": "$.type",
+            "one_of": [
+              "ToolCall"
             ]
           },
           "wrap": {

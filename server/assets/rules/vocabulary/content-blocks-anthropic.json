@@ -7,7 +7,7 @@
       "id": "anthropic.thinking",
       "at": "provider_formats",
       "priority": 1951,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.type",
@@ -35,7 +35,7 @@
       "id": "anthropic.thinking_text",
       "at": "provider_formats",
       "priority": 1952,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.type",
@@ -63,14 +63,10 @@
       "id": "anthropic.thinking_withheld",
       "at": "provider_formats",
       "priority": 1954,
-      "require": {
-        "all": [
-          {
-            "path": "$.type",
-            "one_of": [
-              "thinking"
-            ]
-          }
+      "where": {
+        "path": "$.type",
+        "one_of": [
+          "thinking"
         ]
       },
       "thinking": {
@@ -84,14 +80,10 @@
       "id": "anthropic.redacted_thinking",
       "at": "provider_formats",
       "priority": 1960,
-      "require": {
-        "all": [
-          {
-            "path": "$.type",
-            "one_of": [
-              "redacted_thinking"
-            ]
-          }
+      "where": {
+        "path": "$.type",
+        "one_of": [
+          "redacted_thinking"
         ]
       },
       "redacted_thinking": {
@@ -104,7 +96,7 @@
       "id": "anthropic.image_base64",
       "at": "provider_formats",
       "priority": 2000,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.type",
@@ -139,7 +131,7 @@
       "id": "anthropic.image_url",
       "at": "provider_formats",
       "priority": 2001,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.type",
@@ -173,7 +165,7 @@
       "id": "anthropic.document_base64",
       "at": "provider_formats",
       "priority": 2002,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.type",
@@ -207,7 +199,7 @@
       "id": "anthropic.document_url",
       "at": "provider_formats",
       "priority": 2003,
-      "require": {
+      "where": {
         "all": [
           {
             "path": "$.type",
@@ -241,14 +233,10 @@
       "id": "anthropic.tool_use",
       "at": "provider_formats",
       "priority": 2005,
-      "require": {
-        "all": [
-          {
-            "path": "$.type",
-            "one_of": [
-              "tool_use"
-            ]
-          }
+      "where": {
+        "path": "$.type",
+        "one_of": [
+          "tool_use"
         ]
       },
       "tool_use": {
@@ -268,14 +256,10 @@
       "id": "anthropic.tool_result",
       "at": "provider_formats",
       "priority": 2010,
-      "require": {
-        "all": [
-          {
-            "path": "$.type",
-            "one_of": [
-              "tool_result"
-            ]
-          }
+      "where": {
+        "path": "$.type",
+        "one_of": [
+          "tool_result"
         ]
       },
       "tool_result": {

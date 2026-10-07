@@ -17,10 +17,7 @@ fn a_rules_work_is_bounded_by_the_server() {
     let plan = compile(
         &ParsedAssets::parse(&std::collections::BTreeMap::from([(
             "t.json".to_string(),
-            br#"{"id":"t","messages":[{"id":"t.w","read":{"attribute":"state"},"parse":"json",
-             "emit":"message","priority":1,"walk":{"max_depth":3,"stop_on":["as_message"]},
-             "also":[{"id":"as_message","require":{"all":[{"path":"$.role"},{"path":"$.content"}]},
-               "wrap":{"role_from":"$.role","content_from_any_of":["$.content"]}}]}]}"#
+            br#"{"id": "t", "messages": [{"id": "t.w", "read": {"attribute": "state"}, "parse": "json", "emit": "message", "priority": 1, "walk": {"max_depth": 3, "stop_on": ["as_message"]}, "also": [{"id": "as_message", "where": {"all": [{"path": "$.role"}, {"path": "$.content"}]}, "wrap": {"role_from": "$.role", "content_from_any_of": ["$.content"]}}]}]}"#
                 .to_vec(),
         )]))
         .expect("the probe assets parse"),
@@ -179,7 +176,10 @@ fn the_predicate_semantics_have_not_migrated_and_here_is_what_still_answers_the_
     }))
     .expect("a predicate set parses");
     assert!(
-        predicates_hold(&serde_json::json!({}), &bare_none_of),
+        predicates_hold(
+            &serde_json::json!({}),
+            &crate::rules::schema::ValueCondition::from_set(&bare_none_of)
+        ),
         "today a missing value satisfies a bare `none_of`, because `logfire`'s element pass needs an event \
          with no name to pass a `none_of` on its name - stated as `any(not exists, some(not one_of))` rather \
          than left to a negation that quietly accepts absence"
@@ -187,7 +187,10 @@ fn the_predicate_semantics_have_not_migrated_and_here_is_what_still_answers_the_
     // And it still answers `false` where the member *is* there and matches, or the branch would be a blanket
     // yes rather than a statement about absence.
     assert!(
-        !predicates_hold(&serde_json::json!({"name": "bob"}), &bare_none_of),
+        !predicates_hold(
+            &serde_json::json!({"name": "bob"}),
+            &crate::rules::schema::ValueCondition::from_set(&bare_none_of)
+        ),
         "a present, matching value is still refused"
     );
 
@@ -199,7 +202,10 @@ fn the_predicate_semantics_have_not_migrated_and_here_is_what_still_answers_the_
         "an empty group translates to no expression, which is indistinguishable from declaring nothing"
     );
     assert!(
-        predicates_hold(&serde_json::json!({}), &explicit_empty),
+        predicates_hold(
+            &serde_json::json!({}),
+            &crate::rules::schema::ValueCondition::from_set(&explicit_empty)
+        ),
         "and no expression holds - `langchain.json` ships an explicit `\"all\": []`, so refusing it is a \
          migration rather than a fix"
     );
@@ -216,14 +222,17 @@ fn the_predicate_semantics_have_not_migrated_and_here_is_what_still_answers_the_
     );
     assert!(predicates_hold(
         &serde_json::json!({"role": "user"}),
-        &declared
+        &crate::rules::schema::ValueCondition::from_set(&declared)
     ));
     assert!(!predicates_hold(
         &serde_json::json!({"role": "bot"}),
-        &declared
+        &crate::rules::schema::ValueCondition::from_set(&declared)
     ));
     assert!(
-        !predicates_hold(&serde_json::json!({}), &declared),
+        !predicates_hold(
+            &serde_json::json!({}),
+            &crate::rules::schema::ValueCondition::from_set(&declared)
+        ),
         "an absent value does not satisfy a positive condition - which is the `Unknown` the grammar gives, \
          reaching a decision here"
     );
@@ -712,7 +721,7 @@ fn every_tool_shape_refusal_fires() {
         ),
         (
             "a requirement that could never mean what it says",
-            r#"[{"id":"s","priority":1,"name":"$.name","require":{"all":[{"not_null":true},{"not_null":false}]}}]"#,
+            r#"[{"id": "s", "priority": 1, "name": "$.name", "where": {"all": [{"not_null": true}, {"not_null": false}]}}]"#,
             |e| matches!(e, E::Inexpressible { .. }),
         ),
     ];

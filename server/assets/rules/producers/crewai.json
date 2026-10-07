@@ -110,21 +110,23 @@
           "id": "messages",
           "doc": "The conversation's turns.",
           "select": "$.messages[*]",
-          "require": {
+          "where": {
             "all": [
               {
                 "path": "$.role"
-              }
-            ],
-            "any": [
-              {
-                "path": "$.content"
               },
               {
-                "path": "$.tool_calls"
-              },
-              {
-                "path": "$.toolCalls"
+                "any": [
+                  {
+                    "path": "$.content"
+                  },
+                  {
+                    "path": "$.tool_calls"
+                  },
+                  {
+                    "path": "$.toolCalls"
+                  }
+                ]
               }
             ]
           }
@@ -133,21 +135,23 @@
           "id": "messages_2",
           "doc": "And each task's own turns.",
           "select": "$.tasks_output[*].messages[*]",
-          "require": {
+          "where": {
             "all": [
               {
                 "path": "$.role"
-              }
-            ],
-            "any": [
-              {
-                "path": "$.content"
               },
               {
-                "path": "$.tool_calls"
-              },
-              {
-                "path": "$.toolCalls"
+                "any": [
+                  {
+                    "path": "$.content"
+                  },
+                  {
+                    "path": "$.tool_calls"
+                  },
+                  {
+                    "path": "$.toolCalls"
+                  }
+                ]
               }
             ]
           }
@@ -157,13 +161,9 @@
           "doc": "The answer, which is a bare string beside them and so needs its own envelope.",
           "select": "$.raw",
           "trim": true,
-          "require": {
-            "all": [
-              {
-                "kind": "string",
-                "non_empty": true
-              }
-            ]
+          "where": {
+            "kind": "string",
+            "non_empty": true
           },
           "wrap": {
             "role": "assistant"
@@ -460,7 +460,7 @@
         {
           "id": "context",
           "doc": "Only where the tool list is what it holds. A populated `context` or `messages` member is a conversation and keeps the carrier available to message readers.",
-          "require": {
+          "where": {
             "all": [
               {
                 "path": "$.context",
@@ -471,16 +471,18 @@
                 "path": "$.messages",
                 "exists": false,
                 "doc": "A conversation under its other name - CrewAI-through-LangGraph writes `messages`. Claiming a carrier that has one would take the turn away, which `crewai/error` already proved for `context`."
-              }
-            ],
-            "any": [
-              {
-                "path": "$.tools",
-                "non_empty": true
               },
               {
-                "path": "$.tool",
-                "exists": true
+                "any": [
+                  {
+                    "path": "$.tools",
+                    "non_empty": true
+                  },
+                  {
+                    "path": "$.tool",
+                    "exists": true
+                  }
+                ]
               }
             ]
           }
@@ -488,7 +490,7 @@
         {
           "id": "empty_agent_snapshot",
           "doc": "CrewAI's agent execution envelope with no context is configuration metadata even when it declares zero tools. The agent object is the discriminator; a non-empty context or a messages member remains a conversation.",
-          "require": {
+          "where": {
             "all": [
               {
                 "path": "$.agent",
