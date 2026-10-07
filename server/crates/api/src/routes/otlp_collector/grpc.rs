@@ -10,22 +10,13 @@ use tonic::transport::Server as TonicServer;
 use tonic::{Request, Response, Status};
 
 use opentelemetry_proto::tonic::collector::{
-    logs::v1::{
-        ExportLogsServiceRequest, ExportLogsServiceResponse,
-        logs_service_server::{LogsService, LogsServiceServer},
-    },
-    metrics::v1::{
-        ExportMetricsServiceRequest, ExportMetricsServiceResponse,
-        metrics_service_server::{MetricsService, MetricsServiceServer},
-    },
-    trace::v1::{
-        ExportTraceServiceRequest, ExportTraceServiceResponse,
-        trace_service_server::{TraceService, TraceServiceServer},
-    },
+    logs::v1::{ExportLogsServiceRequest, ExportLogsServiceResponse},
+    metrics::v1::{ExportMetricsServiceRequest, ExportMetricsServiceResponse},
+    trace::v1::{ExportTraceServiceRequest, ExportTraceServiceResponse},
 };
 
+use super::grpc_raw::{RawExport, RawExportHandler, Received};
 use crate::extractors::is_valid_project_id;
-use prost::Message;
 use sideseat_core::config::OtelConfig;
 use sideseat_core::constants::{OTLP_BODY_LIMIT, TOPIC_TRACES};
 use sideseat_core::storage::{AppStorage, DataSubdir};
@@ -38,6 +29,7 @@ use sideseat_ingestion::signals::{
 use sideseat_ingestion::staging::{StagedPayloadRef, StagingService};
 use sideseat_messaging::TopicService;
 use sideseat_ports::clock::Clock;
+use tonic::codegen::BoxFuture;
 
 const PROJECT_ID_HEADER: &str = "x-sideseat-project-id";
 const DEFAULT_PROJECT_ID: &str = "default";
@@ -244,8 +236,8 @@ impl OtlpGrpcServer {
         tracing::debug!(%addr, "Starting OTLP gRPC server");
 
         TonicServer::builder()
-            .add_service(
-                TraceServiceServer::new(OtlpTraceService::new(
+            .add_service(RawExport::new(
+                OtlpTraceService::new(
                     self.trace_signal,
                     debug_path.clone(),
                     Arc::clone(&self.database),
@@ -253,12 +245,11 @@ impl OtlpGrpcServer {
                     Arc::clone(&self.clock),
                     Arc::clone(&self.staging),
                     Arc::clone(&self.storage_governance),
-                ))
-                .max_decoding_message_size(OTLP_BODY_LIMIT)
-                .max_encoding_message_size(OTLP_BODY_LIMIT),
-            )
-            .add_service(
-                MetricsServiceServer::new(OtlpMetricsService::new(
+                ),
+                OTLP_BODY_LIMIT,
+            ))
+            .add_service(RawExport::new(
+                OtlpMetricsService::new(
                     self.metrics_signal,
                     Arc::clone(&self.database),
                     debug_path.clone(),
@@ -266,12 +257,11 @@ impl OtlpGrpcServer {
                     Arc::clone(&self.clock),
                     Arc::clone(&self.staging),
                     Arc::clone(&self.storage_governance),
-                ))
-                .max_decoding_message_size(OTLP_BODY_LIMIT)
-                .max_encoding_message_size(OTLP_BODY_LIMIT),
-            )
-            .add_service(
-                LogsServiceServer::new(OtlpLogsService::new(
+                ),
+                OTLP_BODY_LIMIT,
+            ))
+            .add_service(RawExport::new(
+                OtlpLogsService::new(
                     self.log_signal,
                     Arc::clone(&self.database),
                     debug_path,
@@ -279,10 +269,9 @@ impl OtlpGrpcServer {
                     self.clock,
                     self.staging,
                     self.storage_governance,
-                ))
-                .max_decoding_message_size(OTLP_BODY_LIMIT)
-                .max_encoding_message_size(OTLP_BODY_LIMIT),
-            )
+                ),
+                OTLP_BODY_LIMIT,
+            ))
             .serve_with_shutdown(addr, async move {
                 let _ = shutdown_rx.wait_for(|&v| v).await;
                 tracing::debug!("OTLP gRPC server shutting down");
@@ -379,58 +368,58 @@ impl OtlpTraceService {
     }
 }
 
-/// The payload a gRPC export is staged and stored as.
-///
-/// tonic hands over the decoded message, so this is prost's canonical encoding of it rather than the bytes on
-/// the wire: identical for the canonical encoders exporters use, but without any field prost does not know.
-/// HTTP export carries the received body itself.
-fn received_from_grpc(request: &impl Message) -> ReceivedPayload {
-    ReceivedPayload::new(request.encode_to_vec(), RawContent::Protobuf)
-}
+impl RawExportHandler for OtlpTraceService {
+    type Request = ExportTraceServiceRequest;
+    type Response = ExportTraceServiceResponse;
+    const PATH: &'static str = "/opentelemetry.proto.collector.trace.v1.TraceService/Export";
+    const SERVICE: &'static str = "opentelemetry.proto.collector.trace.v1.TraceService";
 
-#[tonic::async_trait]
-impl TraceService for OtlpTraceService {
-    async fn export(
-        &self,
-        request: Request<ExportTraceServiceRequest>,
-    ) -> Result<Response<ExportTraceServiceResponse>, Status> {
-        let project_id = extract_project_id(&request)
-            .ok_or_else(|| Status::invalid_argument("Invalid project_id"))?;
-        // Limited before authorisation, as the HTTP layer is - see `GrpcIngestLimit`.
-        GrpcIngestLimit::check(self.guards.limit.as_ref(), &project_id).await?;
-        // Authorised *before* anything is read from the payload, and against the project the call names -
-        // so `otel.auth.required` refuses an unauthenticated write here exactly as it does over HTTP.
-        if let Some(auth) = &self.guards.auth {
-            auth.authorize(&request, &project_id).await?;
-        }
-        if !project_accepts_writes(&self.database, &project_id).await {
-            return Err(Status::not_found("unknown project, or it is being deleted"));
-        }
-        let req = request.into_inner();
-        let received = received_from_grpc(&req);
-        export_signal(
-            self.signal.as_ref(),
-            req,
-            SignalContext {
-                project_id: &project_id,
-                received: &received,
-                debug_path: self.debug_path.as_deref(),
-                clock: self.clock.as_ref(),
-                staging: self.staging.as_ref(),
-                storage_governance: self.storage_governance.as_ref(),
-            },
-        )
-        .await
-        .map(Response::new)
-        .map_err(|error| match error {
-            SignalExportError::Gone => {
-                Status::not_found("unknown project, trace or session, or it is being deleted")
+    fn export(
+        self: Arc<Self>,
+        request: Request<Received<ExportTraceServiceRequest>>,
+    ) -> BoxFuture<Response<ExportTraceServiceResponse>, Status> {
+        Box::pin(async move {
+            let project_id = extract_project_id(&request)
+                .ok_or_else(|| Status::invalid_argument("Invalid project_id"))?;
+            // Limited before authorisation, as the HTTP layer is - see `GrpcIngestLimit`.
+            GrpcIngestLimit::check(self.guards.limit.as_ref(), &project_id).await?;
+            // Authorised *before* anything is read from the payload, and against the project the call names -
+            // so `otel.auth.required` refuses an unauthenticated write here exactly as it does over HTTP.
+            if let Some(auth) = &self.guards.auth {
+                auth.authorize(&request, &project_id).await?;
             }
-            SignalExportError::StoreUnavailable => Status::unavailable("could not store traces"),
-            SignalExportError::QueueFull => Status::resource_exhausted("trace buffer full"),
-            SignalExportError::QuotaExceeded => {
-                Status::resource_exhausted("project storage quota exceeded")
+            if !project_accepts_writes(&self.database, &project_id).await {
+                return Err(Status::not_found("unknown project, or it is being deleted"));
             }
+            let Received { message: req, raw } = request.into_inner();
+            // The bytes the exporter sent, which is what the raw record must hold - see `grpc_raw`.
+            let received = ReceivedPayload::new(raw.to_vec(), RawContent::Protobuf);
+            export_signal(
+                self.signal.as_ref(),
+                req,
+                SignalContext {
+                    project_id: &project_id,
+                    received: &received,
+                    debug_path: self.debug_path.as_deref(),
+                    clock: self.clock.as_ref(),
+                    staging: self.staging.as_ref(),
+                    storage_governance: self.storage_governance.as_ref(),
+                },
+            )
+            .await
+            .map(Response::new)
+            .map_err(|error| match error {
+                SignalExportError::Gone => {
+                    Status::not_found("unknown project, trace or session, or it is being deleted")
+                }
+                SignalExportError::StoreUnavailable => {
+                    Status::unavailable("could not store traces")
+                }
+                SignalExportError::QueueFull => Status::resource_exhausted("trace buffer full"),
+                SignalExportError::QuotaExceeded => {
+                    Status::resource_exhausted("project storage quota exceeded")
+                }
+            })
         })
     }
 }
@@ -469,47 +458,58 @@ impl OtlpMetricsService {
     }
 }
 
-#[tonic::async_trait]
-impl MetricsService for OtlpMetricsService {
-    async fn export(
-        &self,
-        request: Request<ExportMetricsServiceRequest>,
-    ) -> Result<Response<ExportMetricsServiceResponse>, Status> {
-        let project_id = extract_project_id(&request)
-            .ok_or_else(|| Status::invalid_argument("Invalid project_id"))?;
-        // Limited before authorisation, as the HTTP layer is - see `GrpcIngestLimit`.
-        GrpcIngestLimit::check(self.guards.limit.as_ref(), &project_id).await?;
-        // Authorised *before* anything is read from the payload, and against the project the call names -
-        // so `otel.auth.required` refuses an unauthenticated write here exactly as it does over HTTP.
-        if let Some(auth) = &self.guards.auth {
-            auth.authorize(&request, &project_id).await?;
-        }
-        if !project_accepts_writes(&self.database, &project_id).await {
-            return Err(Status::not_found("unknown project, or it is being deleted"));
-        }
-        let req = request.into_inner();
-        let received = received_from_grpc(&req);
-        export_signal(
-            self.signal.as_ref(),
-            req,
-            SignalContext {
-                project_id: &project_id,
-                received: &received,
-                debug_path: self.debug_path.as_deref(),
-                clock: self.clock.as_ref(),
-                staging: self.staging.as_ref(),
-                storage_governance: self.storage_governance.as_ref(),
-            },
-        )
-        .await
-        .map(Response::new)
-        .map_err(|error| match error {
-            SignalExportError::Gone => Status::not_found("unknown project, or it is being deleted"),
-            SignalExportError::StoreUnavailable => Status::unavailable("could not store metrics"),
-            SignalExportError::QueueFull => Status::resource_exhausted("metrics buffer full"),
-            SignalExportError::QuotaExceeded => {
-                Status::resource_exhausted("project storage quota exceeded")
+impl RawExportHandler for OtlpMetricsService {
+    type Request = ExportMetricsServiceRequest;
+    type Response = ExportMetricsServiceResponse;
+    const PATH: &'static str = "/opentelemetry.proto.collector.metrics.v1.MetricsService/Export";
+    const SERVICE: &'static str = "opentelemetry.proto.collector.metrics.v1.MetricsService";
+
+    fn export(
+        self: Arc<Self>,
+        request: Request<Received<ExportMetricsServiceRequest>>,
+    ) -> BoxFuture<Response<ExportMetricsServiceResponse>, Status> {
+        Box::pin(async move {
+            let project_id = extract_project_id(&request)
+                .ok_or_else(|| Status::invalid_argument("Invalid project_id"))?;
+            // Limited before authorisation, as the HTTP layer is - see `GrpcIngestLimit`.
+            GrpcIngestLimit::check(self.guards.limit.as_ref(), &project_id).await?;
+            // Authorised *before* anything is read from the payload, and against the project the call names -
+            // so `otel.auth.required` refuses an unauthenticated write here exactly as it does over HTTP.
+            if let Some(auth) = &self.guards.auth {
+                auth.authorize(&request, &project_id).await?;
             }
+            if !project_accepts_writes(&self.database, &project_id).await {
+                return Err(Status::not_found("unknown project, or it is being deleted"));
+            }
+            let Received { message: req, raw } = request.into_inner();
+            // The bytes the exporter sent, which is what the raw record must hold - see `grpc_raw`.
+            let received = ReceivedPayload::new(raw.to_vec(), RawContent::Protobuf);
+            export_signal(
+                self.signal.as_ref(),
+                req,
+                SignalContext {
+                    project_id: &project_id,
+                    received: &received,
+                    debug_path: self.debug_path.as_deref(),
+                    clock: self.clock.as_ref(),
+                    staging: self.staging.as_ref(),
+                    storage_governance: self.storage_governance.as_ref(),
+                },
+            )
+            .await
+            .map(Response::new)
+            .map_err(|error| match error {
+                SignalExportError::Gone => {
+                    Status::not_found("unknown project, or it is being deleted")
+                }
+                SignalExportError::StoreUnavailable => {
+                    Status::unavailable("could not store metrics")
+                }
+                SignalExportError::QueueFull => Status::resource_exhausted("metrics buffer full"),
+                SignalExportError::QuotaExceeded => {
+                    Status::resource_exhausted("project storage quota exceeded")
+                }
+            })
         })
     }
 }
@@ -548,47 +548,56 @@ impl OtlpLogsService {
     }
 }
 
-#[tonic::async_trait]
-impl LogsService for OtlpLogsService {
-    async fn export(
-        &self,
-        request: Request<ExportLogsServiceRequest>,
-    ) -> Result<Response<ExportLogsServiceResponse>, Status> {
-        let project_id = extract_project_id(&request)
-            .ok_or_else(|| Status::invalid_argument("Invalid project_id"))?;
-        // Limited before authorisation, as the HTTP layer is - see `GrpcIngestLimit`.
-        GrpcIngestLimit::check(self.guards.limit.as_ref(), &project_id).await?;
-        // Authorised *before* anything is read from the payload, and against the project the call names -
-        // so `otel.auth.required` refuses an unauthenticated write here exactly as it does over HTTP.
-        if let Some(auth) = &self.guards.auth {
-            auth.authorize(&request, &project_id).await?;
-        }
-        if !project_accepts_writes(&self.database, &project_id).await {
-            return Err(Status::not_found("unknown project, or it is being deleted"));
-        }
-        let req = request.into_inner();
-        let received = received_from_grpc(&req);
-        export_signal(
-            self.signal.as_ref(),
-            req,
-            SignalContext {
-                project_id: &project_id,
-                received: &received,
-                debug_path: self.debug_path.as_deref(),
-                clock: self.clock.as_ref(),
-                staging: self.staging.as_ref(),
-                storage_governance: self.storage_governance.as_ref(),
-            },
-        )
-        .await
-        .map(Response::new)
-        .map_err(|error| match error {
-            SignalExportError::Gone => Status::not_found("unknown project, or it is being deleted"),
-            SignalExportError::StoreUnavailable => Status::unavailable("could not store logs"),
-            SignalExportError::QueueFull => Status::resource_exhausted("logs buffer full"),
-            SignalExportError::QuotaExceeded => {
-                Status::resource_exhausted("project storage quota exceeded")
+impl RawExportHandler for OtlpLogsService {
+    type Request = ExportLogsServiceRequest;
+    type Response = ExportLogsServiceResponse;
+    const PATH: &'static str = "/opentelemetry.proto.collector.logs.v1.LogsService/Export";
+    const SERVICE: &'static str = "opentelemetry.proto.collector.logs.v1.LogsService";
+
+    fn export(
+        self: Arc<Self>,
+        request: Request<Received<ExportLogsServiceRequest>>,
+    ) -> BoxFuture<Response<ExportLogsServiceResponse>, Status> {
+        Box::pin(async move {
+            let project_id = extract_project_id(&request)
+                .ok_or_else(|| Status::invalid_argument("Invalid project_id"))?;
+            // Limited before authorisation, as the HTTP layer is - see `GrpcIngestLimit`.
+            GrpcIngestLimit::check(self.guards.limit.as_ref(), &project_id).await?;
+            // Authorised *before* anything is read from the payload, and against the project the call names -
+            // so `otel.auth.required` refuses an unauthenticated write here exactly as it does over HTTP.
+            if let Some(auth) = &self.guards.auth {
+                auth.authorize(&request, &project_id).await?;
             }
+            if !project_accepts_writes(&self.database, &project_id).await {
+                return Err(Status::not_found("unknown project, or it is being deleted"));
+            }
+            let Received { message: req, raw } = request.into_inner();
+            // The bytes the exporter sent, which is what the raw record must hold - see `grpc_raw`.
+            let received = ReceivedPayload::new(raw.to_vec(), RawContent::Protobuf);
+            export_signal(
+                self.signal.as_ref(),
+                req,
+                SignalContext {
+                    project_id: &project_id,
+                    received: &received,
+                    debug_path: self.debug_path.as_deref(),
+                    clock: self.clock.as_ref(),
+                    staging: self.staging.as_ref(),
+                    storage_governance: self.storage_governance.as_ref(),
+                },
+            )
+            .await
+            .map(Response::new)
+            .map_err(|error| match error {
+                SignalExportError::Gone => {
+                    Status::not_found("unknown project, or it is being deleted")
+                }
+                SignalExportError::StoreUnavailable => Status::unavailable("could not store logs"),
+                SignalExportError::QueueFull => Status::resource_exhausted("logs buffer full"),
+                SignalExportError::QuotaExceeded => {
+                    Status::resource_exhausted("project storage quota exceeded")
+                }
+            })
         })
     }
 }

@@ -2,6 +2,7 @@
 
 mod encoding;
 mod grpc;
+mod grpc_raw;
 mod logs;
 mod metrics;
 mod traces;

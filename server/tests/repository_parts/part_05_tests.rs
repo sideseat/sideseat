@@ -175,20 +175,25 @@ fn every_registered_signal_uses_the_shared_lifecycle_on_both_transports() {
                 panic!("registered signal {other} has no gRPC service-name mapping in the gate")
             }
         };
-        let start = grpc
-            .find(&format!("impl {service}"))
-            .unwrap_or_else(|| panic!("registered signal {signal} has no {service}"));
-        let service_source = &grpc[start..];
-        let export_start = service_source
-            .find("#[tonic::async_trait]")
-            .unwrap_or_else(|| panic!("{service} has no transport implementation"));
-        let export_source = &service_source[export_start..];
+        // The handler trait, not tonic's generated one: gRPC export goes through the raw-bytes codec, which is
+        // what makes the stored record the producer's frame rather than a re-encoding of the decoded message.
+        let export_start = grpc
+            .find(&format!("impl RawExportHandler for {service}"))
+            .unwrap_or_else(|| {
+                panic!("registered signal {signal} has no raw-codec gRPC handler for {service}")
+            });
+        let export_source = &grpc[export_start..];
         let end = export_source
             .find("\n/// gRPC ")
             .unwrap_or(export_source.len());
+        let export_source = &export_source[..end];
         assert!(
-            export_source[..end].contains("export_signal("),
+            export_source.contains("export_signal("),
             "registered signal {signal} bypasses the shared lifecycle on gRPC"
+        );
+        assert!(
+            export_source.contains("Received { message: req, raw }"),
+            "registered signal {signal} does not store the frame the exporter sent"
         );
     }
 }

@@ -129,8 +129,8 @@ indexes and block residue about 1,100, search terms 297, `otel_spans` 274, the r
 index 19.6, media 296.5 reported separately. The halving came from retiring the `raw_span` JSON column: it was
 the largest column *and* the largest content-body object, so one copy of each span's OTLP JSON was being kept
 twice over - 3,628 B/span between them - while the raw record already held the whole export. What is left to
-remove, in order of size, is the content-body store (retired once the gRPC raw-bytes codec lands, since the raw
-record already holds every body), the indexes, and the search terms.
+remove, in order of size, is the content-body store (the raw record already holds every body), the indexes, and
+the search terms.
 
 **Metrics are measured on a derived load, and the gate uses it.** 480 captured points cannot measure a store whose block is 256 KB:
 most of the figure is one partly-filled block per column. `scripts/perf/metrics-load.py` derives a deterministic
@@ -155,6 +155,14 @@ already stored is the same object. Decoding splices the text back, so non-canoni
 and runs that touch framing bytes all round-trip; `server/tests/raw_round_trip.rs` proves it for all 1,549 exports
 (76.9 MB received, 18.5 MB of records, 63 media objects of 11.7 MB). Compressed with zstd in 256 KB segments - what a
 DuckDB column in storage format v1.5 does - the trace records are about 146 B per span.
+
+**Both transports store the producer's bytes.** Over HTTP that is the request body after content encoding. Over
+gRPC it took a codec: tonic's generated service hands over a decoded message, so the record used to be prost's
+re-encoding of it - the same bytes for the canonical encoders exporters use, and not the same for a non-minimal
+varint, an unusual field order, or any field prost does not know, which is exactly the telemetry a parsing defect
+would later need re-reading. `RawCodec` (`api::routes::otlp_collector::grpc_raw`) decodes into the message *and*
+the frame it came from, and the export services store the frame. It is the generated dispatch with the codec
+swapped, so compression, message-size limits and routing behave as before.
 
 ### The record's life
 
