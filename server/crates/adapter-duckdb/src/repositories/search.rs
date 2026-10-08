@@ -99,11 +99,7 @@ pub fn replace_span_terms(
     if spans.is_empty() {
         return Ok(());
     }
-    let instant = |span: &NormalizedSpan| {
-        span.ingested_at
-            .unwrap_or(chrono::DateTime::UNIX_EPOCH)
-            .timestamp_micros()
-    };
+    let instant = super::supersession::instant_of;
     let identity_of = |span: &NormalizedSpan| -> SpanIdentity {
         (
             span.project_id.clone().unwrap_or_default(),
@@ -392,7 +388,10 @@ fn write_span_backfill(
         }
         // The terms carry the current revision's instant, as a write's do, so a later correction finds them.
         let identity: SpanIdentity = (project_id.to_string(), trace_id.clone(), span_id.clone());
-        let stored = keyed::span_revisions(conn, std::slice::from_ref(&identity))?;
+        let stored = keyed::winner_instants(&keyed::span_revisions(
+            conn,
+            std::slice::from_ref(&identity),
+        )?);
         let revisions: Vec<i64> = stored.get(&identity).copied().into_iter().collect();
         if let Some(query) = search_sql::duckdb_span_term_delete_of_revisions(
             std::slice::from_ref(&identity),

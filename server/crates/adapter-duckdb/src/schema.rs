@@ -3,10 +3,9 @@
 //! Long text columns are declared `USING COMPRESSION zstd`, which DuckDB honours in the storage format every
 //! file is created in (`DUCKDB_STORAGE_VERSION` in the adapter).
 //!
-//! Append-only storage with no PRIMARY KEY constraints.
-//! Deduplication happens at read time: SpanRow/MessageSpanRow queries
-//! are deduped in Rust (DedupAnalyticsRepository), aggregation queries
-//! use an inline DEDUP_SPANS subquery.
+//! Append-only storage with no PRIMARY KEY constraints. A span identity keeps every revision it was delivered
+//! as; `superseded_at` marks every one but the winner, so a read takes winners with a condition on the row
+//! (`sideseat_query_sql::winners`).
 
 /// Current schema version
 pub const SCHEMA_VERSION: i32 = 2;
@@ -187,7 +186,10 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     raw_id                     VARCHAR,
     -- How many events and links the span carries. The events and links themselves live in the raw record.
     event_count                UINTEGER NOT NULL DEFAULT 0,
-    link_count                 UINTEGER NOT NULL DEFAULT 0
+    link_count                 UINTEGER NOT NULL DEFAULT 0,
+    -- The ingest instant of the revision that follows this one, NULL while this is the identity's winner: what
+    -- makes a winner a condition on the row rather than a window over the table (sideseat_query_sql::winners).
+    superseded_at              TIMESTAMP
 );
 
 -- Indexes exist only where a read provably uses them. DuckDB reads through an ART index only for a scan whose

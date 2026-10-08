@@ -9,9 +9,7 @@ use super::{DmlStatement, MutationTarget};
 use crate::Backend;
 use crate::analytics::{QueryOperation, QueryValue};
 
-const DUCKDB_WINNING_SPANS: &str = "(SELECT * FROM otel_spans \
-    QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
-    ORDER BY ingested_at DESC, rowid DESC) = 1)";
+use crate::winners::DUCKDB_WINNING_SPANS;
 
 /// Prepare the private DuckDB table used to carry one atomic retention batch.
 pub fn retention_prepare_batch() -> DmlStatement {

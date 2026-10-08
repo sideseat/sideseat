@@ -19,28 +19,36 @@ pub(crate) type SpanIdentity = (String, String, String);
 /// A log record's identity: project, digest, ordinal.
 pub(crate) type LogIdentity = (String, String, u32);
 
-/// The ingest instant, in epoch microseconds, of the latest stored revision of each of these span identities.
+/// A stored revision of a span identity: its row, its ingest instant and the instant of the revision that
+/// follows it, both in epoch microseconds (`sideseat_query_sql::winners`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct StoredRevision {
+    pub rowid: i64,
+    pub ingested_us: i64,
+    pub superseded_us: Option<i64>,
+}
+
+/// Every stored revision of each of these span identities, read through the `span_id` index.
 ///
-/// The latest is the span's winner, the revision a read answers with, and the only one with search terms: a
-/// write that wins deletes the previous winner's and one that does not writes none
-/// (`search::replace_span_terms`). So whatever a span's history, this one instant is where its terms are - the
-/// answer is one value per identity, not a list growing with the revisions.
+/// A write needs them all, not only the latest: a revision that arrives out of order lands between two stored
+/// ones and changes which instant the earlier one is superseded at (`supersession::plan`). An identity has as many
+/// as it was delivered with different content - almost always one.
 pub(crate) fn span_revisions(
     conn: &Connection,
     identities: &[SpanIdentity],
-) -> Result<HashMap<SpanIdentity, i64>, DuckdbError> {
-    let mut revisions: HashMap<SpanIdentity, i64> = HashMap::new();
+) -> Result<HashMap<SpanIdentity, Vec<StoredRevision>>, DuckdbError> {
+    let mut revisions: HashMap<SpanIdentity, Vec<StoredRevision>> = HashMap::new();
     for chunk in identities.chunks(KEYED_CHUNK) {
         let keys = distinct_keys(chunk.iter().map(|(_, _, span_id)| span_id.as_str()));
         let keyed = duckdb_keyed(
             "otel_spans",
             "span_id",
-            "project_id, trace_id, span_id, ingested_at",
+            "project_id, trace_id, span_id, ingested_at, superseded_at",
             keys.len(),
         );
         let sql = format!(
-            "SELECT project_id, trace_id, span_id, max(epoch_us(ingested_at)) FROM {keyed} \
-             WHERE (project_id, trace_id, span_id) IN ({}) GROUP BY ALL",
+            "SELECT keyed_rowid, project_id, trace_id, span_id, epoch_us(ingested_at), \
+             epoch_us(superseded_at) FROM {keyed} WHERE (project_id, trace_id, span_id) IN ({})",
             triples(chunk.len())
         );
         let mut values: Vec<duckdb::types::Value> = keys
@@ -55,16 +63,72 @@ pub(crate) fn span_revisions(
         let mut statement = conn.prepare(&sql)?;
         let rows = statement.query_map(duckdb::params_from_iter(values), |row| {
             Ok((
-                (row.get(0)?, row.get(1)?, row.get(2)?),
-                row.get::<_, i64>(3)?,
+                (row.get(1)?, row.get(2)?, row.get(3)?),
+                StoredRevision {
+                    rowid: row.get(0)?,
+                    ingested_us: row.get(4)?,
+                    superseded_us: row.get(5)?,
+                },
             ))
         })?;
         for row in rows {
-            let (identity, ingested_us) = row?;
-            revisions.insert(identity, ingested_us);
+            let (identity, revision) = row?;
+            let stored = revisions.entry(identity).or_default();
+            if !stored.contains(&revision) {
+                stored.push(revision);
+            }
         }
     }
     Ok(revisions)
+}
+
+/// The ingest instant of each identity's current winner, the one revision with search terms: the latest, so the
+/// greatest instant whatever order the revisions were stored in.
+pub(crate) fn winner_instants(
+    revisions: &HashMap<SpanIdentity, Vec<StoredRevision>>,
+) -> HashMap<SpanIdentity, i64> {
+    revisions
+        .iter()
+        .filter_map(|(identity, stored)| {
+            stored
+                .iter()
+                .map(|revision| revision.ingested_us)
+                .max()
+                .map(|instant| (identity.clone(), instant))
+        })
+        .collect()
+}
+
+/// Set `superseded_at` on these stored rows, by row id: the stored revisions a write's new revisions follow.
+///
+/// Grouped by value, so the usual write - one correction per identity, all at the batch's own instant - is one
+/// statement per chunk of rows, answered from their row groups like [`delete_rows`].
+pub(crate) fn supersede_rows(
+    conn: &Connection,
+    updates: &[(i64, Option<i64>)],
+) -> Result<usize, DuckdbError> {
+    let mut by_value: std::collections::BTreeMap<Option<i64>, Vec<i64>> = Default::default();
+    for (rowid, superseded_us) in updates {
+        by_value.entry(*superseded_us).or_default().push(*rowid);
+    }
+    let mut updated = 0;
+    for (superseded_us, rowids) in by_value {
+        let value = superseded_us
+            .map(|us| format!("make_timestamp({us}::BIGINT)"))
+            .unwrap_or_else(|| "NULL".to_string());
+        for chunk in rowids.chunks(KEYED_CHUNK) {
+            let list = chunk
+                .iter()
+                .map(i64::to_string)
+                .collect::<Vec<_>>()
+                .join(", ");
+            updated += conn.execute(
+                &format!("UPDATE otel_spans SET superseded_at = {value} WHERE rowid IN ({list})"),
+                [],
+            )?;
+        }
+    }
+    Ok(updated)
 }
 
 /// The stored rows of these log identities: row id, identity, ingest instant in epoch microseconds.

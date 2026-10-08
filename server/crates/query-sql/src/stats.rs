@@ -455,10 +455,7 @@ ORDER BY bucket ASC"#,
 
 fn winning_spans(backend: Backend) -> String {
     match backend {
-        Backend::Duckdb => "(SELECT * FROM otel_spans \
-            QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
-            ORDER BY ingested_at DESC, rowid DESC) = 1)"
-            .to_string(),
+        Backend::Duckdb => crate::winners::DUCKDB_WINNING_SPANS.to_string(),
         Backend::Clickhouse => "(SELECT * FROM otel_spans FINAL)".to_string(),
     }
 }
@@ -766,7 +763,7 @@ mod tests {
                 assert!(!statement.sql().contains("project-secret"));
                 assert!(!statement.sql().contains("2024-01-17T10:30:00"));
                 match backend {
-                    Backend::Duckdb => assert!(statement.sql().contains("ROW_NUMBER()")),
+                    Backend::Duckdb => assert!(statement.sql().contains("superseded_at IS NULL")),
                     Backend::Clickhouse => {
                         assert!(statement.sql().contains("FINAL"));
                         assert!(

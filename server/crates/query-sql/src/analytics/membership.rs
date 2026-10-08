@@ -24,20 +24,16 @@ pub fn trace_session_pairs(
         Backend::Clickhouse => "argMin(assumeNotNull(session_id), (timestamp_start, span_id))",
     };
     if backend == Backend::Duckdb {
-        let watermark = as_of_us
-            .map(|_| "AND EPOCH_US(ingested_at) < ?::BIGINT ")
-            .unwrap_or_default();
-        let mut params = Vec::with_capacity(1 + usize::from(as_of_us.is_some()) + trace_ids.len());
+        let (winner, winner_values) = crate::winners::duckdb_winner_condition(as_of_us);
+        let mut params = Vec::with_capacity(3 + trace_ids.len());
         params.push(QueryValue::String(project_id.to_string()));
-        params.extend(as_of_us.map(|us| QueryValue::String(us.to_string())));
+        params.extend(winner_values);
         params.extend(trace_ids.iter().cloned().map(QueryValue::String));
         return Some(ParameterizedQuery {
             sql: format!(
                 "SELECT trace_id, {session} AS session \
                  FROM (SELECT * FROM otel_spans \
-                       WHERE project_id = ? {watermark}AND trace_id IN ({}) \
-                       QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
-                                                  ORDER BY ingested_at DESC, rowid DESC) = 1) \
+                       WHERE project_id = ? AND {winner} AND trace_id IN ({})) \
                  WHERE session_id IS NOT NULL AND session_id != '' GROUP BY trace_id",
                 placeholders(trace_ids.len())
             ),
@@ -124,13 +120,7 @@ pub fn trace_ids_for_sessions(
 
 fn membership_source(as_of_us: Option<i64>, backend: Backend) -> (String, Vec<QueryValue>) {
     match (backend, as_of_us) {
-        (Backend::Duckdb, Some(us)) => (
-            "(SELECT * FROM otel_spans WHERE EPOCH_US(ingested_at) < ?::BIGINT \
-             QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
-                                        ORDER BY ingested_at DESC, rowid DESC) = 1)"
-                .to_string(),
-            vec![QueryValue::String(us.to_string())],
-        ),
+        (Backend::Duckdb, Some(us)) => crate::winners::duckdb_winning_spans(Some(us)),
         (Backend::Duckdb, None) => (
             DuckdbAnalyticsDialect.span_page_relation().to_string(),
             Vec::new(),
@@ -193,14 +183,11 @@ fn winning_identities(
             let keyed = crate::keyed::duckdb_keyed(
                 "otel_spans",
                 "span_id",
-                &format!("project_id, trace_id, span_id, ingested_at, {columns}"),
+                &format!("project_id, trace_id, span_id, superseded_at, {columns}"),
                 keys.len(),
             );
             (
-                format!(
-                    "(SELECT * FROM {keyed} QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, \
-                     span_id ORDER BY ingested_at DESC, keyed_rowid DESC) = 1)"
-                ),
+                format!("(SELECT * FROM {keyed} WHERE superseded_at IS NULL)"),
                 params,
             )
         }
@@ -307,13 +294,10 @@ fn trace_identity_read(
             let keyed = crate::keyed::duckdb_keyed(
                 "otel_spans",
                 "trace_id",
-                &format!("project_id, trace_id, span_id, ingested_at{columns}"),
+                &format!("project_id, trace_id, span_id, superseded_at{columns}"),
                 keys.len(),
             );
-            format!(
-                "(SELECT * FROM {keyed} QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
-                 ORDER BY ingested_at DESC, keyed_rowid DESC) = 1)"
-            )
+            format!("(SELECT * FROM {keyed} WHERE superseded_at IS NULL)")
         }
         Backend::Clickhouse => analytics_dialect(backend).span_page_relation().to_string(),
     };
@@ -416,9 +400,7 @@ pub fn project_logical_bytes(
         params: params(),
     };
     let spans = match backend {
-        Backend::Duckdb => sum("(SELECT * FROM otel_spans QUALIFY ROW_NUMBER() OVER (\
-             PARTITION BY project_id, trace_id, span_id \
-             ORDER BY ingested_at DESC, rowid DESC) = 1)"),
+        Backend::Duckdb => sum(crate::winners::DUCKDB_WINNING_SPANS),
         Backend::Clickhouse => sum("otel_spans"),
     };
     ProjectLogicalBytesPlan {
@@ -437,11 +419,7 @@ pub fn oldest_reclaimable_spans(
     limit: usize,
 ) -> ParameterizedQuery {
     let relation = match backend {
-        Backend::Duckdb => {
-            "(SELECT * FROM otel_spans QUALIFY ROW_NUMBER() OVER (\
-             PARTITION BY project_id, trace_id, span_id \
-             ORDER BY ingested_at DESC, rowid DESC) = 1)"
-        }
+        Backend::Duckdb => crate::winners::DUCKDB_WINNING_SPANS,
         Backend::Clickhouse => "otel_spans FINAL",
     };
     let now = match backend {

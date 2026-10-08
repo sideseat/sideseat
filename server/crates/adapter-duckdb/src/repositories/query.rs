@@ -23,7 +23,8 @@ use rows::{
     row_to_trace,
 };
 
-/// Inline winning-span relation used by repository contract tests.
+/// The winning-span relation as a window over every revision: the definition `superseded_at` must agree with
+/// (`sideseat_query_sql::winners`), kept for the repository contract tests as an oracle independent of it.
 ///
 /// Used only where duplicates corrupt results:
 /// - SUM/COUNT(*) aggregation (inflated totals)

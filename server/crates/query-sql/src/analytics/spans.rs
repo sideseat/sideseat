@@ -165,13 +165,7 @@ pub fn list_spans(params: &ListSpansParams, backend: Backend) -> PageQuery {
 pub fn feed_spans(params: &FeedSpansParams, backend: Backend) -> ParameterizedQuery {
     let dialect = analytics_dialect(backend);
     let (source, mut values) = match (backend, params.ingested_before_us) {
-        (Backend::Duckdb, Some(watermark)) => (
-            "(SELECT * FROM otel_spans WHERE EPOCH_US(ingested_at) < ?::BIGINT \
-             QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
-                                        ORDER BY ingested_at DESC, rowid DESC) = 1)"
-                .to_string(),
-            vec![QueryValue::Int64(watermark)],
-        ),
+        (Backend::Duckdb, Some(watermark)) => crate::winners::duckdb_winning_spans(Some(watermark)),
         (Backend::Duckdb, None) => (
             DuckdbAnalyticsDialect.span_page_relation().to_string(),
             Vec::new(),

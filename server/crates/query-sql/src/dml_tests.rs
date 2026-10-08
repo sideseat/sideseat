@@ -145,7 +145,7 @@ fn retention_plan_is_parameterized_and_revision_aware() {
     let expired = retention_select_expired(cutoff, now, 100);
     assert_eq!(expired.operation(), QueryOperation::EnforceRetention);
     assert_eq!(expired.sql().matches('?').count(), expired.params().len());
-    assert!(expired.sql().contains("ROW_NUMBER()"));
+    assert!(expired.sql().contains("superseded_at IS NULL"));
     assert!(expired.sql().contains("hold_until"));
 
     let oldest = retention_select_oldest("tenant-'quoted", now, 10, 50, true);

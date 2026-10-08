@@ -30,8 +30,10 @@ pub fn insert_batch(conn: &Connection, spans: &[NormalizedSpan]) -> Result<(), D
             })
             .collect();
         let stored = super::keyed::span_revisions(conn, &identities)?;
-        insert_spans(conn, target.table(), spans)?;
-        super::search::replace_span_terms(conn, spans, &stored)
+        let supersession = super::supersession::plan(spans, &stored);
+        super::keyed::supersede_rows(conn, &supersession.updates)?;
+        insert_spans(conn, target.table(), spans, &supersession.new)?;
+        super::search::replace_span_terms(conn, spans, &super::keyed::winner_instants(&stored))
     })
 }
 
@@ -39,6 +41,7 @@ fn insert_spans(
     conn: &Connection,
     table: &str,
     spans: &[NormalizedSpan],
+    superseded_us: &[Option<i64>],
 ) -> Result<(), DuckdbError> {
     if spans.is_empty() {
         return Ok(());
@@ -46,7 +49,7 @@ fn insert_spans(
 
     let mut appender = conn.appender(table)?;
 
-    for span in spans {
+    for (span, superseded_us) in spans.iter().zip(superseded_us) {
         let tags = SqlVec(&span.tags);
         let stop_sequences = SqlVec(&span.gen_ai_stop_sequences);
         let finish_reasons = SqlVec(&span.gen_ai_finish_reasons);
@@ -148,6 +151,7 @@ fn insert_spans(
             span.raw_id.as_deref(),
             span.event_count,
             span.link_count,
+            SqlOptTimestamp(superseded_us.and_then(chrono::DateTime::from_timestamp_micros)),
         ])?;
     }
 

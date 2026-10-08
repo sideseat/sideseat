@@ -18,8 +18,8 @@ fn span_point_read_declares_bind_order_once() {
 #[test]
 fn span_point_read_lowers_deduplication_as_a_capability() {
     let duckdb = span_by_id().render(Backend::Duckdb);
-    assert!(duckdb.sql().contains("QUALIFY ROW_NUMBER()"));
-    assert!(duckdb.sql().contains("rowid DESC"));
+    assert!(duckdb.sql().contains("superseded_at IS NULL"));
+    assert!(!duckdb.sql().contains("ROW_NUMBER()"));
     assert!(!duckdb.sql().contains(" FINAL"));
 
     let clickhouse = span_by_id().render(Backend::Clickhouse);
@@ -233,12 +233,24 @@ fn feed_page_puts_watermark_and_cursor_values_in_total_key_order() {
         assert!(!query.sql().contains("tenant-'quoted"));
         assert!(!query.sql().contains("span-'quoted"));
         assert!(!query.sql().contains("trace-'quoted"));
-        assert_eq!(query.params().first(), Some(&QueryValue::Int64(999)));
+        // DuckDB's winner as of the watermark binds it twice (`crate::winners`), ClickHouse's once.
+        let watermarks = match backend {
+            Backend::Duckdb => 2,
+            Backend::Clickhouse => 1,
+        };
+        assert!(
+            query.params()[..watermarks]
+                .iter()
+                .all(|value| value == &QueryValue::Int64(999))
+        );
         assert_eq!(
-            query.params().get(1),
+            query.params().get(watermarks),
             Some(&QueryValue::String("tenant-'quoted".to_string()))
         );
-        assert_eq!(query.params().get(2), Some(&QueryValue::Int64(77)));
+        assert_eq!(
+            query.params().get(watermarks + 1),
+            Some(&QueryValue::Int64(77))
+        );
         assert!(
             query
                 .sql()
@@ -249,10 +261,9 @@ fn feed_page_puts_watermark_and_cursor_values_in_total_key_order() {
     }
 
     let duckdb = feed_spans(&params, Backend::Duckdb);
-    assert!(duckdb.sql().contains("QUALIFY ROW_NUMBER()"));
-    assert!(duckdb.sql().contains("rowid DESC"));
+    assert!(duckdb.sql().contains("superseded_at IS NULL"));
     assert!(matches!(
-        duckdb.params().get(5),
+        duckdb.params().get(6),
         Some(QueryValue::String(value)) if value.starts_with("2026-09-20")
     ));
 
@@ -324,8 +335,7 @@ fn filter_option_queries_validate_columns_and_read_winning_entities() {
             assert!(!query.sql().contains("SELECT secret"));
             match backend {
                 Backend::Duckdb => {
-                    assert!(query.sql().contains("QUALIFY ROW_NUMBER()"));
-                    assert!(query.sql().contains("rowid DESC"));
+                    assert!(query.sql().contains("superseded_at IS NULL"));
                     assert!(matches!(
                         query.params().get(1),
                         Some(QueryValue::String(value)) if value.starts_with("2026-09-20")
@@ -573,15 +583,20 @@ fn membership_reads_put_the_watermark_before_tenant_and_id_values() {
                     pairs.params().first(),
                     Some(&QueryValue::String("tenant-'quoted".to_string()))
                 );
+                // The winner as of the watermark binds it twice (`crate::winners`).
                 assert_eq!(
-                    pairs.params().get(1),
-                    Some(&QueryValue::String("123".to_string()))
+                    &pairs.params()[1..3],
+                    &[QueryValue::Int64(123), QueryValue::Int64(123)]
                 );
                 assert!(pairs.sql().contains("WHERE project_id = ? AND EPOCH_US"));
                 for query in [&sessions, &traces] {
                     assert_eq!(
-                        query.params().first(),
-                        Some(&QueryValue::String("123".to_string()))
+                        &query.params()[..2],
+                        &[QueryValue::Int64(123), QueryValue::Int64(123)]
+                    );
+                    assert_eq!(
+                        query.params().get(2),
+                        Some(&QueryValue::String("tenant-'quoted".to_string()))
                     );
                 }
             }
@@ -589,13 +604,13 @@ fn membership_reads_put_the_watermark_before_tenant_and_id_values() {
                 for query in [&pairs, &sessions, &traces] {
                     assert_eq!(query.params().first(), Some(&QueryValue::Int64(123)));
                 }
+                for query in [&sessions, &traces] {
+                    assert_eq!(
+                        query.params().get(1),
+                        Some(&QueryValue::String("tenant-'quoted".to_string()))
+                    );
+                }
             }
-        }
-        for query in [&sessions, &traces] {
-            assert_eq!(
-                query.params().get(1),
-                Some(&QueryValue::String("tenant-'quoted".to_string()))
-            );
         }
     }
 }
@@ -615,7 +630,7 @@ fn membership_reads_use_canonical_earliest_span_semantics() {
             );
         }
         match backend {
-            Backend::Duckdb => assert!(reverse.sql().contains("ROW_NUMBER()")),
+            Backend::Duckdb => assert!(reverse.sql().contains("superseded_at IS NULL")),
             Backend::Clickhouse => assert!(reverse.sql().contains("FINAL")),
         }
     }
@@ -645,7 +660,7 @@ fn bulk_span_counts_use_winning_rows_and_tuple_bindings() {
                 .contains("SELECT trace_id, span_id, event_count, link_count")
         );
         match backend {
-            Backend::Duckdb => assert!(query.sql().contains("QUALIFY ROW_NUMBER()")),
+            Backend::Duckdb => assert!(query.sql().contains("superseded_at IS NULL")),
             Backend::Clickhouse => assert!(query.sql().contains("FROM otel_spans FINAL")),
         }
     }
@@ -664,7 +679,7 @@ fn cleanup_trace_reads_share_winner_and_tenant_scoping() {
             assert!(!query.sql().contains("trace-'a"));
         }
         match backend {
-            Backend::Duckdb => assert!(alive.sql().contains("QUALIFY ROW_NUMBER()")),
+            Backend::Duckdb => assert!(alive.sql().contains("superseded_at IS NULL")),
             Backend::Clickhouse => {
                 assert!(alive.sql().contains("FROM otel_spans FINAL"));
                 assert!(fields.sql().contains("coalesce(messages, '')"));
@@ -719,7 +734,7 @@ fn trace_span_detail_read_reuses_projection_and_winner_capabilities() {
         assert!(query.sql().contains("scope_name"));
         assert!(query.sql().contains("ORDER BY timestamp_start"));
         match backend {
-            Backend::Duckdb => assert!(query.sql().contains("QUALIFY ROW_NUMBER()")),
+            Backend::Duckdb => assert!(query.sql().contains("superseded_at IS NULL")),
             Backend::Clickhouse => assert!(query.sql().contains("FROM otel_spans FINAL")),
         }
 
@@ -743,7 +758,7 @@ fn trace_point_aggregate_reuses_list_projection_and_token_dedup() {
         match backend {
             Backend::Duckdb => {
                 assert_eq!(query.params().len(), 4);
-                assert!(query.sql().contains("QUALIFY ROW_NUMBER()"));
+                assert!(query.sql().contains("superseded_at IS NULL"));
                 assert!(query.sql().contains("timestamp_start, s.span_id"));
                 assert!(query.sql().contains("NOT EXISTS"));
             }
@@ -810,7 +825,7 @@ fn pressure_candidates_are_winning_held_aware_bounded_and_parameterized() {
         assert!(query.sql().contains("bytes_before < ?"));
         assert!(query.sql().contains("pressure_rank <= ?"));
         match backend {
-            Backend::Duckdb => assert!(query.sql().contains("QUALIFY ROW_NUMBER()")),
+            Backend::Duckdb => assert!(query.sql().contains("superseded_at IS NULL")),
             Backend::Clickhouse => assert!(query.sql().contains("otel_spans FINAL")),
         }
     }

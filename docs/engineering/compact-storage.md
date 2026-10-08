@@ -162,6 +162,19 @@ this build creates is refused at startup with the reset instruction, as a store 
 replicated to a million spans, the ingest-time lookups went from every row of the table to the rows they name
 (`read_paths` in the DuckDB adapter).
 
+**A winner is a condition on its row, not a window over the table.** A span identity keeps every revision it
+was delivered as, and a read answers with the latest. DuckDB computed that with `ROW_NUMBER() OVER (PARTITION BY
+identity ...)` over the whole of `otel_spans`, holding whole rows to do it, before any condition of the read could
+apply; on the corpus replicated to a million spans six reads - list traces, get trace, list spans, the span feed,
+the project message feed and span search - ran out of the 200 MB memory limit, and list sessions and project stats
+took 2.2 and 2.6 seconds. Each row now carries `superseded_at`, the `ingested_at` of the revision that follows it,
+`NULL` while it is the winner, set by the write that stores a revision on its new rows and on the stored row they
+follow (`sideseat_query_sql::winners`). It answers "the winner as of a watermark" as well, which a traversal pins,
+and it costs no measurable bytes: the column is `NULL` on all but the corrected rows. Measured at a million spans
+(`read_paths` in the DuckDB adapter): list traces 228 ms, get trace 57 ms, list spans 71 ms, the feed 16 ms, the
+project message feed 100 ms, list sessions 137 ms and project stats 346 ms, each within the memory limit; span
+search still exceeded it, on its term lookups rather than its winners.
+
 **Metrics are measured on a derived load, and the gate uses it.** 480 captured points cannot measure a store whose block is 256 KB:
 most of the figure is one partly-filled block per column. `scripts/perf/metrics-load.py` derives a deterministic
 load of about a million points from the captured *shapes* - every series keeps its resource, scope, instrument

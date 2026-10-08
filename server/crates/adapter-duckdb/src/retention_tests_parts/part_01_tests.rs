@@ -132,6 +132,7 @@ fn insert_span_for_project(
         [trace_id, span_id, timestamp, project_id],
     )
     .expect("Failed to insert test span");
+    crate::repositories::supersession::rebuild(conn).expect("supersession");
 }
 
 /// A second delivery of an existing span. `otel_spans` is append-only, so this leaves both rows
@@ -151,6 +152,7 @@ fn redeliver_span(
         [trace_id, span_id, timestamp, project_id, ingested_at],
     )
     .expect("Failed to re-deliver test span");
+    crate::repositories::supersession::rebuild(conn).expect("supersession");
 }
 
 fn span_count(conn: &Connection, project_id: &str) -> i64 {

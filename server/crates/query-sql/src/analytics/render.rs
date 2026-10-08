@@ -135,15 +135,11 @@ impl AnalyticsDialect for DuckdbAnalyticsDialect {
     }
 
     fn after_where(&self) -> &'static str {
-        "\nQUALIFY ROW_NUMBER() OVER (\
-         PARTITION BY project_id, trace_id, span_id \
-         ORDER BY ingested_at DESC, rowid DESC) = 1"
+        " AND superseded_at IS NULL"
     }
 
     fn span_page_relation(&self) -> &'static str {
-        "(SELECT * FROM otel_spans \
-         QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
-         ORDER BY ingested_at DESC, rowid DESC) = 1)"
+        crate::winners::DUCKDB_WINNING_SPANS
     }
 
     fn span_detail_projection(&self) -> &'static str {
@@ -194,8 +190,7 @@ impl AnalyticsDialect for DuckdbAnalyticsDialect {
                  WHERE project_id = ? \
                  AND trace_id IN (SELECT trace_id FROM otel_spans \
                                   WHERE project_id = ? AND session_id = ?) \
-                 QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
-                                            ORDER BY ingested_at DESC, rowid DESC) = 1) \
+                 AND superseded_at IS NULL) \
            WHERE session_id IS NOT NULL AND session_id != '' \
            GROUP BY trace_id \
          ) WHERE canonical_session = ?"
@@ -213,9 +208,7 @@ impl AnalyticsDialect for DuckdbAnalyticsDialect {
     fn canonical_trace_sessions_relation(&self) -> &'static str {
         "SELECT project_id, trace_id, \
            arg_min(session_id, (timestamp_start, span_id)) AS session_id \
-         FROM (SELECT * FROM otel_spans \
-               QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
-                                          ORDER BY ingested_at DESC, rowid DESC) = 1) \
+         FROM (SELECT * FROM otel_spans WHERE superseded_at IS NULL) \
          WHERE session_id IS NOT NULL AND session_id != '' \
          GROUP BY project_id, trace_id"
     }

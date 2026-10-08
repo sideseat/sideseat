@@ -90,14 +90,12 @@ fn winning_spans_with_digest(
             let keyed = duckdb_keyed(
                 "otel_spans",
                 "span_id",
-                "project_id, trace_id, span_id, content_digest, ingested_at",
+                "project_id, trace_id, span_id, content_digest, superseded_at",
                 keys.len(),
             );
             format!(
                 "(SELECT trace_id, span_id, content_digest FROM {keyed} \
-                 WHERE project_id = ? AND (trace_id, span_id) IN ({pairs}) \
-                 QUALIFY ROW_NUMBER() OVER (\
-                 PARTITION BY trace_id, span_id ORDER BY ingested_at DESC, keyed_rowid DESC) = 1)"
+                 WHERE project_id = ? AND (trace_id, span_id) IN ({pairs}) AND superseded_at IS NULL)"
             )
         }
         Backend::Clickhouse => {
@@ -129,9 +127,10 @@ fn winning_spans_with_digest(
 ///
 /// A datapoint's instant is part of its identity, so its rows all carry the `timestamp` it was staged with, and
 /// rows are appended in roughly the order of their instants. DuckDB therefore reads only the row groups whose
-/// `timestamp` bounds hold one of the records' instants - their zone maps - rather than the table, and needs no index: one
-/// on `datapoint_id` measured 85 bytes per point, more than half the per-point target. A correction replaces its
-/// row, so there is one row per datapoint to count. ClickHouse reads the datapoints through their skip index.
+/// `timestamp` bounds hold one of the records' instants - their zone maps - rather than the table, and needs no
+/// index: one on `datapoint_id` measured 85 bytes per point, more than half the per-point target. A correction
+/// replaces its row, so there is one row per datapoint to count. ClickHouse reads the datapoints through their
+/// skip index.
 pub fn metrics(
     project_id: &str,
     records: &[(String, String, DateTime<Utc>)],
@@ -308,7 +307,7 @@ mod tests {
         let query = matching_spans("project", &records, Backend::Duckdb).unwrap();
         let sql = query.sql();
         let filter = sql.find("(trace_id, span_id) IN").unwrap();
-        let rank = sql.find("ROW_NUMBER()").unwrap();
+        let rank = sql.find("superseded_at IS NULL").unwrap();
         assert!(filter < rank, "{sql}");
         assert!(!sql.contains("SELECT * FROM otel_spans"), "{sql}");
         // The span ids alone inside the keyed rows, so the scan carries one filter and reads the index.

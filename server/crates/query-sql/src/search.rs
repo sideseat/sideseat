@@ -139,9 +139,7 @@ pub const DUCKDB_LOG_TERMS_DELETE_PROJECT_SQL: &str = "DELETE FROM log_terms WHE
 pub const DUCKDB_SPAN_BACKFILL_CAS_SQL: &str = "SELECT EXISTS (\
      SELECT 1 FROM (\
        SELECT content_digest FROM otel_spans \
-       WHERE project_id = ? AND trace_id = ? AND span_id = ? \
-       QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
-                                  ORDER BY ingested_at DESC, rowid DESC) = 1\
+       WHERE project_id = ? AND trace_id = ? AND span_id = ? AND superseded_at IS NULL\
      ) r WHERE content_digest = ? \
      AND (SELECT COUNT(DISTINCT field) FROM span_terms t \
           WHERE t.project_id = ? AND t.trace_id = ? AND t.span_id = ?) < 6)";
@@ -522,10 +520,7 @@ impl Shape {
     fn winners(self) -> &'static str {
         match (self.signal, self.backend) {
             (SearchSignal::Spans, Backend::Duckdb) => {
-                "SELECT * EXCLUDE (_search_rn) FROM (\
-                 SELECT *, ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
-                 ORDER BY ingested_at DESC, rowid DESC) AS _search_rn \
-                 FROM otel_spans WHERE project_id = ?) WHERE _search_rn = 1"
+                "SELECT * FROM otel_spans WHERE project_id = ? AND superseded_at IS NULL"
             }
             (SearchSignal::Logs, Backend::Duckdb) => "SELECT * FROM otel_logs WHERE project_id = ?",
             (SearchSignal::Spans, Backend::Clickhouse) => {

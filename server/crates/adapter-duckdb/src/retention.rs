@@ -292,10 +292,10 @@ const MAX_COUNT_IDENTITIES_PER_CYCLE: i64 = RETENTION_BATCH_SIZE * MAX_COUNT_CLE
 /// obsolete revision to winner, which is corruption rather than slow retention. So the ceiling is enforced
 /// *between* identities and the irreducible unit is one identity's revision count.
 ///
-/// And the **selection** is not bounded by it at all. Choosing which identities to delete windows `DEDUP_SPANS`
-/// and groups the raw table over the whole project, so a project with a hundred million rows pays a scan
-/// proportional to that whether one identity is being deleted or a million - and the connection is held for the
-/// duration, which is what the ceiling was reached for. Bounding the *scan* needs an index that orders
+/// And the **selection** is not bounded by it at all. Choosing which identities to delete reads the project's
+/// winners (`sideseat_query_sql::winners`) and orders them by age, so a project with a hundred million rows pays
+/// a scan proportional to that whether one identity is being deleted or a million - and the connection is held
+/// for the duration, which is what the ceiling was reached for. Bounding the *scan* needs an index that orders
 /// identities by age, which DuckDB will not serve from an ART index over an expression. Stated rather than
 /// implied: this ceiling bounds how much is removed, not how long the connection is occupied.
 const MAX_COUNT_ROWS_PER_CYCLE: u64 = (RETENTION_BATCH_SIZE as u64) * 4;
@@ -638,7 +638,8 @@ fn delete_oldest_spans_for_project(
 /// **Candidates come from the deduplicated relation, not the raw table.** `otel_spans` is
 /// append-only, so an expired *old* revision would otherwise select an identity whose winning
 /// correction is recent, and the delete - which removes every revision of the identity - would take
-/// the correction with it. Reads already go through [`DEDUP_SPANS`]; retention has to agree with them.
+/// the correction with it. Reads take winners only (`sideseat_query_sql::winners`); retention has to agree with
+/// them.
 fn delete_spans_with_query(
     conn: &Connection,
     insert: &DmlStatement,

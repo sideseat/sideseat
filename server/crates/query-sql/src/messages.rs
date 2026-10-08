@@ -89,20 +89,7 @@ fn message_projection(backend: Backend) -> &'static str {
 
 fn winner_source(backend: Backend, watermark: Option<i64>) -> (String, Vec<QueryValue>) {
     match (backend, watermark) {
-        (Backend::Duckdb, Some(watermark)) => (
-            "(SELECT * FROM otel_spans WHERE EPOCH_US(ingested_at) < ?::BIGINT \
-             QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
-                                        ORDER BY ingested_at DESC, rowid DESC) = 1)"
-                .to_string(),
-            vec![QueryValue::Int64(watermark)],
-        ),
-        (Backend::Duckdb, None) => (
-            "(SELECT * FROM otel_spans \
-             QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
-                                        ORDER BY ingested_at DESC, rowid DESC) = 1)"
-                .to_string(),
-            Vec::new(),
-        ),
+        (Backend::Duckdb, watermark) => crate::winners::duckdb_winning_spans(watermark),
         (Backend::Clickhouse, Some(watermark)) => (
             "(SELECT * FROM otel_spans \
               WHERE toInt64(toUnixTimestamp64Micro(ingested_at)) < ? \
@@ -140,13 +127,9 @@ fn traces_of_session(
 ) -> (String, Vec<QueryValue>) {
     match backend {
         Backend::Duckdb => {
-            let watermark_sql = if watermark.is_some() {
-                "AND EPOCH_US(ingested_at) < ?::BIGINT "
-            } else {
-                ""
-            };
+            let (winner, winner_values) = crate::winners::duckdb_winner_condition(watermark);
             let mut values = vec![QueryValue::String(project_id.to_string())];
-            values.extend(watermark.map(QueryValue::Int64));
+            values.extend(winner_values);
             values.push(QueryValue::String(project_id.to_string()));
             values.push(QueryValue::String(session_id.to_string()));
             values.push(QueryValue::String(session_id.to_string()));
@@ -158,15 +141,11 @@ fn traces_of_session(
                               AS canonical_session \
                        FROM (\
                          SELECT * FROM otel_spans \
-                         WHERE project_id = ? {watermark_sql}\
+                         WHERE project_id = ? AND {winner} \
                            AND trace_id IN (\
                              SELECT trace_id FROM otel_spans \
                              WHERE project_id = ? AND session_id = ?\
-                           ) \
-                         QUALIFY ROW_NUMBER() OVER (\
-                           PARTITION BY project_id, trace_id, span_id \
-                           ORDER BY ingested_at DESC, rowid DESC\
-                         ) = 1\
+                           )\
                        ) candidates \
                        WHERE session_id IS NOT NULL AND session_id != '' \
                        GROUP BY trace_id\
@@ -529,6 +508,15 @@ mod tests {
     use chrono::{DateTime, Utc};
     use sideseat_ports::types::ProjectId;
 
+    /// How many times a span winner as of a watermark binds it: DuckDB's condition names it twice
+    /// (`crate::winners`), ClickHouse's ranking once.
+    fn span_watermark_binds(backend: Backend) -> usize {
+        match backend {
+            Backend::Duckdb => 2,
+            Backend::Clickhouse => 1,
+        }
+    }
+
     #[test]
     fn message_selector_priority_and_watermark_bind_order_are_explicit() {
         let params = MessageQueryParams {
@@ -543,9 +531,14 @@ mod tests {
         for backend in [Backend::Duckdb, Backend::Clickhouse] {
             let query = get_messages(&params, backend);
             assert_eq!(query.sql().matches('?').count(), query.params().len());
-            assert_eq!(query.params().first(), Some(&QueryValue::Int64(99)));
+            let watermarks = span_watermark_binds(backend);
+            assert!(
+                query.params()[..watermarks]
+                    .iter()
+                    .all(|value| value == &QueryValue::Int64(99))
+            );
             assert_eq!(
-                query.params().get(1),
+                query.params().get(watermarks),
                 Some(&QueryValue::String("tenant-'quoted".to_string()))
             );
             assert!(query.sql().contains("span_id = ? AND trace_id = ?"));
@@ -586,8 +579,16 @@ mod tests {
                 backend,
             );
             assert_eq!(feed.sql().matches('?').count(), feed.params().len());
-            assert_eq!(feed.params().first(), Some(&QueryValue::Int64(100)));
-            assert_eq!(feed.params().get(2), Some(&QueryValue::Int64(42)));
+            let watermarks = span_watermark_binds(backend);
+            assert!(
+                feed.params()[..watermarks]
+                    .iter()
+                    .all(|value| value == &QueryValue::Int64(100))
+            );
+            assert_eq!(
+                feed.params().get(watermarks + 1),
+                Some(&QueryValue::Int64(42))
+            );
             assert!(
                 feed.sql()
                     .contains("ORDER BY ingested_at_us DESC, span_id DESC, trace_id DESC")
@@ -614,7 +615,9 @@ mod tests {
                     .iter()
                     .filter(|value| matches!(value, QueryValue::Int64(123)))
                     .count(),
-                4,
+                // Span rows, their session membership and the log aggregate's session scope are span
+                // winner conditions; the log aggregate's own bound is one.
+                3 * span_watermark_binds(backend) + 1,
                 "span rows, their session membership, the log aggregate and its session scope must all \
                  use one traversal instant"
             );
@@ -681,12 +684,13 @@ mod tests {
                     .iter()
                     .filter(|value| matches!(value, QueryValue::Int64(7)))
                     .count();
+                let span = span_watermark_binds(backend);
                 match params.ingested_before_us {
                     // The span source and the log aggregate, plus both copies of session membership.
                     Some(_) if params.session_id.is_some() && params.span_id.is_none() => {
-                        assert_eq!(watermarks, 4)
+                        assert_eq!(watermarks, 3 * span + 1)
                     }
-                    Some(_) => assert_eq!(watermarks, 2, "{backend:?} {params:?}"),
+                    Some(_) => assert_eq!(watermarks, span + 1, "{backend:?} {params:?}"),
                     None => assert_eq!(watermarks, 0),
                 }
                 let filtered = query.sql().contains(MESSAGE_CONTENT_FILTER);
@@ -711,7 +715,7 @@ mod tests {
                     .iter()
                     .filter(|value| matches!(value, QueryValue::Int64(7)))
                     .count(),
-                2,
+                span_watermark_binds(backend) + 1,
                 "a feed page and the log messages joined to it describe one instant"
             );
             let filter_at = feed.sql().find(MESSAGE_CONTENT_FILTER).expect("filtered");

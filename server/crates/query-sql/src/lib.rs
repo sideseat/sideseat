@@ -24,6 +24,8 @@ pub mod order;
 pub mod search;
 /// Typed project-statistics statements and bucket planning.
 pub mod stats;
+/// DuckDB's winning span revisions, as a condition on the row.
+pub mod winners;
 
 /// Analytical database backend identifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

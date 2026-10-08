@@ -15,3 +15,4 @@ pub mod raw;
 pub mod search;
 pub mod span;
 pub mod stats;
+pub(crate) mod supersession;
