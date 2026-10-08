@@ -1,5 +1,10 @@
 {
   "producer": "spring-ai",
   "integrations": ["openinference"],
-  "service-name": "spring-ai"
+  "service-name": "spring-ai",
+  "truth": {
+    "unexported": {
+      "media": "the attachments the user sent: Spring AI's telemetry records the prompt's text only, and their bytes are in no payload"
+    }
+  }
 }

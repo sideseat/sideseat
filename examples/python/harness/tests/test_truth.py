@@ -248,6 +248,39 @@ def test_a_terminal_answer_tool_ends_the_turn_without_a_result() -> None:
     assert not any(gap["fact"] in ("user_text", "tool_result") for gap in builder.gaps)
 
 
+def test_an_unexported_attachment_is_withdrawn_with_a_gap_the_rubric_proves() -> None:
+    """`media` withdraws the attachments a producer's telemetry leaves out, each with a `not_exported` gap
+    the rubric proves absent; `modalities` limits it, and an attachment of another modality stays asserted."""
+    framework = derive.Framework.of(
+        {"unexported": {"media": {"reason": "no bytes", "modalities": ["document"]}}}
+    )
+    builder = derive.assemble(
+        "p",
+        "files",
+        [model_call(wire.text_part("An image and a page."))],
+        options=derive.Options(framework=framework),
+    )
+    media = {
+        fact["value"]["modality"]: fact for fact in facts_by_kind(builder, "user_media")
+    }
+    assert media["document"]["require"] is None
+    assert media["image"]["require"] is not None
+    assert [
+        (gap["fact"], gap["reason"], gap["subject"])
+        for gap in builder.gaps
+        if gap["reason"] == "not_exported"
+    ] == [("user_media", "not_exported", media["document"]["id"])]
+    with pytest.raises(ValueError, match="unknown unexported content"):
+        derive.assemble(
+            "p",
+            "files",
+            [model_call(wire.text_part("x"))],
+            options=derive.Options(
+                framework=derive.Framework.of({"unexported": {"attachments": "x"}})
+            ),
+        )
+
+
 PLANNER = derive.Framework.of(
     {
         "action_plans": {"Plan": "action"},

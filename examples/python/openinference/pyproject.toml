@@ -14,6 +14,12 @@ dependencies = [
 producer = "openinference"
 integrations = ["openinference"]
 
+# What the Bedrock instrumentor's telemetry leaves out, for the truth derivation (`python -m harness truth`);
+# proven absent from every capture by the rubric.
+[tool.sideseat-example.truth.unexported.media]
+reason = "the document the user sent: the flattened input messages drop a document block (an image is kept, its data redacted), and no payload holds its bytes"
+modalities = ["document"]
+
 [tool.uv]
 required-version = "==0.12.13"
 package = false

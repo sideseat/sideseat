@@ -91,16 +91,7 @@
     "sha256": "f78ee523f0b06377fd02117287eb8837b342efa9dd8dd4f0a20111e758521f0a",
     "bytes": 163966
    },
-   "require": {
-    "anchor": "conversation",
-    "views": [
-     "trace",
-     "session",
-     "feed"
-    ],
-    "cardinality": "exactly_once",
-    "match": "digest"
-   }
+   "require": null
   },
   {
    "id": "fact-003",
@@ -114,16 +105,7 @@
     "sha256": "f65fdaa928f06d024c68c2538805845378efcb51b09abd084728750169541936",
     "bytes": 13207
    },
-   "require": {
-    "anchor": "conversation",
-    "views": [
-     "trace",
-     "session",
-     "feed"
-    ],
-    "cardinality": "exactly_once",
-    "match": "digest"
-   }
+   "require": null
   },
   {
    "id": "fact-004",
@@ -184,6 +166,18 @@
    "fact": "system_prompt",
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "user_media",
+   "reason": "not_exported",
+   "detail": "the attachments the user sent: the telemetry replaces their bytes with a placeholder of their length (`Base64 string (N characters)`)",
+   "subject": "fact-002"
+  },
+  {
+   "fact": "user_media",
+   "reason": "not_exported",
+   "detail": "the attachments the user sent: the telemetry replaces their bytes with a placeholder of their length (`Base64 string (N characters)`)",
+   "subject": "fact-003"
   }
  ],
  "requests": {

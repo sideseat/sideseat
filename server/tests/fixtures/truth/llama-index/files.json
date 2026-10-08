@@ -114,16 +114,7 @@
     "sha256": "f65fdaa928f06d024c68c2538805845378efcb51b09abd084728750169541936",
     "bytes": 13207
    },
-   "require": {
-    "anchor": "conversation",
-    "views": [
-     "trace",
-     "session",
-     "feed"
-    ],
-    "cardinality": "exactly_once",
-    "match": "digest"
-   }
+   "require": null
   },
   {
    "id": "fact-004",
@@ -184,6 +175,12 @@
    "fact": "system_prompt",
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "user_media",
+   "reason": "not_exported",
+   "detail": "the document the user sent: the flattened input messages drop a document block (an image is kept, its data redacted), and no payload holds its bytes",
+   "subject": "fact-003"
   }
  ],
  "requests": {

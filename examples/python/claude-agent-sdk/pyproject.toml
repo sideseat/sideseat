@@ -12,6 +12,11 @@ dependencies = [
 producer = "claude-agent-sdk"
 integrations = ["claude-agent-sdk"]
 
+# What the Claude Agent SDK's telemetry leaves out, for the truth derivation (`python -m harness truth`); proven
+# absent from every capture by the rubric.
+[tool.sideseat-example.truth.unexported]
+media = "the attachments the user sent: the telemetry names an attachment by the file it was read from (`[Image: source: <path>]`), never by its bytes"
+
 [tool.uv]
 required-version = "==0.12.13"
 package = false

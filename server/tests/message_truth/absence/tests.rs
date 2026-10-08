@@ -267,7 +267,53 @@ fn an_attachment_is_found_by_the_digest_of_its_bytes() {
         value: Some(any_value::Value::BytesValue(bytes.to_vec())),
     };
     assert!(present(prove(&fact, &attribute(raw))));
-    assert_eq!(prove(&fact, &attribute(string("an image"))), Proof::Absent);
+    // Bytes no script sends cannot be searched for by their encoding, so their absence is not proven.
+    assert!(matches!(
+        prove(&fact, &attribute(string("an image"))),
+        Proof::Unprovable(_)
+    ));
+}
+
+/// A script's attachment written inside other text - a Java `toString()` naming its base64 - is never
+/// decoded as a value of its own, and is partly present all the same: no gap may claim it absent.
+#[test]
+fn an_attachment_written_inside_other_text_is_partial() {
+    use base64::engine::general_purpose::STANDARD;
+    let bytes = std::fs::read(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples/assets/img.jpg"),
+    )
+    .expect("the script's image");
+    let fact = fact(
+        "user_media",
+        serde_json::json!({"modality": "image", "media_type": "image/jpeg",
+            "sha256": truth::hex_digest(&sha2::Sha256::digest(&bytes)), "bytes": bytes.len()}),
+    );
+    let rendered = format!(
+        "UserMessage {{ contents = [ImageContent {{ image = Image {{ base64Data = \"{}\" }} }}] }}",
+        STANDARD.encode(&bytes)
+    );
+    assert!(matches!(
+        prove(&fact, &attribute(string(&rendered))),
+        Proof::Partial(_)
+    ));
+    // Cut short of its beginning, and wrapped into lines, it is still found.
+    let encoded = STANDARD.encode(&bytes);
+    let tail: String = encoded.as_bytes()[encoded.len() / 3..]
+        .chunks(76)
+        .map(|line| String::from_utf8_lossy(line).into_owned())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(matches!(
+        prove(&fact, &attribute(string(&format!("image: {tail}")))),
+        Proof::Partial(_)
+    ));
+    assert_eq!(
+        prove(
+            &fact,
+            &attribute(string("Base64 string (218624 characters)"))
+        ),
+        Proof::Absent
+    );
 }
 
 #[test]

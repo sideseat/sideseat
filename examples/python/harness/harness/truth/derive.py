@@ -280,7 +280,9 @@ class Framework:
     #: responses that only call tools, whose parts are recorded one execution at a time
     #: (``call_not_exported``); ``model``, ``response_model``, ``response_id``, ``finish`` - a call's
     #: metadata the producer states wrongly with the right value in no payload; ``reasoning_kind`` -
-    #: visible reasoning the producer records as plain text (``kind_not_exported``)
+    #: visible reasoning the producer records as plain text (``kind_not_exported``); ``media`` - the
+    #: attachments a user sent, whose bytes no payload holds (``not_exported``; ``modalities`` limits it to
+    #: those modalities, and it withdraws the fact, so it holds for every capture or none)
     #: (``metadata_not_exported``; ``values`` limits it to calls whose truth has one of them). Each
     #: value is the reason, or ``{reason, scenarios, modes}`` when only
     #: some scenarios' - or, by scenario, some releases' (``modes = {streaming = ["native@1.0b1"]}``) -
@@ -683,7 +685,7 @@ def assemble(
 #: Call metadata a producer may state wrongly with the right value in no payload.
 METADATA = ("model", "response_model", "response_id", "finish")
 UNEXPORTED = frozenset(
-    {"tool_call_ids", "tool_calling_rounds", "reasoning_kind", *METADATA}
+    {"tool_call_ids", "tool_calling_rounds", "reasoning_kind", "media", *METADATA}
 )
 
 
@@ -744,6 +746,17 @@ def _unexported(builder: Builder, framework: Framework) -> None:
             outputs = [facts[output] for output in record["outputs"]]
             if outputs and all(fact["kind"] == "tool_call" for fact in outputs):
                 gap("response", "call_not_exported", detail, record["id"])
+    if detail := declared("media"):
+        entry = framework.unexported["media"]
+        modalities = entry.get("modalities") if isinstance(entry, dict) else None
+        for fact in builder.facts:
+            if (
+                fact["kind"] == "user_media"
+                and fact["require"] is not None
+                and (modalities is None or fact["value"].get("modality") in modalities)
+            ):
+                fact["require"] = None
+                gap("user_media", "not_exported", detail, fact["id"])
     if detail := declared("tool_call_ids"):
         for fact in builder.facts:
             if fact["kind"] == "tool_call" and isinstance(fact["value"].get("id"), str):
