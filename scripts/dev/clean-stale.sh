@@ -21,7 +21,14 @@ if pgrep -x cargo >/dev/null 2>&1 || pgrep -x rustc >/dev/null 2>&1; then
 fi
 
 if [ "$build_running" = true ]; then
-  echo "[clean-stale] a cargo or rustc process is running; not sweeping artifacts"
+  # Several agents keep a build running nearly all the time, so cargo-sweep would never run. A unit nothing has
+  # rebuilt or reused for a day is not one a running build is about to link; if it is, cargo rebuilds it.
+  echo "[clean-stale] a cargo or rustc process is running; removing only units untouched for a day"
+  for profile_dir in "$target_dir"/*/; do
+    find "$profile_dir/deps" -maxdepth 1 -type f -mmin +1440 -delete 2>/dev/null || true
+    find "$profile_dir/.fingerprint" "$profile_dir/build" -mindepth 1 -maxdepth 1 -type d -mmin +1440 \
+      -exec rm -rf {} + 2>/dev/null || true
+  done
 elif command -v cargo-sweep >/dev/null 2>&1; then
   # Not `--installed`: it decides which artifacts belong to an installed toolchain by fingerprinting every
   # one, and a toolchain rustup cannot fingerprint (a missing manifest) made it delete the active
