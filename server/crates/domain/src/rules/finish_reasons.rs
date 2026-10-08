@@ -216,7 +216,7 @@ mod tests {
             ("MAX_TOKENS", FinishReason::Length),
             ("SAFETY", FinishReason::ContentFilter),
             ("RECITATION", FinishReason::ContentFilter),
-            ("LANGUAGE", FinishReason::ContentFilter),
+            ("LANGUAGE", FinishReason::Error),
             ("BLOCKLIST", FinishReason::ContentFilter),
             ("PROHIBITED_CONTENT", FinishReason::ContentFilter),
             ("SPII", FinishReason::ContentFilter),
@@ -234,6 +234,8 @@ mod tests {
         }
         for unknown in [
             "pause_turn",
+            "max_messages",
+            "steered",
             "OTHER",
             "IMAGE_OTHER",
             "FINISH_REASON_UNSPECIFIED",

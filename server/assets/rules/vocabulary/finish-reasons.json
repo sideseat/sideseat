@@ -47,7 +47,7 @@
     {
       "id": "finish-reasons.content_filter",
       "means": "content_filter",
-      "doc": "A filter stopped the answer: OpenAI and the conventions (`content_filter`); Gemini (`SAFETY`, `RECITATION`, `BLOCKED`, and `BLOCKLIST`, `PROHIBITED_CONTENT`, `SPII`, an unsupported `LANGUAGE`, and the image filters `IMAGE_SAFETY`, `IMAGE_PROHIBITED_CONTENT`, `IMAGE_RECITATION`); Anthropic when its streaming classifiers intervene (`refusal`); Bedrock (`guardrail_intervened`, `content_filtered`).",
+      "doc": "A filter stopped the answer: OpenAI and the conventions (`content_filter`); Gemini (`SAFETY`, `RECITATION`, `BLOCKED`, and `BLOCKLIST`, `PROHIBITED_CONTENT`, `SPII`, and the image filters `IMAGE_SAFETY`, `IMAGE_PROHIBITED_CONTENT`, `IMAGE_RECITATION`); Anthropic when its streaming classifiers intervene (`refusal`); Bedrock (`guardrail_intervened`, `content_filtered`).",
       "spellings": [
         "content_filter",
         "safety",
@@ -60,7 +60,6 @@
         "blocklist",
         "prohibited_content",
         "spii",
-        "language",
         "image_safety",
         "image_prohibited_content",
         "image_recitation"
@@ -69,7 +68,7 @@
     {
       "id": "finish-reasons.error",
       "means": "error",
-      "doc": "The generation failed: the words frameworks write for it; Bedrock's `malformed_model_output` and `malformed_tool_use`; Gemini's invalid calls (`MALFORMED_FUNCTION_CALL`, `UNEXPECTED_TOOL_CALL`), its `TOO_MANY_TOOL_CALLS` exit, and `NO_IMAGE` where an image was expected and none was made. Words that say only \"some other reason\" - Gemini's `OTHER` and `IMAGE_OTHER` - and Anthropic's `pause_turn`, which asks the caller to continue a turn rather than ending it, are declared nowhere, so their category stays unknown instead of being guessed.",
+      "doc": "The generation failed: the words frameworks write for it; Bedrock's `malformed_model_output` and `malformed_tool_use`; Gemini's invalid calls (`MALFORMED_FUNCTION_CALL`, `UNEXPECTED_TOOL_CALL`), its `TOO_MANY_TOOL_CALLS` exit, `NO_IMAGE` where an image was expected and none was made, and `LANGUAGE`, a request in a language the model does not support - a limit of the model, not a filter. Words that say only \"some other reason\" (Gemini's `OTHER` and `IMAGE_OTHER`), the Responses API's `max_messages` and `steered`, whose meaning the API does not state, and Anthropic's `pause_turn`, which asks the caller to continue a turn rather than ending it, are declared nowhere, so their category stays unknown instead of being guessed.",
       "spellings": [
         "error",
         "failure",
@@ -79,7 +78,8 @@
         "malformed_function_call",
         "unexpected_tool_call",
         "too_many_tool_calls",
-        "no_image"
+        "no_image",
+        "language"
       ]
     }
   ]
