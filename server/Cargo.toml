@@ -54,7 +54,6 @@ chrono = { workspace = true }
 # Protocol and integration clients
 opentelemetry-proto = { workspace = true }
 prost = { workspace = true }
-tonic = { workspace = true }
 clickhouse = { workspace = true }
 
 # Footprint gates require a stable allocator. Supported targets use jemalloc;
