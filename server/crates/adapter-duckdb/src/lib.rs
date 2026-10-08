@@ -30,8 +30,8 @@ use tokio::task::JoinHandle;
 
 use sideseat_core::config::RetentionConfig;
 use sideseat_core::constants::{
-    DUCKDB_CHECKPOINT_INTERVAL_SECS, DUCKDB_DB_FILENAME, DUCKDB_MEMORY_LIMIT_BYTES,
-    DUCKDB_QUERY_TIMEOUT_SECS, DUCKDB_RETENTION_INTERVAL_SECS,
+    DUCKDB_CHECKPOINT_INTERVAL_SECS, DUCKDB_DB_FILENAME, DUCKDB_MAX_THREADS,
+    DUCKDB_MEMORY_LIMIT_BYTES, DUCKDB_QUERY_TIMEOUT_SECS, DUCKDB_RETENTION_INTERVAL_SECS,
 };
 use sideseat_core::storage::{AppStorage, DataSubdir};
 
@@ -101,10 +101,14 @@ fn open_configured(
          SET extension_directory = '';
          SET force_compression = 'auto';
          SET memory_limit = '{limit}B';
+         SET threads = {threads};
          SET temp_directory = '{temp_dir_literal}';
          PRAGMA enable_checkpoint_on_shutdown;
          LOAD json;",
         limit = DUCKDB_MEMORY_LIMIT_BYTES,
+        threads = std::thread::available_parallelism()
+            .map_or(1, std::num::NonZeroUsize::get)
+            .clamp(1, DUCKDB_MAX_THREADS),
     ))?;
     Ok(conn)
 }

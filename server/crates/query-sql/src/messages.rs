@@ -480,6 +480,9 @@ pub fn get_project_messages(params: &FeedMessagesParams, backend: Backend) -> Pa
         values.push(value);
     }
 
+    if backend == Backend::Duckdb {
+        return duckdb_project_messages(params, &conditions.join(" AND "), values);
+    }
     join_log_messages(
         backend,
         (
@@ -499,6 +502,83 @@ pub fn get_project_messages(params: &FeedMessagesParams, backend: Backend) -> Pa
         Some(MESSAGE_CONTENT_FILTER),
         "ingested_at_us DESC, span_id DESC, trace_id DESC",
         Some(params.limit),
+    )
+}
+
+/// DuckDB's project feed picks its page before it reads what the page shows. Joining every span's columns to
+/// every span's aggregated log messages and filtering the result held the project's log messages in one
+/// aggregate - a state DuckDB cannot spill - and at a million spans ran out of the memory limit. The page is
+/// chosen on the spans' own columns and on which spans have log messages at all, then only its rows are read whole,
+/// by row id, and only their log messages aggregated, and the content filter applies to the joined rows as before:
+/// the same rows, in the same order.
+fn duckdb_project_messages(
+    params: &FeedMessagesParams,
+    conditions: &str,
+    span_values: Vec<QueryValue>,
+) -> ParameterizedQuery {
+    // The winner condition binds first, as the winner relation's would: `span_values` is in that order.
+    let (winner, _) = crate::winners::duckdb_winner_condition(params.ingested_before_us);
+    let (carriers_scope, carrier_values) = log_message_carriers(params);
+    let (_, log_values) = log_messages_source(
+        Backend::Duckdb,
+        params.project_id.as_str(),
+        params.ingested_before_us,
+        None,
+    );
+    let (aggregate, _) = log_messages_source(
+        Backend::Duckdb,
+        params.project_id.as_str(),
+        params.ingested_before_us,
+        Some((
+            "(trace_id, span_id) IN (SELECT trace_id, span_id FROM picked)".to_string(),
+            Vec::new(),
+        )),
+    );
+    let columns = MESSAGE_COLUMNS
+        .iter()
+        .map(|column| format!("s.{column} AS {column}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let limit = params.limit;
+    let sql = format!(
+        "WITH carriers AS ({carriers_scope}), \
+         picked AS (SELECT rowid AS row_id, trace_id, span_id FROM otel_spans WHERE {winner} AND {conditions} \
+           AND (messages != '[]' OR tool_definitions != '[]' OR tool_names != '[]' OR status_code = 'ERROR' \
+                OR (trace_id, span_id) IN (SELECT trace_id, span_id FROM carriers)) \
+           ORDER BY ingested_at DESC, span_id DESC, trace_id DESC LIMIT {limit})\n\
+         SELECT * FROM (\n\
+         SELECT {columns}, COALESCE(l.aggregated, '[]') AS log_messages\n\
+         FROM (SELECT\n{projection}\nFROM otel_spans WHERE rowid IN (SELECT row_id FROM picked)) s\n\
+         LEFT JOIN ({aggregate}) l ON l.log_trace_id = s.trace_id AND l.log_span_id = s.span_id\n\
+         ) WHERE {MESSAGE_CONTENT_FILTER}\n\
+         ORDER BY ingested_at_us DESC, span_id DESC, trace_id DESC\nLIMIT {limit}",
+        projection = message_projection(Backend::Duckdb),
+    );
+    let mut values = carrier_values;
+    values.extend(span_values);
+    values.extend(log_values);
+    ParameterizedQuery::new(sql, values)
+}
+
+/// The spans with log messages, as DuckDB's feed aggregates them: the same conditions, without the aggregate.
+fn log_message_carriers(params: &FeedMessagesParams) -> (String, Vec<QueryValue>) {
+    let mut values = vec![QueryValue::String(params.project_id.to_string())];
+    let mut conditions = vec![
+        "project_id = ?",
+        "trace_id IS NOT NULL",
+        "span_id IS NOT NULL",
+        "messages != '[]'",
+    ];
+    if let Some(watermark) = params.ingested_before_us {
+        conditions.push("EPOCH_US(ingested_at) < ?::BIGINT");
+        values.push(QueryValue::Int64(watermark));
+    }
+    (
+        format!(
+            "SELECT DISTINCT trace_id, span_id FROM otel_logs WHERE {}",
+            conditions.join(" AND ")
+        ),
+        values,
     )
 }
 
@@ -579,16 +659,23 @@ mod tests {
                 backend,
             );
             assert_eq!(feed.sql().matches('?').count(), feed.params().len());
-            let watermarks = span_watermark_binds(backend);
-            assert!(
-                feed.params()[..watermarks]
+            // DuckDB finds the spans with log messages, picks the page and then joins their messages to it
+            // (`duckdb_project_messages`): the log bound is bound twice.
+            let (span_reads, log_reads) = match backend {
+                Backend::Duckdb => (1, 2),
+                Backend::Clickhouse => (1, 1),
+            };
+            let count = |wanted: &QueryValue| {
+                feed.params()
                     .iter()
-                    .all(|value| value == &QueryValue::Int64(100))
-            );
+                    .filter(|value| *value == wanted)
+                    .count()
+            };
             assert_eq!(
-                feed.params().get(watermarks + 1),
-                Some(&QueryValue::Int64(42))
+                count(&QueryValue::Int64(100)),
+                span_reads * span_watermark_binds(backend) + log_reads
             );
+            assert_eq!(count(&QueryValue::Int64(42)), span_reads);
             assert!(
                 feed.sql()
                     .contains("ORDER BY ingested_at_us DESC, span_id DESC, trace_id DESC")
@@ -715,7 +802,11 @@ mod tests {
                     .iter()
                     .filter(|value| matches!(value, QueryValue::Int64(7)))
                     .count(),
-                span_watermark_binds(backend) + 1,
+                match backend {
+                    // The log messages are found, to pick the page, and then joined to it.
+                    Backend::Duckdb => span_watermark_binds(backend) + 2,
+                    Backend::Clickhouse => span_watermark_binds(backend) + 1,
+                },
                 "a feed page and the log messages joined to it describe one instant"
             );
             let filter_at = feed.sql().find(MESSAGE_CONTENT_FILTER).expect("filtered");

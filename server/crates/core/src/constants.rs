@@ -955,6 +955,15 @@ pub const STREAM_MAX_REMEMBERED_CONSUMERS: usize = 64;
 /// corpus.
 pub const DUCKDB_MEMORY_LIMIT_BYTES: u64 = FOOTPRINT_INGEST_RSS_MAX_BYTES / 2;
 
+/// Threads DuckDB may run one query on, at most; fewer when the host has fewer cores.
+///
+/// Each thread scanning a table holds its own decompressed segments of every column it reads, and the long text
+/// columns are zstd segments of megabytes, so a query's memory grows with its threads while the limit above
+/// does not. Measured on the trace corpus grown to a million spans in one project, the project message feed -
+/// twenty rows - completed every time on four threads and failed half its runs on ten, against the same
+/// 200 MB. Four is one thread per 50 MB of the limit.
+pub const DUCKDB_MAX_THREADS: usize = (DUCKDB_MEMORY_LIMIT_BYTES / (50 * 1024 * 1024)) as usize;
+
 /// Decoded protobuf bytes the CPU phase may have in flight at once.
 ///
 /// Requests are grouped into sequential waves whose summed decoded size stays within this budget. This bounds

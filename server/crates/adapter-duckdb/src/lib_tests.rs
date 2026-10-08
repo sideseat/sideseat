@@ -28,6 +28,26 @@ async fn test_analytics_service_init() {
 /// this `SET` missing or silently ignored would be a statement about everything except the component most
 /// likely to breach it. Reads the setting back through `current_setting`, since a `SET` DuckDB accepted and
 /// interpreted differently is indistinguishable from one that worked.
+/// A query runs on at most [`DUCKDB_MAX_THREADS`] threads, and on fewer when the host has fewer cores: each
+/// thread scanning the long text columns holds its own decompressed segments, so the memory limit holds only
+/// with the threads bounded too.
+#[tokio::test]
+async fn the_engine_runs_a_query_on_no_more_threads_than_its_memory_allows() {
+    let (_temp_dir, storage) = create_test_storage().await;
+    let service = DuckdbService::init(&storage, std::sync::Arc::new(crate::TestClock))
+        .await
+        .expect("Init should succeed");
+    let threads: i64 = service
+        .conn()
+        .query_row("SELECT current_setting('threads')", [], |row| row.get(0))
+        .expect("threads");
+    let cores = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+    assert_eq!(
+        threads as usize,
+        cores.min(sideseat_core::constants::DUCKDB_MAX_THREADS)
+    );
+}
+
 #[tokio::test]
 async fn the_engine_takes_the_declared_memory_limit() {
     let (_temp_dir, storage) = create_test_storage().await;

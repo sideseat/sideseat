@@ -227,18 +227,34 @@ pub fn candidates(request: &SearchQuery, backend: Backend) -> SearchCandidatePla
         Backend::Duckdb => format!("CAST(({}) AS SMALLINT)", lowered.sql),
         Backend::Clickhouse => format!("toInt16(({}))", lowered.sql),
     };
-    let sql = format!(
-        "WITH winners AS ({winners}){hits}, scored AS (\
+    let scored = format!(
+        "scored AS (\
          SELECT {projection}, {timestamp} AS timestamp_us, {state} AS match_state, \
-         {indexed} AS search_indexed FROM {from} {predicate}) \
-         SELECT * FROM scored WHERE match_state != 0 ORDER BY {order} LIMIT {fetch}",
-        winners = shape.winners(),
-        projection = shape.candidate_projection(),
+         {indexed} AS search_indexed FROM {from} {predicate})",
+        projection = shape.scored_projection(),
         timestamp = shape.timestamp_micros("r"),
-        state = state,
         indexed = shape.indexed_expression(),
-        order = shape.order(),
     );
+    let sql = match (request.signal, backend) {
+        // Scored by row, the page picked, and only the page's rows read whole, by row id: carrying the text
+        // through the scoring and the ordering, or joining it back by identity, scanned every winner's text.
+        (SearchSignal::Spans, Backend::Duckdb) => format!(
+            "WITH winners AS ({winners}){hits}, {scored}, \
+             picked AS (SELECT * FROM scored WHERE match_state != 0 ORDER BY {order} LIMIT {fetch}) \
+             SELECT {text}, p.timestamp_us, p.match_state, p.search_indexed \
+             FROM otel_spans r JOIN picked p ON r.rowid = p.row_id \
+             ORDER BY {order}",
+            winners = shape.winners(),
+            text = shape.candidate_projection(),
+            order = shape.order(),
+        ),
+        _ => format!(
+            "WITH winners AS ({winners}){hits}, {scored} \
+             SELECT * FROM scored WHERE match_state != 0 ORDER BY {order} LIMIT {fetch}",
+            winners = shape.winners(),
+            order = shape.order(),
+        ),
+    };
     SearchCandidatePlan {
         query: ParameterizedQuery::new(sql, params),
     }
@@ -603,7 +619,7 @@ impl Shape {
     fn winners(self) -> &'static str {
         match (self.signal, self.backend) {
             (SearchSignal::Spans, Backend::Duckdb) => {
-                "SELECT * FROM otel_spans WHERE project_id = ? AND superseded_at IS NULL"
+                "SELECT *, rowid AS row_id FROM otel_spans WHERE project_id = ? AND superseded_at IS NULL"
             }
             (SearchSignal::Logs, Backend::Duckdb) => "SELECT * FROM otel_logs WHERE project_id = ?",
             (SearchSignal::Spans, Backend::Clickhouse) => {
@@ -619,6 +635,16 @@ impl Shape {
         match self.signal {
             SearchSignal::Spans => "r.trace_id, r.span_id",
             SearchSignal::Logs => "r.log_digest, r.ordinal",
+        }
+    }
+
+    /// The columns a candidate is scored and ordered with. DuckDB's span candidates carry only their identity
+    /// and are read whole once chosen (`candidates`), since carrying their text through the scoring held every
+    /// candidate's messages and, at a million spans, exceeded the memory limit.
+    fn scored_projection(self) -> &'static str {
+        match (self.signal, self.backend) {
+            (SearchSignal::Spans, Backend::Duckdb) => "r.row_id, r.trace_id, r.span_id",
+            _ => self.candidate_projection(),
         }
     }
 
