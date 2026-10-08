@@ -467,6 +467,13 @@ by any of the `signals` of any asset.
 }
 ```
 
+An overlay either **replaces** the flattened content (`content_from`, becoming `as_member`) or **prepends** to it
+(`prepend_from`): a counterpart's list of blocks goes before the flattened members, which are kept and renumbered
+after it. Prepending is for a family that loses a *kind* of block rather than the content - a dialect that flattens
+an answer but has no name for the reasoning that preceded it - where replacing would drop the answer. It joins by
+position as the replacing form does, applies only where the list is non-empty, and otherwise leaves the flattened
+form standing.
+
 An overlay may decode one member of its counterpart copy before selecting from it (`decode`: a `select` path and a
 `parse` from the carriers' own vocabulary). That is for a payload whose richer copy is nested in a different
 encoding - JSON carrying the provider's response as a language's `repr` in one string member, where that repr is the
@@ -1024,9 +1031,10 @@ beside it keeps them, so where both describe one message the richer one is prefe
 | `unwrap_single_element_list` | true or false | Unwrap a list of exactly one list. A serialiser that accepts a batch of conversations writes one conversation as a batch of one, and the members of *that* are the messages. |
 | `witness` | [`Expr_ValuePredicate`](#expr_valuepredicate) | What the list must look like to be this dialect's own serialisation. Without it, any array of objects at that path would be treated as the same messages. |
 | `when_member_prefix` (required) | string | Only entries carrying members under this prefix are overlaid - the flattened form of the content that is known to be lossy. |
-| `content_from` (required) | [`FirstPresent_string`](#firstpresent_string) | Ordered paths to the counterpart's content. |
+| `content_from` | [`FirstPresent_string`](#firstpresent_string) | Ordered paths to the counterpart's content, which replaces the flattened members. Absent where the overlay only prepends. |
 | `where` | [`Expr_ValuePredicate`](#expr_valuepredicate) | What that content must be for the overlay to be an improvement. |
-| `as_member` (required) | string | The member the content becomes, replacing every member under `when_member_prefix`. |
+| `as_member` | string | The member the content becomes, replacing every member under `when_member_prefix`. Empty where the overlay only prepends, which keeps those members and renumbers them. |
+| `prepend_from` | [`FirstPresent_string`](#firstpresent_string) | Ordered paths to blocks of the counterpart that go **before** the flattened content, which is kept. |
 
 ### `MemberDecode`
 

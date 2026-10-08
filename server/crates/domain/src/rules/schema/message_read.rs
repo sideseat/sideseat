@@ -435,15 +435,28 @@ pub struct OverlaySpec {
     /// Only entries carrying members under this prefix are overlaid - the flattened form of the content
     /// that is known to be lossy.
     pub when_member_prefix: String,
-    /// Ordered paths to the counterpart's content.
-    #[serde(rename = "content_from")]
+    /// Ordered paths to the counterpart's content, which replaces the flattened members. Absent where the
+    /// overlay only prepends.
+    #[serde(default, rename = "content_from")]
     #[cfg_attr(test, schemars(with = "FirstOf<String, false>"))]
     pub content_any_of: FirstOf<JsonPath, false>,
     /// What that content must be for the overlay to be an improvement.
     #[serde(default, rename = "where")]
     pub require: ValueCondition,
-    /// The member the content becomes, replacing every member under `when_member_prefix`.
+    /// The member the content becomes, replacing every member under `when_member_prefix`. Empty where the
+    /// overlay only prepends, which keeps those members and renumbers them.
+    #[serde(default)]
     pub as_member: String,
+    /// Ordered paths to blocks of the counterpart that go **before** the flattened content, which is kept.
+    ///
+    /// For a flattened family that loses a *kind* of block rather than the content itself: a dialect that
+    /// flattens an answer but has no name for the reasoning that preceded it, where the serialised copy holds
+    /// both in order. Replacing would drop the answer, so these are prepended and the flattened members are
+    /// renumbered after them - one content list, in the order the provider sent it. Where the paths resolve to
+    /// nothing, or to an empty list, the flattened form stands.
+    #[serde(default, rename = "prepend_from")]
+    #[cfg_attr(test, schemars(with = "FirstOf<String, false>"))]
+    pub prepend_any_of: FirstOf<JsonPath, false>,
 }
 
 /// One member of an already-parsed value, decoded: what a reading writes as `select` and `parse` on its element, as

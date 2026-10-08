@@ -285,3 +285,90 @@ fn an_overlay_decodes_a_serialised_member_before_selecting() {
         );
     }
 }
+
+/// **An overlay may put a counterpart's blocks before the flattened content and keep it.** A dialect that
+/// flattens an answer but has no name for the reasoning that preceded it loses a *kind* of block, not the
+/// content: replacing would drop the answer, so the serialised copy's blocks are prepended and the flattened
+/// members renumbered after them. An empty list or an absent member leaves the flattened form standing.
+#[test]
+fn an_overlay_may_prepend_a_counterpart_s_blocks_and_keep_the_flattened_ones() {
+    use crate::rules::message_rules::{MessageCompileError, MessageContext};
+    let plan = probe_compile(
+        r#"{"id":"t","messages":[{"id":"t.out","priority":1,"emit":"message",
+            "read":{"indexed_family":"fam","entry_member":"message",
+              "overlay":{"from":"rich","parse":"json","select":"$.choices",
+                "witness":{"path":"$[*].message","exists":true},
+                "when_member_prefix":"contents.","prepend_from":"$.message.thinking_blocks"}},
+            "require_members":{"all_of":[{"name":"role"}]}}]}"#,
+    )
+    .expect("a prepending overlay compiles");
+    let read = |rich: serde_json::Value| {
+        let attrs = probe_attrs(&[
+            ("fam.0.message.role", "assistant"),
+            ("fam.0.message.contents.0.message_content.text", "answer"),
+            ("fam.0.message.contents.1.message_content.text", "more"),
+            ("rich", &rich.to_string()),
+        ]);
+        let ctx = MessageContext::for_span("span", &attrs, false);
+        plan.run(&ctx)
+            .into_iter()
+            .map(|e| e.value)
+            .collect::<Vec<_>>()
+    };
+    let thinking = serde_json::json!([
+        {"type": "thinking", "thinking": "first", "signature": "sig-1"},
+        {"type": "thinking", "thinking": "second", "signature": "sig-2"},
+    ]);
+    let entry =
+        &read(serde_json::json!({"choices": [{"message": {"thinking_blocks": thinking}}]}))[0];
+    assert_eq!(
+        entry["contents.0"],
+        serde_json::json!({"type": "thinking", "thinking": "first", "signature": "sig-1"})
+    );
+    assert_eq!(entry["contents.1"]["thinking"], serde_json::json!("second"));
+    assert_eq!(
+        entry["contents.2.message_content.text"],
+        serde_json::json!("answer"),
+        "the flattened content is kept, renumbered after the prepended blocks: {entry}"
+    );
+    assert_eq!(
+        entry["contents.3.message_content.text"],
+        serde_json::json!("more")
+    );
+
+    for (why, rich) in [
+        (
+            "an empty list",
+            serde_json::json!({"choices": [{"message": {"thinking_blocks": []}}]}),
+        ),
+        (
+            "an absent member",
+            serde_json::json!({"choices": [{"message": {}}]}),
+        ),
+    ] {
+        let kept = &read(rich)[0];
+        assert_eq!(
+            kept["contents.0.message_content.text"],
+            serde_json::json!("answer"),
+            "{why}: the flattened form stands - {kept}"
+        );
+        assert!(
+            kept.get("contents.2.message_content.text").is_none(),
+            "{why}"
+        );
+    }
+
+    // A prepend-only overlay names no `as_member`, since it writes none.
+    assert!(matches!(
+        probe_compile(
+            r#"{"id":"t","messages":[{"id":"t.out","priority":1,"emit":"message",
+                "read":{"indexed_family":"fam","entry_member":"message",
+                  "overlay":{"from":"rich","parse":"json","select":"$.choices",
+                    "witness":{"path":"$[*].message","exists":true},
+                    "when_member_prefix":"contents.","as_member":"content",
+                    "prepend_from":"$.message.thinking_blocks"}},
+                "require_members":{"all_of":[{"name":"role"}]}}]}"#
+        ),
+        Err(MessageCompileError::Inexpressible { .. })
+    ));
+}

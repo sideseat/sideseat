@@ -602,6 +602,43 @@ pub(super) fn indexed_entries(
             consumed.push(overlay.from.clone());
             object.insert(overlay.as_member.clone(), content);
         }
+        // Blocks the counterpart puts before the flattened content, which is **kept**: a dialect that flattens
+        // an answer but has no name for the reasoning that preceded it loses a kind of block rather than the
+        // content, so replacing would drop the answer. The flattened members are renumbered after the
+        // prepended ones, which leaves one content list in the order the provider sent it.
+        if let Some(overlay) = overlay
+            && let Some(blocks) = counterpart_prepend(overlay, counterparts.as_ref(), index)
+            && object
+                .keys()
+                .any(|member| member.starts_with(overlay.when_member_prefix.as_str()))
+        {
+            let prefix = overlay.when_member_prefix.as_str();
+            // Renumbered highest first, so a shift never writes over a member still to be moved.
+            let mut shifted: Vec<(String, String)> = object
+                .keys()
+                .filter_map(|member| {
+                    let rest = member.strip_prefix(prefix)?;
+                    let (position, tail) = rest.split_once('.').unwrap_or((rest, ""));
+                    let at: usize = position.parse().ok()?;
+                    let moved = match tail.is_empty() {
+                        true => format!("{prefix}{}", at + blocks.len()),
+                        false => format!("{prefix}{}.{tail}", at + blocks.len()),
+                    };
+                    Some((member.clone(), moved))
+                })
+                .collect();
+            shifted.sort_by(|a, b| b.0.cmp(&a.0));
+            for (member, moved) in shifted {
+                if let Some(value) = object.remove(&member) {
+                    object.insert(moved, value);
+                }
+            }
+            for (at, block) in blocks.into_iter().enumerate() {
+                object.insert(format!("{prefix}{at}"), block);
+            }
+            // The overlay's payload was read, so this entry owns it, exactly as a replacing overlay does.
+            consumed.push(overlay.from.clone());
+        }
         // A projection reads one value out of the entry: the entry is a wrapper around a single payload,
         // and the payload is the datum. An entry the projection does not find contributes nothing - it is
         // not this shape - rather than contributing the wrapper.
@@ -694,6 +731,20 @@ pub(super) fn counterpart_content(
         .iter()
         .find_map(|path| singular(counterparts?.get(index)?, path, "overlay content_any_of"))?;
     predicates_hold(found, &overlay.require).then(|| found.clone())
+}
+
+/// The blocks the counterpart at this position puts **before** the flattened content, where it has any.
+pub(super) fn counterpart_prepend(
+    overlay: &OverlaySpec,
+    counterparts: Option<&Vec<JsonValue>>,
+    index: usize,
+) -> Option<Vec<JsonValue>> {
+    let found = overlay
+        .prepend_any_of
+        .iter()
+        .find_map(|path| singular(counterparts?.get(index)?, path, "overlay prepend_any_of"))?;
+    let blocks = found.as_array()?;
+    (!blocks.is_empty()).then(|| blocks.clone())
 }
 
 /// A named member read as a number where its text is one, otherwise the ordinary sniff.

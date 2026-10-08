@@ -645,18 +645,30 @@ pub(super) fn compile_rule(
     if let Some(overlay) = &read.overlay {
         if overlay.from.is_empty()
             || overlay.when_member_prefix.is_empty()
-            || overlay.as_member.is_empty()
+            || (overlay.as_member.is_empty() && overlay.prepend_any_of.is_empty())
         {
             return Err(inexpressible(
-                "an overlay names a carrier, the flattened members it replaces and the member they \
-                     become; an empty one of those is not a name - and an empty prefix matches every \
-                     member, so the overlay would delete the whole entry",
+                "an overlay names a carrier, the flattened members it reads beside and - where it \
+                     replaces them - the member they become; an empty one of those is not a name, and an \
+                     empty prefix matches every member, so the overlay would delete the whole entry",
             ));
         }
-        if overlay.select_any_of.is_empty() || overlay.content_any_of.is_empty() {
+        // One of the two forms, at least: `content_from` replaces the flattened content, `prepend_from` puts
+        // blocks before it and keeps it. Neither is a reading of the counterpart at all.
+        if overlay.select_any_of.is_empty()
+            || (overlay.content_any_of.is_empty() && overlay.prepend_any_of.is_empty())
+        {
             return Err(inexpressible(
                 "an overlay with no path to its counterpart list, or none to that counterpart's \
-                     content, can never find anything",
+                     content or prepended blocks, can never find anything",
+            ));
+        }
+        // `as_member` is what the replacing form writes; a prepending overlay renumbers the flattened members
+        // instead, so an `as_member` beside a prepend-only overlay names a member nothing writes.
+        if overlay.content_any_of.is_empty() && !overlay.as_member.is_empty() {
+            return Err(inexpressible(
+                "an overlay that only prepends keeps the flattened members and renumbers them, so \
+                 `as_member` would name a member nothing writes - it belongs to `content_from`",
             ));
         }
         if let Some(decode) = &overlay.decode

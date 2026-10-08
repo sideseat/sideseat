@@ -1542,7 +1542,7 @@
           "type": "string"
         },
         "content_from": {
-          "description": "Ordered paths to the counterpart's content.",
+          "description": "Ordered paths to the counterpart's content, which replaces the flattened members. Absent where the\noverlay only prepends.",
           "$ref": "#/$defs/FirstPresent_string"
         },
         "where": {
@@ -1550,17 +1550,20 @@
           "$ref": "#/$defs/Expr_ValuePredicate"
         },
         "as_member": {
-          "description": "The member the content becomes, replacing every member under `when_member_prefix`.",
-          "type": "string"
+          "description": "The member the content becomes, replacing every member under `when_member_prefix`. Empty where the\noverlay only prepends, which keeps those members and renumbers them.",
+          "type": "string",
+          "default": ""
+        },
+        "prepend_from": {
+          "description": "Ordered paths to blocks of the counterpart that go **before** the flattened content, which is kept.\n\nFor a flattened family that loses a *kind* of block rather than the content itself: a dialect that\nflattens an answer but has no name for the reasoning that preceded it, where the serialised copy holds\nboth in order. Replacing would drop the answer, so these are prepended and the flattened members are\nrenumbered after them - one content list, in the order the provider sent it. Where the paths resolve to\nnothing, or to an empty list, the flattened form stands.",
+          "$ref": "#/$defs/FirstPresent_string"
         }
       },
       "additionalProperties": false,
       "required": [
         "from",
         "select",
-        "when_member_prefix",
-        "content_from",
-        "as_member"
+        "when_member_prefix"
       ]
     },
     "MemberDecode": {

@@ -34,6 +34,11 @@ const ASSET_SCHEMA_REF: &str = "../../rules.schema.json";
 /// census options: documentation is metadata, and exercising it shows nothing about the grammar.
 const UNUSED: &[(&str, &str)] = &[
     (
+        "OverlaySpec.prepend_from",
+        "the counterpart's blocks before the flattened content, which is kept - for a family that loses a kind \
+         of block rather than the content; the asset that reads such a copy is not landed yet",
+    ),
+    (
         "OverlaySpec.decode",
         "the overlay's counterpart copy with one serialised member decoded first - a JSON payload carrying the \
          provider's response as a language's `repr`; the asset that reads such a copy is not landed yet",
