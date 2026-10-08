@@ -499,37 +499,87 @@ fn message_goldens() {
         }
     }
 
+    // Asserted in a recording run too: the expectations a recording writes are reviewed by diff, but the
+    // truth ledger is not something a recording re-baselines, and a regenerated golden that hides a truth
+    // regression must not pass.
+    let truth_problems = message_truth::ledger_problems(&truth_violations, false);
     if update {
         eprintln!("message_goldens: recorded {} fixture(s)", fixtures.len());
-        // Recording still fails when an invariant was violated. Writing the files first is
-        // deliberate - you want to see the whole picture - but exiting 0 would let a
-        // known-bad expectation be committed as if it had been reviewed and accepted.
-        assert!(
-            violations.is_empty(),
-            "recorded {} fixture(s) but {} violated an invariant; the written expectations \
+    }
+    if let Err(problem) = verdict(
+        update,
+        fixtures.len(),
+        &failures,
+        &violations,
+        &truth_problems,
+    ) {
+        panic!("{problem}");
+    }
+    if !update {
+        eprintln!(
+            "message_goldens: {checked} fixture(s) matched; {} truth violation(s), all ledgered",
+            truth_violations.len()
+        );
+    }
+}
+
+/// What a goldens run concludes from what it found.
+///
+/// A recording run (`update`) writes every expectation first - the point is to see the whole picture - and
+/// still fails on an invariant violation, because exiting 0 would let a known-bad expectation be committed
+/// as if reviewed, and on any disagreement with the truth ledger, which a recording cannot re-baseline. A
+/// checking run fails on a changed expectation or a ledger disagreement; its invariants abort inline.
+fn verdict(
+    update: bool,
+    fixtures: usize,
+    failures: &[String],
+    violations: &[String],
+    truth_problems: &[String],
+) -> Result<(), String> {
+    let mut problems = Vec::new();
+    if update && !violations.is_empty() {
+        problems.push(format!(
+            "recorded {fixtures} fixture(s) but {} violated an invariant; the written expectations \
              capture current (wrong) behaviour and must not be committed as-is:\n\n{}",
-            fixtures.len(),
             violations.len(),
             violations.join("\n\n")
-        );
-        return;
+        ));
     }
+    if !update && !failures.is_empty() {
+        problems.push(format!(
+            "message parsing changed for {} of {fixtures} fixture(s):\n\n{}",
+            failures.len(),
+            failures.join("\n\n")
+        ));
+    }
+    if !truth_problems.is_empty() {
+        problems.push(format!(
+            "{} disagreement(s) with the truth ledger (server/tests/fixtures/truth/known-violations.json):\n  {}",
+            truth_problems.len(),
+            truth_problems.join("\n  ")
+        ));
+    }
+    if problems.is_empty() {
+        Ok(())
+    } else {
+        Err(problems.join("\n\n"))
+    }
+}
 
-    let truth_problems = message_truth::ledger_problems(&truth_violations, false);
-    assert!(
-        failures.is_empty() && truth_problems.is_empty(),
-        "message parsing changed for {} of {} fixture(s):\n\n{}\n\n\
-         {} disagreement(s) with the truth ledger (server/tests/fixtures/truth/known-violations.json):\n  {}",
-        failures.len(),
-        fixtures.len(),
-        failures.join("\n\n"),
-        truth_problems.len(),
-        truth_problems.join("\n  ")
-    );
-    eprintln!(
-        "message_goldens: {checked} fixture(s) matched; {} truth violation(s), all ledgered",
-        truth_violations.len()
-    );
+/// A recording run fails on a truth regression as a checking run does, and on nothing a recording is
+/// for: the expectations it rewrote are its output, not a failure.
+#[test]
+fn a_recording_run_still_answers_to_the_truth_ledger() {
+    let regression =
+        ["fixture:trace:tool_result.missing:fact-001 is not in the ledger".to_string()];
+    assert!(verdict(true, 1, &[], &[], &regression).is_err());
+    assert!(verdict(false, 1, &[], &[], &regression).is_err());
+    let changed = ["fixture: trace view changed".to_string()];
+    assert!(verdict(true, 1, &changed, &[], &[]).is_ok());
+    assert!(verdict(false, 1, &changed, &[], &[]).is_err());
+    let broken = ["fixture: a tool result before its call".to_string()];
+    assert!(verdict(true, 1, &[], &broken, &[]).is_err());
+    assert!(verdict(false, 1, &[], &[], &[]).is_ok());
 }
 
 /// Producers whose fixtures are SDK conformance programs rather than frameworks.
