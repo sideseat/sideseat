@@ -52,6 +52,7 @@ fn make_test_block(
         is_cross_trace_history: false,
         tool_use_id_correlated: false,
         promoted_to_span_output: false,
+        is_rendering: false,
     }
 }
 
@@ -108,6 +109,7 @@ fn make_tool_use_block(
         is_cross_trace_history: false,
         tool_use_id_correlated: false,
         promoted_to_span_output: false,
+        is_rendering: false,
     }
 }
 
@@ -163,6 +165,7 @@ fn make_tool_result_block(
         is_cross_trace_history: false,
         tool_use_id_correlated: false,
         promoted_to_span_output: false,
+        is_rendering: false,
     }
 }
 

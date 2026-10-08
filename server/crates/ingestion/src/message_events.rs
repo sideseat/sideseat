@@ -92,7 +92,10 @@ pub(crate) fn read_message_event(
     let declared: Vec<RawMessage> = reading
         .emissions
         .into_iter()
-        .map(|emission| RawMessage::from_event(emission.carrier.name(), time, emission.value))
+        .map(|emission| {
+            RawMessage::from_event(emission.carrier.name(), time, emission.value)
+                .rendered(emission.rendering)
+        })
         .collect();
     if reading.replaces_raw {
         return declared;

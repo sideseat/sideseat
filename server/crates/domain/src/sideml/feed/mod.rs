@@ -284,6 +284,8 @@ struct ParsedMessage {
     span_name: Option<String>,
     scope_name: Option<String>,
     scope_version: Option<String>,
+    /// The stored message was a rendering (`RawMessage::rendering`).
+    rendering: bool,
 }
 
 // ============================================================================
@@ -452,6 +454,14 @@ fn classify_span_blocks(
     // All blocks start with is_history = false
     let mut blocks = flatten_to_blocks(parsed_messages, &span_hierarchy);
 
+    // A rendering is a turn the producer re-sent as text - a call written out as prose, a result quoted back -
+    // whose call and result other carriers hold losslessly. The span view shows it, because it was sent; a
+    // collapsed view drops it here, before replay matching, correlation, classification and ordering read the
+    // blocks, so it can neither survive as history nor stand in for the call it renders.
+    if matches!(replay_policy, ReplayPolicy::Collapse) {
+        blocks.retain(|block| !block.is_rendering);
+    }
+
     // Cross-trace prefix marking must run before history classification and duplicate detection.
     // If run after, duplicate detection would mark the second occurrence as history, then
     // cross-trace would mark the first → both become history → genuine content lost.
@@ -506,6 +516,7 @@ pub fn stage_timings(rows: Vec<MessageSpanRow>) -> Vec<(&'static str, std::time:
 
     let t = std::time::Instant::now();
     let mut blocks = flatten_to_blocks(parsed_messages, &span_hierarchy);
+    blocks.retain(|block| !block.is_rendering);
     out.push(("  flatten_to_blocks", t.elapsed()));
 
     let t = std::time::Instant::now();
@@ -785,5 +796,7 @@ fn reconstruct_trace(
     )
 }
 
+#[cfg(test)]
+mod rendering_tests;
 #[cfg(test)]
 mod tests;

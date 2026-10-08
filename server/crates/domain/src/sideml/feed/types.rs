@@ -214,6 +214,13 @@ pub struct BlockEntry {
     #[serde(skip_serializing)]
     pub is_cross_trace_history: bool,
 
+    /// A turn the producer re-sent as text that another carrier holds losslessly (a reading's `rendering`).
+    ///
+    /// Kept in the span view, which shows what was sent; the trace and session views drop it before anything
+    /// else reads the blocks, since the call and result it renders are there already.
+    #[serde(skip)]
+    pub is_rendering: bool,
+
     /// True when this tool result's `tool_use_id` was derived by correlation rather than sent by
     /// the framework.
     ///
@@ -587,6 +594,7 @@ mod tests {
             is_cross_trace_history: false,
             tool_use_id_correlated: false,
             promoted_to_span_output: false,
+            is_rendering: false,
         }
     }
 

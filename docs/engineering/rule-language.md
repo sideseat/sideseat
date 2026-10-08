@@ -321,6 +321,15 @@ The decoded value becomes messages through:
 A section body, a selected value and an attached attribute are the producer's bytes: nothing is trimmed unless a
 `pipe` says so. Every role a rule states, in any envelope or section route, must be a role.
 
+Some producers re-send the turns of a tool loop as text in every request - the call written out as prose, the
+result quoted back - while the call and the result are also on record losslessly, in the model's output and on
+the tool's own span. A reading marks those messages with `rendering`, a value condition asked of the same value
+as its `where` (on an indexed family's read, of each entry, as `entry_where` is). A rendering is shown on the span
+that sent it, because it is what was sent, and is left out of the trace and session views, which already hold the
+call and its result; nothing else about it changes - it is owned, ordered and counted on its span as any message
+is. A fragment case's own `rendering` adds to its selection point's. `rendering` is refused on a reading that
+does not emit messages, inside an aggregate, and on a read that is not an indexed family.
+
 ```json example
 {
   "id": "acme-messages",
@@ -341,10 +350,11 @@ A section body, a selected value and an attached attribute are the producer's by
       "alternatives": [
         {
           "id": "turns",
-          "doc": "Each turn already carries its role.",
+          "doc": "Each turn already carries its role; the tool loop it re-sends as text is a rendering.",
           "select": "$.turns",
           "each": true,
           "where": {"all": [{"path": "$.speaker", "kind": "string"}, {"path": "$.text", "exists": true}]},
+          "rendering": {"path": "$.speaker", "one_of": ["tool-call", "tool-response"]},
           "wrap": {
             "role_from": {"path": "$.speaker", "pipe": [{"map": {"bot": "assistant"}}]},
             "content_from": "$.text"
@@ -790,6 +800,7 @@ field to un-refuse.
 | `indexed_family` | string | An *indexed attribute family*: `<prefix>.0.role`, `<prefix>.0.content`, `<prefix>.1.role`, ... |
 | `family` | string | A dotted attribute *family* read as one object: every key under the prefix (which ends in `.`), named by what follows it - `code.function.parameters.city.value = "Paris"` is `{"city.value": "Paris"}` - with each value read as the JSON it spells or as its text. |
 | `entry_where` | [`Expr_ValuePredicate`](#expr_valuepredicate) | A predicate applied to each fully assembled indexed entry. |
+| `rendering` | [`Expr_ValuePredicate`](#expr_valuepredicate) or null | The indexed entries that are a **rendering**: turns the producer re-sent as text, which another carrier holds losslessly. Asked of the same value as `entry_where`. A rendering stays on the span that sent it and is left out of the trace and session views, where the call and result it renders already are. Absent: no entry is. |
 | `entry_member` | string | A sub-level of each indexed entry whose members are read at the top of the object. |
 | `numeric_members` | list of string | Entry members to read as a number where the text is one. |
 | `entry_value` | string | Read one *value* out of each indexed entry, rather than the entry's assembled members. |
@@ -1114,6 +1125,7 @@ One documented shape of a payload: where to look, what to require, and what to c
 | `where` | [`Expr_ValuePredicate`](#expr_valuepredicate) | The shape an observation must have to be emitted. |
 | `wrap` | [`WrapSpec`](#wrapspec) or null | An envelope for *this* reading only. |
 | `pipe` | list of [`Transform`](#transform) | `["trim"]` trims a string before testing and emitting it; no other step applies to a reading. |
+| `rendering` | [`Expr_ValuePredicate`](#expr_valuepredicate) or null | The messages of this reading that are a **rendering**: turns the producer re-sent as text - a tool call written out as prose, a result quoted back - which another carrier holds losslessly. Asked of the same value as `where`. A rendering stays on the span that sent it, since it is what was sent, and is left out of the trace and session views, where the call and result it renders already are. Absent: none is; a fragment case's own `rendering` adds to its selection point's. |
 | `then_fragment` | string | Apply this named fragment's cases to each selected element. |
 | `emit` | [`EmitTarget`](#emittarget) or null | What this reading is, where it differs from the rule's own target. |
 | `extra_cases` | list of [`Alternative`](#alternative) | Shapes recognised at *this* selection point only, tried after the shared fragment's own cases. |

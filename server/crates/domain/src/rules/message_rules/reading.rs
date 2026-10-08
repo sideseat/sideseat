@@ -88,7 +88,7 @@ pub(super) fn all_readings(
             // envelope applies to it.
             return Selection {
                 built: match built(parsed.clone(), None, build) {
-                    Some(value) => vec![(value, None, Vec::new())],
+                    Some(value) => vec![(value, None, Vec::new(), false)],
                     None => Vec::new(),
                 },
                 recognised: Vec::new(),
@@ -159,7 +159,7 @@ pub(super) fn readings(
     if alternatives.is_empty() {
         return Selection {
             built: match built(parsed.clone(), None, build) {
-                Some(value) => vec![(value, None, Vec::new())],
+                Some(value) => vec![(value, None, Vec::new(), false)],
                 None => Vec::new(),
             },
             recognised: Vec::new(),
@@ -354,6 +354,11 @@ pub(super) fn readings(
                 if !predicates_hold(&candidate, &alternative.require) {
                     continue;
                 }
+                // Asked of the value `where` was, before any envelope: whether this is a turn re-sent as text.
+                let rendering = alternative
+                    .rendering
+                    .as_ref()
+                    .is_some_and(|condition| predicates_hold(&candidate, condition));
                 // The fragment decides what the element *is*; this reading decided where to look. Splitting
                 // them is why one dialect can recognise its message shapes at four selection points with one
                 // table.
@@ -376,11 +381,14 @@ pub(super) fn readings(
                     if !inner.recognised.is_empty() && !recognised.contains(&alternative.id) {
                         recognised.push(alternative.id.clone());
                     }
-                    produced.extend(inner.built.into_iter().map(|(value, target, mut steps)| {
-                        let mut path = vec![alternative.id.clone()];
-                        path.append(&mut steps);
-                        (value, target, path)
-                    }));
+                    produced.extend(inner.built.into_iter().map(
+                        |(value, target, mut steps, inner_rendering)| {
+                            let mut path = vec![alternative.id.clone()];
+                            path.append(&mut steps);
+                            // The selection point's declaration or the case's: either says it is one.
+                            (value, target, path, rendering || inner_rendering)
+                        },
+                    ));
                     continue;
                 }
                 // Recognition is recorded **before** construction: the candidate passed every predicate this
@@ -393,7 +401,12 @@ pub(super) fn readings(
                 let Some(value) = built(candidate, alternative.wrap.as_ref(), build) else {
                     continue;
                 };
-                produced.push((value, alternative.emit, vec![alternative.id.clone()]));
+                produced.push((
+                    value,
+                    alternative.emit,
+                    vec![alternative.id.clone()],
+                    rendering,
+                ));
             }
         }
         if !produced.is_empty() {

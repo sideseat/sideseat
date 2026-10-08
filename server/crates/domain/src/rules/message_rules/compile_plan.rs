@@ -110,6 +110,7 @@ pub fn compile(
         if let Some(detail) = wraps(rule)
             .into_iter()
             .find_map(|wrap| wrap_role_defect(wrap, &roles))
+            .or_else(|| rendering_defect(rule))
             .or_else(|| {
                 // A section route's role is stated as literally as an envelope's, and folds the same way.
                 rule.sections

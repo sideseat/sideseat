@@ -45,6 +45,12 @@ const UNUSED: &[(&str, &str)] = &[
     ),
     ("LengthUnit=chars", "as `bytes`"),
     (
+        "Alternative.rendering",
+        "requested by the rubric track for the tool calls and results a dialect re-sends as text in every \
+         request; its assets land in that track's next commit, and this entry leaves with them",
+    ),
+    ("ReadSpec.rendering", "as `Alternative.rendering`"),
+    (
         "Facts.carrier_is_atomic_emission",
         "every fact axis of a carrier preset stays independently overridable, so a clause can state an \
          exception without a new preset; no shipped clause needs this one yet",

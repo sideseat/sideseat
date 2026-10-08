@@ -89,6 +89,7 @@ pub(super) fn emit_rule<'p>(
             // engine gives the assembled result. Claiming it let one compose suppress another that read
             // entirely different carriers.
             out.push(Emission {
+                rendering: false,
                 rule_id: &rule.rule_id,
                 evidence: rule_evidence(rule, &[]),
                 carrier: EmittedCarrier::Attribute(compose.tag.as_str()),
@@ -106,6 +107,7 @@ pub(super) fn emit_rule<'p>(
                 && let Some(tools) = super::tool_repr::tools_from_carrier(&parsed, spec)
             {
                 out.push(Emission {
+                    rendering: false,
                     rule_id: &rule.rule_id,
                     evidence: rule_evidence(rule, &[]),
                     carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
@@ -158,6 +160,7 @@ pub(super) fn emit_rule<'p>(
                 None => array,
             };
             out.push(Emission {
+                rendering: false,
                 rule_id: &rule.rule_id,
                 evidence: rule_evidence(rule, &[]),
                 carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(family)),
@@ -185,6 +188,11 @@ pub(super) fn emit_rule<'p>(
                 owns,
                 carrier: EmittedCarrier::Owned(entry.carrier),
                 target: rule.target,
+                rendering: rule
+                    .read
+                    .rendering
+                    .as_ref()
+                    .is_some_and(|condition| predicates_hold(&entry.value, condition)),
                 value: entry.value,
             });
         }
@@ -222,6 +230,7 @@ pub(super) fn emit_rule<'p>(
                         EmittedCarrier::Owned(carrier)
                     };
                     out.push(Emission {
+                        rendering: false,
                         rule_id: &rule.rule_id,
                         evidence: rule_evidence(rule, &clause),
                         // The array attribute is what was read; each element's tag is a name for one of its parts.
@@ -237,6 +246,7 @@ pub(super) fn emit_rule<'p>(
             if let Some(sections) = &rule.sections {
                 for (route, value) in sectioned(raw, sections, ctx.span_attrs) {
                     out.push(Emission {
+                        rendering: false,
                         rule_id: &rule.rule_id,
                         evidence: rule_evidence(rule, &[vec![route]]),
                         carrier: EmittedCarrier::Attribute(
@@ -280,7 +290,7 @@ pub(super) fn emit_rule<'p>(
         // which is why an emission carries a set rather than one path.
         let mut contributing: Vec<Vec<String>> = Vec::new();
         let mut values = Vec::new();
-        for (value, _, path) in readings {
+        for (value, _, path, _) in readings {
             if !contributing.contains(&path) {
                 contributing.push(path);
             }
@@ -300,6 +310,7 @@ pub(super) fn emit_rule<'p>(
             None => assembled,
         };
         out.push(Emission {
+            rendering: false,
             rule_id: &rule.rule_id,
             evidence: rule_evidence(rule, &contributing),
             carrier: EmittedCarrier::Attribute(rule.tag_as.as_deref().unwrap_or(attribute)),
@@ -326,7 +337,7 @@ pub(super) fn emit_rule<'p>(
             "a carrier yielded more observations than this server reports from one; the rest are dropped"
         );
     }
-    for (value, per_reading_target, clause) in readings
+    for (value, per_reading_target, clause, rendering) in readings
         .into_iter()
         .take(sideseat_core::constants::RULE_MAX_EMISSIONS_PER_CARRIER)
     {
@@ -337,6 +348,7 @@ pub(super) fn emit_rule<'p>(
             owns: owns.clone(),
             target: per_reading_target.unwrap_or(rule.target),
             value,
+            rendering,
         });
     }
 

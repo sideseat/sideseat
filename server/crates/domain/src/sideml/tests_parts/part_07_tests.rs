@@ -523,6 +523,7 @@ fn a_tagged_source_name_takes_its_declared_role() {
             time: Utc.with_ymd_and_hms(2024, 1, 15, 10, 30, 0).unwrap(),
         },
         content: one_result.clone(),
+        rendering: false,
     }];
     let out = to_sideml(&tagged);
     assert_eq!(out.len(), 1, "one bundled result is one message");
@@ -542,6 +543,7 @@ fn a_tagged_source_name_takes_its_declared_role() {
             time: Utc.with_ymd_and_hms(2024, 1, 15, 10, 30, 0).unwrap(),
         },
         content: one_result.clone(),
+        rendering: false,
     }];
     assert_ne!(
         to_sideml(&untagged)[0].sideml.role,
@@ -560,6 +562,7 @@ fn a_tagged_source_name_takes_its_declared_role() {
             time: Utc.with_ymd_and_hms(2024, 1, 15, 10, 30, 0).unwrap(),
         },
         content: bogus,
+        rendering: false,
     }];
     assert_eq!(
         to_sideml(&unreadable)[0].sideml.role,
@@ -576,6 +579,7 @@ fn a_tagged_source_name_takes_its_declared_role() {
             time: Utc.with_ymd_and_hms(2024, 1, 15, 10, 30, 0).unwrap(),
         },
         content: stated,
+        rendering: false,
     }];
     assert_eq!(
         to_sideml(&explicit)[0].sideml.role,

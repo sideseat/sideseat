@@ -320,6 +320,7 @@ pub(super) fn predicate_sets(rule: &CompiledMessageRule) -> Vec<&ValueCondition>
         out.push(&overlay.require);
     }
     out.push(&rule.read.entry_require);
+    out.extend(rule.read.rendering.as_ref());
     for reading in rule
         .alternatives
         .iter()
@@ -331,6 +332,7 @@ pub(super) fn predicate_sets(rule: &CompiledMessageRule) -> Vec<&ValueCondition>
         for spec in std::iter::once(&reading.spec).chain(reading.fragment_cases.iter()) {
             out.push(&spec.require);
             out.push(&spec.require_parent);
+            out.extend(spec.rendering.as_ref());
             if let Some(wrap) = &spec.wrap {
                 out.extend(wrap_predicate_sets(wrap));
             }
@@ -890,4 +892,57 @@ pub(super) fn emitted_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
         );
     }
     out
+}
+
+/// Why a rule's `rendering` declarations cannot mean what they say.
+///
+/// A rendering is a *message* the trace and session views leave out, so marking anything else - a tool
+/// definition, a name list, a claim - states a view rule for something no view shows. An aggregate emits one
+/// observation for every entry, so one entry being a rendering has no observation to mark. And on a read, the
+/// marker is asked of an indexed family's entries; any other read form has its readings, which carry their own.
+pub(super) fn rendering_defect(rule: &CompiledMessageRule) -> Option<&'static str> {
+    if let Some(set) = &rule.branch_set
+        && let Some(defect) = set
+            .primary
+            .iter()
+            .chain(&set.fallback)
+            .chain(&set.always)
+            .find_map(rendering_defect)
+    {
+        return Some(defect);
+    }
+    let readings: Vec<&Alternative> = rule
+        .alternatives
+        .iter()
+        .chain(&rule.also)
+        .chain(&rule.fallback)
+        .flat_map(|reading| std::iter::once(&reading.spec).chain(reading.fragment_cases.iter()))
+        .collect();
+    let marked_readings: Vec<&&Alternative> = readings
+        .iter()
+        .filter(|spec| spec.rendering.is_some())
+        .collect();
+    if rule.read.rendering.is_some() && rule.read.indexed_family.is_none() {
+        return Some(
+            "declares `rendering` on a read that is not an indexed family - a reading's own `rendering` is \
+             where the marker goes",
+        );
+    }
+    if rule.aggregate_into_array && (rule.read.rendering.is_some() || !marked_readings.is_empty()) {
+        return Some(
+            "marks renderings in an aggregate, which emits one observation for all of its entries, so no \
+             observation is the rendering",
+        );
+    }
+    let emits_messages = |target: EmitTarget| target == EmitTarget::Message;
+    if (rule.read.rendering.is_some() && !emits_messages(rule.target))
+        || marked_readings
+            .iter()
+            .any(|spec| !emits_messages(spec.emit.unwrap_or(rule.target)))
+    {
+        return Some(
+            "marks as a rendering a reading that does not emit messages - only a message is left out of a view",
+        );
+    }
+    None
 }

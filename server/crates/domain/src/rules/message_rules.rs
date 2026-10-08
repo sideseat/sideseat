@@ -51,7 +51,9 @@ use super::{expr, refusal, schema, tool_repr};
 ///
 /// Building inside the coalesce makes "could not be built" mean "this alternative produced nothing", which is
 /// the same answer as "this shape does not match" and the only one the coalesce can act on.
-type Reading = (JsonValue, Option<EmitTarget>, Vec<String>);
+/// A built value, its target where the reading states one, the clauses that produced it, and whether it is a
+/// rendering (`Alternative::rendering`).
+type Reading = (JsonValue, Option<EmitTarget>, Vec<String>, bool);
 
 /// One node's readings, and which clauses **recognised** it.
 ///
@@ -231,6 +233,9 @@ pub struct Emission<'a> {
     pub owns: Vec<OwnedCarrier>,
     pub target: EmitTarget,
     pub value: JsonValue,
+    /// A turn the producer re-sent as text that another carrier holds losslessly: kept on the span, left out
+    /// of the trace and session views. Declared by a reading's `rendering`.
+    pub rendering: bool,
 }
 
 /// The carrier an emission read: its kind and its key.

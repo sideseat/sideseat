@@ -247,6 +247,12 @@ pub struct ReadSpec {
     /// declaration. Absent means every entry that satisfies `require_members` is read.
     #[serde(default, rename = "entry_where")]
     pub entry_require: ValueCondition,
+    /// The indexed entries that are a **rendering**: turns the producer re-sent as text, which another carrier
+    /// holds losslessly. Asked of the same value as `entry_where`. A rendering stays on the span that sent it
+    /// and is left out of the trace and session views, where the call and result it renders already are.
+    /// Absent: no entry is.
+    #[serde(default)]
+    pub rendering: Option<ValueCondition>,
     /// A sub-level of each indexed entry whose members are read at the top of the object.
     ///
     /// One dialect nests the message inside the entry - `<prefix>.0.message.role` - while also putting

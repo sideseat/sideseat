@@ -48,6 +48,7 @@ fn make_raw_message(content: &str) -> RawMessage {
             "role": "user",
             "content": content
         }),
+        rendering: false,
     }
 }
 

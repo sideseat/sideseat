@@ -996,6 +996,17 @@
           "description": "A predicate applied to each fully assembled indexed entry.\n\n`require_members` decides whether the flattened carrier contains enough physical members to form an\nentry. This is the semantic counterpart: it sees the resulting object and can keep only entries whose\nvalues mean something to this reading. One OpenInference integration, for example, writes framework\nbookkeeping beside actual conversation roles in the same family.\n\nOptional rather than an empty default so an explicitly empty predicate can be refused as a dead\ndeclaration. Absent means every entry that satisfies `require_members` is read.",
           "$ref": "#/$defs/Expr_ValuePredicate"
         },
+        "rendering": {
+          "description": "The indexed entries that are a **rendering**: turns the producer re-sent as text, which another carrier\nholds losslessly. Asked of the same value as `entry_where`. A rendering stays on the span that sent it\nand is left out of the trace and session views, where the call and result it renders already are.\nAbsent: no entry is.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Expr_ValuePredicate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "entry_member": {
           "description": "A sub-level of each indexed entry whose members are read at the top of the object.\n\nOne dialect nests the message inside the entry - `<prefix>.0.message.role` - while also putting\nentry-level members beside it. Both are collected, the sub-level's names unprefixed and the rest as\nthey stand, and the observation is tagged with `<prefix>.<index>.<member>` because that is the\npayload it came from.",
           "type": [
@@ -2264,6 +2275,17 @@
           "items": {
             "$ref": "#/$defs/Transform"
           }
+        },
+        "rendering": {
+          "description": "The messages of this reading that are a **rendering**: turns the producer re-sent as text - a tool call\nwritten out as prose, a result quoted back - which another carrier holds losslessly. Asked of the same\nvalue as `where`. A rendering stays on the span that sent it, since it is what was sent, and is left out\nof the trace and session views, where the call and result it renders already are. Absent: none is; a\nfragment case's own `rendering` adds to its selection point's.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Expr_ValuePredicate"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "then_fragment": {
           "description": "Apply this named fragment's cases to each selected element.\n\nThe fragment decides what the element *is*; this reading decides *where to look*. Splitting them is\nthe point: one dialect's state object holds its messages in four places and recognises them one way.",

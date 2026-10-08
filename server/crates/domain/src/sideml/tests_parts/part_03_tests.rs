@@ -133,6 +133,7 @@ fn test_to_sideml_strands_user_message() {
             "content": [{"text": "Hello, assistant!"}],
             "role": "user"
         }),
+        rendering: false,
     }];
 
     let sideml_messages = to_sideml(&raw_messages);
@@ -165,6 +166,7 @@ fn test_to_sideml_strands_tool_message_categorization() {
             "content": [{"toolResult": {"toolUseId": "abc", "status": "success", "content": [{"text": "Result"}]}}],
             "role": "tool"
         }),
+        rendering: false,
     }];
 
     let sideml_messages = to_sideml(&raw_messages);
@@ -190,6 +192,7 @@ fn test_to_sideml_tool_input_categorization() {
         content: json!({
             "content": [{"toolUse": {"toolUseId": "abc", "name": "weather", "input": {}}}]
         }),
+        rendering: false,
     }];
 
     let sideml_messages = to_sideml(&raw_messages);
@@ -210,6 +213,7 @@ fn test_to_sideml_attribute_source_uses_span_timestamp() {
             "role": "user",
             "content": "Hello"
         }),
+        rendering: false,
     }];
 
     let sideml_messages = to_sideml(&raw_messages);
@@ -231,6 +235,7 @@ fn test_to_sideml_choice_event_categorization() {
             "content": "I'll help you with that.",
             "finish_reason": "stop"
         }),
+        rendering: false,
     }];
 
     let sideml_messages = to_sideml(&raw_messages);
@@ -383,6 +388,7 @@ fn test_bundled_tool_results_are_split_into_separate_messages() {
                 {"toolResult": {"toolUseId": "id2", "status": "success", "content": [{"json": {"temp": 25}}]}}
             ]
         }),
+        rendering: false,
     };
 
     let result = to_sideml(&[bundled_message]);
@@ -419,6 +425,7 @@ fn test_single_tool_result_not_split() {
                 {"toolResult": {"toolUseId": "id1", "status": "success", "content": [{"text": "Result"}]}}
             ]
         }),
+        rendering: false,
     };
 
     let result = to_sideml(&[single_message]);
@@ -445,6 +452,7 @@ fn test_non_tool_messages_not_affected_by_bundling_logic() {
             "role": "user",
             "content": [{"text": "Hello"}, {"text": "World"}]
         }),
+        rendering: false,
     };
 
     let result = to_sideml(&[user_message]);
@@ -471,6 +479,7 @@ fn test_special_role_tool_call_preserved() {
             "tool_call_id": "call_123",
             "content": {"city": "NYC"}
         }),
+        rendering: false,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -494,6 +503,7 @@ fn test_special_role_tools_preserved() {
             "role": "tools",  // Special role - should be preserved
             "content": [{"name": "get_weather", "description": "Get weather"}]
         }),
+        rendering: false,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -517,6 +527,7 @@ fn test_special_role_data_preserved() {
             "role": "data",  // Special role - should be preserved
             "content": {"history": [{"user": "hi"}, {"assistant": "hello"}]}
         }),
+        rendering: false,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -540,6 +551,7 @@ fn test_special_role_context_preserved() {
             "role": "context",  // Special role - should be preserved
             "content": {"chat_history": "previous messages"}
         }),
+        rendering: false,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -563,6 +575,7 @@ fn test_standard_role_overridden_by_event() {
             "role": "tool",  // Standard role - should be overridden
             "content": "This should be assistant"
         }),
+        rendering: false,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -589,6 +602,7 @@ fn test_tool_result_gets_name_from_matching_tool_use() {
             "role": "assistant",
             "content": [{"toolUse": {"toolUseId": "call_abc", "name": "get_weather", "input": {}}}]
         }),
+        rendering: false,
     };
 
     // Tool result without name but with matching tool_use_id
@@ -601,6 +615,7 @@ fn test_tool_result_gets_name_from_matching_tool_use() {
             "tool_call_id": "call_abc",
             "content": [{"text": "Sunny, 25C"}]
         }),
+        rendering: false,
     };
 
     let result = to_sideml_with_context(&[tool_call, tool_result], false);
@@ -632,6 +647,7 @@ fn test_tool_result_no_name_when_no_matching_tool_use() {
             "tool_call_id": "orphan_id",
             "content": [{"text": "Result"}]
         }),
+        rendering: false,
     };
 
     let result = to_sideml(&[tool_result]);
@@ -656,6 +672,7 @@ fn test_gen_ai_choice_in_tool_span_becomes_tool_role() {
         content: json!({
             "content": [{"text": "Tool output result"}]
         }),
+        rendering: false,
     };
 
     // In tool span: gen_ai.choice is tool OUTPUT
@@ -682,6 +699,7 @@ fn test_gen_ai_choice_in_chat_span_becomes_assistant_role() {
         content: json!({
             "content": [{"text": "Assistant response"}]
         }),
+        rendering: false,
     };
 
     // In chat span: gen_ai.choice is assistant response
@@ -708,6 +726,7 @@ fn test_gen_ai_tool_message_in_chat_span_becomes_tool_role() {
         content: json!({
             "content": [{"text": "Tool result"}]
         }),
+        rendering: false,
     };
 
     // In chat span: gen_ai.tool.message is tool result
@@ -778,6 +797,7 @@ fn test_to_sideml_derives_assistant_role_from_choice_event() {
             "message": "Hello, I can help you!",
             "finish_reason": "end_turn"
         }),
+        rendering: false,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -802,6 +822,7 @@ fn test_to_sideml_derives_user_role_from_user_message_event() {
         content: json!({
             "content": "What's the weather?"
         }),
+        rendering: false,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -823,6 +844,7 @@ fn test_to_sideml_derives_tool_role_from_tool_message_event() {
             "content": "Weather is sunny",
             "id": "tool123"
         }),
+        rendering: false,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -846,6 +868,7 @@ fn test_to_sideml_event_derived_role_takes_precedence() {
             "role": "user",  // Will be overridden by event-derived role
             "content": "Hello"
         }),
+        rendering: false,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -875,6 +898,7 @@ fn test_unflatten_tool_calls_from_openinference() {
             "tool_calls.0.tool_call.function.name": "get_weather",
             "tool_calls.0.tool_call.function.arguments": {"city": "NYC", "days": 3}
         }),
+        rendering: false,
     };
 
     let result = to_sideml(&[raw_message]);

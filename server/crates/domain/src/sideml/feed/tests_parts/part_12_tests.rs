@@ -588,6 +588,7 @@ fn prior_state(
             is_cross_trace_history: false,
             tool_use_id_correlated: false,
             promoted_to_span_output: false,
+            is_rendering: false,
         })
         .collect();
     let mut state = super::CrossTracePrefixState::default();

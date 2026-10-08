@@ -339,6 +339,7 @@ mod tests {
                 }],
                 ..Default::default()
             },
+            rendering: false,
         }
     }
 
@@ -604,6 +605,7 @@ mod tests {
                     }],
                     ..Default::default()
                 },
+                rendering: false,
             },
         ];
 
@@ -663,6 +665,7 @@ mod tests {
                 }],
                 ..Default::default()
             },
+            rendering: false,
         }
     }
 

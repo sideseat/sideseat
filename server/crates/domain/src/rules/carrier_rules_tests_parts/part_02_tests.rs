@@ -191,6 +191,11 @@ fn every_predicate_set_in_the_schema_is_validated() {
         ),
         ("Alternative::require_parent", "predicate_sets"),
         (
+            "Alternative::rendering",
+            "predicate_sets, including fragment cases; rendering_defect",
+        ),
+        ("ReadSpec::rendering", "predicate_sets; rendering_defect"),
+        (
             "Alternative::require",
             "predicate_sets, including fragment and extra cases",
         ),

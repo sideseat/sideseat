@@ -14,6 +14,7 @@ fn test_response_data_tool_calls() {
             },
             "usage": {"prompt_tokens": 10}
         }),
+        rendering: false,
     };
 
     let mut result = Vec::new();
@@ -38,6 +39,7 @@ fn test_response_data_streaming() {
             "combined_chunk_content": "Hello from streaming!",
             "chunk_count": 5
         }),
+        rendering: false,
     };
 
     let mut result = Vec::new();
@@ -70,6 +72,7 @@ fn test_response_data_empty_streaming_skipped() {
             "combined_chunk_content": "",
             "chunk_count": 0
         }),
+        rendering: false,
     };
 
     let mut result = Vec::new();

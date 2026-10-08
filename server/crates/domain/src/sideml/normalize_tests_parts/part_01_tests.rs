@@ -103,6 +103,7 @@ fn test_expand_message_array_preserves_message_with_string_content() {
             time: Utc::now(),
         },
         content: json!({"role": "system", "content": "You are a helpful assistant."}),
+        rendering: false,
     };
 
     let mut result = Vec::new();
@@ -131,6 +132,7 @@ fn test_expand_message_array_preserves_message_with_array_content() {
             "role": "user",
             "content": [{"type": "text", "text": "Hello"}]  // Array of content blocks, not messages
         }),
+        rendering: false,
     };
 
     let mut result = Vec::new();
@@ -159,6 +161,7 @@ fn test_expand_message_array_expands_top_level_array() {
             {"role": "system", "content": "You are helpful"},
             {"role": "user", "content": "Hello"}
         ]),
+        rendering: false,
     };
 
     let mut result = Vec::new();
@@ -189,6 +192,7 @@ fn test_expand_message_array_expands_nested_messages_array() {
                 {"role": "assistant", "content": "Hi there"}
             ]
         }),
+        rendering: false,
     };
 
     let mut result = Vec::new();
@@ -209,6 +213,7 @@ fn test_expand_message_array_gemini_parts_format() {
             {"role": "user", "parts": [{"text": "Hello"}]},
             {"role": "model", "parts": [{"text": "Hi"}]}
         ]),
+        rendering: false,
     };
 
     let mut result = Vec::new();
@@ -236,6 +241,7 @@ fn test_expand_message_array_coalesces_google_genai_stream_chunks() {
                 "finish_reason": "stop"
             }
         ]),
+        rendering: false,
     };
 
     let mut result = Vec::new();
@@ -280,6 +286,7 @@ fn test_expand_message_array_coalesces_each_stream_of_a_tool_loop() {
                 "finish_reason": "stop"
             }
         ]),
+        rendering: false,
     };
 
     let mut result = Vec::new();
@@ -321,6 +328,7 @@ fn test_expand_message_array_keeps_multiple_finished_candidates_separate() {
                 "finish_reason": "stop"
             }
         ]),
+        rendering: false,
     };
 
     let mut result = Vec::new();
@@ -339,6 +347,7 @@ fn test_to_sideml_vercel_ai_system_and_user_messages() {
                 time: Utc::now(),
             },
             content: json!({"role": "system", "content": "You are a helpful assistant."}),
+            rendering: false,
         },
         RawMessage {
             source: MessageSource::Attribute {
@@ -346,6 +355,7 @@ fn test_to_sideml_vercel_ai_system_and_user_messages() {
                 time: Utc::now(),
             },
             content: json!({"role": "user", "content": [{"type": "text", "text": "Hello"}]}),
+            rendering: false,
         },
     ];
 
@@ -388,6 +398,7 @@ fn test_flatten_tool_blocks_preserves_order() {
             ],
             ..Default::default()
         },
+        rendering: false,
     };
 
     let result = flatten_tool_blocks(vec![msg]);
@@ -437,6 +448,7 @@ fn test_flatten_tool_blocks_text_after_tools() {
             ],
             ..Default::default()
         },
+        rendering: false,
     };
 
     let result = flatten_tool_blocks(vec![msg]);
@@ -501,6 +513,7 @@ fn two_non_tool_groups_of_one_message_occupy_two_positions() {
             ],
             ..Default::default()
         },
+        rendering: false,
     };
 
     let result = flatten_tool_blocks(vec![msg]);
@@ -552,6 +565,7 @@ fn a_call_and_a_result_in_one_message_are_split() {
             ],
             ..Default::default()
         },
+        rendering: false,
     };
 
     let result = flatten_tool_blocks(vec![msg]);
@@ -612,6 +626,7 @@ fn text_between_two_tool_blocks_keeps_its_place() {
             ],
             ..Default::default()
         },
+        rendering: false,
     };
 
     let result = flatten_tool_blocks(vec![msg]);
@@ -658,6 +673,7 @@ fn test_flatten_tool_blocks_single_tool_unchanged() {
             ],
             ..Default::default()
         },
+        rendering: false,
     };
 
     let result = flatten_tool_blocks(vec![msg]);
@@ -697,6 +713,7 @@ fn test_flatten_tool_blocks_multiple_tool_results() {
             ],
             ..Default::default()
         },
+        rendering: false,
     };
 
     let result = flatten_tool_blocks(vec![msg]);
@@ -758,6 +775,7 @@ fn test_flatten_tool_blocks_mixed_tool_use_and_result() {
             ],
             ..Default::default()
         },
+        rendering: false,
     };
 
     let result = flatten_tool_blocks(vec![msg]);
@@ -814,6 +832,7 @@ fn test_flattened_tool_results_get_name_enriched() {
                 "input": {"timezone": "EST"}
             }]
         }),
+        rendering: false,
     };
 
     // Bundled tool results - will be flattened
@@ -834,6 +853,7 @@ fn test_flattened_tool_results_get_name_enriched() {
                 "content": "3:00 PM EST"
             }]
         }),
+        rendering: false,
     };
 
     let result = to_sideml(&[tool_use_msg, tool_results_msg]);
@@ -882,6 +902,7 @@ fn test_request_data_expansion() {
             ],
             "model": "gpt-4o"
         }),
+        rendering: false,
     };
 
     let mut result = Vec::new();
@@ -914,6 +935,7 @@ fn test_response_data_message_unwrap() {
             "message": {"role": "assistant", "content": "Hi there!"},
             "usage": {"prompt_tokens": 10, "completion_tokens": 5}
         }),
+        rendering: false,
     };
 
     let mut result = Vec::new();

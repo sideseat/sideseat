@@ -64,6 +64,9 @@ pub struct SideMLMessage {
     pub timestamp: DateTime<Utc>,
     /// The normalized SideML message
     pub sideml: ChatMessage,
+    /// The stored message was a rendering (`RawMessage::rendering`); not serialised, like `position`.
+    #[serde(skip)]
+    pub rendering: bool,
 }
 
 // ============================================================================
@@ -137,6 +140,7 @@ pub fn to_sideml_with_context(
             source_type,
             timestamp,
             sideml,
+            rendering: raw.rendering,
         });
     }
 
@@ -276,6 +280,7 @@ fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &Pos
                 RawMessage {
                     source: raw.source.clone(),
                     content: msg.clone(),
+                    rendering: raw.rendering,
                 },
                 path.child_key("message"),
             ));
@@ -295,6 +300,7 @@ fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &Pos
                 RawMessage {
                     source: raw.source.clone(),
                     content: json!({"role": "assistant", "content": text}),
+                    rendering: raw.rendering,
                 },
                 path.child_key(member),
             ));
@@ -343,6 +349,7 @@ fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &Pos
                 RawMessage {
                     source: raw.source.clone(),
                     content: json!({"role": "system", "content": text}),
+                    rendering: raw.rendering,
                 },
                 path.child_key(member),
             ));
@@ -374,6 +381,7 @@ fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &Pos
                         RawMessage {
                             source: raw.source.clone(),
                             content: combined,
+                            rendering: raw.rendering,
                         },
                         array_path.child_index(run.start),
                     )),
@@ -385,6 +393,7 @@ fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &Pos
                                     RawMessage {
                                         source: raw.source.clone(),
                                         content: message.clone(),
+                                        rendering: raw.rendering,
                                     },
                                     array_path.child_index(position),
                                 ));
@@ -407,6 +416,7 @@ fn expand_message_array(result: &mut Vec<Observed>, raw: &RawMessage, path: &Pos
                 RawMessage {
                     source: raw.source.clone(),
                     content: item.clone(),
+                    rendering: raw.rendering,
                 },
                 array_path.child_index(position),
             ));
@@ -602,6 +612,7 @@ fn expand_bundled_tool_result(
             RawMessage {
                 source: raw.source.clone(),
                 content: new_content,
+                rendering: raw.rendering,
             },
             bundle_path.child_index(position),
         ));
@@ -688,6 +699,7 @@ fn flatten_tool_blocks(messages: Vec<SideMLMessage>) -> Vec<SideMLMessage> {
                         source_type: msg.source_type,
                         timestamp: msg.timestamp,
                         sideml: new_sideml,
+                        rendering: msg.rendering,
                     });
                 }
                 ContentBlock::ToolResult { tool_use_id, .. } => {
@@ -718,6 +730,7 @@ fn flatten_tool_blocks(messages: Vec<SideMLMessage>) -> Vec<SideMLMessage> {
                         source_type: msg.source_type,
                         timestamp: msg.timestamp,
                         sideml: new_sideml,
+                        rendering: msg.rendering,
                     });
                 }
                 _ => {
@@ -772,6 +785,7 @@ fn emit_non_tool_message(
         source_type: msg.source_type,
         timestamp: msg.timestamp,
         sideml: new_sideml,
+        rendering: msg.rendering,
     });
 }
 

@@ -451,6 +451,13 @@ pub struct Alternative {
     /// Declared rather than always-on: trimming a payload that is meant to be verbatim would change it.
     #[serde(default, deserialize_with = "reading_pipe")]
     pub pipe: Vec<Transform>,
+    /// The messages of this reading that are a **rendering**: turns the producer re-sent as text - a tool call
+    /// written out as prose, a result quoted back - which another carrier holds losslessly. Asked of the same
+    /// value as `where`. A rendering stays on the span that sent it, since it is what was sent, and is left out
+    /// of the trace and session views, where the call and result it renders already are. Absent: none is; a
+    /// fragment case's own `rendering` adds to its selection point's.
+    #[serde(default)]
+    pub rendering: Option<ValueCondition>,
     /// Apply this named fragment's cases to each selected element.
     ///
     /// The fragment decides what the element *is*; this reading decides *where to look*. Splitting them is

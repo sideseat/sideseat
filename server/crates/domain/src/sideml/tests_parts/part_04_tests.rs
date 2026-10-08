@@ -14,6 +14,7 @@ fn test_unflatten_multiple_tool_calls() {
             "tool_calls.1.tool_call.id": "call_2",
             "tool_calls.1.tool_call.function.name": "get_time"
         }),
+        rendering: false,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -61,6 +62,7 @@ fn test_unflatten_no_dotted_keys_unchanged() {
             "role": "user",
             "content": "Hello world"
         }),
+        rendering: false,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -89,6 +91,7 @@ fn test_unflatten_nested_object_path() {
             "metadata.provider.name": "openai",
             "metadata.provider.version": "v1"
         }),
+        rendering: false,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -290,6 +293,7 @@ fn test_category_from_data_role() {
             "type": "conversation_history",
             "content": {"messages": []}
         }),
+        rendering: false,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -354,6 +358,7 @@ fn test_category_from_tool_call_role() {
             "name": "get_weather",
             "content": {"city": "NYC"}
         }),
+        rendering: false,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -378,6 +383,7 @@ fn test_tool_call_role_from_event_gets_tool_input_category() {
             "tool_call_id": "call_123",
             "content": {"city": "NYC"}
         }),
+        rendering: false,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -403,6 +409,7 @@ fn test_category_from_tools_role() {
             "role": "tools",
             "content": [{"name": "search"}]
         }),
+        rendering: false,
     };
 
     let result = to_sideml(&[raw_message]);
@@ -431,6 +438,7 @@ fn test_pipeline_tool_span_messages_end_to_end() {
             "tool_call_id": "call_123",
             "content": {"city": "NYC", "days": 3}
         }),
+        rendering: false,
     };
 
     let tool_result_msg = RawMessage {
@@ -442,6 +450,7 @@ fn test_pipeline_tool_span_messages_end_to_end() {
             "tool_call_id": "call_123",
             "content": [{"text": "Weather is sunny"}]
         }),
+        rendering: false,
     };
 
     // Use is_tool_span=true for tool span context

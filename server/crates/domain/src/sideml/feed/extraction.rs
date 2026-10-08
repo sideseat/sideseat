@@ -92,6 +92,7 @@ pub(in crate::sideml::feed) fn parse_span_rows(rows: &[MessageSpanRow]) -> Vec<P
                     span_name: row.span_name.clone(),
                     scope_name: row.scope_name.clone(),
                     scope_version: row.scope_version.clone(),
+                    rendering: msg.rendering,
                 });
             }
         }
@@ -380,6 +381,7 @@ pub(in crate::sideml::feed) fn append_error_messages(
             span_name: row.span_name.clone(),
             scope_name: row.scope_name.clone(),
             scope_version: row.scope_version.clone(),
+            rendering: false,
         });
     }
 }
@@ -646,6 +648,7 @@ pub(in crate::sideml::feed) fn flatten_to_blocks(
                 is_cross_trace_history: false, // Will be set by cross-trace replay matching
                 tool_use_id_correlated: false, // Will be set by correlate_tool_results()
                 promoted_to_span_output: false, // Will be set by classify_blocks()
+                is_rendering: msg.rendering,
             });
         }
     }

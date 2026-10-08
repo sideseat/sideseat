@@ -177,10 +177,16 @@ fn try_declared_rules_for_span(
             // An event carrier is recorded as one: carrier semantics are looked up by kind, so reporting
             // an event as an attribute would change what the pipeline reads it as evidence of.
             sideseat_domain::rules::schema::EmitTarget::Message if emission.carrier.is_event() => {
-                messages.push(RawMessage::from_event(key, timestamp, emission.value));
+                messages.push(
+                    RawMessage::from_event(key, timestamp, emission.value)
+                        .rendered(emission.rendering),
+                );
             }
             sideseat_domain::rules::schema::EmitTarget::Message => {
-                messages.push(RawMessage::from_attr(key, timestamp, emission.value));
+                messages.push(
+                    RawMessage::from_attr(key, timestamp, emission.value)
+                        .rendered(emission.rendering),
+                );
             }
             sideseat_domain::rules::schema::EmitTarget::ToolDefinitions => {
                 tool_definitions.push(RawToolDefinition::from_attr(key, timestamp, emission.value));
@@ -506,7 +512,10 @@ fn fallback_messages(
                 sideseat_domain::rules::schema::EmitTarget::Message
             )
         })
-        .map(|emission| RawMessage::from_attr(emission.carrier.name(), timestamp, emission.value))
+        .map(|emission| {
+            RawMessage::from_attr(emission.carrier.name(), timestamp, emission.value)
+                .rendered(emission.rendering)
+        })
         .collect()
 }
 

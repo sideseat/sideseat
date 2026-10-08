@@ -9,6 +9,11 @@ use serde_json::Value as JsonValue;
 pub struct RawMessage {
     pub source: MessageSource,
     pub content: JsonValue,
+    /// A turn the producer re-sent as text that another carrier holds losslessly (a reading's `rendering`):
+    /// shown on the span that sent it, left out of the trace and session views. Written only when true, so a
+    /// stored message that is not one keeps the bytes it always had.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub rendering: bool,
 }
 
 /// Physical carrier that supplied a message.
@@ -20,6 +25,12 @@ pub enum MessageSource {
 }
 
 impl RawMessage {
+    /// The same message, marked as a rendering where `rendering` holds.
+    pub fn rendered(mut self, rendering: bool) -> Self {
+        self.rendering = rendering;
+        self
+    }
+
     pub fn from_event(name: &str, time: DateTime<Utc>, content: JsonValue) -> Self {
         Self {
             source: MessageSource::Event {
@@ -27,6 +38,7 @@ impl RawMessage {
                 time,
             },
             content,
+            rendering: false,
         }
     }
 
@@ -37,6 +49,7 @@ impl RawMessage {
                 time,
             },
             content,
+            rendering: false,
         }
     }
 }
