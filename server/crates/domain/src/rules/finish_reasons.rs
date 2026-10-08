@@ -191,4 +191,54 @@ mod tests {
         }
         assert_eq!(plan.lookup("unknown"), None);
     }
+
+    /// Every stop word the providers' own SDK types enumerate, as each spells it: OpenAI's Responses
+    /// `incomplete_details.reason`, Anthropic's `stop_reason`, Bedrock Converse's `StopReason` and Gemini's
+    /// `FinishReason`. No capture holds most of them yet, so this is the evidence they are read at all. Words
+    /// that say only "for some other reason", or that ask the caller to continue, stay unknown.
+    #[test]
+    fn every_provider_stop_word_has_its_category() {
+        let plan = &crate::rules::ruleset().finish_reasons;
+        let declared = [
+            ("max_output_tokens", FinishReason::Length),
+            ("content_filter", FinishReason::ContentFilter),
+            ("end_turn", FinishReason::Stop),
+            ("max_tokens", FinishReason::Length),
+            ("stop_sequence", FinishReason::Stop),
+            ("tool_use", FinishReason::ToolUse),
+            ("refusal", FinishReason::ContentFilter),
+            ("model_context_window_exceeded", FinishReason::Length),
+            ("guardrail_intervened", FinishReason::ContentFilter),
+            ("content_filtered", FinishReason::ContentFilter),
+            ("malformed_model_output", FinishReason::Error),
+            ("malformed_tool_use", FinishReason::Error),
+            ("STOP", FinishReason::Stop),
+            ("MAX_TOKENS", FinishReason::Length),
+            ("SAFETY", FinishReason::ContentFilter),
+            ("RECITATION", FinishReason::ContentFilter),
+            ("LANGUAGE", FinishReason::ContentFilter),
+            ("BLOCKLIST", FinishReason::ContentFilter),
+            ("PROHIBITED_CONTENT", FinishReason::ContentFilter),
+            ("SPII", FinishReason::ContentFilter),
+            ("MALFORMED_FUNCTION_CALL", FinishReason::Error),
+            ("IMAGE_SAFETY", FinishReason::ContentFilter),
+            ("UNEXPECTED_TOOL_CALL", FinishReason::Error),
+            ("TOO_MANY_TOOL_CALLS", FinishReason::Error),
+            ("IMAGE_PROHIBITED_CONTENT", FinishReason::ContentFilter),
+            ("NO_IMAGE", FinishReason::Error),
+            ("IMAGE_RECITATION", FinishReason::ContentFilter),
+            ("CONTINUATION", FinishReason::Length),
+        ];
+        for (spelling, means) in declared {
+            assert_eq!(plan.lookup(spelling), Some(means), "{spelling}");
+        }
+        for unknown in [
+            "pause_turn",
+            "OTHER",
+            "IMAGE_OTHER",
+            "FINISH_REASON_UNSPECIFIED",
+        ] {
+            assert_eq!(plan.lookup(unknown), None, "{unknown}");
+        }
+    }
 }

@@ -20,12 +20,15 @@
     {
       "id": "finish-reasons.length",
       "means": "length",
-      "doc": "A token limit cut the answer off: OpenAI and the conventions (`length`), Anthropic, Bedrock and Gemini (`max_tokens`).",
+      "doc": "A token limit cut the answer off: OpenAI and the conventions (`length`), Anthropic, Bedrock and Gemini (`max_tokens`), the Responses API's incomplete reason (`max_output_tokens`), Anthropic and Bedrock when the context window ran out (`model_context_window_exceeded`), and Gemini's per-request limit on an answer that is not yet complete (`CONTINUATION`).",
       "spellings": [
         "length",
         "max_tokens",
         "token_limit",
-        "truncated"
+        "truncated",
+        "max_output_tokens",
+        "model_context_window_exceeded",
+        "continuation"
       ]
     },
     {
@@ -44,23 +47,39 @@
     {
       "id": "finish-reasons.content_filter",
       "means": "content_filter",
-      "doc": "A filter stopped the answer: OpenAI and the conventions (`content_filter`), Gemini (`SAFETY`, `RECITATION`, `BLOCKED`).",
+      "doc": "A filter stopped the answer: OpenAI and the conventions (`content_filter`); Gemini (`SAFETY`, `RECITATION`, `BLOCKED`, and `BLOCKLIST`, `PROHIBITED_CONTENT`, `SPII`, an unsupported `LANGUAGE`, and the image filters `IMAGE_SAFETY`, `IMAGE_PROHIBITED_CONTENT`, `IMAGE_RECITATION`); Anthropic when its streaming classifiers intervene (`refusal`); Bedrock (`guardrail_intervened`, `content_filtered`).",
       "spellings": [
         "content_filter",
         "safety",
         "recitation",
         "blocked",
-        "filtered"
+        "filtered",
+        "refusal",
+        "guardrail_intervened",
+        "content_filtered",
+        "blocklist",
+        "prohibited_content",
+        "spii",
+        "language",
+        "image_safety",
+        "image_prohibited_content",
+        "image_recitation"
       ]
     },
     {
       "id": "finish-reasons.error",
       "means": "error",
-      "doc": "The generation failed, in the words frameworks write for it.",
+      "doc": "The generation failed: the words frameworks write for it; Bedrock's `malformed_model_output` and `malformed_tool_use`; Gemini's invalid calls (`MALFORMED_FUNCTION_CALL`, `UNEXPECTED_TOOL_CALL`), its `TOO_MANY_TOOL_CALLS` exit, and `NO_IMAGE` where an image was expected and none was made. Words that say only \"some other reason\" - Gemini's `OTHER` and `IMAGE_OTHER` - and Anthropic's `pause_turn`, which asks the caller to continue a turn rather than ending it, are declared nowhere, so their category stays unknown instead of being guessed.",
       "spellings": [
         "error",
         "failure",
-        "failed"
+        "failed",
+        "malformed_model_output",
+        "malformed_tool_use",
+        "malformed_function_call",
+        "unexpected_tool_call",
+        "too_many_tool_calls",
+        "no_image"
       ]
     }
   ]
