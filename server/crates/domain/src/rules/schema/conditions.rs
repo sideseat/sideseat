@@ -47,11 +47,25 @@ pub struct SpanCondition {
     /// The value contains this text, ignoring case (Unicode lower-casing).
     #[serde(default)]
     pub contains_ignore_case: Option<String>,
+    /// The attribute's text parses in this encoding: `json`. False where it is present and does not - text cut
+    /// short by an attribute length limit, say - and unknown where it is absent, so `not` over it holds only for
+    /// a value that is there and does not parse.
+    #[serde(default)]
+    pub parses: Option<Encoding>,
     /// The value is a release inside this half-open range, ordered by the package's scheme. Asked of
     /// `scope.version` only, and alone in its atom; a value that is absent or not a version is unknown, never
     /// "the latest". The last resort of the language: a shape test says what changed, a version only when.
     #[serde(default)]
     pub version: Option<VersionRange>,
+}
+
+/// An encoding an attribute's text may be written in.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(rename_all = "snake_case")]
+pub enum Encoding {
+    /// Any JSON value, as `serde_json` reads one.
+    Json,
 }
 
 /// A half-open range of releases, `at_least <= v < below`, in one version scheme.

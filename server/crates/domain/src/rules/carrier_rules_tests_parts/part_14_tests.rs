@@ -675,3 +675,66 @@ fn families_leaves_and_first_of_carriers_mean_what_they_say() {
         "the spelling the span carries is read"
     );
 }
+
+/// **Whether an attribute's text parses as JSON is three-valued.** True for a value that parses, a number a
+/// non-string attribute was stringified to included; false for text that does not - JSON cut short by a length
+/// limit, a bare word; unknown where the attribute is absent, so `not` over it holds only for a value that is
+/// there and does not parse.
+#[test]
+fn whether_an_attribute_parses_as_json_is_three_valued() {
+    use super::expr::Truth::{False as F, True as T, Unknown as U};
+    use super::span_conditions::{self, Readable, SpanSubject};
+    let lower = |condition: serde_json::Value| {
+        let parsed: super::schema::SpanWhere =
+            serde_json::from_value(condition).expect("the probe condition parses");
+        span_conditions::lower(&parsed, Readable::ATTRIBUTES)
+    };
+    let parses = serde_json::json!({"source": "attr:raw_input", "parses": "json"});
+    let positive = lower(parses.clone()).expect("the test lowers");
+    let negated = lower(serde_json::json!({"not": parses})).expect("and its negation");
+    let truth = |condition: &span_conditions::SpanExpr, value: Option<&str>| {
+        let attrs: std::collections::HashMap<String, String> = value
+            .map(|v| ("raw_input".to_string(), v.to_string()))
+            .into_iter()
+            .collect();
+        let subject = SpanSubject {
+            span_name: "span",
+            attrs: &attrs,
+            scope_name: None,
+            scope_version: None,
+            resource: None,
+        };
+        condition.eval(&mut |atom| atom.eval(&subject))
+    };
+    for (value, is, is_not) in [
+        (
+            Some(r#"{"input": [{"role": "user", "content": "q"}]}"#),
+            T,
+            F,
+        ),
+        (Some(r#"{"input": [{"role": "user", "content": "q"#), F, T),
+        (Some("42"), T, F),
+        (Some("not json"), F, T),
+        (Some(""), F, T),
+        (None, U, U),
+    ] {
+        assert_eq!(
+            (truth(&positive, value), truth(&negated, value)),
+            (is, is_not),
+            "{value:?}"
+        );
+    }
+    // A value that parses is one that is there.
+    let exists = lower(serde_json::json!({"source": "attr:raw_input", "exists": true}))
+        .expect("an existence test lowers");
+    assert!(span_conditions::implies(&positive, &exists));
+    // Only an attribute's text can be parsed.
+    assert!(lower(serde_json::json!({"source": "span_name", "parses": "json"})).is_err());
+    assert!(
+        serde_json::from_value::<super::schema::SpanWhere>(
+            serde_json::json!({"source": "attr:raw_input", "parses": "yaml"})
+        )
+        .is_err(),
+        "an encoding the grammar does not offer"
+    );
+}

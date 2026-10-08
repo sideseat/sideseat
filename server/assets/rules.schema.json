@@ -567,6 +567,17 @@
           ],
           "default": null
         },
+        "parses": {
+          "description": "The attribute's text parses in this encoding: `json`. False where it is present and does not - text cut\nshort by an attribute length limit, say - and unknown where it is absent, so `not` over it holds only for\na value that is there and does not parse.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Encoding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "version": {
           "description": "The value is a release inside this half-open range, ordered by the package's scheme. Asked of\n`scope.version` only, and alone in its atom; a value that is absent or not a version is unknown, never\n\"the latest\". The last resort of the language: a shape test says what changed, a version only when.",
           "anyOf": [
@@ -641,6 +652,16 @@
       "additionalProperties": false,
       "required": [
         "first_of"
+      ]
+    },
+    "Encoding": {
+      "description": "An encoding an attribute's text may be written in.",
+      "oneOf": [
+        {
+          "description": "Any JSON value, as `serde_json` reads one.",
+          "type": "string",
+          "const": "json"
+        }
       ]
     },
     "VersionRange": {

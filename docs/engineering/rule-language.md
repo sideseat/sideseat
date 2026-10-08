@@ -92,6 +92,7 @@ An atom names a `source` and the tests asked of the value it selects:
 | `starts_with` | begins with this text (for `attr_keys`, some key does) | `span_name`, `attr_keys`, `scope.name` |
 | `contains` | contains this text | `attr:<key>`, `resource:<key>` |
 | `contains_ignore_case` | contains this text, ignoring case | `span_name`, `attr:<key>` |
+| `parses` | parses in the named encoding (`json`); false where it does not, so a value cut short by a length limit does not hold | `attr:<key>` |
 | `version` | is a release in `[at_least, below)` of the stated `scheme` (`pep440` or `semver`) | `scope.version` |
 
 Atoms combine with `all` (`{"all": [...]}`), `any` (`{"any": [...]}`), each with two or more members, and `not`
@@ -702,6 +703,7 @@ the test to make it false instead.
 | `starts_with` | string | The value begins with this text. For `attr_keys`, some key does; for `scope.name`, unknown where the span reports no scope, so a `not` over it holds only for a scope that is there. |
 | `contains` | string | The value contains this text. |
 | `contains_ignore_case` | string | The value contains this text, ignoring case (Unicode lower-casing). |
+| `parses` | [`Encoding`](#encoding) or null | The attribute's text parses in this encoding: `json`. False where it is present and does not - text cut short by an attribute length limit, say - and unknown where it is absent, so `not` over it holds only for a value that is there and does not parse. |
 | `version` | [`VersionRange`](#versionrange) or null | The value is a release inside this half-open range, ordered by the package's scheme. Asked of `scope.version` only, and alone in its atom; a value that is absent or not a version is unknown, never "the latest". The last resort of the language: a shape test says what changed, a version only when. |
 
 ### `ConditionSource`
@@ -727,6 +729,12 @@ Only the first of several sources that has a value.
 | --- | --- | --- |
 | `doc` | string |  |
 | `first_of` (required) | list of [`SourceName`](#sourcename) |  |
+
+### `Encoding`
+
+An encoding an attribute's text may be written in.
+
+- `"json"`: Any JSON value, as `serde_json` reads one.
 
 ### `VersionRange`
 

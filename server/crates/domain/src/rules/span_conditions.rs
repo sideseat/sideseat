@@ -34,6 +34,8 @@ pub enum SpanAtom {
     SpanAttrEqualsIgnoreAsciiCase { key: String, value: String },
     /// This attribute's value contains this substring.
     SpanAttrContains { key: String, value: String },
+    /// This attribute's text parses as JSON. Unknown where the attribute is absent.
+    SpanAttrParsesJson { key: String },
     /// The instrumentation scope is exactly this.
     ScopeNameEquals { name: String },
     /// The instrumentation scope's name begins with this. Unknown where the span reports no scope.
@@ -121,6 +123,11 @@ impl SpanAtom {
             Self::SpanAttrContains { key, value } => {
                 value_test(subject.attrs.get(key).map(String::as_str), &|found| {
                     found.contains(value.as_str())
+                })
+            }
+            Self::SpanAttrParsesJson { key } => {
+                value_test(subject.attrs.get(key).map(String::as_str), &|found| {
+                    serde_json::from_str::<serde::de::IgnoredAny>(found).is_ok()
                 })
             }
             Self::ScopeNameEquals { name } => {
@@ -237,7 +244,8 @@ impl SpanAtom {
             Self::SpanAttrExists { key }
             | Self::SpanAttrEquals { key, .. }
             | Self::SpanAttrEqualsIgnoreAsciiCase { key, .. }
-            | Self::SpanAttrContains { key, .. } => Some(key),
+            | Self::SpanAttrContains { key, .. }
+            | Self::SpanAttrParsesJson { key } => Some(key),
             _ => None,
         }
     }
@@ -503,6 +511,7 @@ fn lower_atom(atom: &SpanCondition, readable: Readable) -> Result<SpanExpr, Cond
         + usize::from(atom.starts_with.is_some())
         + usize::from(atom.contains.is_some())
         + usize::from(atom.contains_ignore_case.is_some())
+        + usize::from(atom.parses.is_some())
         + usize::from(atom.version.is_some());
     if tests == 0 {
         return refuse("a condition names a source and asks nothing of it".to_string());
@@ -631,6 +640,12 @@ fn lower_atom(atom: &SpanCondition, readable: Readable) -> Result<SpanExpr, Cond
                 prefix: prefix.clone(),
             }),
             _ => unanswerable("starts_with")?,
+        });
+    }
+    if let Some(super::schema::Encoding::Json) = atom.parses {
+        atoms.push(match &source {
+            Source::Attr(key) => Expr::Atom(SpanAtom::SpanAttrParsesJson { key: key.clone() }),
+            _ => unanswerable("parses")?,
         });
     }
     if let Some(value) = &atom.contains {
