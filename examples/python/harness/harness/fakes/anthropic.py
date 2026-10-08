@@ -16,7 +16,13 @@ from harness.fakes import script
 PORT = 5402
 
 #: The tool families Anthropic runs on its own servers, by the prefix of their dated type names.
-SERVER_TOOLS = ("web_search", "web_fetch", "code_execution", "tool_search_tool")
+SERVER_TOOLS = (
+    "web_search",
+    "web_fetch",
+    "code_execution",
+    "tool_search_tool",
+    "advisor",
+)
 
 
 def _text(value: Any) -> str:
@@ -66,10 +72,12 @@ def request_of(body: dict[str, Any]) -> script.Request:
         turns.append(turn)
     declared = body.get("tools") or []
     hosted = {family for tool in declared if (family := server_tool(tool))}
+    # A toolset (`mcp_toolset`, `computer_toolset_20260801`) names no tool of its own: the tools it
+    # stands for are configured elsewhere, and the script has none to call.
     tools = {
         tool["name"]: tool.get("input_schema") or {}
         for tool in declared
-        if server_tool(tool) is None
+        if server_tool(tool) is None and "name" in tool
     }
     output_format = (body.get("output_config") or {}).get("format") or {}
     schema = (

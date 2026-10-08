@@ -172,6 +172,17 @@ def test_an_anthropic_defined_client_tool_is_still_the_clients_to_run(
     assert call.type == "tool_use" and call.name == tool["name"]
 
 
+def test_a_toolset_or_an_advisor_is_never_called_as_the_clients_own() -> None:
+    # A toolset names no tool to call, and the advisor is a tool the provider runs.
+    for tool in (
+        {"type": "mcp_toolset", "mcp_server_name": "travel"},
+        {"type": "computer_toolset_20260801"},
+        {"type": "advisor_20260301", "name": "advisor"},
+    ):
+        (text,) = ask(content.CHAT, tools=[tool]).content
+        assert text.type == "text"
+
+
 def test_no_other_answer_changes_shape() -> None:
     # Only a search cites and reports search usage: every other answer keeps the shape the suites
     # captured against this endpoint replay.
