@@ -318,13 +318,22 @@
     {
       "id": "logfire.openai.streaming_request_wrapper",
       "doc": "Instrumentation 6.x emits a successful input-only lifetime span beside the completed streaming-response log. It is retained as raw telemetry but omitted from the SideML conversation so one request is not shown as a second incomplete turn. Errors remain visible because they may have no completed companion.",
-      "match": {
-        "scope_name": "logfire.openai",
-        "scope_version_major_at_least": 6,
-        "span_name_prefix": "Chat Completion with ",
-        "only_attribute_source": "gen_ai.input.messages",
-        "successful_only": true
+      "where": {
+        "all": [
+          {"source": "scope.name", "equals": "logfire.openai"},
+          {
+            "source": "scope.version",
+            "version": {
+              "scheme": "pep440",
+              "at_least": "6.dev0",
+              "because": "The lifetime span carries its request in the same shape as any input-only span; that a completed streaming-response log sits beside it is a fact of the 6.x instrumentation, which nothing on the row states."
+            }
+          },
+          {"source": "span_name", "starts_with": "Chat Completion with "}
+        ]
       },
+      "only_attribute_source": "gen_ai.input.messages",
+      "successful_only": true,
       "action": "suppress_messages"
     }
   ],

@@ -232,6 +232,14 @@ fn collect_telemetry_keys(
             if text.starts_with('$') {
                 return;
             }
+            // A condition's `source` is a selector: `attr:<key>` and `resource:<key>` name a key, while
+            // `scope.name` and `scope.version` are the grammar's own names for the instrumentation scope.
+            if under == Some("source")
+                && !text.starts_with("attr:")
+                && !text.starts_with("resource:")
+            {
+                return;
+            }
             // A text source names its attribute through an **encoded selector**, `attr:<key>`. Stored as
             // written, the inventory held `attr:logfire.tags` and a production literal `"logfire.tags"` went
             // unnoticed - the sweep compares whole literals, so an inventory entry that is not the key is not

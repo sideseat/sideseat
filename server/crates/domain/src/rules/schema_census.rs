@@ -51,6 +51,16 @@ const UNUSED: &[(&str, &str)] = &[
     ),
     ("ReadSpec.rendering", "as `Alternative.rendering`"),
     (
+        "VersionRange.below",
+        "a range is half-open at both ends by grammar; the one shipped range is open above, and a range that \
+         closes needs no new spelling",
+    ),
+    (
+        "VersionScheme=semver",
+        "the scheme for every package that is not Python's; the one shipped version range reads a Python \
+         package, and the closed set of schemes is a vocabulary",
+    ),
+    (
         "Facts.carrier_is_atomic_emission",
         "every fact axis of a carrier preset stays independently overridable, so a clause can state an \
          exception without a new preset; no shipped clause needs this one yet",

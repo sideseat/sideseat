@@ -405,6 +405,7 @@ fn every_where_answers_as_the_predicate_it_replaced_over_the_corpus() {
                                 None
                             },
                             resource: readable.resource.then_some(&resource_attrs),
+                            scope_version: None,
                         },
                     );
                     if new {

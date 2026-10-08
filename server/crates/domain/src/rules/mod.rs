@@ -39,6 +39,7 @@ pub mod span_conditions;
 pub mod span_fields;
 mod tool_repr;
 pub mod tool_shapes;
+pub mod versions;
 
 #[cfg(test)]
 mod carrier_rules_tests;
@@ -56,6 +57,8 @@ mod precedence_instances_tests;
 mod schema_census;
 #[cfg(test)]
 mod value_conditions_tests;
+#[cfg(test)]
+mod version_conditions_tests;
 
 pub use carrier_rules::CarrierContext;
 pub use detect_rules::DetectContext;
@@ -144,6 +147,7 @@ impl SpanFactPlan {
             attrs,
             scope_name: None,
             resource: None,
+            scope_version: None,
         };
         let witnesses: Vec<expr::ClausePath> = self
             .signals

@@ -10,6 +10,7 @@ impl CompiledDetect {
                 attrs: ctx.span_attrs,
                 scope_name: ctx.scope_name,
                 resource: Some(ctx.resource_attrs),
+                scope_version: None,
             },
         )
     }

@@ -434,7 +434,34 @@ fn no_production_module_spells_a_framework_attribute_key() {
         "gen_ai.conversation.id",
     ];
     shared.extend(PUBLISHED.iter().map(|key| key.to_string()));
-    framework_keys.retain(|key, _| !shared.contains(key));
+    // The grammar's own dotted words - the enumerated values the schema offers, such as the source names
+    // `scope.name` and `scope.version` - are this engine's vocabulary wherever an asset writes them, not a key a
+    // framework emits.
+    fn grammar_words(node: &serde_json::Value, out: &mut std::collections::BTreeSet<String>) {
+        match node {
+            serde_json::Value::Object(object) => {
+                if let Some(serde_json::Value::Array(values)) = object.get("enum") {
+                    out.extend(values.iter().filter_map(|v| v.as_str().map(str::to_string)));
+                }
+                if let Some(serde_json::Value::String(constant)) = object.get("const") {
+                    out.insert(constant.clone());
+                }
+                object.values().for_each(|inner| grammar_words(inner, out));
+            }
+            serde_json::Value::Array(items) => {
+                items.iter().for_each(|inner| grammar_words(inner, out))
+            }
+            _ => {}
+        }
+    }
+    let schema: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(repository_root().join("server/assets/rules.schema.json"))
+            .expect("the schema is committed"),
+    )
+    .expect("the schema is JSON");
+    let mut grammar = std::collections::BTreeSet::new();
+    grammar_words(&schema, &mut grammar);
+    framework_keys.retain(|key, _| !shared.contains(key) && !grammar.contains(key));
     assert!(
         framework_keys.len() > 100,
         "only {} framework-specific keys were derived from the assets, so the derivation is wrong",

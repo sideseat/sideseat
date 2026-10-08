@@ -438,6 +438,7 @@ pub(super) fn composed(
                     attrs: ctx.gate_attrs,
                     scope_name: None,
                     resource: None,
+                    scope_version: None,
                 },
             ) {
                 return None;

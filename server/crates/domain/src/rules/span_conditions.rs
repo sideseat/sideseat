@@ -38,6 +38,13 @@ pub enum SpanAtom {
     ScopeNameEquals { name: String },
     /// This resource attribute's value contains this substring.
     ResourceAttrContains { key: String, value: String },
+    /// The instrumentation scope's version is a release in `[at_least, below)` of this scheme. Unknown where
+    /// there is no version or it does not parse.
+    ScopeVersionIn {
+        scheme: super::versions::VersionScheme,
+        at_least: Option<super::versions::Version>,
+        below: Option<super::versions::Version>,
+    },
     /// A case-insensitive phrase search over named sources.
     TextContains {
         sources: Vec<TextSource>,
@@ -72,6 +79,7 @@ pub struct SpanSubject<'a> {
     pub span_name: &'a str,
     pub attrs: &'a HashMap<String, String>,
     pub scope_name: Option<&'a str>,
+    pub scope_version: Option<&'a str>,
     pub resource: Option<&'a HashMap<String, String>>,
 }
 
@@ -116,6 +124,27 @@ impl SpanAtom {
             Self::ScopeNameEquals { name } => {
                 value_test(subject.scope_name, &|found| found == name)
             }
+            Self::ScopeVersionIn {
+                scheme,
+                at_least,
+                below,
+            } => match subject
+                .scope_version
+                .and_then(|text| super::versions::Version::parse(*scheme, text))
+            {
+                None => Truth::Unknown,
+                Some(version) => {
+                    let at_or_after = |bound: &super::versions::Version| {
+                        version
+                            .compare(bound)
+                            .is_some_and(std::cmp::Ordering::is_ge)
+                    };
+                    Truth::total(
+                        at_least.as_ref().is_none_or(at_or_after)
+                            && below.as_ref().is_none_or(|bound| !at_or_after(bound)),
+                    )
+                }
+            },
             Self::ResourceAttrContains { key, value } => value_test(
                 subject
                     .resource
@@ -254,6 +283,34 @@ impl SpanAtom {
                 } => mine == key && mine_value.contains(value.as_str()),
                 _ => false,
             },
+            // A narrower range of the same scheme: wherever a version is inside it, it is inside the wider.
+            Self::ScopeVersionIn {
+                scheme,
+                at_least,
+                below,
+            } => match self {
+                Self::ScopeVersionIn {
+                    scheme: mine,
+                    at_least: my_low,
+                    below: my_high,
+                } => {
+                    let le = |a: &super::versions::Version, b: &super::versions::Version| {
+                        a.compare(b).is_some_and(std::cmp::Ordering::is_le)
+                    };
+                    mine == scheme
+                        && match (at_least, my_low) {
+                            (None, _) => true,
+                            (Some(_), None) => false,
+                            (Some(low), Some(mine)) => le(low, mine),
+                        }
+                        && match (below, my_high) {
+                            (None, _) => true,
+                            (Some(_), None) => false,
+                            (Some(high), Some(mine)) => le(mine, high),
+                        }
+                }
+                _ => false,
+            },
             _ => false,
         }
     }
@@ -263,7 +320,9 @@ impl SpanAtom {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Readable {
     pub span_name: bool,
+    pub attributes: bool,
     pub scope: bool,
+    pub scope_version: bool,
     pub resource: bool,
 }
 
@@ -271,26 +330,43 @@ impl Readable {
     /// The span's attributes only: span facts.
     pub const ATTRIBUTES: Self = Self {
         span_name: false,
+        attributes: true,
         scope: false,
+        scope_version: false,
         resource: false,
     };
     /// The span's name and attributes: classification and span-field sources.
     pub const SPAN: Self = Self {
         span_name: true,
+        attributes: true,
         scope: false,
+        scope_version: false,
         resource: false,
     };
     /// And the instrumentation scope: message-rule gates.
     pub const SPAN_AND_SCOPE: Self = Self {
         span_name: true,
+        attributes: true,
         scope: true,
+        scope_version: false,
         resource: false,
     };
     /// Everything: detection.
     pub const ALL: Self = Self {
         span_name: true,
+        attributes: true,
         scope: true,
+        scope_version: false,
         resource: true,
+    };
+    /// A stored row being projected: its span name and instrumentation scope, version included, and none of
+    /// its attributes - projection reads the row, not the span.
+    pub const PROJECTION: Self = Self {
+        span_name: true,
+        attributes: false,
+        scope: true,
+        scope_version: true,
+        resource: false,
     };
 }
 
@@ -311,6 +387,7 @@ enum Source {
     Attr(String),
     AttrKeys,
     Scope,
+    ScopeVersion,
     Resource(String),
 }
 
@@ -322,13 +399,15 @@ fn parse_source(text: &str, readable: Readable) -> Result<Source, ConditionDefec
         Source::AttrKeys
     } else if text == "scope.name" {
         Source::Scope
+    } else if text == "scope.version" {
+        Source::ScopeVersion
     } else if let Some(key) = text.strip_prefix("attr:") {
         Source::Attr(key.to_string())
     } else if let Some(key) = text.strip_prefix("resource:") {
         Source::Resource(key.to_string())
     } else {
         return refuse(
-            "is not one of `span_name`, `attr:<key>`, `attr_keys`, `scope.name`, `resource:<key>`",
+            "is not one of `span_name`, `attr:<key>`, `attr_keys`, `scope.name`, `scope.version`, `resource:<key>`",
         );
     };
     match &source {
@@ -342,6 +421,12 @@ fn parse_source(text: &str, readable: Readable) -> Result<Source, ConditionDefec
         Source::Resource(_) if !readable.resource => {
             refuse("is a resource attribute, which this section is not given - it could never hold")
         }
+        Source::Attr(_) | Source::AttrKeys if !readable.attributes => refuse(
+            "reads the span's attributes, which this section is not given - it could never hold",
+        ),
+        Source::ScopeVersion if !readable.scope_version => refuse(
+            "is the instrumentation scope's version, which this section is not given - it could never hold",
+        ),
         _ => Ok(source),
     }
 }
@@ -378,9 +463,13 @@ fn lower_atom(atom: &SpanCondition, readable: Readable) -> Result<SpanExpr, Cond
         + usize::from(!atom.one_of.is_empty())
         + usize::from(atom.starts_with.is_some())
         + usize::from(atom.contains.is_some())
-        + usize::from(atom.contains_ignore_case.is_some());
+        + usize::from(atom.contains_ignore_case.is_some())
+        + usize::from(atom.version.is_some());
     if tests == 0 {
         return refuse("a condition names a source and asks nothing of it".to_string());
+    }
+    if let Some(range) = &atom.version {
+        return lower_version(atom, range, tests, readable);
     }
     // Several sources are one phrase search, and nothing else.
     let (texts, mode): (&[super::schema::SourceName], Option<SourceMode>) = match &atom.source {
@@ -530,6 +619,59 @@ fn lower_atom(atom: &SpanCondition, readable: Readable) -> Result<SpanExpr, Cond
     Ok(Expr::all(atoms).expect("at least one test was counted"))
 }
 
+/// A version range, alone in its atom and over the scope's version, with bounds that parse and leave room.
+fn lower_version(
+    atom: &SpanCondition,
+    range: &super::schema::VersionRange,
+    tests: usize,
+    readable: Readable,
+) -> Result<SpanExpr, ConditionDefect> {
+    let refuse = |why: &str| Err(ConditionDefect(why.to_string()));
+    if tests > 1 {
+        return refuse(
+            "a version range is asked alone: another test beside it reads the version as text",
+        );
+    }
+    let source = match &atom.source {
+        ConditionSource::One(one) => parse_source(&one.0, readable)?,
+        _ => return refuse("a version range reads one source"),
+    };
+    if !matches!(source, Source::ScopeVersion) {
+        return refuse(
+            "a version range reads `scope.version` only: a version written in an attribute is a value another rule \
+             could read as text, which would let a version decide something without a version test",
+        );
+    }
+    if range.because.trim().is_empty() {
+        return refuse("a version range states `because`: why no shape test can say this");
+    }
+    let bound = |text: &Option<String>| match text {
+        None => Ok(None),
+        Some(text) => super::versions::Version::parse_bound(range.scheme, text)
+            .map(Some)
+            .ok_or_else(|| {
+                ConditionDefect(format!("`{text}` is not a version in the declared scheme"))
+            }),
+    };
+    let at_least = bound(&range.at_least)?;
+    let below = bound(&range.below)?;
+    match (&at_least, &below) {
+        (None, None) => refuse(
+            "a version range names at least one bound; without one it holds for every version",
+        ),
+        (Some(low), Some(high)) if low.compare(high).is_none_or(std::cmp::Ordering::is_ge) => {
+            refuse(
+                "a version range's `at_least` is not below its `below`, so no version is inside it",
+            )
+        }
+        _ => Ok(Expr::Atom(SpanAtom::ScopeVersionIn {
+            scheme: range.scheme,
+            at_least,
+            below,
+        })),
+    }
+}
+
 /// Whether every span `narrower` holds for, `wider` holds for too - sound, and deliberately incomplete.
 ///
 /// Decomposed structurally, without distribution, contraposition or complement: a conjunction target needs
@@ -601,7 +743,7 @@ pub fn holds(condition: &SpanExpr, subject: &SpanSubject<'_>) -> bool {
 pub fn is_opaque(condition: &SpanExpr) -> bool {
     match condition {
         Expr::Not(_) => true,
-        Expr::Atom(SpanAtom::ScopeNameEquals { .. }) => true,
+        Expr::Atom(SpanAtom::ScopeNameEquals { .. } | SpanAtom::ScopeVersionIn { .. }) => true,
         Expr::Atom(_) => false,
         Expr::All(group) | Expr::Any(group) => group.children().iter().any(is_opaque),
     }

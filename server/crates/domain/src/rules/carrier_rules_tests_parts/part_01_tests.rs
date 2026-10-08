@@ -551,6 +551,7 @@ fn the_engine_names_no_framework() {
         ("finish_reasons.rs", include_str!("../finish_reasons.rs")),
         ("precedence.rs", include_str!("../precedence.rs")),
         ("span_conditions.rs", include_str!("../span_conditions.rs")),
+        ("versions.rs", include_str!("../versions.rs")),
         (
             "retired_span_predicates.rs",
             include_str!("../retired_span_predicates.rs"),

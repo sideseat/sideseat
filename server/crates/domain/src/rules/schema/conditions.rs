@@ -20,7 +20,8 @@ pub struct SpanCondition {
     #[serde(default)]
     pub doc: Option<String>,
     /// Where the value is: `span_name`, `attr:<key>`, `attr_keys` (the set of the span's attribute keys, asked
-    /// existentially), `scope.name` (the instrumentation scope) or `resource:<key>`. Several sources are
+    /// existentially), `scope.name` (the instrumentation scope), `scope.version` (its version, for `version` only)
+    /// or `resource:<key>`. Several sources are
     /// searched together only by `contains_ignore_case`: a list asks every source that has a value, and
     /// `{"first_of": [...]}` only the first that has one.
     pub source: ConditionSource,
@@ -45,6 +46,35 @@ pub struct SpanCondition {
     /// The value contains this text, ignoring case (Unicode lower-casing).
     #[serde(default)]
     pub contains_ignore_case: Option<String>,
+    /// The value is a release inside this half-open range, ordered by the package's scheme. Asked of
+    /// `scope.version` only, and alone in its atom; a value that is absent or not a version is unknown, never
+    /// "the latest". The last resort of the language: a shape test says what changed, a version only when.
+    #[serde(default)]
+    pub version: Option<VersionRange>,
+}
+
+/// A half-open range of releases, `at_least <= v < below`, in one version scheme.
+///
+/// An ordered interval and nothing else: no requirement-matcher policy (PEP 440's `<7` specifier and npm ranges
+/// exclude pre-releases of the bound; this does not - `7.0rc1` is below `7`). SemVer bounds may leave minor and
+/// patch out; values may not.
+#[derive(Debug, Deserialize, Clone, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct VersionRange {
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// How the package numbers its releases.
+    pub scheme: crate::rules::versions::VersionScheme,
+    /// The first release inside the range.
+    #[serde(default)]
+    pub at_least: Option<String>,
+    /// The first release after it.
+    #[serde(default)]
+    pub below: Option<String>,
+    /// Why no shape test can say this: required, because a version gate stands for a change the payload does
+    /// not show, and a reader has to be able to check that it still does not.
+    pub because: String,
 }
 
 /// The source or sources a condition reads.
@@ -86,9 +116,9 @@ impl schemars::JsonSchema for SourceName {
 
     fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
         schemars::json_schema!({
-            "description": "`span_name`, `attr_keys`, `scope.name`, `attr:<key>` or `resource:<key>`.",
+            "description": "`span_name`, `attr_keys`, `scope.name`, `scope.version`, `attr:<key>` or `resource:<key>`.",
             "anyOf": [
-                {"enum": ["span_name", "attr_keys", "scope.name"]},
+                {"enum": ["span_name", "attr_keys", "scope.name", "scope.version"]},
                 {"type": "string"}
             ]
         })

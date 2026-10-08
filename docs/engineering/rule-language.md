@@ -76,10 +76,10 @@ A message rule that reads every one of several keys as its own observation says 
 
 ## Conditions about a span
 
-Detection, classification, span facts, span-field sources, message-rule gates and a compose member's fallback ask
-their question about a span with one `where`. (Carrier clauses and message projections match an observation with
-`match` instead: an exact event or attribute, an attribute prefix or dotted family, and optionally its
-observation type. A span-field source may also be admitted by `when_json`, a JSON member's presence.)
+Detection, classification, span facts, span-field sources, message-rule gates, a compose member's fallback and
+message projections ask their question about a span with one `where`. (Carrier clauses match an observation with
+`match` instead: an exact event or attribute, an attribute prefix or dotted family, and optionally its observation
+type. A span-field source may also be admitted by `when_json`, a JSON member's presence.)
 
 An atom names a `source` and the tests asked of the value it selects:
 
@@ -92,6 +92,7 @@ An atom names a `source` and the tests asked of the value it selects:
 | `starts_with` | begins with this text (for `attr_keys`, some key does) | `span_name`, `attr_keys` |
 | `contains` | contains this text | `attr:<key>`, `resource:<key>` |
 | `contains_ignore_case` | contains this text, ignoring case | `span_name`, `attr:<key>` |
+| `version` | is a release in `[at_least, below)` of the stated `scheme` (`pep440` or `semver`) | `scope.version` |
 
 Atoms combine with `all` (`{"all": [...]}`), `any` (`{"any": [...]}`), each with two or more members, and `not`
 (`{"not": ...}`), and any of these may carry a `doc`. The logic is strong-Kleene: a value test on an absent value
@@ -99,12 +100,21 @@ is **unknown**, `not` of unknown is unknown, and a rule applies only where its c
 {"source": "attr:k", "equals": "x"}}` does not hold on a span without `k`; write `{"source": "attr:k", "exists":
 true}` beside the test to make that span false instead.
 
+`version` is the last resort: a shape test says what changed, a version only when, so a range states `because` -
+why no shape test can say this. It is asked alone in its atom, of `scope.version` only, which nothing else may
+read; an absent or unparseable version is unknown, never "the latest". The range is an ordered interval in the
+package's scheme, with no requirement-matcher policy: `7.0rc1` is below `7`, and a range that should include a
+series' pre-releases starts at its first one (`6.dev0` in PEP 440). Only message projections are given the scope's
+version today.
+
 A phrase search may read several sources at once: with `contains_ignore_case` and nothing else, `source` may be
 a list of two or more `span_name` and `attr:<key>` sources (the atom holds when one that has a value contains the
 phrase) or `{"first_of": [...]}` of them (only the first that has a value is searched).
 
-Each section can see only some sources: detection sees all of them; a message rule's gate sees the span and its
-scope; classification and span-field sources see the span's name and attributes; span facts see the attributes.
+Each section can see only some sources: detection sees all of them but the scope's version; a message rule's gate
+sees the span and its scope; classification and span-field sources see the span's name and attributes; span facts
+see the attributes; a message projection sees a stored row's span name and its scope, version included, and no
+attributes.
 These are refused when the asset compiles: a condition that reads a source its section cannot see, a test its
 source cannot answer, an empty prefix, substring, scope name or search phrase, and a disjunct its own group
 already covers.
@@ -518,7 +528,8 @@ A release that writes a different shape gets one new branch where the shape diff
 another `first_of` candidate, or another clause at its own priority, whose `where` recognises the new shape. No
 asset is copied, and an unchanged clause gets nothing. Shape is the authority, so the same branch serves every
 release that writes that shape. Record the release as a variant in the suite's `versions.toml` and capture its
-fixtures, so the branch is exercised.
+fixtures, so the branch is exercised. Where nothing in the payload tells two releases apart, a `version` test on
+the scope's version is the last resort, with its `because`.
 
 ## Testing
 
@@ -660,7 +671,7 @@ the test to make it false instead.
 | Key | Type | What it is |
 | --- | --- | --- |
 | `doc` | string |  |
-| `source` (required) | [`ConditionSource`](#conditionsource) | Where the value is: `span_name`, `attr:<key>`, `attr_keys` (the set of the span's attribute keys, asked existentially), `scope.name` (the instrumentation scope) or `resource:<key>`. Several sources are searched together only by `contains_ignore_case`: a list asks every source that has a value, and `{"first_of": [...]}` only the first that has one. |
+| `source` (required) | [`ConditionSource`](#conditionsource) | Where the value is: `span_name`, `attr:<key>`, `attr_keys` (the set of the span's attribute keys, asked existentially), `scope.name` (the instrumentation scope), `scope.version` (its version, for `version` only) or `resource:<key>`. Several sources are searched together only by `contains_ignore_case`: a list asks every source that has a value, and `{"first_of": [...]}` only the first that has one. |
 | `exists` | true or false | The source has a value. Total: true or false, never unknown. |
 | `equals` | string | The value is exactly this text. |
 | `equals_ignore_case` | string | The value is this text, ignoring ASCII case. |
@@ -668,6 +679,7 @@ the test to make it false instead.
 | `starts_with` | string | The value begins with this text. For `attr_keys`, some key does. |
 | `contains` | string | The value contains this text. |
 | `contains_ignore_case` | string | The value contains this text, ignoring case (Unicode lower-casing). |
+| `version` | [`VersionRange`](#versionrange) or null | The value is a release inside this half-open range, ordered by the package's scheme. Asked of `scope.version` only, and alone in its atom; a value that is absent or not a version is unknown, never "the latest". The last resort of the language: a shape test says what changed, a version only when. |
 
 ### `ConditionSource`
 
@@ -679,9 +691,9 @@ The source or sources a condition reads.
 
 ### `SourceName`
 
-`span_name`, `attr_keys`, `scope.name`, `attr:<key>` or `resource:<key>`.
+`span_name`, `attr_keys`, `scope.name`, `scope.version`, `attr:<key>` or `resource:<key>`.
 
-- one of `"span_name"`, `"attr_keys"`, `"scope.name"`
+- one of `"span_name"`, `"attr_keys"`, `"scope.name"`, `"scope.version"`
 - string
 
 ### `FirstOfSources`
@@ -692,6 +704,29 @@ Only the first of several sources that has a value.
 | --- | --- | --- |
 | `doc` | string |  |
 | `first_of` (required) | list of [`SourceName`](#sourcename) |  |
+
+### `VersionRange`
+
+A half-open range of releases, `at_least <= v < below`, in one version scheme.
+
+An ordered interval and nothing else: no requirement-matcher policy (PEP 440's `<7` specifier and npm ranges
+exclude pre-releases of the bound; this does not - `7.0rc1` is below `7`). SemVer bounds may leave minor and
+patch out; values may not.
+
+| Key | Type | What it is |
+| --- | --- | --- |
+| `doc` | string |  |
+| `scheme` (required) | [`VersionScheme`](#versionscheme) | How the package numbers its releases. |
+| `at_least` | string | The first release inside the range. |
+| `below` | string | The first release after it. |
+| `because` (required) | string | Why no shape test can say this: required, because a version gate stands for a change the payload does not show, and a reader has to be able to check that it still does not. |
+
+### `VersionScheme`
+
+How a package numbers its releases.
+
+- `"pep440"`: Python's PEP 440: epochs, any number of release segments, `aN`/`bN`/`rcN`, `.postN`, `.devN`, `+local`.
+- `"semver"`: Semantic Versioning 2.0.0: `MAJOR.MINOR.PATCH`, `-prerelease`, `+build`.
 
 ### `DetectAlternative`
 
@@ -1338,29 +1373,19 @@ How a member's presence is established.
 
 A read-time projection decision for one producer-owned span shape.
 
+The row is recognised by a `where` over what a stored row says of its span - its name and its
+instrumentation scope, version included - and the condition must name the scope, so a producer rule cannot
+suppress a broad class of ordinary input-only spans. `only_attribute_source` means every extracted message
+must come from the named attribute; an empty message list never matches.
+
 | Key | Type | What it is |
 | --- | --- | --- |
 | `id` (required) | string | Stable clause id, reported by diagnostics. |
 | `doc` | string |  |
-| `match` (required) | [`MessageProjectionMatch`](#messageprojectionmatch) |  |
+| `where` (required) | [`Expr_SpanCondition`](#expr_spancondition) | The rows this applies to: their span name, `scope.name` and `scope.version`. It must require one instrumentation scope. |
+| `only_attribute_source` (required) | string | The attribute every extracted message of the row came from. |
+| `successful_only` (required) | true or false | Only a row whose span succeeded: a failure may have no completed companion, so it stays visible. |
 | `action` (required) | [`MessageProjectionAction`](#messageprojectionaction) |  |
-
-### `MessageProjectionMatch`
-
-The stored row and extracted-message shape a projection rule recognises.
-
-All dimensions are required so a producer rule cannot accidentally suppress a broad class of
-ordinary input-only spans. The source condition means every extracted message must come from the
-named attribute; an empty message list never matches.
-
-| Key | Type | What it is |
-| --- | --- | --- |
-| `doc` | string | Why this is declared the way it is, for a reader and the explain trace. Read by nothing. |
-| `scope_name` (required) | string |  |
-| `scope_version_major_at_least` (required) | integer |  |
-| `span_name_prefix` (required) | string |  |
-| `only_attribute_source` (required) | string |  |
-| `successful_only` (required) | true or false |  |
 
 ### `MessageProjectionAction`
 

@@ -340,6 +340,11 @@ pub struct CarrierRule {
 }
 
 /// A read-time projection decision for one producer-owned span shape.
+///
+/// The row is recognised by a `where` over what a stored row says of its span - its name and its
+/// instrumentation scope, version included - and the condition must name the scope, so a producer rule cannot
+/// suppress a broad class of ordinary input-only spans. `only_attribute_source` means every extracted message
+/// must come from the named attribute; an empty message list never matches.
 #[derive(Debug, Deserialize, Clone)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
@@ -348,28 +353,15 @@ pub struct MessageProjectionRule {
     pub id: String,
     #[serde(default)]
     pub doc: Option<String>,
-    #[serde(rename = "match")]
-    pub match_spec: MessageProjectionMatch,
-    pub action: MessageProjectionAction,
-}
-
-/// The stored row and extracted-message shape a projection rule recognises.
-///
-/// All dimensions are required so a producer rule cannot accidentally suppress a broad class of
-/// ordinary input-only spans. The source condition means every extracted message must come from the
-/// named attribute; an empty message list never matches.
-#[derive(Debug, Deserialize, Clone)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
-#[serde(deny_unknown_fields)]
-pub struct MessageProjectionMatch {
-    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
-    #[serde(default)]
-    pub doc: Option<String>,
-    pub scope_name: String,
-    pub scope_version_major_at_least: u64,
-    pub span_name_prefix: String,
+    /// The rows this applies to: their span name, `scope.name` and `scope.version`. It must require one
+    /// instrumentation scope.
+    #[serde(rename = "where")]
+    pub condition: SpanWhere,
+    /// The attribute every extracted message of the row came from.
     pub only_attribute_source: String,
+    /// Only a row whose span succeeded: a failure may have no completed companion, so it stays visible.
     pub successful_only: bool,
+    pub action: MessageProjectionAction,
 }
 
 /// What a matching read-time projection rule does.

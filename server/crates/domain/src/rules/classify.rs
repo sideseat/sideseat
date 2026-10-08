@@ -126,6 +126,7 @@ fn matching_rule<'a>(
         attrs,
         scope_name: None,
         resource: None,
+        scope_version: None,
     };
     rules
         .iter()

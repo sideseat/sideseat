@@ -501,7 +501,7 @@
           "default": null
         },
         "source": {
-          "description": "Where the value is: `span_name`, `attr:<key>`, `attr_keys` (the set of the span's attribute keys, asked\nexistentially), `scope.name` (the instrumentation scope) or `resource:<key>`. Several sources are\nsearched together only by `contains_ignore_case`: a list asks every source that has a value, and\n`{\"first_of\": [...]}` only the first that has one.",
+          "description": "Where the value is: `span_name`, `attr:<key>`, `attr_keys` (the set of the span's attribute keys, asked\nexistentially), `scope.name` (the instrumentation scope), `scope.version` (its version, for `version` only)\nor `resource:<key>`. Several sources are\nsearched together only by `contains_ignore_case`: a list asks every source that has a value, and\n`{\"first_of\": [...]}` only the first that has one.",
           "$ref": "#/$defs/ConditionSource"
         },
         "exists": {
@@ -559,6 +559,17 @@
             "null"
           ],
           "default": null
+        },
+        "version": {
+          "description": "The value is a release inside this half-open range, ordered by the package's scheme. Asked of\n`scope.version` only, and alone in its atom; a value that is absent or not a version is unknown, never\n\"the latest\". The last resort of the language: a shape test says what changed, a version only when.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VersionRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false,
@@ -587,13 +598,14 @@
       ]
     },
     "SourceName": {
-      "description": "`span_name`, `attr_keys`, `scope.name`, `attr:<key>` or `resource:<key>`.",
+      "description": "`span_name`, `attr_keys`, `scope.name`, `scope.version`, `attr:<key>` or `resource:<key>`.",
       "anyOf": [
         {
           "enum": [
             "span_name",
             "attr_keys",
-            "scope.name"
+            "scope.name",
+            "scope.version"
           ]
         },
         {
@@ -622,6 +634,63 @@
       "additionalProperties": false,
       "required": [
         "first_of"
+      ]
+    },
+    "VersionRange": {
+      "description": "A half-open range of releases, `at_least <= v < below`, in one version scheme.\n\nAn ordered interval and nothing else: no requirement-matcher policy (PEP 440's `<7` specifier and npm ranges\nexclude pre-releases of the bound; this does not - `7.0rc1` is below `7`). SemVer bounds may leave minor and\npatch out; values may not.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "scheme": {
+          "description": "How the package numbers its releases.",
+          "$ref": "#/$defs/VersionScheme"
+        },
+        "at_least": {
+          "description": "The first release inside the range.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "below": {
+          "description": "The first release after it.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "because": {
+          "description": "Why no shape test can say this: required, because a version gate stands for a change the payload does\nnot show, and a reader has to be able to check that it still does not.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "scheme",
+        "because"
+      ]
+    },
+    "VersionScheme": {
+      "description": "How a package numbers its releases.",
+      "oneOf": [
+        {
+          "description": "Python's PEP 440: epochs, any number of release segments, `aN`/`bN`/`rcN`, `.postN`, `.devN`, `+local`.",
+          "type": "string",
+          "const": "pep440"
+        },
+        {
+          "description": "Semantic Versioning 2.0.0: `MAJOR.MINOR.PATCH`, `-prerelease`, `+build`.",
+          "type": "string",
+          "const": "semver"
+        }
       ]
     },
     "DetectAlternative": {
@@ -2935,7 +3004,7 @@
       ]
     },
     "MessageProjectionRule": {
-      "description": "A read-time projection decision for one producer-owned span shape.",
+      "description": "A read-time projection decision for one producer-owned span shape.\n\nThe row is recognised by a `where` over what a stored row says of its span - its name and its\ninstrumentation scope, version included - and the condition must name the scope, so a producer rule cannot\nsuppress a broad class of ordinary input-only spans. `only_attribute_source` means every extracted message\nmust come from the named attribute; an empty message list never matches.",
       "type": "object",
       "properties": {
         "id": {
@@ -2949,8 +3018,17 @@
           ],
           "default": null
         },
-        "match": {
-          "$ref": "#/$defs/MessageProjectionMatch"
+        "where": {
+          "description": "The rows this applies to: their span name, `scope.name` and `scope.version`. It must require one\ninstrumentation scope.",
+          "$ref": "#/$defs/Expr_SpanCondition"
+        },
+        "only_attribute_source": {
+          "description": "The attribute every extracted message of the row came from.",
+          "type": "string"
+        },
+        "successful_only": {
+          "description": "Only a row whose span succeeded: a failure may have no completed companion, so it stays visible.",
+          "type": "boolean"
         },
         "action": {
           "$ref": "#/$defs/MessageProjectionAction"
@@ -2959,47 +3037,10 @@
       "additionalProperties": false,
       "required": [
         "id",
-        "match",
-        "action"
-      ]
-    },
-    "MessageProjectionMatch": {
-      "description": "The stored row and extracted-message shape a projection rule recognises.\n\nAll dimensions are required so a producer rule cannot accidentally suppress a broad class of\nordinary input-only spans. The source condition means every extracted message must come from the\nnamed attribute; an empty message list never matches.",
-      "type": "object",
-      "properties": {
-        "doc": {
-          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null
-        },
-        "scope_name": {
-          "type": "string"
-        },
-        "scope_version_major_at_least": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        },
-        "span_name_prefix": {
-          "type": "string"
-        },
-        "only_attribute_source": {
-          "type": "string"
-        },
-        "successful_only": {
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "scope_name",
-        "scope_version_major_at_least",
-        "span_name_prefix",
+        "where",
         "only_attribute_source",
-        "successful_only"
+        "successful_only",
+        "action"
       ]
     },
     "MessageProjectionAction": {
