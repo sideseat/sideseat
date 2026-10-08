@@ -316,7 +316,12 @@ fn the_member_vocabulary_answers_as_it_did_across_the_corpus() {
     }
 }
 
-/// Every declared **subdivision** either produces an answer over the corpus, or is exempted with a reason.
+/// Every declared **clause** either produces an answer over the corpus, or is exempted with a reason, or is in the
+/// shrink-only ledger of reading shapes no captured fixture reaches.
+///
+/// Clauses are every path an emission can name: section routes, element passes and their derived cases, each
+/// reading - alternatives, `also` and fallbacks - and every case a reading hands its candidates to. A branch leaf
+/// emits under its own id, so its clauses are walked under it.
 ///
 /// The rule-level gate beside this one could not see inside a rule: `SectionRoute.id`, `ElementPass.id` and
 /// `DerivedCase.id` are required declarations, and `sectioned()` / `element_passes()` discarded them before an
@@ -329,7 +334,7 @@ fn the_member_vocabulary_answers_as_it_did_across_the_corpus() {
 /// have moved the discard one level.
 #[test]
 fn no_declared_subdivision_is_dead_across_the_corpus() {
-    use sideseat_domain::rules::schema::{MessageRule, RuleFile};
+    use sideseat_domain::rules::schema::{Alternative, MessageRule, RuleFile};
 
     /// Subdivisions no captured request exercises, and why.
     ///
@@ -356,7 +361,15 @@ fn no_declared_subdivision_is_dead_across_the_corpus() {
         ),
     ];
 
-    fn paths_of(rule: &MessageRule, prefix: &str, out: &mut Vec<String>) {
+    /// Every clause path a rule declares: its section routes, element passes and derived cases, each reading
+    /// - alternatives, `also` and fallbacks - and every case a reading hands its candidates to, a fragment's or
+    /// its own. A branch leaf emits under its **own** id, so its clauses live in its own path space.
+    fn paths_of(
+        rule: &MessageRule,
+        prefix: &str,
+        fragments: &BTreeMap<String, Vec<Alternative>>,
+        out: &mut Vec<String>,
+    ) {
         if let Some(sections) = &rule.sections {
             for route in &sections.routes {
                 out.push(format!("{prefix}/{}", route.id));
@@ -372,62 +385,137 @@ fn no_declared_subdivision_is_dead_across_the_corpus() {
                 }
             }
         }
+        for reading in rule
+            .alternatives
+            .iter()
+            .chain(&rule.also)
+            .chain(&rule.fallback)
+        {
+            out.push(format!("{prefix}/{}", reading.id));
+            let shared = reading.then_fragment.as_ref().map(|name| {
+                fragments
+                    .get(name)
+                    .expect("a referenced fragment is declared")
+            });
+            for case in shared.into_iter().flatten().chain(&reading.extra_cases) {
+                out.push(format!("{prefix}/{}/{}", reading.id, case.id));
+            }
+        }
         if let Some(set) = &rule.branch_set {
-            // A branch leaf is a rule in its own right and keeps the *parent's* id in an emission, so its
-            // subdivisions live in the parent's path space.
             for leaf in set
                 .primary
                 .iter()
                 .chain(&set.fallback_if_primary_empty)
                 .chain(&set.always)
             {
-                paths_of(leaf, prefix, out);
+                paths_of(leaf, &leaf.id, fragments, out);
             }
         }
     }
 
+    let files: Vec<RuleFile> = sideseat_domain::rules::schema::embedded_sources()
+        .into_iter()
+        .map(|(_, bytes)| serde_json::from_slice(&bytes).expect("the asset parses"))
+        .collect();
+    let fragments: BTreeMap<String, Vec<Alternative>> = files
+        .iter()
+        .flat_map(|file| {
+            file.fragments
+                .iter()
+                .map(|(name, fragment)| (format!("{}.{name}", file.id), fragment.cases.clone()))
+        })
+        .collect();
     let mut declared: Vec<String> = Vec::new();
-    for (_, bytes) in sideseat_domain::rules::schema::embedded_sources() {
-        let file: RuleFile = serde_json::from_slice(&bytes).expect("the asset parses");
+    for file in &files {
         for rule in &file.messages {
-            paths_of(rule, &rule.id, &mut declared);
+            paths_of(rule, &rule.id, &fragments, &mut declared);
         }
     }
     declared.sort();
     declared.dedup();
     // Nine today: five section routes, two element passes, two derived cases. Asserted so the gate cannot
     // pass by finding nothing - which is how a walk that stopped covering a nesting would look.
-    assert_eq!(
-        declared.len(),
-        9,
-        "the declared subdivisions changed; the walk may have stopped covering a nesting: {declared:?}"
+    // Not vacuous: each kind of clause is found, so a walk that stopped covering one would fail here.
+    let routes_and_passes = 9;
+    assert!(
+        declared.len() > routes_and_passes + 200,
+        "only {} clauses were declared; the walk may have stopped covering a nesting: {declared:?}",
+        declared.len()
     );
 
     let fired = rules_that_emit();
+    // A clause is reached where an emission names it or a clause inside it: a selection point that hands its
+    // candidates to cases is named only through the case that answered.
+    let reached = |path: &str| {
+        fired.contains(path)
+            || fired
+                .range(format!("{path}/")..)
+                .next()
+                .is_some_and(|inner| inner.starts_with(&format!("{path}/")))
+    };
     let exempt: BTreeSet<&str> = UNREACHED.iter().map(|(id, _)| *id).collect();
-
-    let silent: Vec<&String> = declared
+    let silent: BTreeSet<&str> = declared
         .iter()
-        .filter(|path| !fired.contains(*path) && !exempt.contains(path.as_str()))
+        .map(String::as_str)
+        .filter(|path| !reached(path) && !exempt.contains(path))
         .collect();
+
+    // The ledger: reading shapes the corpus does not reach - a spelling or release no captured fixture holds.
+    // Shrink-only in effect, because both directions are asserted: a clause that starts firing must leave it,
+    // and one that stops firing, or is newly declared and never fires, has to be added in a visible diff.
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/message_goldens_parts/unreached_clauses.json");
+    if std::env::var_os("UPDATE_GOLDENS").is_some() {
+        let ledger = serde_json::json!({
+            "doc": "Message-rule clause paths no captured fixture reaches, written by \
+                    `no_declared_subdivision_is_dead_across_the_corpus` with UPDATE_GOLDENS=1 and asserted equal to \
+                    what the corpus leaves silent. A path leaves when a capture reaches it or its clause goes; one \
+                    joins only in a reviewed diff.",
+            "paths": silent,
+        });
+        std::fs::write(
+            &path,
+            serde_json::to_string_pretty(&ledger).expect("the ledger serialises") + "\n",
+        )
+        .expect("the ledger is writable");
+    }
+    let ledger: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&path).expect("the ledger exists"))
+            .expect("the ledger parses");
+    let ledgered: BTreeSet<&str> = ledger["paths"]
+        .as_array()
+        .expect("the ledger lists paths")
+        .iter()
+        .map(|path| path.as_str().expect("a path"))
+        .collect();
+    let unledgered: Vec<&&str> = silent.difference(&ledgered).collect();
     assert!(
-        silent.is_empty(),
-        "{} declared subdivision(s) never produced an answer over the corpus. Either the clause is dead - a \
-         route no tag reaches, a pass whose predicate never holds - or the path is not being carried through \
-         to the emission, which is the defect this gate exists to catch:\n  {}",
-        silent.len(),
-        silent
+        unledgered.is_empty(),
+        "{} declared clause(s) never produced an answer over the corpus and are not in the ledger. Either the \
+         clause is dead - a route no tag reaches, a pass whose predicate never holds, a reading no producer \
+         writes - or its path is not carried through to the emission:\n  {}",
+        unledgered.len(),
+        unledgered
             .iter()
-            .map(|p| p.as_str())
+            .map(|p| **p)
             .collect::<Vec<_>>()
             .join("\n  ")
+    );
+    let stale: Vec<&&str> = ledgered.difference(&silent).collect();
+    assert!(
+        stale.is_empty(),
+        "ledgered clause(s) now fire, or are no longer declared, so they leave the ledger: {stale:?}"
+    );
+    assert!(
+        ledgered.iter().all(|path| !exempt.contains(path)),
+        "a clause is both exempted with a reason and ledgered"
     );
 
     // Both directions, as the rule-level gate is: an exemption that starts firing is a stale excuse.
     let revived: Vec<&str> = exempt
         .iter()
         .copied()
-        .filter(|path| fired.contains(*path))
+        .filter(|path| reached(path))
         .collect();
     assert!(
         revived.is_empty(),
