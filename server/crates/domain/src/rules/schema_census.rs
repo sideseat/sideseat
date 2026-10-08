@@ -64,6 +64,20 @@ const UNUSED: &[(&str, &str)] = &[
         "every fact axis stays independently overridable, as `carrier_is_atomic_emission`",
     ),
     (
+        "WrapSpec.tool_call_from",
+        "read only by three rules deleted as unreachable - they read span attributes no ingest path writes; the \
+         logging channel those rules guessed at, read as log events in the slice that follows, either uses it \
+         or removes it",
+    ),
+    (
+        "SingleToolCallSpec.arguments_default",
+        "as `WrapSpec.tool_call_from`",
+    ),
+    (
+        "SingleToolCallSpec.name_default",
+        "as `WrapSpec.tool_call_from`",
+    ),
+    (
         "ValueKind=null",
         "part of the closed JSON kind vocabulary a `kind` predicate offers; a kind set missing one would be an \
          arbitrary hole",

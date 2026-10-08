@@ -370,42 +370,6 @@ vec![
             "autogen process",
             rule_attrs(&[("input.value", r#"{"other":1}"#)]),
         ),
-        // The logging channel: one carrier holds the conversation, the reply and the tools.
-        (
-            "autogen process",
-            rule_attrs(&[(
-                "body",
-                r#"{"type": "LLMCall", "messages": [{"role": "user", "content": "q"}, {"content": ""}], "response": {"content": "a", "tool_calls": [{"id": "c5", "type": "function", "function": {"name": "t", "arguments": {}}}]}, "tools": [{"name": "t"}]}"#,
-            )]),
-        ),
-        // The reply in an OpenAI-shaped choice, with an empty call list that is not one.
-        (
-            "autogen process",
-            rule_attrs(&[(
-                "log.body",
-                r#"{"type": "LLMStreamEnd", "messages": [{"role": "user", "content": "q"}], "response": {"choices": [{"message": {"content": "a", "tool_calls": []}}]}}"#,
-            )]),
-        ),
-        (
-            "autogen process",
-            rule_attrs(&[(
-                "autogen.event",
-                r#"{"type": "ToolCall", "tool_name": "search", "arguments": {"q": "x"}, "result": "found"}"#,
-            )]),
-        ),
-        // A tool execution with nothing recorded but its type.
-        (
-            "autogen process",
-            rule_attrs(&[("autogen.event", r#"{"type": "ToolCall"}"#)]),
-        ),
-        // An event of another type: the gate is the type, so nothing is read.
-        (
-            "autogen process",
-            rule_attrs(&[(
-                "body",
-                r#"{"type": "Unrelated", "messages": [{"role": "user", "content": "q"}]}"#,
-            )]),
-        ),
         (
             "span",
             rule_attrs(&[("mlflow.spanInputs", r#"{"messages":[]}"#)]),

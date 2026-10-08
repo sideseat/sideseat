@@ -179,13 +179,15 @@ fn carrier_ownership_conflicts_are_refused() {
             "a compose consumes a carrier another rule emits",
             r#"{"id": "t", "doc": "d", "messages": [{"id": "a", "doc": "d", "read": {"attribute": "r.text"}, "parse": "json", "emit": "message", "priority": 1}, {"id": "b", "doc": "d", "compose": {"tag": "r", "members": [{"as": "content", "from": "r.text", "parse": "text"}]}, "emit": "message", "priority": 2}]}"#,
         ),
+        // The sweep ranked first: ranked after the exact reader, it is the reading that reader starves, which the
+        // starvation refusal answers before this one is asked.
         (
             "a sweep overlaps an exact source of another rule",
             r#"{"id":"t","doc":"d","messages":[
-                {"id":"a","doc":"d","read":{"attribute":"p.one"},"parse":"json","emit":"message",
-                 "priority":1},
                 {"id":"b","doc":"d","compose":{"tag":"q","members":[
-                    {"sweep_prefix":"p."}]},"emit":"message","priority":2}]}"#,
+                    {"sweep_prefix":"p."}]},"emit":"message","priority":1},
+                {"id":"a","doc":"d","read":{"attribute":"p.one"},"parse":"json","emit":"message",
+                 "priority":2}]}"#,
         ),
     ];
     for (what, asset) in cases {

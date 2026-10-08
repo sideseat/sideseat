@@ -3,7 +3,9 @@ use super::*;
 #[cfg(test)]
 pub(crate) fn try_autogen(
     messages: &mut Vec<RawMessage>,
-    tool_definitions: &mut Vec<RawToolDefinition>,
+    // The retired reader took tools from AutoGen's logging channel, read off span attributes no ingest path
+    // writes; that reading went with the rules that declared it, and the signature stays the oracles' one.
+    _tool_definitions: &mut Vec<RawToolDefinition>,
     attrs: &HashMap<String, String>,
     _: &str,
     timestamp: DateTime<Utc>,
@@ -99,82 +101,6 @@ pub(crate) fn try_autogen(
                 {
                     messages.push(RawMessage::from_attr(keys::MESSAGE, timestamp, parsed));
                     found = true;
-                }
-            }
-        }
-    }
-
-    // Try to extract LLMCallEvent from autogen logging (may be in body or attributes)
-    // Format: {"type": "LLMCall", "messages": [...], "response": {...}, "prompt_tokens": N, ...}
-    for key in ["body", "log.body", "autogen.event"] {
-        if let Some(json_str) = attrs.get(key) {
-            if let Ok(parsed) = serde_json::from_str::<JsonValue>(json_str) {
-                let event_type = parsed.get("type").and_then(|t| t.as_str()).unwrap_or("");
-
-                match event_type {
-                    "LLMCall" | "LLMStreamEnd" => {
-                        // Extract input messages (standard SideML format: role/content)
-                        if let Some(msgs) = parsed.get("messages").and_then(|m| m.as_array()) {
-                            for msg in msgs {
-                                let normalized = normalize_autogen_message(msg);
-                                if !normalized.is_empty() {
-                                    for n in normalized {
-                                        messages.push(RawMessage::from_attr(key, timestamp, n));
-                                    }
-                                    found = true;
-                                } else if msg.get("role").is_some() || msg.get("content").is_some()
-                                {
-                                    messages.push(RawMessage::from_attr(
-                                        key,
-                                        timestamp,
-                                        msg.clone(),
-                                    ));
-                                    found = true;
-                                }
-                            }
-                        }
-
-                        // Extract response as assistant message
-                        if let Some(response) = parsed.get("response") {
-                            if let Some(normalized) = normalize_autogen_response(response) {
-                                messages.push(RawMessage::from_attr(key, timestamp, normalized));
-                                found = true;
-                            }
-                        }
-
-                        // Extract tools as tool_definitions
-                        if let Some(tools) = parsed.get("tools").and_then(|t| t.as_array()) {
-                            if !tools.is_empty() {
-                                tool_definitions.push(RawToolDefinition::from_attr(
-                                    key,
-                                    timestamp,
-                                    json!(tools),
-                                ));
-                                found = true;
-                            }
-                        }
-                    }
-                    "ToolCall" => {
-                        let tool_name = parsed
-                            .get("tool_name")
-                            .and_then(|t| t.as_str())
-                            .unwrap_or("unknown");
-                        let arguments = parsed.get("arguments").cloned().unwrap_or(json!({}));
-                        let result = parsed.get("result").cloned().unwrap_or(json!(null));
-
-                        let tool_msg = json!({
-                            "role": "tool",
-                            "name": tool_name,
-                            "content": result,
-                            "tool_call": {
-                                "name": tool_name,
-                                "arguments": arguments
-                            }
-                        });
-                        messages.push(RawMessage::from_attr(key, timestamp, tool_msg));
-                        found = true;
-                    }
-                    _ => {}
                 }
             }
         }
@@ -502,46 +428,6 @@ pub(super) fn normalize_autogen_message(msg: &JsonValue) -> Vec<JsonValue> {
             }
         }
     }
-}
-
-/// Normalize AutoGen LLM response to assistant message
-#[cfg(test)]
-pub(super) fn normalize_autogen_response(response: &JsonValue) -> Option<JsonValue> {
-    // Response may have content directly or in choices
-    let content = response
-        .get("content")
-        .or_else(|| {
-            response
-                .get("choices")
-                .and_then(|c| c.as_array())
-                .and_then(|arr| arr.first())
-                .and_then(|choice| choice.get("message"))
-                .and_then(|msg| msg.get("content"))
-        })
-        .cloned()?;
-
-    let mut result = json!({
-        "role": "assistant",
-        "content": content
-    });
-
-    // Check for tool_calls in response
-    if let Some(tool_calls) = response.get("tool_calls").or_else(|| {
-        response
-            .get("choices")
-            .and_then(|c| c.as_array())
-            .and_then(|arr| arr.first())
-            .and_then(|choice| choice.get("message"))
-            .and_then(|msg| msg.get("tool_calls"))
-    }) {
-        if let Some(arr) = tool_calls.as_array() {
-            if !arr.is_empty() {
-                result["tool_calls"] = tool_calls.clone();
-            }
-        }
-    }
-
-    Some(result)
 }
 
 // ============================================================================

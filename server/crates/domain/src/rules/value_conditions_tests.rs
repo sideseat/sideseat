@@ -12,7 +12,8 @@ use crate::rules::schema::{PredicateSet, ValueCondition};
 /// Two records left the frozen file after it was frozen, because their condition moved rather than changed:
 /// openinference's `input_messages` entry filter and smolagents' `chat_message_reprs` where-item each excluded
 /// the pseudo-roles `tool-call` and `tool-response`, and both became a `rendering` marker on the same reading,
-/// so the turns are read and shown on the span that sent them instead of being dropped.
+/// so the turns are read and shown on the span that sent them instead of being dropped. And the AutoGen runtime
+/// rules' records left with the rules, deleted because no ingest path writes the carriers they read onto a span.
 #[test]
 fn every_value_where_lowers_as_the_set_it_replaced() {
     let frozen: serde_json::Value = serde_json::from_slice(

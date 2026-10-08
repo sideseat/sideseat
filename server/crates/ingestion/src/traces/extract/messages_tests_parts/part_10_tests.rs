@@ -582,29 +582,33 @@ fn a_carrier_holding_only_a_tool_list_is_not_read_as_a_conversation() {
 
 /// A message rule that also declares tools on the same carrier yields both.
 ///
-/// AutoGen's logging channel carries the conversation, the reply and the tools offered, in one carrier via
-/// `also`. The whole rule is on the message axis (its target is `Message`), so it runs through `run` - and
-/// its tool-definition reading has to survive that path, or a framework that co-locates tools and
-/// conversation loses its tools. This is the shape `is_metadata_rule` must not mishandle by routing the
-/// whole rule one way.
+/// Haystack hands a component its conversation and the tools it was offered in one carrier, read via `also`.
+/// The whole rule is on the message axis (its target is `Message`), so it runs through `run` - and its
+/// tool-definition reading has to survive that path, or a framework that co-locates tools and conversation
+/// loses its tools. This is the shape `is_metadata_rule` must not mishandle by routing the whole rule one way.
 #[test]
 fn a_message_rule_may_also_emit_tool_definitions() {
-    let body = r#"{"type": "LLMCall", "messages": [{"role": "user", "content": "q"}], "response": {"content": "a"}, "tools": [{"name": "search"}]}"#;
-    let attrs = make_attrs(&[("body", body)]);
+    let input = r#"{"messages": [{"role": "user", "content": "q"}], "tools": [{"data": {"name": "search"}}]}"#;
+    let attrs = make_attrs(&[("haystack.component.input", input)]);
+    let span = SpanExtraction {
+        name: "haystack.component.run",
+        attrs: &attrs,
+        scope_name: Some("haystack"),
+        is_tool_span: false,
+    };
     // The conversation is read on the message axis, the tools on the metadata axis - two entry points,
     // routed by each emission's own target, from the one rule.
     let mut messages = Vec::new();
     let mut unused = Vec::new();
-    try_declared_rules(
+    try_declared_rules_for_span(
         &mut messages,
         &mut unused,
-        &attrs,
-        "span",
+        span,
         Utc::now(),
         &mut std::collections::HashSet::new(),
     );
-    assert!(!messages.is_empty(), "the conversation and reply were lost");
-    let (tools, _) = extract_tool_definitions("", &attrs, Utc::now());
+    assert!(!messages.is_empty(), "the conversation was lost");
+    let (tools, _) = extract_tool_definitions_for_span(span, Utc::now());
     assert_eq!(
         tools.len(),
         1,
