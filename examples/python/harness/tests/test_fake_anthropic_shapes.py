@@ -156,6 +156,22 @@ def test_a_provider_tool_is_never_called_as_the_clients_own() -> None:
     assert text.text == script.ANSWERS[content.CHAT]
 
 
+@pytest.mark.parametrize(
+    "tool",
+    [
+        {"type": "bash_20250124", "name": "bash"},
+        {"type": "text_editor_20250728", "name": "str_replace_based_edit_tool"},
+        {"type": "memory_20250818", "name": "memory"},
+    ],
+)
+def test_an_anthropic_defined_client_tool_is_still_the_clients_to_run(
+    tool: dict[str, Any],
+) -> None:
+    # Typed, but executed by the application: the script calls it as it calls any tool it does not know.
+    (call,) = ask(content.CHAT, tools=[tool]).content
+    assert call.type == "tool_use" and call.name == tool["name"]
+
+
 def test_no_other_answer_changes_shape() -> None:
     # Only a search cites and reports search usage: every other answer keeps the shape the suites
     # captured against this endpoint replay.

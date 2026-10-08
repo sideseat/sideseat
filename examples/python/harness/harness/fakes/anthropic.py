@@ -15,6 +15,9 @@ from harness.fakes import script
 
 PORT = 5402
 
+#: The tool families Anthropic runs on its own servers, by the prefix of their dated type names.
+SERVER_TOOLS = ("web_search", "web_fetch", "code_execution", "tool_search_tool")
+
 
 def _text(value: Any) -> str:
     if isinstance(value, str):
@@ -26,6 +29,17 @@ def _text(value: Any) -> str:
             if isinstance(block, dict) and block.get("type") == "text"
         )
     return ""
+
+
+def server_tool(tool: dict[str, Any]) -> str | None:
+    """The server tool family a declared tool belongs to, or ``None`` for one the client runs.
+
+    Dated releases (`web_search_20250305`, `web_search_20260318`) are one tool. Every other tool runs on
+    the client, typed or not: the Anthropic-defined `bash`, `text_editor` and `memory` tools are the
+    application's to execute.
+    """
+    kind = str(tool.get("type") or "")
+    return next((f for f in SERVER_TOOLS if kind.startswith(f + "_")), None)
 
 
 def request_of(body: dict[str, Any]) -> script.Request:
@@ -51,17 +65,11 @@ def request_of(body: dict[str, Any]) -> script.Request:
                 )
         turns.append(turn)
     declared = body.get("tools") or []
-    # A client tool has no type, or ``custom``; any other type is a tool the provider runs itself, and
-    # its dated releases (`web_search_20250305`, `web_search_20260318`) are the same search.
+    hosted = {family for tool in declared if (family := server_tool(tool))}
     tools = {
         tool["name"]: tool.get("input_schema") or {}
         for tool in declared
-        if tool.get("type") in (None, "custom")
-    }
-    hosted = {
-        "web_search" if tool["type"].startswith("web_search") else tool["type"]
-        for tool in declared
-        if tool.get("type") not in (None, "custom")
+        if server_tool(tool) is None
     }
     output_format = (body.get("output_config") or {}).get("format") or {}
     schema = (
