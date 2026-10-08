@@ -362,7 +362,7 @@ fn no_declared_subdivision_is_dead_across_the_corpus() {
     ];
 
     /// Every clause path a rule declares: its section routes, element passes and derived cases, each reading
-    /// - alternatives, `also` and fallbacks - and every case a reading hands its candidates to, a fragment's or
+    /// (alternatives, `also` and fallbacks), and every case a reading hands its candidates to, a fragment's or
     /// its own. A branch leaf emits under its **own** id, so its clauses live in its own path space.
     fn paths_of(
         rule: &MessageRule,
@@ -414,8 +414,8 @@ fn no_declared_subdivision_is_dead_across_the_corpus() {
     }
 
     let files: Vec<RuleFile> = sideseat_domain::rules::schema::embedded_sources()
-        .into_iter()
-        .map(|(_, bytes)| serde_json::from_slice(&bytes).expect("the asset parses"))
+        .into_values()
+        .map(|bytes| serde_json::from_slice(&bytes).expect("the asset parses"))
         .collect();
     let fragments: BTreeMap<String, Vec<Alternative>> = files
         .iter()
