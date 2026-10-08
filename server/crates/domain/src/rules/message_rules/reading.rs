@@ -653,7 +653,15 @@ pub(super) fn counterpart_list(
     overlay: &OverlaySpec,
 ) -> Option<Vec<JsonValue>> {
     let raw = attrs.get(overlay.from.as_str())?;
-    let parsed = parse_value(raw, overlay.parse.unwrap_or(ParseMode::Json))?;
+    let mut parsed = parse_value(raw, overlay.parse.unwrap_or(ParseMode::Json))?;
+    // One decoding step, declared: a member absent, not text, or not decoding leaves no counterparts.
+    if let Some(decode) = &overlay.decode {
+        let decoded = {
+            let member = singular(&parsed, &decode.select, "overlay decode")?.as_str()?;
+            parse_value(member, decode.parse)?
+        };
+        parsed = decoded;
+    }
     let list = overlay
         .select_any_of
         .iter()

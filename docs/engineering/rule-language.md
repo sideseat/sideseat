@@ -467,6 +467,12 @@ by any of the `signals` of any asset.
 }
 ```
 
+An overlay may decode one member of its counterpart copy before selecting from it (`decode`: a `select` path and a
+`parse` from the carriers' own vocabulary). That is for a payload whose richer copy is nested in a different
+encoding - JSON carrying the provider's response as a language's `repr` in one string member, where that repr is the
+only ordered copy of the blocks. One step, so the bounds are unchanged; a member that is absent, is not text, or does
+not decode leaves the overlay with no counterparts, and the flattened form stands.
+
 ## Request threads
 
 Some producers export a request as what is new since the previous request of the same conversation, not as the
@@ -1013,6 +1019,7 @@ beside it keeps them, so where both describe one message the richer one is prefe
 | `doc` | string |  |
 | `from` (required) | string | The attribute holding the richer copy. |
 | `parse` | [`ParseMode`](#parsemode) or null |  |
+| `decode` | [`MemberDecode`](#memberdecode) or null | A member of the parsed copy that is itself serialised, decoded before the counterpart list is selected from it - a JSON payload carrying the provider's response as a Python `repr` in one string member. Absent, or present and not text that decodes, the copy holds no counterparts and nothing is overlaid. |
 | `select` (required) | [`FirstUsable_string`](#firstusable_string) | Ordered paths to the counterpart list; the first that resolves to an array is used. |
 | `unwrap_single_element_list` | true or false | Unwrap a list of exactly one list. A serialiser that accepts a batch of conversations writes one conversation as a batch of one, and the members of *that* are the messages. |
 | `witness` | [`Expr_ValuePredicate`](#expr_valuepredicate) | What the list must look like to be this dialect's own serialisation. Without it, any array of objects at that path would be treated as the same messages. |
@@ -1020,6 +1027,17 @@ beside it keeps them, so where both describe one message the richer one is prefe
 | `content_from` (required) | [`FirstPresent_string`](#firstpresent_string) | Ordered paths to the counterpart's content. |
 | `where` | [`Expr_ValuePredicate`](#expr_valuepredicate) | What that content must be for the overlay to be an improvement. |
 | `as_member` (required) | string | The member the content becomes, replacing every member under `when_member_prefix`. |
+
+### `MemberDecode`
+
+One member of an already-parsed value, decoded: what a reading writes as `select` and `parse` on its element, as
+a step of its own where a later selection reads the decoded value.
+
+| Key | Type | What it is |
+| --- | --- | --- |
+| `doc` | string | Why this is declared the way it is, for a reader and the explain trace. Read by nothing. |
+| `select` (required) | string | The member, as an RFC 9535 JSONPath into the parsed value; its first match is decoded. Not `$`: the whole value is decoded by the carrier's own `parse`. |
+| `parse` (required) | [`ParseMode`](#parsemode) | How the member's text decodes, in the carriers' vocabulary. Not `text`, which would keep the string a selection then finds nothing in. |
 
 ### `FirstUsable_string`
 

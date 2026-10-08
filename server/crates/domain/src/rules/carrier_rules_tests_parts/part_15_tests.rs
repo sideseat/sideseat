@@ -209,3 +209,79 @@ fn an_escaped_literal_does_not_hide_a_framework_key_from_the_sweep() {
         "the escaped key is found: {offenders:?}"
     );
 }
+
+/// **An overlay may decode a member of its parsed copy before selecting from it.** A JSON payload carrying the
+/// provider's response as a Python `repr` in one string member holds the only ordered copy of the blocks; decoded,
+/// it overlays the flattened family. A member that is absent or does not decode leaves the flattened form, and a
+/// decode that could select nothing is refused.
+#[test]
+fn an_overlay_decodes_a_serialised_member_before_selecting() {
+    use crate::rules::message_rules::{MessageCompileError, MessageContext};
+    let rule = |decode: &str| {
+        format!(
+            r#"{{"id":"t","messages":[{{"id":"t.out","priority":1,"emit":"message",
+                "read":{{"indexed_family":"fam","entry_member":"message",
+                  "overlay":{{"from":"rich","parse":"json",{decode}"select":"$.choices",
+                    "witness":{{"path":"$[*].message","exists":true}},
+                    "when_member_prefix":"contents.","content_from":"$.message.content",
+                    "where":{{"kind":"array"}},"as_member":"content"}}}},
+                "require_members":{{"all_of":[{{"name":"role"}}]}}}}]}}"#
+        )
+    };
+    let plan = probe_compile(&rule(
+        r#""decode":{"select":"$.raw","parse":"python_constructor_repr"},"#,
+    ))
+    .expect("the probe compiles");
+    let read = |rich: &str| {
+        let attrs = probe_attrs(&[
+            ("fam.0.message.role", "assistant"),
+            ("fam.0.message.contents.0.message_content.text", "answer"),
+            ("rich", rich),
+        ]);
+        let ctx = MessageContext::for_span("span", &attrs, false);
+        plan.run(&ctx)
+            .into_iter()
+            .map(|e| e.value)
+            .collect::<Vec<_>>()
+    };
+    let repr = r#"Response(choices=[Choice(message=Message(role='assistant', content=[{'type': 'thinking', 'thinking': 'hmm'}, {'type': 'text', 'text': 'answer'}]))])"#;
+    let decoded = read(&serde_json::json!({"raw": repr}).to_string());
+    assert_eq!(
+        decoded[0]["content"],
+        serde_json::json!([{"type": "thinking", "thinking": "hmm"}, {"type": "text", "text": "answer"}]),
+        "the decoded member's blocks replace the flattened ones, in order: {decoded:?}"
+    );
+    for (why, rich) in [
+        (
+            "the member absent",
+            serde_json::json!({"other": repr}).to_string(),
+        ),
+        (
+            "the member not a repr",
+            serde_json::json!({"raw": "not a repr"}).to_string(),
+        ),
+        (
+            "the member not text",
+            serde_json::json!({"raw": {"choices": []}}).to_string(),
+        ),
+    ] {
+        let kept = read(&rich);
+        assert!(
+            kept[0].get("contents.0.message_content.text").is_some()
+                && kept[0].get("content").is_none(),
+            "{why}: the flattened form stays - {kept:?}"
+        );
+    }
+    for decode in [
+        r#""decode":{"select":"$","parse":"python_constructor_repr"},"#,
+        r#""decode":{"select":"$.raw","parse":"text"},"#,
+    ] {
+        assert!(
+            matches!(
+                probe_compile(&rule(decode)),
+                Err(MessageCompileError::Inexpressible { .. })
+            ),
+            "a decode that can select nothing is refused: {decode}"
+        );
+    }
+}

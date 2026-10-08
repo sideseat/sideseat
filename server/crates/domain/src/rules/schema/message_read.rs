@@ -412,6 +412,11 @@ pub struct OverlaySpec {
     pub from: String,
     #[serde(default)]
     pub parse: Option<ParseMode>,
+    /// A member of the parsed copy that is itself serialised, decoded before the counterpart list is selected from
+    /// it - a JSON payload carrying the provider's response as a Python `repr` in one string member. Absent, or
+    /// present and not text that decodes, the copy holds no counterparts and nothing is overlaid.
+    #[serde(default)]
+    pub decode: Option<MemberDecode>,
     /// Ordered paths to the counterpart list; the first that resolves to an array is used.
     #[serde(rename = "select")]
     #[cfg_attr(test, schemars(with = "FirstOf<String, true>"))]
@@ -439,6 +444,24 @@ pub struct OverlaySpec {
     pub require: ValueCondition,
     /// The member the content becomes, replacing every member under `when_member_prefix`.
     pub as_member: String,
+}
+
+/// One member of an already-parsed value, decoded: what a reading writes as `select` and `parse` on its element, as
+/// a step of its own where a later selection reads the decoded value.
+#[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct MemberDecode {
+    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
+    #[serde(default)]
+    pub doc: Option<String>,
+    /// The member, as an RFC 9535 JSONPath into the parsed value; its first match is decoded. Not `$`: the whole
+    /// value is decoded by the carrier's own `parse`.
+    #[cfg_attr(test, schemars(with = "String"))]
+    pub select: JsonPath,
+    /// How the member's text decodes, in the carriers' vocabulary. Not `text`, which would keep the string a
+    /// selection then finds nothing in.
+    pub parse: ParseMode,
 }
 
 impl ReadSpec {

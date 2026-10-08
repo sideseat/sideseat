@@ -659,6 +659,14 @@ pub(super) fn compile_rule(
                      content, can never find anything",
             ));
         }
+        if let Some(decode) = &overlay.decode
+            && (decode.select.to_string() == "$" || decode.parse == ParseMode::Text)
+        {
+            return Err(inexpressible(
+                "an overlay's `decode` names a member and how it decodes: the whole value is the carrier's own \
+                 `parse`, and a member kept as text is a string no counterpart list can be selected from",
+            ));
+        }
     }
     if tool_repr.is_some()
         && (emit_target != EmitTarget::ToolDefinitions
