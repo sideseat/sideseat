@@ -43,6 +43,10 @@ pub mod tool_shapes;
 #[cfg(test)]
 mod carrier_rules_tests;
 #[cfg(test)]
+mod claiming_instances_tests;
+#[cfg(test)]
+mod content_chain_instances_tests;
+#[cfg(test)]
 mod detect_rules_tests;
 #[cfg(test)]
 mod expr_instances_tests;

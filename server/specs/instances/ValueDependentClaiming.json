@@ -1,0 +1,114 @@
+{
+  "doc": "Value-dependent carrier claiming, shared by server/specs/ValueDependentClaiming.tla and the Rust test `value_dependent_claiming_instances` (server/crates/domain/src/rules/claiming_instances_tests.rs). Each instance is a set of message rules over the carriers `a`, `b` and `c`: a `read` takes the first present of its candidates (present mode) and emits a message where it parses; a `claim` reads the same way and emits nothing; a `compose` owns exactly the members that parse and emits where one does. `fallback` is a stage-fallback read, evaluated after the dialect rules with what they own. A span assigns every carrier `absent`, `bad` (does not parse) or `ok`, and holds a set of the rules' gates. Both checkers enumerate every span of every instance; `refused` instances are the ones the compiler must refuse (an earlier rule reading a member of a later compose, which would starve it), and `expect` lists hand-written answers both must reproduce. The Rust test realises carrier `x` as attribute `vdc.x` (`ok` is the JSON text \"x\" in quotes, `bad` is an unterminated object), and the gate of rule `r` as the attribute `vdc.gate.r`.",
+  "version": 1,
+  "carriers": ["a", "b", "c"],
+  "instances": [
+    {
+      "id": "contested_alias",
+      "doc": "An alias read, a claim on its second spelling, and a later reader of that spelling.",
+      "rules": [
+        {"id": "r1", "priority": 10, "kind": "read", "candidates": ["a", "b"]},
+        {"id": "r2", "priority": 20, "kind": "claim", "candidates": ["b"]},
+        {"id": "r3", "priority": 30, "kind": "read", "candidates": ["b", "c"]}
+      ],
+      "fallback": ["c"],
+      "refused": false,
+      "expect": [
+        {
+          "doc": "A bad primary commits: r1 owns nothing and does not hand over to `b`; the claim takes `b`, so r3, whose first present candidate is `b`, is dropped and does not reach `c`, which the fallback then reads.",
+          "values": {"a": "bad", "b": "ok", "c": "ok"},
+          "gates": ["r1", "r2", "r3"],
+          "owners": {"b": "r2", "c": "fallback"},
+          "kept": ["r2"],
+          "fallback_kept": true
+        },
+        {
+          "doc": "Both spellings readable: r1 owns its primary, the claim owns the alias, r3 loses.",
+          "values": {"a": "ok", "b": "ok"},
+          "gates": ["r1", "r2", "r3"],
+          "owners": {"a": "r1", "b": "r2"},
+          "kept": ["r1", "r2"],
+          "fallback_kept": false
+        },
+        {
+          "doc": "A gate that does not hold reads nothing, so the later rule takes the carrier.",
+          "values": {"b": "ok", "c": "ok"},
+          "gates": ["r3"],
+          "owners": {"b": "r3", "c": "fallback"},
+          "kept": ["r3"],
+          "fallback_kept": true
+        }
+      ]
+    },
+    {
+      "id": "compose_first",
+      "doc": "A compose ranked ahead of the readers of its members, as the compiler requires.",
+      "rules": [
+        {"id": "r1", "priority": 10, "kind": "compose", "candidates": ["a", "b"]},
+        {"id": "r2", "priority": 20, "kind": "read", "candidates": ["b"]},
+        {"id": "r3", "priority": 30, "kind": "claim", "candidates": ["c"]}
+      ],
+      "fallback": ["a"],
+      "refused": false,
+      "expect": [
+        {
+          "doc": "The compose owns only the member that parsed, so the bad one is left to nobody it could not read either; the fallback finds its carrier owned.",
+          "values": {"a": "ok", "b": "bad", "c": "ok"},
+          "gates": ["r1", "r2", "r3"],
+          "owners": {"a": "r1", "c": "r3"},
+          "kept": ["r1", "r3"],
+          "fallback_kept": false
+        },
+        {
+          "doc": "A compose whose gate fails owns nothing; the reader takes `b`.",
+          "values": {"a": "bad", "b": "ok"},
+          "gates": ["r2"],
+          "owners": {"b": "r2"},
+          "kept": ["r2"],
+          "fallback_kept": false
+        }
+      ]
+    },
+    {
+      "id": "claim_then_fallback",
+      "doc": "A claim and a fallback reading the same carrier.",
+      "rules": [
+        {"id": "r1", "priority": 10, "kind": "claim", "candidates": ["a"]}
+      ],
+      "fallback": ["a"],
+      "refused": false,
+      "expect": [
+        {
+          "doc": "The claim emits nothing and still keeps the fallback off its carrier.",
+          "values": {"a": "ok"},
+          "gates": ["r1"],
+          "owners": {"a": "r1"},
+          "kept": ["r1"],
+          "fallback_kept": false
+        }
+      ]
+    },
+    {
+      "id": "starved_compose",
+      "doc": "A reader ranked ahead of a compose that needs its carrier: refused, because the compose would be dropped whole wherever the reader took `a`.",
+      "rules": [
+        {"id": "r1", "priority": 10, "kind": "read", "candidates": ["a"]},
+        {"id": "r2", "priority": 20, "kind": "compose", "candidates": ["a", "b"]}
+      ],
+      "fallback": [],
+      "refused": true,
+      "expect": []
+    },
+    {
+      "id": "overlapping_composes",
+      "doc": "Two composes sharing a member: the later one is starved by the earlier, so the pair is refused.",
+      "rules": [
+        {"id": "r1", "priority": 10, "kind": "compose", "candidates": ["a", "b"]},
+        {"id": "r2", "priority": 20, "kind": "compose", "candidates": ["b", "c"]}
+      ],
+      "fallback": [],
+      "refused": true,
+      "expect": []
+    }
+  ]
+}

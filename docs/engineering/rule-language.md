@@ -520,7 +520,8 @@ fixtures, so the branch is exercised.
   `known-violations.json`, which only shrinks. `UPDATE_GOLDENS=1` rewrites the expectations for review.
 - `cargo test --locked -p sideseat-server --test repository rule_language` holds this document to the
   schema; `UPDATE_DOCS=1` regenerates the reference below.
-- `make harden-spec` model-checks the precedence, three-valued logic and claiming models in `server/specs/`.
+- `make harden-spec` model-checks the precedence, three-valued logic, claiming and content-chain models in
+  `server/specs/`; the domain tests hold the engine to the same manifests (`UPDATE_SPECS=1` regenerates them).
 
 <!-- BEGIN GENERATED FROM server/assets/rules.schema.json: UPDATE_DOCS=1 cargo test --locked -p sideseat-server --test repository rule_language -->
 

@@ -1,0 +1,259 @@
+{
+  "doc": "The content-block chain, shared by server/specs/ContentBlockChain.tla and the Rust test `content_block_chain_instances` (server/crates/domain/src/rules/content_chain_instances_tests.rs). `blocks` are abstract blocks with the JSON each is realised as: `kind` is its `type`, `members` its other members, and `inner` names the block an unwrap reaches through its `inner` member. A `foreign` block is a value no declared case recognises, normalised only by the engine's own steps: `canonical` (already a SideML block, passed through), `fallback` (the media and unknown fallbacks answer it) or neither. Each instance declares cases at the four positions; a `text` case reads one member and builds only from a string, an `unwrap` case normalises its `inner` member in the block's place. The model checks the whole chain over every block of every instance; the Rust test checks each position of the engine against the model's answer for that position, and the foreign blocks against the engine's whole chain. `refused` instances must be refused by the compiler, and `expect` lists hand-written answers - the case that answers a block as a message's content and as a returned value, `canonical`, `fallback` or `none` - that the model and the engine must both give.",
+  "version": 1,
+  "positions": [
+    "before_provider_formats",
+    "message_envelope",
+    "provider_formats",
+    "after_provider_formats"
+  ],
+  "blocks": [
+    {
+      "id": "plain",
+      "kind": "k1",
+      "members": {
+        "text": "hi"
+      }
+    },
+    {
+      "id": "number_text",
+      "kind": "k1",
+      "members": {
+        "text": 7
+      }
+    },
+    {
+      "id": "alt_only",
+      "kind": "k1",
+      "members": {
+        "alt": "yo"
+      }
+    },
+    {
+      "id": "wrapped",
+      "kind": "k2",
+      "members": {
+        "text": "t"
+      },
+      "inner": "canonical_text"
+    },
+    {
+      "id": "wrapped_empty",
+      "kind": "k2",
+      "members": {
+        "text": "t"
+      },
+      "inner": "empty_string"
+    },
+    {
+      "id": "wrapped_number",
+      "kind": "k2",
+      "members": {},
+      "inner": "number"
+    },
+    {
+      "id": "double_wrapped",
+      "kind": "k2",
+      "members": {},
+      "inner": "wrapped"
+    },
+    {
+      "id": "canonical_text",
+      "foreign": {
+        "type": "text",
+        "text": "x"
+      },
+      "canonical": true,
+      "fallback": false
+    },
+    {
+      "id": "empty_string",
+      "foreign": "",
+      "canonical": false,
+      "fallback": false
+    },
+    {
+      "id": "number",
+      "foreign": 7,
+      "canonical": false,
+      "fallback": true
+    }
+  ],
+  "instances": [
+    {
+      "id": "decline_then_build",
+      "doc": "Two text cases at one position: the first declines a block whose member is not a string, and the second is tried.",
+      "cases": [
+        {
+          "id": "c1",
+          "at": "provider_formats",
+          "priority": 10,
+          "form": "text",
+          "recognises": [
+            "k1"
+          ],
+          "member": "text"
+        },
+        {
+          "id": "c2",
+          "at": "provider_formats",
+          "priority": 20,
+          "form": "text",
+          "recognises": [
+            "k1"
+          ],
+          "member": "alt"
+        }
+      ],
+      "refused": false,
+      "expect": [
+        {
+          "block": "plain",
+          "message": "c1",
+          "returned": "c1"
+        },
+        {
+          "block": "number_text",
+          "message": "none",
+          "returned": "none"
+        },
+        {
+          "block": "alt_only",
+          "message": "c2",
+          "returned": "c2"
+        }
+      ]
+    },
+    {
+      "id": "unwrap_stops_its_position",
+      "doc": "A recognising unwrap whose member cannot be normalised ends its position, not the chain: the text case after it at the same position is not tried, the one at a later position is.",
+      "cases": [
+        {
+          "id": "u1",
+          "at": "provider_formats",
+          "priority": 10,
+          "form": "unwrap",
+          "recognises": [
+            "k2"
+          ],
+          "member": "inner"
+        },
+        {
+          "id": "c2",
+          "at": "provider_formats",
+          "priority": 20,
+          "form": "text",
+          "recognises": [
+            "k2"
+          ],
+          "member": "text"
+        },
+        {
+          "id": "c3",
+          "at": "after_provider_formats",
+          "priority": 10,
+          "form": "text",
+          "recognises": [
+            "k2"
+          ],
+          "member": "text"
+        }
+      ],
+      "refused": false,
+      "expect": [
+        {
+          "block": "wrapped",
+          "message": "u1",
+          "returned": "u1"
+        },
+        {
+          "block": "wrapped_empty",
+          "message": "c3",
+          "returned": "c3"
+        },
+        {
+          "block": "wrapped_number",
+          "message": "u1",
+          "returned": "u1"
+        },
+        {
+          "block": "double_wrapped",
+          "message": "u1",
+          "returned": "u1"
+        },
+        {
+          "block": "canonical_text",
+          "message": "canonical",
+          "returned": "canonical"
+        },
+        {
+          "block": "number",
+          "message": "fallback",
+          "returned": "fallback"
+        },
+        {
+          "block": "empty_string",
+          "message": "none",
+          "returned": "none"
+        }
+      ]
+    },
+    {
+      "id": "envelope_and_provider",
+      "doc": "An envelope case ahead of a provider case for the same kind: a message's block is answered by the envelope, a returned value skips it.",
+      "cases": [
+        {
+          "id": "e1",
+          "at": "message_envelope",
+          "priority": 10,
+          "form": "text",
+          "recognises": [
+            "k1"
+          ],
+          "member": "alt"
+        },
+        {
+          "id": "p1",
+          "at": "provider_formats",
+          "priority": 10,
+          "form": "text",
+          "recognises": [
+            "k1"
+          ],
+          "member": "text"
+        }
+      ],
+      "refused": false,
+      "expect": [
+        {
+          "block": "alt_only",
+          "message": "e1",
+          "returned": "none"
+        },
+        {
+          "block": "plain",
+          "message": "p1",
+          "returned": "p1"
+        }
+      ]
+    },
+    {
+      "id": "unwrap_of_the_whole_block",
+      "doc": "An unwrap that selects the block itself would re-enter the chain with the same value forever: refused.",
+      "cases": [
+        {
+          "id": "u1",
+          "at": "provider_formats",
+          "priority": 10,
+          "form": "unwrap",
+          "recognises": [
+            "k2"
+          ],
+          "member": "$"
+        }
+      ],
+      "refused": true,
+      "expect": []
+    }
+  ]
+}

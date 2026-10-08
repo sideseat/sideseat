@@ -304,6 +304,18 @@ clause never wins, and wherever the edges agree with the priorities the retired 
 same answer. `checked_precedence_instances` holds the detection and classification compilers to the same
 manifest and space.
 
+Two more models check what precedence decides. `server/specs/ValueDependentClaiming.tla` checks message-rule
+claiming where ownership depends on the span's values: a read commits to its first present spelling and owns it
+only if it parses, a compose owns exactly the members that parse, a claim owns without emitting, a kept reading
+owns everything it read, the fallback keeps nothing a dialect rule owns, and in a ruleset the compiler accepts no
+compose is starved - the `StarvedReading` refusal is what makes that hold. `server/specs/ContentBlockChain.tla`
+checks the content chain: within a position the first case that builds wins, a recognising unwrap that cannot
+normalise its member ends only its own position, deleting a case that declines changes nothing, a returned value
+never reaches an envelope case, and unwrapping terminates. `value_dependent_claiming_instances` runs the claiming
+manifest's every span through `MessagePlan`, and `content_block_chain_instances` holds each position of
+`ContentBlockPlan` to the chain manifest; an unwrap's member is normalised by the production chain, which that test
+checks separately.
+
 The engine does not infer precedence from apparent predicate specificity. Two structural predicates can
 overlap without either being intrinsically more specific, so inferred precedence would be difficult to
 review and unstable as assets evolve.
