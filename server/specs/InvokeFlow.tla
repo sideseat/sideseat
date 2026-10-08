@@ -11,9 +11,13 @@
 (*                                                                         *)
 (*   NoLostEvent  - the subscription is established before Invoke is       *)
 (*                  published, so an early agent.event is never dropped.   *)
-(*   NoStuckBusy  - the SDK never stays busy forever: every path out of    *)
+(*   NoStuckBusy  - the SDK never stays busy forever: once the handler has *)
+(*                  closed, the SDK leaves Busy, because every path out of  *)
 (*                  Streaming either sees a terminal event or leaves the   *)
-(*                  cancel guard armed, whose Drop publishes Cancel.       *)
+(*                  cancel guard armed, whose Drop publishes Cancel. A     *)
+(*                  liveness property, checked with fairness only on the   *)
+(*                  SDK observing Cancel: an agent that never finishes on  *)
+(*                  its own must still be released.                        *)
 (***************************************************************************)
 EXTENDS Naturals, Sequences, FiniteSets
 
@@ -205,14 +209,11 @@ Next ==
     \/ DropTimeout \/ DropDisconnect \/ DropShutdown
     \/ SdkAccept \/ SdkEmit \/ SdkFinish \/ SdkFail \/ SdkObserveCancel
 
-\* Everything has run to completion: used to state the liveness-shaped checks
-\* as a safety property on stable states, which keeps TLC cheap.
-Quiescent ==
-    /\ http \in Closed
-    /\ sdk \in {"Idle", "Done", "Errored", "Cancelled"}
-    /\ inflight = 0
-
-Spec == Init /\ [][Next]_vars
+\* Fairness on one step only: the SDK eventually observes a published Cancel.
+\* Nothing makes the SDK finish on its own, and nothing makes the handler close -
+\* a wedged agent and a slow client are both allowed - so the property below holds
+\* only because Cancel is published on every non-terminal close.
+Spec == Init /\ [][Next]_vars /\ WF_vars(SdkObserveCancel)
 
 -----------------------------------------------------------------------------
 (* Invariants *)
@@ -222,8 +223,10 @@ Spec == Init /\ [][Next]_vars
 NoLostEvent == lost = 0
 
 \* The SDK is never left believing it is still serving a request once the
-\* handler has finished with it.
-NoStuckBusy == Quiescent => sdk # "Busy"
+\* handler has finished with it: a closed handler leads to an SDK that is not
+\* busy. (Stated over stable states it was a tautology - their definition already
+\* excluded Busy.)
+NoStuckBusy == (http \in Closed) ~> (sdk # "Busy")
 
 \* The guard is disarmed exactly when a terminal event was surfaced; any other
 \* closing path must have published Cancel instead.
