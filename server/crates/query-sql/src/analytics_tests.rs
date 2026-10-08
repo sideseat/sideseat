@@ -333,6 +333,13 @@ fn filter_option_queries_validate_columns_and_read_winning_entities() {
             assert!(!query.sql().contains("tenant-'quoted"));
             assert!(!query.sql().contains("bad column"));
             assert!(!query.sql().contains("SELECT secret"));
+            // A count shared by more values than the list holds is cut by value, the same way on both backends:
+            // cut by whatever order each engine produced, the two offered different values at a million spans.
+            assert!(
+                query.sql().contains("ORDER BY count DESC, value ASC"),
+                "{}",
+                query.sql()
+            );
             match backend {
                 Backend::Duckdb => {
                     assert!(query.sql().contains("superseded_at IS NULL"));

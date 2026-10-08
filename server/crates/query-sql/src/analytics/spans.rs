@@ -288,7 +288,7 @@ pub fn trace_filter_options(
                        SELECT s.project_id, s.trace_id FROM {source} s WHERE {scope}\
                      ) \
                      GROUP BY cts.{canonical_name} \
-                     ORDER BY count DESC LIMIT {QUERY_MAX_FILTER_SUGGESTIONS}",
+                     ORDER BY count DESC, value ASC LIMIT {QUERY_MAX_FILTER_SUGGESTIONS}",
                     dialect.canonical_trace_sessions_relation(),
                 )
             } else if column == "trace_name" {
@@ -305,7 +305,7 @@ pub fn trace_filter_options(
                        FROM {source} s WHERE {scope} GROUP BY s.trace_id\
                      ) names \
                      WHERE value IS NOT NULL \
-                     GROUP BY value ORDER BY count DESC \
+                     GROUP BY value ORDER BY count DESC, value ASC \
                      LIMIT {QUERY_MAX_FILTER_SUGGESTIONS}"
                 )
             } else {
@@ -316,7 +316,7 @@ pub fn trace_filter_options(
                      FROM {source} s \
                      WHERE {scope} AND s.{span_column} IS NOT NULL \
                      GROUP BY s.{span_column} \
-                     ORDER BY count DESC LIMIT {QUERY_MAX_FILTER_SUGGESTIONS}"
+                     ORDER BY count DESC, value ASC LIMIT {QUERY_MAX_FILTER_SUGGESTIONS}"
                 )
             };
             Some(FilterOptionQuery {
@@ -351,7 +351,7 @@ pub fn trace_tag_options(
                WHERE {scope} AND s.tags IS NOT NULL AND s.tags != '[]'\
              ) tags \
              WHERE tag IS NOT NULL AND tag != '' \
-             GROUP BY tag ORDER BY count DESC \
+             GROUP BY tag ORDER BY count DESC, value ASC \
              LIMIT {QUERY_MAX_FILTER_SUGGESTIONS}"
         ),
         Backend::Clickhouse => format!(
@@ -359,7 +359,7 @@ pub fn trace_tag_options(
                     count(DISTINCT s.trace_id) AS count \
              FROM {source} s \
              WHERE {scope} AND s.tags IS NOT NULL AND s.tags != '[]' \
-             GROUP BY value ORDER BY count DESC \
+             GROUP BY value ORDER BY count DESC, value ASC \
              LIMIT {QUERY_MAX_FILTER_SUGGESTIONS}"
         ),
     };
@@ -401,7 +401,7 @@ pub fn span_filter_options(
                          FROM {source} s \
                          WHERE {scope} AND s.{column} IS NOT NULL \
                          GROUP BY s.{column} \
-                         ORDER BY count DESC LIMIT {QUERY_MAX_FILTER_SUGGESTIONS}"
+                         ORDER BY count DESC, value ASC LIMIT {QUERY_MAX_FILTER_SUGGESTIONS}"
                     )
                 },
                 params: values.clone(),
@@ -442,7 +442,7 @@ pub fn session_filter_options(
                        ON cts.project_id = s.project_id AND cts.trace_id = s.trace_id \
                      WHERE {scope} AND s.{column} IS NOT NULL \
                      GROUP BY s.{column} \
-                     ORDER BY count DESC LIMIT {QUERY_MAX_FILTER_SUGGESTIONS}",
+                     ORDER BY count DESC, value ASC LIMIT {QUERY_MAX_FILTER_SUGGESTIONS}",
                         dialect.canonical_trace_sessions_relation(),
                     )
                 },
