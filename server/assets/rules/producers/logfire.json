@@ -301,7 +301,31 @@
                 "id": "items",
                 "doc": "Each input item, through the Responses item reading.",
                 "select": "$[*]",
-                "then_fragment": "langfuse.item"
+                "then_fragment": "langfuse.item",
+                "extra_cases": [
+                  {
+                    "id": "reasoning",
+                    "doc": "A reasoning item, which states no role: the model's own, so the assistant's, read as one reasoning block. A conversation re-sends it so the model can continue from it, encrypted when its text is withheld. Declared here rather than in the shared item table because only this dialect's captures carry one.",
+                    "where": {
+                      "all": [
+                        {
+                          "path": "$.type",
+                          "one_of": [
+                            "reasoning"
+                          ]
+                        },
+                        {
+                          "path": "$.summary",
+                          "kind": "array"
+                        }
+                      ]
+                    },
+                    "wrap": {
+                      "role": "assistant",
+                      "content_from": "$"
+                    }
+                  }
+                ]
               }
             ]
           }
