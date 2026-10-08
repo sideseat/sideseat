@@ -823,6 +823,7 @@ fn the_rules_reproduce_the_extractors_they_replaced() {
         let legacy: Vec<String> = legacy
             .into_iter()
             .map(|rendered| rendered.replace(r#""role":"documents""#, r#""role":"context""#))
+            .map(|rendered| pydantic_tool_span_blocks(&rendered))
             .collect();
         // The `found` flags can differ only by a reviewed delta: on a tool span the rules recognise
         // Vercel's tool-call carriers and the harness-excluded legacy side does not. Compared only when the
@@ -882,4 +883,38 @@ fn declared_message_rules_cover_what_they_claim() {
             "carrier `{carrier}` is declared in no asset, so nothing declares it at all"
         );
     }
+}
+
+/// **A second reviewed delta, since 1606bf09.** Pydantic AI 1.x writes a tool span's arguments and result
+/// as `tool_arguments` and `tool_response`. The retired table read each as a bare value under a role of its
+/// own (`tool_call`, `tool`); the rules now build the `tool_use` and `tool_result` blocks the conventions'
+/// reading builds, with the name and call id beside them - which these cases do not carry, so the name is
+/// the empty default and no id is attached. The table's output for those two carriers is rewritten into that
+/// shape and nothing else is: every other carrier is still compared as the table produced it.
+fn pydantic_tool_span_blocks(rendered: &str) -> String {
+    let Some(at) = rendered.find("} {") else {
+        return rendered.to_string();
+    };
+    let (source, payload) = rendered.split_at(at + 2);
+    let block = if source.contains(r#"key: "tool_arguments""#) {
+        "tool_use"
+    } else if source.contains(r#"key: "tool_response""#) {
+        "tool_result"
+    } else {
+        return rendered.to_string();
+    };
+    let Ok(serde_json::Value::Object(message)) = serde_json::from_str::<serde_json::Value>(payload)
+    else {
+        return rendered.to_string();
+    };
+    let value = message
+        .get("content")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
+    let rewritten = if block == "tool_use" {
+        serde_json::json!({"content": [{"input": value, "name": "", "type": "tool_use"}], "role": "assistant"})
+    } else {
+        serde_json::json!({"content": [{"content": value, "type": "tool_result"}], "role": "tool"})
+    };
+    format!("{source}{rewritten}")
 }
