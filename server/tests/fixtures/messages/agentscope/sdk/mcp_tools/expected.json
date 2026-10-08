@@ -8,25 +8,15 @@
     "trace-1/chat global.anthropic.claude-sonnet-5-5/span-3": {
       "message_count": 3,
       "role_sequence": [
-        "assistant",
         "system",
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 1,
       "messages": [
         {
           "index": 0,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01G6sb6E1Ph1gFot2wYHJNJv\",\"name\":\"mcp__calculator__calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
-          "content_digest": "86586698c2f3e66d",
-          "tool_name": "mcp__calculator__calculate",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
           "role": "system",
           "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -35,11 +25,21 @@
           "observation_type": "generation"
         },
         {
-          "index": 2,
+          "index": 1,
           "role": "user",
           "entry_type": "text",
           "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
           "content_digest": "94524de89ab3c69f",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01G6sb6E1Ph1gFot2wYHJNJv\",\"name\":\"mcp__calculator__calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+          "content_digest": "86586698c2f3e66d",
+          "tool_name": "mcp__calculator__calculate",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -198,7 +198,7 @@
           "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
           "content_digest": "94524de89ab3c69f",
           "finish_reason": "Stop",
-          "observation_type": "generation"
+          "observation_type": "agent"
         },
         {
           "index": 2,
@@ -260,7 +260,7 @@
           "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
           "content_digest": "94524de89ab3c69f",
           "finish_reason": "Stop",
-          "observation_type": "generation"
+          "observation_type": "agent"
         },
         {
           "index": 2,
@@ -299,8 +299,8 @@
       "assistant",
       "tool",
       "system",
-      "user",
-      "assistant"
+      "assistant",
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 1,
@@ -334,15 +334,6 @@
       },
       {
         "index": 3,
-        "role": "user",
-        "entry_type": "text",
-        "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
-        "content_digest": "94524de89ab3c69f",
-        "finish_reason": "Stop",
-        "observation_type": "generation"
-      },
-      {
-        "index": 4,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01G6sb6E1Ph1gFot2wYHJNJv\",\"name\":\"mcp__calculator__calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
@@ -350,6 +341,15 @@
         "tool_name": "mcp__calculator__calculate",
         "finish_reason": "Stop",
         "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
+        "content_digest": "94524de89ab3c69f",
+        "finish_reason": "Stop",
+        "observation_type": "agent"
       }
     ]
   }

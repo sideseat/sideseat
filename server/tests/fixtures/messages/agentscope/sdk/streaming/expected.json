@@ -8,25 +8,15 @@
     "trace-1/chat global.anthropic.claude-sonnet-5-5/span-3": {
       "message_count": 3,
       "role_sequence": [
-        "assistant",
         "system",
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 1,
       "messages": [
         {
           "index": 0,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_011PfuTVBckHHC2SNdsB8yV1\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
-          "content_digest": "256fa0e523e928c1",
-          "tool_name": "get_weather",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
           "role": "system",
           "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -35,11 +25,21 @@
           "observation_type": "generation"
         },
         {
-          "index": 2,
+          "index": 1,
           "role": "user",
           "entry_type": "text",
           "content": "Check the weather in Rome for the next day and tell me what to wear.",
           "content_digest": "3801edeb34a2cb29",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_011PfuTVBckHHC2SNdsB8yV1\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+          "content_digest": "256fa0e523e928c1",
+          "tool_name": "get_weather",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -198,7 +198,7 @@
           "content": "Check the weather in Rome for the next day and tell me what to wear.",
           "content_digest": "3801edeb34a2cb29",
           "finish_reason": "Stop",
-          "observation_type": "generation"
+          "observation_type": "agent"
         },
         {
           "index": 2,
@@ -260,7 +260,7 @@
           "content": "Check the weather in Rome for the next day and tell me what to wear.",
           "content_digest": "3801edeb34a2cb29",
           "finish_reason": "Stop",
-          "observation_type": "generation"
+          "observation_type": "agent"
         },
         {
           "index": 2,
@@ -299,8 +299,8 @@
       "assistant",
       "tool",
       "system",
-      "user",
-      "assistant"
+      "assistant",
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 1,
@@ -334,15 +334,6 @@
       },
       {
         "index": 3,
-        "role": "user",
-        "entry_type": "text",
-        "content": "Check the weather in Rome for the next day and tell me what to wear.",
-        "content_digest": "3801edeb34a2cb29",
-        "finish_reason": "Stop",
-        "observation_type": "generation"
-      },
-      {
-        "index": 4,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_011PfuTVBckHHC2SNdsB8yV1\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
@@ -350,6 +341,15 @@
         "tool_name": "get_weather",
         "finish_reason": "Stop",
         "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Check the weather in Rome for the next day and tell me what to wear.",
+        "content_digest": "3801edeb34a2cb29",
+        "finish_reason": "Stop",
+        "observation_type": "agent"
       }
     ]
   }

@@ -183,7 +183,7 @@
           "content": "Suggest one museum to visit in Madrid.",
           "content_digest": "9d08c76a1df2d525",
           "finish_reason": "Stop",
-          "observation_type": "generation"
+          "observation_type": "agent"
         },
         {
           "index": 2,
@@ -222,7 +222,7 @@
           "content": "Suggest one park to visit in Madrid.",
           "content_digest": "95fac62b5ab37eb3",
           "finish_reason": "Stop",
-          "observation_type": "generation"
+          "observation_type": "agent"
         },
         {
           "index": 2,
@@ -266,7 +266,7 @@
           "content": "Suggest one museum to visit in Madrid.",
           "content_digest": "9d08c76a1df2d525",
           "finish_reason": "Stop",
-          "observation_type": "generation"
+          "observation_type": "agent"
         },
         {
           "index": 2,
@@ -293,7 +293,7 @@
           "content": "Suggest one park to visit in Madrid.",
           "content_digest": "95fac62b5ab37eb3",
           "finish_reason": "Stop",
-          "observation_type": "generation"
+          "observation_type": "agent"
         },
         {
           "index": 5,
@@ -310,36 +310,18 @@
   "feed_view": {
     "message_count": 6,
     "role_sequence": [
+      "assistant",
       "system",
       "user",
       "assistant",
       "system",
-      "user",
-      "assistant"
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 0,
     "messages": [
       {
         "index": 0,
-        "role": "system",
-        "entry_type": "text",
-        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
-        "content_digest": "5d227641a000cd8c",
-        "finish_reason": "Stop",
-        "observation_type": "generation"
-      },
-      {
-        "index": 1,
-        "role": "user",
-        "entry_type": "text",
-        "content": "Suggest one park to visit in Madrid.",
-        "content_digest": "95fac62b5ab37eb3",
-        "finish_reason": "Stop",
-        "observation_type": "generation"
-      },
-      {
-        "index": 2,
         "role": "assistant",
         "entry_type": "text",
         "content": "I suggest **Retiro Park (Parque del Buen Retiro)**, Madrid's most beloved green space. You can rent a rowboat on the lake, see the glass Crystal Palace, and stroll through the rose garden. It's free to enter and close to the Prado Museum, s…[282 chars]",
@@ -348,7 +330,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 3,
+        "index": 1,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -357,22 +339,40 @@
         "observation_type": "generation"
       },
       {
-        "index": 4,
+        "index": 2,
         "role": "user",
         "entry_type": "text",
-        "content": "Suggest one museum to visit in Madrid.",
-        "content_digest": "9d08c76a1df2d525",
+        "content": "Suggest one park to visit in Madrid.",
+        "content_digest": "95fac62b5ab37eb3",
         "finish_reason": "Stop",
-        "observation_type": "generation"
+        "observation_type": "agent"
       },
       {
-        "index": 5,
+        "index": 3,
         "role": "assistant",
         "entry_type": "text",
         "content": "Visit the Museo del Prado, Madrid's premier art museum, home to masterpieces by Velázquez (Las Meninas), Goya, and El Greco. Plan for 2–3 hours, and consider going in the evening when there's often free or discounted entry. Book tickets onl…[273 chars]",
         "content_digest": "18ab82b1aea1ca25",
         "finish_reason": "Stop",
         "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Suggest one museum to visit in Madrid.",
+        "content_digest": "9d08c76a1df2d525",
+        "finish_reason": "Stop",
+        "observation_type": "agent"
       }
     ]
   }

@@ -122,6 +122,42 @@ fn constraints(context: &Context<'_>, feed: bool) -> Vec<Constraint> {
             _ => {}
         }
     }
+    // A request's instruction frames the turns it was sent with: in a trace or session view the instruction
+    // comes before the prompt it framed, whichever span's copy of that prompt the view kept. Not in the
+    // feed, which lists newest first and states no order among one request's inputs.
+    if let Some(recorded) = truth.requests.get(&context.recon.fixture).filter(|_| !feed) {
+        for (call, request) in &recorded.calls {
+            let instructions: Vec<String> = request
+                .system
+                .iter()
+                .filter_map(|o| o.new_fact.as_ref().or(o.replay_of.as_ref()))
+                .filter(|id| context.fact(id).is_some())
+                .cloned()
+                .collect();
+            // The prompts this request itself carried: a framework that hands an agent its own rendering
+            // of the question sent the rendering, and the question it renders was told before the
+            // agent's instruction existed.
+            let carried: BTreeSet<&str> = request
+                .messages
+                .iter()
+                .flat_map(|m| m.parts.iter())
+                .filter_map(|o| o.new_fact.as_deref())
+                .collect();
+            let turns: Vec<String> = inputs_of(call)
+                .into_iter()
+                .filter(|id| carried.contains(id.as_str()))
+                .filter(|id| context.fact(id).is_some_and(|f| f.kind == "user_text"))
+                .collect();
+            if !instructions.is_empty() && !turns.is_empty() {
+                out.push((
+                    "order.frame",
+                    format!("{call}:instruction<prompt"),
+                    instructions,
+                    turns,
+                ));
+            }
+        }
+    }
     if truth.topology == "sessions" && !feed {
         for pair in truth.conversations.windows(2) {
             out.push((

@@ -491,8 +491,9 @@ fn preserves_output_source_assistant() {
 }
 
 #[test]
-fn preserves_protected_input_source_blocks() {
-    // Protected blocks, such as finish reasons, are authoritative.
+fn a_finish_reason_does_not_protect_what_a_span_was_sent() {
+    // On a carrier that holds only span input, a finish reason is a producer's mislabel and protects
+    // nothing: the re-sent assistant turn is history like any other.
     let mut blocks = vec![{
         let mut b = make_block_with_source(
             "text",
@@ -512,8 +513,8 @@ fn preserves_protected_input_source_blocks() {
     mark_history(&mut blocks, &span_timestamps);
 
     assert!(
-        !blocks[0].is_history,
-        "protected input-source block should remain current"
+        blocks[0].is_history,
+        "a re-sent turn with a finish reason is still a re-sent turn"
     );
 }
 

@@ -308,7 +308,7 @@
           "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
           "content_digest": "c366c7539466c187",
           "finish_reason": "Stop",
-          "observation_type": "generation"
+          "observation_type": "agent"
         },
         {
           "index": 2,
@@ -326,7 +326,7 @@
           "content": "What is one dish I should try there?",
           "content_digest": "fa205a3ea90d1fdf",
           "finish_reason": "Stop",
-          "observation_type": "generation"
+          "observation_type": "agent"
         },
         {
           "index": 4,
@@ -344,7 +344,7 @@
           "content": "Summarise your two suggestions in one sentence.",
           "content_digest": "3a58af4870fae288",
           "finish_reason": "Stop",
-          "observation_type": "generation"
+          "observation_type": "agent"
         },
         {
           "index": 6,
@@ -389,7 +389,7 @@
           "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
           "content_digest": "c366c7539466c187",
           "finish_reason": "Stop",
-          "observation_type": "generation"
+          "observation_type": "agent"
         },
         {
           "index": 2,
@@ -407,7 +407,7 @@
           "content": "What is one dish I should try there?",
           "content_digest": "fa205a3ea90d1fdf",
           "finish_reason": "Stop",
-          "observation_type": "generation"
+          "observation_type": "agent"
         },
         {
           "index": 4,
@@ -425,7 +425,7 @@
           "content": "Summarise your two suggestions in one sentence.",
           "content_digest": "3a58af4870fae288",
           "finish_reason": "Stop",
-          "observation_type": "generation"
+          "observation_type": "agent"
         },
         {
           "index": 6,
@@ -442,28 +442,19 @@
   "feed_view": {
     "message_count": 7,
     "role_sequence": [
+      "assistant",
       "user",
       "assistant",
       "user",
       "assistant",
       "system",
-      "user",
-      "assistant"
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 0,
     "messages": [
       {
         "index": 0,
-        "role": "user",
-        "entry_type": "text",
-        "content": "Summarise your two suggestions in one sentence.",
-        "content_digest": "3a58af4870fae288",
-        "finish_reason": "Stop",
-        "observation_type": "generation"
-      },
-      {
-        "index": 1,
         "role": "assistant",
         "entry_type": "text",
         "content": "Stay in historic Alfama for its atmospheric lanes and viewpoints, and try bacalhau à Brás, a comforting dish of salt cod, potatoes, and eggs.",
@@ -472,16 +463,16 @@
         "observation_type": "generation"
       },
       {
-        "index": 2,
+        "index": 1,
         "role": "user",
         "entry_type": "text",
-        "content": "What is one dish I should try there?",
-        "content_digest": "fa205a3ea90d1fdf",
+        "content": "Summarise your two suggestions in one sentence.",
+        "content_digest": "3a58af4870fae288",
         "finish_reason": "Stop",
-        "observation_type": "generation"
+        "observation_type": "agent"
       },
       {
-        "index": 3,
+        "index": 2,
         "role": "assistant",
         "entry_type": "text",
         "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod, thin fried potatoes, eggs, and onions. For a sweet finish, pair it with a pastel de nata.",
@@ -490,7 +481,25 @@
         "observation_type": "generation"
       },
       {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What is one dish I should try there?",
+        "content_digest": "fa205a3ea90d1fdf",
+        "finish_reason": "Stop",
+        "observation_type": "agent"
+      },
+      {
         "index": 4,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has winding lanes, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to the main sights. If you prefer something flatter and more central with lots of restaur…[281 chars]",
+        "content_digest": "d5bfd55f51ba11f7",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -499,22 +508,13 @@
         "observation_type": "generation"
       },
       {
-        "index": 5,
+        "index": 6,
         "role": "user",
         "entry_type": "text",
         "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
         "content_digest": "c366c7539466c187",
         "finish_reason": "Stop",
-        "observation_type": "generation"
-      },
-      {
-        "index": 6,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has winding lanes, fado bars, and viewpoints like Miradouro das Portas do Sol, and it's walkable to the main sights. If you prefer something flatter and more central with lots of restaur…[281 chars]",
-        "content_digest": "d5bfd55f51ba11f7",
-        "finish_reason": "Stop",
-        "observation_type": "generation"
+        "observation_type": "agent"
       }
     ]
   }

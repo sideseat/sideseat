@@ -1068,6 +1068,28 @@
    "why": "the request put the instruction after the question; the span shows it before"
   },
   {
+   "name": "an instruction shown after the prompt it framed",
+   "truth": "calculator",
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/requests/_synthetic~1tool_use/calls/call-001/system/0",
+     "value": {
+      "part": {
+       "type": "text",
+       "text": "You are a precise calculator."
+      },
+      "new_fact": "fact-005"
+     }
+    }
+   ],
+   "fires": [
+    "session:order.frame:call-001:instruction<prompt",
+    "trace:order.frame:call-001:instruction<prompt"
+   ],
+   "why": "the request names as its instruction a fact the views show after the prompt that request was sent"
+  },
+  {
    "name": "a sent message under another role",
    "truth": "calculator",
    "patch": [

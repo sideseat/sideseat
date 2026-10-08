@@ -103,7 +103,7 @@ fn compute_quality(block: &BlockEntry) -> u32 {
     }
 
     // Prefer blocks with finish_reason (complete response)
-    if block.finish_reason.is_some() {
+    if block.states_finish() {
         score += quality::HAS_FINISH_REASON;
     }
 

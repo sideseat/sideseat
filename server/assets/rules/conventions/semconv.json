@@ -169,7 +169,7 @@
     },
     {
       "id": "semconv.attr.input_messages.array",
-      "doc": "The family's root: the array itself, which expands into one observation per message. A key *beneath* it is one message's own member and stays whole.",
+      "doc": "The family's root: the array itself, which expands into one observation per message. A key *beneath* it is one message's own member and stays whole. On a model call it is the request, in the order the request lists it, so it carries an ordering family: an instruction at its head frames the request's new turns even where an enclosing span's copy of a turn is the one a view keeps - AgentScope sends `system@0, user@1` and reports the user turn on its agent span too.",
       "match": {
         "attribute": "gen_ai.input.messages"
       },
@@ -177,7 +177,8 @@
         "preset": "snapshot",
         "carrier_holds_span_input": true,
         "carrier_holds_expandable_message_array": true
-      }
+      },
+      "ordering_family": "semconv.input_messages"
     },
     {
       "id": "semconv.attr.system_instructions",

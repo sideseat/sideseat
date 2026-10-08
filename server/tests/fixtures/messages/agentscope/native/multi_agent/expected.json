@@ -66,25 +66,15 @@
     "trace-1/chat global.anthropic.claude-sonnet-5-5/span-3": {
       "message_count": 3,
       "role_sequence": [
-        "assistant",
         "system",
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 1,
       "messages": [
         {
           "index": 0,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01CUXyHNHGeDYqFAJNyVGqfW\",\"name\":\"TeamAssign\",\"input\":{\"member\":\"researcher\",\"prompt\":\"Please research the weather forecast for Barcelona, Spain for the next two days (today and tomorrow, or the next two …[445 chars]",
-          "content_digest": "7b74a1e63c04ce09",
-          "tool_name": "TeamAssign",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
           "role": "system",
           "entry_type": "text",
           "content": "You write the final packing list. Ask the researcher for the weather first.",
@@ -93,11 +83,21 @@
           "observation_type": "generation"
         },
         {
-          "index": 2,
+          "index": 1,
           "role": "user",
           "entry_type": "text",
           "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
           "content_digest": "603f05d965d18b4d",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01CUXyHNHGeDYqFAJNyVGqfW\",\"name\":\"TeamAssign\",\"input\":{\"member\":\"researcher\",\"prompt\":\"Please research the weather forecast for Barcelona, Spain for the next two days (today and tomorrow, or the next two …[445 chars]",
+          "content_digest": "7b74a1e63c04ce09",
+          "tool_name": "TeamAssign",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -106,25 +106,15 @@
     "trace-1/chat global.anthropic.claude-sonnet-5-5/span-5": {
       "message_count": 3,
       "role_sequence": [
-        "assistant",
         "system",
-        "user"
+        "user",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 1,
       "messages": [
         {
           "index": 0,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01VDMSweMHa7SZjN22uoxVqK\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
-          "content_digest": "ab6fd1bf12e95072",
-          "tool_name": "get_weather",
-          "finish_reason": "Stop",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
           "role": "system",
           "entry_type": "text",
           "content": "You research weather with the tool and report the forecast.",
@@ -133,11 +123,21 @@
           "observation_type": "generation"
         },
         {
-          "index": 2,
+          "index": 1,
           "role": "user",
           "entry_type": "text",
           "content": "Please research the weather forecast for Barcelona, Spain for the next two days (today and tomorrow, or the next two days). Include for each day: temperature highs and lows (°C), chance/amount of precipitation, wind, humidity, and sky condi…[319 chars]",
           "content_digest": "dfbbc96ca9ae221f",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01VDMSweMHa7SZjN22uoxVqK\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
+          "content_digest": "ab6fd1bf12e95072",
+          "tool_name": "get_weather",
           "finish_reason": "Stop",
           "observation_type": "generation"
         }
@@ -369,7 +369,7 @@
           "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
           "content_digest": "603f05d965d18b4d",
           "finish_reason": "Stop",
-          "observation_type": "generation"
+          "observation_type": "agent"
         },
         {
           "index": 2,
@@ -406,7 +406,7 @@
           "content": "Please research the weather forecast for Barcelona, Spain for the next two days (today and tomorrow, or the next two days). Include for each day: temperature highs and lows (°C), chance/amount of precipitation, wind, humidity, and sky condi…[319 chars]",
           "content_digest": "dfbbc96ca9ae221f",
           "finish_reason": "Stop",
-          "observation_type": "generation"
+          "observation_type": "agent"
         },
         {
           "index": 6,
@@ -492,7 +492,7 @@
           "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
           "content_digest": "603f05d965d18b4d",
           "finish_reason": "Stop",
-          "observation_type": "generation"
+          "observation_type": "agent"
         },
         {
           "index": 2,
@@ -529,7 +529,7 @@
           "content": "Please research the weather forecast for Barcelona, Spain for the next two days (today and tomorrow, or the next two days). Include for each day: temperature highs and lows (°C), chance/amount of precipitation, wind, humidity, and sky condi…[319 chars]",
           "content_digest": "dfbbc96ca9ae221f",
           "finish_reason": "Stop",
-          "observation_type": "generation"
+          "observation_type": "agent"
         },
         {
           "index": 6,
@@ -588,12 +588,12 @@
       "assistant",
       "tool",
       "system",
-      "user",
       "assistant",
+      "user",
       "assistant",
       "system",
-      "user",
-      "assistant"
+      "assistant",
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 2,
@@ -645,15 +645,6 @@
       },
       {
         "index": 5,
-        "role": "user",
-        "entry_type": "text",
-        "content": "Please research the weather forecast for Barcelona, Spain for the next two days (today and tomorrow, or the next two days). Include for each day: temperature highs and lows (°C), chance/amount of precipitation, wind, humidity, and sky condi…[319 chars]",
-        "content_digest": "dfbbc96ca9ae221f",
-        "finish_reason": "Stop",
-        "observation_type": "generation"
-      },
-      {
-        "index": 6,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01VDMSweMHa7SZjN22uoxVqK\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona, Spain\",\"days\":2}}",
@@ -661,6 +652,15 @@
         "tool_name": "get_weather",
         "finish_reason": "Stop",
         "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Please research the weather forecast for Barcelona, Spain for the next two days (today and tomorrow, or the next two days). Include for each day: temperature highs and lows (°C), chance/amount of precipitation, wind, humidity, and sky condi…[319 chars]",
+        "content_digest": "dfbbc96ca9ae221f",
+        "finish_reason": "Stop",
+        "observation_type": "agent"
       },
       {
         "index": 7,
@@ -682,15 +682,6 @@
       },
       {
         "index": 9,
-        "role": "user",
-        "entry_type": "text",
-        "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
-        "content_digest": "603f05d965d18b4d",
-        "finish_reason": "Stop",
-        "observation_type": "generation"
-      },
-      {
-        "index": 10,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01CUXyHNHGeDYqFAJNyVGqfW\",\"name\":\"TeamAssign\",\"input\":{\"member\":\"researcher\",\"prompt\":\"Please research the weather forecast for Barcelona, Spain for the next two days (today and tomorrow, or the next two …[445 chars]",
@@ -698,6 +689,15 @@
         "tool_name": "TeamAssign",
         "finish_reason": "Stop",
         "observation_type": "generation"
+      },
+      {
+        "index": 10,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+        "content_digest": "603f05d965d18b4d",
+        "finish_reason": "Stop",
+        "observation_type": "agent"
       }
     ]
   }

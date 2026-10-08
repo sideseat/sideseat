@@ -479,8 +479,18 @@ impl BlockEntry {
     pub fn is_protected(&self) -> bool {
         self.is_output_event()
             || self.is_choice_category()
-            || self.finish_reason.is_some()
+            || self.states_finish()
             || self.promoted_to_span_output
+    }
+
+    /// Whether the block's finish reason says how a turn of this span ended.
+    ///
+    /// A finish reason belongs to what a span produced. On a message read from a carrier that holds only
+    /// what the span received it describes no turn of that call - a producer writing one there has
+    /// mislabelled its input - so it is shown as stated and never read as evidence that the block is
+    /// output.
+    pub fn states_finish(&self) -> bool {
+        self.finish_reason.is_some() && (self.is_output_source() || !self.is_input_source())
     }
 }
 

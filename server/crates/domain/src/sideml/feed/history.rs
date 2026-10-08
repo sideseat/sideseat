@@ -674,9 +674,18 @@ fn original_copy(
         if !produces(kept)
             && crate::sideml::carrier::semantics_for_context(&kept.carrier_context())
                 .may_restate_prior_observations
-            && let Some(received) = sorted.iter().position(|&(index, other_output, _, _)| {
-                !other_output && blocks[index].is_generation_span()
-            })
+            // The earliest receiving call, and between calls the clock cannot order, the lowest span id:
+            // which call keeps the message must not depend on the order rows arrived in.
+            && let Some(received) = sorted
+                .iter()
+                .enumerate()
+                .filter(|&(_, &(index, other_output, _, _))| {
+                    !other_output && blocks[index].is_generation_span()
+                })
+                .min_by(|(_, a), (_, b)| {
+                    (a.3, blocks[a.0].span_id.as_str()).cmp(&(b.3, blocks[b.0].span_id.as_str()))
+                })
+                .map(|(position, _)| position)
         {
             return received;
         }

@@ -386,18 +386,18 @@
           "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "10% chance of rain in Paris tomorrow.",
-          "content_digest": "b86bc80454d66b17",
-          "tool_name": "get_precipitation",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_cltW4bkWotvB6eynFjLnKp\",\"name\":\"get_weather\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "aaacf436fcd2ef46",
+          "tool_name": "get_weather",
           "observation_type": "tool"
         },
         {
           "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_cltW4bkWotvB6eynFjLnKp\",\"name\":\"get_weather\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
-          "content_digest": "aaacf436fcd2ef46",
-          "tool_name": "get_weather",
+          "content": "10% chance of rain in Paris tomorrow.",
+          "content_digest": "b86bc80454d66b17",
+          "tool_name": "get_precipitation",
           "observation_type": "tool"
         },
         {
@@ -495,18 +495,18 @@
           "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "10% chance of rain in Paris tomorrow.",
-          "content_digest": "b86bc80454d66b17",
-          "tool_name": "get_precipitation",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_cltW4bkWotvB6eynFjLnKp\",\"name\":\"get_weather\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "aaacf436fcd2ef46",
+          "tool_name": "get_weather",
           "observation_type": "tool"
         },
         {
           "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_cltW4bkWotvB6eynFjLnKp\",\"name\":\"get_weather\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
-          "content_digest": "aaacf436fcd2ef46",
-          "tool_name": "get_weather",
+          "content": "10% chance of rain in Paris tomorrow.",
+          "content_digest": "b86bc80454d66b17",
+          "tool_name": "get_precipitation",
           "observation_type": "tool"
         },
         {

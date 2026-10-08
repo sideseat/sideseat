@@ -1,5 +1,6 @@
 //! Mutations of what a span shows its call was sent (rubric v3, slice 1).
 
+use super::mutate::swap_in_views;
 use super::recon::{Recon, ViewKind};
 use super::truth::{Occurrence, RequestMessage, Truth};
 
@@ -156,4 +157,35 @@ pub(super) fn claim_a_lost_part(truth: &mut Truth, recon: &mut Recon) -> bool {
         return false;
     };
     claim_sent_text(truth, recon, &text)
+}
+
+/// Swaps a request's instruction with the prompt it framed, in every view that holds both.
+pub(super) fn swap_instruction_and_prompt(truth: &mut Truth, recon: &mut Recon) -> bool {
+    let Some(recorded) = truth.requests.get(&recon.fixture) else {
+        return false;
+    };
+    for (call, request) in &recorded.calls {
+        let instruction = request
+            .system
+            .iter()
+            .filter_map(|o| o.new_fact.as_ref().or(o.replay_of.as_ref()))
+            .find_map(|id| truth.facts.iter().find(|f| &f.id == id));
+        let prompt = truth
+            .edges
+            .iter()
+            .filter(|e| e.kind == "prompt_of" && e.to.as_deref() == Some(call.as_str()))
+            .filter_map(|e| e.from.as_deref())
+            .find_map(|id| {
+                truth
+                    .facts
+                    .iter()
+                    .find(|f| f.id == id && f.kind == "user_text")
+            });
+        if let (Some(a), Some(b)) = (instruction.cloned(), prompt.cloned())
+            && swap_in_views(recon, &a, &b)
+        {
+            return true;
+        }
+    }
+    false
 }

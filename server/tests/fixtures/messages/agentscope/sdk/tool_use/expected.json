@@ -8,54 +8,18 @@
     "trace-1/chat global.anthropic.claude-sonnet-5-5/span-3": {
       "message_count": 6,
       "role_sequence": [
-        "assistant",
-        "assistant",
-        "assistant",
-        "assistant",
         "system",
-        "user"
+        "user",
+        "assistant",
+        "assistant",
+        "assistant",
+        "assistant"
       ],
       "tool_names": [],
       "tool_definition_count": 2,
       "messages": [
         {
           "index": 0,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_011CJj1Z9smhCBoVin96F4v1\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
-          "content_digest": "350615b795bdd16b",
-          "tool_name": "get_weather",
-          "observation_type": "generation"
-        },
-        {
-          "index": 1,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_018SgEf1jVFQbLhKMAfRkQxg\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
-          "content_digest": "0fd65e162b08eeeb",
-          "tool_name": "get_weather",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01Mzai8Rw7pCEvZqkVAUNaPn\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
-          "content_digest": "b67c51bc5d5922d0",
-          "tool_name": "get_precipitation",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "assistant",
-          "entry_type": "tool_use",
-          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_014RH6cKMu7xryX2TmRfP1Q7\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
-          "content_digest": "a0913b099adde55f",
-          "tool_name": "get_precipitation",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
           "role": "system",
           "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -64,12 +28,48 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 1,
           "role": "user",
           "entry_type": "text",
           "content": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?",
           "content_digest": "12fbb235830ec0c9",
           "finish_reason": "Stop",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_011CJj1Z9smhCBoVin96F4v1\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
+          "content_digest": "350615b795bdd16b",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_018SgEf1jVFQbLhKMAfRkQxg\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
+          "content_digest": "0fd65e162b08eeeb",
+          "tool_name": "get_weather",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01Mzai8Rw7pCEvZqkVAUNaPn\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
+          "content_digest": "b67c51bc5d5922d0",
+          "tool_name": "get_precipitation",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_014RH6cKMu7xryX2TmRfP1Q7\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
+          "content_digest": "a0913b099adde55f",
+          "tool_name": "get_precipitation",
           "observation_type": "generation"
         }
       ]
@@ -377,7 +377,7 @@
           "content": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?",
           "content_digest": "12fbb235830ec0c9",
           "finish_reason": "Stop",
-          "observation_type": "generation"
+          "observation_type": "agent"
         },
         {
           "index": 2,
@@ -498,7 +498,7 @@
           "content": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?",
           "content_digest": "12fbb235830ec0c9",
           "finish_reason": "Stop",
-          "observation_type": "generation"
+          "observation_type": "agent"
         },
         {
           "index": 2,
@@ -593,11 +593,11 @@
       "tool",
       "tool",
       "system",
-      "user",
       "assistant",
       "assistant",
       "assistant",
-      "assistant"
+      "assistant",
+      "user"
     ],
     "tool_names": [],
     "tool_definition_count": 2,
@@ -658,15 +658,6 @@
       },
       {
         "index": 6,
-        "role": "user",
-        "entry_type": "text",
-        "content": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?",
-        "content_digest": "12fbb235830ec0c9",
-        "finish_reason": "Stop",
-        "observation_type": "generation"
-      },
-      {
-        "index": 7,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_011CJj1Z9smhCBoVin96F4v1\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\",\"days\":2}}",
@@ -675,7 +666,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 8,
+        "index": 7,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_018SgEf1jVFQbLhKMAfRkQxg\",\"name\":\"get_weather\",\"input\":{\"city\":\"Tokyo\",\"days\":2}}",
@@ -684,7 +675,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 9,
+        "index": 8,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01Mzai8Rw7pCEvZqkVAUNaPn\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Paris\"}}",
@@ -693,13 +684,22 @@
         "observation_type": "generation"
       },
       {
-        "index": 10,
+        "index": 9,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_014RH6cKMu7xryX2TmRfP1Q7\",\"name\":\"get_precipitation\",\"input\":{\"city\":\"Tokyo\"}}",
         "content_digest": "a0913b099adde55f",
         "tool_name": "get_precipitation",
         "observation_type": "generation"
+      },
+      {
+        "index": 10,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?",
+        "content_digest": "12fbb235830ec0c9",
+        "finish_reason": "Stop",
+        "observation_type": "agent"
       }
     ]
   }

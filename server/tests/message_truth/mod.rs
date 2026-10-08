@@ -154,6 +154,7 @@ pub(crate) const ASSERTION_FAMILIES: &[&str] = &[
     "order.inputs_after_previous",
     "order.inputs_before_next",
     "order.conversations",
+    "order.frame",
     "order.sequence",
     "extra.unexplained",
     "gap.unused",

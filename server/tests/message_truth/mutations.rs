@@ -126,6 +126,11 @@ const CATALOGUE: &[(&str, Expect, Apply)] = &[
         swap_call_and_result,
     ),
     ("swap two session turns", Expect::Caught, swap_session_turns),
+    (
+        "show a request's instruction after the prompt it framed",
+        Expect::Caught,
+        swap_instruction_and_prompt,
+    ),
     ("duplicate a part", Expect::Caught, |t, r| {
         duplicate(t, r, |f| f.kind == "text" && f.call.is_some())
     }),

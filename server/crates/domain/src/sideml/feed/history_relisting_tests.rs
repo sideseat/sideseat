@@ -145,3 +145,44 @@ fn a_model_calls_reply_still_outranks_the_next_call_sent_it() {
     assert!(!blocks[0].is_history, "the first call produced the reply");
     assert!(blocks[1].is_history, "the second call was sent it back");
 }
+
+/// Two model calls sent one prompt at the same instant keep it on the same one whatever order their rows
+/// arrive in: the earlier span id, as the clock cannot tell them apart.
+#[test]
+fn which_receiving_call_keeps_a_prompt_does_not_depend_on_row_order() {
+    let at = Utc::now();
+    let copy = |span: &str, observation_type: &str, attribute: &str| {
+        let mut block = prompt(span, observation_type, attribute);
+        block.timestamp = at;
+        block.order_time = at;
+        block
+    };
+    for order in [["model-a", "model-b"], ["model-b", "model-a"]] {
+        let mut blocks = vec![copy("template", "span", "output.value")];
+        blocks.extend(order.map(|span| copy(span, "generation", "gen_ai.input.messages")));
+        mark_duplicate_history(&mut blocks, &HashMap::new());
+        let kept: Vec<&str> = blocks
+            .iter()
+            .filter(|b| !b.is_history)
+            .map(|b| b.span_id.as_str())
+            .collect();
+        assert_eq!(kept, vec!["model-a"], "rows in the order {order:?}");
+    }
+}
+
+/// A finish reason a producer writes on the messages it was sent is shown as stated, and is never read as
+/// the call's output; on what the call produced it still is.
+#[test]
+fn a_finish_reason_marks_output_only_on_what_the_span_produced() {
+    let mut sent = prompt("model", "generation", "gen_ai.input.messages");
+    sent.finish_reason = Some(crate::sideml::types::FinishReason::Stop);
+    assert!(!sent.is_protected(), "a request is not the call's output");
+    assert!(sent.finish_reason.is_some(), "the value is kept as stated");
+    let mut produced = prompt("model", "generation", "gen_ai.output.messages");
+    produced.role = ChatRole::Assistant;
+    produced.finish_reason = Some(crate::sideml::types::FinishReason::Stop);
+    assert!(
+        produced.is_protected(),
+        "a finished reply is the call's output"
+    );
+}
