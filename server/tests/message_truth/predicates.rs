@@ -239,7 +239,8 @@ pub(super) fn semantic_eq(content: &Value, expected: &Value) -> bool {
         .any(|candidate| json_eq(candidate, expected))
 }
 
-fn interpretations(value: &Value, depth: usize) -> Vec<Value> {
+/// Every reading of a tool result's content the encodings above allow, the content itself first.
+pub(super) fn interpretations(value: &Value, depth: usize) -> Vec<Value> {
     let mut out = vec![value.clone()];
     if depth > 6 {
         return out;

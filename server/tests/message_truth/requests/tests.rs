@@ -241,3 +241,71 @@ fn an_empty_neighbour_of_another_role_s_message_evidences_nothing() {
         None
     );
 }
+
+fn sent_result(text: &str) -> Expected {
+    let part = json!({
+        "type": "tool_result",
+        "id": "call-1",
+        "content": [{"type": "text", "text": text}],
+        "is_error": false,
+    });
+    Expected {
+        label: "call-002:m2.0".to_string(),
+        role: "tool",
+        fact: as_fact("call-002:m2.0", "tool", &part, &BTreeMap::new())
+            .expect("a tool result part is a fact"),
+        part,
+        message: Some(2),
+        is_fact: false,
+        renders: Vec::new(),
+    }
+}
+
+fn shown_result(value: Value) -> Block {
+    let content = json!({"type": "tool_result", "tool_use_id": "call-1", "content": value});
+    Block {
+        role: "tool".to_string(),
+        kind: "tool_result".to_string(),
+        digest: content.to_string(),
+        identity: content.to_string(),
+        content,
+        tool_use_id: Some("call-1".to_string()),
+        trace: "t".to_string(),
+        span: "s".to_string(),
+        output: false,
+        finish: None,
+        media_sha256: None,
+    }
+}
+
+/// A result the client sent as Python's `str()` of the tool's value is shown by that value only where the
+/// value's `repr` is the sent text exactly.
+#[test]
+fn a_python_rendering_is_shown_only_by_the_value_it_renders_byte_for_byte() {
+    let sent = sent_result(
+        "{'city': 'Paris', 'days': [1, 2], 'rain': True, 'note': None, 'high_c': 21.5, 'say': \"it's\"}",
+    );
+    let faithful = shown_result(json!({
+        "city": "Paris", "days": [1, 2], "rain": true, "note": null, "high_c": 21.5, "say": "it's"
+    }));
+    assert!(matches(&sent, &faithful));
+    // A key in another order is another rendering.
+    let reordered = shown_result(json!({
+        "days": [1, 2], "city": "Paris", "rain": true, "note": null, "high_c": 21.5, "say": "it's"
+    }));
+    assert!(!matches(&sent, &reordered));
+    // A string quoted where Python would not quote it so.
+    let quoted = sent_result("{'city': \"Paris\"}");
+    assert!(!matches(&quoted, &shown_result(json!({"city": "Paris"}))));
+    // A tuple is not the list it would be shown as.
+    let tuple = sent_result("{'days': (1, 2)}");
+    assert!(!matches(&tuple, &shown_result(json!({"days": [1, 2]}))));
+    // Spacing is part of the rendering.
+    let spaced = sent_result("{'city':'Paris'}");
+    assert!(!matches(&spaced, &shown_result(json!({"city": "Paris"}))));
+    // And a value of another call is not this one's, however it renders.
+    let mut other = shown_result(json!({"city": "Paris"}));
+    other.content["tool_use_id"] = json!("call-2");
+    other.tool_use_id = Some("call-2".to_string());
+    assert!(!matches(&sent_result("{'city': 'Paris'}"), &other));
+}

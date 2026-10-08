@@ -22,6 +22,7 @@ use super::recon::{Block, Recon, ViewKind};
 use super::truth::{CallRequest, Fact, Occurrence, Requirement, Truth};
 use super::{Violation, ViolationView};
 
+mod python;
 #[cfg(test)]
 mod tests;
 
@@ -262,7 +263,40 @@ fn shown_under(expected: &Expected, block: &Block) -> bool {
 }
 
 fn matches(expected: &Expected, block: &Block) -> bool {
-    block.role == expected.role && !matches!(shows(&expected.fact, block, None), Shows::No)
+    block.role == expected.role
+        && (!matches!(shows(&expected.fact, block, None), Shows::No)
+            || renders_as_sent(expected, block))
+}
+
+/// A tool result the client sent as Python's `str()` of what the tool returned, shown as that value.
+///
+/// Accepted only as a bijection: the shown value's `repr` must be the sent text byte for byte - its quotes,
+/// `True`/`None`, key order, spacing - so the two are one rendering of each other and nothing was lost or
+/// added between them. A near miss (a key reordered, a string quoted another way, a tuple shown as a list)
+/// stays a mismatch.
+fn renders_as_sent(expected: &Expected, block: &Block) -> bool {
+    if expected.fact.kind != "tool_result" || !block.is_tool_result() {
+        return false;
+    }
+    let (Some(sent), Some(shown)) = (
+        expected.fact.value.get("value").and_then(Value::as_str),
+        block.content.get("content"),
+    ) else {
+        return false;
+    };
+    // Through the same encodings the semantic comparison reads a shown result in - JSON in a string, text
+    // parts, an envelope - so a result the view holds in any of them is the value it holds.
+    super::predicates::interpretations(shown, 0)
+        .into_iter()
+        .filter(|value| !value.is_string())
+        .any(|value| {
+            if python::repr(&value).as_deref() != Some(sent) {
+                return false;
+            }
+            let mut fact = expected.fact.clone();
+            fact.value["value"] = value;
+            !matches!(shows(&fact, block, None), Shows::No)
+        })
 }
 
 /// The longest ordered assignment of expected occurrences to input blocks, as `(expected, block)` pairs.
@@ -307,11 +341,12 @@ fn haystack(recon: &Recon) -> &'static Haystack {
         .or_insert_with(|| Box::leak(Box::new(Haystack::of_fixture(&recon.paths))))
 }
 
-/// Accept a tool call or result shown inside its own message's span of the input, in another position.
+/// Accept a tool call or result shown inside its own batch's span of the input, in another position.
 ///
-/// A message's parallel calls - and the results answering them - are a batch: they were requested at once
-/// and a reconstruction may order them by completion. Nothing else is: text and instructions are a
-/// sequence wherever they sit, so moving one is `request.order`.
+/// A message's parallel calls - and the results answering them, in one message or in a run of result
+/// messages - are a batch: they were requested at once and a reconstruction may order them by completion.
+/// Nothing else is: text and instructions are a sequence wherever they sit, so moving one is
+/// `request.order`.
 fn recover_within_messages(
     expected: &[Expected],
     blocks: &[&Block],
@@ -319,10 +354,32 @@ fn recover_within_messages(
     assigned_expected: &mut [bool],
     assigned_block: &mut [bool],
 ) {
-    let span_of = |message: Option<usize>| {
+    // A turn's parallel results may each be a message of their own - a run of consecutive messages holding
+    // nothing but results - and are one batch all the same, as the results inside one message are.
+    let only_results = |message: usize| {
+        expected
+            .iter()
+            .filter(|e| e.message == Some(message))
+            .all(|e| e.part.get("type").and_then(Value::as_str) == Some("tool_result"))
+    };
+    let batch_of = |item: &Expected| -> Option<usize> {
+        let message = item.message?;
+        if !only_results(message) {
+            return Some(message);
+        }
+        let mut first = message;
+        while first > 0
+            && expected.iter().any(|e| e.message == Some(first - 1))
+            && only_results(first - 1)
+        {
+            first -= 1;
+        }
+        Some(first)
+    };
+    let span_of = |batch: Option<usize>| {
         let placed: Vec<usize> = pairs
             .iter()
-            .filter(|&&(e, _)| expected[e].message == message)
+            .filter(|&&(e, _)| batch_of(&expected[e]) == batch)
             .map(|&(_, b)| b)
             .collect();
         match (placed.iter().min(), placed.iter().max()) {
@@ -340,7 +397,7 @@ fn recover_within_messages(
         if assigned_expected[i] || !batched(&expected[i].part) {
             continue;
         }
-        let Some((first, last)) = span_of(expected[i].message) else {
+        let Some((first, last)) = span_of(batch_of(&expected[i])) else {
             continue;
         };
         let found =
