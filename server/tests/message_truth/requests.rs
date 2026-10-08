@@ -86,6 +86,16 @@ pub(super) fn as_fact(
         ("text", "system") => ("system", json!({"text": part["text"]}), "exact"),
         ("text", "user") => ("user_text", json!({"text": part["text"]}), "exact"),
         ("text", _) => ("text", json!({"text": part["text"]}), "exact"),
+        ("media", _) if part.get("reference").is_some() => (
+            "user_media",
+            json!({
+                "modality": part["modality"],
+                "media_type": part["media_type"],
+                "source": part["source"],
+                "reference": part["reference"],
+            }),
+            "reference",
+        ),
         ("media", _) => (
             "user_media",
             json!({

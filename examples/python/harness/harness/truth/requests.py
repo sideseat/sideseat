@@ -77,6 +77,19 @@ def _media(modality: str, mime: str | None, data: str | bytes) -> dict[str, Any]
     }
 
 
+def _reference(modality: str, source: str, reference: Any) -> dict[str, Any]:
+    """An attachment sent without its bytes: what kind of place it is (``url``, ``file_id``) and which."""
+    if not isinstance(reference, str) or not reference:
+        raise DecodeError(f"{modality} {source} is not a string: {reference!r:.80}")
+    return {
+        "type": "media",
+        "modality": modality,
+        "media_type": None,
+        "source": source,
+        "reference": reference,
+    }
+
+
 def _arguments(value: Any) -> Any:
     if isinstance(value, str):
         if not value.strip():
@@ -332,8 +345,19 @@ def _responses_content(content: Any) -> list[dict[str, Any]]:
         kind = block.get("type")
         if kind in ("input_text", "output_text", "text"):
             parts.append(_text(block["text"]))
+        elif kind == "input_image" and "file_id" in block:
+            parts.append(_reference("image", "file_id", block["file_id"]))
+        elif kind == "input_image" and not block["image_url"].startswith("data:"):
+            parts.append(_reference("image", "url", block["image_url"]))
         elif kind == "input_image":
             parts.append(_data_url(block["image_url"], "image"))
+        elif kind == "input_file" and "file_data" not in block:
+            # A file named by the id an upload gave it, or by where it is: the request does not say
+            # what kind of file it is.
+            if "file_id" in block:
+                parts.append(_reference("file", "file_id", block["file_id"]))
+            else:
+                parts.append(_reference("file", "url", block["file_url"]))
         elif kind == "input_file":
             part = _data_url(block["file_data"], "document")
             if block.get("filename") is not None:

@@ -364,3 +364,63 @@ fn a_call_shown_under_another_call_s_id_is_not_a_reissue() {
     let map = super::rewrites::rewrite_map(&request, &shown, &issued);
     assert_eq!(map.get("id-a").map(String::as_str), Some("framework-1"));
 }
+
+fn shown_media(kind: &str, source: &str, data: &str) -> Block {
+    let content = json!({ "type": kind, "source": source, "data": data });
+    Block {
+        role: "user".to_string(),
+        kind: kind.to_string(),
+        content: content.clone(),
+        tool_use_id: None,
+        trace: "t".to_string(),
+        span: "s".to_string(),
+        output: false,
+        finish: None,
+        media_sha256: None,
+        digest: content.to_string(),
+        identity: content.to_string(),
+        carrier: String::new(),
+        position: String::new(),
+    }
+}
+
+#[test]
+fn an_attachment_sent_by_reference_is_shown_only_as_that_reference() {
+    let sent = |modality: &str, source: &str, reference: &str| {
+        let part = json!({"type": "media", "modality": modality, "media_type": null,
+            "source": source, "reference": reference});
+        as_fact("call-001:m0.1", "user", &part, &BTreeMap::new()).expect("a media part is a fact")
+    };
+    let shown = |fact: &Fact, block: &Block| matches!(shows(fact, block, None), Shows::Yes);
+    let url = "https://example.com/photo.jpg";
+    let image = sent("image", "url", url);
+    assert_eq!(
+        image.require.as_ref().map(|r| r.matcher.as_str()),
+        Some("reference")
+    );
+    assert!(shown(&image, &shown_media("image", "url", url)));
+    assert!(!shown(
+        &image,
+        &shown_media("image", "url", "https://example.com/other.jpg")
+    ));
+    assert!(!shown(&image, &shown_media("document", "url", url)));
+    assert!(!shown(&image, &shown_media("image", "base64", url)));
+    // A request that names a plain file does not say what kind it is: any media kind shows it, by its id.
+    let file = sent("file", "file_id", "file-1234567890");
+    assert!(shown(
+        &file,
+        &shown_media("document", "file_id", "file-1234567890")
+    ));
+    assert!(shown(
+        &file,
+        &shown_media("file", "file_id", "file-1234567890")
+    ));
+    assert!(!shown(
+        &file,
+        &shown_media("text", "file_id", "file-1234567890")
+    ));
+    assert!(!shown(
+        &file,
+        &shown_media("file", "file_id", "file-0987654321")
+    ));
+}

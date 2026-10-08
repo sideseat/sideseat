@@ -62,9 +62,16 @@ pub(super) fn prove(fact: &Fact, haystack: &Haystack) -> Proof {
         "text" | "system" | "user_text" | "reasoning" => prove_text(fact.text(), haystack),
         "tool_call" => prove_tool_call(&fact.value, haystack),
         "tool_result" => prove_tool_result(&fact.value, haystack),
-        "user_media" => match fact.value.get("sha256").and_then(Value::as_str) {
-            Some(digest) => prove_attachment(digest, haystack),
-            None => Proof::Unprovable("the attachment states no digest".to_string()),
+        "user_media" => match (
+            fact.value.get("sha256").and_then(Value::as_str),
+            fact.value.get("reference").and_then(Value::as_str),
+        ) {
+            (Some(digest), _) => prove_attachment(digest, haystack),
+            // An attachment sent without its bytes is present wherever the place it names is.
+            (None, Some(reference)) => prove_text(reference, haystack),
+            (None, None) => {
+                Proof::Unprovable("the attachment states no digest or reference".to_string())
+            }
         },
         other => Proof::Unprovable(format!("no absence search for a {other} fact")),
     }

@@ -73,7 +73,13 @@ def _candidates(
             if part.get("text") and value.get("text") == part["text"]:
                 out.append(fact["id"])
         elif kind == "media" and fact["kind"] == "user_media":
-            if value.get("sha256") == part["sha256"]:
+            if "reference" in part:
+                if (value.get("source"), value.get("reference")) == (
+                    part["source"],
+                    part["reference"],
+                ):
+                    out.append(fact["id"])
+            elif value.get("sha256") == part["sha256"]:
                 out.append(fact["id"])
     return out
 
@@ -94,6 +100,10 @@ def _fact_value(part: dict[str, Any], kind: str) -> dict[str, Any] | None:
     """A request part in the shape the fact of that kind states, or ``None`` when it has no shape."""
     if kind in ("system", "user_text", "text"):
         return {"text": part["text"]} if part.get("text") else None
+    if kind == "user_media" and "reference" in part:
+        return {
+            key: part[key] for key in ("modality", "media_type", "source", "reference")
+        }
     if kind == "user_media":
         return {
             "modality": part["modality"],
@@ -207,6 +217,9 @@ class _Lineage:
         value = _fact_value(part, kind)
         if value is None:
             return None
+        if "reference" in part:
+            # An attachment without its bytes can be shown only as where it is.
+            match = "reference"
         threads = self.truth.setdefault(THREADS, {})
         same = [
             existing

@@ -16,7 +16,7 @@ pub(super) fn supports(kind: &str, matcher: &str) -> bool {
         (kind, matcher),
         ("system", "exact")
             | ("user_text", "contains" | "exact")
-            | ("user_media", "digest")
+            | ("user_media", "digest" | "reference")
             | ("text", "exact" | "json")
             | ("reasoning", "exact" | "presence" | "signed")
             | ("tool_call", "semantic" | "contains")
@@ -48,6 +48,9 @@ pub(super) fn shows(fact: &Fact, block: &Block, call_id: Option<&str>) -> Shows 
             yes(block.is("user", "text") && block.text().is_some_and(|t| t.contains(fact.text())))
         }
         ("user_text", _) => yes(block.is("user", "text") && block.text() == Some(fact.text())),
+        ("user_media", "reference") => {
+            yes(block.role == "user" && reference_matches(&fact.value, block))
+        }
         ("user_media", _) => yes(block.role == "user" && media_matches(&fact.value, block)),
         ("text", "json") => yes(block.role == "assistant" && json_answer_matches(fact, block)),
         ("text", _) => yes(block.is("assistant", "text") && block.text() == Some(fact.text())),
@@ -264,6 +267,29 @@ fn media_matches(value: &Value, block: &Block) -> bool {
         Some(digest) => value.get("sha256").and_then(Value::as_str) == Some(digest.as_str()),
         None => true,
     }
+}
+
+/// An attachment sent without its bytes, shown as the same reference: the same kind of source naming
+/// the same place. A request that names a plain file says nothing of what kind of file it is, so any
+/// media kind shows a `file`; a media type is checked only where the request stated one.
+fn reference_matches(value: &Value, block: &Block) -> bool {
+    const MEDIA: [&str; 5] = ["image", "audio", "video", "document", "file"];
+    let kind_agrees = match value.get("modality").and_then(Value::as_str) {
+        Some("file") => MEDIA.contains(&block.kind.as_str()),
+        modality => modality == Some(block.kind.as_str()),
+    };
+    let type_agrees = match value.get("media_type").and_then(Value::as_str) {
+        Some(stated) => block.content.get("media_type").and_then(Value::as_str) == Some(stated),
+        None => true,
+    };
+    let source = value.get("source").and_then(Value::as_str);
+    let reference = value.get("reference").and_then(Value::as_str);
+    kind_agrees
+        && type_agrees
+        && source.is_some()
+        && reference.is_some()
+        && block.content.get("source").and_then(Value::as_str) == source
+        && block.content.get("data").and_then(Value::as_str) == reference
 }
 
 /// JSON equality with numbers compared by value, so `395` equals `395.0`.

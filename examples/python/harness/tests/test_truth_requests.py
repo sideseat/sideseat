@@ -124,6 +124,40 @@ def test_responses_and_gemini_requests_decode() -> None:
     assert request.tools == ["f"] and request.messages[1]["parts"][0]["id"] is None
 
 
+def test_a_responses_attachment_without_its_bytes_is_a_reference() -> None:
+    # An image by URL or by upload id, and a file by upload id or location: the request says where each
+    # one is, and a file's kind is not stated.
+    responses = {
+        "input": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "input_image", "image_url": "https://x/y.jpg"},
+                    {"type": "input_image", "file_id": "file-img"},
+                    {"type": "input_file", "file_id": "file-doc"},
+                    {"type": "input_file", "file_url": "https://x/z.pdf"},
+                ],
+            }
+        ]
+    }
+    request = decode_request("POST", "/v1/responses", json.dumps(responses).encode())
+    assert request is not None
+    assert [
+        (p["modality"], p["media_type"], p["source"], p["reference"])
+        for p in request.messages[0]["parts"]
+    ] == [
+        ("image", None, "url", "https://x/y.jpg"),
+        ("image", None, "file_id", "file-img"),
+        ("file", None, "file_id", "file-doc"),
+        ("file", None, "url", "https://x/z.pdf"),
+    ]
+    empty = {
+        "input": [{"role": "user", "content": [{"type": "input_file", "file_id": ""}]}]
+    }
+    with pytest.raises(DecodeError):
+        decode_request("POST", "/v1/responses", json.dumps(empty).encode())
+
+
 def test_gemini_inline_data_names_the_modality_every_other_api_does() -> None:
     """A PDF is a document, as Converse, Messages and Chat Completions call it - not `application`."""
     pdf = b"%PDF-1.3 fake"

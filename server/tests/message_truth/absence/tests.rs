@@ -274,6 +274,24 @@ fn an_attachment_is_found_by_the_digest_of_its_bytes() {
     ));
 }
 
+#[test]
+fn an_attachment_sent_by_reference_is_found_by_the_place_it_names() {
+    let url = "https://upload.example.com/commons/photo.jpg";
+    let fact = fact(
+        "user_media",
+        serde_json::json!({"modality": "image", "media_type": null, "source": "url", "reference": url}),
+    );
+    let message = serde_json::json!({"parts": [{"type": "uri", "modality": "image", "uri": url}]});
+    assert!(present(prove(
+        &fact,
+        &attribute(string(&message.to_string()))
+    )));
+    assert_eq!(
+        prove(&fact, &attribute(string("an image the user linked"))),
+        Proof::Absent
+    );
+}
+
 /// A script's attachment written inside other text - a Java `toString()` naming its base64 - is never
 /// decoded as a value of its own, and is partly present all the same: no gap may claim it absent.
 #[test]
