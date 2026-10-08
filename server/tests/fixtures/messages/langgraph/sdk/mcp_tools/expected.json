@@ -365,7 +365,7 @@
           "entry_type": "tool_result",
           "content": "395.0",
           "content_digest": "0ee7e4a3e03dcba7",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 4,
@@ -424,7 +424,7 @@
           "entry_type": "tool_result",
           "content": "395.0",
           "content_digest": "0ee7e4a3e03dcba7",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 4,
@@ -440,8 +440,8 @@
   "feed_view": {
     "message_count": 5,
     "role_sequence": [
-      "assistant",
       "tool",
+      "assistant",
       "system",
       "assistant",
       "user"
@@ -453,19 +453,19 @@
     "messages": [
       {
         "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "395.0",
+        "content_digest": "0ee7e4a3e03dcba7",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
         "role": "assistant",
         "entry_type": "text",
         "content": "(17 × 23) + 4 = **395**.",
         "content_digest": "52aaa6c961cd0f52",
         "observation_type": "generation"
-      },
-      {
-        "index": 1,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "395.0",
-        "content_digest": "0ee7e4a3e03dcba7",
-        "observation_type": "chain"
       },
       {
         "index": 2,

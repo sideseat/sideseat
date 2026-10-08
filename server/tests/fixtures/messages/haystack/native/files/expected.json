@@ -147,7 +147,7 @@
           "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 1,
@@ -155,7 +155,7 @@
           "entry_type": "text",
           "content": "Describe the image in one sentence, then summarise the document in one sentence.",
           "content_digest": "66bed9fc16754ebe",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 2,
@@ -163,7 +163,7 @@
           "entry_type": "unknown",
           "content": "{\"type\":\"unknown\",\"raw\":{\"image\":{\"base64_image\":\"Base64 string (218624 characters)\",\"mime_type\":\"image/jpeg\",\"detail\":null,\"meta\":{\"file_path\":\"/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a303a146a047db1b0/examples/assets/…[270 chars]",
           "content_digest": "9c8145a1e365a99d",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -171,7 +171,7 @@
           "entry_type": "json",
           "content": "{\"type\":\"json\",\"data\":{\"file\":{\"base64_data\":\"Base64 string (17612 characters)\",\"mime_type\":\"application/pdf\",\"filename\":\"task.pdf\",\"extra\":{},\"validation\":false}}}",
           "content_digest": "a0cc44bfe786df95",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 4,
@@ -203,7 +203,7 @@
           "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 1,
@@ -211,7 +211,7 @@
           "entry_type": "text",
           "content": "Describe the image in one sentence, then summarise the document in one sentence.",
           "content_digest": "66bed9fc16754ebe",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 2,
@@ -219,7 +219,7 @@
           "entry_type": "unknown",
           "content": "{\"type\":\"unknown\",\"raw\":{\"image\":{\"base64_image\":\"Base64 string (218624 characters)\",\"mime_type\":\"image/jpeg\",\"detail\":null,\"meta\":{\"file_path\":\"/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a303a146a047db1b0/examples/assets/…[270 chars]",
           "content_digest": "9c8145a1e365a99d",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 3,
@@ -227,7 +227,7 @@
           "entry_type": "json",
           "content": "{\"type\":\"json\",\"data\":{\"file\":{\"base64_data\":\"Base64 string (17612 characters)\",\"mime_type\":\"application/pdf\",\"filename\":\"task.pdf\",\"extra\":{},\"validation\":false}}}",
           "content_digest": "a0cc44bfe786df95",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 4,
@@ -243,54 +243,54 @@
   "feed_view": {
     "message_count": 5,
     "role_sequence": [
-      "assistant",
       "system",
       "user",
       "user",
-      "user"
+      "user",
+      "assistant"
     ],
     "tool_names": [],
     "tool_definition_count": 0,
     "messages": [
       {
         "index": 0,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Describe the image in one sentence, then summarise the document in one sentence.",
+        "content_digest": "66bed9fc16754ebe",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "unknown",
+        "content": "{\"type\":\"unknown\",\"raw\":{\"image\":{\"base64_image\":\"Base64 string (218624 characters)\",\"mime_type\":\"image/jpeg\",\"detail\":null,\"meta\":{\"file_path\":\"/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a303a146a047db1b0/examples/assets/…[270 chars]",
+        "content_digest": "9c8145a1e365a99d",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "json",
+        "content": "{\"type\":\"json\",\"data\":{\"file\":{\"base64_data\":\"Base64 string (17612 characters)\",\"mime_type\":\"application/pdf\",\"filename\":\"task.pdf\",\"extra\":{},\"validation\":false}}}",
+        "content_digest": "a0cc44bfe786df95",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
         "role": "assistant",
         "entry_type": "text",
         "content": "**Image:** A curving black path winds through a sunny, green park with a low stone retaining wall, bare and evergreen trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The five-page document is alm…[330 chars]",
         "content_digest": "868b21757e36b8cd",
         "observation_type": "generation"
-      },
-      {
-        "index": 1,
-        "role": "system",
-        "entry_type": "text",
-        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
-        "content_digest": "5d227641a000cd8c",
-        "observation_type": "agent"
-      },
-      {
-        "index": 2,
-        "role": "user",
-        "entry_type": "text",
-        "content": "Describe the image in one sentence, then summarise the document in one sentence.",
-        "content_digest": "66bed9fc16754ebe",
-        "observation_type": "agent"
-      },
-      {
-        "index": 3,
-        "role": "user",
-        "entry_type": "unknown",
-        "content": "{\"type\":\"unknown\",\"raw\":{\"image\":{\"base64_image\":\"Base64 string (218624 characters)\",\"mime_type\":\"image/jpeg\",\"detail\":null,\"meta\":{\"file_path\":\"/Users/sideseat/Desktop/dev/sideseat/.claude/worktrees/agent-a303a146a047db1b0/examples/assets/…[270 chars]",
-        "content_digest": "9c8145a1e365a99d",
-        "observation_type": "agent"
-      },
-      {
-        "index": 4,
-        "role": "user",
-        "entry_type": "json",
-        "content": "{\"type\":\"json\",\"data\":{\"file\":{\"base64_data\":\"Base64 string (17612 characters)\",\"mime_type\":\"application/pdf\",\"filename\":\"task.pdf\",\"extra\":{},\"validation\":false}}}",
-        "content_digest": "a0cc44bfe786df95",
-        "observation_type": "agent"
       }
     ]
   }

@@ -224,7 +224,7 @@
           "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 1,
@@ -232,7 +232,7 @@
           "entry_type": "text",
           "content": "Check the weather in Rome for the next day and tell me what to wear.",
           "content_digest": "3801edeb34a2cb29",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 2,
@@ -282,7 +282,7 @@
           "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 1,
@@ -290,7 +290,7 @@
           "entry_type": "text",
           "content": "Check the weather in Rome for the next day and tell me what to wear.",
           "content_digest": "3801edeb34a2cb29",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 2,
@@ -326,9 +326,9 @@
     "role_sequence": [
       "assistant",
       "tool",
-      "assistant",
       "system",
-      "user"
+      "user",
+      "assistant"
     ],
     "tool_names": [],
     "tool_definition_count": 0,
@@ -352,28 +352,28 @@
       },
       {
         "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Check the weather in Rome for the next day and tell me what to wear.",
+        "content_digest": "3801edeb34a2cb29",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_KcWQ1r0hVheVINbBpbNBSr\",\"name\":\"get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
         "content_digest": "db455b8c86264e1a",
         "tool_name": "get_weather",
         "observation_type": "generation"
-      },
-      {
-        "index": 3,
-        "role": "system",
-        "entry_type": "text",
-        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
-        "content_digest": "5d227641a000cd8c",
-        "observation_type": "agent"
-      },
-      {
-        "index": 4,
-        "role": "user",
-        "entry_type": "text",
-        "content": "Check the weather in Rome for the next day and tell me what to wear.",
-        "content_digest": "3801edeb34a2cb29",
-        "observation_type": "agent"
       }
     ]
   }

@@ -243,7 +243,7 @@
           "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 1,
@@ -251,7 +251,7 @@
           "entry_type": "text",
           "content": "Book me a flight from London to Oslo on 2026-11-14.",
           "content_digest": "1b969baf99595bc8",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 2,
@@ -310,7 +310,7 @@
           "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 1,
@@ -318,7 +318,7 @@
           "entry_type": "text",
           "content": "Book me a flight from London to Oslo on 2026-11-14.",
           "content_digest": "1b969baf99595bc8",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 2,
@@ -363,9 +363,9 @@
       "assistant",
       "assistant",
       "tool",
-      "assistant",
       "system",
-      "user"
+      "user",
+      "assistant"
     ],
     "tool_names": [],
     "tool_definition_count": 0,
@@ -397,28 +397,28 @@
       },
       {
         "index": 3,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Book me a flight from London to Oslo on 2026-11-14.",
+        "content_digest": "1b969baf99595bc8",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_FuoJ9mweQvSP2ZtcbSC4VG\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
         "content_digest": "7cf856a33a9312de",
         "tool_name": "book_flight",
         "observation_type": "generation"
-      },
-      {
-        "index": 4,
-        "role": "system",
-        "entry_type": "text",
-        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
-        "content_digest": "5d227641a000cd8c",
-        "observation_type": "agent"
-      },
-      {
-        "index": 5,
-        "role": "user",
-        "entry_type": "text",
-        "content": "Book me a flight from London to Oslo on 2026-11-14.",
-        "content_digest": "1b969baf99595bc8",
-        "observation_type": "agent"
       }
     ]
   }

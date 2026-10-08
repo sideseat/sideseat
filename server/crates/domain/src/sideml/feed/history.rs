@@ -667,6 +667,19 @@ fn original_copy(
             // this, so two spans here mean the occurrence is ambiguous, and the re-listing stands.
             return executed;
         }
+        // Likewise a message a span only passes on - a template's rendered prompt, a chain's state - when a
+        // model call was sent it: the call's input is where the message was used, and the re-listing is the
+        // passing span restating it. Only a carrier that may restate yields; a span that emits what it
+        // produced, a model call's or a tool's, keeps its copy.
+        if !produces(kept)
+            && crate::sideml::carrier::semantics_for_context(&kept.carrier_context())
+                .may_restate_prior_observations
+            && let Some(received) = sorted.iter().position(|&(index, other_output, _, _)| {
+                !other_output && blocks[index].is_generation_span()
+            })
+        {
+            return received;
+        }
         return keep;
     }
     if !blocks[first].is_generation_span() {
@@ -678,6 +691,12 @@ fn original_copy(
             !other_output && other_time - time < SPAN_CLOCK_SKEW && blocks[index].is_agent_span()
         })
         .unwrap_or(0)
+}
+
+/// Whether a span makes what it outputs: a model call's reply, a tool's result. Every other span's output
+/// passes on messages that something else made.
+fn produces(block: &BlockEntry) -> bool {
+    block.is_generation_span() || block.observation_type.as_deref() == Some(super::obs_type::TOOL)
 }
 
 /// Where in `sorted` the one tool span that ran this call sits, when exactly one span did. A span

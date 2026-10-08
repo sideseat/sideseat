@@ -441,7 +441,7 @@
           "entry_type": "text",
           "content": "You research weather with the tool, then hand off to the writer.",
           "content_digest": "e23249b8caa6a5ce",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 1,
@@ -449,7 +449,7 @@
           "entry_type": "text",
           "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
           "content_digest": "603f05d965d18b4d",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 2,
@@ -484,7 +484,7 @@
           "entry_type": "text",
           "content": "You write the final packing list from the researcher's findings.",
           "content_digest": "b186ab36ca9cadcb",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 6,
@@ -492,7 +492,7 @@
           "entry_type": "text",
           "content": "Write a one-paragraph packing list based on this weather research for Barcelona over the next two days: Day 1: rain, high 21°C. Day 2: sunny, high 22°C.",
           "content_digest": "f149ebd54900e2f1",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 7,
@@ -546,7 +546,7 @@
           "entry_type": "text",
           "content": "You research weather with the tool, then hand off to the writer.",
           "content_digest": "e23249b8caa6a5ce",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 1,
@@ -554,7 +554,7 @@
           "entry_type": "text",
           "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
           "content_digest": "603f05d965d18b4d",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 2,
@@ -589,7 +589,7 @@
           "entry_type": "text",
           "content": "You write the final packing list from the researcher's findings.",
           "content_digest": "b186ab36ca9cadcb",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 6,
@@ -597,7 +597,7 @@
           "entry_type": "text",
           "content": "Write a one-paragraph packing list based on this weather research for Barcelona over the next two days: Day 1: rain, high 21°C. Day 2: sunny, high 22°C.",
           "content_digest": "f149ebd54900e2f1",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 7,
@@ -632,14 +632,14 @@
     "role_sequence": [
       "assistant",
       "tool",
-      "assistant",
       "system",
       "user",
       "assistant",
-      "tool",
       "assistant",
+      "tool",
       "system",
-      "user"
+      "user",
+      "assistant"
     ],
     "tool_names": [],
     "tool_definition_count": 1,
@@ -663,27 +663,27 @@
       },
       {
         "index": 2,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You write the final packing list from the researcher's findings.",
+        "content_digest": "b186ab36ca9cadcb",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Write a one-paragraph packing list based on this weather research for Barcelona over the next two days: Day 1: rain, high 21°C. Day 2: sunny, high 22°C.",
+        "content_digest": "f149ebd54900e2f1",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
         "role": "assistant",
         "entry_type": "text",
         "content": "For your two days in Barcelona, pack layers that handle both a wet day and a mild, sunny one. Bring a light waterproof jacket or compact umbrella and water-resistant shoes or sneakers for Day 1's rain, plus a long-sleeve top or light sweate…[598 chars]",
         "content_digest": "e0f51ccf5ac50dff",
         "observation_type": "generation"
-      },
-      {
-        "index": 3,
-        "role": "system",
-        "entry_type": "text",
-        "content": "You write the final packing list from the researcher's findings.",
-        "content_digest": "b186ab36ca9cadcb",
-        "observation_type": "agent"
-      },
-      {
-        "index": 4,
-        "role": "user",
-        "entry_type": "text",
-        "content": "Write a one-paragraph packing list based on this weather research for Barcelona over the next two days: Day 1: rain, high 21°C. Day 2: sunny, high 22°C.",
-        "content_digest": "f149ebd54900e2f1",
-        "observation_type": "agent"
       },
       {
         "index": 5,
@@ -705,28 +705,28 @@
       },
       {
         "index": 7,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You research weather with the tool, then hand off to the writer.",
+        "content_digest": "e23249b8caa6a5ce",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+        "content_digest": "603f05d965d18b4d",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_1KPHS2icTpcnN8FbQaDVZd\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
         "content_digest": "1afdb1f0fdc5f459",
         "tool_name": "get_weather",
         "observation_type": "generation"
-      },
-      {
-        "index": 8,
-        "role": "system",
-        "entry_type": "text",
-        "content": "You research weather with the tool, then hand off to the writer.",
-        "content_digest": "e23249b8caa6a5ce",
-        "observation_type": "agent"
-      },
-      {
-        "index": 9,
-        "role": "user",
-        "entry_type": "text",
-        "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
-        "content_digest": "603f05d965d18b4d",
-        "observation_type": "agent"
       }
     ]
   }

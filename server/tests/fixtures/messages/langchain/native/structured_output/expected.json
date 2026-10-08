@@ -123,7 +123,7 @@
           "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
-          "observation_type": "span"
+          "observation_type": "generation"
         },
         {
           "index": 1,
@@ -131,7 +131,7 @@
           "entry_type": "text",
           "content": "Plan a two-day trip to Vienna.",
           "content_digest": "5f56235d64bfe00d",
-          "observation_type": "span"
+          "observation_type": "generation"
         },
         {
           "index": 2,
@@ -164,7 +164,7 @@
           "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
-          "observation_type": "span"
+          "observation_type": "generation"
         },
         {
           "index": 1,
@@ -172,7 +172,7 @@
           "entry_type": "text",
           "content": "Plan a two-day trip to Vienna.",
           "content_digest": "5f56235d64bfe00d",
-          "observation_type": "span"
+          "observation_type": "generation"
         },
         {
           "index": 2,
@@ -189,9 +189,9 @@
   "feed_view": {
     "message_count": 3,
     "role_sequence": [
-      "assistant",
       "system",
-      "user"
+      "user",
+      "assistant"
     ],
     "tool_names": [
       "TripPlan"
@@ -200,28 +200,28 @@
     "messages": [
       {
         "index": 0,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Plan a two-day trip to Vienna.",
+        "content_digest": "5f56235d64bfe00d",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_tZS6qdgh6ddHqlelkvGaa8\",\"name\":\"TripPlan\",\"input\":{\"city\":\"Vienna\",\"days\":[\"Day 1: Explore the Innere Stadt – St. Stephen's Cathedral, Hofburg Palace, and a stroll down Graben, finishing with coffee and Sach…[432 chars]",
         "content_digest": "845ff0a7d5f492da",
         "tool_name": "TripPlan",
         "observation_type": "generation"
-      },
-      {
-        "index": 1,
-        "role": "system",
-        "entry_type": "text",
-        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
-        "content_digest": "5d227641a000cd8c",
-        "observation_type": "span"
-      },
-      {
-        "index": 2,
-        "role": "user",
-        "entry_type": "text",
-        "content": "Plan a two-day trip to Vienna.",
-        "content_digest": "5f56235d64bfe00d",
-        "observation_type": "span"
       }
     ]
   }

@@ -103,3 +103,44 @@ fn a_redelivered_tool_span_still_outranks_the_relisting() {
     mark_duplicate_history(&mut blocks, &HashMap::new());
     assert!(blocks[0].is_history, "the agent restates the call");
 }
+
+fn prompt(span: &str, observation_type: &str, attribute: &str) -> BlockEntry {
+    let mut block = call(span, observation_type, attribute, None);
+    block.entry_type = "text".to_string();
+    block.content = ContentBlock::Text {
+        text: "In one sentence, what is Kyoto best known for?".to_string(),
+    };
+    block.role = ChatRole::User;
+    block.tool_use_id = None;
+    block.tool_name = None;
+    block.category = MessageCategory::GenAIUserMessage;
+    block.content_hash = "prompt".to_string();
+    block
+}
+
+/// A prompt a template renders as its output and a model call is then sent: the call's input is where it
+/// was used, so the template's re-listing is the copy that yields, though it is an output and came first.
+#[test]
+fn a_model_call_sent_a_prompt_outranks_the_template_that_rendered_it() {
+    let rendered = prompt("template", "span", "output.value");
+    let received = prompt("model", "generation", "gen_ai.input.messages");
+    assert!(rendered.is_output_source() && received.is_input_source());
+    let mut blocks = vec![rendered, received];
+    mark_duplicate_history(&mut blocks, &HashMap::new());
+    assert!(blocks[0].is_history, "the template passes the prompt on");
+    assert!(!blocks[1].is_history, "the model call was sent it");
+}
+
+/// Only a span that passes messages on yields: a model call's own reply stays the original over the next
+/// call's input copy of it.
+#[test]
+fn a_model_calls_reply_still_outranks_the_next_call_sent_it() {
+    let mut replied = prompt("first", "generation", "gen_ai.output.messages");
+    replied.role = ChatRole::Assistant;
+    let mut resent = prompt("second", "generation", "gen_ai.input.messages");
+    resent.role = ChatRole::Assistant;
+    let mut blocks = vec![replied, resent];
+    mark_duplicate_history(&mut blocks, &HashMap::new());
+    assert!(!blocks[0].is_history, "the first call produced the reply");
+    assert!(blocks[1].is_history, "the second call was sent it back");
+}

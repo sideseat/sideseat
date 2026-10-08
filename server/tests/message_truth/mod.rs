@@ -612,9 +612,9 @@ fn truth_violation_ledger_only_shrinks_against_main() {
                 return false;
             }
             if entry.view == ViolationView::Request.name() {
-                return request_at_base(&current, &base_truth, &entry.fixture, &entry.subject);
+                return request_at_base(&current, base_truth, &entry.fixture, &entry.subject);
             }
-            fact_at_base(&current, &base_truth, &entry.fixture, &entry.subject)
+            fact_at_base(&current, base_truth, &entry.fixture, &entry.subject)
         },
     );
     assert!(
@@ -719,7 +719,7 @@ fn a_defect_changing_form_from_missing_is_not_a_new_one() {
     let elsewhere = entry("session", "system.leaked", "fact-010");
     assert!(!was_missing_at_base(
         &base,
-        &[elsewhere.clone()],
+        std::slice::from_ref(&elsewhere),
         &elsewhere
     ));
     // The base's missing entry is still there: the new entry is a second defect, refused.
@@ -732,7 +732,11 @@ fn a_defect_changing_form_from_missing_is_not_a_new_one() {
     assert!(!was_missing_at_base(&base, &now, &leaked));
     // A per-trace obligation keeps its scope: `fact-010@trace-2` missing admits nothing about `fact-010`.
     let scoped = [entry("trace", "system.missing", "fact-010@trace-2")];
-    assert!(!was_missing_at_base(&scoped, &[leaked.clone()], &leaked));
+    assert!(!was_missing_at_base(
+        &scoped,
+        std::slice::from_ref(&leaked),
+        &leaked
+    ));
 }
 
 /// Prints one fixture's views and violations, for triaging a ledger entry:

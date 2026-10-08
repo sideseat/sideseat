@@ -365,7 +365,7 @@
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_coq2K8MBbG9xGZwlfJSTnt\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
           "content_digest": "743db386ea83813e",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 4,
@@ -424,7 +424,7 @@
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_coq2K8MBbG9xGZwlfJSTnt\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
           "content_digest": "743db386ea83813e",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 4,
@@ -440,8 +440,8 @@
   "feed_view": {
     "message_count": 5,
     "role_sequence": [
-      "assistant",
       "tool",
+      "assistant",
       "system",
       "assistant",
       "user"
@@ -453,19 +453,19 @@
     "messages": [
       {
         "index": 0,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_coq2K8MBbG9xGZwlfJSTnt\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+        "content_digest": "743db386ea83813e",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
         "role": "assistant",
         "entry_type": "text",
         "content": "Rome will be sunny tomorrow with a high of 21°C. Wear a light long-sleeve shirt or t-shirt with a light jacket or sweater for the cooler morning and evening. Bring sunglasses and comfortable walking shoes.",
         "content_digest": "52ea09b0a0abcccc",
         "observation_type": "generation"
-      },
-      {
-        "index": 1,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_coq2K8MBbG9xGZwlfJSTnt\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
-        "content_digest": "743db386ea83813e",
-        "observation_type": "chain"
       },
       {
         "index": 2,

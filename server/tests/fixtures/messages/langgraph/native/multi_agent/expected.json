@@ -587,7 +587,7 @@
           "entry_type": "text",
           "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
           "content_digest": "603f05d965d18b4d",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 2,
@@ -604,7 +604,7 @@
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_RPeS17HyUX7Ly8U84moJqJ\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
           "content_digest": "96552757ec1eade1",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 4,
@@ -628,7 +628,7 @@
           "entry_type": "text",
           "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it. The researcher's findings: **Barcelona packing list (next two days):** Day 1 will be rainy with a high around 21°C. Day 2 will be …[690 chars]",
           "content_digest": "874597347d81a7e8",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 7,
@@ -682,7 +682,7 @@
           "entry_type": "text",
           "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
           "content_digest": "603f05d965d18b4d",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 2,
@@ -699,7 +699,7 @@
           "entry_type": "tool_result",
           "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_RPeS17HyUX7Ly8U84moJqJ\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
           "content_digest": "96552757ec1eade1",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 4,
@@ -723,7 +723,7 @@
           "entry_type": "text",
           "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it. The researcher's findings: **Barcelona packing list (next two days):** Day 1 will be rainy with a high around 21°C. Day 2 will be …[690 chars]",
           "content_digest": "874597347d81a7e8",
-          "observation_type": "chain"
+          "observation_type": "generation"
         },
         {
           "index": 7,
@@ -748,14 +748,14 @@
     "message_count": 9,
     "role_sequence": [
       "system",
-      "assistant",
-      "assistant",
       "user",
       "assistant",
-      "tool",
-      "system",
       "assistant",
-      "user"
+      "tool",
+      "assistant",
+      "system",
+      "user",
+      "assistant"
     ],
     "tool_names": [
       "get_weather"
@@ -772,6 +772,14 @@
       },
       {
         "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it. The researcher's findings: **Barcelona packing list (next two days):** Day 1 will be rainy with a high around 21°C. Day 2 will be …[690 chars]",
+        "content_digest": "874597347d81a7e8",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
         "role": "assistant",
         "entry_type": "redacted_thinking",
         "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQS2AYKEggSEAEYAjgBQgh0aGlua2luZxIMUgl8f9P5NU3xRILMGgytnFGYT8bGCPl51FoiMFcjagGS43nU2akMwUfsnE3pojrrkjRcVIvJtoeHXV5PhvC0Lf9kxXQYwPjxkdkDuyrzBQ7TPFbiJUhVtcn+EYNtN61eO+FPq+TWIPlO1nJtoyJhn/PaT910oqN5VLIgqDMT…[1190 chars]",
@@ -779,7 +787,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 2,
+        "index": 3,
         "role": "assistant",
         "entry_type": "text",
         "content": "For your next two days in Barcelona, expect a rainy first day with a high around 21°C, followed by a sunny second day with a high around 22°C. Pack a light, packable waterproof jacket or compact umbrella for the wet weather, along with wate…[741 chars]",
@@ -787,28 +795,20 @@
         "observation_type": "generation"
       },
       {
-        "index": 3,
-        "role": "user",
-        "entry_type": "text",
-        "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it. The researcher's findings: **Barcelona packing list (next two days):** Day 1 will be rainy with a high around 21°C. Day 2 will be …[690 chars]",
-        "content_digest": "874597347d81a7e8",
-        "observation_type": "chain"
+        "index": 4,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_RPeS17HyUX7Ly8U84moJqJ\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+        "content_digest": "96552757ec1eade1",
+        "observation_type": "generation"
       },
       {
-        "index": 4,
+        "index": 5,
         "role": "assistant",
         "entry_type": "text",
         "content": "**Barcelona packing list (next two days):** Day 1 will be rainy with a high around 21°C. Day 2 will be sunny with a high around 22°C. Pack a light, packaging-friendly waterproof jacket or compact umbrella and water-resistant shoes for the w…[553 chars]",
         "content_digest": "ce9d930be4b9d451",
         "observation_type": "generation"
-      },
-      {
-        "index": 5,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_RPeS17HyUX7Ly8U84moJqJ\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
-        "content_digest": "96552757ec1eade1",
-        "observation_type": "chain"
       },
       {
         "index": 6,
@@ -820,20 +820,20 @@
       },
       {
         "index": 7,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
+        "content_digest": "603f05d965d18b4d",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_RPeS17HyUX7Ly8U84moJqJ\",\"name\":\"get_weather\",\"input\":{\"city\":\"Barcelona\",\"days\":2}}",
         "content_digest": "3cffb2b2a5dabe5e",
         "tool_name": "get_weather",
         "observation_type": "generation"
-      },
-      {
-        "index": 8,
-        "role": "user",
-        "entry_type": "text",
-        "content": "Research the weather in Barcelona for the next two days, then write a one-paragraph packing list based on it.",
-        "content_digest": "603f05d965d18b4d",
-        "observation_type": "chain"
       }
     ]
   }

@@ -181,7 +181,7 @@
           "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 1,
@@ -189,7 +189,7 @@
           "entry_type": "text",
           "content": "In one sentence, what is Kyoto best known for?",
           "content_digest": "0f69e296627452c3",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 2,
@@ -219,7 +219,7 @@
           "entry_type": "text",
           "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
           "content_digest": "5d227641a000cd8c",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 1,
@@ -227,7 +227,7 @@
           "entry_type": "text",
           "content": "In one sentence, what is Kyoto best known for?",
           "content_digest": "0f69e296627452c3",
-          "observation_type": "agent"
+          "observation_type": "generation"
         },
         {
           "index": 2,
@@ -243,36 +243,36 @@
   "feed_view": {
     "message_count": 3,
     "role_sequence": [
-      "assistant",
       "system",
-      "user"
+      "user",
+      "assistant"
     ],
     "tool_names": [],
     "tool_definition_count": 0,
     "messages": [
       {
         "index": 0,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "In one sentence, what is Kyoto best known for?",
+        "content_digest": "0f69e296627452c3",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
         "role": "assistant",
         "entry_type": "text",
         "content": "Kyoto is best known for its well-preserved traditional culture, including thousands of temples and shrines, geisha districts like Gion, and its history as Japan's imperial capital for over a thousand years.",
         "content_digest": "c2bf7c0dcedca38a",
         "observation_type": "generation"
-      },
-      {
-        "index": 1,
-        "role": "system",
-        "entry_type": "text",
-        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
-        "content_digest": "5d227641a000cd8c",
-        "observation_type": "agent"
-      },
-      {
-        "index": 2,
-        "role": "user",
-        "entry_type": "text",
-        "content": "In one sentence, what is Kyoto best known for?",
-        "content_digest": "0f69e296627452c3",
-        "observation_type": "agent"
       }
     ]
   }
