@@ -209,6 +209,48 @@ pub fn decode_shape(record: &[u8]) -> Result<(RawContent, Vec<u8>), RawPayloadEr
     })
 }
 
+/// One piece of the payload [`decode_shape`] rebuilds: bytes of the received payload, or a medium's length of
+/// blank base64 - `A` repeated, the text of zero bytes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShapeSegment<'a> {
+    Bytes(&'a [u8]),
+    Blank(usize),
+}
+
+/// The payload [`decode_shape`] rebuilds, as the pieces it is spliced from, so a reader can walk the record's
+/// framing without allocating its media: skipping a field that holds a medium costs nothing, where rebuilding the
+/// shape allocates and encodes every medium in full.
+pub fn shape_segments(
+    record: &[u8],
+) -> Result<(RawContent, Vec<ShapeSegment<'_>>), RawPayloadError> {
+    let header = Header::parse(record)?;
+    let body = &record[header.body_offset..];
+    let mut segments = Vec::with_capacity(header.runs.len() * 2 + 1);
+    let mut cursor = 0usize;
+    for run in &header.runs {
+        let end = cursor
+            .checked_add(run.gap)
+            .filter(|end| *end <= body.len())
+            .ok_or(RawPayloadError::Malformed)?;
+        // Encoding cuts only runs that padded base64 reproduces, so a run's length is a multiple of four - the
+        // one case where blank text of its length exists, and where `decode_shape` succeeds.
+        if run.length % 4 != 0 {
+            return Err(RawPayloadError::MediaMismatch(hex::encode(run.hash)));
+        }
+        if end > cursor {
+            segments.push(ShapeSegment::Bytes(&body[cursor..end]));
+        }
+        if run.length > 0 {
+            segments.push(ShapeSegment::Blank(run.length));
+        }
+        cursor = end;
+    }
+    if cursor < body.len() {
+        segments.push(ShapeSegment::Bytes(&body[cursor..]));
+    }
+    Ok((header.content, segments))
+}
+
 /// For each medium, the number of zero bytes whose base64 has the medium's recorded length: the blank
 /// [`decode_shape`] splices in, for a caller that blanks only the media it cannot fetch.
 pub fn blank_lengths(record: &[u8]) -> Result<BTreeMap<[u8; 32], usize>, RawPayloadError> {
@@ -384,6 +426,47 @@ mod tests {
         (0..len)
             .map(|i| (i as u8).wrapping_mul(31).wrapping_add(seed))
             .collect()
+    }
+
+    fn spliced(record: &[u8]) -> Vec<u8> {
+        let (_, segments) = shape_segments(record).unwrap();
+        let mut out = Vec::new();
+        for segment in segments {
+            match segment {
+                ShapeSegment::Bytes(bytes) => out.extend_from_slice(bytes),
+                ShapeSegment::Blank(length) => out.extend(std::iter::repeat_n(b'A', length)),
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn the_shape_segments_spell_the_shape() {
+        let picture = STANDARD.encode(image(7, 3000));
+        let other = STANDARD.encode(image(9, 1200));
+        let raw = format!("\x0a\x12prefix {picture}\x22 middle \x2a{other}{picture}2 tail");
+        let encoded = encode(raw.as_bytes(), RawContent::Json);
+        assert_eq!(
+            spliced(&encoded.record),
+            decode_shape(&encoded.record).unwrap().1
+        );
+        assert_eq!(shape_segments(&encoded.record).unwrap().0, RawContent::Json);
+    }
+
+    proptest! {
+        #[test]
+        fn the_shape_segments_spell_the_shape_of_any_payload(
+            head in proptest::collection::vec(any::<u8>(), 0..64),
+            seed in any::<u8>(),
+            length in 0usize..2000,
+            tail in proptest::collection::vec(any::<u8>(), 0..64),
+        ) {
+            let mut raw = head;
+            raw.extend_from_slice(STANDARD.encode(image(seed, length)).as_bytes());
+            raw.extend_from_slice(&tail);
+            let encoded = encode(&raw, RawContent::Protobuf);
+            prop_assert_eq!(spliced(&encoded.record), decode_shape(&encoded.record).unwrap().1);
+        }
     }
 
     #[test]

@@ -280,10 +280,7 @@ pub(in crate::traces) fn request_of(
 
 /// The span identities a stored record holds, read from its shape: no media needed.
 pub(in crate::traces) fn record_identities(record: &[u8]) -> Result<HashSet<SpanKey>, String> {
-    let (content, shape) = raw_payload::decode_shape(record).map_err(|error| error.to_string())?;
-    Ok(spans_of(&request_of(content, &shape)?)
-        .into_iter()
-        .collect())
+    crate::raw_identities::record_identities(record)
 }
 
 /// Every span identity of a request, in order.

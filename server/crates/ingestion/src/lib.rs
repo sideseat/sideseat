@@ -6,6 +6,7 @@ mod message_events;
 pub mod metrics;
 pub mod otlp;
 mod raw_coverage;
+mod raw_identities;
 pub mod received;
 pub mod signals;
 pub mod staging;
