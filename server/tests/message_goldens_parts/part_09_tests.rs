@@ -46,6 +46,7 @@ fn the_declared_content_chain_matches_the_readers_it_replaced_over_the_corpus() 
         seen: HashSet<u64>,
         compared: usize,
         reordered: usize,
+        reasoning_items: usize,
         disagreements: Vec<String>,
     }
     impl Oracle {
@@ -94,6 +95,11 @@ fn the_declared_content_chain_matches_the_readers_it_replaced_over_the_corpus() 
                         {
                             self.reordered += 1;
                         }
+                        // The second: a Responses API reasoning item, which the retired readers dropped as an
+                        // unknown block, is reasoning - with no text and signed where it is withheld.
+                        Some(_) if is_responses_reasoning_item(value) => {
+                            self.reasoning_items += 1;
+                        }
                         Some((_, disagreement)) => self.disagreements.push(disagreement),
                         None => {}
                     }
@@ -106,10 +112,19 @@ fn the_declared_content_chain_matches_the_readers_it_replaced_over_the_corpus() 
         }
     }
 
+    /// A Responses API reasoning item: `type` reasoning beside the summary list the API always writes.
+    fn is_responses_reasoning_item(value: &serde_json::Value) -> bool {
+        value.get("type").and_then(serde_json::Value::as_str) == Some("reasoning")
+            && value
+                .get("summary")
+                .is_some_and(serde_json::Value::is_array)
+    }
+
     let mut oracle = Oracle {
         seen: HashSet::new(),
         compared: 0,
         reordered: 0,
+        reasoning_items: 0,
         disagreements: Vec::new(),
     };
     let mut files = 0_usize;
@@ -185,8 +200,14 @@ fn the_declared_content_chain_matches_the_readers_it_replaced_over_the_corpus() 
         oracle.compared
     );
     eprintln!(
-        "content-chain oracle: {} distinct objects from {files} files, {} file parts reordered",
-        oracle.compared, oracle.reordered
+        "content-chain oracle: {} distinct objects from {files} files, {} file parts reordered, {} \
+         reasoning items read",
+        oracle.compared, oracle.reordered, oracle.reasoning_items
+    );
+    // Each stated difference is one the corpus holds, so the allowance cannot outlive what it allows.
+    assert!(
+        oracle.reasoning_items > 0,
+        "no captured Responses reasoning item: the stated difference covers nothing"
     );
     oracle.disagreements.sort();
     oracle.disagreements.dedup();

@@ -603,6 +603,22 @@ def _responses_usage(usage: dict[str, Any] | None) -> Usage | None:
     )
 
 
+def responses_reasoning_text(item: dict[str, Any]) -> str | None:
+    """A reasoning item's visible text: its reasoning where the provider returns it, else its summary.
+
+    Each list's parts are joined with a blank line; ``None`` when the item shows no text at all.
+    """
+    for member, kind in (("content", "reasoning_text"), ("summary", "summary_text")):
+        texts = [
+            part["text"]
+            for part in item.get(member) or []
+            if part.get("type") == kind and isinstance(part.get("text"), str)
+        ]
+        if texts:
+            return "\n\n".join(texts)
+    return None
+
+
 def _responses_item(item: dict[str, Any]) -> list[dict[str, Any]]:
     kind = item["type"]
     if kind == "message":
@@ -620,11 +636,9 @@ def _responses_item(item: dict[str, Any]) -> list[dict[str, Any]]:
     if kind == "function_call":
         return [tool_call_part(item["call_id"], item["name"], item.get("arguments"))]
     if kind == "reasoning":
-        texts = [s["text"] for s in item.get("summary") or []]
-        texts += [c["text"] for c in item.get("content") or [] if c.get("text")]
-        # Without a summary the item carries only encrypted reasoning: withheld from view, not
+        # Without visible text the item carries only encrypted reasoning: withheld from view, not
         # redacted by a safety system, so it is reported as signed with no text.
-        text = "\n\n".join(texts) if texts else None
+        text = responses_reasoning_text(item)
         return [reasoning_part(text, signed=bool(item.get("encrypted_content")))]
     raise DecodeError(f"unknown Responses output item: {kind}")
 

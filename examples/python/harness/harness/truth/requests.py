@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import unquote, urlsplit
 
-from harness.truth.wire import DecodeError
+from harness.truth.wire import DecodeError, responses_reasoning_text
 
 _BEDROCK = re.compile(
     r"/model/(?P<model>[^/]+)/(?P<op>converse|converse-stream|invoke|invoke-with-response-stream)$"
@@ -379,9 +379,9 @@ def responses_request(value: dict[str, Any], model: str | None) -> ModelRequest:
             )
         elif kind == "reasoning":
             signed = bool(item.get("encrypted_content"))
-            text = "\n".join(s.get("text", "") for s in item.get("summary", [])) or None
-            # Encrypted reasoning with no summary is withheld, not redacted: signed, with no text,
-            # as Anthropic's withheld thinking is.
+            text = responses_reasoning_text(item)
+            # Encrypted reasoning with no visible text is withheld, not redacted: signed, with no
+            # text, as Anthropic's withheld thinking is.
             if text is None and signed:
                 text = ""
             request.messages.append(
