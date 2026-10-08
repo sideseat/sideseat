@@ -1,5 +1,5 @@
 {
-  "doc": "Message-rule clause paths no captured fixture reaches, written by `no_declared_subdivision_is_dead_across_the_corpus` with UPDATE_GOLDENS=1 and asserted equal to what the corpus leaves silent. A path leaves when a capture reaches it or its clause goes; one joins only in a reviewed diff.",
+  "doc": "Message-rule clause paths no captured fixture reaches, held by `no_declared_subdivision_is_dead_across_the_corpus` equal to what the corpus leaves silent. Shrink-only, as known-violations.json is: a recording run (UPDATE_GOLDENS=1) removes a path a capture now reaches and refuses to add one, so a new clause must be reached when it lands.",
   "paths": [
     "agno.llm_output_messages/list",
     "autogen.autogen_event/as_tool",

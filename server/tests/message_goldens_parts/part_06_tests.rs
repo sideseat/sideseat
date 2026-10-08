@@ -461,24 +461,10 @@ fn no_declared_subdivision_is_dead_across_the_corpus() {
         .collect();
 
     // The ledger: reading shapes the corpus does not reach - a spelling or release no captured fixture holds.
-    // Shrink-only in effect, because both directions are asserted: a clause that starts firing must leave it,
-    // and one that stops firing, or is newly declared and never fires, has to be added in a visible diff.
+    // **Shrink-only**, the contract `known-violations.json` keeps: a recording run may remove an entry a capture
+    // now reaches, never add one, so a clause has to be reached when it lands and the file only loses entries.
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/message_goldens_parts/unreached_clauses.json");
-    if std::env::var_os("UPDATE_GOLDENS").is_some() {
-        let ledger = serde_json::json!({
-            "doc": "Message-rule clause paths no captured fixture reaches, written by \
-                    `no_declared_subdivision_is_dead_across_the_corpus` with UPDATE_GOLDENS=1 and asserted equal to \
-                    what the corpus leaves silent. A path leaves when a capture reaches it or its clause goes; one \
-                    joins only in a reviewed diff.",
-            "paths": silent,
-        });
-        std::fs::write(
-            &path,
-            serde_json::to_string_pretty(&ledger).expect("the ledger serialises") + "\n",
-        )
-        .expect("the ledger is writable");
-    }
     let ledger: serde_json::Value =
         serde_json::from_slice(&std::fs::read(&path).expect("the ledger exists"))
             .expect("the ledger parses");
@@ -488,6 +474,23 @@ fn no_declared_subdivision_is_dead_across_the_corpus() {
         .iter()
         .map(|path| path.as_str().expect("a path"))
         .collect();
+    if std::env::var_os("UPDATE_GOLDENS").is_some() {
+        let shrunk = shrunk_ledger(&ledgered, &silent).unwrap_or_else(|added| {
+            panic!(
+                "a recording run may remove clauses from the ledger and never add one - these never fire and are \
+                 not ledgered, so reach them with a capture or remove them:\n  {}",
+                added.join("\n  ")
+            )
+        });
+        let mut updated = ledger.clone();
+        updated["paths"] = serde_json::json!(shrunk);
+        std::fs::write(
+            &path,
+            serde_json::to_string_pretty(&updated).expect("the ledger serialises") + "\n",
+        )
+        .expect("the ledger is writable");
+        return;
+    }
     let unledgered: Vec<&&str> = silent.difference(&ledgered).collect();
     assert!(
         unledgered.is_empty(),
@@ -504,7 +507,8 @@ fn no_declared_subdivision_is_dead_across_the_corpus() {
     let stale: Vec<&&str> = ledgered.difference(&silent).collect();
     assert!(
         stale.is_empty(),
-        "ledgered clause(s) now fire, or are no longer declared, so they leave the ledger: {stale:?}"
+        "ledgered clause(s) now fire, or are no longer declared, so they leave the ledger - rerun with \
+         UPDATE_GOLDENS=1 to remove them: {stale:?}"
     );
     assert!(
         ledgered.iter().all(|path| !exempt.contains(path)),
@@ -520,6 +524,36 @@ fn no_declared_subdivision_is_dead_across_the_corpus() {
     assert!(
         revived.is_empty(),
         "exempted subdivision(s) now fire, so the exemption is stale: {revived:?}"
+    );
+}
+
+/// The ledger a recording run writes: the silent clauses, provided each was already ledgered. `Err` names the
+/// clauses that would be added, which a recording run refuses.
+fn shrunk_ledger<'a>(
+    ledgered: &BTreeSet<&'a str>,
+    silent: &BTreeSet<&'a str>,
+) -> Result<BTreeSet<&'a str>, Vec<&'a str>> {
+    let added: Vec<&str> = silent.difference(ledgered).copied().collect();
+    if added.is_empty() {
+        Ok(silent.clone())
+    } else {
+        Err(added)
+    }
+}
+
+/// The ledger only shrinks: a recording run drops what a capture now reaches and refuses to add what never fires.
+#[test]
+fn the_unreached_clause_ledger_only_shrinks() {
+    let ledgered = BTreeSet::from(["r/a", "r/b"]);
+    assert_eq!(
+        shrunk_ledger(&ledgered, &BTreeSet::from(["r/a"])),
+        Ok(BTreeSet::from(["r/a"])),
+        "a clause a capture reaches leaves"
+    );
+    assert_eq!(
+        shrunk_ledger(&ledgered, &BTreeSet::from(["r/a", "r/c"])),
+        Err(vec!["r/c"]),
+        "a newly silent clause is refused, not recorded"
     );
 }
 
