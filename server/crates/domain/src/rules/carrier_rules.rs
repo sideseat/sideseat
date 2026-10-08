@@ -147,15 +147,13 @@ impl std::fmt::Display for CompileError {
     }
 }
 
-/// Resolve a preset name to the nine facts, then apply the clause's overrides, then refuse a vector the
-/// model cannot mean.
+/// Resolve a preset name to its facts, then apply the clause's overrides, then refuse a vector the model cannot
+/// mean or one another preset already names.
 ///
-/// **The presets are not a semantic vocabulary**, and saying so here is more use than the names suggest.
-/// `snapshot` and `accumulated_state` differ in exactly one bit - whether the carrier holds the span's output -
-/// so `{preset: accumulated_state}` and `{preset: snapshot, carrier_holds_span_output: true}` are the same
-/// declaration written two ways, and the corpus contains both spellings. Nor does the preset name survive
-/// compilation: only the bits do. So they are historical constructors for a nine-bit value rather than
-/// categories the engine acts on, and the honest form is orthogonal axes with one spelling each.
+/// **The presets are constructors, not a semantic vocabulary**: the name does not survive compilation, only the
+/// facts do. `snapshot` and `accumulated_state` differ in one fact - whether the carrier holds the span's output -
+/// so a clause overriding that one fact would spell the other preset a second way. One spelling each: a vector
+/// some other preset constructs is refused, naming that preset.
 fn resolve_facts(
     clause_id: &str,
     facts: &Facts,
@@ -198,6 +196,32 @@ fn resolve_facts(
         semantics.carrier_is_detached_request_frame = v;
     }
     if let Some(detail) = incoherent(&semantics, ordering_family) {
+        return Err(CompileError::IncoherentFacts {
+            clause: clause_id.to_string(),
+            detail,
+        });
+    }
+    let presets = [
+        (
+            CarrierPreset::Emission,
+            CarrierSemantics::EMISSION,
+            "spells the `emission` preset through overrides - write `\"preset\": \"emission\"`",
+        ),
+        (
+            CarrierPreset::Snapshot,
+            CarrierSemantics::SNAPSHOT,
+            "spells the `snapshot` preset through overrides - write `\"preset\": \"snapshot\"`",
+        ),
+        (
+            CarrierPreset::AccumulatedState,
+            CarrierSemantics::ACCUMULATED_STATE,
+            "spells the `accumulated_state` preset through overrides - write `\"preset\": \"accumulated_state\"`",
+        ),
+    ];
+    if let Some((_, _, detail)) = presets
+        .iter()
+        .find(|(preset, constructed, _)| *preset != facts.preset && *constructed == semantics)
+    {
         return Err(CompileError::IncoherentFacts {
             clause: clause_id.to_string(),
             detail,

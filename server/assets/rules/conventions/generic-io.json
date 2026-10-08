@@ -32,8 +32,7 @@
         "attribute": "message"
       },
       "facts": {
-        "preset": "accumulated_state",
-        "carrier_holds_span_output": false
+        "preset": "snapshot"
       }
     },
     {
@@ -43,8 +42,7 @@
         "attribute": "messages"
       },
       "facts": {
-        "preset": "accumulated_state",
-        "carrier_holds_span_output": false
+        "preset": "snapshot"
       }
     },
     {

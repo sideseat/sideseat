@@ -231,8 +231,7 @@
         "attribute_prefix": "gen_ai.completion."
       },
       "facts": {
-        "preset": "snapshot",
-        "carrier_holds_span_output": true
+        "preset": "accumulated_state"
       }
     },
     {
@@ -253,8 +252,7 @@
         "attribute_prefix": "gen_ai.output."
       },
       "facts": {
-        "preset": "snapshot",
-        "carrier_holds_span_output": true
+        "preset": "accumulated_state"
       }
     }
   ],

@@ -774,6 +774,15 @@ fn every_carrier_refusal_fires() {
             |e| matches!(e, CompileError::IncoherentFacts { .. }),
         ),
         (
+            "one preset spelled as another through an override",
+            serde_json::json!([clause(
+                "a",
+                serde_json::json!({}),
+                serde_json::json!({"preset": "snapshot", "carrier_holds_span_output": true})
+            )]),
+            |e| matches!(e, CompileError::IncoherentFacts { .. }),
+        ),
+        (
             "a detached request frame that does not hold the span's input",
             serde_json::json!([clause(
                 "a",

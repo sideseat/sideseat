@@ -73,8 +73,7 @@
         "attribute_prefix": "ai.result."
       },
       "facts": {
-        "preset": "snapshot",
-        "carrier_holds_span_output": true
+        "preset": "accumulated_state"
       }
     }
   ],

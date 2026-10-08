@@ -650,10 +650,10 @@ a way no reader notices.
 The **ten** carrier facts, named by preset with optional per-field overrides.
 
 A preset is a constructor, not a category: `snapshot` and `accumulated_state` differ in one fact,
-`carrier_holds_span_output`, so two declarations that read as different kinds of thing can be the same ten
-facts - and the name does not survive compilation. Most shipped clauses override something, and nearly all
-of those overrides are compensating for direction or encoding being bundled into a preset that is otherwise
-about *reconstruction*.
+`carrier_holds_span_output`, and the name does not survive compilation. So each vector has one spelling: an
+override that turns one preset into another is refused, naming the preset to write. Most shipped clauses
+override something, and nearly all of those overrides are compensating for direction or encoding being
+bundled into a preset that is otherwise about *reconstruction*.
 
 The three constructors of a carrier's facts.
 
