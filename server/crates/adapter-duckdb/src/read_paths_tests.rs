@@ -3,7 +3,7 @@
 //!
 //! ```text
 //! SIDESEAT_READ_PATHS_STORE=<a data directory holding duckdb/sideseat.duckdb> \
-//!     cargo test -p sideseat-adapter-duckdb --release --lib read_paths -- --ignored --nocapture
+//!     cargo test --locked -p sideseat-adapter-duckdb --release --lib read_paths -- --ignored --nocapture
 //! ```
 //!
 //! The store is copied first, so the writes measured at the end change nothing. Samples - the busiest project,
