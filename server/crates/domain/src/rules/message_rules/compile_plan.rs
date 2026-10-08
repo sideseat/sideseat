@@ -496,9 +496,6 @@ pub(super) fn writes_one_member_twice(wrap: &WrapSpec) -> bool {
     if wrap.tool_calls_from.is_some() {
         names.push("tool_calls");
     }
-    if wrap.tool_call_from.is_some() {
-        names.push("tool_call");
-    }
     let mut seen: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
     names.iter().any(|name| !seen.insert(name))
 }

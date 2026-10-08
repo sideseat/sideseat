@@ -99,12 +99,6 @@ pub struct WrapSpec {
     /// than left to whoever reads the payload later.
     #[serde(default)]
     pub tool_calls_from: Option<ToolCallsSpec>,
-    /// Build a **single** tool call at a named member, as `{name, arguments}`.
-    ///
-    /// The normaliser already unwraps a `tool_call` member (`sideml/tools.rs`), so this is a canonical
-    /// target like the list above rather than a general object builder.
-    #[serde(default)]
-    pub tool_call_from: Option<SingleToolCallSpec>,
     /// Wrap only where the value is not already message-shaped.
     ///
     /// A generic carrier holds either a message or bare data: `output.value = "the answer"` is the answer,

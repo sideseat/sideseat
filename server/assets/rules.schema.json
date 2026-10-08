@@ -1916,17 +1916,6 @@
             }
           ]
         },
-        "tool_call_from": {
-          "description": "Build a **single** tool call at a named member, as `{name, arguments}`.\n\nThe normaliser already unwraps a `tool_call` member (`sideml/tools.rs`), so this is a canonical\ntarget like the list above rather than a general object builder.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/SingleToolCallSpec"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "only_plain_data": {
           "description": "Wrap only where the value is not already message-shaped.\n\nA generic carrier holds either a message or bare data: `output.value = \"the answer\"` is the answer,\nand `output.value = {\"role\": …}` is already a message. Wrapping the second buries the conversation a\nlevel down; not wrapping the first loses it entirely, because normalisation looks for `role` on a\nstring and finds nothing.",
           "type": "boolean",
@@ -2276,39 +2265,6 @@
           "type": "string",
           "const": "fail_message"
         }
-      ]
-    },
-    "SingleToolCallSpec": {
-      "description": "One tool call at a named member, as the normaliser's `{name, arguments}` convention.",
-      "type": "object",
-      "properties": {
-        "doc": {
-          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null
-        },
-        "name": {
-          "type": "string"
-        },
-        "name_default": {
-          "description": "The name used when the path resolves to nothing. A call this dialect logged without one still\nhappened, so it is reported rather than dropped.",
-          "default": null
-        },
-        "arguments": {
-          "type": "string"
-        },
-        "arguments_default": {
-          "description": "The value used when `arguments` resolves to nothing.",
-          "default": null
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "name",
-        "arguments"
       ]
     },
     "EmitTarget": {

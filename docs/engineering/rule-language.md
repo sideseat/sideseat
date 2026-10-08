@@ -1074,7 +1074,6 @@ text - and what that payload *is* is a fact about the carrier, so the envelope i
 | `attach` | list of [`AttachSpec`](#attachspec) | Members taken from *other* attributes of the same span. |
 | `prepend_block` | [`PrependSpec`](#prependspec) or null | Build a block from another member and put it **before** the content. |
 | `tool_calls_from` | [`ToolCallsSpec`](#toolcallsspec) or null | Build the canonical tool-call list from an array of the dialect's own calls. |
-| `tool_call_from` | [`SingleToolCallSpec`](#singletoolcallspec) or null | Build a **single** tool call at a named member, as `{name, arguments}`. |
 | `only_plain_data` | true or false | Wrap only where the value is not already message-shaped. |
 | `block` | [`BlockSpec`](#blockspec) or null | Wrap the value in a *content block* first, and make that block the message's only content. |
 
@@ -1174,18 +1173,6 @@ What a tool-call list does with a member it cannot build.
 
 - `"skip"`: Leave it out and keep the rest. Reported either way - a dropped call is a producer defect, not a detail of the loop that read it.
 - `"fail_message"`: The whole construction is malformed, so the coalesce moves on to the next shape and the rule's `fallback` gets its turn. Right where a missing call means the message misdescribes what happened.
-
-### `SingleToolCallSpec`
-
-One tool call at a named member, as the normaliser's `{name, arguments}` convention.
-
-| Key | Type | What it is |
-| --- | --- | --- |
-| `doc` | string | Why this is declared the way it is, for a reader and the explain trace. Read by nothing. |
-| `name` (required) | string |  |
-| `name_default` | any JSON value | The name used when the path resolves to nothing. A call this dialect logged without one still happened, so it is reported rather than dropped. |
-| `arguments` (required) | string |  |
-| `arguments_default` | any JSON value | The value used when `arguments` resolves to nothing. |
 
 ### `EmitTarget`
 

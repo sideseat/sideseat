@@ -36,8 +36,8 @@ use super::expr::Expr;
 use super::schema::{
     Alternative, AttachSpec, BlockSpec, ComposeMember, ComposeSpec, ElementsSpec, EmitTarget,
     MemberPresence, MemberRequirements, MessageRule, OverlaySpec, ParseMode, PredicateSet,
-    ReadSpec, SectionsSpec, SingleToolCallSpec, ToolCallsSpec, ToolReprSpec, ValueCondition,
-    ValueKind, ValuePredicate, WrapSpec,
+    ReadSpec, SectionsSpec, ToolCallsSpec, ToolReprSpec, ValueCondition, ValueKind, ValuePredicate,
+    WrapSpec,
 };
 use super::span_conditions::{self, SpanExpr};
 use super::{expr, refusal, schema, tool_repr};

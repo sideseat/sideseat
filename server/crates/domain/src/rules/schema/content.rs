@@ -541,27 +541,6 @@ pub struct PruneSpec {
     pub taken_by: String,
 }
 
-/// One tool call at a named member, as the normaliser's `{name, arguments}` convention.
-#[derive(Debug, Deserialize, Clone)]
-#[cfg_attr(test, derive(schemars::JsonSchema))]
-#[serde(deny_unknown_fields)]
-pub struct SingleToolCallSpec {
-    /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
-    #[serde(default)]
-    pub doc: Option<String>,
-    #[cfg_attr(test, schemars(with = "String"))]
-    pub name: JsonPath,
-    /// The name used when the path resolves to nothing. A call this dialect logged without one still
-    /// happened, so it is reported rather than dropped.
-    #[serde(default)]
-    pub name_default: Option<JsonValue>,
-    #[cfg_attr(test, schemars(with = "String"))]
-    pub arguments: JsonPath,
-    /// The value used when `arguments` resolves to nothing.
-    #[serde(default)]
-    pub arguments_default: Option<JsonValue>,
-}
-
 /// A block built from another member of the same value, placed before the content.
 #[derive(Debug, Deserialize, Clone)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]

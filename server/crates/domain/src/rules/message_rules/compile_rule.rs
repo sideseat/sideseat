@@ -619,10 +619,7 @@ pub(super) fn compile_rule(
     // one that the value may already be a message, the other that it is a payload to wrap.
     if let Some(wrap) = wrap
         && wrap.only_plain_data
-        && (wrap.block.is_some()
-            || wrap.prepend_block.is_some()
-            || wrap.tool_calls_from.is_some()
-            || wrap.tool_call_from.is_some())
+        && (wrap.block.is_some() || wrap.prepend_block.is_some() || wrap.tool_calls_from.is_some())
     {
         return Err(inexpressible(
             "`only_plain_data` passes an already-message-shaped value through untouched, so a block or a \

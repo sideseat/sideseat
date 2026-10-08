@@ -103,40 +103,12 @@ pub(super) fn wrapped(
             object.insert(content_member.to_string(), value);
         }
     }
-    if let Some(spec) = &wrap.tool_call_from
-        && let Some(call) = single_tool_call(subject, spec)
-    {
-        object.insert("tool_call".to_string(), call);
-    }
     for attach in wrap.attach.iter().filter(|a| a.after_content) {
         if let Some(attached) = attached_value(attach, ctx, payload, subject) {
             object.insert(attach.as_member.clone(), attached);
         }
     }
     Some(JsonValue::Object(object))
-}
-
-/// One tool call as `{name, arguments}`, the convention `sideml/tools.rs` unwraps.
-pub(super) fn single_tool_call(
-    subject: Option<&JsonValue>,
-    spec: &SingleToolCallSpec,
-) -> Option<JsonValue> {
-    let subject = subject?;
-    // Only a string names a tool. A number or an object here is not a name, and the declared default is
-    // what the retired path used - reporting the structure as a name builds an unusable canonical call.
-    let name = query(subject, &spec.name)
-        .into_iter()
-        .next()
-        .filter(|found| found.is_string())
-        .cloned()
-        .or_else(|| spec.name_default.clone())?;
-    let arguments = query(subject, &spec.arguments)
-        .into_iter()
-        .next()
-        .cloned()
-        .or_else(|| spec.arguments_default.clone())
-        .unwrap_or(json!({}));
-    Some(json!({"name": name, "arguments": arguments}))
 }
 
 /// The canonical tool-call list: `{id, type: "function", function: {name, arguments}}` per call.
