@@ -195,6 +195,9 @@ fn resolve_facts(
     if let Some(v) = facts.carrier_is_detached_request_frame {
         semantics.carrier_is_detached_request_frame = v;
     }
+    if let Some(v) = facts.carrier_holds_request_delta {
+        semantics.carrier_holds_request_delta = v;
+    }
     if let Some(detail) = incoherent(&semantics, ordering_family) {
         return Err(CompileError::IncoherentFacts {
             clause: clause_id.to_string(),
@@ -263,6 +266,18 @@ fn incoherent(
         return Some(
             "is a detached request frame and holds the span's output - a frame precedes what the request saw, \
              so it is on the input side by definition",
+        );
+    }
+    // A delta is what its request added, so it is what the model was given: input, never output, and never the
+    // request's own frame, which the request states whole rather than as what changed.
+    if semantics.carrier_holds_request_delta
+        && (!semantics.carrier_holds_span_input
+            || semantics.carrier_holds_span_output
+            || semantics.carrier_is_detached_request_frame)
+    {
+        return Some(
+            "holds a request delta and is not plain input - a delta is what its request added to the \
+             conversation, so it holds the span's input, not its output, and is not the request's own frame",
         );
     }
     if ordering_family.is_some() {

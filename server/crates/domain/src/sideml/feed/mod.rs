@@ -146,6 +146,7 @@ mod types;
 mod block_hash;
 mod extraction;
 mod prefix;
+mod request_context;
 mod session;
 mod tool_merge;
 
@@ -193,6 +194,7 @@ use dedup::{
 use history::{mark_history, mark_span_history};
 
 // Re-exports for public API
+pub use request_context::RequestContextRows;
 pub use types::{BlockEntry, ExtractedTools, FeedMetadata, FeedOptions, FeedResult};
 
 // The dedup tie-break hook, for the test that varies which copy survives.
@@ -317,6 +319,12 @@ pub fn process_span_cached(
     let reconstructed =
         cache.get_or_reconstruct(cache::Reconstruction::Span, rows, process_span_unfiltered);
     project_role(reconstructed, options.role.as_deref())
+}
+
+/// The view of a request span whose producer exports what each request added: the span's own payload, with what
+/// its thread's earlier requests sent composed in where its delta stands - see `request_context`.
+pub fn process_request_span(rows: RequestContextRows, options: &FeedOptions) -> FeedResult {
+    apply_role_filter(request_context::compose(rows), options.role.as_deref())
 }
 
 /// [`process_spans`], memoised on the rows - see [`cache::ReconstructionCache`] for why that is safe.

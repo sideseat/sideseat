@@ -82,6 +82,19 @@ fn the_rules_reproduce_the_legacy_carrier_table() {
             legacy.carrier_holds_span_input = true;
         }
         let rules = carrier::declared_semantics(None, Some(attribute));
+        // The second, for the same reason: a request delta is what its request added, so it holds the span's input
+        // - and the retired table had no fact saying a carrier holds a delta at all. Nothing reads the fact but a
+        // request's composition, which the retired table never did.
+        if let (Some(legacy), Some(rules)) = (legacy.as_mut(), rules.as_ref())
+            && rules.carrier_holds_request_delta
+        {
+            assert!(
+                !legacy.carrier_holds_request_delta,
+                "the retired table names a delta, so the departure is gone"
+            );
+            legacy.carrier_holds_request_delta = true;
+            legacy.carrier_holds_span_input = true;
+        }
         assert_eq!(
             legacy, rules,
             "attribute carrier `{attribute}` reads differently under the rules than under the table \
@@ -555,6 +568,7 @@ fn the_engine_names_no_framework() {
         ("members.rs", include_str!("../members.rs")),
         ("expr.rs", include_str!("../expr.rs")),
         ("log_events.rs", include_str!("../log_events.rs")),
+        ("request_threads.rs", include_str!("../request_threads.rs")),
         ("refusal.rs", include_str!("../refusal.rs")),
         ("tool_shapes.rs", include_str!("../tool_shapes.rs")),
         ("finish_reasons.rs", include_str!("../finish_reasons.rs")),

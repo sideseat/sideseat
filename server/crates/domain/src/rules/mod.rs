@@ -33,6 +33,7 @@ pub mod message_projection;
 pub mod message_rules;
 pub mod precedence;
 pub mod refusal;
+pub mod request_threads;
 #[cfg(any(test, feature = "test-support"))]
 pub mod retired_span_predicates;
 pub mod schema;
@@ -210,6 +211,8 @@ pub struct Ruleset {
     pub synthetic_call_ids: Vec<String>,
     /// The words an event's name may contain and the category each establishes, in rank order.
     pub event_categories: Vec<(Vec<String>, schema::EventCategory)>,
+    /// Which thread a request span belongs to, for a producer that exports what each request added.
+    pub request_threads: request_threads::RequestThreadPlan,
     /// BLAKE3 of the asset bytes that produced this plan, hex-encoded.
     ///
     /// Joins the reconstruction cache key. That cache is a memo over a pure function of the rows, and
@@ -278,6 +281,10 @@ impl Ruleset {
         );
         let synthetic_call_ids = found.take(S::SyntheticCallIds, compile_synthetic_call_ids(files));
         let event_categories = found.take(S::EventCategories, compile_event_categories(files));
+        let request_threads = found.take(
+            S::RequestThreads,
+            request_threads::RequestThreadPlan::compile(files),
+        );
         // Every section is `Some` exactly when it compiled, and each `None` recorded its defect - so a full
         // match is a ruleset and anything else is the collected report.
         match (
@@ -299,6 +306,7 @@ impl Ruleset {
             finish_reasons,
             synthetic_call_ids,
             event_categories,
+            request_threads,
         ) {
             (
                 Some(carriers),
@@ -319,6 +327,7 @@ impl Ruleset {
                 Some(finish_reasons),
                 Some(synthetic_call_ids),
                 Some(event_categories),
+                Some(request_threads),
             ) => Ok(Ruleset {
                 carriers,
                 detect,
@@ -338,6 +347,7 @@ impl Ruleset {
                 finish_reasons,
                 synthetic_call_ids,
                 event_categories,
+                request_threads,
                 tagged_source_names,
                 digest: assets.digest().to_owned(),
             }),

@@ -658,7 +658,7 @@ pub enum ParametersEncoding {
     ArgumentMap,
 }
 
-/// The **ten** carrier facts, named by preset with optional per-field overrides.
+/// The **eleven** carrier facts, named by preset with optional per-field overrides.
 ///
 /// A preset is a constructor, not a category: `snapshot` and `accumulated_state` differ in one fact,
 /// `carrier_holds_span_output`, and the name does not survive compilation. So each vector has one spelling: an
@@ -714,6 +714,8 @@ pub struct Facts {
     pub carrier_holds_expandable_message_array: Option<bool>,
     #[serde(default)]
     pub carrier_replays_across_traces: Option<bool>,
+    #[serde(default)]
+    pub carrier_holds_request_delta: Option<bool>,
 }
 
 /// Every rule asset, keyed by path so compilation order is deterministic.

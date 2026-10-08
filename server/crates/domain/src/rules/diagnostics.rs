@@ -37,6 +37,7 @@ pub enum RuleSection {
     FinishReasons,
     SyntheticCallIds,
     EventCategories,
+    RequestThreads,
 }
 
 impl RuleSection {
@@ -58,6 +59,7 @@ impl RuleSection {
             Self::MessageMembers => "message_members",
             Self::ProviderAliases => "provider_aliases",
             Self::FinishReasons => "finish_reasons",
+            Self::RequestThreads => "request_threads",
             Self::SyntheticCallIds => "synthetic_call_ids",
             Self::EventCategories => "event_categories",
         }

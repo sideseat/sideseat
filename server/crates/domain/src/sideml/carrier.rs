@@ -99,6 +99,13 @@ pub struct CarrierSemantics {
     /// carrier is declared, because events differ: one producer stamps each per-message event with when the
     /// turn happened, another writes every turn of the request as an event at request time.
     pub carrier_replays_across_traces: bool,
+    /// The carrier holds what its request **added** to the conversation - the turns and results new since the
+    /// previous request of the same thread - rather than the request it sent.
+    ///
+    /// Read where a span view composes a request from its thread (`request_threads`): this carrier's blocks are
+    /// what the request appends, the request's frame is its own, and its output is what the next request
+    /// inherits. A delta is what the model was given, so it is on the input side by definition.
+    pub carrier_holds_request_delta: bool,
 }
 
 impl CarrierSemantics {
@@ -107,6 +114,7 @@ impl CarrierSemantics {
         carrier_holds_span_input: false,
         carrier_holds_expandable_message_array: false,
         carrier_replays_across_traces: false,
+        carrier_holds_request_delta: false,
         position_proves_distinct_occurrence: true,
         position_provides_sequence_order: true,
         history_positions_provide_sequence_order: false,
@@ -122,6 +130,7 @@ impl CarrierSemantics {
         carrier_holds_span_input: false,
         carrier_holds_expandable_message_array: false,
         carrier_replays_across_traces: false,
+        carrier_holds_request_delta: false,
         position_proves_distinct_occurrence: false,
         position_provides_sequence_order: true,
         history_positions_provide_sequence_order: false,
@@ -140,6 +149,7 @@ impl CarrierSemantics {
         carrier_holds_span_input: false,
         carrier_holds_expandable_message_array: false,
         carrier_replays_across_traces: false,
+        carrier_holds_request_delta: false,
         position_proves_distinct_occurrence: false,
         position_provides_sequence_order: true,
         history_positions_provide_sequence_order: false,

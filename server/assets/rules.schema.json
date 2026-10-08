@@ -158,6 +158,13 @@
         "$ref": "#/$defs/SpanFactRule"
       }
     },
+    "request_threads": {
+      "description": "What identifies the conversation a request span belongs to, for a producer that exports what each\nrequest added rather than what it sent.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/RequestThreadRule"
+      }
+    },
     "fragments": {
       "description": "Named reading tables other rules may apply.\n\nOne dialect's message shapes are recognised at four different selection points - the node itself, a\n`messages` list, every member of a state object, and a nested state object - and a table repeated\nper point is four places to fix a shape. Referenced as `<file id>.<name>`, resolved at compile time\nby inlining, and a fragment's own cases may **not** reference a fragment: one level, no recursion,\nnothing to bound at runtime.",
       "type": "object",
@@ -358,6 +365,13 @@
             "null"
           ],
           "default": null
+        },
+        "carrier_holds_request_delta": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
         }
       },
       "additionalProperties": false,
@@ -366,7 +380,7 @@
       ]
     },
     "CarrierPreset": {
-      "description": "The **ten** carrier facts, named by preset with optional per-field overrides.\n\nA preset is a constructor, not a category: `snapshot` and `accumulated_state` differ in one fact,\n`carrier_holds_span_output`, and the name does not survive compilation. So each vector has one spelling: an\noverride that turns one preset into another is refused, naming the preset to write. Most shipped clauses\noverride something, and nearly all of those overrides are compensating for direction or encoding being\nbundled into a preset that is otherwise about *reconstruction*.\n\nThe three constructors of a carrier's facts.\n\nA closed set, so a misspelt preset is refused when the asset parses rather than reaching a compiler that\nhas to remember to.",
+      "description": "The **eleven** carrier facts, named by preset with optional per-field overrides.\n\nA preset is a constructor, not a category: `snapshot` and `accumulated_state` differ in one fact,\n`carrier_holds_span_output`, and the name does not survive compilation. So each vector has one spelling: an\noverride that turns one preset into another is refused, naming the preset to write. Most shipped clauses\noverride something, and nearly all of those overrides are compensating for direction or encoding being\nbundled into a preset that is otherwise about *reconstruction*.\n\nThe three constructors of a carrier's facts.\n\nA closed set, so a misspelt preset is refused when the asset parses rather than reaching a compiler that\nhas to remember to.",
       "oneOf": [
         {
           "description": "One occurrence of the span's output per position.",
@@ -4509,6 +4523,41 @@
       "required": [
         "id",
         "where"
+      ]
+    },
+    "RequestThreadRule": {
+      "description": "The requests of one conversation, for a producer whose request spans carry what is **new** since the previous\nrequest of the same conversation rather than the request it sent.\n\nA stateless model API is sent the whole history every time; such a producer's telemetry holds only the delta,\nso a span view can show what the call was sent only by composing the thread's earlier requests. This declares\nwhich spans are requests and what identifies their thread; which carriers hold the delta is a carrier fact,\n`carrier_holds_request_delta`.\n\nThe key is derived when the span is ingested, beside its messages - a cache a re-parse rebuilds, since the read\npath sees a span's messages and not its attributes.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "This rule's own name. Part of every key it derives, so two producers' threads never share one.",
+          "type": "string"
+        },
+        "doc": {
+          "description": "Why this is declared the way it is, for a reader and the explain trace. Read by nothing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "where": {
+          "description": "The spans that are requests of a thread. At most one rule may hold for a span, which compilation proves.",
+          "$ref": "#/$defs/Expr_SpanCondition"
+        },
+        "key": {
+          "description": "The span attributes whose values identify a thread, each as an `attr:<key>` source, in a fixed order. Two\nrequests share a thread when every source agrees, absent included - so a subagent with its own id is a\nthread of its own. Never the trace: a thread continues across the interactions and traces of a session.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "where",
+        "key"
       ]
     },
     "Fragment": {

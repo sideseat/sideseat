@@ -467,6 +467,43 @@ by any of the `signals` of any asset.
 }
 ```
 
+## Request threads
+
+Some producers export a request as what is new since the previous request of the same conversation, not as the
+request they sent: a stateless model API is sent the whole history every time, and the telemetry holds only the
+delta. A `request_threads` rule names the spans that are such requests (`where`) and the attributes that identify
+their thread (`key`, each an `attr:` source); two requests share a thread when every source agrees, absent
+included, and at most one rule may hold for a span. The carrier fact `carrier_holds_request_delta` marks the
+carriers that hold a request's delta; a delta is the span's input, never its output or its frame. A span view of
+such a request is then composed from its thread: the earlier requests' deltas and outputs in sequence order, the
+tool calls its delta returns results for, and its own delta and frame. A delta that restates the whole history - a
+resumed process does - shows nothing twice; a break the thread can show (two requests at one start time with
+different content, or a failed request) composes nothing past it. The design and its proof obligations are in
+[`request-context.md`](request-context.md).
+
+```json example
+{
+  "id": "acme-threads",
+  "doc": "A producer whose request spans export only what each request added.",
+  "carriers": [
+    {
+      "id": "acme.new_turns.carrier",
+      "doc": "The turns new since the previous request of this thread.",
+      "match": {"attribute": "acme.new_turns"},
+      "facts": {"preset": "snapshot", "carrier_holds_span_input": true, "carrier_holds_request_delta": true}
+    }
+  ],
+  "request_threads": [
+    {
+      "id": "acme.request_thread",
+      "doc": "One thread per session and agent.",
+      "where": {"source": "span_name", "equals": "acme.request"},
+      "key": ["attr:acme.session", "attr:acme.agent"]
+    }
+  ]
+}
+```
+
 ## Precedence and claiming
 
 Order is stated, not inferred from how specific a condition looks, with one exception: carrier clauses, whose
@@ -593,6 +630,7 @@ Every key an asset may write, generated from the schema the engine is compiled f
 | `span_categories` | list of [`ClassifyRule`](#classifyrule) | Which broad category a span falls in, as ordered first-match rules. |
 | `observation_types` | list of [`ClassifyRule`](#classifyrule) | What kind of observation a span is, as ordered first-match rules. |
 | `span_facts` | list of [`SpanFactRule`](#spanfactrule) | Facts about a *span* this dialect can establish, as opposed to about a carrier. |
+| `request_threads` | list of [`RequestThreadRule`](#requestthreadrule) | What identifies the conversation a request span belongs to, for a producer that exports what each request added rather than what it sent. |
 | `fragments` | map of text to [`Fragment`](#fragment) | Named reading tables other rules may apply. |
 | `sdk_slugs` | list of [`SdkSlug`](#sdkslug) | The slugs an SDK may write into `sideseat.framework` for this framework, and the label they resolve to. |
 | `span_fields` | list of [`SpanFieldRule`](#spanfieldrule) | Which keys carry a *span field* - a scalar or list on the stored span, as opposed to a message. |
@@ -646,10 +684,11 @@ a way no reader notices.
 | `carrier_holds_span_input` | true or false |  |
 | `carrier_holds_expandable_message_array` | true or false |  |
 | `carrier_replays_across_traces` | true or false |  |
+| `carrier_holds_request_delta` | true or false |  |
 
 ### `CarrierPreset`
 
-The **ten** carrier facts, named by preset with optional per-field overrides.
+The **eleven** carrier facts, named by preset with optional per-field overrides.
 
 A preset is a constructor, not a category: `snapshot` and `accumulated_state` differ in one fact,
 `carrier_holds_span_output`, and the name does not survive compilation. So each vector has one spelling: an
@@ -1965,6 +2004,26 @@ One piece of evidence. At least one form, and both together read as a conjunctio
 | `id` (required) | string | This clause's own name, unique within the rule or fragment that holds it. |
 | `doc` | string |  |
 | `where` (required) | [`Expr_SpanCondition`](#expr_spancondition) | The evidence, over the span's attributes - a span fact sees no span name, so a `span_name` source is refused. A conjunction is written as `all`: a tool name alone sits on a model span that merely mentions a tool, while the name *and* a call id together are a call being run. |
+
+### `RequestThreadRule`
+
+The requests of one conversation, for a producer whose request spans carry what is **new** since the previous
+request of the same conversation rather than the request it sent.
+
+A stateless model API is sent the whole history every time; such a producer's telemetry holds only the delta,
+so a span view can show what the call was sent only by composing the thread's earlier requests. This declares
+which spans are requests and what identifies their thread; which carriers hold the delta is a carrier fact,
+`carrier_holds_request_delta`.
+
+The key is derived when the span is ingested, beside its messages - a cache a re-parse rebuilds, since the read
+path sees a span's messages and not its attributes.
+
+| Key | Type | What it is |
+| --- | --- | --- |
+| `id` (required) | string | This rule's own name. Part of every key it derives, so two producers' threads never share one. |
+| `doc` | string | Why this is declared the way it is, for a reader and the explain trace. Read by nothing. |
+| `where` (required) | [`Expr_SpanCondition`](#expr_spancondition) | The spans that are requests of a thread. At most one rule may hold for a span, which compilation proves. |
+| `key` (required) | list of string | The span attributes whose values identify a thread, each as an `attr:<key>` source, in a fixed order. Two requests share a thread when every source agrees, absent included - so a subagent with its own id is a thread of its own. Never the trace: a thread continues across the interactions and traces of a session. |
 
 ### `Fragment`
 

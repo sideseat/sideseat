@@ -539,6 +539,10 @@ pub struct FeedMetadata {
     /// duplicates, and exposes that state here.
     #[serde(skip_serializing_if = "is_true")]
     pub replay_matching_complete: bool,
+    /// How many earlier requests of its thread a request's view was composed from, for a producer whose request
+    /// spans export what each request added - zero where the view is the span's own payload alone.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub composed_from_requests: usize,
 }
 
 impl Default for FeedMetadata {
@@ -550,12 +554,17 @@ impl Default for FeedMetadata {
             total_cost: 0.0,
             // Complete until something says otherwise: an empty answer hid nothing.
             replay_matching_complete: true,
+            composed_from_requests: 0,
         }
     }
 }
 
 fn is_true(value: &bool) -> bool {
     *value
+}
+
+fn is_zero(value: &usize) -> bool {
+    *value == 0
 }
 
 // ============================================================================

@@ -16,6 +16,7 @@ mod detection;
 mod message_emit;
 mod message_read;
 mod observed;
+mod request_threads;
 mod span_fields;
 
 pub use conditions::*;
@@ -25,6 +26,7 @@ pub use detection::*;
 pub use message_emit::*;
 pub use message_read::*;
 pub use observed::*;
+pub use request_threads::*;
 pub use span_fields::*;
 
 /// One rule file's parsed contents.
@@ -146,6 +148,10 @@ pub struct RuleFile {
     /// union answers it, so a dialect declares its signal rather than the code carrying a list of them.
     #[serde(default)]
     pub span_facts: Vec<SpanFactRule>,
+    /// What identifies the conversation a request span belongs to, for a producer that exports what each
+    /// request added rather than what it sent.
+    #[serde(default)]
+    pub request_threads: Vec<RequestThreadRule>,
     /// Named reading tables other rules may apply.
     ///
     /// One dialect's message shapes are recognised at four different selection points - the node itself, a
@@ -273,6 +279,7 @@ impl RuleFile {
                 span_categories: _,
                 observation_types: _,
                 span_facts: _,
+                request_threads: _,
                 fragments: _,
                 sdk_slugs: _,
                 span_fields: _,
@@ -385,6 +392,13 @@ impl RuleFile {
             self.event_categories
                 .iter()
                 .map(|entry| entry.id.clone())
+                .collect(),
+        ));
+        out.push((
+            "request_threads".to_string(),
+            self.request_threads
+                .iter()
+                .map(|rule| rule.id.clone())
                 .collect(),
         ));
         out.push((

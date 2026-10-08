@@ -5,12 +5,14 @@
   "carriers": [
     {
       "id": "claude-agent-sdk.new_context",
-      "doc": "The turns and tool results handed to the model, tagged in-band.",
+      "doc": "The turns and tool results handed to the model, tagged in-band - only those new since the previous request of the same thread, so the request's earlier messages are on that thread's earlier requests.",
       "match": {
         "attribute": "new_context"
       },
       "facts": {
-        "preset": "snapshot"
+        "preset": "snapshot",
+        "carrier_holds_span_input": true,
+        "carrier_holds_request_delta": true
       }
     },
     {
@@ -56,7 +58,8 @@
       "facts": {
         "preset": "snapshot",
         "position_proves_distinct_occurrence": true,
-        "carrier_holds_span_input": true
+        "carrier_holds_span_input": true,
+        "carrier_holds_request_delta": true
       }
     },
     {
@@ -93,6 +96,17 @@
         ]
       },
       "priority": 270
+    }
+  ],
+  "request_threads": [
+    {
+      "id": "claude-agent-sdk.request_thread",
+      "doc": "A request exports what is new since the previous request of its thread, not the request it sent: the turns in `new_context`, the reminders in `system_reminders`. The thread is the session and the agent: `query_source` is `sdk` for the main agent and names a subagent, which also states its own `agent_id`. A log-only capture states neither, which is one thread per session.",
+      "where": {
+        "source": "span_name",
+        "equals": "claude_code.llm_request"
+      },
+      "key": ["attr:session.id", "attr:query_source", "attr:agent_id"]
     }
   ],
   "sdk_slugs": [

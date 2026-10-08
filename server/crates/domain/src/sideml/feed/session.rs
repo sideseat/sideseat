@@ -118,6 +118,7 @@ pub(super) fn process_multi_trace_spans(
             // False if any trace's replay matching was cut short - the session's answer may then repeat
             // history, and saying so is the point.
             replay_matching_complete,
+            composed_from_requests: 0,
         },
     }
 }
@@ -472,6 +473,7 @@ pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRes
                 total_tokens,
                 total_cost,
                 replay_matching_complete,
+                composed_from_requests: 0,
             },
         },
         options.role.as_deref(),
