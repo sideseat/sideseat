@@ -78,40 +78,6 @@
       "priority": 9000
     },
     {
-      "id": "generic-io.fallback_response",
-      "doc": "The same dialect's stand-in on the producing side.",
-      "source": {
-        "span": {
-          "stage": "fallback"
-        }
-      },
-      "read": {
-        "attribute": "response"
-      },
-      "parse": "json",
-      "where": {
-        "not": {
-          "any": [
-            {
-              "source": "attr:rpc.system",
-              "exists": true,
-              "equals": "jsonrpc"
-            },
-            {
-              "source": "attr:output.value",
-              "exists": true
-            }
-          ]
-        }
-      },
-      "wrap": {
-        "role": "assistant",
-        "only_plain_data": true
-      },
-      "emit": "message",
-      "priority": 9020
-    },
-    {
       "id": "generic-io.fallback_output",
       "doc": "The generic output carrier. Last, because the retired stage read it last and the order is observable.",
       "source": {

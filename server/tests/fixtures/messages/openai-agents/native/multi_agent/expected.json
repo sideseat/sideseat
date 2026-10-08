@@ -440,9 +440,9 @@
   "feed_view": {
     "message_count": 8,
     "role_sequence": [
-      "assistant",
       "system",
       "tool",
+      "assistant",
       "assistant",
       "tool",
       "system",
@@ -454,14 +454,6 @@
     "messages": [
       {
         "index": 0,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "For Barcelona’s next two days—rain followed by sunshine, with highs of 21–22°C—pack lightweight tops, comfortable trousers, a light sweater for cooler moments, and a waterproof jacket or compact umbrella. Bring comfortable, water-resistant …[329 chars]",
-        "content_digest": "84d48dfb65d0e1f9",
-        "observation_type": "generation"
-      },
-      {
-        "index": 1,
         "role": "system",
         "entry_type": "text",
         "content": "You write the final packing list from the researcher's findings.",
@@ -469,11 +461,19 @@
         "observation_type": "generation"
       },
       {
-        "index": 2,
+        "index": 1,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"call_f5339c7fd4175301b4b5da2d947ca7c8\",\"content\":{\"assistant\":\"writer\"}}",
         "content_digest": "7cd6b7dfca4732e4",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "For Barcelona’s next two days—rain followed by sunshine, with highs of 21–22°C—pack lightweight tops, comfortable trousers, a light sweater for cooler moments, and a waterproof jacket or compact umbrella. Bring comfortable, water-resistant …[329 chars]",
+        "content_digest": "84d48dfb65d0e1f9",
         "observation_type": "generation"
       },
       {

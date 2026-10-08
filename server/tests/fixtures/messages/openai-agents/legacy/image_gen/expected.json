@@ -253,13 +253,12 @@
       ]
     },
     "trace-1/Responses API with 'us.openai.gpt-5.6-luna'/span-16": {
-      "message_count": 5,
+      "message_count": 4,
       "role_sequence": [
         "system",
-        "user",
-        "user",
         "assistant",
-        "assistant"
+        "assistant",
+        "user"
       ],
       "tool_names": [],
       "tool_definition_count": 1,
@@ -274,22 +273,6 @@
         },
         {
           "index": 1,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Evaluate these generated images and select the best one: Unable to generate the images because image-generation credentials are unavailable.",
-          "content_digest": "b529becde678b877",
-          "observation_type": "generation"
-        },
-        {
-          "index": 2,
-          "role": "user",
-          "entry_type": "text",
-          "content": "[Scrubbed due to 'credential']",
-          "content_digest": "9e91982d7ac8ddb4",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
           "role": "assistant",
           "entry_type": "text",
           "content": "No images were provided for evaluation; image generation failed because credentials were unavailable. Therefore, I cannot compare creativity, composition, or appeal. FINAL DECISION: No image available (generation failed)",
@@ -297,11 +280,19 @@
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 2,
           "role": "assistant",
           "entry_type": "text",
           "content": "[Scrubbed due to 'credential']",
           "content_digest": "9e91982d7ac8ddb4",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Evaluate these generated images and select the best one: Unable to generate the images because image-generation credentials are unavailable.",
+          "content_digest": "b529becde678b877",
           "observation_type": "generation"
         }
       ]
@@ -408,7 +399,7 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 15,
+      "message_count": 14,
       "role_sequence": [
         "system",
         "user",
@@ -421,7 +412,6 @@
         "assistant",
         "assistant",
         "system",
-        "user",
         "user",
         "assistant",
         "assistant"
@@ -533,14 +523,6 @@
         },
         {
           "index": 12,
-          "role": "user",
-          "entry_type": "text",
-          "content": "[Scrubbed due to 'credential']",
-          "content_digest": "9e91982d7ac8ddb4",
-          "observation_type": "generation"
-        },
-        {
-          "index": 13,
           "role": "assistant",
           "entry_type": "text",
           "content": "No images were provided for evaluation; image generation failed because credentials were unavailable. Therefore, I cannot compare creativity, composition, or appeal. FINAL DECISION: No image available (generation failed)",
@@ -548,7 +530,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 14,
+          "index": 13,
           "role": "assistant",
           "entry_type": "text",
           "content": "[Scrubbed due to 'credential']",
@@ -560,7 +542,7 @@
   },
   "session_views": {
     "[Scrubbed due to 'session']": {
-      "message_count": 15,
+      "message_count": 14,
       "role_sequence": [
         "system",
         "user",
@@ -573,7 +555,6 @@
         "assistant",
         "assistant",
         "system",
-        "user",
         "user",
         "assistant",
         "assistant"
@@ -685,14 +666,6 @@
         },
         {
           "index": 12,
-          "role": "user",
-          "entry_type": "text",
-          "content": "[Scrubbed due to 'credential']",
-          "content_digest": "9e91982d7ac8ddb4",
-          "observation_type": "generation"
-        },
-        {
-          "index": 13,
           "role": "assistant",
           "entry_type": "text",
           "content": "No images were provided for evaluation; image generation failed because credentials were unavailable. Therefore, I cannot compare creativity, composition, or appeal. FINAL DECISION: No image available (generation failed)",
@@ -700,7 +673,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 14,
+          "index": 13,
           "role": "assistant",
           "entry_type": "text",
           "content": "[Scrubbed due to 'credential']",
@@ -711,13 +684,12 @@
     }
   },
   "feed_view": {
-    "message_count": 15,
+    "message_count": 14,
     "role_sequence": [
-      "assistant",
-      "assistant",
       "system",
       "user",
-      "user",
+      "assistant",
+      "assistant",
       "assistant",
       "assistant",
       "tool",
@@ -734,22 +706,6 @@
     "messages": [
       {
         "index": 0,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "No images were provided for evaluation; image generation failed because credentials were unavailable. Therefore, I cannot compare creativity, composition, or appeal. FINAL DECISION: No image available (generation failed)",
-        "content_digest": "41bc233e9a6c4475",
-        "observation_type": "generation"
-      },
-      {
-        "index": 1,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "[Scrubbed due to 'credential']",
-        "content_digest": "9e91982d7ac8ddb4",
-        "observation_type": "generation"
-      },
-      {
-        "index": 2,
         "role": "system",
         "entry_type": "text",
         "content": "You are an experienced art critic. Use the read_image tool to load and visually inspect each image. Evaluate based on creativity, composition, and appeal. Your final line must include: FINAL DECISION: [path to best image]",
@@ -757,7 +713,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 3,
+        "index": 1,
         "role": "user",
         "entry_type": "text",
         "content": "Evaluate these generated images and select the best one: Unable to generate the images because image-generation credentials are unavailable.",
@@ -765,15 +721,23 @@
         "observation_type": "generation"
       },
       {
-        "index": 4,
-        "role": "user",
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "No images were provided for evaluation; image generation failed because credentials were unavailable. Therefore, I cannot compare creativity, composition, or appeal. FINAL DECISION: No image available (generation failed)",
+        "content_digest": "41bc233e9a6c4475",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "assistant",
         "entry_type": "text",
         "content": "[Scrubbed due to 'credential']",
         "content_digest": "9e91982d7ac8ddb4",
         "observation_type": "generation"
       },
       {
-        "index": 5,
+        "index": 4,
         "role": "assistant",
         "entry_type": "text",
         "content": "Unable to generate the images because image-generation credentials are unavailable.",
@@ -781,7 +745,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 6,
+        "index": 5,
         "role": "assistant",
         "entry_type": "text",
         "content": "[Scrubbed due to 'credential']",
@@ -789,7 +753,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 7,
+        "index": 6,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "[Scrubbed due to 'credential']",
@@ -798,7 +762,7 @@
         "observation_type": "span"
       },
       {
-        "index": 8,
+        "index": 7,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "[Scrubbed due to 'credential']",
@@ -807,7 +771,7 @@
         "observation_type": "span"
       },
       {
-        "index": 9,
+        "index": 8,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "[Scrubbed due to 'credential']",
@@ -816,7 +780,7 @@
         "observation_type": "span"
       },
       {
-        "index": 10,
+        "index": 9,
         "role": "system",
         "entry_type": "text",
         "content": "You are an AI artist. When asked to generate images, use the generate_image tool with varied prompts for each image to create a diverse collection. Return a comma-separated list of the generated image paths.",
@@ -824,7 +788,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 11,
+        "index": 10,
         "role": "user",
         "entry_type": "text",
         "content": "Generate 3 different images of a dog. Vary the style, setting, and mood for each image. Use different prompts like: playful puppy in a park, majestic dog portrait, dog playing in snow.",
@@ -832,7 +796,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 12,
+        "index": 11,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"call_b927172290845e3f82cdd316c2f64df1\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A joyful playful golden retriever puppy bounding through a sunny spring park, bright green grass, colorful wildflowers, a red frisbee…[354 chars]",
@@ -841,7 +805,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 13,
+        "index": 12,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"call_cd488973791e5791b0a0df6b09b83697\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A majestic adult German shepherd posed in a dramatic studio portrait, rich charcoal and tan fur, dignified expression, deep charcoal …[370 chars]",
@@ -850,7 +814,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 14,
+        "index": 13,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"call_917368052e0a580e855a2d3aa0b20d2b\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A fluffy Siberian husky joyfully playing in fresh powder snow during a gentle winter snowfall, snow-covered pine forest, cool blue tw…[362 chars]",

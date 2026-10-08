@@ -50,17 +50,18 @@
         {
           "index": 2,
           "role": "user",
-          "entry_type": "text",
-          "content": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wgARC…[218647 chars]",
-          "content_digest": "16394de49b839393",
+          "entry_type": "image",
+          "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
+          "content_digest": "f66271bc4504cd52",
           "observation_type": "generation"
         },
         {
           "index": 3,
           "role": "user",
-          "entry_type": "text",
-          "content": "task.pdf",
-          "content_digest": "8f96726d05035034",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task.pdf\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX…[17708 chars]",
+          "content_digest": "abebe47f275b5b81",
+          "tool_name": "task.pdf",
           "observation_type": "generation"
         },
         {
@@ -127,17 +128,18 @@
         {
           "index": 2,
           "role": "user",
-          "entry_type": "text",
-          "content": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wgARC…[218647 chars]",
-          "content_digest": "16394de49b839393",
+          "entry_type": "image",
+          "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
+          "content_digest": "f66271bc4504cd52",
           "observation_type": "generation"
         },
         {
           "index": 3,
           "role": "user",
-          "entry_type": "text",
-          "content": "task.pdf",
-          "content_digest": "8f96726d05035034",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task.pdf\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX…[17708 chars]",
+          "content_digest": "abebe47f275b5b81",
+          "tool_name": "task.pdf",
           "observation_type": "generation"
         },
         {
@@ -183,17 +185,18 @@
         {
           "index": 2,
           "role": "user",
-          "entry_type": "text",
-          "content": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wgARC…[218647 chars]",
-          "content_digest": "16394de49b839393",
+          "entry_type": "image",
+          "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
+          "content_digest": "f66271bc4504cd52",
           "observation_type": "generation"
         },
         {
           "index": 3,
           "role": "user",
-          "entry_type": "text",
-          "content": "task.pdf",
-          "content_digest": "8f96726d05035034",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task.pdf\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX…[17708 chars]",
+          "content_digest": "abebe47f275b5b81",
+          "tool_name": "task.pdf",
           "observation_type": "generation"
         },
         {
@@ -210,25 +213,17 @@
   "feed_view": {
     "message_count": 5,
     "role_sequence": [
-      "assistant",
       "system",
       "user",
       "user",
-      "user"
+      "user",
+      "assistant"
     ],
     "tool_names": [],
     "tool_definition_count": 0,
     "messages": [
       {
         "index": 0,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "The image shows a curving paved path through a sunny green park, bordered by a low stone wall, leafy and bare trees, and buildings in the background. The five-page document contains the instruction “Write a poem!” on the first page, with on…[283 chars]",
-        "content_digest": "aa6a3b809bae77b7",
-        "observation_type": "generation"
-      },
-      {
-        "index": 1,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -236,7 +231,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 2,
+        "index": 1,
         "role": "user",
         "entry_type": "text",
         "content": "Describe the image in one sentence, then summarise the document in one sentence.",
@@ -244,19 +239,28 @@
         "observation_type": "generation"
       },
       {
+        "index": 2,
+        "role": "user",
+        "entry_type": "image",
+        "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
+        "content_digest": "f66271bc4504cd52",
+        "observation_type": "generation"
+      },
+      {
         "index": 3,
         "role": "user",
-        "entry_type": "text",
-        "content": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wgARC…[218647 chars]",
-        "content_digest": "16394de49b839393",
+        "entry_type": "document",
+        "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task.pdf\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX…[17708 chars]",
+        "content_digest": "abebe47f275b5b81",
+        "tool_name": "task.pdf",
         "observation_type": "generation"
       },
       {
         "index": 4,
-        "role": "user",
+        "role": "assistant",
         "entry_type": "text",
-        "content": "task.pdf",
-        "content_digest": "8f96726d05035034",
+        "content": "The image shows a curving paved path through a sunny green park, bordered by a low stone wall, leafy and bare trees, and buildings in the background. The five-page document contains the instruction “Write a poem!” on the first page, with on…[283 chars]",
+        "content_digest": "aa6a3b809bae77b7",
         "observation_type": "generation"
       }
     ]

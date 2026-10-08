@@ -137,3 +137,74 @@ fn a_llamaindex_request_preparation_span_contributes_no_messages() {
     );
     assert!(messages.is_empty(), "{messages:?}");
 }
+
+/// An OpenAI Agents Responses span records its request twice: the input items whole in `raw_input`, and a
+/// derived copy in `events` that keeps an image only as its data URL's text. The items are the request
+/// wherever they parse; a `raw_input` an attribute limit cut short leaves the events the conversation, so the
+/// request is never shown as nothing.
+#[test]
+fn an_openai_agents_request_is_read_from_its_items_unless_they_were_cut_short() {
+    let items = r#"[{"role": "user", "content": [
+        {"type": "input_text", "text": "Describe the image."},
+        {"type": "input_image", "image_url": "data:image/png;base64,iVBORw0KGgo="}
+    ]}]"#;
+    let events = r#"[
+        {"event.name": "gen_ai.system.message", "content": "Be brief.", "role": "system"},
+        {"event.name": "gen_ai.user.message", "content": "Describe the image.", "role": "user"},
+        {"event.name": "gen_ai.user.message", "content": "data:image/png;base64,iVBORw0KGgo=", "role": "user"}
+    ]"#;
+    let response = r#"{"instructions": "Be brief.", "output": [
+        {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "A pixel."}]}
+    ]}"#;
+    let read = |raw_input: &str| {
+        let attrs = make_attrs(&[
+            ("raw_input", raw_input),
+            ("events", events),
+            ("response", response),
+            ("gen_ai.system", "openai"),
+        ]);
+        let mut messages = Vec::new();
+        let mut tools = Vec::new();
+        extract_messages_from_context(
+            &mut messages,
+            &mut tools,
+            SpanExtraction {
+                name: "Responses API with {gen_ai.request.model!r}",
+                attrs: &attrs,
+                scope_name: Some("logfire.openai_agents"),
+                is_tool_span: false,
+            },
+            Utc::now(),
+            ExtractionMode::PerCarrier,
+        );
+        messages
+    };
+    let image_part = |m: &serde_json::Value| {
+        m["content"].as_array().is_some_and(|parts| {
+            parts
+                .iter()
+                .any(|p| p["type"].as_str() == Some("input_image"))
+        })
+    };
+    let data_url_text = |m: &serde_json::Value| {
+        m["content"]
+            .as_str()
+            .is_some_and(|t| t.starts_with("data:"))
+    };
+
+    let whole = read(items);
+    assert!(whole.iter().any(|m| image_part(&m.content)), "{whole:?}");
+    assert!(
+        !whole.iter().any(|m| data_url_text(&m.content)),
+        "{whole:?}"
+    );
+    assert!(whole.iter().any(|m| m.content["role"] == "system"));
+
+    let cut = read(&items[..60]);
+    assert!(!cut.iter().any(|m| image_part(&m.content)), "{cut:?}");
+    assert!(cut.iter().any(|m| data_url_text(&m.content)), "{cut:?}");
+    assert!(
+        cut.iter()
+            .any(|m| m.content["content"].as_str() == Some("Describe the image."))
+    );
+}

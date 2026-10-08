@@ -1,7 +1,7 @@
 {
   "$schema": "../../rules.schema.json",
   "id": "logfire",
-  "doc": "Logfire's dialect. The request side has several overlapping spellings: `events`, `prompt`, and `all_messages_events` are primary, while `request_data` is read only when none of them supplied a conversation. `response_data` is always read because a request carrier must not suppress the answer. The paired generic Logfire capture exercises every branch, repeated history, and overlapping response evidence.",
+  "doc": "Logfire's dialect. The request side has several overlapping spellings: `events`, `prompt`, and `all_messages_events` are primary, while `request_data` is read only when none of them supplied a conversation. `response_data` is always read because a request carrier must not suppress the answer. The paired generic Logfire capture exercises every branch, repeated history, and overlapping response evidence. Logfire's `raw_input` and `response` are read on an OpenAI Agents Responses span, the only place a capture holds them; beside any other span they are not read, and are unsupported until a capture shows one.",
   "carriers": [
     {
       "id": "logfire.request_data",
@@ -48,6 +48,39 @@
         "preset": "snapshot",
         "carrier_holds_expandable_message_array": true
       }
+    },
+    {
+      "id": "logfire.openai_agents.request",
+      "doc": "The input items an OpenAI Agents call sent: the request, which re-sends the conversation so far.",
+      "match": {
+        "attribute": "logfire.openai_agents.request"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true
+      }
+    },
+    {
+      "id": "logfire.openai_agents.response",
+      "doc": "The output items the call produced.",
+      "match": {
+        "attribute": "logfire.openai_agents.response"
+      },
+      "facts": {
+        "preset": "emission"
+      }
+    },
+    {
+      "id": "logfire.openai_agents.instructions",
+      "doc": "An OpenAI Agents call's instructions: the frame of its request, sent beside the input items.",
+      "match": {
+        "attribute": "logfire.openai_agents.instructions"
+      },
+      "facts": {
+        "preset": "snapshot",
+        "carrier_holds_span_input": true,
+        "carrier_is_detached_request_frame": true
+      }
     }
   ],
   "detect": [
@@ -87,6 +120,35 @@
           {
             "id": "logfire.events",
             "doc": "An events array carried as one attribute. Read in two passes, and the passes are the point: every recognised event is emitted before any grouped block, which is the order the code being replaced produced. A single interleaved scan would return the same messages in a different conversation.",
+            "where": {
+              "any": [
+                {
+                  "not": {
+                    "all": [
+                      {
+                        "source": "scope.name",
+                        "equals": "logfire.openai_agents"
+                      },
+                      {
+                        "source": "span_name",
+                        "starts_with": "Responses API with "
+                      }
+                    ]
+                  }
+                },
+                {
+                  "source": "attr:raw_input",
+                  "exists": false
+                },
+                {
+                  "not": {
+                    "source": "attr:raw_input",
+                    "parses": "json"
+                  }
+                }
+              ],
+              "doc": "Everywhere but an OpenAI Agents Responses span whose `raw_input` parses: there this derived copy loses attachments, and the readings below read the request, the instructions and the response instead. A `raw_input` that does not parse - cut short by an attribute limit - leaves the events the conversation."
+            },
             "read": {
               "attribute": "events"
             },
@@ -208,6 +270,40 @@
                 }
               }
             ]
+          },
+          {
+            "id": "logfire.openai_agents.request",
+            "doc": "The request an OpenAI Agents call sent, as the Responses API's own input items: the prompt and its attachments, the calls the model made and the results handed back. Lossless, where the `events` Logfire derives from it keep an image only as the text of its data URL and a file only as its name.",
+            "where": {
+              "all": [
+                {
+                  "source": "scope.name",
+                  "equals": "logfire.openai_agents"
+                },
+                {
+                  "source": "span_name",
+                  "starts_with": "Responses API with "
+                },
+                {
+                  "source": "attr:raw_input",
+                  "parses": "json"
+                }
+              ]
+            },
+            "read": {
+              "attribute": "raw_input"
+            },
+            "parse": "json",
+            "tag_as": "logfire.openai_agents.request",
+            "emit": "message",
+            "alternatives": [
+              {
+                "id": "items",
+                "doc": "Each input item, through the Responses item reading.",
+                "select": "$[*]",
+                "then_fragment": "langfuse.item"
+              }
+            ]
           }
         ],
         "fallback_if_primary_empty": [
@@ -260,6 +356,98 @@
                 }
               }
             ]
+          },
+          {
+            "id": "logfire.openai_agents.instructions",
+            "doc": "The instructions, from the derived events' system message - the input items do not hold them - read as what they are: the frame of the request rather than a turn in it, so they head it. Refused where the fallback above already read the events.",
+            "where": {
+              "all": [
+                {
+                  "source": "scope.name",
+                  "equals": "logfire.openai_agents"
+                },
+                {
+                  "source": "span_name",
+                  "starts_with": "Responses API with "
+                },
+                {
+                  "source": "attr:raw_input",
+                  "parses": "json"
+                }
+              ]
+            },
+            "read": {
+              "attribute": "events"
+            },
+            "parse": "json",
+            "tag_as": "logfire.openai_agents.instructions",
+            "emit": "message",
+            "alternatives": [
+              {
+                "id": "system",
+                "doc": "Only the derived system message.",
+                "select": "$[?@['event.name'] == 'gen_ai.system.message']"
+              }
+            ]
+          },
+          {
+            "id": "logfire.openai_agents.response",
+            "doc": "What the call produced, as the Responses API's own output items: the reply, the calls the model asked for.",
+            "where": {
+              "all": [
+                {
+                  "source": "scope.name",
+                  "equals": "logfire.openai_agents"
+                },
+                {
+                  "source": "span_name",
+                  "starts_with": "Responses API with "
+                },
+                {
+                  "source": "attr:raw_input",
+                  "parses": "json"
+                }
+              ]
+            },
+            "read": {
+              "attribute": "response"
+            },
+            "parse": "json",
+            "tag_as": "logfire.openai_agents.response",
+            "emit": "message",
+            "also": [
+              {
+                "id": "calls",
+                "doc": "Each call the model asked for.",
+                "select": "$.output[*]",
+                "where": {
+                  "path": "$.type",
+                  "one_of": [
+                    "function_call"
+                  ]
+                },
+                "wrap": {
+                  "role": "assistant",
+                  "tool_calls_from": {
+                    "select": "$",
+                    "id": "$.call_id",
+                    "name": "$.name",
+                    "arguments": "$.arguments",
+                    "on_invalid_item": "fail_message"
+                  }
+                }
+              },
+              {
+                "id": "messages",
+                "doc": "Each message the model wrote: it states its own role, and its content is read structurally at query time.",
+                "select": "$.output[*]",
+                "where": {
+                  "path": "$.role",
+                  "kind": "string",
+                  "non_empty": true
+                }
+              }
+            ]
           }
         ]
       }
@@ -287,31 +475,6 @@
         }
       ],
       "priority": 420
-    },
-    {
-      "id": "logfire.fallback_raw_input",
-      "doc": "Logfire's stand-in for the framework-neutral `input.value` carrier, read in the same fallback stage and only where that carrier is absent - the same datum under another name, not a second one.",
-      "source": {
-        "span": {
-          "stage": "fallback"
-        }
-      },
-      "read": {
-        "attribute": "raw_input"
-      },
-      "parse": "json",
-      "where": {
-        "not": {
-          "source": "attr:input.value",
-          "exists": true
-        }
-      },
-      "wrap": {
-        "role": "user",
-        "only_plain_data": true
-      },
-      "emit": "message",
-      "priority": 9010
     }
   ],
   "message_projections": [

@@ -78,12 +78,6 @@ const UNUSED: &[(&str, &str)] = &[
         "as `WrapSpec.tool_call_from`",
     ),
     (
-        "SpanCondition.parses",
-        "requested for a producer asset in review: read a JSON attribute only where an attribute length limit \
-         has not cut it short, and the lossy channel beside it otherwise; leaves this list when that asset lands",
-    ),
-    ("Encoding=json", "as `SpanCondition.parses`"),
-    (
         "ValueKind=null",
         "part of the closed JSON kind vocabulary a `kind` predicate offers; a kind set missing one would be an \
          arbitrary hole",

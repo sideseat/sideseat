@@ -52,8 +52,8 @@
       "role_sequence": [
         "system",
         "user",
-        "user",
         "assistant",
+        "user",
         "assistant"
       ],
       "tool_names": [],
@@ -77,18 +77,18 @@
         },
         {
           "index": 2,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What is one dish I should try there?",
-          "content_digest": "fa205a3ea90d1fdf",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
           "role": "assistant",
           "entry_type": "text",
           "content": "Stay in **Chiado**—it’s central, walkable, and full of cafés and restaurants, making it a great base for a weekend in Lisbon.",
           "content_digest": "776a0a257f96e31b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
           "observation_type": "generation"
         },
         {
@@ -106,10 +106,10 @@
       "role_sequence": [
         "system",
         "user",
-        "user",
+        "assistant",
         "user",
         "assistant",
-        "assistant",
+        "user",
         "assistant"
       ],
       "tool_names": [],
@@ -133,22 +133,6 @@
         },
         {
           "index": 2,
-          "role": "user",
-          "entry_type": "text",
-          "content": "What is one dish I should try there?",
-          "content_digest": "fa205a3ea90d1fdf",
-          "observation_type": "generation"
-        },
-        {
-          "index": 3,
-          "role": "user",
-          "entry_type": "text",
-          "content": "Summarise your two suggestions in one sentence.",
-          "content_digest": "3a58af4870fae288",
-          "observation_type": "generation"
-        },
-        {
-          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "Stay in **Chiado**—it’s central, walkable, and full of cafés and restaurants, making it a great base for a weekend in Lisbon.",
@@ -156,11 +140,27 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "Try **bacalhau à Brás**—shredded salt cod mixed with thin fried potatoes, onions, and eggs, usually topped with black olives.",
           "content_digest": "99a0857cd2091d42",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarise your two suggestions in one sentence.",
+          "content_digest": "3a58af4870fae288",
           "observation_type": "generation"
         },
         {
@@ -410,27 +410,19 @@
   "feed_view": {
     "message_count": 7,
     "role_sequence": [
-      "assistant",
       "user",
       "assistant",
       "user",
       "assistant",
       "system",
-      "user"
+      "user",
+      "assistant"
     ],
     "tool_names": [],
     "tool_definition_count": 0,
     "messages": [
       {
         "index": 0,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "Stay in Chiado for a central, walkable base, and try bacalhau à Brás, a classic dish of salt cod, thin fried potatoes, onions, and eggs.",
-        "content_digest": "22d352667b0a7c04",
-        "observation_type": "generation"
-      },
-      {
-        "index": 1,
         "role": "user",
         "entry_type": "text",
         "content": "Summarise your two suggestions in one sentence.",
@@ -438,15 +430,15 @@
         "observation_type": "generation"
       },
       {
-        "index": 2,
+        "index": 1,
         "role": "assistant",
         "entry_type": "text",
-        "content": "Try **bacalhau à Brás**—shredded salt cod mixed with thin fried potatoes, onions, and eggs, usually topped with black olives.",
-        "content_digest": "99a0857cd2091d42",
+        "content": "Stay in Chiado for a central, walkable base, and try bacalhau à Brás, a classic dish of salt cod, thin fried potatoes, onions, and eggs.",
+        "content_digest": "22d352667b0a7c04",
         "observation_type": "generation"
       },
       {
-        "index": 3,
+        "index": 2,
         "role": "user",
         "entry_type": "text",
         "content": "What is one dish I should try there?",
@@ -454,15 +446,15 @@
         "observation_type": "generation"
       },
       {
-        "index": 4,
+        "index": 3,
         "role": "assistant",
         "entry_type": "text",
-        "content": "Stay in **Chiado**—it’s central, walkable, and full of cafés and restaurants, making it a great base for a weekend in Lisbon.",
-        "content_digest": "776a0a257f96e31b",
+        "content": "Try **bacalhau à Brás**—shredded salt cod mixed with thin fried potatoes, onions, and eggs, usually topped with black olives.",
+        "content_digest": "99a0857cd2091d42",
         "observation_type": "generation"
       },
       {
-        "index": 5,
+        "index": 4,
         "role": "system",
         "entry_type": "text",
         "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
@@ -470,11 +462,19 @@
         "observation_type": "generation"
       },
       {
-        "index": 6,
+        "index": 5,
         "role": "user",
         "entry_type": "text",
         "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
         "content_digest": "c366c7539466c187",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Stay in **Chiado**—it’s central, walkable, and full of cafés and restaurants, making it a great base for a weekend in Lisbon.",
+        "content_digest": "776a0a257f96e31b",
         "observation_type": "generation"
       }
     ]

@@ -2,21 +2,6 @@
  "doc": "The span predicates `where` replaced, frozen from the assets of 390e5c9f, keyed by clause. Read by every_where_answers_as_the_predicate_it_replaced_over_the_corpus.",
  "clauses": [
   {
-   "kind": "message",
-   "clause": "generic-io.fallback_response",
-   "unless": {
-    "attr_equals": [
-     {
-      "key": "rpc.system",
-      "value": "jsonrpc"
-     }
-    ],
-    "attr_exists": [
-     "output.value"
-    ]
-   }
-  },
-  {
    "kind": "span_fact",
    "clause": "semconv.tool_execution.operation_name",
    "signal": {
@@ -1605,15 +1590,6 @@
    "unless": {
     "attr_exists": [
      "gen_ai.tool.definitions"
-    ]
-   }
-  },
-  {
-   "kind": "message",
-   "clause": "logfire.fallback_raw_input",
-   "unless": {
-    "attr_exists": [
-     "input.value"
     ]
    }
   },
