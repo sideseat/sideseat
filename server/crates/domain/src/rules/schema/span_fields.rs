@@ -410,7 +410,8 @@ pub struct FieldSource {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum Reduction {
-    /// Add them. A non-numeric match contributes nothing, as the retired reduction's `unwrap_or(0)` did.
+    /// Add them. A match that is not a number makes the whole reduction malformed rather than contributing
+    /// nothing: an unreadable count and a zero are different statements, and the field's `on_malformed` decides.
     Sum,
     /// Keep every match, in the order the path found them.
     ///

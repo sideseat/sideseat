@@ -473,9 +473,11 @@ match keys form a lattice, are ordered most specific first by subsumption.
 - **`priority`**, an integer, lowest first, orders every other arena: detection rules and their alternatives,
   message rules, observation types, span and event categories, the cases of one content-chain position, tool
   shapes, and each ordered question of `message_members`. Two clauses of one arena with the same priority are
-  refused. For message rules an arena is pairwise: two rules contend when they run at the same stage, on the same
-  output axis (`message` and `claim` are one axis; `tool_definitions` and `tool_names` another), and both read
-  span attributes or both read events whose names intersect, whatever carriers they read.
+  refused. For message rules an arena is pairwise: two rules contend when they share an output axis and can meet.
+  `message` and `claim` are one axis, and two rules on it meet when they run at the same stage and both read span
+  attributes, or both read events whose names intersect. `tool_definitions` (a `repr` grammar included) and
+  `tool_names` are an axis each, and two span rules on one meet at any stage, because the metadata path runs every
+  stage. Which carriers they read does not enter into it.
 - **`supersedes`** names the rules a detection clause is meant to beat where both match. It documents an overlap
   and is checked (each target exists, differs from the source, is named once, and comes later by priority). It
   never decides a label: deleting one changes no detection answer, only which overlaps the diagnostics report.
@@ -2082,7 +2084,7 @@ A value inside a JSON-valued attribute.
 
 How several matches of one path become one value.
 
-- `"sum"`: Add them. A non-numeric match contributes nothing, as the retired reduction's `unwrap_or(0)` did.
+- `"sum"`: Add them. A match that is not a number makes the whole reduction malformed rather than contributing nothing: an unreadable count and a zero are different statements, and the field's `on_malformed` decides.
 - `"collect_all"`: Keep every match, in the order the path found them.
 
 ### `EventAttributeSource`

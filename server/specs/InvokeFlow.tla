@@ -224,8 +224,7 @@ NoLostEvent == lost = 0
 
 \* The SDK is never left believing it is still serving a request once the
 \* handler has finished with it: a closed handler leads to an SDK that is not
-\* busy. (Stated over stable states it was a tautology - their definition already
-\* excluded Busy.)
+\* busy.
 NoStuckBusy == (http \in Closed) ~> (sdk # "Busy")
 
 \* The guard is disarmed exactly when a terminal event was surfaced; any other

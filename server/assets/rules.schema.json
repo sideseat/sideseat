@@ -4914,7 +4914,7 @@
       "description": "How several matches of one path become one value.",
       "oneOf": [
         {
-          "description": "Add them. A non-numeric match contributes nothing, as the retired reduction's `unwrap_or(0)` did.",
+          "description": "Add them. A match that is not a number makes the whole reduction malformed rather than contributing\nnothing: an unreadable count and a zero are different statements, and the field's `on_malformed` decides.",
           "type": "string",
           "const": "sum"
         },

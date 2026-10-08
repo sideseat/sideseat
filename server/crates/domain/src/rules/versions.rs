@@ -335,13 +335,24 @@ impl Semver {
     pub fn parse(text: &str, partial: bool) -> Option<Self> {
         let text = text.trim();
         let text = text.strip_prefix('v').unwrap_or(text);
-        // Build metadata never takes part in precedence.
-        let text = text.split_once('+').map_or(
-            text,
-            |(version, build)| {
-                if build.is_empty() { "" } else { version }
-            },
-        );
+        // Build metadata never takes part in precedence, and is still SemVer's grammar: dot-separated identifiers
+        // of ASCII alphanumerics and hyphens, none empty. Anything else is not a version, which a condition
+        // reads as unknown.
+        let text = match text.split_once('+') {
+            None => text,
+            Some((version, build))
+                if !build.is_empty()
+                    && build.split('.').all(|identifier| {
+                        !identifier.is_empty()
+                            && identifier
+                                .bytes()
+                                .all(|b| b.is_ascii_alphanumeric() || b == b'-')
+                    }) =>
+            {
+                version
+            }
+            Some(_) => return None,
+        };
         let (core_text, pre_text) = match text.split_once('-') {
             Some((core, pre)) => (core, Some(pre)),
             None => (text, None),
@@ -534,6 +545,9 @@ mod tests {
             "1.0.0-01",
             "1.0.0-a..b",
             "1.0.0+",
+            "1.0.0+?",
+            "1.0.0+a..b",
+            "1.0.0+.",
             "x.y.z",
         ] {
             assert!(

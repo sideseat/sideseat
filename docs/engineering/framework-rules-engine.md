@@ -215,8 +215,10 @@ Wherever a value may come from one of several places, a field takes one source w
 default: **present** (omitted, or `"mode": "present"`) commits to the first candidate that is there, whatever it
 holds - two spellings in one payload are one producer's statement, so a badly written primary does not hand over to
 an alias - and **usable** (`"mode": "usable"`, required on the fields that read this way: content-block members,
-call ids, an overlay's counterpart list, a log record's name) steps over a candidate it cannot read as the field
-needs. Attribute sources are `attr:<key>` wherever a name is typed beside other kinds (`event_name` on a log
+call ids, an overlay's counterpart list, a log record's name) steps over a candidate that is absent, or empty where
+the field says so, and takes the first other one. What "usable" asks is the field's own reading: a content-block
+member steps over an absent candidate and then builds from what it found, so a present value of the wrong type
+declines the case rather than handing over to the next spelling. Attribute sources are `attr:<key>` wherever a name is typed beside other kinds (`event_name` on a log
 record); a message rule reading every one of several keys as its own observation says `every`.
 
 ### Transforms
