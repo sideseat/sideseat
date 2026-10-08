@@ -221,6 +221,10 @@ pub(super) fn built_block(
 }
 
 /// One attachment's value, or `None` where nothing supplied one.
+///
+/// One order for every source: a value is **read** - from the first of `from_value`, `from_path`, `from` and the
+/// span name that supplies one, through that source's steps - then `where` is asked of it, and then a literal
+/// (`value`, or a closed `map`'s) replaces it, for a flag. Where nothing was read, the `default` is attached.
 pub(super) fn attached_value(
     attach: &AttachSpec,
     ctx: &MessageContext<'_>,
@@ -236,52 +240,73 @@ pub(super) fn attached_value(
     {
         return attach.value.clone();
     }
-    // Ordered paths into the value being wrapped, for a member that may sit at the top level or under the
-    // wrapper a serialiser added.
-    if !attach.from_value_any_of.is_empty() {
-        let found = subject.and_then(|subject| {
-            attach
-                .from_value_any_of
-                .iter()
-                .find_map(|path| singular(subject, path, "attach from_value_any_of"))
-        });
-        if let Some(found) = found {
-            if !predicates_hold(found, &attach.require) {
+    match read_attachment(attach, ctx, payload, subject) {
+        Attachment::Read { value, literal } => {
+            if !predicates_hold(&value, &attach.require) {
                 return None;
             }
-            let value = match attach.parse {
-                Some(mode) => match found.as_str() {
-                    // A member holding serialised JSON: parsed here, because leaving it a string means
-                    // whoever reads it later has to know that this one member is encoded twice.
-                    Some(text) => parse_value(text, mode)?,
-                    None => found.clone(),
-                },
-                None => found.clone(),
-            };
-            return Some(attach.value.clone().unwrap_or(value));
+            // A flag: the literal is the point, not the value that proved it.
+            Some(literal.or_else(|| attach.value.clone()).unwrap_or(value))
         }
-        // Nothing in the value: fall through to the payload path below, which is how "the element's own, else
-        // its parent's" is one member rather than two that overwrite each other.
+        Attachment::Unusable => None,
+        Attachment::Nothing => attach.default.clone(),
     }
-    // A member of the rule's own payload, where the dialect reports it beside the content rather than
-    // inside it.
-    if let Some(path) = &attach.from_path {
-        // **Falls through**, like `from_value_any_of` above. This was `?`, which returned from the whole
-        // function - so a payload path that resolved to nothing skipped the sibling `from` attribute, the
-        // span-name fallback *and* the `default`, while an absent `from_value_any_of` fell through to exactly
-        // those. One member, two source forms, two different answers to "nothing here": the asymmetry was in
-        // the code rather than in anything declared.
-        if let Some(found) = payload.and_then(|payload| singular(payload, path, "attach from_path"))
-        {
-            if !predicates_hold(found, &attach.require) {
-                return None;
-            }
-            let value = match (attach.lowercase(), found.as_str()) {
-                (true, Some(text)) => json!(text.to_lowercase()),
-                _ => found.clone(),
-            };
-            return Some(attach.value.clone().unwrap_or(value));
-        }
+}
+
+/// What an attachment's sources supplied.
+enum Attachment {
+    /// A value, and the literal a closed `map` attaches in its place.
+    Read {
+        value: JsonValue,
+        literal: Option<JsonValue>,
+    },
+    /// A source supplied something that cannot be attached, and the member is left off.
+    Unusable,
+    /// No source supplied anything: the `default` applies.
+    Nothing,
+}
+
+/// The value an attachment's first supplying source reads, through that source's own steps.
+fn read_attachment(
+    attach: &AttachSpec,
+    ctx: &MessageContext<'_>,
+    payload: Option<&JsonValue>,
+    subject: Option<&JsonValue>,
+) -> Attachment {
+    let read = |value: JsonValue| Attachment::Read {
+        value,
+        literal: None,
+    };
+    // A member holding serialised JSON is parsed where declared, because leaving it a string means whoever reads
+    // it later has to know that this one member is encoded twice. One reading for both paths into a value.
+    let decoded = |found: &JsonValue| match (attach.parse, found.as_str()) {
+        (Some(mode), Some(text)) => parse_value(text, mode),
+        _ => Some(found.clone()),
+    };
+    let folded = |value: JsonValue| match (attach.lowercase(), value.as_str()) {
+        (true, Some(text)) => json!(text.to_lowercase()),
+        _ => value,
+    };
+    // Ordered paths into the value being wrapped, for a member that may sit at the top level or under the
+    // wrapper a serialiser added. Nothing there falls through to the payload path, which is how "the element's
+    // own, else its parent's" is one member rather than two that overwrite each other.
+    if let Some(found) = subject.and_then(|subject| {
+        attach
+            .from_value_any_of
+            .iter()
+            .find_map(|path| singular(subject, path, "attach from_value_any_of"))
+    }) {
+        return decoded(found).map_or(Attachment::Unusable, read);
+    }
+    // A member of the rule's own payload, where the dialect reports it beside the content rather than inside it.
+    // Falls through like a value path: one member, two source forms, one answer to "nothing here".
+    if let Some(found) = attach
+        .from_path
+        .as_ref()
+        .zip(payload)
+        .and_then(|(path, payload)| singular(payload, path, "attach from_path"))
+    {
+        return decoded(found).map_or(Attachment::Unusable, |value| read(folded(value)));
     }
     if let Some(raw) = attach
         .from
@@ -295,14 +320,18 @@ pub(super) fn attached_value(
             raw.as_str()
         };
         if let Some((expected, literal)) = attach.when_equals() {
-            if raw != expected {
-                return None;
-            }
-            // A flag: the literal is the point, not the string that proved it.
-            return Some(literal.clone());
+            return if raw == expected {
+                Attachment::Read {
+                    value: json!(raw),
+                    literal: Some(literal.clone()),
+                }
+            } else {
+                Attachment::Unusable
+            };
         }
-        // A value that will not parse falls through to the default below, which is what an unparseable
-        // structured member should do: the member exists in the shape, so it carries its empty form.
+        // A value that will not parse, or a selection that names nothing, falls through to the span name and
+        // the default, which is what an unparseable structured member should do: the member exists in the
+        // shape, so it carries its empty form.
         let parsed = parse_value(raw, attach.parse.unwrap_or(ParseMode::Text));
         let parsed = match &attach.select {
             Some(path) => parsed
@@ -312,17 +341,7 @@ pub(super) fn attached_value(
             None => parsed,
         };
         if let Some(parsed) = parsed {
-            // `require` asked here too, where it used to apply to `from_value_any_of` alone - a modifier that
-            // silently means nothing beside one source form is the same defect as a source form that means two
-            // things.
-            if !predicates_hold(&parsed, &attach.require) {
-                return None;
-            }
-            let parsed = match (attach.lowercase(), parsed.as_str()) {
-                (true, Some(text)) => json!(text.to_lowercase()),
-                _ => parsed,
-            };
-            return Some(parsed);
+            return read(folded(parsed));
         }
     }
     // The span name, where the conventions put the same fact.
@@ -331,10 +350,10 @@ pub(super) fn attached_value(
     {
         let trimmed = rest.trim();
         if !trimmed.is_empty() {
-            return Some(json!(trimmed));
+            return read(json!(trimmed));
         }
     }
-    attach.default.clone()
+    Attachment::Nothing
 }
 
 /// Whether an indexed entry's bucket holds the members a rule requires.

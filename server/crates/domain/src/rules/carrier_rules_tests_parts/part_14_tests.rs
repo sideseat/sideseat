@@ -279,3 +279,78 @@ fn a_scope_name_prefix_is_unknown_where_no_scope_is_reported() {
         "an empty scope prefix is a defect"
     );
 }
+
+/// **An attachment reads, then asks `where`, then lets a literal replace what it read** - for every source.
+/// A flag's `value` used to be ignored on an attribute, `parse` on a payload path, and `where` on the span-name
+/// fallback, while the other sources honoured each.
+#[test]
+fn an_attachment_reads_then_asks_where_then_replaces_for_every_source() {
+    use crate::rules::message_rules::MessageContext;
+    let member = |attach: &str, span_name: &str, attrs: &[(&str, &str)]| {
+        let plan = probe_compile(&format!(
+            r#"{{"id":"t","messages":[{{"id":"t.r","read":{{"attribute":"x"}},"parse":"json","emit":"message",
+                "priority":1,"alternatives":[{{"id":"a","select":"$.text","where":{{"kind":"string"}},
+                "wrap":{{"role":"tool","attach":[{attach}]}}}}]}}]}}"#
+        ))
+        .expect("the probe compiles");
+        let attrs = probe_attrs(attrs);
+        let ctx = MessageContext::for_span(span_name, &attrs, false);
+        let emitted = plan.run(&ctx);
+        assert_eq!(emitted.len(), 1, "one message: {attach}");
+        emitted[0].value.get("m").cloned()
+    };
+    let payload = r#"{"text":"r","meta":"{\"a\":1}"}"#;
+
+    // A flag on an attribute attaches the literal, not the attribute's text.
+    assert_eq!(
+        member(
+            r#"{"from":"flag","as":"m","value":true}"#,
+            "span",
+            &[("x", payload), ("flag", "yes")]
+        ),
+        Some(serde_json::json!(true))
+    );
+    // A payload path holding serialised JSON is parsed where declared, as a value path's is.
+    assert_eq!(
+        member(
+            r#"{"from_path":"$.meta","as":"m","parse":"json"}"#,
+            "span",
+            &[("x", payload)]
+        ),
+        Some(serde_json::json!({"a": 1}))
+    );
+    // The span name is read like any source, so `where` is asked of it.
+    let named = r#"{"or_span_name":[{"strip_prefix":"execute_tool "},"trim"],"as":"m",
+        "where":{"starts_with":"allowed"}}"#;
+    assert_eq!(
+        member(named, "execute_tool allowed_lookup", &[("x", payload)]),
+        Some(serde_json::json!("allowed_lookup"))
+    );
+    assert_eq!(
+        member(named, "execute_tool denied", &[("x", payload)]),
+        None,
+        "a span name `where` refuses is not attached"
+    );
+    // A default is not read, so `where` does not ask it.
+    assert_eq!(
+        member(
+            r#"{"from":"absent","as":"m","where":{"starts_with":"allowed"},"default":""}"#,
+            "span",
+            &[("x", payload)]
+        ),
+        Some(serde_json::json!(""))
+    );
+
+    // Refused: a `where` with nothing read to ask, and two literals for one flag.
+    for attach in [
+        r#"{"as":"m","value":true,"where":{"kind":"bool"}}"#,
+        r#"{"from":"flag","as":"m","pipe":[{"map":{"true":true},"closed":true}],"value":false}"#,
+    ] {
+        let body = format!(
+            r#"{{"id":"t","messages":[{{"id":"t.r","read":{{"attribute":"x"}},"parse":"json","emit":"message",
+                "priority":1,"alternatives":[{{"id":"a","select":"$.text","wrap":{{"role":"tool",
+                "attach":[{attach}]}}}}]}}]}}"#
+        );
+        assert!(probe_compile(&body).is_err(), "compiled - {attach}");
+    }
+}

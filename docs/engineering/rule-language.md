@@ -219,7 +219,7 @@ compiles:
 | Where | Steps it runs |
 | --- | --- |
 | span-field source | `[]` or `["lowercase"]` (text and list targets only); with `span_name: true`, also `[{"strip_prefix": p}]`, optionally then `"lowercase"` |
-| message attachment | `blank_is_absent`, `strip_bracket_tag`, then `lowercase` or a closed one-entry `map` (a flag); the first two and the flag need `from`, a flag answers before any `parse` or `select` and so cannot sit beside them, and `lowercase` folds an attribute or a `from_path` value, never a `from_value` |
+| message attachment | `blank_is_absent`, `strip_bracket_tag`, then `lowercase` or a closed one-entry `map` (a flag); the first two and the flag need `from`, a flag answers before any `parse` or `select` and so cannot sit beside them or beside a `value`, and `lowercase` folds an attribute or a `from_path` value, never a `from_value`. Every source reads, then `where` is asked of what it read, then a literal replaces it |
 | attachment's span-name fallback, `or_span_name` | `["trim"]` or `[{"strip_prefix": p}, "trim"]`; a name blank after it supplies nothing |
 | reading (`alternatives`, `also`, `fallback`) | `["trim"]`, applied before the reading's `where` |
 | a wrap's `role_from` | one `map`, open or closed, whose outputs are roles |
@@ -1112,12 +1112,12 @@ One member taken from a sibling attribute.
 | `doc` | string | Why this member is taken from where it is, where that is not obvious. A field rather than a comment, as everywhere else here, because the explain trace surfaces it. |
 | `from` | string | The attribute to read. One of this and `from_path` is required. |
 | `from_value` | [`FirstPresent_string`](#firstpresent_string) | Ordered paths into the value being wrapped; the first that resolves wins. |
-| `where` | [`Expr_ValuePredicate`](#expr_valuepredicate) | The attached value must satisfy this, or the member is left off. |
+| `where` | [`Expr_ValuePredicate`](#expr_valuepredicate) | The value read must satisfy this, or the member is left off. Asked of what the source supplied after its own steps - `parse`, `select`, the pipe, the span name's prefix and trim - and before a literal (`value`, or a closed `map`'s) replaces it; a `default` is not read, so it is not asked. |
 | `from_path` | string | A path into the rule's *own parsed payload*, rather than a sibling attribute. |
 | `as` (required) | string | The member it becomes. |
-| `parse` | [`ParseMode`](#parsemode) or null | How to read it. Defaults to text. |
+| `parse` | [`ParseMode`](#parsemode) or null | How to read it: an attribute, or a string member a value path or payload path selects. Defaults to text, and a member that is not a string is attached as it stands. |
 | `select` | string | The member of the parsed `from` attribute to attach, rather than the whole value. |
-| `value` | any JSON value | The literal to attach instead of the source's value, for a flag - or on its own, for a member that is part of the shape rather than something read. |
+| `value` | any JSON value | The literal to attach instead of the source's value, for a flag - or on its own, for a member that is part of the shape rather than something read. Beside a closed `map`, which attaches its own literal, it is refused. |
 | `pipe` | list of [`Transform`](#transform) | What happens to the value read, in this order: `blank_is_absent` (a blank attribute is treated as absent, so the fallbacks below apply), `strip_bracket_tag` (a leading `[TAG]` line removed before parsing - one dialect tags a structured payload with the tool it belongs to and writes the JSON beneath it), and then either `lowercase` (after parsing and selecting: a provider writes finish reasons in upper case and the canonical form is lower) or a closed `map` of **one** entry, `{"map": {"true": true}, "closed": true}`: attach the mapped literal only when the attribute is exactly that text and nothing otherwise - how a boolean flag arrives as the string `"true"`. Only `lowercase` applies to a payload path; nothing applies to a value path. |
 | `or_span_name` | list of [`Transform`](#transform) | Fall back to the span name, through `[{"strip_prefix": p}, "trim"]`, when the other sources are absent: a name without the prefix, or one that is blank after it, supplies nothing. |
 | `default` | any JSON value | Attach this literal when nothing else supplied a value. |

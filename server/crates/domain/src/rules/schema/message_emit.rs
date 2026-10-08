@@ -201,7 +201,9 @@ pub struct AttachSpec {
     #[serde(default, rename = "from_value")]
     #[cfg_attr(test, schemars(with = "FirstOf<String, false>"))]
     pub from_value_any_of: FirstOf<JsonPath, false>,
-    /// The attached value must satisfy this, or the member is left off.
+    /// The value read must satisfy this, or the member is left off. Asked of what the source supplied after its
+    /// own steps - `parse`, `select`, the pipe, the span name's prefix and trim - and before a literal (`value`,
+    /// or a closed `map`'s) replaces it; a `default` is not read, so it is not asked.
     ///
     /// An empty list is not a set of tool calls, and attaching one makes a plain reply look like a call.
     #[serde(default, rename = "where")]
@@ -216,7 +218,8 @@ pub struct AttachSpec {
     /// The member it becomes.
     #[serde(rename = "as")]
     pub as_member: String,
-    /// How to read it. Defaults to text.
+    /// How to read it: an attribute, or a string member a value path or payload path selects. Defaults to
+    /// text, and a member that is not a string is attached as it stands.
     #[serde(default)]
     pub parse: Option<ParseMode>,
     /// The member of the parsed `from` attribute to attach, rather than the whole value.
@@ -229,7 +232,8 @@ pub struct AttachSpec {
     #[cfg_attr(test, schemars(with = "Option<String>"))]
     pub select: Option<JsonPath>,
     /// The literal to attach instead of the source's value, for a flag - or on its own, for a member that
-    /// is part of the shape rather than something read.
+    /// is part of the shape rather than something read. Beside a closed `map`, which attaches its own literal,
+    /// it is refused.
     ///
     /// An explicit `null` is a value: a content block declares an unsigned signature that way, and the
     /// member has to be present rather than omitted.
@@ -341,6 +345,21 @@ impl AttachSpec {
         if self.lowercase() && self.from.is_none() && self.from_path.is_none() {
             return Some(
                 "folds a member read from the wrapped value, which is attached as it stands",
+            );
+        }
+        if self.when_equals().is_some() && self.value.is_some() {
+            return Some(
+                "states two literals for one flag: a closed `map` attaches its own, so `value` is never read",
+            );
+        }
+        if self.from.is_none()
+            && self.from_value_any_of.is_empty()
+            && self.from_path.is_none()
+            && self.or_span_name.is_empty()
+            && !self.require.is_empty()
+        {
+            return Some(
+                "reads nothing, so its `where` has no value to ask - the literal is attached as stated",
             );
         }
         // The flag answers before the attribute is parsed, so a parse or a selection beside it never runs.

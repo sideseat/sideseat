@@ -2093,7 +2093,7 @@
           "$ref": "#/$defs/FirstPresent_string"
         },
         "where": {
-          "description": "The attached value must satisfy this, or the member is left off.\n\nAn empty list is not a set of tool calls, and attaching one makes a plain reply look like a call.",
+          "description": "The value read must satisfy this, or the member is left off. Asked of what the source supplied after its\nown steps - `parse`, `select`, the pipe, the span name's prefix and trim - and before a literal (`value`,\nor a closed `map`'s) replaces it; a `default` is not read, so it is not asked.\n\nAn empty list is not a set of tool calls, and attaching one makes a plain reply look like a call.",
           "$ref": "#/$defs/Expr_ValuePredicate"
         },
         "from_path": {
@@ -2109,7 +2109,7 @@
           "type": "string"
         },
         "parse": {
-          "description": "How to read it. Defaults to text.",
+          "description": "How to read it: an attribute, or a string member a value path or payload path selects. Defaults to\ntext, and a member that is not a string is attached as it stands.",
           "anyOf": [
             {
               "$ref": "#/$defs/ParseMode"
@@ -2128,7 +2128,7 @@
           "default": null
         },
         "value": {
-          "description": "The literal to attach instead of the source's value, for a flag - or on its own, for a member that\nis part of the shape rather than something read.\n\nAn explicit `null` is a value: a content block declares an unsigned signature that way, and the\nmember has to be present rather than omitted.",
+          "description": "The literal to attach instead of the source's value, for a flag - or on its own, for a member that\nis part of the shape rather than something read. Beside a closed `map`, which attaches its own literal,\nit is refused.\n\nAn explicit `null` is a value: a content block declares an unsigned signature that way, and the\nmember has to be present rather than omitted.",
           "default": null
         },
         "pipe": {
