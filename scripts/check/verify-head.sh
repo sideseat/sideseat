@@ -63,6 +63,8 @@ echo "[verify-head] $(git log --oneline -1)"
 # Clippy type-checks every target as `cargo check` does and adds the workspace lints that `make check` enforces,
 # so a commit that only fails lint is caught here rather than at push.
 cargo clippy --locked --workspace --all-targets -- -D warnings
+# The pre-push gate refuses unused dependencies too; finding them here costs seconds.
+if command -v cargo-machete >/dev/null 2>&1; then (cd server && cargo machete); fi
 if [ "${1:-}" = "--test" ]; then
     # Every crate's unit tests: a change in one crate can break another's, and the server suites below never run them.
     cargo test --locked -q --workspace --lib
