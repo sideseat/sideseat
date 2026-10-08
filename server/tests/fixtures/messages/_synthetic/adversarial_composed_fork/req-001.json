@@ -1,0 +1,448 @@
+{
+ "resourceSpans": [
+  {
+   "resource": {
+    "attributes": [
+     {
+      "key": "service.name",
+      "value": {
+       "stringValue": "claude-code"
+      }
+     },
+     {
+      "key": "service.version",
+      "value": {
+       "stringValue": "2.1.286"
+      }
+     }
+    ],
+    "droppedAttributesCount": 0
+   },
+   "scopeSpans": [
+    {
+     "scope": {
+      "name": "com.anthropic.claude_code.tracing",
+      "version": "1.0.0"
+     },
+     "spans": [
+      {
+       "traceId": "bb00000000000000000000000000bb01",
+       "spanId": "1100000000000001",
+       "name": "claude_code.interaction",
+       "kind": 1,
+       "startTimeUnixNano": "1735689599900000000",
+       "endTimeUnixNano": "1735689600900000000",
+       "attributes": [
+        {
+         "key": "session.id",
+         "value": {
+          "stringValue": "sess-fork"
+         }
+        },
+        {
+         "key": "interaction.sequence",
+         "value": {
+          "intValue": "1"
+         }
+        }
+       ],
+       "events": [],
+       "links": [],
+       "status": {},
+       "droppedAttributesCount": 0,
+       "droppedEventsCount": 0,
+       "droppedLinksCount": 0,
+       "flags": 1
+      },
+      {
+       "traceId": "bb00000000000000000000000000bb01",
+       "spanId": "2200000000000001",
+       "parentSpanId": "1100000000000001",
+       "name": "claude_code.llm_request",
+       "kind": 3,
+       "startTimeUnixNano": "1735689600000000000",
+       "endTimeUnixNano": "1735689600500000000",
+       "attributes": [
+        {
+         "key": "span.type",
+         "value": {
+          "stringValue": "llm_request"
+         }
+        },
+        {
+         "key": "user_system_prompt",
+         "value": {
+          "stringValue": "You are a concise travel assistant."
+         }
+        },
+        {
+         "key": "session.id",
+         "value": {
+          "stringValue": "sess-fork"
+         }
+        },
+        {
+         "key": "query_source",
+         "value": {
+          "stringValue": "sdk"
+         }
+        },
+        {
+         "key": "attempt",
+         "value": {
+          "intValue": "1"
+         }
+        },
+        {
+         "key": "gen_ai.system",
+         "value": {
+          "stringValue": "anthropic"
+         }
+        },
+        {
+         "key": "gen_ai.request.model",
+         "value": {
+          "stringValue": "global.anthropic.claude-sonnet-5-5"
+         }
+        },
+        {
+         "key": "new_context",
+         "value": {
+          "stringValue": "[USER]\nAsk the researcher for the weather."
+         }
+        },
+        {
+         "key": "new_context_message_count",
+         "value": {
+          "intValue": "1"
+         }
+        },
+        {
+         "key": "system_reminders",
+         "value": {
+          "stringValue": ""
+         }
+        },
+        {
+         "key": "system_reminders_count",
+         "value": {
+          "intValue": "0"
+         }
+        },
+        {
+         "key": "response.model_output",
+         "value": {
+          "stringValue": "Delegating to the researcher."
+         }
+        },
+        {
+         "key": "input_tokens",
+         "value": {
+          "intValue": "100"
+         }
+        },
+        {
+         "key": "output_tokens",
+         "value": {
+          "intValue": "20"
+         }
+        },
+        {
+         "key": "success",
+         "value": {
+          "boolValue": true
+         }
+        },
+        {
+         "key": "stop_reason",
+         "value": {
+          "stringValue": "end_turn"
+         }
+        },
+        {
+         "key": "gen_ai.response.finish_reasons",
+         "value": {
+          "arrayValue": {
+           "values": [
+            {
+             "stringValue": "end_turn"
+            }
+           ]
+          }
+         }
+        }
+       ],
+       "events": [],
+       "links": [],
+       "droppedAttributesCount": 0,
+       "droppedEventsCount": 0,
+       "droppedLinksCount": 0,
+       "flags": 1,
+       "status": {}
+      },
+      {
+       "traceId": "bb00000000000000000000000000bb01",
+       "spanId": "2200000000000002",
+       "parentSpanId": "1100000000000001",
+       "name": "claude_code.llm_request",
+       "kind": 3,
+       "startTimeUnixNano": "1735689610000000000",
+       "endTimeUnixNano": "1735689610500000000",
+       "attributes": [
+        {
+         "key": "span.type",
+         "value": {
+          "stringValue": "llm_request"
+         }
+        },
+        {
+         "key": "user_system_prompt",
+         "value": {
+          "stringValue": "You are a concise travel assistant."
+         }
+        },
+        {
+         "key": "session.id",
+         "value": {
+          "stringValue": "sess-fork"
+         }
+        },
+        {
+         "key": "query_source",
+         "value": {
+          "stringValue": "sdk"
+         }
+        },
+        {
+         "key": "attempt",
+         "value": {
+          "intValue": "1"
+         }
+        },
+        {
+         "key": "gen_ai.system",
+         "value": {
+          "stringValue": "anthropic"
+         }
+        },
+        {
+         "key": "gen_ai.request.model",
+         "value": {
+          "stringValue": "global.anthropic.claude-sonnet-5-5"
+         }
+        },
+        {
+         "key": "new_context",
+         "value": {
+          "stringValue": "[USER]\nSummarise what the researcher said."
+         }
+        },
+        {
+         "key": "new_context_message_count",
+         "value": {
+          "intValue": "1"
+         }
+        },
+        {
+         "key": "system_reminders",
+         "value": {
+          "stringValue": ""
+         }
+        },
+        {
+         "key": "system_reminders_count",
+         "value": {
+          "intValue": "0"
+         }
+        },
+        {
+         "key": "response.model_output",
+         "value": {
+          "stringValue": "The researcher reports rain."
+         }
+        },
+        {
+         "key": "input_tokens",
+         "value": {
+          "intValue": "110"
+         }
+        },
+        {
+         "key": "output_tokens",
+         "value": {
+          "intValue": "20"
+         }
+        },
+        {
+         "key": "success",
+         "value": {
+          "boolValue": true
+         }
+        },
+        {
+         "key": "stop_reason",
+         "value": {
+          "stringValue": "end_turn"
+         }
+        },
+        {
+         "key": "gen_ai.response.finish_reasons",
+         "value": {
+          "arrayValue": {
+           "values": [
+            {
+             "stringValue": "end_turn"
+            }
+           ]
+          }
+         }
+        }
+       ],
+       "events": [],
+       "links": [],
+       "droppedAttributesCount": 0,
+       "droppedEventsCount": 0,
+       "droppedLinksCount": 0,
+       "flags": 1,
+       "status": {}
+      },
+      {
+       "traceId": "bb00000000000000000000000000bb01",
+       "spanId": "3300000000000001",
+       "parentSpanId": "1100000000000001",
+       "name": "claude_code.llm_request",
+       "kind": 3,
+       "startTimeUnixNano": "1735689620000000000",
+       "endTimeUnixNano": "1735689620500000000",
+       "attributes": [
+        {
+         "key": "span.type",
+         "value": {
+          "stringValue": "llm_request"
+         }
+        },
+        {
+         "key": "user_system_prompt",
+         "value": {
+          "stringValue": "You are the researcher. Report the weather and nothing else."
+         }
+        },
+        {
+         "key": "session.id",
+         "value": {
+          "stringValue": "sess-fork"
+         }
+        },
+        {
+         "key": "query_source",
+         "value": {
+          "stringValue": "agent:custom:researcher"
+         }
+        },
+        {
+         "key": "agent_id",
+         "value": {
+          "stringValue": "agent-1"
+         }
+        },
+        {
+         "key": "attempt",
+         "value": {
+          "intValue": "1"
+         }
+        },
+        {
+         "key": "gen_ai.system",
+         "value": {
+          "stringValue": "anthropic"
+         }
+        },
+        {
+         "key": "gen_ai.request.model",
+         "value": {
+          "stringValue": "global.anthropic.claude-sonnet-5-5"
+         }
+        },
+        {
+         "key": "new_context",
+         "value": {
+          "stringValue": "[USER]\nReport the weather in Lisbon."
+         }
+        },
+        {
+         "key": "new_context_message_count",
+         "value": {
+          "intValue": "1"
+         }
+        },
+        {
+         "key": "system_reminders",
+         "value": {
+          "stringValue": ""
+         }
+        },
+        {
+         "key": "system_reminders_count",
+         "value": {
+          "intValue": "0"
+         }
+        },
+        {
+         "key": "response.model_output",
+         "value": {
+          "stringValue": "It is raining in Lisbon."
+         }
+        },
+        {
+         "key": "input_tokens",
+         "value": {
+          "intValue": "120"
+         }
+        },
+        {
+         "key": "output_tokens",
+         "value": {
+          "intValue": "20"
+         }
+        },
+        {
+         "key": "success",
+         "value": {
+          "boolValue": true
+         }
+        },
+        {
+         "key": "stop_reason",
+         "value": {
+          "stringValue": "end_turn"
+         }
+        },
+        {
+         "key": "gen_ai.response.finish_reasons",
+         "value": {
+          "arrayValue": {
+           "values": [
+            {
+             "stringValue": "end_turn"
+            }
+           ]
+          }
+         }
+        }
+       ],
+       "events": [],
+       "links": [],
+       "droppedAttributesCount": 0,
+       "droppedEventsCount": 0,
+       "droppedLinksCount": 0,
+       "flags": 1,
+       "status": {}
+      }
+     ],
+     "schemaUrl": ""
+    }
+   ],
+   "schemaUrl": ""
+  }
+ ]
+}

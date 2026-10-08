@@ -1,0 +1,300 @@
+{
+ "format": "sideseat.truth/3",
+ "producer": "_synthetic",
+ "scenario": "adversarial_composed_retry",
+ "fixtures": [
+  "_synthetic/adversarial_composed_retry"
+ ],
+ "generator": "hand-written adversarial case",
+ "topology": "linear",
+ "request_bodies": "program",
+ "model_calls": 2,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 100,
+    "output": 20,
+    "cache_read": null,
+    "cache_write": null,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-002"
+   ]
+  },
+  {
+   "id": "call-002",
+   "attempt": 1,
+   "outcome": "failed",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 529,
+   "model": null,
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": null,
+   "finish": null,
+   "usage": null,
+   "outputs": [],
+   "error": "OverloadedError: the model is overloaded"
+  },
+  {
+   "id": "call-003",
+   "attempt": 2,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 120,
+    "output": 20,
+    "cache_read": null,
+    "cache_write": null,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-004"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-000",
+    "fact-001",
+    "fact-002",
+    "fact-003",
+    "fact-004"
+   ],
+   "final_answers": [
+    "fact-002",
+    "fact-004"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-000",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "program",
+   "value": {
+    "text": "You are a concise travel assistant."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   }
+  },
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "program",
+   "value": {
+    "text": "Name one neighbourhood in Lisbon."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "program",
+   "value": {
+    "text": "Stay in Alfama."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "program",
+   "value": {
+    "text": "What dish should I try?"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   }
+  },
+  {
+   "id": "fact-004",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "program",
+   "value": {
+    "text": "Try bacalhau a Bras."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-003"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  },
+  {
+   "kind": "prompt_of",
+   "from": "fact-003",
+   "to": "call-003"
+  },
+  {
+   "kind": "call_order",
+   "before": "call-001",
+   "after": "call-003"
+  }
+ ],
+ "gaps": [],
+ "requests": {
+  "_synthetic/adversarial_composed_retry": {
+   "transcript": "server/tests/fixtures/messages/_synthetic/adversarial_composed_retry/req-001.json",
+   "calls": {
+    "call-001": {
+     "api": "anthropic.messages",
+     "tools": [],
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant."
+       },
+       "new": "rq-frame"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Name one neighbourhood in Lisbon."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ]
+    },
+    "call-003": {
+     "api": "anthropic.messages",
+     "tools": [],
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant."
+       },
+       "replay_of": "rq-frame"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Name one neighbourhood in Lisbon."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What dish should I try?"
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ },
+ "source": {
+  "kind": "program",
+  "path": "server/tests/fixtures/messages/_synthetic/adversarial_composed_retry/req-001.json",
+  "sha256": "7c3d5dbac7bec6de82e34c89c2413136924b0438ea575140de00c135a04d5b5b"
+ }
+}

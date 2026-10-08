@@ -1122,6 +1122,38 @@
    ],
    "fires": [],
    "why": "the request carried a preamble the payloads do not hold: the producer does not export it, which `absence::request_limitations` documents rather than reports as a defect"
+  },
+  {
+   "name": "clean composed resume",
+   "truth": "composed_resume",
+   "patch": [],
+   "fires": [
+    "trace:attribution.span:fact-005",
+    "trace:attribution.span:fact-008",
+    "session:attribution.span:fact-005",
+    "session:attribution.span:fact-008",
+    "feed:attribution.span:fact-005",
+    "feed:attribution.span:fact-008"
+   ],
+   "why": "a resumed process restates the whole conversation in every delta; the composed span view shows each turn once, which is what this case is for. The attribution violations are the trace, session and feed views' own handling of restated content - they keep the later copy, so a restated reminder is attributed to the request that re-sent it rather than the one that introduced it - which predates composition and is what the claude-code ledger entries record. The composition itself fires nothing"
+  },
+  {
+   "name": "clean composed fork",
+   "truth": "composed_fork",
+   "patch": [],
+   "fires": [],
+   "why": "a subagent's thread starts empty, so its request shows its own first message and nothing of its parent's"
+  },
+  {
+   "name": "clean composed retry",
+   "truth": "composed_retry",
+   "patch": [],
+   "fires": [
+    "trace:attribution.span:fact-003",
+    "session:attribution.span:fact-003",
+    "feed:attribution.span:fact-003"
+   ],
+   "why": "a failed attempt is a break: the retry composes nothing across it, and is complete because it re-sent the conversation itself. The one attribution violation is the same restated-content handling as `clean composed resume`, on the turn the retry re-sent"
   }
  ]
 }

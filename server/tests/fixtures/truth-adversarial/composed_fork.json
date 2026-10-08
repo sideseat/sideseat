@@ -1,0 +1,425 @@
+{
+ "format": "sideseat.truth/3",
+ "producer": "_synthetic",
+ "scenario": "adversarial_composed_fork",
+ "fixtures": [
+  "_synthetic/adversarial_composed_fork"
+ ],
+ "generator": "hand-written adversarial case",
+ "topology": "linear",
+ "request_bodies": "program",
+ "model_calls": 3,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 100,
+    "output": 20,
+    "cache_read": null,
+    "cache_write": null,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-002"
+   ]
+  },
+  {
+   "id": "call-002",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-2",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 120,
+    "output": 20,
+    "cache_read": null,
+    "cache_write": null,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-004"
+   ]
+  },
+  {
+   "id": "call-003",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "anthropic.messages",
+   "streamed": false,
+   "status": 200,
+   "model": "global.anthropic.claude-sonnet-5-5",
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "end_turn",
+   "finish": "stop",
+   "usage": {
+    "input": 110,
+    "output": 20,
+    "cache_read": null,
+    "cache_write": null,
+    "reasoning": null,
+    "input_includes_cache": false
+   },
+   "outputs": [
+    "fact-006"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-000",
+    "fact-001",
+    "fact-002",
+    "fact-005",
+    "fact-006"
+   ],
+   "final_answers": [
+    "fact-002",
+    "fact-006"
+   ]
+  },
+  {
+   "id": "conv-2",
+   "sequence": [
+    "fact-007",
+    "fact-003",
+    "fact-004"
+   ],
+   "final_answers": [
+    "fact-004"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-000",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "program",
+   "value": {
+    "text": "You are a concise travel assistant."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   }
+  },
+  {
+   "id": "fact-007",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-2",
+   "evidence": "program",
+   "value": {
+    "text": "You are the researcher. Report the weather and nothing else."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   }
+  },
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "program",
+   "value": {
+    "text": "Ask the researcher for the weather."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "program",
+   "value": {
+    "text": "Delegating to the researcher."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-2",
+   "evidence": "program",
+   "value": {
+    "text": "Report the weather in Lisbon."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   }
+  },
+  {
+   "id": "fact-004",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-2",
+   "evidence": "program",
+   "value": {
+    "text": "It is raining in Lisbon."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-002"
+  },
+  {
+   "id": "fact-005",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "program",
+   "value": {
+    "text": "Summarise what the researcher said."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   }
+  },
+  {
+   "id": "fact-006",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "program",
+   "value": {
+    "text": "The researcher reports rain."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-003"
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  },
+  {
+   "kind": "prompt_of",
+   "from": "fact-005",
+   "to": "call-003"
+  },
+  {
+   "kind": "call_order",
+   "before": "call-001",
+   "after": "call-003"
+  },
+  {
+   "kind": "prompt_of",
+   "from": "fact-003",
+   "to": "call-002"
+  }
+ ],
+ "gaps": [],
+ "requests": {
+  "_synthetic/adversarial_composed_fork": {
+   "transcript": "server/tests/fixtures/messages/_synthetic/adversarial_composed_fork/req-001.json",
+   "calls": {
+    "call-001": {
+     "api": "anthropic.messages",
+     "tools": [],
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant."
+       },
+       "new": "rq-frame"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Ask the researcher for the weather."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ]
+    },
+    "call-002": {
+     "api": "anthropic.messages",
+     "tools": [],
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are the researcher. Report the weather and nothing else."
+       },
+       "new": "rq-frame-sub"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Report the weather in Lisbon."
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ]
+    },
+    "call-003": {
+     "api": "anthropic.messages",
+     "tools": [],
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant."
+       },
+       "replay_of": "rq-frame"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Ask the researcher for the weather."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Delegating to the researcher."
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Summarise what the researcher said."
+         },
+         "new_fact": "fact-005"
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "unpaired_requests": []
+  }
+ },
+ "source": {
+  "kind": "program",
+  "path": "server/tests/fixtures/messages/_synthetic/adversarial_composed_fork/req-001.json",
+  "sha256": "29033f1cefc3199349eb08eb5510d421a21c03a2c8ec968f9cc59e2257c8e8c0"
+ }
+}

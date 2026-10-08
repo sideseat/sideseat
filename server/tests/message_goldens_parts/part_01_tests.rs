@@ -472,6 +472,11 @@ enum View<'a> {
 
 fn build_view(rows: Vec<MessageSpanRow>, view: View<'_>) -> (GoldenView, Vec<InvariantRow>) {
     let options = FeedOptions::new();
+    // The span a composed view is of, where it is one: what tells its own blocks from the ones it composed.
+    let composed_from: Option<String> = matches!(view, View::RequestSpan { .. })
+        .then(|| rows.first().map(|row| row.span_id.clone()))
+        .flatten();
+    let composed_from = composed_from.as_deref();
 
     // All three endpoints call process_spans; `process_feed` belongs to the project feed
     // endpoint (routes/otel/feed.rs) and has different ordering semantics, so using it for
@@ -559,7 +564,11 @@ fn build_view(rows: Vec<MessageSpanRow>, view: View<'_>) -> (GoldenView, Vec<Inv
                 carrier_orders_positions: semantics.position_provides_sequence_order,
                 carrier_proves_occurrence: semantics.position_proves_distinct_occurrence,
                 order_time: block.order_time,
-                is_output: block.is_output_source() || block.is_protected(),
+                // In a composed request's view, a block of another span is context this request was *sent* -
+                // an earlier request's reply is this request's input, which is the point of composing it - so
+                // only the view's own span keeps its carrier's answer about output.
+                is_output: (block.is_output_source() || block.is_protected())
+                    && composed_from.is_none_or(|span| block.span_id == span),
                 finish: block.finish_reason.as_ref().map(|f| f.as_str()),
             }
         })

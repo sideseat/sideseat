@@ -236,7 +236,7 @@ program (`python`, `javascript`, `dotnet`, `rust`). The mode says who configured
 
 | Mode | Telemetry configured by |
 | --- | --- |
-| `_synthetic` | hand-written shapes, no SDK | 30 | 30 |
+| `_synthetic` | hand-written shapes, no SDK | 33 | 33 |
 | `adk-go/native` | Google ADK for Go 1.8.0 / Google GenAI for Go 1.57.0 / OpenTelemetry Go 1.47.0 on Go 1.27.1, ADK's telemetry on the application's tracer and logger providers with message content captured, against the harness's fake Gemini server; the conversation is only in GenAI log events, each holding the model API's whole message | 11 | 11 |
 | `adk-go/sdk` | The same under SideSeat's OpenTelemetry recipe for Go (`sideseat.framework` on the resource) | 11 | 11 |
 | `adk-java/native` | Google ADK for Java 1.11.0 (ADK's Claude model on the Anthropic Java SDK 2.15.0's Bedrock backend, Claude Sonnet 5.5) / ADK's own tracing on the global OpenTelemetry Java 1.66.0 SDK on Temurin 25; the suite leaves the model's thinking blocks out of the responses ADK sees, because ADK's Claude model converts only text and tool use; no `streaming`, `reasoning`, `files` or `mcp_tools`, which ADK's Claude model does not support, and a failed booking is the tool's result, because ADK's function tool replaces any exception with a fixed message | 7 | 7 |
@@ -504,6 +504,14 @@ Hand-written, not captured: shapes no captured sample produces, plus a Strands-s
 conversation that exercises the harness itself. Event shapes are taken from the assertions in
 `server/crates/ingestion/src/traces/extract/messages_tests.rs` rather than invented — an unrealistic fixture
 would produce confident but meaningless results.
+
+`adversarial_composed_*` are the three thread shapes a delta-exporting producer can hold
+(`docs/engineering/request-context.md`): a resumed process whose every delta restates the conversation, a
+subagent whose thread starts empty beside its parent's, and a failed attempt whose retry re-sent the
+conversation itself. Each is a real captured `claude_code.llm_request` span shape - the same resource, scope,
+span names and attributes as `claude-agent-sdk/native` - with **only the thread structure varied**, so what
+they prove is the composition over that structure and nothing else. Their truths are written from the requests
+each capture states, never from the composed output.
 
 Real captures are preferred for every framework, and these are not a substitute for one: each exists
 because a defect was found in a shape the corpus did not hold, and the fixture is what makes the

@@ -1,0 +1,547 @@
+{
+  "label": "_synthetic/adversarial_composed_resume",
+  "request_count": 1,
+  "span_count": 6,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/claude_code.interaction/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.interaction/span-3": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.interaction/span-5": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    },
+    "trace-1/claude_code.llm_request/span-2": {
+      "message_count": 4,
+      "role_sequence": [
+        "system",
+        "user",
+        "system",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant.",
+          "content_digest": "ca0439335b8bdfed",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Name one neighbourhood in Lisbon.",
+          "content_digest": "8571e42f11d47535",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment working directory: /tmp",
+          "content_digest": "6d2c1b690f5672f5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in Alfama.",
+          "content_digest": "da7dfffc39227ed2",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/claude_code.llm_request/span-4": {
+      "message_count": 7,
+      "role_sequence": [
+        "system",
+        "user",
+        "system",
+        "assistant",
+        "user",
+        "system",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant.",
+          "content_digest": "ca0439335b8bdfed",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Name one neighbourhood in Lisbon.",
+          "content_digest": "8571e42f11d47535",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment working directory: /tmp",
+          "content_digest": "6d2c1b690f5672f5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in Alfama.",
+          "content_digest": "da7dfffc39227ed2",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What dish should I try?",
+          "content_digest": "eb9505fa7ca9d9b5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<total_tokens>1 left</total_tokens>",
+          "content_digest": "d4398ea71ecabcdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try bacalhau a Bras.",
+          "content_digest": "ef5ee0366e62552d",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/claude_code.llm_request/span-6": {
+      "message_count": 10,
+      "role_sequence": [
+        "system",
+        "user",
+        "system",
+        "assistant",
+        "user",
+        "system",
+        "assistant",
+        "user",
+        "system",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant.",
+          "content_digest": "ca0439335b8bdfed",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Name one neighbourhood in Lisbon.",
+          "content_digest": "8571e42f11d47535",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment working directory: /tmp",
+          "content_digest": "6d2c1b690f5672f5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in Alfama.",
+          "content_digest": "da7dfffc39227ed2",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What dish should I try?",
+          "content_digest": "eb9505fa7ca9d9b5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<total_tokens>1 left</total_tokens>",
+          "content_digest": "d4398ea71ecabcdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try bacalhau a Bras.",
+          "content_digest": "ef5ee0366e62552d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarise both.",
+          "content_digest": "f2c856f7861236d2",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<total_tokens>2 left</total_tokens>",
+          "content_digest": "9da0edfa67736399",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Alfama, and bacalhau a Bras.",
+          "content_digest": "0f3fa6db4ef026fa",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 10,
+      "role_sequence": [
+        "system",
+        "user",
+        "system",
+        "assistant",
+        "user",
+        "system",
+        "assistant",
+        "user",
+        "system",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant.",
+          "content_digest": "ca0439335b8bdfed",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Name one neighbourhood in Lisbon.",
+          "content_digest": "8571e42f11d47535",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment working directory: /tmp",
+          "content_digest": "6d2c1b690f5672f5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in Alfama.",
+          "content_digest": "da7dfffc39227ed2",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What dish should I try?",
+          "content_digest": "eb9505fa7ca9d9b5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<total_tokens>1 left</total_tokens>",
+          "content_digest": "d4398ea71ecabcdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try bacalhau a Bras.",
+          "content_digest": "ef5ee0366e62552d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarise both.",
+          "content_digest": "f2c856f7861236d2",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<total_tokens>2 left</total_tokens>",
+          "content_digest": "9da0edfa67736399",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Alfama, and bacalhau a Bras.",
+          "content_digest": "0f3fa6db4ef026fa",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "sess-resume": {
+      "message_count": 10,
+      "role_sequence": [
+        "system",
+        "user",
+        "system",
+        "assistant",
+        "user",
+        "system",
+        "assistant",
+        "user",
+        "system",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant.",
+          "content_digest": "ca0439335b8bdfed",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Name one neighbourhood in Lisbon.",
+          "content_digest": "8571e42f11d47535",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment working directory: /tmp",
+          "content_digest": "6d2c1b690f5672f5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in Alfama.",
+          "content_digest": "da7dfffc39227ed2",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What dish should I try?",
+          "content_digest": "eb9505fa7ca9d9b5",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<total_tokens>1 left</total_tokens>",
+          "content_digest": "d4398ea71ecabcdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try bacalhau a Bras.",
+          "content_digest": "ef5ee0366e62552d",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarise both.",
+          "content_digest": "f2c856f7861236d2",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<total_tokens>2 left</total_tokens>",
+          "content_digest": "9da0edfa67736399",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Alfama, and bacalhau a Bras.",
+          "content_digest": "0f3fa6db4ef026fa",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 10,
+    "role_sequence": [
+      "user",
+      "system",
+      "assistant",
+      "user",
+      "system",
+      "assistant",
+      "system",
+      "user",
+      "system",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Summarise both.",
+        "content_digest": "f2c856f7861236d2",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "system",
+        "entry_type": "text",
+        "content": "<total_tokens>2 left</total_tokens>",
+        "content_digest": "9da0edfa67736399",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Alfama, and bacalhau a Bras.",
+        "content_digest": "0f3fa6db4ef026fa",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "user",
+        "entry_type": "text",
+        "content": "What dish should I try?",
+        "content_digest": "eb9505fa7ca9d9b5",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "system",
+        "entry_type": "text",
+        "content": "<total_tokens>1 left</total_tokens>",
+        "content_digest": "d4398ea71ecabcdf",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Try bacalhau a Bras.",
+        "content_digest": "ef5ee0366e62552d",
+        "observation_type": "generation"
+      },
+      {
+        "index": 6,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant.",
+        "content_digest": "ca0439335b8bdfed",
+        "observation_type": "generation"
+      },
+      {
+        "index": 7,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Name one neighbourhood in Lisbon.",
+        "content_digest": "8571e42f11d47535",
+        "observation_type": "generation"
+      },
+      {
+        "index": 8,
+        "role": "system",
+        "entry_type": "text",
+        "content": "# Environment working directory: /tmp",
+        "content_digest": "6d2c1b690f5672f5",
+        "observation_type": "generation"
+      },
+      {
+        "index": 9,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "Stay in Alfama.",
+        "content_digest": "da7dfffc39227ed2",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}
