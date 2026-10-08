@@ -205,7 +205,7 @@ fn rendered_reference(schema: &serde_json::Value) -> String {
             None => writeln!(out, "Written as {}.\n", type_of(node)).unwrap(),
         }
     }
-    write!(out, "{GENERATED_END}\n").unwrap();
+    writeln!(out, "{GENERATED_END}").unwrap();
     out
 }
 
