@@ -222,9 +222,8 @@ echo "[footprint] idle RSS: $(mb "$IDLE_RSS") MB"
 # --- how many spans one pass of the fixture carries -------------------------
 #
 # Needed to report the achieved span rate, and it has to be measured rather than assumed: the requests of one
-# fixture carry very different span counts. One full pass first, then the store's own count - which is also
-# why the ingest loop below measures a *steady* write path, since ingestion is idempotent by span id and
-# re-posting rewrites rather than grows.
+# fixture carry very different span counts. One full pass first, then the store's own count. The load below
+# sends the same requests under fresh ids, so the count of one pass is the count of every pass.
 echo "[footprint] loading one pass of $FIXTURE_NAME to learn its span count"
 REQUESTS=0
 for f in "$FIXTURE"/*.pb; do
@@ -258,33 +257,139 @@ STOP_FILE="$WORK/stop"
 rm -f "$STOP_FILE" "$WORK/post-errors"
 : >"$WORK/posted"
 
-LOADER_PIDS=()
-for loader in $(seq 1 "$LOADERS"); do
-  (
-    while [ ! -f "$STOP_FILE" ]; do
-      for f in "$FIXTURE"/*.pb; do
-        [ -f "$STOP_FILE" ] && break
-        # Bound every request and record transport failures explicitly before this loader exits. Reset the curl
-        # status each iteration because the assignment runs only on failure.
-        curl_status=0
-        status="$(curl -s --max-time "$LOADER_TIMEOUT_SECS" -o /dev/null -w '%{http_code}' \
-          -X POST --data-binary @"$f" -H 'Content-Type: application/x-protobuf' \
-          "http://127.0.0.1:$PORT/otel/default/v1/traces")" || curl_status=$?
-        if [ "$curl_status" != "0" ]; then
-          echo "loader $loader: curl failed with exit ${curl_status}" >>"$WORK/post-errors"
-          exit 0
-        fi
-        if [ "$status" != "200" ]; then
-          echo "loader $loader got HTTP $status" >>"$WORK/post-errors"
-          exit 0
-        fi
-        echo x >>"$WORK/posted"
-        sleep "$LOADER_PACE_SECS"
-      done
-    done
-  ) &
-  LOADER_PIDS+=("$!")
-done
+# The loaders send **new telemetry on every post**: each pass of each loader rewrites every trace and span id of
+# the fixture - parents and links with the same mapping, so trees stay intact - under a key unique to that loader
+# and pass. Re-posting the same bytes measured the redelivery path instead: after the priming pass every export
+# was found already stored rather than written as new spans, and on one host that path ran at 1.9 times the rate
+# of fresh ingest (6,141 against 3,276 spans/s with 500-span exports), so the achieved rate and the resident
+# figure both described a lighter workload than steady ingest. The ids are rewritten in place by XOR, which keeps
+# every length and so every other byte of the request.
+cat >"$WORK/loaders.py" <<'LOADERS'
+import http.client
+import random
+import sys
+import threading
+import time
+from pathlib import Path
+
+fixture, work, loaders, port, timeout, pace, stop = sys.argv[1:8]
+loaders, port, timeout, pace = int(loaders), int(port), float(timeout), float(pace)
+stop, work = Path(stop), Path(work)
+
+
+def varint(data, at):
+    value = shift = 0
+    while True:
+        byte = data[at]
+        at += 1
+        value |= (byte & 0x7F) << shift
+        shift += 7
+        if byte < 0x80:
+            return value, at
+
+
+def fields(data, start, end):
+    """(field, start, end) of every length-delimited field in data[start:end]."""
+    at = start
+    while at < end:
+        key, at = varint(data, at)
+        wire = key & 7
+        if wire == 0:
+            _, at = varint(data, at)
+        elif wire == 1:
+            at += 8
+        elif wire == 5:
+            at += 4
+        elif wire == 2:
+            length, at = varint(data, at)
+            yield key >> 3, at, at + length
+            at += length
+        else:
+            sys.exit(f"unsupported protobuf wire type {wire}")
+
+
+def id_ranges(data):
+    """Where every trace and span id of an ExportTraceServiceRequest lies: each span's trace_id (1), span_id (2)
+    and parent_span_id (4), and each of its links' trace_id (1) and span_id (2)."""
+    ranges = []
+    for f1, s1, e1 in fields(data, 0, len(data)):
+        if f1 != 1:
+            continue
+        for f2, s2, e2 in fields(data, s1, e1):
+            if f2 != 2:
+                continue
+            for f3, s3, e3 in fields(data, s2, e2):
+                if f3 != 2:
+                    continue
+                for f4, s4, e4 in fields(data, s3, e3):
+                    if f4 in (1, 2, 4):
+                        ranges.append((s4, e4))
+                    elif f4 == 13:
+                        ranges.extend((s5, e5) for f5, s5, e5 in fields(data, s4, e4) if f5 in (1, 2))
+    return ranges
+
+
+requests = []
+for path in sorted(Path(fixture).glob("*.pb")):
+    data = path.read_bytes()
+    requests.append((data, id_ranges(data)))
+if not any(ranges for _, ranges in requests):
+    sys.exit("the fixture carries no span ids to rewrite")
+
+lock = threading.Lock()
+posted = open(work / "posted", "a")
+
+
+def refuse(message):
+    with lock, open(work / "post-errors", "a") as errors:
+        errors.write(message + "\n")
+
+
+def loader(number):
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=timeout)
+    passes = 0
+    while not stop.exists():
+        passes += 1
+        # One key per loader and pass: a trace whose spans arrive in several requests of the fixture stays one
+        # trace, and no two posts of the run carry the same ids.
+        key = random.Random(number * 1_000_003 + passes).randbytes(16)
+        for data, ranges in requests:
+            if stop.exists():
+                return
+            body = bytearray(data)
+            for start, end in ranges:
+                for at in range(start, end):
+                    body[at] ^= key[at - start]
+            try:
+                connection.request(
+                    "POST",
+                    "/otel/default/v1/traces",
+                    body=bytes(body),
+                    headers={"Content-Type": "application/x-protobuf"},
+                )
+                response = connection.getresponse()
+                response.read()
+            except (OSError, http.client.HTTPException) as error:
+                refuse(f"loader {number}: request failed: {error!r}")
+                return
+            if response.status != 200:
+                refuse(f"loader {number} got HTTP {response.status}")
+                return
+            with lock:
+                posted.write("x\n")
+                posted.flush()
+            time.sleep(pace)
+
+
+threads = [threading.Thread(target=loader, args=(number,)) for number in range(1, loaders + 1)]
+for thread in threads:
+    thread.start()
+for thread in threads:
+    thread.join()
+LOADERS
+python3 "$WORK/loaders.py" "$FIXTURE" "$WORK" "$LOADERS" "$PORT" "$LOADER_TIMEOUT_SECS" "$LOADER_PACE_SECS" \
+  "$STOP_FILE" &
+LOADER_PIDS=("$!")
 
 SAMPLES=()
 START="$(date +%s)"
@@ -365,7 +470,10 @@ fi
 if [ -n "$INGEST_UNMEASURED" ]; then
   echo "[footprint] FAIL: $INGEST_UNMEASURED" >&2
   FAILURES=$((FAILURES + 1))
-elif [ "$MEDIAN_RSS" -gt "$INGEST_RSS_CEILING_BYTES" ]; then
+fi
+# Judged even when the rate fell short: a lighter workload that already exceeds the ceiling is evidence against it,
+# where one under the ceiling is evidence of nothing.
+if [ "$MEDIAN_RSS" -gt "$INGEST_RSS_CEILING_BYTES" ]; then
   echo "[footprint] FAIL: steady ingest median RSS $(mb "$MEDIAN_RSS") MB exceeds $(mb $INGEST_RSS_CEILING_BYTES) MB" >&2
   FAILURES=$((FAILURES + 1))
 fi
