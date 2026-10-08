@@ -450,7 +450,9 @@ fn framework_attribute_keys() -> std::collections::BTreeMap<String, String> {
         // Shared means a published convention. The vocabulary assets are cross-framework *tables*, but each
         // entry in them is still one framework's spelling - `llm.token_count.prompt` is not semconv because
         // the usage table lists it beside `gen_ai.usage.input_tokens`.
-        if path.starts_with("conventions/") || PROVIDERS.contains(&id) {
+        // A provider asset's keys are one producer's too: pricing may name the provider, which is the names
+        // sweep's exemption, but the telemetry vocabulary its asset declares is not a published convention.
+        if path.starts_with("conventions/") {
             shared.extend(keys);
         } else {
             for key in keys {
@@ -489,6 +491,7 @@ fn attribute_key_offenders(
 ) -> Vec<String> {
     production_names(source, relative)
         .into_iter()
+        .filter(|(_, text)| !is_priced_provider_name(relative, literal_text(text)))
         .filter_map(|(line, text)| {
             framework_keys
                 .get(literal_text(&text))

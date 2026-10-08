@@ -489,7 +489,7 @@ fn producer_key_inventory() -> std::collections::BTreeMap<String, String> {
     const CONVENTIONS: &[&str] = &["semconv", "generic-io"];
     let shared: std::collections::BTreeSet<&String> = per_asset
         .iter()
-        .filter(|(id, _)| CONVENTIONS.contains(&id.as_str()) || PROVIDERS.contains(&id.as_str()))
+        .filter(|(id, _)| CONVENTIONS.contains(&id.as_str()))
         .flat_map(|(_, keys)| keys)
         .collect();
     let mut owners: std::collections::BTreeMap<&String, Vec<&String>> =
@@ -499,7 +499,9 @@ fn producer_key_inventory() -> std::collections::BTreeMap<String, String> {
     // hard-coding it in Rust is the same defect - while its presence there is no evidence that it is generic.
     // Skipping such assets entirely was the second half of the same mistake as treating them as conventions.
     for (id, keys) in &per_asset {
-        if CONVENTIONS.contains(&id.as_str()) || PROVIDERS.contains(&id.as_str()) {
+        // A provider asset owns its keys like a framework's: naming the provider is pricing's entitlement,
+        // and that is the names sweep's exemption, not this one's.
+        if CONVENTIONS.contains(&id.as_str()) {
             continue;
         }
         for key in keys {
@@ -822,11 +824,23 @@ fn telemetry_key_offenders(
         if literal.len() == text.len() {
             continue;
         }
+        if is_priced_provider_name(relative, literal) {
+            continue;
+        }
         if let Some((key, asset)) = exclusive.iter().find(|(key, _)| *key == literal) {
             offenders.push(format!("  {relative}:{number}: \"{key}\" is {asset}'s"));
         }
     }
     offenders
+}
+
+/// A provider's name stated where it is priced: in the pricing module, and a spelling the catalogue itself maps
+/// to a provider. Rust may name a provider where it prices one; that a provider asset matches the same spelling
+/// as a `gen_ai.system` value does not make it a framework's key. Narrow on purpose - one file's subject, and
+/// only the spellings the catalogue answers for - so a provider asset's other keys (`llm.provider`) stay
+/// caught everywhere.
+fn is_priced_provider_name(relative: &str, literal: &str) -> bool {
+    relative.contains("/src/pricing/") && !crate::pricing::builtin_provider(literal).is_empty()
 }
 
 /// The words the schema itself enumerates (`enum` values and `const`s): the grammar's closed vocabulary, such as

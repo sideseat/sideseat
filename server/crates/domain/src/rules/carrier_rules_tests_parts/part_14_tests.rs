@@ -534,3 +534,36 @@ fn only_a_message_compose_s_member_falls_back() {
         assert!(probe_compile(&body).is_err(), "{why}: compiled - {body}");
     }
 }
+
+/// **A provider asset's keys are a producer's keys.** Both attribute-key sweeps count them: pricing may name a
+/// provider, which spares the spellings the catalogue maps inside the pricing module and nothing else.
+#[test]
+fn a_provider_asset_s_keys_are_caught_by_the_key_sweeps() {
+    let keys = framework_attribute_keys();
+    let line = |literal: &str| format!("fn probe() {{ let key = \"{literal}\"; }}");
+    for key in ["llm.provider", "llm.system"] {
+        assert!(
+            !attribute_key_offenders("server/crates/domain/src/probe.rs", &line(key), &keys)
+                .is_empty(),
+            "`{key}`, which only a provider asset declares, passes the attribute-key sweep"
+        );
+    }
+    assert!(
+        attribute_key_offenders(
+            "server/crates/domain/src/pricing/matching.rs",
+            &line("aws.bedrock"),
+            &keys
+        )
+        .is_empty(),
+        "a provider's name, where it is priced"
+    );
+    assert!(
+        !attribute_key_offenders(
+            "server/crates/domain/src/probe.rs",
+            &line("aws.bedrock"),
+            &keys
+        )
+        .is_empty(),
+        "the same spelling anywhere else is a provider asset's value"
+    );
+}
