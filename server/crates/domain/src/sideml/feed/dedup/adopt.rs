@@ -90,3 +90,17 @@ pub(super) fn adopt_result_id(survivor: &mut BlockEntry, other: &BlockEntry) {
         survivor.tool_use_id = Some(found.clone());
     }
 }
+
+/// A reply keeps the finish reason a dropped copy of it stated.
+///
+/// A whole-conversation carrier that holds what a span received may list a completed reply with how it
+/// finished, while the copy that survives - an enclosing span's re-listing - states none. The finish is the
+/// reply's, whichever copy carried it.
+pub(super) fn adopt_finish(survivor: &mut BlockEntry, other: &BlockEntry) {
+    if survivor.finish_reason.is_none()
+        && survivor.role == crate::sideml::types::ChatRole::Assistant
+        && other.role == crate::sideml::types::ChatRole::Assistant
+    {
+        survivor.finish_reason = other.finish_reason;
+    }
+}

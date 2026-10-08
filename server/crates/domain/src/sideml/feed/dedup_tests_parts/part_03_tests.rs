@@ -191,3 +191,25 @@ fn a_call_keeps_the_id_a_dropped_copy_carried() {
         result
     );
 }
+
+/// A reply listed with how it finished by a whole-conversation carrier keeps that finish when an enclosing
+/// span's re-listing is the copy that survives.
+#[test]
+fn a_reply_keeps_the_finish_a_dropped_copy_stated() {
+    let mut listed = make_test_block(
+        "t1",
+        "conversation",
+        ChatRole::Assistant,
+        "Sunny.",
+        utc(100),
+    );
+    listed.finish_reason = Some(crate::sideml::types::FinishReason::Stop);
+    listed.is_history = true;
+    let relisted = make_test_block("t1", "agent", ChatRole::Assistant, "Sunny.", utc(100));
+    let result = process_dedup(vec![relisted, listed], HashMap::new());
+    assert_eq!(result.len(), 1);
+    assert_eq!(
+        result[0].finish_reason,
+        Some(crate::sideml::types::FinishReason::Stop)
+    );
+}

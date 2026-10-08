@@ -846,6 +846,9 @@ fn find_duplicate_indices(
                 .then_with(emission_first)
                 .then_with(|| a.3.cmp(&b.3))
                 .then_with(|| blocks[a.0].origin_rank().cmp(&blocks[b.0].origin_rank()))
+                // Last, the span: copies the clock and their kind cannot tell apart are taken in the order
+                // of their spans' ids, never of the rows' arrival.
+                .then_with(|| blocks[a.0].span_id.cmp(&blocks[b.0].span_id))
         });
 
         // Keep the original, mark the others.

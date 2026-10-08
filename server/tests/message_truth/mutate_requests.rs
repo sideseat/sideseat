@@ -189,3 +189,51 @@ pub(super) fn swap_instruction_and_prompt(truth: &mut Truth, recon: &mut Recon) 
     }
     false
 }
+
+/// Moves an attachment a request carried ahead of that request's instruction, in the trace and session
+/// views only: the span keeps the order it was sent in, as a framework would that re-attributes the
+/// attachment to an enclosing span.
+pub(super) fn move_attachment_before_instruction(truth: &mut Truth, recon: &mut Recon) -> bool {
+    let Some(recorded) = truth.requests.get(&recon.fixture) else {
+        return false;
+    };
+    for request in recorded.calls.values() {
+        let instruction = request
+            .system
+            .iter()
+            .filter_map(|o| o.new_fact.as_ref().or(o.replay_of.as_ref()))
+            .find_map(|id| truth.facts.iter().find(|f| &f.id == id));
+        let attachment = request
+            .messages
+            .iter()
+            .flat_map(|m| m.parts.iter())
+            .filter_map(|o| o.new_fact.as_ref())
+            .find_map(|id| {
+                truth
+                    .facts
+                    .iter()
+                    .find(|f| &f.id == id && f.kind == "user_media")
+            });
+        let (Some(instruction), Some(attachment)) = (instruction, attachment) else {
+            continue;
+        };
+        let (left, right) = (
+            super::mutate::locate(instruction, recon),
+            super::mutate::locate(attachment, recon),
+        );
+        let mut moved = false;
+        for &(v, i) in &left {
+            if !matches!(recon.views[v].kind, ViewKind::Trace | ViewKind::Session) {
+                continue;
+            }
+            if let Some(&(_, j)) = right.iter().find(|(w, j)| *w == v && *j > i) {
+                recon.views[v].blocks.swap(i, j);
+                moved = true;
+            }
+        }
+        if moved {
+            return true;
+        }
+    }
+    false
+}

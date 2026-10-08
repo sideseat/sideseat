@@ -487,8 +487,9 @@ impl BlockEntry {
     ///
     /// A finish reason belongs to what a span produced. On a message read from a carrier that holds only
     /// what the span received it describes no turn of that call - a producer writing one there has
-    /// mislabelled its input - so it is shown as stated and never read as evidence that the block is
-    /// output.
+    /// mislabelled its input, or is listing an earlier reply - so it is shown as stated and never read as
+    /// evidence that the block is this span's output. Where such a copy is dropped as a duplicate, the copy
+    /// that survives adopts the finish it stated (`adopt_finish`), so the completion is not lost.
     pub fn states_finish(&self) -> bool {
         self.finish_reason.is_some() && (self.is_output_source() || !self.is_input_source())
     }

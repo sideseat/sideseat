@@ -799,4 +799,6 @@ fn reconstruct_trace(
 #[cfg(test)]
 mod rendering_tests;
 #[cfg(test)]
+mod order_tie_tests;
+#[cfg(test)]
 mod tests;

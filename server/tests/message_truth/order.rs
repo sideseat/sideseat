@@ -143,10 +143,17 @@ fn constraints(context: &Context<'_>, feed: bool) -> Vec<Constraint> {
                 .flat_map(|m| m.parts.iter())
                 .filter_map(|o| o.new_fact.as_deref())
                 .collect();
-            let turns: Vec<String> = inputs_of(call)
-                .into_iter()
-                .filter(|id| carried.contains(id.as_str()))
-                .filter(|id| context.fact(id).is_some_and(|f| f.kind == "user_text"))
+            // Its prompts and the attachments sent with them.
+            let turns: Vec<String> = carried
+                .iter()
+                .filter(|id| {
+                    context.fact(id).is_some_and(|f| match f.kind.as_str() {
+                        "user_text" => inputs_of(call).iter().any(|p| p == *id),
+                        "user_media" => true,
+                        _ => false,
+                    })
+                })
+                .map(|id| id.to_string())
                 .collect();
             if !instructions.is_empty() && !turns.is_empty() {
                 out.push((

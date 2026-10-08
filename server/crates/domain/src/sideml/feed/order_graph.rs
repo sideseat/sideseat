@@ -164,7 +164,24 @@ pub(super) fn collect_order_evidence(
     span_timestamps: &HashMap<String, SpanTimestamps>,
 ) -> Vec<OrderEvidence> {
     let mut instances: HashMap<(String, String), usize> = HashMap::new();
-    let mut spans: HashMap<&str, usize> = HashMap::new();
+    // Spans interned in the order of their ids, not in the order rows arrive: the resolver breaks ties
+    // between spans by this index, and two requests at one instant must be ordered the same way whatever
+    // order their rows were delivered in.
+    let mut spans: HashMap<&str, usize> = {
+        let mut ids: Vec<&str> = blocks
+            .iter()
+            .flat_map(|block| {
+                std::iter::once(block.span_id.as_str())
+                    .chain(block.span_path.iter().map(String::as_str))
+            })
+            .collect();
+        ids.sort_unstable();
+        ids.dedup();
+        ids.into_iter()
+            .enumerate()
+            .map(|(index, id)| (id, index))
+            .collect()
+    };
     // Keyed by payload *instance*, not carrier name: a span can emit `gen_ai.choice` several times,
     // and interning events by name merged those into one carrier - so a sequence edge could be drawn
     // between two different emissions as though one payload had listed them. Attributes are the

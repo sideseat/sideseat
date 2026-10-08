@@ -131,6 +131,11 @@ const CATALOGUE: &[(&str, Expect, Apply)] = &[
         Expect::Caught,
         swap_instruction_and_prompt,
     ),
+    (
+        "show an attachment before the instruction that framed it",
+        Expect::Caught,
+        move_attachment_before_instruction,
+    ),
     ("duplicate a part", Expect::Caught, |t, r| {
         duplicate(t, r, |f| f.kind == "text" && f.call.is_some())
     }),

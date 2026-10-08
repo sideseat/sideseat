@@ -58,7 +58,7 @@ use sideseat_ports::types::MessageCategory;
 mod adopt;
 mod identity;
 mod timing;
-use adopt::{adopt_attachment_name, adopt_call_id, adopt_failure, adopt_result_id};
+use adopt::{adopt_attachment_name, adopt_call_id, adopt_failure, adopt_finish, adopt_result_id};
 
 pub(super) use identity::*;
 pub use timing::{SpanTimestamps, effective_timestamp};
@@ -684,6 +684,7 @@ fn deduplicate_with_lineage(
                 };
                 adopt_attachment_name(existing, &other);
                 adopt_failure(existing, &other);
+                adopt_finish(existing, &other);
                 adopt_result_id(existing, &other);
                 adopt_call_id(existing, &other);
             })
