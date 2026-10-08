@@ -265,24 +265,28 @@ pub(super) fn mark_cross_trace_prefix(
 
 /// Group rows by trace_id and sort trace groups chronologically.
 ///
-/// Sort key: (min span_timestamp, min ingested_at, first_seen_row_index, trace_id).
-/// The first-seen index preserves caller/query order when timestamps tie, which
-/// keeps cross-trace prefix stripping stable for same-timestamp traces.
+/// Sort key: (min span_timestamp, min ingested_at, payload bytes, trace_id). Never the order the rows were
+/// read in: a project page reads them newest first and a session read oldest first, and which of two
+/// simultaneous traces strips the other's replay must not depend on which query asked. Where the clocks
+/// agree, the smaller payload goes first, because a conversation only grows: a later request re-sends what
+/// an earlier one said, so of two traces with no time between them the one carrying the other's history is
+/// the later. The trace id settles what is left.
 fn group_and_sort_traces(rows: Vec<MessageSpanRow>) -> Vec<Vec<MessageSpanRow>> {
-    let mut by_trace: HashMap<String, (usize, Vec<MessageSpanRow>)> = HashMap::new();
-    for (row_index, row) in rows.into_iter().enumerate() {
-        let entry = by_trace
-            .entry(row.trace_id.clone())
-            .or_insert_with(|| (row_index, Vec::new()));
-        entry.1.push(row);
+    let mut by_trace: HashMap<String, Vec<MessageSpanRow>> = HashMap::new();
+    for row in rows {
+        by_trace.entry(row.trace_id.clone()).or_default().push(row);
     }
 
     let mut trace_groups: Vec<_> = by_trace
         .into_iter()
-        .map(|(trace_id, (first_seen_index, rows))| {
+        .map(|(trace_id, rows)| {
             let min_ts = rows.iter().map(|r| r.span_timestamp).min().unwrap();
             let min_ingest = rows.iter().map(|r| r.ingested_at).min().unwrap();
-            (trace_id, min_ts, min_ingest, first_seen_index, rows)
+            let payload: usize = rows
+                .iter()
+                .map(|r| r.messages_json.len() + r.log_messages_json.len())
+                .sum();
+            (trace_id, min_ts, min_ingest, payload, rows)
         })
         .collect();
 

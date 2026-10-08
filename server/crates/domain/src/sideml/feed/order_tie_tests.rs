@@ -123,3 +123,26 @@ fn distinct_simultaneous_requests_are_ordered_by_span_not_by_arrival() {
     assert_eq!(forward.len(), 2);
     assert_eq!(forward, reversed);
 }
+
+/// Two traces of one session at one instant, each with a question of its own: the order their rows arrive
+/// in does not decide which comes first.
+#[test]
+fn simultaneous_traces_are_ordered_whatever_order_their_rows_arrive_in() {
+    let mut a = row(
+        "span-a",
+        "trace-a",
+        vec![json!({"role": "user", "content": "What is the weather in Paris?"})],
+    );
+    let mut b = row(
+        "span-b",
+        "trace-b",
+        vec![json!({"role": "user", "content": "What is the weather in Rome?"})],
+    );
+    a.session_id = Some("session".to_string());
+    b.session_id = Some("session".to_string());
+    let options = FeedOptions::default();
+    let forward = order(&process_spans(vec![a.clone(), b.clone()], &options));
+    let reversed = order(&process_spans(vec![b, a], &options));
+    assert_eq!(forward.len(), 2);
+    assert_eq!(forward, reversed);
+}

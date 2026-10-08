@@ -198,3 +198,46 @@ fn a_recovered_merge_holds_the_next_one_to_the_request_order() {
         Some(0..=1)
     );
 }
+
+/// The payload message a block is bound to has the block's role. The payload holds `user("\nA"), user("B"),
+/// user(""), assistant("A")` and the request sent `user("\nA\nB\n")`: the user block `A` lost its newline,
+/// and the assistant message reading `A`, with the empty user message before it, is no evidence about it.
+#[test]
+fn an_empty_neighbour_of_another_role_s_message_evidences_nothing() {
+    let shown = [
+        block("user", "A"),
+        block("user", "B"),
+        block("assistant", "A"),
+    ];
+    let blocks: Vec<&Block> = shown.iter().collect();
+    let free = [false, false, false];
+    let mut neighbours = EmptyNeighbours::default();
+    for (index, role, text) in [
+        (0, "user", "\nA"),
+        (1, "user", "B"),
+        (2, "user", ""),
+        (3, "assistant", "A"),
+    ] {
+        neighbours.record(
+            &format!("llm.input_messages.{index}.message.role"),
+            role.to_string(),
+        );
+        if !text.is_empty() {
+            neighbours.record(
+                &format!("llm.input_messages.{index}.message.content"),
+                text.to_string(),
+            );
+        }
+    }
+    assert_eq!(
+        merged_run(
+            &part("user", "\nA\nB\n"),
+            &blocks,
+            &free,
+            &free,
+            0..2,
+            &neighbours
+        ),
+        None
+    );
+}

@@ -519,8 +519,8 @@ fn merge_window(
 /// the part - so an ordinary part still needs a block of its own, and a lost byte is no merge. The blocks
 /// must sit in `window`, between those the request's neighbouring parts were shown by. The empty message
 /// that evidences a newline must neighbour the payload message the block itself shows: the n-th block of a
-/// text is bound to the payload's n-th message of that text, never to another message that happens to read
-/// the same.
+/// role and text is bound to the payload's n-th message of that role and text, never to another message that
+/// happens to read the same.
 fn merged_run(
     item: &Expected,
     blocks: &[&Block],
@@ -533,10 +533,14 @@ fn merged_run(
     const LONGEST: usize = 4;
     let text = item.part.get("text").and_then(Value::as_str)?;
     let free = |j: usize| !assigned_block[j] && !explained[j] && blocks[j].role == item.role;
-    // Which of the span's blocks of the same text this one is, counted from the first.
+    // Which of the span's blocks of the same role and text this one is, counted from the first.
     let occurrence = |j: usize| {
         (0..j)
-            .filter(|&k| blocks[k].text().is_some() && blocks[k].text() == blocks[j].text())
+            .filter(|&k| {
+                blocks[k].role == blocks[j].role
+                    && blocks[k].text().is_some()
+                    && blocks[k].text() == blocks[j].text()
+            })
             .count()
     };
     let end_of_window = window.end.min(blocks.len());
@@ -649,20 +653,36 @@ impl EmptyNeighbours {
         }
     }
 
-    /// Whether the `occurrence`-th payload message holding exactly `text`, in payload order, has an empty
-    /// message of `role` at `offset` from it.
+    /// Whether the `occurrence`-th payload message holding exactly `text` that could be shown under `role`, in
+    /// payload order, has an empty message of that role at `offset` from it.
+    ///
+    /// A holder of another known role is not the message the block shows, so its neighbours evidence nothing
+    /// about it. A holder under a role spelling the rubric does not know - a producer's own pseudo-role, which
+    /// the reconstruction shows under a canonical one - may be it, and is kept.
     fn neighbour(&self, text: &str, occurrence: usize, role: &str, offset: i64) -> bool {
-        let mut holders: Vec<&(String, u64)> = self.texts.get(text).into_iter().flatten().collect();
+        let of_role = |key: &(String, u64)| {
+            self.roles
+                .get(key)
+                .is_some_and(|r| shown_role(r, &Value::Null) == role)
+        };
+        let could_be = |key: &(String, u64)| {
+            self.roles
+                .get(key)
+                .is_some_and(|r| matches!(shown_role(r, &Value::Null), "unknown") || of_role(key))
+        };
+        let mut holders: Vec<&(String, u64)> = self
+            .texts
+            .get(text)
+            .into_iter()
+            .flatten()
+            .filter(|key| could_be(key))
+            .collect();
         holders.sort_unstable();
         holders.dedup();
         holders.get(occurrence).is_some_and(|(family, index)| {
             index.checked_add_signed(offset).is_some_and(|other| {
                 let key = (family.clone(), other);
-                !self.filled.contains(&key)
-                    && self
-                        .roles
-                        .get(&key)
-                        .is_some_and(|r| shown_role(r, &Value::Null) == role)
+                !self.filled.contains(&key) && of_role(&key)
             })
         })
     }

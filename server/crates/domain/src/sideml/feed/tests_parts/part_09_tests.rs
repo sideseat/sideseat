@@ -737,8 +737,8 @@ fn test_cross_trace_same_timestamp_trace_ordering() {
         }
     ]);
 
-    // Same timestamps and reverse lexical trace IDs: ordering must follow first-seen row
-    // order (trace-z first), not trace_id sort (trace-a first).
+    // Same timestamps and reverse lexical trace IDs: the trace that re-sends the other's history is
+    // the later one (trace-z first), whatever the trace ids or the order the rows arrive in.
     let mut row1 = make_span_row_full(
         "trace-z-older",
         "s1",
@@ -761,7 +761,16 @@ fn test_cross_trace_same_timestamp_trace_ordering() {
     row2.session_id = Some("session1".to_string());
 
     let options = FeedOptions::default();
+    // Delivered either way round, the answer is one.
+    let reversed = process_spans(vec![row2.clone(), row1.clone()], &options);
     let mut result = process_spans(vec![row1, row2], &options);
+    let order = |r: &FeedResult| {
+        r.messages
+            .iter()
+            .map(|b| (b.trace_id.clone(), b.content_hash.clone()))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(order(&result), order(&reversed));
 
     // Simulate trace endpoint retain-by-trace behavior
     result.messages.retain(|b| b.trace_id == "trace-a-newer");

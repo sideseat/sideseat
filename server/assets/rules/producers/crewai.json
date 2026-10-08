@@ -514,7 +514,7 @@
     },
     {
       "id": "crewai.flow_output",
-      "doc": "A Flow's own spans - its kickoff and each method it runs - report as their output the value the method handed back to the flow: the label a router picks next (`check_iteration`, `native_tool_calls`) or a state marker (`initialized`, `completed`). CrewAI runs its agent executor as such a flow, so these appear inside every crew. They steer the flow and say nothing to anyone; the model calls and tool runs beneath them carry the conversation. Claimed so the generic output reader does not show them as the agent's replies.",
+      "doc": "CrewAI runs its agent executor as a Flow (`crewai.experimental.agent_executor.AgentExecutor`), and openinference-instrumentation-crewai 1.1.3 and 1.1.7 trace it: a kickoff span and one CHAIN span per flow method, whose output.value is the label the method hands back to the flow - the route a router picks next (`check_iteration`, `native_tool_calls`) or a state marker (`initialized`, `completed`). The executor marks itself `suppress_flow_events`, which later releases of the instrumentor honour. The labels steer the flow and say nothing to anyone; the model calls and tool runs beneath them carry the conversation. Claimed only when the output is one of the executor's labels, so a user's own Flow that returns its answer from a method keeps it.",
       "where": {
         "all": [
           {
@@ -544,6 +544,56 @@
       },
       "parse": "json_or_string",
       "emit": "claim",
+      "alternatives": [
+        {
+          "id": "executor_label",
+          "doc": "Every label the executor's methods return in CrewAI 1.15 (`return \"...\"` in agent_executor.py). Anything else is a value a user's Flow returned, and stays available to the readers that show it.",
+          "where": {
+            "kind": "string",
+            "one_of": [
+              "agent_finished",
+              "all_todos_complete",
+              "check_iteration",
+              "completed",
+              "context_error",
+              "continue_plan",
+              "continue_reasoning",
+              "continue_reasoning_native",
+              "execute_tool",
+              "force_final_answer",
+              "goal_achieved",
+              "has_todos",
+              "initialized",
+              "medium",
+              "multiple_todos_ready",
+              "native_finished",
+              "native_tool_calls",
+              "native_tool_completed",
+              "needs_replan",
+              "no_todos",
+              "parallel_todos_complete",
+              "parsed",
+              "parser_error",
+              "planning_disabled",
+              "refine_and_continue",
+              "replan_now",
+              "single_todo_ready",
+              "skipped",
+              "step_executed",
+              "step_observed_high",
+              "step_observed_low",
+              "step_observed_medium",
+              "todo_injected",
+              "todo_marked",
+              "todo_not_satisfied",
+              "todo_satisfied",
+              "tool_completed",
+              "tool_result_is_final",
+              "unknown"
+            ]
+          }
+        }
+      ],
       "priority": 1516
     }
   ]
