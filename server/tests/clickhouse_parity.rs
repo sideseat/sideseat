@@ -25,7 +25,9 @@
 //!
 //! - metric ingestion and reads.
 //! - anything that only appears at scale or with data this fixture does not have: a trace of
-//!   thousands of spans, top-N truncation in stats, several models or frameworks in one project.
+//!   thousands of spans, top-N truncation in stats, several models or frameworks in one project. The core
+//!   reads over the message corpus grown to a million spans are compared by `reads_agree_at_a_million_spans`,
+//!   which is ignored here and run by `make bench-reads-distributed`.
 //! - re-ingested or duplicated spans, and spans sharing a timestamp exactly, where the two
 //!   dialects' `argMin`/`FIRST` tie-breaking could differ.
 //! - sub-second timestamp handling: the fixture uses whole seconds.
@@ -55,3 +57,4 @@ include!("clickhouse_parity_parts/part_11_tests.rs");
 include!("clickhouse_parity_parts/part_12_tests.rs");
 include!("clickhouse_parity_parts/part_13_tests.rs");
 include!("clickhouse_parity_parts/part_14_tests.rs");
+include!("clickhouse_parity_parts/part_15_tests.rs");

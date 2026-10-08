@@ -170,3 +170,61 @@ pub(crate) fn replicate_to(service: &DuckdbService, spans: u64) -> u64 {
     conn.query_row("SELECT count(*) FROM otel_spans", [], |row| row.get(0))
         .expect("count spans")
 }
+
+/// Fold every project into one, so one tenant holds the whole store: the worst case for a read scoped to a
+/// project, and the shape in which a project's sessions are as many as the store's. Refused if an identity
+/// would then name two records - two projects using the same trace and span ids, say - since the folded store
+/// would hold a history no write could have made.
+pub(crate) fn fold_into_one_project(service: &DuckdbService, project: &str) {
+    let conn = service.conn();
+    for (what, sql) in [
+        (
+            "span",
+            "SELECT count(*) FROM (SELECT trace_id, span_id FROM otel_spans GROUP BY ALL \
+             HAVING count(DISTINCT project_id) > 1)",
+        ),
+        (
+            "log",
+            "SELECT count(*) FROM (SELECT log_digest, ordinal FROM otel_logs GROUP BY ALL \
+             HAVING count(DISTINCT project_id) > 1)",
+        ),
+        (
+            "datapoint",
+            "SELECT count(*) FROM (SELECT datapoint_id FROM otel_metrics GROUP BY ALL \
+             HAVING count(DISTINCT project_id) > 1)",
+        ),
+        (
+            "raw record",
+            "SELECT count(*) FROM (SELECT raw_id FROM otel_raw GROUP BY ALL \
+             HAVING count(DISTINCT project_id) > 1)",
+        ),
+    ] {
+        let shared: u64 = conn
+            .query_row(sql, [], |row| row.get(0))
+            .expect("shared identities");
+        assert_eq!(
+            shared, 0,
+            "{shared} {what} identities appear in two projects"
+        );
+    }
+    let mut statement = conn
+        .prepare(
+            "SELECT table_name FROM information_schema.columns \
+             WHERE column_name = 'project_id' AND table_schema = 'main' ORDER BY 1",
+        )
+        .expect("tables");
+    let tables: Vec<String> = statement
+        .query_map([], |row| row.get(0))
+        .expect("tables")
+        .collect::<Result<_, _>>()
+        .expect("tables");
+    drop(statement);
+    drop(conn);
+    let sql = tables
+        .iter()
+        .map(|table| format!("UPDATE {table} SET project_id = '{project}';"))
+        .collect::<String>();
+    service
+        .write(|conn| conn.execute_batch(&sql).map_err(Into::into))
+        .expect("fold the projects");
+}

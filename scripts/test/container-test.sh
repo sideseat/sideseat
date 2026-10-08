@@ -3,9 +3,9 @@ set -euo pipefail
 
 scenario="${1:-}"
 case "$scenario" in
-  clickhouse | clickhouse-replicated | clickhouse-two-shard | postgres | redis | redpanda) ;;
+  clickhouse | clickhouse-scale | clickhouse-replicated | clickhouse-two-shard | postgres | redis | redpanda) ;;
   *)
-    echo "Usage: $0 {clickhouse|clickhouse-replicated|clickhouse-two-shard|postgres|redis|redpanda}" >&2
+    echo "Usage: $0 {clickhouse|clickhouse-scale|clickhouse-replicated|clickhouse-two-shard|postgres|redis|redpanda}" >&2
     exit 2
     ;;
 esac
@@ -128,6 +128,25 @@ case "$scenario" in
       SIDESEAT_TEST_CLICKHOUSE_USER=sideseat \
       SIDESEAT_TEST_CLICKHOUSE_PASSWORD=sideseat \
       cargo test --locked -p sideseat-server --test clickhouse_parity -- --test-threads=1
+    ;;
+
+  clickhouse-scale)
+    require_env CH_TEST_CONTAINER
+    require_env CH_TEST_PORT
+    require_env CH_TEST_IMAGE
+    prepare_container "$CH_TEST_CONTAINER"
+
+    echo "[bench-reads-distributed] starting $CH_TEST_IMAGE on port $CH_TEST_PORT..."
+    docker run -d --name "$CH_TEST_CONTAINER" -p "$CH_TEST_PORT:8123" \
+      -e CLICKHOUSE_USER=sideseat -e CLICKHOUSE_PASSWORD=sideseat \
+      -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 "$CH_TEST_IMAGE" >/dev/null
+    wait_for_http "http://127.0.0.1:$CH_TEST_PORT/ping" 60 "$CH_TEST_CONTAINER" 20
+
+    SIDESEAT_TEST_CLICKHOUSE_URL="http://127.0.0.1:$CH_TEST_PORT" \
+      SIDESEAT_TEST_CLICKHOUSE_USER=sideseat \
+      SIDESEAT_TEST_CLICKHOUSE_PASSWORD=sideseat \
+      cargo test --locked -p sideseat-server --test clickhouse_parity -- --ignored --nocapture \
+        --test-threads=1 reads_agree_at_a_million_spans
     ;;
 
   clickhouse-replicated)

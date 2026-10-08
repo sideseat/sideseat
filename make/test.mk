@@ -3,7 +3,7 @@
 # nextest runs the workspace in parallel processes; plain `cargo test` is the fallback.
 CARGO_TEST := $(if $(shell command -v cargo-nextest 2>/dev/null),cargo nextest run --locked,cargo test --locked)
 
-.PHONY: test test-rust test-server test-backup-restore test-durability test-clickhouse test-clickhouse-replicated test-clickhouse-two-shard test-postgres test-redis test-redpanda bench-http bench-http-distributed bench-ingest bench-reads footprint footprint-storage footprint-storage-distributed test-web test-sdk-js test-sdk-python test-python-frameworks test-sdk-dotnet coverage
+.PHONY: test test-rust test-server test-backup-restore test-durability test-clickhouse test-clickhouse-replicated test-clickhouse-two-shard test-postgres test-redis test-redpanda bench-http bench-http-distributed bench-ingest bench-reads bench-reads-distributed footprint footprint-storage footprint-storage-distributed test-web test-sdk-js test-sdk-python test-python-frameworks test-sdk-dotnet coverage
 
 test: test-rust test-web test-sdk-js test-sdk-python test-sdk-dotnet ## Run all regular test suites
 
@@ -104,6 +104,11 @@ bench-http-distributed: ## Benchmark distributed HTTP latency
 # Every read at a million spans, within the production memory limit and each read's latency ceiling.
 bench-reads: ## Gate every core read at a million spans: memory limit and per-read latency ceilings
 	$(call run-with-disk-guard,scripts/perf/bench-reads.sh)
+
+# The same reads on ClickHouse at a million spans: every answer equal to DuckDB's, and both latencies.
+bench-reads-distributed: ## ClickHouse at a million spans: every read's answer against DuckDB's, and both latencies
+	$(call run-with-disk-guard,CH_TEST_CONTAINER="$(CH_TEST_CONTAINER)" CH_TEST_PORT="$(CH_TEST_PORT)" \
+		CH_TEST_IMAGE="$(CH_TEST_IMAGE)" ./scripts/test/container-test.sh clickhouse-scale)
 
 # Sustained trace-ingest throughput at rising offered rates. `BENCH_INGEST_ARGS` passes flags through, e.g.
 # `container --cores 1,2,4,8 --memory 2g` for the hard-limited aarch64 container.

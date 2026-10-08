@@ -11,7 +11,8 @@
 //! DuckDB's own profile of the *last* statement each read runs, which is the whole read for the single-statement
 //! ones; latency is the fastest of nine runs after a warm-up, since a loaded machine only ever adds time.
 //!
-//! Two more variables make it the `make bench-reads` gate. `SIDESEAT_READ_PATHS_SPANS` grows the copy to at
+//! `SIDESEAT_READ_PATHS_ONE_PROJECT=1` folds every project into one first, the worst case for a project's
+//! reads (`read_paths_store::fold_into_one_project`). Two more variables make it the `make bench-reads` gate. `SIDESEAT_READ_PATHS_SPANS` grows the copy to at
 //! least that many span rows first (`read_paths_store`). `SIDESEAT_READ_PATHS_CEILINGS` names a JSON object
 //! of each read's latency ceiling in milliseconds: the run then fails when any read fails - running out of the
 //! production memory limit among them, since the store is opened as the server opens it - or is slower than
@@ -242,6 +243,9 @@ async fn read_paths() {
             .await
             .expect("open the store"),
     );
+    if std::env::var("SIDESEAT_READ_PATHS_ONE_PROJECT").is_ok_and(|value| value == "1") {
+        super::read_paths_store::fold_into_one_project(&service, "bench");
+    }
     if let Ok(spans) = std::env::var("SIDESEAT_READ_PATHS_SPANS") {
         let spans: u64 = spans
             .parse()
