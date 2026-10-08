@@ -269,27 +269,27 @@ async fn ingest_lookups_read_the_rows_they_name() {
         let scanned = rows_scanned(&s.profile);
         assert!(scanned <= bound(5), "span revisions scanned {scanned}");
 
-        let logs: Vec<keyed::LogIdentity> = (MIDDLE..MIDDLE + 5)
-            .map(|n| (PROJECT.to_string(), format!("log-{n:08}"), 0))
+        // Records in the first and the last of three row groups read those two, not the one between them.
+        let far = [10, MIDDLE + 100_000];
+        let logs: Vec<(keyed::LogIdentity, Option<i64>)> = far
+            .iter()
+            .map(|n| {
+                (
+                    (PROJECT.to_string(), format!("log-{n:08}"), 0),
+                    Some(at(*n).timestamp_micros()),
+                )
+            })
             .collect();
-        let instants = (
-            at(MIDDLE).timestamp_micros(),
-            at(MIDDLE + 4).timestamp_micros(),
-        );
-        assert_eq!(
-            keyed::log_rows(&conn, &logs, Some(instants))
-                .expect("log rows")
-                .len(),
-            5
-        );
+        assert_eq!(keyed::log_rows(&conn, &logs).expect("log rows").len(), 2);
         let scanned = rows_scanned(&s.profile);
-        assert!(scanned <= ROW_GROUP, "log rows scanned {scanned}");
+        assert!(scanned <= 2 * ROW_GROUP, "log rows scanned {scanned}");
 
-        let ids: Vec<String> = (MIDDLE..MIDDLE + 5).map(|n| format!("dp-{n:08}")).collect();
+        let ids: Vec<String> = far.iter().map(|n| format!("dp-{n:08}")).collect();
+        let instants: Vec<i64> = far.iter().map(|n| at(*n).timestamp_micros()).collect();
         let probe = sideseat_query_sql::dml::metric_winner_probe(
             PROJECT,
             &ids.iter().map(String::as_str).collect::<Vec<_>>(),
-            instants,
+            &instants,
         )
         .expect("probe");
         let values: Vec<duckdb::types::Value> = probe
@@ -311,9 +311,9 @@ async fn ingest_lookups_read_the_rows_they_name() {
             .query_map(duckdb::params_from_iter(values), |_| Ok(()))
             .expect("probe")
             .count();
-        assert_eq!(found, 5);
+        assert_eq!(found, 2);
         let scanned = rows_scanned(&s.profile);
-        assert!(scanned <= ROW_GROUP, "metric probe scanned {scanned}");
+        assert!(scanned <= 2 * ROW_GROUP, "metric probe scanned {scanned}");
     }
 }
 
@@ -543,4 +543,56 @@ async fn a_log_without_a_time_of_its_own_is_replaced_and_confirmed() {
             .await
             .expect("confirm")
     );
+}
+
+/// A revision older than the stored winner - its instant set earlier, by another clock or a redelivery - does
+/// not win, so it neither deletes the winner's terms nor writes its own; a later correction then replaces the
+/// winner's, and the span keeps one revision's terms throughout.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_span_keeps_its_winners_terms_whatever_order_revisions_arrive_in() {
+    use sideseat_ports::types::{SearchDocument, SearchField, SearchFieldTerms};
+    let s = store().await;
+    let revision = |word: &str, at_us: i64| NormalizedSpan {
+        project_id: Some(PROJECT.into()),
+        trace_id: trace(12),
+        span_id: span(12, 4),
+        content_digest: word.into(),
+        span_name: "step".into(),
+        ingested_at: chrono::DateTime::from_timestamp_micros(at_us),
+        search: SearchDocument {
+            indexed: true,
+            fields: vec![SearchFieldTerms {
+                field: SearchField::Prompt,
+                terms: vec![word.to_string()],
+                truncated: false,
+                text: word.to_string(),
+            }],
+        },
+        ..Default::default()
+    };
+    let terms = || -> Vec<String> {
+        let conn = s.service.conn();
+        let mut statement = conn
+            .prepare("SELECT term FROM span_terms WHERE trace_id = ? AND span_id = ? ORDER BY term")
+            .expect("prepare");
+        statement
+            .query_map([trace(12), span(12, 4)], |row| row.get(0))
+            .expect("terms")
+            .collect::<Result<_, _>>()
+            .expect("terms")
+    };
+    s.repo
+        .insert_spans(vec![revision("winner", START_US + 2_000_000)])
+        .await
+        .expect("winner");
+    s.repo
+        .insert_spans(vec![revision("older", START_US + 1_000_000)])
+        .await
+        .expect("an older revision, written later");
+    assert_eq!(terms(), vec!["winner".to_string()]);
+    s.repo
+        .insert_spans(vec![revision("correction", START_US + 3_000_000)])
+        .await
+        .expect("a correction");
+    assert_eq!(terms(), vec!["correction".to_string()]);
 }

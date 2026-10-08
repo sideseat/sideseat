@@ -83,11 +83,14 @@ struct LogCandidate {
 /// at a time left the last revision's terms, so only the last revision of each identity is written here: the
 /// batched delete would otherwise leave every revision's vocabulary behind.
 ///
-/// Only a span with a stored revision has terms to replace, and `stored` names the latest such revision - the
-/// only one with terms - by its ingest instant (`keyed::span_revisions`, read before the new rows were appended).
-/// A new span - almost every span - deletes nothing, and a correction's delete reads only the row groups that
-/// revision's terms went to: a delete for every span of every batch read the whole term table, about 35 rows
-/// per span ever stored.
+/// A span's terms are its **winner's** - the revision a read answers with, the latest by `ingested_at` - so a
+/// search matches what the span shows. `stored` is the winner before this write, by its instant
+/// (`keyed::span_revisions`, read before the new rows were appended), and that instant is exactly where the terms
+/// are: one value per identity whatever the span's history, so a correction deletes one revision's terms and
+/// reads only the row groups they went to. A revision older than the stored winner - a write whose instant was
+/// set earlier, by another instance's clock or a redelivery - does not win, so it leaves the winner's terms
+/// alone and writes none of its own. A new span, almost every span, deletes nothing: a delete for every span of
+/// every batch read the whole term table, about 35 rows per span ever stored.
 pub fn replace_span_terms(
     conn: &Connection,
     spans: &[NormalizedSpan],
@@ -96,30 +99,50 @@ pub fn replace_span_terms(
     if spans.is_empty() {
         return Ok(());
     }
-    let spans = last_per_identity(spans, |span| {
-        (
-            span.project_id.as_deref().unwrap_or_default(),
-            span.trace_id.as_str(),
-            span.span_id.as_str(),
-        )
-    });
-    let superseded: Vec<SpanIdentity> = spans
-        .iter()
-        .map(|span| {
-            (
-                span.project_id.clone().unwrap_or_default(),
-                span.trace_id.clone(),
-                span.span_id.clone(),
-            )
-        })
-        .filter(|identity| stored.contains_key(identity))
-        .collect();
+    let instant = |span: &NormalizedSpan| {
+        span.ingested_at
+            .unwrap_or(chrono::DateTime::UNIX_EPOCH)
+            .timestamp_micros()
+    };
+    // The batch's own winner per identity: the latest instant, and of equal instants the later span, which is
+    // what the rows' `rowid` order makes the winner on read.
+    let mut winners: HashMap<SpanIdentity, &NormalizedSpan> = HashMap::new();
+    for span in spans {
+        let identity = (
+            span.project_id.clone().unwrap_or_default(),
+            span.trace_id.clone(),
+            span.span_id.clone(),
+        );
+        match winners.get(&identity) {
+            Some(previous) if instant(previous) > instant(span) => {}
+            _ => {
+                winners.insert(identity, span);
+            }
+        }
+    }
+    let mut superseded: Vec<(SpanIdentity, i64)> = Vec::new();
+    let mut writing: Vec<&NormalizedSpan> = Vec::new();
+    for (identity, span) in winners {
+        match stored.get(&identity) {
+            Some(&stored_us) if instant(span) < stored_us => {}
+            Some(&stored_us) => {
+                superseded.push((identity, stored_us));
+                writing.push(span);
+            }
+            None => writing.push(span),
+        }
+    }
     for chunk in superseded.chunks(DELETE_CHUNK) {
-        let revisions: Vec<i64> = chunk.iter().map(|identity| stored[identity]).collect();
-        if let Some(query) = search_sql::duckdb_span_term_delete_of_revisions(chunk, &revisions) {
+        let identities: Vec<SpanIdentity> =
+            chunk.iter().map(|(identity, _)| identity.clone()).collect();
+        let revisions: Vec<i64> = chunk.iter().map(|(_, stored_us)| *stored_us).collect();
+        if let Some(query) =
+            search_sql::duckdb_span_term_delete_of_revisions(&identities, &revisions)
+        {
             conn.execute(query.sql(), duckdb_values(query.params()).as_slice())?;
         }
     }
+    let spans = writing;
     let mut appender = conn.appender("span_terms")?;
     for span in &spans {
         let project_id = span.project_id.as_deref().unwrap_or_default();
@@ -405,7 +428,7 @@ fn write_log_backfill(
             panic!("log search backfill received a span identity");
         };
         let identity: LogIdentity = (project_id.to_string(), log_digest.clone(), *ordinal);
-        let rows = keyed::log_rows(conn, std::slice::from_ref(&identity), None)?;
+        let rows = keyed::log_rows(conn, &[(identity.clone(), None)])?;
         let revisions: Vec<i64> = rows
             .iter()
             .map(|(_, _, ingested_us)| *ingested_us)

@@ -247,20 +247,20 @@ fn winning_indices(
     let keys: Vec<(&str, &str)> = best.keys().copied().collect();
     const PROBE_CHUNK: usize = 500;
     for chunk in keys.chunks(PROBE_CHUNK) {
-        // Grouped by project, each group bounded by its datapoints' own instants: an identity's stored rows
-        // carry its instant, so the probe reads only the row groups that hold them.
-        let mut by_project: std::collections::HashMap<&str, (Vec<&str>, i64, i64)> =
+        // Grouped by project, each group conditioned on its datapoints' own instants: an identity's stored rows
+        // carry its instant, so the probe reads only the row groups that hold one.
+        let mut by_project: std::collections::HashMap<&str, (Vec<&str>, Vec<i64>)> =
             std::collections::HashMap::new();
         for key in chunk {
-            let us = metrics[best[key]].timestamp.timestamp_micros();
-            let (ids, low, high) = by_project.entry(key.0).or_insert((Vec::new(), us, us));
+            let (ids, instants) = by_project.entry(key.0).or_default();
             ids.push(key.1);
-            *low = (*low).min(us);
-            *high = (*high).max(us);
+            instants.push(metrics[best[key]].timestamp.timestamp_micros());
         }
-        for (project, (ids, low, high)) in by_project {
-            let query = dml::metric_winner_probe(project, &ids, (low, high))
-                .expect("non-empty metric probe");
+        for (project, (ids, mut instants)) in by_project {
+            instants.sort_unstable();
+            instants.dedup();
+            let query =
+                dml::metric_winner_probe(project, &ids, &instants).expect("non-empty metric probe");
             let values = metric_values(query.params());
             let mut stmt = conn.prepare(query.sql())?;
             let rows = stmt.query_map(values.as_slice(), |row| {

@@ -21,30 +21,24 @@ pub fn insert_batch(conn: &Connection, logs: &[NormalizedLog]) -> Result<(), Duc
     in_transaction(conn, |conn| {
         // A redelivery replaces the identity's stored row. Found within the records' own instants and deleted by
         // row id, so a write reads the row groups of what it replaces rather than the whole table (`keyed`).
-        // A record with a time of its own is stored under it - part of its digest - so its row lies within the
-        // batch's instants; one with neither time nor observed time is stored under a receipt time another
-        // delivery replaces, and is looked up unbounded.
-        let identity = |log: &NormalizedLog| -> super::keyed::LogIdentity {
-            (
-                log.project_id.clone().unwrap_or_default(),
-                log.log_digest.clone(),
-                log.ordinal,
-            )
-        };
-        let own = |log: &&NormalizedLog| log.time.is_some() || log.observed_time.is_some();
-        let bounded: Vec<&NormalizedLog> = logs.iter().filter(own).collect();
-        let unbounded: Vec<super::keyed::LogIdentity> =
-            logs.iter().filter(|log| !own(log)).map(identity).collect();
-        let mut stored_rows = super::keyed::log_rows(
-            conn,
-            &bounded.iter().map(|log| identity(log)).collect::<Vec<_>>(),
-            sideseat_query_sql::confirmations::instant_range(
-                bounded.iter().map(|log| log.timestamp),
-            ),
-        )?;
-        if !unbounded.is_empty() {
-            stored_rows.extend(super::keyed::log_rows(conn, &unbounded, None)?);
-        }
+        // A record with a time of its own is stored under it - part of its digest - so its row is found at that
+        // instant; one with neither time nor observed time is stored under a receipt time another delivery
+        // replaces, and is looked up without one.
+        let identities: Vec<(super::keyed::LogIdentity, Option<i64>)> = logs
+            .iter()
+            .map(|log| {
+                (
+                    (
+                        log.project_id.clone().unwrap_or_default(),
+                        log.log_digest.clone(),
+                        log.ordinal,
+                    ),
+                    (log.time.is_some() || log.observed_time.is_some())
+                        .then(|| log.timestamp.timestamp_micros()),
+                )
+            })
+            .collect();
+        let stored_rows = super::keyed::log_rows(conn, &identities)?;
         let mut stored: HashMap<super::keyed::LogIdentity, Vec<i64>> = HashMap::new();
         let mut rowids = Vec::with_capacity(stored_rows.len());
         for (rowid, identity, ingested_us) in stored_rows {

@@ -129,7 +129,7 @@ fn winning_spans_with_digest(
 ///
 /// A datapoint's instant is part of its identity, so its rows all carry the `timestamp` it was staged with, and
 /// rows are appended in roughly the order of their instants. DuckDB therefore reads only the row groups whose
-/// `timestamp` range holds the records' range - their zone maps - rather than the table, and needs no index: one
+/// `timestamp` bounds hold one of the records' instants - their zone maps - rather than the table, and needs no index: one
 /// on `datapoint_id` measured 85 bytes per point, more than half the per-point target. A correction replaces its
 /// row, so there is one row per datapoint to count. ClickHouse reads the datapoints through their skip index.
 pub fn metrics(
@@ -137,7 +137,7 @@ pub fn metrics(
     records: &[(String, String, DateTime<Utc>)],
     backend: Backend,
 ) -> Option<ConfirmationQuery> {
-    let instants = instant_range(records.iter().map(|(_, _, timestamp)| *timestamp))?;
+    let instants = distinct_instants(records.iter().map(|(_, _, timestamp)| *timestamp))?;
     let records: BTreeSet<_> = records
         .iter()
         .map(|(datapoint_id, digest, _)| (datapoint_id.clone(), digest.clone()))
@@ -145,7 +145,7 @@ pub fn metrics(
     let tuples = std::iter::repeat_n("(?, ?)", records.len())
         .collect::<Vec<_>>()
         .join(", ");
-    let (source, mut params) = by_instant("otel_metrics", instants, backend);
+    let (source, mut params) = by_instant("otel_metrics", &instants, backend);
     params.push(QueryValue::String(project_id.to_string()));
     for (datapoint_id, digest) in &records {
         params.push(QueryValue::String(datapoint_id.clone()));
@@ -182,7 +182,7 @@ pub fn logs(
         .iter()
         .map(|(_, _, instant)| *instant)
         .collect::<Option<Vec<_>>>()
-        .and_then(instant_range);
+        .and_then(distinct_instants);
     let records: BTreeSet<_> = records
         .iter()
         .map(|(digest, ordinal, _)| (digest.clone(), *ordinal))
@@ -191,7 +191,7 @@ pub fn logs(
         .collect::<Vec<_>>()
         .join(", ");
     let (source, mut params) = match instants {
-        Some(instants) => by_instant("otel_logs", instants, backend),
+        Some(instants) => by_instant("otel_logs", &instants, backend),
         None => (
             match backend {
                 Backend::Duckdb => "otel_logs WHERE".to_string(),
@@ -218,27 +218,44 @@ pub fn logs(
     })
 }
 
-/// The earliest and latest of `timestamps` in epoch microseconds, `None` when there are none.
-pub fn instant_range(timestamps: impl IntoIterator<Item = DateTime<Utc>>) -> Option<(i64, i64)> {
-    timestamps
+/// The distinct `timestamps` in epoch microseconds, sorted; `None` when there are none.
+pub fn distinct_instants(timestamps: impl IntoIterator<Item = DateTime<Utc>>) -> Option<Vec<i64>> {
+    let mut instants: Vec<i64> = timestamps
         .into_iter()
         .map(|timestamp| timestamp.timestamp_micros())
-        .fold(None, |range, us| match range {
-            None => Some((us, us)),
-            Some((low, high)) => Some((low.min(us), high.max(us))),
-        })
+        .collect();
+    instants.sort_unstable();
+    instants.dedup();
+    (!instants.is_empty()).then_some(instants)
 }
 
-/// `table WHERE` with DuckDB's instant bounds in front - the condition its zone maps read - so the caller's
-/// conditions follow it; ClickHouse merges `FINAL` and needs no bound.
-fn by_instant(table: &str, (low, high): (i64, i64), backend: Backend) -> (String, Vec<QueryValue>) {
-    match backend {
-        Backend::Duckdb => (
-            format!(
-                "{table} WHERE \"timestamp\" BETWEEN make_timestamp(?::BIGINT) AND make_timestamp(?::BIGINT) AND"
-            ),
-            vec![QueryValue::Int64(low), QueryValue::Int64(high)],
+/// DuckDB's condition on a row's own instant, the one its zone maps answer: `"timestamp" IN (...)` over
+/// `instants`, with their parameters.
+///
+/// A list of the instants, never a range between the earliest and the latest: DuckDB checks each listed value
+/// against a row group's bounds, so two instants a day apart read the two row groups that hold them, where the
+/// range between them reads every row group in the day - measured on a million rows, 245,760 rows read against
+/// 983,040.
+pub fn instants_condition(instants: &[i64]) -> (String, Vec<QueryValue>) {
+    (
+        format!(
+            "\"timestamp\" IN ({})",
+            std::iter::repeat_n("make_timestamp(?::BIGINT)", instants.len())
+                .collect::<Vec<_>>()
+                .join(", ")
         ),
+        instants.iter().copied().map(QueryValue::Int64).collect(),
+    )
+}
+
+/// `table WHERE` with DuckDB's instant condition in front, so the caller's conditions follow it; ClickHouse
+/// merges `FINAL` and needs none.
+fn by_instant(table: &str, instants: &[i64], backend: Backend) -> (String, Vec<QueryValue>) {
+    match backend {
+        Backend::Duckdb => {
+            let (condition, params) = instants_condition(instants);
+            (format!("{table} WHERE {condition} AND"), params)
+        }
         Backend::Clickhouse => (format!("{table} FINAL WHERE"), Vec::new()),
     }
 }

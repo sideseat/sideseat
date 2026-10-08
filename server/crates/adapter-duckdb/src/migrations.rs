@@ -79,7 +79,8 @@ fn check_layout(conn: &Connection) -> Result<(), DuckdbError> {
 fn layout(conn: &Connection) -> Result<std::collections::BTreeSet<String>, DuckdbError> {
     let mut items = std::collections::BTreeSet::new();
     for sql in [
-        "SELECT 'column ' || table_name || '.' || column_name || ' ' || data_type \
+        // The position too: writes append by position, so a column in another place is another layout.
+        "SELECT 'column ' || table_name || '.' || column_name || ' ' || data_type || ' at ' || ordinal_position \
          FROM information_schema.columns WHERE table_schema = 'main'",
         "SELECT 'index ' || index_name || ' ' || coalesce(sql, '') FROM duckdb_indexes() \
          WHERE schema_name = 'main'",
@@ -128,6 +129,23 @@ mod tests {
         assert!(message.contains("span_terms.ingested_at"), "{message}");
         assert!(message.contains("idx_spans_span"), "{message}");
         assert!(message.contains("sideseat system prune"), "{message}");
+    }
+
+    /// The same columns in another order are another layout: writes append by position.
+    #[test]
+    fn a_store_whose_columns_are_in_another_order_is_refused() {
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_schema(&conn, &TestClock).unwrap();
+        conn.execute_batch(
+            "DROP TABLE log_terms; CREATE TABLE log_terms (log_digest VARCHAR NOT NULL, project_id VARCHAR NOT NULL, \
+             ordinal UINTEGER NOT NULL, field VARCHAR NOT NULL, term VARCHAR NOT NULL, truncated BOOLEAN NOT NULL, \
+             ingested_at TIMESTAMP NOT NULL);",
+        )
+        .unwrap();
+        assert!(matches!(
+            ensure_schema(&conn, &TestClock),
+            Err(DuckdbError::LayoutMismatch(_))
+        ));
     }
 
     #[test]

@@ -515,33 +515,29 @@ pub fn delete_project_relation(target: MutationTarget<'_>, project_id: &str) -> 
     )
 }
 
-/// Read the stored versions, and row ids, of one project's candidate metric identities, whose instants lie in
-/// `instants` (epoch microseconds, inclusive).
+/// Read the stored versions, and row ids, of one project's candidate metric identities, at `instants` - the
+/// candidates' own, in epoch microseconds.
 ///
 /// A datapoint's instant is part of its identity, so its stored rows carry the candidate's own `timestamp`, and
-/// bounding the read by the candidates' instants lets DuckDB read only the row groups whose zone maps hold them
-/// (`crate::confirmations::metrics`). The row ids are what the write deletes the replaced rows by.
+/// conditioning the read on the candidates' instants lets DuckDB read only the row groups whose zone maps hold
+/// one (`crate::confirmations::instants_condition`). The row ids are what the write deletes replaced rows by.
 pub fn metric_winner_probe(
     project_id: &str,
     datapoint_ids: &[&str],
-    (low, high): (i64, i64),
+    instants: &[i64],
 ) -> Option<DmlStatement> {
-    if datapoint_ids.is_empty() {
+    if datapoint_ids.is_empty() || instants.is_empty() {
         return None;
     }
     let keys = crate::keyed::distinct_keys(datapoint_ids.iter().copied());
-    let mut params = vec![
-        QueryValue::Int64(low),
-        QueryValue::Int64(high),
-        QueryValue::String(project_id.to_string()),
-    ];
+    let (condition, mut params) = crate::confirmations::instants_condition(instants);
+    params.push(QueryValue::String(project_id.to_string()));
     params.extend(keys.iter().map(|id| QueryValue::String((*id).to_string())));
     Some(DmlStatement {
         operation: QueryOperation::UpsertMetrics,
         sql: format!(
             "SELECT datapoint_id, epoch_us(ingested_at), rowid FROM otel_metrics \
-             WHERE \"timestamp\" BETWEEN make_timestamp(?::BIGINT) AND make_timestamp(?::BIGINT) \
-             AND project_id = ? AND datapoint_id IN ({})",
+             WHERE {condition} AND project_id = ? AND datapoint_id IN ({})",
             std::iter::repeat_n("?", keys.len())
                 .collect::<Vec<_>>()
                 .join(", ")

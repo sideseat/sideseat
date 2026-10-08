@@ -21,9 +21,10 @@ pub(crate) type LogIdentity = (String, String, u32);
 
 /// The ingest instant, in epoch microseconds, of the latest stored revision of each of these span identities.
 ///
-/// The latest is the only revision with search terms: every write deletes the terms of the revision it
-/// supersedes, so whatever a span's history, one instant names the terms a correction replaces - and the answer
-/// is one value per identity, not a list growing with the revisions.
+/// The latest is the span's winner, the revision a read answers with, and the only one with search terms: a
+/// write that wins deletes the previous winner's and one that does not writes none
+/// (`search::replace_span_terms`). So whatever a span's history, this one instant is where its terms are - the
+/// answer is one value per identity, not a list growing with the revisions.
 pub(crate) fn span_revisions(
     conn: &Connection,
     identities: &[SpanIdentity],
@@ -68,37 +69,52 @@ pub(crate) fn span_revisions(
 
 /// The stored rows of these log identities: row id, identity, ingest instant in epoch microseconds.
 ///
-/// `instants` bounds the read by the records' own instants (epoch microseconds, inclusive): a log record's
-/// instant is part of its digest, so its stored row carries it, and DuckDB reads only the row groups whose zone
-/// maps hold the range - no index, which on `log_digest` measured 68 bytes per record. `None` reads the table,
-/// for a caller that does not know the instants (the search backfill).
+/// Each identity comes with the record's own instant in epoch microseconds, when it has one: a log record's
+/// instant is part of its digest, so its stored row carries it, and a read conditioned on the instants reads only
+/// the row groups whose zone maps hold one (`sideseat_query_sql::confirmations::instants_condition`) - no index,
+/// which on `log_digest` measured 68 bytes per record. An identity without one - a record with neither time nor
+/// observed time, or the search backfill, which does not know it - is read unconditioned.
 pub(crate) fn log_rows(
     conn: &Connection,
-    identities: &[LogIdentity],
-    instants: Option<(i64, i64)>,
+    identities: &[(LogIdentity, Option<i64>)],
 ) -> Result<Vec<(i64, LogIdentity, i64)>, DuckdbError> {
+    let (bounded, unbounded): (Vec<_>, Vec<_>) = identities
+        .iter()
+        .partition(|(_, instant)| instant.is_some());
     let mut found = Vec::new();
-    for chunk in identities.chunks(KEYED_CHUNK) {
-        let bound = if instants.is_some() {
-            "\"timestamp\" BETWEEN make_timestamp(?::BIGINT) AND make_timestamp(?::BIGINT) AND "
-        } else {
-            ""
+    for chunk in bounded
+        .chunks(KEYED_CHUNK)
+        .chain(unbounded.chunks(KEYED_CHUNK))
+    {
+        let instants = sideseat_query_sql::confirmations::distinct_instants(
+            chunk
+                .iter()
+                .filter_map(|(_, instant)| *instant)
+                .filter_map(chrono::DateTime::from_timestamp_micros),
+        );
+        let (condition, condition_values) = match &instants {
+            Some(instants) => {
+                let (condition, values) =
+                    sideseat_query_sql::confirmations::instants_condition(instants);
+                (format!("{condition} AND "), values)
+            }
+            None => (String::new(), Vec::new()),
         };
         let sql = format!(
             "SELECT rowid, project_id, log_digest, ordinal, epoch_us(ingested_at) FROM otel_logs \
-             WHERE {bound}(project_id, log_digest, ordinal) IN ({})",
+             WHERE {condition}(project_id, log_digest, ordinal) IN ({})",
             triples(chunk.len())
         );
-        let mut values: Vec<duckdb::types::Value> = instants
+        let mut values: Vec<duckdb::types::Value> = condition_values
             .into_iter()
-            .flat_map(|(low, high)| {
-                [
-                    duckdb::types::Value::BigInt(low),
-                    duckdb::types::Value::BigInt(high),
-                ]
+            .map(|value| match value {
+                sideseat_query_sql::analytics::QueryValue::Int64(number) => {
+                    duckdb::types::Value::BigInt(number)
+                }
+                other => unreachable!("an instant condition binds integers, not {other:?}"),
             })
             .collect();
-        for (project_id, digest, ordinal) in chunk {
+        for ((project_id, digest, ordinal), _) in chunk {
             values.push(duckdb::types::Value::Text(project_id.clone()));
             values.push(duckdb::types::Value::Text(digest.clone()));
             values.push(duckdb::types::Value::UInt(*ordinal));

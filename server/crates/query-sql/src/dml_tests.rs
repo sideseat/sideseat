@@ -184,12 +184,12 @@ fn retention_plan_is_parameterized_and_revision_aware() {
 #[test]
 fn the_metric_winner_probe_is_bounded_by_the_candidates_instants() {
     let ids = ["dp-'one", "dp-two", "dp-'one"];
-    let probe = metric_winner_probe("tenant-'quoted", &ids, (10, 20)).expect("probe");
+    let probe = metric_winner_probe("tenant-'quoted", &ids, &[10, 20]).expect("probe");
     assert_eq!(probe.sql().matches('?').count(), probe.params().len());
     // The two instants, the project, then two distinct datapoints.
     assert_eq!(probe.params().len(), 5);
     assert!(
-        probe.sql().contains("\"timestamp\" BETWEEN"),
+        probe.sql().contains("\"timestamp\" IN ("),
         "{}",
         probe.sql()
     );
