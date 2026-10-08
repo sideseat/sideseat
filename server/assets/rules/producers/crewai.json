@@ -511,6 +511,40 @@
         }
       ],
       "priority": 1515
+    },
+    {
+      "id": "crewai.flow_output",
+      "doc": "A Flow's own spans - its kickoff and each method it runs - report as their output the value the method handed back to the flow: the label a router picks next (`check_iteration`, `native_tool_calls`) or a state marker (`initialized`, `completed`). CrewAI runs its agent executor as such a flow, so these appear inside every crew. They steer the flow and say nothing to anyone; the model calls and tool runs beneath them carry the conversation. Claimed so the generic output reader does not show them as the agent's replies.",
+      "where": {
+        "all": [
+          {
+            "source": "attr:openinference.span.kind",
+            "equals_ignore_case": "chain"
+          },
+          {
+            "source": "scope.name",
+            "equals": "openinference.instrumentation.crewai"
+          },
+          {
+            "any": [
+              {
+                "source": "attr:flow.node.type",
+                "exists": true
+              },
+              {
+                "source": "attr:flow_id",
+                "exists": true
+              }
+            ]
+          }
+        ]
+      },
+      "read": {
+        "attribute": "output.value"
+      },
+      "parse": "json_or_string",
+      "emit": "claim",
+      "priority": 1516
     }
   ]
 }

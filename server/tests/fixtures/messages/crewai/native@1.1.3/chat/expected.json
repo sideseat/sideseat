@@ -42,148 +42,60 @@
       ]
     },
     "trace-1/Flow_4e1c0c4f-a82e-48ef-b6c0-88993592020b.call_llm_and_parse/span-14": {
-      "message_count": 1,
-      "role_sequence": [
-        "assistant"
-      ],
+      "message_count": 0,
+      "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "parsed",
-          "content_digest": "d7fbb0e84b71c942",
-          "observation_type": "chain"
-        }
-      ]
+      "messages": []
     },
     "trace-1/Flow_4e1c0c4f-a82e-48ef-b6c0-88993592020b.call_llm_and_parse/span-9": {
-      "message_count": 1,
-      "role_sequence": [
-        "assistant"
-      ],
+      "message_count": 0,
+      "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "parsed",
-          "content_digest": "d7fbb0e84b71c942",
-          "observation_type": "chain"
-        }
-      ]
+      "messages": []
     },
     "trace-1/Flow_4e1c0c4f-a82e-48ef-b6c0-88993592020b.check_max_iterations/span-13": {
-      "message_count": 1,
-      "role_sequence": [
-        "assistant"
-      ],
+      "message_count": 0,
+      "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "continue_reasoning",
-          "content_digest": "c9a5fada7f19a16b",
-          "observation_type": "chain"
-        }
-      ]
+      "messages": []
     },
     "trace-1/Flow_4e1c0c4f-a82e-48ef-b6c0-88993592020b.check_max_iterations/span-8": {
-      "message_count": 1,
-      "role_sequence": [
-        "assistant"
-      ],
+      "message_count": 0,
+      "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "continue_reasoning",
-          "content_digest": "c9a5fada7f19a16b",
-          "observation_type": "chain"
-        }
-      ]
+      "messages": []
     },
     "trace-1/Flow_4e1c0c4f-a82e-48ef-b6c0-88993592020b.check_todos_available/span-6": {
-      "message_count": 1,
-      "role_sequence": [
-        "assistant"
-      ],
+      "message_count": 0,
+      "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "planning_disabled",
-          "content_digest": "b045698fe408045a",
-          "observation_type": "chain"
-        }
-      ]
+      "messages": []
     },
     "trace-1/Flow_4e1c0c4f-a82e-48ef-b6c0-88993592020b.continue_iteration/span-12": {
-      "message_count": 1,
-      "role_sequence": [
-        "assistant"
-      ],
+      "message_count": 0,
+      "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "check_iteration",
-          "content_digest": "dd3b37146ba57832",
-          "observation_type": "chain"
-        }
-      ]
+      "messages": []
     },
     "trace-1/Flow_4e1c0c4f-a82e-48ef-b6c0-88993592020b.finalize/span-11": {
-      "message_count": 1,
-      "role_sequence": [
-        "assistant"
-      ],
+      "message_count": 0,
+      "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "completed",
-          "content_digest": "45f5f4f8e0d06b3d",
-          "observation_type": "chain"
-        }
-      ]
+      "messages": []
     },
     "trace-1/Flow_4e1c0c4f-a82e-48ef-b6c0-88993592020b.finalize/span-16": {
-      "message_count": 1,
-      "role_sequence": [
-        "assistant"
-      ],
+      "message_count": 0,
+      "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "completed",
-          "content_digest": "45f5f4f8e0d06b3d",
-          "observation_type": "chain"
-        }
-      ]
+      "messages": []
     },
     "trace-1/Flow_4e1c0c4f-a82e-48ef-b6c0-88993592020b.generate_plan/span-5": {
       "message_count": 0,
@@ -193,76 +105,32 @@
       "messages": []
     },
     "trace-1/Flow_4e1c0c4f-a82e-48ef-b6c0-88993592020b.initialize_reasoning/span-7": {
-      "message_count": 1,
-      "role_sequence": [
-        "assistant"
-      ],
+      "message_count": 0,
+      "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "initialized",
-          "content_digest": "a807b6837858b1c5",
-          "observation_type": "chain"
-        }
-      ]
+      "messages": []
     },
     "trace-1/Flow_4e1c0c4f-a82e-48ef-b6c0-88993592020b.kickoff/span-4": {
-      "message_count": 1,
-      "role_sequence": [
-        "assistant"
-      ],
+      "message_count": 0,
+      "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "completed",
-          "content_digest": "45f5f4f8e0d06b3d",
-          "observation_type": "chain"
-        }
-      ]
+      "messages": []
     },
     "trace-1/Flow_4e1c0c4f-a82e-48ef-b6c0-88993592020b.route_by_answer_type/span-10": {
-      "message_count": 1,
-      "role_sequence": [
-        "assistant"
-      ],
+      "message_count": 0,
+      "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "agent_finished",
-          "content_digest": "fe64bc49eea9eb6e",
-          "observation_type": "chain"
-        }
-      ]
+      "messages": []
     },
     "trace-1/Flow_4e1c0c4f-a82e-48ef-b6c0-88993592020b.route_by_answer_type/span-15": {
-      "message_count": 1,
-      "role_sequence": [
-        "assistant"
-      ],
+      "message_count": 0,
+      "role_sequence": [],
       "tool_names": [],
       "tool_definition_count": 0,
-      "messages": [
-        {
-          "index": 0,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "agent_finished",
-          "content_digest": "fe64bc49eea9eb6e",
-          "observation_type": "chain"
-        }
-      ]
+      "messages": []
     },
     "trace-1/Travel assistant._execute_core/span-3": {
       "message_count": 3,
@@ -310,17 +178,10 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 10,
+      "message_count": 3,
       "role_sequence": [
         "system",
         "user",
-        "assistant",
-        "assistant",
-        "assistant",
-        "assistant",
-        "assistant",
-        "assistant",
-        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -349,79 +210,16 @@
           "content": "Kyoto is best known for its classical Japanese culture, including more than 1,600 Buddhist temples, Shinto shrines like Fushimi Inari, traditional geisha districts such as Gion, and its role as Japan's imperial capital for over a thousand y…[245 chars]",
           "content_digest": "273b33649c1f1bb9",
           "observation_type": "agent"
-        },
-        {
-          "index": 3,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "planning_disabled",
-          "content_digest": "b045698fe408045a",
-          "observation_type": "chain"
-        },
-        {
-          "index": 4,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "initialized",
-          "content_digest": "a807b6837858b1c5",
-          "observation_type": "chain"
-        },
-        {
-          "index": 5,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "continue_reasoning",
-          "content_digest": "c9a5fada7f19a16b",
-          "observation_type": "chain"
-        },
-        {
-          "index": 6,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "parsed",
-          "content_digest": "d7fbb0e84b71c942",
-          "observation_type": "chain"
-        },
-        {
-          "index": 7,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "agent_finished",
-          "content_digest": "fe64bc49eea9eb6e",
-          "observation_type": "chain"
-        },
-        {
-          "index": 8,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "completed",
-          "content_digest": "45f5f4f8e0d06b3d",
-          "observation_type": "chain"
-        },
-        {
-          "index": 9,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "check_iteration",
-          "content_digest": "dd3b37146ba57832",
-          "observation_type": "chain"
         }
       ]
     }
   },
   "session_views": {
     "crewai-chat": {
-      "message_count": 10,
+      "message_count": 3,
       "role_sequence": [
         "system",
         "user",
-        "assistant",
-        "assistant",
-        "assistant",
-        "assistant",
-        "assistant",
-        "assistant",
-        "assistant",
         "assistant"
       ],
       "tool_names": [],
@@ -450,76 +248,13 @@
           "content": "Kyoto is best known for its classical Japanese culture, including more than 1,600 Buddhist temples, Shinto shrines like Fushimi Inari, traditional geisha districts such as Gion, and its role as Japan's imperial capital for over a thousand y…[245 chars]",
           "content_digest": "273b33649c1f1bb9",
           "observation_type": "agent"
-        },
-        {
-          "index": 3,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "planning_disabled",
-          "content_digest": "b045698fe408045a",
-          "observation_type": "chain"
-        },
-        {
-          "index": 4,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "initialized",
-          "content_digest": "a807b6837858b1c5",
-          "observation_type": "chain"
-        },
-        {
-          "index": 5,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "continue_reasoning",
-          "content_digest": "c9a5fada7f19a16b",
-          "observation_type": "chain"
-        },
-        {
-          "index": 6,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "parsed",
-          "content_digest": "d7fbb0e84b71c942",
-          "observation_type": "chain"
-        },
-        {
-          "index": 7,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "agent_finished",
-          "content_digest": "fe64bc49eea9eb6e",
-          "observation_type": "chain"
-        },
-        {
-          "index": 8,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "completed",
-          "content_digest": "45f5f4f8e0d06b3d",
-          "observation_type": "chain"
-        },
-        {
-          "index": 9,
-          "role": "assistant",
-          "entry_type": "text",
-          "content": "check_iteration",
-          "content_digest": "dd3b37146ba57832",
-          "observation_type": "chain"
         }
       ]
     }
   },
   "feed_view": {
-    "message_count": 10,
+    "message_count": 3,
     "role_sequence": [
-      "assistant",
-      "assistant",
-      "assistant",
-      "assistant",
-      "assistant",
-      "assistant",
-      "assistant",
       "system",
       "user",
       "assistant"
@@ -529,62 +264,6 @@
     "messages": [
       {
         "index": 0,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "check_iteration",
-        "content_digest": "dd3b37146ba57832",
-        "observation_type": "chain"
-      },
-      {
-        "index": 1,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "completed",
-        "content_digest": "45f5f4f8e0d06b3d",
-        "observation_type": "chain"
-      },
-      {
-        "index": 2,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "agent_finished",
-        "content_digest": "fe64bc49eea9eb6e",
-        "observation_type": "chain"
-      },
-      {
-        "index": 3,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "parsed",
-        "content_digest": "d7fbb0e84b71c942",
-        "observation_type": "chain"
-      },
-      {
-        "index": 4,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "continue_reasoning",
-        "content_digest": "c9a5fada7f19a16b",
-        "observation_type": "chain"
-      },
-      {
-        "index": 5,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "initialized",
-        "content_digest": "a807b6837858b1c5",
-        "observation_type": "chain"
-      },
-      {
-        "index": 6,
-        "role": "assistant",
-        "entry_type": "text",
-        "content": "planning_disabled",
-        "content_digest": "b045698fe408045a",
-        "observation_type": "chain"
-      },
-      {
-        "index": 7,
         "role": "system",
         "entry_type": "text",
         "content": "You are Travel assistant. You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences. Your personal goal is: Answer the traveller's question",
@@ -592,7 +271,7 @@
         "observation_type": "agent"
       },
       {
-        "index": 8,
+        "index": 1,
         "role": "user",
         "entry_type": "text",
         "content": "Current Task: In one sentence, what is Kyoto best known for? This is the expected criteria for your final answer: A direct answer to the request. you MUST return the actual complete content as the final answer, not a summary. Provide your c…[257 chars]",
@@ -600,7 +279,7 @@
         "observation_type": "agent"
       },
       {
-        "index": 9,
+        "index": 2,
         "role": "assistant",
         "entry_type": "text",
         "content": "Kyoto is best known for its classical Japanese culture, including more than 1,600 Buddhist temples, Shinto shrines like Fushimi Inari, traditional geisha districts such as Gion, and its role as Japan's imperial capital for over a thousand y…[245 chars]",
