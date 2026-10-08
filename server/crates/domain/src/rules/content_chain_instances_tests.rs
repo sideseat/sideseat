@@ -7,11 +7,12 @@
 //! positions taken in the engine's order (`before_provider_formats`, `message_envelope` for a message's own block
 //! only, `provider_formats`, `after_provider_formats`) must give the manifest's hand-written answers.
 //!
-//! **The boundary.** An unwrap normalises its member through the production chain, not through the plan under
-//! test, and the canonical passthrough and the media and unknown fallbacks are the production chain's own steps.
-//! So the foreign blocks - values only those steps answer - are checked against the production chain itself, and
-//! an unwrap's answer against the production normalisation of its member; the model reproduces both from the
-//! manifest's `canonical` and `fallback` flags.
+//! **The boundary.** The chain is the production one, `normalize_block_in`, over the plan under test: its order,
+//! its envelope exclusion for a returned value, and an unwrap's recursion into its member through the same plan
+//! are the engine's, not restated here. The canonical passthrough and the media and unknown fallbacks are the
+//! chain's own steps, which the model reproduces from the manifest's `canonical` and `fallback` flags - so the
+//! foreign blocks, values only those steps answer, are checked against the chain over an empty plan, and a block
+//! no case answers must get exactly what that empty-plan chain gives it.
 //!
 //! The section of the specification between its `GENERATED` markers is rendered from the manifest here, and the
 //! test fails while the committed one differs (`UPDATE_SPECS=1` rewrites it).
@@ -274,7 +275,13 @@ fn asset(instance: &Instance) -> Vec<u8> {
 }
 
 /// The block a case builds, as the engine writes it.
-fn built(manifest: &Manifest, instance: &Instance, case: &str, block: &Block) -> JsonValue {
+fn built(
+    manifest: &Manifest,
+    instance: &Instance,
+    plan: &ContentBlockPlan,
+    case: &str,
+    block: &Block,
+) -> JsonValue {
     let case = instance
         .cases
         .iter()
@@ -288,7 +295,7 @@ fn built(manifest: &Manifest, instance: &Instance, case: &str, block: &Block) ->
                 .iter()
                 .find(|b| Some(&b.id) == block.inner.as_ref())
                 .expect("inner");
-            crate::sideml::content::normalize_content_block(&realise(manifest, inner))
+            crate::sideml::content::normalize_block_in(plan, &realise(manifest, inner), true)
                 .expect("a built unwrap's member normalises")
         }
     }
@@ -298,10 +305,12 @@ fn built(manifest: &Manifest, instance: &Instance, case: &str, block: &Block) ->
 fn content_block_chain_instances() {
     let manifest = manifest();
 
-    // The foreign blocks are the production chain's own business, and the model's flags must say what it does.
+    // The foreign blocks are the chain's own steps' business, and the model's flags must say what they do.
+    let empty = ContentBlockPlan::default();
     for block in manifest.blocks.iter().filter(|b| b.foreign.is_some()) {
         let answered =
-            crate::sideml::content::normalize_content_block(&realise(&manifest, block)).is_some();
+            crate::sideml::content::normalize_block_in(&empty, &realise(&manifest, block), true)
+                .is_some();
         assert_eq!(
             answered,
             block.canonical || block.fallback,
@@ -351,7 +360,7 @@ fn content_block_chain_instances() {
             for name in &manifest.positions {
                 let engine = plan.normalize(&json, position(name));
                 let expected = match model.at(name, block) {
-                    Answer::Built(case) => Some(built(&manifest, instance, &case, block)),
+                    Answer::Built(case) => Some(built(&manifest, instance, &plan, &case, block)),
                     Answer::Stopped | Answer::Nothing => None,
                 };
                 assert_eq!(
@@ -373,15 +382,16 @@ fn content_block_chain_instances() {
                     instance.id,
                     block.id
                 );
-                // The engine over the same positions, in its order, where the block is the plan's to answer.
+                // The production chain itself, entered as a message's block or as a returned value. Where no case
+                // answers, the block gets what the chain's own steps give it, which is the chain over no cases.
                 if block.foreign.is_none() {
                     let json = realise(&manifest, block);
-                    let engine = chain(&manifest, message)
-                        .into_iter()
-                        .find_map(|name| plan.normalize(&json, position(name)));
+                    let engine = crate::sideml::content::normalize_block_in(&plan, &json, message);
                     let expected = match wanted.as_str() {
-                        "none" | "fallback" | "canonical" => None,
-                        case => Some(built(&manifest, instance, case, block)),
+                        "none" | "fallback" | "canonical" => {
+                            crate::sideml::content::normalize_block_in(&empty, &json, message)
+                        }
+                        case => Some(built(&manifest, instance, &plan, case, block)),
                     };
                     assert_eq!(
                         engine, expected,

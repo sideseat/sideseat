@@ -29,7 +29,8 @@
 (*                                                                         *)
 (* The instances are rendered from `instances/ContentBlockChain.json` by    *)
 (* the Rust test `content_block_chain_instances`, which holds each position  *)
-(* of the engine to `PositionAnswer` below.                                  *)
+(* of the engine to `PositionAnswer` below, and the production chain -       *)
+(* `normalize_block_in`, unwrap recursion included - to the whole answer.    *)
 (***************************************************************************)
 EXTENDS Naturals, FiniteSets, Sequences, TLC
 

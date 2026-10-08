@@ -263,6 +263,24 @@ pub(crate) fn normalize_returned_value_block(block: &JsonValue) -> Option<JsonVa
 }
 
 fn normalize_block(block: &JsonValue, consult_envelopes: bool) -> Option<JsonValue> {
+    normalize_block_in(
+        &crate::rules::ruleset().content_blocks,
+        block,
+        consult_envelopes,
+    )
+}
+
+/// The whole chain over one plan's declared cases: the passthrough, the four positions in order - the envelope
+/// cases only for a message's own block - and the media and unknown fallbacks. An unwrap normalises its member
+/// through this same chain and plan.
+///
+/// The production entry points pass the embedded plan. A plan of its own is how a test drives the real dispatch
+/// rather than restating it, which is what lets `server/specs/ContentBlockChain.tla` be refuted by the engine.
+pub(crate) fn normalize_block_in(
+    plan: &crate::rules::content_blocks::ContentBlockPlan,
+    block: &JsonValue,
+    consult_envelopes: bool,
+) -> Option<JsonValue> {
     // Handle raw strings in mixed arrays (e.g., AutoGen MultiModalMessage ["text", {image}])
     if let Some(s) = block.as_str() {
         return if s.is_empty() {
@@ -277,7 +295,7 @@ fn normalize_block(block: &JsonValue, consult_envelopes: bool) -> Option<JsonVal
         // OpenInference nested message_content wrapper
         // Declared shapes, at the two positions the chain's order makes load-bearing.
         .or_else(|| {
-            crate::rules::ruleset().content_blocks.normalize(
+            plan.normalize(
                 block,
                 crate::rules::schema::ChainPosition::BeforeProviderFormats,
             )
@@ -286,19 +304,13 @@ fn normalize_block(block: &JsonValue, consult_envelopes: bool) -> Option<JsonVal
         // see `rules/vocabulary/content-blocks-wrappers.json`.
         .or_else(|| {
             consult_envelopes.then(|| {
-                crate::rules::ruleset()
-                    .content_blocks
-                    .normalize(block, crate::rules::schema::ChainPosition::MessageEnvelope)
+                plan.normalize(block, crate::rules::schema::ChainPosition::MessageEnvelope)
             })?
         })
         // The provider wire formats, declared in `rules/vocabulary/content-blocks-*.json` and the conventions.
+        .or_else(|| plan.normalize(block, crate::rules::schema::ChainPosition::ProviderFormats))
         .or_else(|| {
-            crate::rules::ruleset()
-                .content_blocks
-                .normalize(block, crate::rules::schema::ChainPosition::ProviderFormats)
-        })
-        .or_else(|| {
-            crate::rules::ruleset().content_blocks.normalize(
+            plan.normalize(
                 block,
                 crate::rules::schema::ChainPosition::AfterProviderFormats,
             )

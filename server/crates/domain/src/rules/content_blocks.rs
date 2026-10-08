@@ -324,7 +324,7 @@ impl ContentBlockPlan {
             .iter()
             .filter(|rule| predicates_hold(block, &rule.require))
         {
-            match built(block, rule) {
+            match built(self, block, rule) {
                 Some(out) => return Some(out),
                 None if rule.unwrap.is_some() => return None,
                 None => continue,
@@ -553,7 +553,7 @@ fn template_segments(template: &str) -> Result<Vec<Segment>, &'static str> {
     Ok(segments)
 }
 
-fn built(block: &JsonValue, rule: &ContentBlockRule) -> Option<JsonValue> {
+fn built(plan: &ContentBlockPlan, block: &JsonValue, rule: &ContentBlockRule) -> Option<JsonValue> {
     if let Some(spec) = &rule.tool_use {
         // A nameless call names nothing to run, so the case does not recognise the block. The id may be
         // absent and is reported as null: a provider that omits it has still made the call.
@@ -642,11 +642,12 @@ fn built(block: &JsonValue, rule: &ContentBlockRule) -> Option<JsonValue> {
             .from
             .iter()
             .find_map(|path| super::message_rules::query(block, path).into_iter().next())?;
+        // Through the same chain and plan as the block itself, as a message's own block.
         if spec.parse_json {
             let decoded: JsonValue = serde_json::from_str(inner.as_str()?).ok()?;
-            return crate::sideml::content::normalize_content_block(&decoded);
+            return crate::sideml::content::normalize_block_in(plan, &decoded, true);
         }
-        return crate::sideml::content::normalize_content_block(inner);
+        return crate::sideml::content::normalize_block_in(plan, inner, true);
     }
     if let Some(spec) = &rule.media {
         return media_block(block, spec);
