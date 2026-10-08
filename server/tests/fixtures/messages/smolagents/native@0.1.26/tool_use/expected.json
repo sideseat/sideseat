@@ -35,10 +35,12 @@
       ]
     },
     "trace-1/LiteLLMModel.generate/span-10": {
-      "message_count": 3,
+      "message_count": 5,
       "role_sequence": [
         "assistant",
         "system",
+        "user",
+        "assistant",
         "user"
       ],
       "tool_names": [
@@ -71,6 +73,22 @@
           "entry_type": "text",
           "content": "New task: What will the weather be in Paris and in Tokyo over the next two days, and should I pack an umbrella for either city?",
           "content_digest": "b9b146b5d68999d0",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Calling tools: [{'id': 'tooluse_GPVUxrx92VXyLrRnmzi4FR', 'type': 'function', 'function': {'name': 'get_weather', 'arguments': {'city': 'Tokyo', 'days': 2}}}, {'id': 'tooluse_jty4s2wGjXm4hIKiqnwDJu', 'type': 'function', 'function': {'name': …[573 chars]",
+          "content_digest": "8db711ed6184dbfe",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Observation: {'city': 'Tokyo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]} 80% chance of rain in Tokyo tomorrow. 10% chance of rain in Paris tomorrow. {'city': 'Paris', 'forec…[343 chars]",
+          "content_digest": "7c82d73211608237",
           "observation_type": "generation"
         }
       ]

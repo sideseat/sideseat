@@ -8,6 +8,11 @@ use crate::rules::schema::{PredicateSet, ValueCondition};
 /// Equality of the lowered expression, not agreement on sample values: it is the evaluator's whole input, so two
 /// equal expressions answer alike for every payload there is. A set that declared nothing placed no condition,
 /// and its `where` is absent.
+///
+/// Two records left the frozen file after it was frozen, because their condition moved rather than changed:
+/// openinference's `input_messages` entry filter and smolagents' `chat_message_reprs` where-item each excluded
+/// the pseudo-roles `tool-call` and `tool-response`, and both became a `rendering` marker on the same reading,
+/// so the turns are read and shown on the span that sent them instead of being dropped.
 #[test]
 fn every_value_where_lowers_as_the_set_it_replaced() {
     let frozen: serde_json::Value = serde_json::from_slice(

@@ -64,9 +64,11 @@
       ]
     },
     "trace-1/LiteLLMModel.generate/span-10": {
-      "message_count": 3,
+      "message_count": 5,
       "role_sequence": [
         "system",
+        "user",
+        "assistant",
         "user",
         "assistant"
       ],
@@ -95,6 +97,22 @@
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "text",
+          "content": "Calling tools: [{'id': 'tooluse_DcOMhAFqs3xhC2fbvXfr8k', 'type': 'function', 'function': {'name': 'get_weather', 'arguments': {'city': 'Barcelona, Spain', 'days': 2}}}]",
+          "content_digest": "ead6a5fae5b9fd16",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Observation: {'city': 'Barcelona, Spain', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}",
+          "content_digest": "3e704386938e7488",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_L5YuAapGtIPSClkDr7OtSb\",\"name\":\"final_answer\",\"input\":{\"answer\":\"### 1. Task outcome (short version):\\nBarcelona, Spain is forecast to be sunny on both of the next two days. The high is 21°C on Day 1 and 22°…[2025 chars]",
           "content_digest": "2b029628c8e25b5d",
@@ -104,9 +122,11 @@
       ]
     },
     "trace-1/LiteLLMModel.generate/span-13": {
-      "message_count": 3,
+      "message_count": 5,
       "role_sequence": [
         "system",
+        "user",
+        "assistant",
         "user",
         "assistant"
       ],
@@ -133,6 +153,22 @@
         },
         {
           "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Calling tools: [{'id': 'tooluse_ECooklahParLWEzRz1PtDD', 'type': 'function', 'function': {'name': 'researcher', 'arguments': {'task': 'Please use the weather tool to look up the weather forecast for Barcelona, Spain for the next two days. R…[383 chars]",
+          "content_digest": "9c7b264e4f8778c1",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Observation: Here is the final answer from your managed agent 'researcher': ### 1. Task outcome (short version): Barcelona, Spain is forecast to be sunny on both of the next two days. The high is 21°C on Day 1 and 22°C on Day 2. The weather…[1962 chars]",
+          "content_digest": "ba8866456903d628",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_VRDNOZGKXkN1JamolsPrbX\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Packing list for Barcelona (next two days): The forecast shows sunny skies both days, with highs of about 21°C on Day 1 and 22°C on Day 2. The…[909 chars]",

@@ -114,13 +114,13 @@
       "read": {
         "indexed_family": "llm.input_messages",
         "entry_member": "message",
-        "entry_where": {
+        "rendering": {
           "path": "$.role",
-          "none_of": [
+          "one_of": [
             "tool-call",
             "tool-response"
           ],
-          "doc": "Smolagents writes its rendered `Calling tools` and `Observation` bookkeeping back into the next model request under these pseudo-roles. The structured model output and TOOL span are the lossless call and result; retaining these renderings as user turns duplicates both and invents a role."
+          "doc": "Smolagents writes its `Calling tools` and `Observation` bookkeeping back into the next model request under these pseudo-roles. The model was sent them, so the span shows them; the structured model output and the TOOL span are the lossless call and result, so the trace and session views keep those instead."
         },
         "overlay": {
           "doc": "The flattened family loses whole content blocks and writes `__REDACTED__` for a url, while this dialect's serialised copy of the same conversation keeps both - so where both describe one message, the richer one is preferred. Matched by position, and only for an entry whose content arrived flattened.",

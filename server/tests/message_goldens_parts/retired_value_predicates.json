@@ -3519,29 +3519,6 @@
      "id": "openinference.input_messages"
     },
     "read",
-    "entry_where"
-   ],
-   "retired": {
-    "all": [
-     {
-      "path": "$.role",
-      "none_of": [
-       "tool-call",
-       "tool-response"
-      ],
-      "doc": "Smolagents writes its rendered `Calling tools` and `Observation` bookkeeping back into the next model request under these pseudo-roles. The structured model output and TOOL span are the lossless call and result; retaining these renderings as user turns duplicates both and invents a role."
-     }
-    ]
-   }
-  },
-  {
-   "asset": "assets/rules/producers/openinference.json",
-   "path": [
-    "messages",
-    {
-     "id": "openinference.input_messages"
-    },
-    "read",
     "overlay",
     "witness"
    ],
@@ -3695,41 +3672,6 @@
     "all": [
      {
       "kind": "object"
-     }
-    ]
-   }
-  },
-  {
-   "asset": "assets/rules/producers/smolagents.json",
-   "path": [
-    "messages",
-    {
-     "id": "smolagents.llm_input_reprs"
-    },
-    "alternatives",
-    {
-     "id": "chat_message_reprs"
-    },
-    "where"
-   ],
-   "retired": {
-    "all": [
-     {
-      "path": "$.role",
-      "exists": true
-     },
-     {
-      "path": "$.role",
-      "none_of": [
-       "tool-call",
-       "tool-response"
-      ],
-      "doc": "Smolagents' rendered `Calling tools` and `Observation` bookkeeping, as the indexed family's reading excludes it: the model's call and the TOOL span are the lossless copies."
-     },
-     {
-      "path": "$.content[0].text",
-      "doc": "The agent's memory re-sends a step whose model output was empty as an assistant turn with one blank text part; it says nothing.",
-      "non_empty": true
      }
     ]
    }

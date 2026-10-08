@@ -109,6 +109,20 @@
       "role": "ipython",
       "outranks_a_tag": true,
       "means": "tool"
+    },
+    {
+      "id": "role-authority.tool-call",
+      "role": "tool-call",
+      "outranks_a_tag": true,
+      "means": "assistant",
+      "doc": "A turn that renders the model's own tool calls as text, which the model is sent back as an assistant turn: Smolagents' `Calling tools` bookkeeping, which it converts to `assistant` before every request."
+    },
+    {
+      "id": "role-authority.tool-response",
+      "role": "tool-response",
+      "outranks_a_tag": true,
+      "means": "user",
+      "doc": "A turn that renders a tool's results as text, which the model is sent as a user turn: Smolagents' `Observation`, which it converts to `user` before every request."
     }
   ]
 }

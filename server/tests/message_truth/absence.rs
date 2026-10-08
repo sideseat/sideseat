@@ -124,32 +124,35 @@ fn prove_text(text: &str, haystack: &Haystack) -> Proof {
     Proof::Absent
 }
 
-/// Where a payload holds a text only as two separate strings that together are the text: the producer
+/// Whether a payload holds a text only as two separate strings that together are the text: the producer
 /// exported the messages before its client merged them into the one the model was sent.
 ///
 /// Both pieces must be whole strings of one carrier and nothing may hold the text whole, so a quotation
 /// inside a longer string is not taken for one. The merged message is in no payload: no reconstruction can
 /// show the boundary the model saw, and it is that producer's limitation, documented as one.
-pub(super) fn merged_from(text: &str, haystack: &Haystack) -> Option<String> {
+pub(super) fn merged_from(text: &str, haystack: &Haystack) -> bool {
     let needle = collapse_whitespace(text);
     if needle.chars().count() < 2 * MIN_TEXT || !haystack.undecoded.is_empty() {
-        return None;
+        return false;
     }
     if haystack
         .carriers
         .iter()
         .any(|c| find_string(c, &needle).is_some())
     {
-        return None;
+        return false;
     }
-    haystack.carriers.iter().find_map(|carrier| {
+    haystack.carriers.iter().any(|carrier| {
         let whole: BTreeSet<&str> = carrier.strings.iter().map(|(_, s)| s.as_str()).collect();
-        carrier.strings.iter().find_map(|(at, first)| {
-            let rest = needle.strip_prefix(first.as_str())?.trim_start();
-            (first.chars().count() >= MIN_TEXT
-                && rest.chars().count() >= MIN_TEXT
-                && whole.contains(rest))
-            .then(|| format!("{at} holds its first part, and the same carrier the rest"))
+        carrier.strings.iter().any(|(_, first)| {
+            needle
+                .strip_prefix(first.as_str())
+                .map(str::trim_start)
+                .is_some_and(|rest| {
+                    first.chars().count() >= MIN_TEXT
+                        && rest.chars().count() >= MIN_TEXT
+                        && whole.contains(rest)
+                })
         })
     })
 }
@@ -175,14 +178,25 @@ pub(super) fn truncated_at(text: &str, haystack: &Haystack) -> Option<String> {
     }
     // The rest of the text after a cut must be nowhere either: a producer that splits one message across two
     // exported strings carries all of it, which is no truncation.
+    // Nor any part of it: a string of the payload that the rest contains - one piece of three - or that
+    // holds the rest's head or tail means the rest was exported, however it was divided.
     let rest_is_absent = |cut: usize| {
         let rest = needle[cut..].trim();
-        let head: String = rest.chars().take(FRAGMENT).collect();
-        head.chars().count() >= MIN_TEXT
-            && !haystack
-                .carriers
-                .iter()
-                .any(|c| find_string(c, &head).is_some())
+        let chars: Vec<char> = rest.chars().collect();
+        if chars.len() < MIN_TEXT {
+            return false;
+        }
+        let head: String = chars.iter().take(FRAGMENT).collect();
+        let tail: String = chars[chars.len().saturating_sub(FRAGMENT)..]
+            .iter()
+            .collect();
+        !haystack.carriers.iter().any(|c| {
+            c.strings.iter().any(|(_, held)| {
+                held.contains(&head)
+                    || held.contains(&tail)
+                    || (held.chars().count() >= MIN_TEXT && rest.contains(held.as_str()))
+            })
+        })
     };
     haystack.carriers.iter().find_map(|carrier| {
         carrier.strings.iter().find_map(|(at, held)| {
@@ -657,7 +671,7 @@ pub(super) fn request_limitations(
                             "sent to the model and exported only cut short, as a preview: no payload \
                              holds it whole"
                         }
-                        Proof::Partial(_) if merged_from(fact.text(), &haystack).is_some() => {
+                        Proof::Partial(_) if merged_from(fact.text(), &haystack) => {
                             "sent to the model as one message and exported as the separate messages its \
                              client merged: no payload holds the merged one"
                         }

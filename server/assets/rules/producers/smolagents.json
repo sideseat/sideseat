@@ -231,19 +231,19 @@
           "select": "$.messages",
           "each": true,
           "parse": "python_constructor_repr",
+          "rendering": {
+            "path": "$.role",
+            "one_of": [
+              "tool-call",
+              "tool-response"
+            ],
+            "doc": "Smolagents' `Calling tools` and `Observation` bookkeeping, a rendering as in the indexed family's reading: shown on the span that sent it, while the model's call and the TOOL span are the lossless copies."
+          },
           "where": {
             "all": [
               {
                 "path": "$.role",
                 "exists": true
-              },
-              {
-                "path": "$.role",
-                "none_of": [
-                  "tool-call",
-                  "tool-response"
-                ],
-                "doc": "Smolagents' rendered `Calling tools` and `Observation` bookkeeping, as the indexed family's reading excludes it: the model's call and the TOOL span are the lossless copies."
               },
               {
                 "path": "$.content[0].text",

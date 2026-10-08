@@ -792,10 +792,22 @@ mod spelling_tests {
                 "folding was case-insensitive: {spelling}"
             );
         }
+        // Spellings declared since the retired table: smolagents' pseudo-roles for the tool turns it re-sends
+        // as text, which it converts to assistant and user before every request.
+        const DECLARED_SINCE: &[&str] = &["tool-call", "tool-response"];
+        assert_eq!(
+            ChatRole::try_from_str("tool-call"),
+            Some(ChatRole::Assistant)
+        );
+        assert_eq!(
+            ChatRole::try_from_str("tool-response"),
+            Some(ChatRole::User)
+        );
         let declared: Vec<&str> = crate::rules::ruleset()
             .role_authority
             .meanings()
             .map(|(spelling, _)| spelling)
+            .filter(|spelling| !DECLARED_SINCE.contains(spelling))
             .collect();
         let aliases: std::collections::BTreeSet<&str> = folding
             .iter()

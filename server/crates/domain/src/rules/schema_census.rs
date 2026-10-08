@@ -45,11 +45,11 @@ const UNUSED: &[(&str, &str)] = &[
     ),
     ("LengthUnit=chars", "as `bytes`"),
     (
-        "Alternative.rendering",
-        "requested by the rubric track for the tool calls and results a dialect re-sends as text in every \
-         request; its assets land in that track's next commit, and this entry leaves with them",
+        "ReadSpec.entry_where",
+        "the indexed family's entry filter; its only user, a producer's exclusion of the pseudo-roles it \
+         re-sends tool turns under, became a `rendering` - whether the option stays is the grammar's \
+         closure decision",
     ),
-    ("ReadSpec.rendering", "as `Alternative.rendering`"),
     (
         "VersionRange.below",
         "a range is half-open at both ends by grammar; the one shipped range is open above, and a range that \

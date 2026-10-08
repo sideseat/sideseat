@@ -417,7 +417,6 @@ pub(super) fn without_unexported_facts(truth: &Truth, recon: &Recon) -> Truth {
             // Exported only cut short, as a preview: no reconstruction can show it whole either.
             Proof::Partial(_) => {
                 super::absence::truncated_at(fact.text(), haystack(recon)).is_some()
-                    || super::absence::merged_from(fact.text(), haystack(recon)).is_some()
             }
             _ => false,
         })
@@ -489,6 +488,50 @@ pub(super) fn span_sent(truth: &Truth, matching: &Matching, call: &str) -> Optio
         .and_then(|c| matching.span_of.get(&c.id).copied())
 }
 
+/// The consecutive input blocks a merged request part is shown as, if it is: the client joins consecutive
+/// messages of one role with a newline, and an empty one contributes only its newline.
+///
+/// Exact equality on that join, never a looser comparison, and only where the join is visible - several
+/// blocks, or a newline an empty message left at an end - so an ordinary part still needs a block of its own.
+fn merged_run(
+    item: &Expected,
+    blocks: &[&Block],
+    assigned_block: &[bool],
+    explained: &[bool],
+) -> Option<std::ops::RangeInclusive<usize>> {
+    const JOIN: &str = "\n";
+    const LONGEST: usize = 4;
+    let text = item.part.get("text").and_then(Value::as_str)?;
+    let free = |j: usize| !assigned_block[j] && !explained[j] && blocks[j].role == item.role;
+    (0..blocks.len()).find_map(|start| {
+        let mut joined = String::new();
+        for (end, block) in blocks.iter().enumerate().skip(start).take(LONGEST) {
+            if !free(end) {
+                return None;
+            }
+            let piece = block.text()?;
+            if end > start {
+                joined.push_str(JOIN);
+            }
+            joined.push_str(piece);
+            let several = end > start;
+            let candidates = [
+                (joined.clone(), several),
+                (format!("{JOIN}{joined}"), true),
+                (format!("{joined}{JOIN}"), true),
+                (format!("{JOIN}{joined}{JOIN}"), true),
+            ];
+            if candidates
+                .iter()
+                .any(|(form, visible)| *visible && form == text)
+            {
+                return Some(start..=end);
+            }
+        }
+        None
+    })
+}
+
 /// Requests against span inputs, for every matched call the fixture's transcript recorded.
 pub(super) fn check_requests(
     truth: &Truth,
@@ -555,6 +598,16 @@ pub(super) fn check_requests(
             .enumerate()
             .filter(|(i, _)| !assigned_expected[*i])
         {
+            // A message the client merged from consecutive ones before sending - their texts joined by a
+            // newline, an empty one leaving only its newline - while the telemetry exports them apart. The
+            // boundary is not in the payloads, but every part is, so the span must still show each, in
+            // order, under the role the request sent them with. Only the boundary is excused.
+            if let Some(run) = merged_run(item, &blocks, &assigned_block, &explained) {
+                for j in run {
+                    explained[j] = true;
+                }
+                continue;
+            }
             let elsewhere = (0..blocks.len())
                 .find(|&j| !assigned_block[j] && !explained[j] && matches(item, blocks[j]));
             let (assertion, detail) = if let Some(j) = elsewhere {
@@ -595,16 +648,8 @@ pub(super) fn check_requests(
                     // beside the absent parts.
                     Proof::Partial(_)
                         if !shown_elsewhere
-                            && (super::absence::truncated_at(
-                                sent_fact.text(),
-                                haystack(recon),
-                            )
-                            .is_some()
-                                || super::absence::merged_from(
-                                    sent_fact.text(),
-                                    haystack(recon),
-                                )
-                                .is_some()) =>
+                            && super::absence::truncated_at(sent_fact.text(), haystack(recon))
+                                .is_some() =>
                     {
                         continue;
                     }
@@ -677,4 +722,63 @@ pub(super) fn check_requests(
         }
     }
     accounted
+}
+
+#[test]
+fn a_merged_part_is_shown_only_by_its_exact_join() {
+    let block = |role: &str, text: &str| Block {
+        role: role.to_string(),
+        kind: "text".to_string(),
+        content: json!({ "type": "text", "text": text }),
+        tool_use_id: None,
+        trace: "t".to_string(),
+        span: "s".to_string(),
+        output: false,
+        finish: None,
+        media_sha256: None,
+        digest: text.to_string(),
+        identity: text.to_string(),
+    };
+    let part = |text: &str| {
+        let part = json!({ "type": "text", "text": text });
+        Expected {
+            label: "call-001:m0.0".to_string(),
+            role: "user",
+            fact: as_fact("call-001:m0.0", "user", &part, &BTreeMap::new())
+                .expect("a text part is a fact"),
+            part,
+            message: Some(0),
+            is_fact: false,
+            renders: Vec::new(),
+        }
+    };
+    let shown = [
+        block("user", "Observation: rain"),
+        block("user", "New task: pack"),
+    ];
+    let blocks: Vec<&Block> = shown.iter().collect();
+    let free = [false, false];
+    let run = |text: &str| merged_run(&part(text), &blocks, &free, &free);
+    // Two consecutive messages joined by a newline, and an empty one before the first.
+    assert_eq!(run("Observation: rain\nNew task: pack"), Some(0..=1));
+    assert_eq!(run("\nObservation: rain"), Some(0..=0));
+    // A single block is no merge, and a near miss - another separator, other text - is none either.
+    assert_eq!(run("Observation: rain"), None);
+    assert_eq!(run("Observation: rain New task: pack"), None);
+    assert_eq!(run("Observation: rain\nNew task: packs"), None);
+    // Under another role it is not the part the request sent.
+    let assistant = [
+        block("assistant", "Observation: rain"),
+        block("assistant", "New task: pack"),
+    ];
+    let other: Vec<&Block> = assistant.iter().collect();
+    assert_eq!(
+        merged_run(
+            &part("Observation: rain\nNew task: pack"),
+            &other,
+            &free,
+            &free
+        ),
+        None
+    );
 }

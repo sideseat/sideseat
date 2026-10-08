@@ -391,6 +391,15 @@ fn a_text_is_truncated_only_where_a_payload_ends_on_its_prefix() {
         s.attributes = vec![kv("first", string(&cut)), kv("second", string(&rest))];
     });
     assert!(super::truncated_at(TEXT, &split).is_none());
+    // Split across three, the rest in two pieces neither of which holds its head: still all carried.
+    let three = span(|s| {
+        s.attributes = vec![
+            kv("first", string("Paris will be sunny on both days,")),
+            kv("second", string("so leave the")),
+            kv("third", string("umbrella at home.")),
+        ];
+    });
+    assert!(super::truncated_at(TEXT, &three).is_none());
 }
 
 #[test]
@@ -401,11 +410,14 @@ fn a_text_is_merged_only_where_one_carrier_holds_its_two_parts_whole() {
             s.attributes = vec![kv("message.0", string(a)), kv("message.1", string(b))];
         })
     };
-    assert!(super::merged_from(TEXT, &parts(first, rest)).is_some());
+    assert!(super::merged_from(TEXT, &parts(first, rest)));
     // The second part only inside a longer string: a quotation, not a message.
-    assert!(super::merged_from(TEXT, &parts(first, &format!("{rest} And more."))).is_none());
+    assert!(!super::merged_from(
+        TEXT,
+        &parts(first, &format!("{rest} And more."))
+    ));
     // Held whole: nothing was merged.
-    assert!(super::merged_from(TEXT, &parts(TEXT, rest)).is_none());
+    assert!(!super::merged_from(TEXT, &parts(TEXT, rest)));
 }
 
 fn fact_with_text(text: &str) -> Fact {

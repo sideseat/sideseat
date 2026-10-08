@@ -38,7 +38,7 @@ mod recon;
 mod requests;
 mod truth;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) use recon::read;
 use recon::{Recon, ViewKind};
@@ -391,35 +391,53 @@ fn entry_facts(entry: &ledger::Entry) -> Vec<&str> {
     entry.subject.split(" before ").collect()
 }
 
-/// Whether an entry is the same defect as one the base recorded, changing form 1:1 as its content starts
-/// to be shown.
+/// The added entries that are the same defect as one the base recorded, changing form 1:1 as its content
+/// starts to be shown.
 ///
-/// Only where all of these hold: the base recorded `<kind>.missing` for one of the entry's facts, with the
-/// same subject - trace scope included - in the same fixture and view; that base entry is gone now; and the
-/// number of entries about that fact in that view has not grown. Anything else - another fact, another
-/// view, the base entry still there, a second entry for the fact - is a new defect.
-fn was_missing_at_base(
-    base: &[ledger::Entry],
-    current: &[ledger::Entry],
-    entry: &ledger::Entry,
-) -> bool {
-    let count = |entries: &[ledger::Entry], fact: &str| {
+/// The base recorded `<kind>.missing` for one of the entry's facts, with the same subject - trace scope
+/// included - in the same fixture and view; that base entry is gone now; the number of entries about that
+/// fact in that view has not grown; and each such base entry admits one replacement, never two. Anything
+/// else - another fact, another view, the base entry still there, a second replacement - is a new defect.
+fn changes_of_form(base: &[ledger::Entry], current: &[ledger::Entry]) -> BTreeSet<String> {
+    let in_base: BTreeSet<&str> = base.iter().map(|e| e.id.as_str()).collect();
+    let in_current: BTreeSet<&str> = current.iter().map(|e| e.id.as_str()).collect();
+    let count = |entries: &[ledger::Entry], fixture: &str, view: &str, fact: &str| {
         entries
             .iter()
-            .filter(|e| e.fixture == entry.fixture && e.view == entry.view)
+            .filter(|e| e.fixture == fixture && e.view == view)
             .filter(|e| entry_facts(e).contains(&fact))
             .count()
     };
-    entry_facts(entry).into_iter().any(|fact| {
-        let missing = base.iter().find(|e| {
-            e.fixture == entry.fixture
-                && e.view == entry.view
-                && e.assertion.ends_with(".missing")
-                && e.subject == fact
+    let mut used: BTreeSet<&str> = BTreeSet::new();
+    let mut admitted = BTreeSet::new();
+    // In id order, so which addition takes a base entry's one allowance is deterministic.
+    let mut added: Vec<&ledger::Entry> = current
+        .iter()
+        .filter(|e| !in_base.contains(e.id.as_str()))
+        .collect();
+    added.sort_by(|a, b| a.id.cmp(&b.id));
+    for entry in added {
+        let replaced = entry_facts(entry).into_iter().find_map(|fact| {
+            base.iter()
+                .find(|m| {
+                    m.fixture == entry.fixture
+                        && m.view == entry.view
+                        && m.assertion.ends_with(".missing")
+                        && m.subject == fact
+                        && !in_current.contains(m.id.as_str())
+                        && !used.contains(m.id.as_str())
+                })
+                .filter(|_| {
+                    count(current, &entry.fixture, &entry.view, fact)
+                        <= count(base, &entry.fixture, &entry.view, fact)
+                })
         });
-        missing.is_some_and(|m| current.iter().all(|e| e.id != m.id))
-            && count(current, fact) <= count(base, fact)
-    })
+        if let Some(missing) = replaced {
+            used.insert(missing.id.as_str());
+            admitted.insert(entry.id.clone());
+        }
+    }
+    admitted
 }
 
 /// Whether the base already sent what a request entry is about, so the entry is a regression.
@@ -603,13 +621,14 @@ fn truth_violation_ledger_only_shrinks_against_main() {
             .clone()
     };
     let current_entries = ledger::load().entries;
+    let changes_of_form = changes_of_form(&base_entries, &current_entries);
     let added = regressions(
         &current_entries,
         &before,
         |family| registry.contains(&format!("\"{family}\"")),
         |fixture| fixtures_at_base.contains(fixture),
         |entry| {
-            if was_missing_at_base(&base_entries, &current_entries, entry) {
+            if changes_of_form.contains(&entry.id) {
                 return false;
             }
             if entry.view == ViolationView::Request.name() {
@@ -695,49 +714,68 @@ fn a_defect_changing_form_from_missing_is_not_a_new_one() {
     let leaked = entry("trace", "system.leaked", "fact-010");
     let ordered = entry("trace", "order.sequence", "fact-010 before fact-003");
     let moved = entry("request", "request.order", "call-002:m1.0");
+    let admits =
+        |now: &[ledger::Entry], e: &ledger::Entry| changes_of_form(&base, now).contains(&e.id);
     // The fact is shown now, its missing entry is gone, and one entry replaces it: a change of form.
-    let now = [base[1].clone(), base[2].clone(), leaked.clone()];
-    assert!(was_missing_at_base(&base, &now, &leaked));
-    let now = [base[1].clone(), base[2].clone(), ordered.clone()];
-    assert!(was_missing_at_base(&base, &now, &ordered));
-    let now = [base[0].clone(), base[1].clone(), moved.clone()];
-    assert!(was_missing_at_base(&base, &now, &moved));
-    // A second entry for the same fact grows its count: refused.
-    let now = [
+    assert!(admits(
+        &[base[1].clone(), base[2].clone(), leaked.clone()],
+        &leaked
+    ));
+    assert!(admits(
+        &[base[1].clone(), base[2].clone(), ordered.clone()],
+        &ordered
+    ));
+    assert!(admits(
+        &[base[0].clone(), base[1].clone(), moved.clone()],
+        &moved
+    ));
+    // Two replacements for one missing entry: the second is a new defect.
+    let both = [
         base[1].clone(),
         base[2].clone(),
         leaked.clone(),
         ordered.clone(),
     ];
-    assert!(!was_missing_at_base(&base, &now, &leaked));
+    assert_eq!(
+        changes_of_form(&base, &both).len(),
+        0,
+        "the fact's count grew"
+    );
+    let duplicated = entry("trace", "system.duplicated", "fact-010");
+    let swap_base = [
+        entry("trace", "system.missing", "fact-010"),
+        entry("trace", "system.as_text", "fact-010"),
+    ];
+    let swapped = [leaked.clone(), duplicated.clone()];
+    assert_eq!(
+        changes_of_form(&swap_base, &swapped).len(),
+        1,
+        "one missing entry admits one replacement, whatever the count"
+    );
     // A different fact, or the same fact in another view: refused.
     let other = entry("trace", "system.leaked", "fact-011");
-    assert!(!was_missing_at_base(
-        &base,
-        &[base[1].clone(), other.clone()],
+    assert!(!admits(
+        &[base[1].clone(), base[2].clone(), other.clone()],
         &other
     ));
     let elsewhere = entry("session", "system.leaked", "fact-010");
-    assert!(!was_missing_at_base(
-        &base,
-        std::slice::from_ref(&elsewhere),
+    assert!(!admits(
+        &[base[1].clone(), base[2].clone(), elsewhere.clone()],
         &elsewhere
     ));
     // The base's missing entry is still there: the new entry is a second defect, refused.
-    let now = [
-        base[0].clone(),
-        base[1].clone(),
-        base[2].clone(),
-        leaked.clone(),
-    ];
-    assert!(!was_missing_at_base(&base, &now, &leaked));
-    // A per-trace obligation keeps its scope: `fact-010@trace-2` missing admits nothing about `fact-010`.
-    let scoped = [entry("trace", "system.missing", "fact-010@trace-2")];
-    assert!(!was_missing_at_base(
-        &scoped,
-        std::slice::from_ref(&leaked),
+    assert!(!admits(
+        &[
+            base[0].clone(),
+            base[1].clone(),
+            base[2].clone(),
+            leaked.clone()
+        ],
         &leaked
     ));
+    // A per-trace obligation keeps its scope: `fact-010@trace-2` missing admits nothing about `fact-010`.
+    let scoped = [entry("trace", "system.missing", "fact-010@trace-2")];
+    assert!(changes_of_form(&scoped, std::slice::from_ref(&leaked)).is_empty());
 }
 
 /// Prints one fixture's views and violations, for triaging a ledger entry:

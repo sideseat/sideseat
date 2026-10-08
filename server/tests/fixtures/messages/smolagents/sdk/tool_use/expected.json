@@ -35,9 +35,11 @@
       ]
     },
     "trace-1/LiteLLMModel.generate/span-10": {
-      "message_count": 3,
+      "message_count": 5,
       "role_sequence": [
         "system",
+        "user",
+        "assistant",
         "user",
         "assistant"
       ],
@@ -66,6 +68,22 @@
         },
         {
           "index": 2,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Calling tools: [{'id': 'tooluse_GPVUxrx92VXyLrRnmzi4FR', 'type': 'function', 'function': {'name': 'get_weather', 'arguments': {'city': 'Tokyo', 'days': 2}}}, {'id': 'tooluse_jty4s2wGjXm4hIKiqnwDJu', 'type': 'function', 'function': {'name': …[573 chars]",
+          "content_digest": "8db711ed6184dbfe",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Observation: {'city': 'Tokyo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]} 80% chance of rain in Tokyo tomorrow. 10% chance of rain in Paris tomorrow. {'city': 'Paris', 'forec…[343 chars]",
+          "content_digest": "7c82d73211608237",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_zy7Ne2ROgVbe4UxlWEGk8I\",\"name\":\"final_answer\",\"input\":{\"answer\":\"Paris: sunny both days (highs 21°C and 22°C) with only a 10% chance of rain tomorrow, so no umbrella needed. Tokyo: rain on day 1 (high 21°C, …[325 chars]",
