@@ -19,6 +19,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import urlsplit
 
+from harness import fakes
 from harness.fakes import script
 
 PORT = 5401
@@ -355,6 +356,17 @@ def response_events(body: dict[str, Any]) -> list[dict[str, Any]]:
                         "logprobs": [],
                     }
                 )
+            events.extend(
+                {
+                    "type": "response.output_text.annotation.added",
+                    "item_id": item["id"],
+                    "output_index": index,
+                    "content_index": 0,
+                    "annotation_index": number,
+                    "annotation": annotation,
+                }
+                for number, annotation in enumerate(item["content"][0]["annotations"])
+            )
             events.append(
                 {
                     "type": "response.output_text.done",
@@ -407,19 +419,21 @@ def uploaded_file(content_type: str, body: bytes) -> dict[str, Any]:
     message = email.parser.BytesParser(policy=email.policy.HTTP).parsebytes(
         f"Content-Type: {content_type}\r\n\r\n".encode() + body
     )
-    fields: dict[str, Any] = {}
-    filename, size, data = "upload", 0, b""
+    fields: dict[str, str] = {}
+    filename, data = "upload", b""
     for part in message.iter_parts():
         name = part.get_param("name", header="content-disposition")
         payload = part.get_payload(decode=True) or b""
-        if part.get_filename():
-            filename, size, data = part.get_filename(), len(payload), payload
+        # The upload is the `file` field, whether or not the client named it; every other field is
+        # a form value.
+        if name == "file":
+            filename, data = part.get_filename() or filename, payload
         elif name:
             fields[name] = payload.decode()
     return {
         "id": f"file-{script.digest(data.hex())}",
         "object": "file",
-        "bytes": size,
+        "bytes": len(data),
         "created_at": CREATED,
         "filename": filename,
         "purpose": fields.get("purpose", "user_data"),
@@ -463,8 +477,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
     def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
-        length = int(self.headers.get("Content-Length", "0"))
-        raw = self.rfile.read(length)
+        raw = fakes.read_body(self)
         path = canonical_path(self.path)
         if path == "/v1/files":
             self.send_json(

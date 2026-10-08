@@ -22,16 +22,33 @@ MODULES = {
 }
 
 
+def read_body(request: BaseHTTPRequestHandler) -> bytes:
+    """A request's body, sent with a length or in chunks: a client streams an upload it cannot seek."""
+    if "chunked" not in request.headers.get("Transfer-Encoding", "").lower():
+        length = int(request.headers.get("Content-Length") or 0)
+        return request.rfile.read(length) if length else b""
+    chunks = []
+    while size := int(request.rfile.readline().split(b";")[0].strip() or b"0", 16):
+        chunks.append(request.rfile.read(size))
+        request.rfile.readline()
+    while request.rfile.readline() not in (b"\r\n", b"\n", b""):
+        pass
+    return b"".join(chunks)
+
+
 def recording(handler: type[BaseHTTPRequestHandler]) -> type[BaseHTTPRequestHandler]:
     """``handler`` with every POST it answers appended to the run's request transcript."""
 
     class Recording(handler):  # type: ignore[valid-type, misc]
         def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
-            length = int(self.headers.get("Content-Length") or 0)
-            body = self.rfile.read(length) if length else b""
+            body = read_body(self)
             transcript.record(
                 "POST", self.path, body, self.headers.get("Content-Type", "")
             )
+            # The handler reads the body again, now always by its length.
+            del self.headers["Transfer-Encoding"]
+            del self.headers["Content-Length"]
+            self.headers["Content-Length"] = str(len(body))
             self.rfile = io.BytesIO(body)
             super().do_POST()
 
