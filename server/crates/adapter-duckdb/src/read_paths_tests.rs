@@ -10,6 +10,12 @@
 //! a trace of median size, a session, identities to confirm - are drawn from the store itself. Rows scanned are
 //! DuckDB's own profile of the *last* statement each read runs, which is the whole read for the single-statement
 //! ones; latency is the fastest of nine runs after a warm-up, since a loaded machine only ever adds time.
+//!
+//! Two more variables make it the `make bench-reads` gate. `SIDESEAT_READ_PATHS_SPANS` grows the copy to at
+//! least that many span rows first (`read_paths_store`). `SIDESEAT_READ_PATHS_CEILINGS` names a JSON object
+//! of each read's latency ceiling in milliseconds: the run then fails when any read fails - running out of the
+//! production memory limit among them, since the store is opened as the server opens it - or is slower than
+//! its ceiling, and when a read has no ceiling or a ceiling no read.
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -32,7 +38,9 @@ use super::{DuckdbRepository, DuckdbService, TestClock};
 struct Samples {
     project: ProjectId,
     trace: String,
-    session: Option<String>,
+    /// The busiest project that has sessions, and its busiest session: the busiest project overall may have none.
+    session_project: ProjectId,
+    session: String,
     spans: Vec<(String, String, String)>,
     raw_ids: Vec<String>,
     log: Option<(String, u32, chrono::DateTime<Utc>)>,
@@ -73,13 +81,21 @@ fn samples(service: &DuckdbService) -> Samples {
         ),
     )
     .expect("a trace");
-    let session = one(
+    let session_project: String = one(
+        &conn,
+        "SELECT project_id FROM otel_spans GROUP BY 1 HAVING count(session_id) > 0 \
+         ORDER BY count(*) DESC, 1 LIMIT 1",
+    )
+    .expect("a store with a session");
+    let session: String = one(
         &conn,
         &format!(
-            "SELECT session_id FROM otel_spans WHERE project_id = '{p}' AND session_id IS NOT NULL \
-             GROUP BY 1 ORDER BY count(*) DESC, 1 LIMIT 1"
+            "SELECT session_id FROM otel_spans WHERE project_id = '{}' AND session_id IS NOT NULL \
+             GROUP BY 1 ORDER BY count(*) DESC, 1 LIMIT 1",
+            session_project.replace('\'', "''")
         ),
-    );
+    )
+    .expect("a session");
     let mut statement = conn
         .prepare(&format!(
             "SELECT trace_id, span_id, content_digest FROM otel_spans WHERE project_id = '{p}' \
@@ -141,6 +157,7 @@ fn samples(service: &DuckdbService) -> Samples {
     Samples {
         project: ProjectId::from(project.as_str()),
         trace,
+        session_project: ProjectId::from(session_project.as_str()),
         session,
         spans,
         raw_ids,
@@ -225,6 +242,17 @@ async fn read_paths() {
             .await
             .expect("open the store"),
     );
+    if let Ok(spans) = std::env::var("SIDESEAT_READ_PATHS_SPANS") {
+        let spans: u64 = spans
+            .parse()
+            .expect("SIDESEAT_READ_PATHS_SPANS is a span count");
+        let started = Instant::now();
+        let grown = super::read_paths_store::replicate_to(&service, spans);
+        println!(
+            "grew the store to {grown} span rows in {:.0} s",
+            started.elapsed().as_secs_f64()
+        );
+    }
     let s = samples(&service);
     let profile = temp.path().join("profile.json");
     {
@@ -320,42 +348,41 @@ async fn read_paths() {
         &profile,
         "api: list sessions",
         repo.list_sessions(&ListSessionsParams {
-            project_id: project.clone(),
+            project_id: s.session_project.clone(),
             page: 1,
             limit: 50,
             ..Default::default()
         })
     );
-    if let Some(session) = &s.session {
-        measure!(
-            rows,
-            &profile,
-            "api: get session",
-            repo.get_session(project, session)
-        );
-        measure!(
-            rows,
-            &profile,
-            "api: traces of a session",
-            repo.get_traces_for_session(project, session)
-        );
-        measure!(
-            rows,
-            &profile,
-            "api: messages of a session",
-            repo.get_messages(&MessageQueryParams {
-                project_id: project.clone(),
-                session_id: Some(session.clone()),
-                ..Default::default()
-            })
-        );
-        measure!(
-            rows,
-            &profile,
-            "api: trace ids of sessions",
-            repo.get_trace_ids_for_sessions(project, std::slice::from_ref(session), None)
-        );
-    }
+    let (session_project, session) = (&s.session_project, &s.session);
+    measure!(
+        rows,
+        &profile,
+        "api: get session",
+        repo.get_session(session_project, session)
+    );
+    measure!(
+        rows,
+        &profile,
+        "api: traces of a session",
+        repo.get_traces_for_session(session_project, session)
+    );
+    measure!(
+        rows,
+        &profile,
+        "api: messages of a session",
+        repo.get_messages(&MessageQueryParams {
+            project_id: session_project.clone(),
+            session_id: Some(session.clone()),
+            ..Default::default()
+        })
+    );
+    measure!(
+        rows,
+        &profile,
+        "api: trace ids of sessions",
+        repo.get_trace_ids_for_sessions(session_project, std::slice::from_ref(session), None)
+    );
     measure!(
         rows,
         &profile,
@@ -392,7 +419,7 @@ async fn read_paths() {
         rows,
         &profile,
         "api: session filter options",
-        repo.get_session_filter_options(project, &["environment".to_string()], month, None)
+        repo.get_session_filter_options(session_project, &["environment".to_string()], month, None)
     );
     measure!(
         rows,
@@ -580,18 +607,54 @@ async fn read_paths() {
         "\nstore: {spans_total} span rows; project {project}; trace {}",
         s.trace
     );
-    println!("| read | fastest | rows scanned (last statement) |");
-    println!("|---|---|---|");
-    for (name, median, scanned) in rows {
+    let ceilings: Option<std::collections::BTreeMap<String, f64>> =
+        std::env::var("SIDESEAT_READ_PATHS_CEILINGS")
+            .ok()
+            .map(|path| {
+                serde_json::from_str(&std::fs::read_to_string(&path).expect("the ceilings file"))
+                    .expect("the ceilings: read name to milliseconds")
+            });
+    let mut failures = Vec::new();
+    println!("| read | fastest | ceiling | rows scanned (last statement) |");
+    println!("|---|---|---|---|");
+    for (name, median, scanned) in &rows {
+        let ceiling = ceilings.as_ref().and_then(|ceilings| ceilings.get(name));
+        let ceiling_text = ceiling.map_or(String::new(), |ms| format!("{ms:.0} ms"));
         match median {
-            Ok(median) => println!(
-                "| {name} | {:.2} ms | {scanned} |",
-                median.as_secs_f64() * 1000.0
-            ),
-            Err(error) => println!(
-                "| {name} | fails: {} | |",
-                error.chars().take(90).collect::<String>()
-            ),
+            Ok(median) => {
+                let ms = median.as_secs_f64() * 1000.0;
+                println!("| {name} | {ms:.2} ms | {ceiling_text} | {scanned} |");
+                match (ceilings.as_ref(), ceiling) {
+                    (Some(_), None) => failures.push(format!("{name}: no ceiling")),
+                    (_, Some(&ceiling)) if ms > ceiling => {
+                        failures.push(format!(
+                            "{name}: {ms:.2} ms over its {ceiling:.0} ms ceiling"
+                        ));
+                    }
+                    _ => {}
+                }
+            }
+            Err(error) => {
+                println!(
+                    "| {name} | fails: {} | {ceiling_text} | |",
+                    error.chars().take(90).collect::<String>()
+                );
+                failures.push(format!("{name}: {error}"));
+            }
         }
+    }
+    if let Some(ceilings) = &ceilings {
+        for name in ceilings.keys() {
+            if !rows.iter().any(|(read, _, _)| read == name) {
+                failures.push(format!("{name}: a ceiling for a read that did not run"));
+            }
+        }
+        assert!(
+            failures.is_empty(),
+            "{} read(s) failed the gate:\n{}",
+            failures.len(),
+            failures.join("\n")
+        );
+        println!("every read completed within the memory limit and its ceiling");
     }
 }

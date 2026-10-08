@@ -9,7 +9,7 @@ its own location, so it works from any directory.
 | `check/`    | The inner loop, static gates, capped model checking, the durability proof and the supply-chain audit | `make quick`, `make file-length-check`, `make deps-check`, `make node-floor`, `make harden-spec`, `make test-durability`, `make audit` |
 | `hooks/`    | Git hooks: pre-commit (format, file length, secrets), pre-push (`make check`) | `make setup-hooks` |
 | `test/`     | Suites that need containers, SDK toolchains or sample envs  | `make test-postgres` and the other `test-*` targets |
-| `perf/`     | Latency and ingest benchmarks, footprint ceilings, storage  | `make bench-http`, `make bench-ingest`, `make footprint`, `make footprint-storage`, `storage-entropy.py` |
+| `perf/`     | Latency, ingest and read benchmarks, footprint ceilings, storage | `make bench-http`, `make bench-ingest`, `make bench-reads`, `make footprint`, `make footprint-storage`, `storage-entropy.py` |
 | `fixtures/` | Capturing and reviewing the message golden fixtures         | `make capture`, `make capture-sdk-*`          |
 | `dev/`      | Running SideSeat locally, the build cache, shared-tree commits | `make dev`, `make dev-server`, `make clean-stale`, `commit-paths.sh` |
 | `release/`  | Versioning, release cutting, packaging metadata             | `make release`, `make version`                |

@@ -954,6 +954,8 @@ where
 #[cfg(test)]
 mod keyed_scan_tests;
 #[cfg(test)]
+mod read_paths_store;
+#[cfg(test)]
 mod read_paths_tests;
 #[cfg(test)]
 #[path = "lib_tests.rs"]
