@@ -372,3 +372,70 @@ fn an_overlay_may_prepend_a_counterpart_s_blocks_and_keep_the_flattened_ones() {
         Err(MessageCompileError::Inexpressible { .. })
     ));
 }
+
+/// **A prepending overlay renumbers every flattened block, however many there are.** The first version shifted
+/// the members in place, highest first by *name*: `contents.9` sorts above `contents.10`, so it was moved onto it
+/// before it was read and that block was lost. Ten or more blocks is where it bites, and no corpus answer has ten
+/// yet - so the sizes are checked here, including past 100, where the lexicographic order misleads twice.
+#[test]
+fn a_prepending_overlay_keeps_every_flattened_block() {
+    use crate::rules::message_rules::MessageContext;
+    let plan = probe_compile(
+        r#"{"id":"t","messages":[{"id":"t.out","priority":1,"emit":"message",
+            "read":{"indexed_family":"fam","entry_member":"message",
+              "overlay":{"from":"rich","parse":"json","select":"$.choices",
+                "witness":{"path":"$[*].message","exists":true},
+                "when_member_prefix":"contents.","prepend_from":"$.message.thinking_blocks"}},
+            "require_members":{"all_of":[{"name":"role"}]}}]}"#,
+    )
+    .expect("the probe compiles");
+    for blocks in [11usize, 12, 101] {
+        let mut attrs: Vec<(String, String)> = vec![
+            ("fam.0.message.role".to_string(), "assistant".to_string()),
+            (
+                "rich".to_string(),
+                serde_json::json!({"choices": [{"message": {"thinking_blocks": [
+                    {"type": "thinking", "thinking": "first", "signature": "sig"}
+                ]}}]})
+                .to_string(),
+            ),
+        ];
+        for at in 0..blocks {
+            attrs.push((
+                format!("fam.0.message.contents.{at}.message_content.text"),
+                format!("block {at}"),
+            ));
+        }
+        let borrowed: Vec<(&str, &str)> = attrs
+            .iter()
+            .map(|(key, value)| (key.as_str(), value.as_str()))
+            .collect();
+        let probe = probe_attrs(&borrowed);
+        let ctx = MessageContext::for_span("span", &probe, false);
+        let emissions = plan.run(&ctx);
+        let entry = &emissions[0].value;
+        assert_eq!(
+            entry["contents.0"]["thinking"],
+            serde_json::json!("first"),
+            "{blocks} blocks: the prepended block is first"
+        );
+        for at in 0..blocks {
+            assert_eq!(
+                entry[format!("contents.{}.message_content.text", at + 1)],
+                serde_json::json!(format!("block {at}")),
+                "{blocks} blocks: block {at} is kept, one place later"
+            );
+        }
+        let kept = entry
+            .as_object()
+            .expect("an object")
+            .keys()
+            .filter(|member| member.starts_with("contents."))
+            .count();
+        assert_eq!(
+            kept,
+            blocks + 1,
+            "{blocks} blocks: none lost, none invented"
+        );
+    }
+}

@@ -613,25 +613,35 @@ pub(super) fn indexed_entries(
                 .any(|member| member.starts_with(overlay.when_member_prefix.as_str()))
         {
             let prefix = overlay.when_member_prefix.as_str();
-            // Renumbered highest first, so a shift never writes over a member still to be moved.
-            let mut shifted: Vec<(String, String)> = object
+            // **Taken out, then put back renumbered.** Shifting in place needs an order no renaming can
+            // safely have: moving highest-first is right numerically and wrong lexicographically, where
+            // `contents.9` sorts above `contents.10` and overwrites it before it is read - a block lost for
+            // any entry with ten or more of them. Removing every member first means no write can land on one
+            // still to be moved, whatever order they come in.
+            let moved: Vec<(String, JsonValue)> = object
                 .keys()
+                .filter(|member| member.starts_with(prefix))
+                .cloned()
+                .collect::<Vec<_>>()
+                .into_iter()
                 .filter_map(|member| {
+                    let value = object.remove(&member)?;
                     let rest = member.strip_prefix(prefix)?;
                     let (position, tail) = rest.split_once('.').unwrap_or((rest, ""));
-                    let at: usize = position.parse().ok()?;
-                    let moved = match tail.is_empty() {
-                        true => format!("{prefix}{}", at + blocks.len()),
-                        false => format!("{prefix}{}.{tail}", at + blocks.len()),
+                    // A member under the prefix whose first segment is not an index is not a block of this
+                    // list; it keeps the name it had.
+                    let Ok(at) = position.parse::<usize>() else {
+                        return Some((member, value));
                     };
-                    Some((member.clone(), moved))
+                    let at = at + blocks.len();
+                    Some(match tail.is_empty() {
+                        true => (format!("{prefix}{at}"), value),
+                        false => (format!("{prefix}{at}.{tail}"), value),
+                    })
                 })
                 .collect();
-            shifted.sort_by(|a, b| b.0.cmp(&a.0));
-            for (member, moved) in shifted {
-                if let Some(value) = object.remove(&member) {
-                    object.insert(moved, value);
-                }
+            for (member, value) in moved {
+                object.insert(member, value);
             }
             for (at, block) in blocks.into_iter().enumerate() {
                 object.insert(format!("{prefix}{at}"), block);
