@@ -159,8 +159,8 @@ impl Model<'_> {
     }
 
     /// The first recognising case in priority order that builds; a recognising unwrap whose member does not
-    /// normalise ends the position.
-    fn at(&self, position: &str, block: &Block) -> Answer {
+    /// normalise ends the position. The member is normalised as the same kind of value as the block.
+    fn at(&self, position: &str, block: &Block, message: bool) -> Answer {
         let mut cases: Vec<&Case> = self
             .instance
             .cases
@@ -182,7 +182,7 @@ impl Model<'_> {
                 Form::Unwrap => {
                     let inner =
                         self.block(block.inner.as_deref().expect("recognised with a member"));
-                    return if self.chain(inner, true) == "none" {
+                    return if self.chain(inner, message) == "none" {
                         Answer::Stopped
                     } else {
                         Answer::Built(case.id.clone())
@@ -193,17 +193,18 @@ impl Model<'_> {
         Answer::Nothing
     }
 
-    /// The whole chain: the passthrough, the positions in order, then the fallbacks.
+    /// The whole chain: the passthrough, the positions in order, then the fallbacks. A declared block is typed,
+    /// so the unknown fallback answers it where no case does.
     fn chain(&self, block: &Block, message: bool) -> String {
         if block.canonical {
             return "canonical".to_string();
         }
         for position in chain(self.manifest, message) {
-            if let Answer::Built(case) = self.at(position, block) {
+            if let Answer::Built(case) = self.at(position, block, message) {
                 return case;
             }
         }
-        if block.fallback {
+        if block.fallback || block.foreign.is_none() {
             "fallback".to_string()
         } else {
             "none".to_string()
@@ -274,15 +275,35 @@ fn asset(instance: &Instance) -> Vec<u8> {
         .expect("serialises")
 }
 
-/// The block a case builds, as the engine writes it.
+/// What the chain answers for a block, derived from the model: the case it names, built from the manifest, or
+/// the chain's own steps - which are the engine's, so asked of the chain over no cases.
+fn expected(
+    model: &Model<'_>,
+    empty: &ContentBlockPlan,
+    block: &Block,
+    message: bool,
+) -> Option<JsonValue> {
+    match model.chain(block, message).as_str() {
+        "none" | "fallback" | "canonical" => crate::sideml::content::normalize_block_in(
+            empty,
+            &realise(model.manifest, block),
+            message,
+        ),
+        case => Some(built(model, empty, case, block, message)),
+    }
+}
+
+/// The block a case builds, as the engine writes it: a text case from its member, an unwrap from what the model
+/// says its member is - under the same `message`, so an envelope inside a returned value is visible here.
 fn built(
-    manifest: &Manifest,
-    instance: &Instance,
-    plan: &ContentBlockPlan,
+    model: &Model<'_>,
+    empty: &ContentBlockPlan,
     case: &str,
     block: &Block,
+    message: bool,
 ) -> JsonValue {
-    let case = instance
+    let case = model
+        .instance
         .cases
         .iter()
         .find(|c| c.id == case)
@@ -290,13 +311,13 @@ fn built(
     match case.form {
         Form::Text => json!({"type": "text", "text": block.members[&case.member]}),
         Form::Unwrap => {
-            let inner = manifest
-                .blocks
-                .iter()
-                .find(|b| Some(&b.id) == block.inner.as_ref())
-                .expect("inner");
-            crate::sideml::content::normalize_block_in(plan, &realise(manifest, inner), true)
-                .expect("a built unwrap's member normalises")
+            let inner = model.block(
+                block
+                    .inner
+                    .as_deref()
+                    .expect("an unwrap's block has a member"),
+            );
+            expected(model, empty, inner, message).expect("a built unwrap's member normalises")
         }
     }
 }
@@ -357,18 +378,27 @@ fn content_block_chain_instances() {
         };
         for block in manifest.blocks.iter().filter(|b| b.foreign.is_none()) {
             let json = realise(&manifest, block);
-            for name in &manifest.positions {
-                let engine = plan.normalize(&json, position(name));
-                let expected = match model.at(name, block) {
-                    Answer::Built(case) => Some(built(&manifest, instance, &plan, &case, block)),
-                    Answer::Stopped | Answer::Nothing => None,
-                };
-                assert_eq!(
-                    engine, expected,
-                    "{}: `{}` at {name}",
-                    instance.id, block.id
-                );
-                checked += 1;
+            for message in [true, false] {
+                for name in &manifest.positions {
+                    let engine = plan.normalize_with(&json, position(name), message);
+                    let expected = match model.at(name, block, message) {
+                        Answer::Built(case) => Some(built(&model, &empty, &case, block, message)),
+                        Answer::Stopped | Answer::Nothing => None,
+                    };
+                    assert_eq!(
+                        engine,
+                        expected,
+                        "{}: `{}` at {name}, as a {}",
+                        instance.id,
+                        block.id,
+                        if message {
+                            "message's block"
+                        } else {
+                            "returned value"
+                        }
+                    );
+                    checked += 1;
+                }
             }
         }
         for expectation in &instance.expect {
@@ -387,12 +417,7 @@ fn content_block_chain_instances() {
                 if block.foreign.is_none() {
                     let json = realise(&manifest, block);
                     let engine = crate::sideml::content::normalize_block_in(&plan, &json, message);
-                    let expected = match wanted.as_str() {
-                        "none" | "fallback" | "canonical" => {
-                            crate::sideml::content::normalize_block_in(&empty, &json, message)
-                        }
-                        case => Some(built(&manifest, instance, &plan, case, block)),
-                    };
+                    let expected = expected(&model, &empty, block, message);
                     assert_eq!(
                         engine, expected,
                         "{}: `{}` through the chain",

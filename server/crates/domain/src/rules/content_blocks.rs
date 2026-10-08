@@ -334,8 +334,20 @@ impl ContentBlockPlan {
         Ok(plan)
     }
 
-    /// The first declared case at this position that recognises the block.
+    /// The first declared case at this position that recognises the block, read as a message's own block.
     pub fn normalize(&self, block: &JsonValue, at: ChainPosition) -> Option<JsonValue> {
+        self.normalize_with(block, at, true)
+    }
+
+    /// The same, saying whether the block is a message's own (`consult_envelopes`) or a value a tool returned.
+    /// What an unwrap finds inside is the same kind of value as the block around it, so it is normalised under
+    /// the same answer: a returned value's member never reaches a message envelope either.
+    pub fn normalize_with(
+        &self,
+        block: &JsonValue,
+        at: ChainPosition,
+        consult_envelopes: bool,
+    ) -> Option<JsonValue> {
         let cases = match at {
             ChainPosition::MessageEnvelope => &self.envelopes,
             ChainPosition::BeforeProviderFormats => &self.before,
@@ -367,7 +379,7 @@ impl ContentBlockPlan {
             .iter()
             .filter(|rule| predicates_hold(block, &rule.require))
         {
-            match built(self, block, rule) {
+            match built(self, block, rule, consult_envelopes) {
                 Some(out) => return Some(out),
                 None if rule.unwrap.is_some() => return None,
                 None => continue,
@@ -596,7 +608,12 @@ fn template_segments(template: &str) -> Result<Vec<Segment>, &'static str> {
     Ok(segments)
 }
 
-fn built(plan: &ContentBlockPlan, block: &JsonValue, rule: &ContentBlockRule) -> Option<JsonValue> {
+fn built(
+    plan: &ContentBlockPlan,
+    block: &JsonValue,
+    rule: &ContentBlockRule,
+    consult_envelopes: bool,
+) -> Option<JsonValue> {
     if let Some(spec) = &rule.tool_use {
         // A nameless call names nothing to run, so the case does not recognise the block. The id may be
         // absent and is reported as null: a provider that omits it has still made the call.
@@ -685,12 +702,13 @@ fn built(plan: &ContentBlockPlan, block: &JsonValue, rule: &ContentBlockRule) ->
             .from
             .iter()
             .find_map(|path| super::message_rules::query(block, path).into_iter().next())?;
-        // Through the same chain and plan as the block itself, as a message's own block.
+        // Through the same chain and plan as the block itself, and as the same kind of value: a member of a value a
+        // tool returned is a returned value too, so the envelopes stay out of it.
         if spec.parse_json {
             let decoded: JsonValue = serde_json::from_str(inner.as_str()?).ok()?;
-            return crate::sideml::content::normalize_block_in(plan, &decoded, true);
+            return crate::sideml::content::normalize_block_in(plan, &decoded, consult_envelopes);
         }
-        return crate::sideml::content::normalize_block_in(plan, inner, true);
+        return crate::sideml::content::normalize_block_in(plan, inner, consult_envelopes);
     }
     if let Some(spec) = &rule.media {
         return media_block(block, spec);

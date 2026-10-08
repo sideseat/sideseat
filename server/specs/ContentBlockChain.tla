@@ -21,7 +21,7 @@
 (*                          changes that block's answer; deleting an unwrap  *)
 (*                          that stopped can (witness).                      *)
 (*   EnvelopesOnlyForMessages - a returned value is never answered by an      *)
-(*                          envelope case.                                   *)
+(*                          envelope case, through any unwrap of it.         *)
 (*   Termination          - an unwrap descends to a strictly smaller value:  *)
 (*                          every chain of members ends, and an unwrap of    *)
 (*                          the whole block is refused by the compiler.      *)
@@ -44,14 +44,16 @@ ManifestBlocks == {
     [id |-> "wrapped_empty", kind |-> "k2", strings |-> {"text"}, inner |-> "empty_string", foreign |-> FALSE, canonical |-> FALSE, fallback |-> FALSE],
     [id |-> "wrapped_number", kind |-> "k2", strings |-> {}, inner |-> "number", foreign |-> FALSE, canonical |-> FALSE, fallback |-> FALSE],
     [id |-> "double_wrapped", kind |-> "k2", strings |-> {}, inner |-> "wrapped", foreign |-> FALSE, canonical |-> FALSE, fallback |-> FALSE],
+    [id |-> "wrapped_alt", kind |-> "k2", strings |-> {}, inner |-> "alt_only", foreign |-> FALSE, canonical |-> FALSE, fallback |-> FALSE],
     [id |-> "canonical_text", kind |-> "", strings |-> {}, inner |-> "none", foreign |-> TRUE, canonical |-> TRUE, fallback |-> FALSE],
     [id |-> "empty_string", kind |-> "", strings |-> {}, inner |-> "none", foreign |-> TRUE, canonical |-> FALSE, fallback |-> FALSE],
     [id |-> "number", kind |-> "", strings |-> {}, inner |-> "none", foreign |-> TRUE, canonical |-> FALSE, fallback |-> TRUE]
 }
 ManifestInstances == <<
-    [id |-> "decline_then_build", cases |-> {[id |-> "c1", at |-> "provider_formats", prio |-> 10, form |-> "text", recognises |-> {"k1"}, member |-> "text"], [id |-> "c2", at |-> "provider_formats", prio |-> 20, form |-> "text", recognises |-> {"k1"}, member |-> "alt"]}, refused |-> FALSE, expect |-> << [block |-> "plain", message |-> "c1", returned |-> "c1"], [block |-> "number_text", message |-> "none", returned |-> "none"], [block |-> "alt_only", message |-> "c2", returned |-> "c2"] >>],
+    [id |-> "decline_then_build", cases |-> {[id |-> "c1", at |-> "provider_formats", prio |-> 10, form |-> "text", recognises |-> {"k1"}, member |-> "text"], [id |-> "c2", at |-> "provider_formats", prio |-> 20, form |-> "text", recognises |-> {"k1"}, member |-> "alt"]}, refused |-> FALSE, expect |-> << [block |-> "plain", message |-> "c1", returned |-> "c1"], [block |-> "number_text", message |-> "fallback", returned |-> "fallback"], [block |-> "alt_only", message |-> "c2", returned |-> "c2"] >>],
     [id |-> "unwrap_stops_its_position", cases |-> {[id |-> "u1", at |-> "provider_formats", prio |-> 10, form |-> "unwrap", recognises |-> {"k2"}, member |-> "inner"], [id |-> "c2", at |-> "provider_formats", prio |-> 20, form |-> "text", recognises |-> {"k2"}, member |-> "text"], [id |-> "c3", at |-> "after_provider_formats", prio |-> 10, form |-> "text", recognises |-> {"k2"}, member |-> "text"]}, refused |-> FALSE, expect |-> << [block |-> "wrapped", message |-> "u1", returned |-> "u1"], [block |-> "wrapped_empty", message |-> "c3", returned |-> "c3"], [block |-> "wrapped_number", message |-> "u1", returned |-> "u1"], [block |-> "double_wrapped", message |-> "u1", returned |-> "u1"], [block |-> "canonical_text", message |-> "canonical", returned |-> "canonical"], [block |-> "number", message |-> "fallback", returned |-> "fallback"], [block |-> "empty_string", message |-> "none", returned |-> "none"] >>],
-    [id |-> "envelope_and_provider", cases |-> {[id |-> "e1", at |-> "message_envelope", prio |-> 10, form |-> "text", recognises |-> {"k1"}, member |-> "alt"], [id |-> "p1", at |-> "provider_formats", prio |-> 10, form |-> "text", recognises |-> {"k1"}, member |-> "text"]}, refused |-> FALSE, expect |-> << [block |-> "alt_only", message |-> "e1", returned |-> "none"], [block |-> "plain", message |-> "p1", returned |-> "p1"] >>],
+    [id |-> "envelope_and_provider", cases |-> {[id |-> "e1", at |-> "message_envelope", prio |-> 10, form |-> "text", recognises |-> {"k1"}, member |-> "alt"], [id |-> "p1", at |-> "provider_formats", prio |-> 10, form |-> "text", recognises |-> {"k1"}, member |-> "text"]}, refused |-> FALSE, expect |-> << [block |-> "alt_only", message |-> "e1", returned |-> "fallback"], [block |-> "plain", message |-> "p1", returned |-> "p1"] >>],
+    [id |-> "returned_member_skips_envelopes", cases |-> {[id |-> "u1", at |-> "before_provider_formats", prio |-> 10, form |-> "unwrap", recognises |-> {"k2"}, member |-> "inner"], [id |-> "e1", at |-> "message_envelope", prio |-> 10, form |-> "text", recognises |-> {"k1"}, member |-> "alt"]}, refused |-> FALSE, expect |-> << [block |-> "wrapped_alt", message |-> "u1", returned |-> "u1"], [block |-> "alt_only", message |-> "e1", returned |-> "fallback"] >>],
     [id |-> "unwrap_of_the_whole_block", cases |-> {[id |-> "u1", at |-> "provider_formats", prio |-> 10, form |-> "unwrap", recognises |-> {"k2"}, member |-> "$"]}, refused |-> TRUE, expect |-> <<>>]
 >>
 \* END GENERATED FROM instances/ContentBlockChain.json
@@ -95,47 +97,59 @@ Lowest(cs) == CHOOSE c \in cs : \A o \in cs : c.prio <= o.prio
 
 \* The engine's scan: in priority order, a text case builds from a string member
 \* or declines; a recognising unwrap answers with its member's normalisation, or
-\* ends the position when there is none.
-RECURSIVE Scan(_, _, _), Chain(_, _, _)
-Scan(cs, b, rest) ==
+\* ends the position when there is none. The member is the same kind of value as
+\* the block around it - a message's or a returned one - so it is normalised
+\* under the same `message`.
+RECURSIVE Scan(_, _, _, _), Chain(_, _, _), Used(_, _, _)
+Scan(cs, b, rest, message) ==
     IF rest = {} THEN [kind |-> "nothing"]
     ELSE LET c == Lowest(rest)
-         IN IF ~Recognises(c, b) THEN Scan(cs, b, rest \ {c})
+         IN IF ~Recognises(c, b) THEN Scan(cs, b, rest \ {c}, message)
             ELSE IF c.form = "text"
                  THEN IF c.member \in b.strings THEN [kind |-> "built", by |-> c.id]
-                      ELSE Scan(cs, b, rest \ {c})
-                 ELSE IF Chain(cs, Blk(b.inner), TRUE) # None
+                      ELSE Scan(cs, b, rest \ {c}, message)
+                 ELSE IF Chain(cs, Blk(b.inner), message) # None
                       THEN [kind |-> "built", by |-> c.id]
                       ELSE [kind |-> "stopped", by |-> c.id]
 
-PositionAnswer(cs, p, b) == Scan(cs, b, {c \in cs : c.at = p})
+PositionAnswer(cs, p, b, message) == Scan(cs, b, {c \in cs : c.at = p}, message)
 
 Order(message) ==
     SelectSeq(ManifestPositions, LAMBDA p : message \/ p # "message_envelope")
 
-\* The whole chain: the passthrough, the positions in order, the fallbacks.
+\* The whole chain: the passthrough, the positions in order, the fallbacks. A
+\* declared block is typed, so the unknown fallback answers it where no case does.
 Chain(cs, b, message) ==
     IF b.canonical THEN "canonical"
     ELSE LET answering == {k \in DOMAIN Order(message) :
-                              PositionAnswer(cs, Order(message)[k], b).kind = "built"}
+                              PositionAnswer(cs, Order(message)[k], b, message).kind = "built"}
          IN IF answering # {}
                THEN PositionAnswer(cs, Order(message)[CHOOSE k \in answering :
-                                                        \A o \in answering : k <= o], b).by
-               ELSE IF b.fallback THEN "fallback" ELSE None
+                                                        \A o \in answering : k <= o], b, message).by
+               ELSE IF b.fallback \/ ~b.foreign THEN "fallback" ELSE None
+
+\* Every case the answer is built through: the answering case and, for an unwrap,
+\* every case its member's answer is built through.
+Used(cs, b, message) ==
+    LET answer == Chain(cs, b, message)
+    IN IF answer \in {"canonical", "fallback", None} THEN {}
+       ELSE LET c == CHOOSE c \in cs : c.id = answer
+            IN IF c.form = "unwrap" THEN {answer} \cup Used(cs, Blk(b.inner), message)
+               ELSE {answer}
 
 \* Whether a recognising case can build, judged on its own.
-Builds(cs, c, b) ==
+Builds(cs, c, b, message) ==
     IF c.form = "text" THEN c.member \in b.strings
-    ELSE Chain(cs, Blk(b.inner), TRUE) # None
+    ELSE Chain(cs, Blk(b.inner), message) # None
 
 \* The declarative answer: the lowest recognising case that builds, provided no
 \* recognising unwrap below it failed to build.
-Declared(cs, p, b) ==
+Declared(cs, p, b, message) ==
     LET rec == {c \in cs : c.at = p /\ Recognises(c, b)}
-        winners == {c \in rec : Builds(cs, c, b)
-                       /\ ~\E u \in rec : u.prio < c.prio /\ u.form = "unwrap" /\ ~Builds(cs, u, b)}
-        stoppers == {u \in rec : u.form = "unwrap" /\ ~Builds(cs, u, b)
-                       /\ ~\E c \in rec : c.prio < u.prio /\ Builds(cs, c, b)}
+        winners == {c \in rec : Builds(cs, c, b, message)
+                       /\ ~\E u \in rec : u.prio < c.prio /\ u.form = "unwrap" /\ ~Builds(cs, u, b, message)}
+        stoppers == {u \in rec : u.form = "unwrap" /\ ~Builds(cs, u, b, message)
+                       /\ ~\E c \in rec : c.prio < u.prio /\ Builds(cs, c, b, message)}
     IN IF winners # {} THEN [kind |-> "built", by |-> Lowest(winners).id]
        ELSE IF stoppers # {} THEN [kind |-> "stopped", by |-> Lowest(stoppers).id]
        ELSE [kind |-> "nothing"]
@@ -154,14 +168,14 @@ ASSUME \A i \in Accepted :
 ASSUME \E i \in Accepted, b \in ManifestBlocks :
     \E k, l \in DOMAIN Order(TRUE) :
         /\ k < l
-        /\ PositionAnswer(Inst(i).cases, Order(TRUE)[k], b).kind = "stopped"
-        /\ Chain(Inst(i).cases, b, TRUE) = PositionAnswer(Inst(i).cases, Order(TRUE)[l], b).by
+        /\ PositionAnswer(Inst(i).cases, Order(TRUE)[k], b, TRUE).kind = "stopped"
+        /\ Chain(Inst(i).cases, b, TRUE) = PositionAnswer(Inst(i).cases, Order(TRUE)[l], b, TRUE).by
 
 \* Deleting an unwrap that stopped its position can change the answer: a stop is
 \* not a decline.
 ASSUME \E i \in Accepted, b \in ManifestBlocks : \E u \in Inst(i).cases :
     /\ u.form = "unwrap"
-    /\ PositionAnswer(Inst(i).cases, u.at, b) = [kind |-> "stopped", by |-> u.id]
+    /\ PositionAnswer(Inst(i).cases, u.at, b, TRUE) = [kind |-> "stopped", by |-> u.id]
     /\ Chain(Inst(i).cases \ {u}, b, TRUE) # Chain(Inst(i).cases, b, TRUE)
 
 ----------------------------------------------------------------------------
@@ -179,27 +193,29 @@ Cases == Inst(inst).cases
 TypeOK == inst \in Accepted /\ blk \in ManifestBlocks /\ message \in BOOLEAN
 
 FirstSuccessWins ==
-    \A p \in Range(ManifestPositions) : PositionAnswer(Cases, p, blk) = Declared(Cases, p, blk)
+    \A p \in Range(ManifestPositions) :
+        PositionAnswer(Cases, p, blk, message) = Declared(Cases, p, blk, message)
 
 StopIsLocal ==
     \A k \in DOMAIN Order(message) :
-        PositionAnswer(Cases, Order(message)[k], blk).kind = "stopped" =>
-            Chain(Cases, blk, message) \notin {PositionAnswer(Cases, Order(message)[k], blk).by}
+        PositionAnswer(Cases, Order(message)[k], blk, message).kind = "stopped" =>
+            Chain(Cases, blk, message) \notin {PositionAnswer(Cases, Order(message)[k], blk, message).by}
 
 DeclineIsTransparent ==
     \A c \in Cases :
-        (Recognises(c, blk) /\ c.form = "text" /\ ~Builds(Cases, c, blk)) =>
+        (Recognises(c, blk) /\ c.form = "text" /\ ~Builds(Cases, c, blk, message)) =>
             Chain(Cases \ {c}, blk, message) = Chain(Cases, blk, message)
 
+\* Through every unwrap of the answer, not only the outer case: a returned value's
+\* member is a returned value too.
 EnvelopesOnlyForMessages ==
-    LET answer == Chain(Cases, blk, FALSE)
-    IN \A c \in Cases : (c.id = answer) => c.at # "message_envelope"
+    \A c \in Cases : c.id \in Used(Cases, blk, FALSE) => c.at # "message_envelope"
 
 \* The chain answers with a case that recognises the block, or with the engine's
 \* own steps where the block is theirs.
 AnswersComeFromRecognisers ==
     LET answer == Chain(Cases, blk, message)
     IN answer \in {"canonical", "fallback", None}
-       \/ \E c \in Cases : c.id = answer /\ Recognises(c, blk) /\ Builds(Cases, c, blk)
+       \/ \E c \in Cases : c.id = answer /\ Recognises(c, blk) /\ Builds(Cases, c, blk, message)
 
 ============================================================================

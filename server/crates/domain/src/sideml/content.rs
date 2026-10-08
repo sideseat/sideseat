@@ -10,12 +10,18 @@ use sideseat_core::utils::file_uri as files;
 
 mod canonical;
 #[cfg(any(test, feature = "test-support"))]
+mod legacy_chain;
+#[cfg(any(test, feature = "test-support"))]
 mod provider_formats;
 mod python_repr;
 mod stable_hash;
 mod tool_result;
 
+#[cfg(test)]
+use legacy_chain::legacy_provider_formats;
 #[cfg(any(test, feature = "test-support"))]
+pub(crate) use legacy_chain::{legacy_normalize_block, legacy_try_normalize_provider_format};
+#[cfg(test)]
 use provider_formats::{
     try_anthropic_format, try_bedrock_format, try_gemini_format, try_openai_format,
 };
@@ -265,100 +271,42 @@ pub(crate) fn normalize_block_in(
         // OpenInference nested message_content wrapper
         // Declared shapes, at the two positions the chain's order makes load-bearing.
         .or_else(|| {
-            plan.normalize(
+            plan.normalize_with(
                 block,
                 crate::rules::schema::ChainPosition::BeforeProviderFormats,
+                consult_envelopes,
             )
         })
         // Envelopes around a *message's* content block, which the tool-result chains must not consult;
         // see `rules/vocabulary/content-blocks-wrappers.json`.
         .or_else(|| {
             consult_envelopes.then(|| {
-                plan.normalize(block, crate::rules::schema::ChainPosition::MessageEnvelope)
+                plan.normalize_with(
+                    block,
+                    crate::rules::schema::ChainPosition::MessageEnvelope,
+                    consult_envelopes,
+                )
             })?
         })
         // The provider wire formats, declared in `rules/vocabulary/content-blocks-*.json` and the conventions.
-        .or_else(|| plan.normalize(block, crate::rules::schema::ChainPosition::ProviderFormats))
         .or_else(|| {
-            plan.normalize(
+            plan.normalize_with(
+                block,
+                crate::rules::schema::ChainPosition::ProviderFormats,
+                consult_envelopes,
+            )
+        })
+        .or_else(|| {
+            plan.normalize_with(
                 block,
                 crate::rules::schema::ChainPosition::AfterProviderFormats,
+                consult_envelopes,
             )
         })
         // Universal media patterns (mime_type fields, nested self-named media)
         .or_else(|| try_media_fallback(block))
         // Finally, handle unknown formats
         .or_else(|| try_unknown_fallback(block))
-}
-
-/// The retired chain: the four Rust provider readers where the declared `provider_formats` position now sits.
-///
-/// The equivalence oracle for that migration. A nested value - a tool result's content - is normalised by the
-/// current chain, so comparing the two on every value of a corpus, nested ones included, compares them all the
-/// way down.
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) fn legacy_normalize_block(
-    block: &JsonValue,
-    consult_envelopes: bool,
-) -> Option<JsonValue> {
-    if let Some(s) = block.as_str() {
-        return if s.is_empty() {
-            None
-        } else {
-            Some(json!({"type": "text", "text": s}))
-        };
-    }
-    try_sideml_passthrough(block)
-        .or_else(|| {
-            crate::rules::ruleset().content_blocks.normalize(
-                block,
-                crate::rules::schema::ChainPosition::BeforeProviderFormats,
-            )
-        })
-        .or_else(|| {
-            consult_envelopes.then(|| {
-                crate::rules::ruleset()
-                    .content_blocks
-                    .normalize(block, crate::rules::schema::ChainPosition::MessageEnvelope)
-            })?
-        })
-        .or_else(|| legacy_provider_formats(block))
-        .or_else(|| {
-            crate::rules::ruleset().content_blocks.normalize(
-                block,
-                crate::rules::schema::ChainPosition::AfterProviderFormats,
-            )
-        })
-        .or_else(|| try_media_fallback(block))
-        .or_else(|| try_unknown_fallback(block))
-}
-
-/// The four retired readers, in the order the chain tried them.
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) fn legacy_provider_formats(block: &JsonValue) -> Option<JsonValue> {
-    try_openai_format(block)
-        .or_else(|| try_anthropic_format(block))
-        .or_else(|| try_bedrock_format(block))
-        .or_else(|| try_gemini_format(block))
-}
-
-/// The retired `try_normalize_provider_format`, for the same oracle.
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) fn legacy_try_normalize_provider_format(block: &JsonValue) -> Option<JsonValue> {
-    crate::rules::ruleset()
-        .content_blocks
-        .normalize(
-            block,
-            crate::rules::schema::ChainPosition::BeforeProviderFormats,
-        )
-        .or_else(|| legacy_provider_formats(block))
-        .or_else(|| {
-            crate::rules::ruleset().content_blocks.normalize(
-                block,
-                crate::rules::schema::ChainPosition::AfterProviderFormats,
-            )
-        })
-        .or_else(|| try_media_fallback(block))
 }
 
 /// Passthrough for already-normalized SideML content blocks.
@@ -486,15 +434,24 @@ fn try_normalize_provider_format_in(
     // meant a tool result written as a bare object skipped every `before_provider_formats` case, while the
     // same result inside an array ran the whole chain - so the first such declaration would have behaved
     // differently according to whether the producer wrapped it.
-    plan.normalize(
+    // A returned value, so the envelopes stay out of whatever an unwrap finds inside it.
+    plan.normalize_with(
         block,
         crate::rules::schema::ChainPosition::BeforeProviderFormats,
+        false,
     )
-    .or_else(|| plan.normalize(block, crate::rules::schema::ChainPosition::ProviderFormats))
     .or_else(|| {
-        plan.normalize(
+        plan.normalize_with(
+            block,
+            crate::rules::schema::ChainPosition::ProviderFormats,
+            false,
+        )
+    })
+    .or_else(|| {
+        plan.normalize_with(
             block,
             crate::rules::schema::ChainPosition::AfterProviderFormats,
+            false,
         )
     })
     .or_else(|| try_media_fallback(block))
