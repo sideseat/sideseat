@@ -435,17 +435,19 @@ pub(super) fn keep_unclaimed<'p>(
             out.push(emission);
             continue;
         }
-        if emission.owns.iter().any(|owned| claimed.contains(owned)) {
-            continue;
-        }
-        if emission.owns.iter().any(|owned| {
-            owner
-                .get(owned)
-                .is_some_and(|first| *first != emission.rule_id)
-        }) {
-            // A different rule in this batch already owns one of them.
-            continue;
-        }
+        // Owned before this batch, or by a different rule within it.
+        let rule = emission.rule_id;
+        let taken = |owned: &OwnedCarrier| {
+            claimed.contains(owned) || owner.get(owned).is_some_and(|first| *first != rule)
+        };
+        let emission = if emission.owns.iter().any(&taken) {
+            match given_way(emission, &taken) {
+                Some(kept) => kept,
+                None => continue,
+            }
+        } else {
+            emission
+        };
         for owned in &emission.owns {
             owner.insert(owned.clone(), emission.rule_id);
             mine.insert(owned.clone());
@@ -453,4 +455,54 @@ pub(super) fn keep_unclaimed<'p>(
         out.push(emission);
     }
     claimed.extend(mine);
+}
+
+/// An emission without the compose members another rule's carriers took, or `None` where it cannot give way.
+///
+/// Only a member a compose read through its conditional **fallback** gives way: the key is not the dialect's
+/// own, so its owner has the better claim. Anything else taken drops the reading whole, as before. What is
+/// left is pruned in place - member order kept, nothing re-read - and is kept only while it is still a message:
+/// a named member the compose read survives, and the compose's `where` still holds. It then owns what is left,
+/// and the carrier it gave up stays its owner's. A branch set's choice of fallback leaves is made before
+/// ownership and is not revisited.
+fn given_way<'p>(
+    mut emission: Emission<'p>,
+    taken: &dyn Fn(&OwnedCarrier) -> bool,
+) -> Option<Emission<'p>> {
+    let blocked: Vec<OwnedCarrier> = emission
+        .owns
+        .iter()
+        .filter(|owned| taken(owned))
+        .cloned()
+        .collect();
+    let Emission {
+        value,
+        yields,
+        owns,
+        ..
+    } = &mut emission;
+    if !blocked
+        .iter()
+        .all(|carrier| yields.iter().any(|yielded| &yielded.carrier == carrier))
+    {
+        return None;
+    }
+    let compose = yields.first()?.compose;
+    let JsonValue::Object(object) = value else {
+        return None;
+    };
+    for yielded in yields.iter().filter(|y| blocked.contains(&y.carrier)) {
+        object.shift_remove(yielded.member);
+    }
+    let still_a_message = compose
+        .members
+        .iter()
+        .filter_map(|member| member.spec.as_member.as_deref())
+        .any(|name| object.contains_key(name));
+    if !still_a_message || !predicates_hold(value, &compose.require) {
+        return None;
+    }
+    owns.retain(|owned| !blocked.contains(owned));
+    yields.retain(|yielded| !blocked.contains(&yielded.carrier));
+    Some(emission)
 }

@@ -80,11 +80,14 @@ pub(super) fn emit_rule<'p>(
         // Every physical attribute the compose read, so the emission owns them all. Owning only the
         // synthetic tag left each consumed attribute free for another dialect to read as conversation.
         let mut read_carriers = Vec::new();
-        if let Some(value) = composed(compose, ctx, &mut read_carriers).filter(|value| {
-            // Judged once the members are together: a name a dialect reported may not be a tool anyone can
-            // call, and only the assembled object shows it.
-            predicates_hold(value, &compose.require)
-        }) {
+        let mut yields = Vec::new();
+        if let Some(value) =
+            composed(compose, ctx, &mut read_carriers, &mut yields).filter(|value| {
+                // Judged once the members are together: a name a dialect reported may not be a tool anyone can
+                // call, and only the assembled object shows it.
+                predicates_hold(value, &compose.require)
+            })
+        {
             // The canonical tool-definition shape, where the assembled members are one tool rather than a
             // message. Wrapped here because the shape is ours and the members are the dialect's.
             let value = if compose.as_tool_definition {
@@ -103,6 +106,7 @@ pub(super) fn emit_rule<'p>(
                 owns: read_carriers,
                 target: rule.target,
                 value,
+                yields,
             });
         }
         return out;
@@ -121,6 +125,7 @@ pub(super) fn emit_rule<'p>(
                     owns: OwnedCarrier::just(attribute),
                     target: rule.target,
                     value: JsonValue::Array(tools),
+                    yields: Vec::new(),
                 });
             }
         }
@@ -173,6 +178,7 @@ pub(super) fn emit_rule<'p>(
                 owns,
                 target: rule.target,
                 value,
+                yields: Vec::new(),
             });
             return out;
         }
@@ -200,6 +206,7 @@ pub(super) fn emit_rule<'p>(
                     .as_ref()
                     .is_some_and(|condition| predicates_hold(&entry.value, condition)),
                 value: entry.value,
+                yields: Vec::new(),
             });
         }
         return out;
@@ -244,6 +251,7 @@ pub(super) fn emit_rule<'p>(
                         carrier: tagged,
                         target: rule.target,
                         value,
+                        yields: Vec::new(),
                     });
                 }
                 return out;
@@ -261,6 +269,7 @@ pub(super) fn emit_rule<'p>(
                         owns: OwnedCarrier::just(attribute),
                         target: rule.target,
                         value,
+                        yields: Vec::new(),
                     });
                 }
                 return out;
@@ -323,6 +332,7 @@ pub(super) fn emit_rule<'p>(
             owns: owns.clone(),
             target: rule.target,
             value,
+            yields: Vec::new(),
         });
         return out;
     }
@@ -355,6 +365,7 @@ pub(super) fn emit_rule<'p>(
             target: per_reading_target.unwrap_or(rule.target),
             value,
             rendering,
+            yields: Vec::new(),
         });
     }
 

@@ -998,7 +998,7 @@ One member of a composed message: a named source, or a sweep of a prefix.
 | `as` | string | The member's name. Absent for a sweep, which takes its names from the keys it finds. |
 | `from` | [`FirstPresent_string`](#firstpresent_string) | The attribute, or the first of several the span carries. |
 | `parse` | [`ParseMode`](#parsemode) or null | How to read it. Defaults to text. |
-| `fallback` | [`ComposeFallback`](#composefallback) or null | A last-resort source, used only where the gate holds. |
+| `fallback` | [`ComposeFallback`](#composefallback) or null | A last-resort source, used only where the gate holds - and given up where another rule already owns the key: the compose then drops this member and keeps the rest, while a named member is left and its `where` still holds. A message compose's only. |
 | `sweep_prefix` | string | Collect every attribute under this prefix, keyed by the remainder. |
 | `except` | list of string | Names the sweep skips, because a named member above already read them. |
 

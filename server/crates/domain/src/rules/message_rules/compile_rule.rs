@@ -112,6 +112,22 @@ pub(super) fn compile_rule(
             rule: id.clone(),
             detail: refusal.to_string(),
         })?;
+    // A member's fallback gives way to the carrier's owner, which only the message arena can arbitrate: tool
+    // metadata is claimed per axis elsewhere, and a tool definition's members are wrapped before any claim is
+    // asked. So a fallback member is a message compose's alone.
+    if let Some(compose) = compose
+        && compose
+            .members
+            .iter()
+            .any(|member| member.fallback.is_some())
+        && (compose.as_tool_definition
+            || emit.unwrap_or(EmitTarget::Message) != EmitTarget::Message)
+    {
+        return Err(inexpressible(
+            "a compose member's fallback gives way to its carrier's owner, which only a message can do - a \
+             tool definition or a name list is claimed per axis, so the fallback would drop the whole reading",
+        ));
+    }
     if compose.is_some()
         && (wrap.is_some()
             || sections.is_some()

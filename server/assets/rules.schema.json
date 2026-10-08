@@ -1642,7 +1642,7 @@
           ]
         },
         "fallback": {
-          "description": "A last-resort source, used only where the gate holds.\n\nSeparate from `from_any_of` because it is *conditional*: this key is not the dialect's own, so\nreading it unguarded would claim a generic carrier that belongs to whatever wrote it.",
+          "description": "A last-resort source, used only where the gate holds - and given up where another rule already owns the\nkey: the compose then drops this member and keeps the rest, while a named member is left and its `where`\nstill holds. A message compose's only.\n\nSeparate from `from_any_of` because it is *conditional*: this key is not the dialect's own, so\nreading it unguarded would claim a generic carrier that belongs to whatever wrote it, and a rule that\nowns it has the better claim.",
           "anyOf": [
             {
               "$ref": "#/$defs/ComposeFallback"

@@ -8,7 +8,7 @@ use super::*;
 ///
 /// | Reading | Owned together |
 /// | --- | --- |
-/// | `compose` with several members, or a sweep | every spelling of every member, and a sweep's prefix less its `except` - `composed()` selects the **first present** with `find_map` and never retries a backup |
+/// | `compose` with several members, or a sweep | every spelling of every member, a member's fallback where the compose states a `where`, and a sweep's prefix less its `except` - `composed()` selects the **first present** with `find_map` and never retries a backup |
 /// | `indexed_family` | the family's keys: each entry owns its own members, and an aggregate owns every entry |
 /// | `overlay` | the base carrier and the overlay's, which are joined into one observation |
 ///
@@ -35,14 +35,12 @@ pub(super) fn owned_all_or_nothing(rule: &CompiledMessageRule) -> Vec<Owned> {
         // nothing another rule can take half of. Each spelling counts, and a swept prefix less the names it
         // excepts.
         //
-        // A member's conditional **fallback** does not, and that is an open gap rather than a proof: a fallback
-        // carrier another rule claimed does drop the whole compose. Counting it refuses the shipped pair
-        // `vercel-ai.response` (falling back to `output.value` on Vercel evidence) and
-        // `openinference.output_messages` (whose overlay claims `output.value` only where it holds LangChain's
-        // serialised generations), which meet only on a payload neither producer writes - and no rank order
-        // separates them, since each is all-or-nothing over that carrier. The fix is at run time, a fallback
-        // that yields a claimed carrier instead of dropping its compose, and it is tracked in the rule-language
-        // log.
+        // A member's conditional **fallback** gives way instead: where another rule owns its key, the compose
+        // drops that member and keeps the rest (`given_way`), so taking it starves no member another key
+        // supplied: the compose is dropped only when no named member is left, and the carriers it then leaves
+        // unowned are swept ones - the metadata of a message whose content its taker now holds. Unless the
+        // compose states a `where`: what is left is asked it again and may fail, and nothing here can prove it
+        // will not, so there the fallback is counted like a member's own spelling.
         if compose.members.len() > 1
             || compose
                 .members
@@ -52,6 +50,13 @@ pub(super) fn owned_all_or_nothing(rule: &CompiledMessageRule) -> Vec<Owned> {
             for member in &compose.members {
                 let spec = &member.spec;
                 out.extend(spec.from_any_of.iter().map(|key| Owned::exact(key)));
+                if !compose.require.is_empty() {
+                    out.extend(
+                        spec.fallback
+                            .iter()
+                            .map(|fallback| Owned::exact(&fallback.from)),
+                    );
+                }
                 if let Some(prefix) = &spec.sweep_prefix {
                     out.push(Owned {
                         pattern: CarrierPattern::Prefix(prefix.clone()),

@@ -1,5 +1,5 @@
 {
-  "doc": "Value-dependent carrier claiming, shared by server/specs/ValueDependentClaiming.tla and the Rust test `value_dependent_claiming_instances` (server/crates/domain/src/rules/claiming_instances_tests.rs). Each instance is a set of message rules over the carriers `a`, `b` and `c`: a `read` takes the first present of its candidates (present mode) and emits a message where it parses; a `claim` reads the same way and emits nothing; a `compose` owns exactly the members that parse and emits where one does. `fallback` is a stage-fallback read, evaluated after the dialect rules with what they own. A span assigns every carrier `absent`, `bad` (does not parse) or `ok`, and holds a set of the rules' gates. Both checkers enumerate every span of every instance; `refused` instances are the ones the compiler must refuse (an earlier rule reading a member of a later compose, which would starve it), and `expect` lists hand-written answers both must reproduce. The Rust test realises carrier `x` as attribute `vdc.x` (`ok` is the JSON text \"x\" in quotes, `bad` is an unterminated object), and the gate of rule `r` as the attribute `vdc.gate.r`.",
+  "doc": "Value-dependent carrier claiming, shared by server/specs/ValueDependentClaiming.tla and the Rust test `value_dependent_claiming_instances` (server/crates/domain/src/rules/claiming_instances_tests.rs). Each instance is a set of message rules over the carriers `a`, `b` and `c`: a `read` takes the first present of its candidates (present mode) and emits a message where it parses; a `claim` reads the same way and emits nothing; a `compose` owns exactly the members that parse and emits where one does; its `fallbacks` are members read only through a conditional fallback, which give way - the member is dropped, the rest kept - where an earlier rule owns the carrier, and the compose is then kept only while a member is left. `fallback` is a stage-fallback read, evaluated after the dialect rules with what they own. A span assigns every carrier `absent`, `bad` (does not parse) or `ok`, and holds a set of the rules' gates. Both checkers enumerate every span of every instance; `refused` instances are the ones the compiler must refuse (an earlier rule reading a member's own spelling of a later compose, which would starve it; a fallback carrier gives way, so taking it starves nothing), and `expect` lists hand-written answers both must reproduce. The Rust test realises carrier `x` as attribute `vdc.x` (`ok` is the JSON text \"x\" in quotes, `bad` is an unterminated object), and the gate of rule `r` as the attribute `vdc.gate.r`.",
   "version": 1,
   "carriers": ["a", "b", "c"],
   "instances": [
@@ -105,6 +105,73 @@
       "rules": [
         {"id": "r1", "priority": 10, "kind": "compose", "candidates": ["a", "b"]},
         {"id": "r2", "priority": 20, "kind": "compose", "candidates": ["b", "c"]}
+      ],
+      "fallback": [],
+      "refused": true,
+      "expect": []
+    },
+    {
+      "id": "fallback_gives_way",
+      "doc": "A compose whose member falls back to a carrier an earlier rule reads: the earlier rule keeps it, and the compose keeps its other member rather than being dropped whole. Accepted, because a fallback gives way.",
+      "rules": [
+        {"id": "r1", "priority": 10, "kind": "read", "candidates": ["a"]},
+        {"id": "r2", "priority": 20, "kind": "compose", "candidates": ["b"], "fallbacks": ["a"]}
+      ],
+      "fallback": ["c"],
+      "refused": false,
+      "expect": [
+        {
+          "doc": "Both readable and both gates held: r1 owns `a`, the compose gives up its fallback member and keeps `b`.",
+          "values": {"a": "ok", "b": "ok"},
+          "gates": ["r1", "r2"],
+          "owners": {"a": "r1", "b": "r2"},
+          "kept": ["r1", "r2"],
+          "fallback_kept": false
+        },
+        {
+          "doc": "The earlier reader's gate fails, so the compose's fallback reads `a` and owns it.",
+          "values": {"a": "ok", "b": "ok", "c": "ok"},
+          "gates": ["r2"],
+          "owners": {"a": "r2", "b": "r2", "c": "fallback"},
+          "kept": ["r2"],
+          "fallback_kept": true
+        },
+        {
+          "doc": "Only the fallback member parsed, and it gave way: nothing named is left, so the compose is dropped and owns nothing.",
+          "values": {"a": "ok", "b": "bad"},
+          "gates": ["r1", "r2"],
+          "owners": {"a": "r1"},
+          "kept": ["r1"],
+          "fallback_kept": false
+        }
+      ]
+    },
+    {
+      "id": "fallback_first",
+      "doc": "A compose ranked ahead of a reader of its fallback carrier: the compose reads it first and owns it, and the reader is the one dropped.",
+      "rules": [
+        {"id": "r1", "priority": 10, "kind": "compose", "candidates": ["b"], "fallbacks": ["a"]},
+        {"id": "r2", "priority": 20, "kind": "read", "candidates": ["a"]}
+      ],
+      "fallback": [],
+      "refused": false,
+      "expect": [
+        {
+          "doc": "The compose owns both, and the later reader finds `a` taken.",
+          "values": {"a": "ok", "b": "ok"},
+          "gates": ["r1", "r2"],
+          "owners": {"a": "r1", "b": "r1"},
+          "kept": ["r1"],
+          "fallback_kept": false
+        }
+      ]
+    },
+    {
+      "id": "fallback_over_a_member",
+      "doc": "A compose whose fallback reads a carrier a later compose reads as a member's own spelling: the later compose would be dropped whole, so the pair is refused - a fallback gives way, it does not make its own reads harmless.",
+      "rules": [
+        {"id": "r1", "priority": 10, "kind": "compose", "candidates": ["b"], "fallbacks": ["a"]},
+        {"id": "r2", "priority": 20, "kind": "compose", "candidates": ["a", "c"]}
       ],
       "fallback": [],
       "refused": true,

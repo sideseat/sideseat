@@ -430,3 +430,107 @@ fn starvation_is_judged_in_execution_order_between_rules_that_can_meet() {
     assert!(starved(&format!("{take_name},{}", sweep(""))));
     compiles(&format!("{take_name},{}", sweep(r#","except":["name"]"#)));
 }
+
+/// **A compose's fallback gives way to the carrier's owner, and the compose keeps the rest.** The two shipped
+/// readings of `output.value` meet on this span: OpenInference's output family, whose overlay joins the
+/// serialised LangChain generation in `output.value` (ranked first), and the Vercel response compose, whose
+/// content falls back to `output.value` on Vercel evidence when no response text was written. The overlay keeps
+/// `output.value`; the compose gives up its content member and still reports the tool calls only it read -
+/// where it used to be dropped whole.
+#[test]
+fn a_compose_fallback_gives_way_to_the_carrier_s_owner_and_keeps_the_rest() {
+    use crate::rules::message_rules::{MessageContext, OwnedCarrier};
+    let plan = &super::ruleset().messages;
+    let attrs = probe_attrs(&[
+        ("llm.output_messages.0.message.role", "assistant"),
+        (
+            "llm.output_messages.0.message.contents.0.message_content.type",
+            "text",
+        ),
+        (
+            "llm.output_messages.0.message.contents.0.message_content.text",
+            "the answer",
+        ),
+        (
+            "output.value",
+            r#"{"generations":[[{"message":{"id":["langchain","schema","messages","AIMessage"],
+                "kwargs":{"content":[{"type":"text","text":"the whole answer"}]}}}]]}"#,
+        ),
+        (
+            "ai.response.toolCalls",
+            r#"[{"toolCallType":"function","toolCallId":"call_1","toolName":"lookup","args":"{\"q\":1}"}]"#,
+        ),
+        ("ai.response.finishReason", "tool-calls"),
+    ]);
+    let ctx = MessageContext::for_span("ai.generateText.doGenerate", &attrs, false);
+    let emissions = plan.run(&ctx);
+    let attribute = |name: &str| OwnedCarrier {
+        is_event: false,
+        name: name.to_string(),
+    };
+    let output_value = attribute("output.value");
+    let family: Vec<_> = emissions
+        .iter()
+        .filter(|e| e.rule_id == "openinference.output_messages")
+        .collect();
+    assert_eq!(family.len(), 1, "{emissions:#?}");
+    assert!(
+        family[0].owns.contains(&output_value),
+        "the overlay joined `output.value`, so it owns it"
+    );
+    assert!(family[0].value.to_string().contains("the whole answer"));
+    let response: Vec<_> = emissions
+        .iter()
+        .filter(|e| e.rule_id == "vercel-ai.response")
+        .collect();
+    assert_eq!(
+        response.len(),
+        1,
+        "the compose is kept, not dropped whole: {emissions:#?}"
+    );
+    let members = response[0].value.as_object().expect("a composed message");
+    assert!(
+        members.get("content").is_none(),
+        "the content it read through the fallback is given up: {members:?}"
+    );
+    assert!(members.contains_key("tool_calls"), "{members:?}");
+    assert_eq!(
+        members.keys().map(String::as_str).collect::<Vec<_>>(),
+        ["tool_calls", "finishReason", "role"],
+        "the members it kept, in the order it wrote them"
+    );
+    assert!(
+        !response[0].owns.contains(&output_value),
+        "and it does not own the carrier it gave up"
+    );
+    assert!(
+        response[0]
+            .owns
+            .contains(&attribute("ai.response.toolCalls"))
+    );
+}
+
+/// **Only a message compose's member may fall back.** A fallback gives way to its carrier's owner, which only the
+/// message arena arbitrates: a tool definition is wrapped before any claim is asked and tool metadata is claimed
+/// per axis, so a fallback there would drop the whole reading again.
+#[test]
+fn only_a_message_compose_s_member_falls_back() {
+    let compose = |extra: &str, emit: &str| {
+        format!(
+            r#"{{"id":"t","messages":[{{"id":"t.c","priority":1,"emit":"{emit}","compose":{{"tag":"t.tag"{extra},
+                "members":[{{"as":"name","from":"t.name","parse":"text",
+                  "fallback":{{"from":"t.other","where":{{"source":"attr:t.evidence","exists":true}},"parse":"text"}}}},
+                  {{"as":"description","from":"t.description","parse":"text"}}]}}}}]}}"#
+        )
+    };
+    assert!(probe_compile(&compose("", "message")).is_ok());
+    for (why, body) in [
+        (
+            "a tool definition",
+            compose(r#","as_tool_definition":true"#, "tool_definitions"),
+        ),
+        ("a name list", compose("", "tool_names")),
+    ] {
+        assert!(probe_compile(&body).is_err(), "{why}: compiled - {body}");
+    }
+}

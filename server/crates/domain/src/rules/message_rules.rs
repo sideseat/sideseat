@@ -236,6 +236,22 @@ pub struct Emission<'a> {
     /// A turn the producer re-sent as text that another carrier holds losslessly: kept on the span, left out
     /// of the trace and session views. Declared by a reading's `rendering`.
     pub rendering: bool,
+    /// The members a compose read through a conditional fallback, which it gives up - member and carrier
+    /// together - where another rule already owns the carrier. Empty for every other reading.
+    pub yields: Vec<YieldedMember<'a>>,
+}
+
+/// A compose member read through its conditional fallback.
+///
+/// A fallback reads a key that is **not** the dialect's own, so a rule that owns that key has the better claim
+/// to it: the compose gives up the member rather than its whole reading, and the carriers only it read still
+/// reach a reader. Never a carrier a member of the same compose read directly - that one is the dialect's own.
+#[derive(Debug, Clone)]
+pub struct YieldedMember<'a> {
+    pub carrier: OwnedCarrier,
+    pub member: &'a str,
+    /// The compose, for re-asking whether what is left is still a message.
+    pub compose: &'a CompiledCompose,
 }
 
 /// The carrier an emission read: its kind and its key.

@@ -659,10 +659,13 @@ pub struct ComposeMember {
     /// How to read it. Defaults to text.
     #[serde(default)]
     pub parse: Option<ParseMode>,
-    /// A last-resort source, used only where the gate holds.
+    /// A last-resort source, used only where the gate holds - and given up where another rule already owns the
+    /// key: the compose then drops this member and keeps the rest, while a named member is left and its `where`
+    /// still holds. A message compose's only.
     ///
     /// Separate from `from_any_of` because it is *conditional*: this key is not the dialect's own, so
-    /// reading it unguarded would claim a generic carrier that belongs to whatever wrote it.
+    /// reading it unguarded would claim a generic carrier that belongs to whatever wrote it, and a rule that
+    /// owns it has the better claim.
     #[serde(default)]
     pub fallback: Option<ComposeFallback>,
     /// Collect every attribute under this prefix, keyed by the remainder.

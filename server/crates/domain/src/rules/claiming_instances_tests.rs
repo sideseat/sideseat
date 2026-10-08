@@ -45,6 +45,10 @@ struct Rule {
     priority: i32,
     kind: Kind,
     candidates: Vec<String>,
+    /// A compose's members read only through a conditional fallback: each gives way where an earlier rule owns
+    /// its carrier.
+    #[serde(default)]
+    fallbacks: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -112,7 +116,8 @@ impl Span<'_> {
 /// What a rule's reading would own if it is kept, or `None` where it yields nothing.
 ///
 /// A read commits to its first *present* candidate and yields only if that one parses; a compose yields the
-/// members that parse, and nothing if none does. A gate that fails yields nothing.
+/// members that parse, its fallback members included, and nothing if none does. A gate that fails yields
+/// nothing.
 fn reading(rule: &Rule, span: &Span<'_>) -> Option<BTreeSet<String>> {
     if !span.gates.contains(&rule.id) {
         return None;
@@ -129,6 +134,7 @@ fn reading(rule: &Rule, span: &Span<'_>) -> Option<BTreeSet<String>> {
             let parsed: BTreeSet<String> = rule
                 .candidates
                 .iter()
+                .chain(&rule.fallbacks)
                 .filter(|c| span.value(c) == Value::Ok)
                 .cloned()
                 .collect();
@@ -137,21 +143,39 @@ fn reading(rule: &Rule, span: &Span<'_>) -> Option<BTreeSet<String>> {
     }
 }
 
-/// The rank-ordered greedy outcome: each reading, in priority order, is kept only if none of what it would own
-/// is already owned, and is then the owner of all of it. The fallback read comes last, against what the dialect
-/// rules own.
+/// What a reading keeps against what is already owned, or `None` where it is dropped: all of it where nothing is
+/// taken; where only fallback members' carriers are, the rest, if anything is left; otherwise nothing.
+fn kept_of(
+    rule: &Rule,
+    owns: BTreeSet<String>,
+    owners: &BTreeMap<String, String>,
+) -> Option<BTreeSet<String>> {
+    let taken: BTreeSet<String> = owns
+        .iter()
+        .filter(|c| owners.contains_key(*c))
+        .cloned()
+        .collect();
+    if taken.is_empty() {
+        return Some(owns);
+    }
+    if !taken.iter().all(|c| rule.fallbacks.contains(c)) {
+        return None;
+    }
+    let left: BTreeSet<String> = owns.difference(&taken).cloned().collect();
+    (!left.is_empty()).then_some(left)
+}
+
+/// The rank-ordered greedy outcome: each reading, in priority order, keeps what `kept_of` leaves it and is then
+/// the owner of all of that. The fallback read comes last, against what the dialect rules own.
 fn greedy(instance: &Instance, span: &Span<'_>) -> (BTreeMap<String, String>, Vec<String>, bool) {
     let mut rules: Vec<&Rule> = instance.rules.iter().collect();
     rules.sort_by_key(|rule| rule.priority);
     let mut owners = BTreeMap::new();
     let mut kept = Vec::new();
     for rule in rules {
-        let Some(owns) = reading(rule, span) else {
+        let Some(owns) = reading(rule, span).and_then(|owns| kept_of(rule, owns, &owners)) else {
             continue;
         };
-        if owns.iter().any(|c| owners.contains_key(c)) {
-            continue;
-        }
         for carrier in owns {
             owners.insert(carrier, rule.id.clone());
         }
@@ -170,17 +194,19 @@ fn greedy(instance: &Instance, span: &Span<'_>) -> (BTreeMap<String, String>, Ve
     (owners, kept, fallback_kept)
 }
 
-/// The compile-time refusal: a rule ranked ahead of a compose reads one of its members, so the compose would be
-/// dropped whole wherever that rule took it.
+/// The compile-time refusal: a rule ranked ahead of a compose of several members reads one of its members' own
+/// spellings, so the compose would be dropped whole wherever that rule took it. A fallback member's carrier is
+/// not one: it gives way. The earlier rule's reads count whichever way it reads them.
 fn starves(instance: &Instance) -> bool {
     instance.rules.iter().any(|later| {
         later.kind == Kind::Compose
-            && later.candidates.len() > 1
+            && later.candidates.len() + later.fallbacks.len() > 1
             && instance.rules.iter().any(|earlier| {
                 earlier.priority < later.priority
                     && earlier
                         .candidates
                         .iter()
+                        .chain(&earlier.fallbacks)
                         .any(|c| later.candidates.contains(c))
             })
     })
@@ -227,7 +253,11 @@ fn asset(instance: &Instance) -> Vec<u8> {
                         "tag": tag,
                         "members": rule.candidates.iter().map(|c| serde_json::json!({
                             "as": format!("m_{c}"), "from": key(c), "parse": "json"
-                        })).collect::<Vec<_>>(),
+                        })).chain(rule.fallbacks.iter().map(|c| serde_json::json!({
+                            // A spelling no span carries, so the member is read through its fallback alone.
+                            "as": format!("f_{c}"), "from": format!("vdc.never.{c}"), "parse": "json",
+                            "fallback": {"from": key(c), "where": gate(&rule.id), "parse": "json"}
+                        }))).collect::<Vec<_>>(),
                         "trailing": {"role": "user"}
                     },
                     "where": gate(&rule.id), "emit": "message", "priority": rule.priority
@@ -284,6 +314,31 @@ fn engine(
     let mut read: HashSet<OwnedCarrier> = HashSet::new();
     for emission in plan.run(&ctx) {
         let rule = local(emission.rule_id);
+        // A compose's message holds exactly the members it owns: one that gave way is gone from the value, not
+        // only from the ownership.
+        if let Some(members) = emission.value.as_object()
+            && members.contains_key("role")
+            && members
+                .keys()
+                .any(|k| k.starts_with("m_") || k.starts_with("f_"))
+        {
+            let held: BTreeSet<String> = members
+                .keys()
+                .filter_map(|k| k.strip_prefix("m_").or_else(|| k.strip_prefix("f_")))
+                .map(str::to_string)
+                .collect();
+            let owned: BTreeSet<String> = emission
+                .owns
+                .iter()
+                .filter_map(|owned| owned.name.strip_prefix("vdc."))
+                .map(str::to_string)
+                .collect();
+            assert_eq!(
+                held, owned,
+                "{}: `{rule}` holds members it does not own",
+                instance.id
+            );
+        }
         for owned in &emission.owns {
             let carrier = owned
                 .name
@@ -491,11 +546,12 @@ fn generated_section(manifest: &Manifest) -> String {
                 .iter()
                 .map(|rule| {
                     format!(
-                        "[id |-> {}, prio |-> {}, kind |-> {}, cands |-> {}]",
+                        "[id |-> {}, prio |-> {}, kind |-> {}, cands |-> {}, fbs |-> {}]",
                         tla_string(&rule.id),
                         rule.priority,
                         kind(rule.kind),
-                        tla_seq(&rule.candidates)
+                        tla_seq(&rule.candidates),
+                        tla_set(&rule.fallbacks)
                     )
                 })
                 .collect();

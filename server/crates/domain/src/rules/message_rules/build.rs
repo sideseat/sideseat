@@ -397,10 +397,11 @@ pub(super) fn bucket_members_present<'a>(
 ///
 /// Emitted only when at least one *source* member was filled - the trailing literals are not evidence of
 /// anything, so a rule whose sources all missed would otherwise emit a message consisting of a role.
-pub(super) fn composed(
-    compose: &CompiledCompose,
+pub(super) fn composed<'p>(
+    compose: &'p CompiledCompose,
     ctx: &MessageContext<'_>,
     read: &mut Vec<OwnedCarrier>,
+    yields: &mut Vec<YieldedMember<'p>>,
 ) -> Option<JsonValue> {
     let attrs = ctx.span_attrs;
     let mut object = serde_json::Map::new();
@@ -465,6 +466,11 @@ pub(super) fn composed(
             let raw = attrs.get(&fallback.from)?;
             let value = parse_value(raw, fallback.parse.unwrap_or(ParseMode::Text))?;
             read.push(OwnedCarrier::attribute(&fallback.from));
+            yields.push(YieldedMember {
+                carrier: OwnedCarrier::attribute(&fallback.from),
+                member: name,
+                compose,
+            });
             Some(value)
         });
         if let Some(value) = value {
@@ -475,6 +481,13 @@ pub(super) fn composed(
     if object.is_empty() {
         return None;
     }
+    // A carrier a member read **directly** is the dialect's own, and not given up because another member also
+    // reached it through a fallback: a direct use dominates.
+    let through_fallback: Vec<OwnedCarrier> = yields.iter().map(|y| y.carrier.clone()).collect();
+    yields.retain(|yielded| {
+        let reads = |list: &[OwnedCarrier]| list.iter().filter(|o| **o == yielded.carrier).count();
+        reads(read) == reads(&through_fallback)
+    });
     for (member, literal) in &compose.trailing {
         object.insert(member.clone(), literal.clone());
     }

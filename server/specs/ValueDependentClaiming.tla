@@ -5,7 +5,10 @@
 (* where each rule's carriers were fixed: here a read takes the first of    *)
 (* its spellings the span carries and owns it only if it parses, a compose  *)
 (* owns exactly the members that parse, a claim owns without emitting, and   *)
-(* a gate that holds owns nothing by itself.                               *)
+(* a gate that holds owns nothing by itself. A compose member read through  *)
+(* a conditional fallback (`fbs`) gives way: where an earlier rule owns its *)
+(* carrier, the member is dropped and the rest of the compose kept, while   *)
+(* anything is left.                                                       *)
 (*                                                                         *)
 (* The rules of `MessagePlan` this states, each refutable by a mutation of  *)
 (* the engine:                                                             *)
@@ -13,16 +16,18 @@
 (*   PresentModeCommits  - a read whose first present spelling does not    *)
 (*                         parse owns nothing; it never retries an alias.   *)
 (*   OnlyWhatWasRead     - an owner read the carrier, and it parsed.       *)
-(*   AllOrNothing        - a kept reading owns everything it read; a        *)
-(*                         reading that would take an owned carrier is      *)
-(*                         dropped whole.                                  *)
+(*   AllOrNothing        - a kept reading owns everything it read except a  *)
+(*                         fallback member's carrier an earlier rule owns;  *)
+(*                         a reading that would take any other owned        *)
+(*                         carrier is dropped whole.                        *)
 (*   ClaimsBlock         - a claim owns its carrier and emits nothing, and   *)
 (*                         neither a later rule nor the fallback reads it.  *)
 (*   FallbackRespects... - the stage-fallback read keeps nothing a dialect   *)
 (*                         rule owns.                                      *)
 (*   NoComposeStarves    - in an instance the compiler accepts, a compose    *)
-(*                         whose members parse is never dropped: the         *)
-(*                         refusal of an earlier reader of its members       *)
+(*                         is dropped only where every member it read was a *)
+(*                         fallback another rule owns: the refusal of an     *)
+(*                         earlier reader of a member's own spelling         *)
 (*                         (`StarvedReading`) is exactly what makes that      *)
 (*                         hold, and `Refused` below is that refusal.         *)
 (*   MatchesGreedy       - the outcome is the rank-ordered greedy function,  *)
@@ -39,11 +44,14 @@ EXTENDS Naturals, FiniteSets, Sequences, TLC
 \* BEGIN GENERATED FROM instances/ValueDependentClaiming.json
 ManifestCarriers == {"a", "b", "c"}
 ManifestInstances == <<
-    [id |-> "contested_alias", rules |-> << [id |-> "r1", prio |-> 10, kind |-> "read", cands |-> <<"a", "b">>], [id |-> "r2", prio |-> 20, kind |-> "claim", cands |-> <<"b">>], [id |-> "r3", prio |-> 30, kind |-> "read", cands |-> <<"b", "c">>] >>, fallback |-> <<"c">>, refused |-> FALSE, expect |-> << [values |-> ("a" :> "bad" @@ "b" :> "ok" @@ "c" :> "ok"), gates |-> {"r1", "r2", "r3"}, owners |-> ("b" :> "r2" @@ "c" :> "fallback"), kept |-> <<"r2">>, fallback |-> TRUE], [values |-> ("a" :> "ok" @@ "b" :> "ok" @@ "c" :> "absent"), gates |-> {"r1", "r2", "r3"}, owners |-> ("a" :> "r1" @@ "b" :> "r2"), kept |-> <<"r1", "r2">>, fallback |-> FALSE], [values |-> ("a" :> "absent" @@ "b" :> "ok" @@ "c" :> "ok"), gates |-> {"r3"}, owners |-> ("b" :> "r3" @@ "c" :> "fallback"), kept |-> <<"r3">>, fallback |-> TRUE] >>],
-    [id |-> "compose_first", rules |-> << [id |-> "r1", prio |-> 10, kind |-> "compose", cands |-> <<"a", "b">>], [id |-> "r2", prio |-> 20, kind |-> "read", cands |-> <<"b">>], [id |-> "r3", prio |-> 30, kind |-> "claim", cands |-> <<"c">>] >>, fallback |-> <<"a">>, refused |-> FALSE, expect |-> << [values |-> ("a" :> "ok" @@ "b" :> "bad" @@ "c" :> "ok"), gates |-> {"r1", "r2", "r3"}, owners |-> ("a" :> "r1" @@ "c" :> "r3"), kept |-> <<"r1", "r3">>, fallback |-> FALSE], [values |-> ("a" :> "bad" @@ "b" :> "ok" @@ "c" :> "absent"), gates |-> {"r2"}, owners |-> ("b" :> "r2"), kept |-> <<"r2">>, fallback |-> FALSE] >>],
-    [id |-> "claim_then_fallback", rules |-> << [id |-> "r1", prio |-> 10, kind |-> "claim", cands |-> <<"a">>] >>, fallback |-> <<"a">>, refused |-> FALSE, expect |-> << [values |-> ("a" :> "ok" @@ "b" :> "absent" @@ "c" :> "absent"), gates |-> {"r1"}, owners |-> ("a" :> "r1"), kept |-> <<"r1">>, fallback |-> FALSE] >>],
-    [id |-> "starved_compose", rules |-> << [id |-> "r1", prio |-> 10, kind |-> "read", cands |-> <<"a">>], [id |-> "r2", prio |-> 20, kind |-> "compose", cands |-> <<"a", "b">>] >>, fallback |-> <<>>, refused |-> TRUE, expect |-> <<>>],
-    [id |-> "overlapping_composes", rules |-> << [id |-> "r1", prio |-> 10, kind |-> "compose", cands |-> <<"a", "b">>], [id |-> "r2", prio |-> 20, kind |-> "compose", cands |-> <<"b", "c">>] >>, fallback |-> <<>>, refused |-> TRUE, expect |-> <<>>]
+    [id |-> "contested_alias", rules |-> << [id |-> "r1", prio |-> 10, kind |-> "read", cands |-> <<"a", "b">>, fbs |-> {}], [id |-> "r2", prio |-> 20, kind |-> "claim", cands |-> <<"b">>, fbs |-> {}], [id |-> "r3", prio |-> 30, kind |-> "read", cands |-> <<"b", "c">>, fbs |-> {}] >>, fallback |-> <<"c">>, refused |-> FALSE, expect |-> << [values |-> ("a" :> "bad" @@ "b" :> "ok" @@ "c" :> "ok"), gates |-> {"r1", "r2", "r3"}, owners |-> ("b" :> "r2" @@ "c" :> "fallback"), kept |-> <<"r2">>, fallback |-> TRUE], [values |-> ("a" :> "ok" @@ "b" :> "ok" @@ "c" :> "absent"), gates |-> {"r1", "r2", "r3"}, owners |-> ("a" :> "r1" @@ "b" :> "r2"), kept |-> <<"r1", "r2">>, fallback |-> FALSE], [values |-> ("a" :> "absent" @@ "b" :> "ok" @@ "c" :> "ok"), gates |-> {"r3"}, owners |-> ("b" :> "r3" @@ "c" :> "fallback"), kept |-> <<"r3">>, fallback |-> TRUE] >>],
+    [id |-> "compose_first", rules |-> << [id |-> "r1", prio |-> 10, kind |-> "compose", cands |-> <<"a", "b">>, fbs |-> {}], [id |-> "r2", prio |-> 20, kind |-> "read", cands |-> <<"b">>, fbs |-> {}], [id |-> "r3", prio |-> 30, kind |-> "claim", cands |-> <<"c">>, fbs |-> {}] >>, fallback |-> <<"a">>, refused |-> FALSE, expect |-> << [values |-> ("a" :> "ok" @@ "b" :> "bad" @@ "c" :> "ok"), gates |-> {"r1", "r2", "r3"}, owners |-> ("a" :> "r1" @@ "c" :> "r3"), kept |-> <<"r1", "r3">>, fallback |-> FALSE], [values |-> ("a" :> "bad" @@ "b" :> "ok" @@ "c" :> "absent"), gates |-> {"r2"}, owners |-> ("b" :> "r2"), kept |-> <<"r2">>, fallback |-> FALSE] >>],
+    [id |-> "claim_then_fallback", rules |-> << [id |-> "r1", prio |-> 10, kind |-> "claim", cands |-> <<"a">>, fbs |-> {}] >>, fallback |-> <<"a">>, refused |-> FALSE, expect |-> << [values |-> ("a" :> "ok" @@ "b" :> "absent" @@ "c" :> "absent"), gates |-> {"r1"}, owners |-> ("a" :> "r1"), kept |-> <<"r1">>, fallback |-> FALSE] >>],
+    [id |-> "starved_compose", rules |-> << [id |-> "r1", prio |-> 10, kind |-> "read", cands |-> <<"a">>, fbs |-> {}], [id |-> "r2", prio |-> 20, kind |-> "compose", cands |-> <<"a", "b">>, fbs |-> {}] >>, fallback |-> <<>>, refused |-> TRUE, expect |-> <<>>],
+    [id |-> "overlapping_composes", rules |-> << [id |-> "r1", prio |-> 10, kind |-> "compose", cands |-> <<"a", "b">>, fbs |-> {}], [id |-> "r2", prio |-> 20, kind |-> "compose", cands |-> <<"b", "c">>, fbs |-> {}] >>, fallback |-> <<>>, refused |-> TRUE, expect |-> <<>>],
+    [id |-> "fallback_gives_way", rules |-> << [id |-> "r1", prio |-> 10, kind |-> "read", cands |-> <<"a">>, fbs |-> {}], [id |-> "r2", prio |-> 20, kind |-> "compose", cands |-> <<"b">>, fbs |-> {"a"}] >>, fallback |-> <<"c">>, refused |-> FALSE, expect |-> << [values |-> ("a" :> "ok" @@ "b" :> "ok" @@ "c" :> "absent"), gates |-> {"r1", "r2"}, owners |-> ("a" :> "r1" @@ "b" :> "r2"), kept |-> <<"r1", "r2">>, fallback |-> FALSE], [values |-> ("a" :> "ok" @@ "b" :> "ok" @@ "c" :> "ok"), gates |-> {"r2"}, owners |-> ("a" :> "r2" @@ "b" :> "r2" @@ "c" :> "fallback"), kept |-> <<"r2">>, fallback |-> TRUE], [values |-> ("a" :> "ok" @@ "b" :> "bad" @@ "c" :> "absent"), gates |-> {"r1", "r2"}, owners |-> ("a" :> "r1"), kept |-> <<"r1">>, fallback |-> FALSE] >>],
+    [id |-> "fallback_first", rules |-> << [id |-> "r1", prio |-> 10, kind |-> "compose", cands |-> <<"b">>, fbs |-> {"a"}], [id |-> "r2", prio |-> 20, kind |-> "read", cands |-> <<"a">>, fbs |-> {}] >>, fallback |-> <<>>, refused |-> FALSE, expect |-> << [values |-> ("a" :> "ok" @@ "b" :> "ok" @@ "c" :> "absent"), gates |-> {"r1", "r2"}, owners |-> ("a" :> "r1" @@ "b" :> "r1"), kept |-> <<"r1">>, fallback |-> FALSE] >>],
+    [id |-> "fallback_over_a_member", rules |-> << [id |-> "r1", prio |-> 10, kind |-> "compose", cands |-> <<"b">>, fbs |-> {"a"}], [id |-> "r2", prio |-> 20, kind |-> "compose", cands |-> <<"a", "c">>, fbs |-> {}] >>, fallback |-> <<>>, refused |-> TRUE, expect |-> <<>>]
 >>
 \* END GENERATED FROM instances/ValueDependentClaiming.json
 
@@ -73,17 +81,28 @@ Reading(r, v, g) ==
               IN IF c # NoOwner /\ v[c] = "ok"
                     THEN [yields |-> TRUE, owns |-> {c}]
                     ELSE [yields |-> FALSE, owns |-> {}]
-         ELSE LET parsed == {c \in Range(r.cands) : v[c] = "ok"}
+         ELSE LET parsed == {c \in Range(r.cands) \cup r.fbs : v[c] = "ok"}
               IN [yields |-> parsed # {}, owns |-> parsed]
 
+\* What a reading keeps against the carriers already owned: all of it where none is
+\* taken; where only fallback members' carriers are, the rest, if anything is left;
+\* otherwise nothing.
+Keeps(r, read, owned) ==
+    LET taken == read.owns \cap DOMAIN owned
+    IN IF ~read.yields THEN {}
+       ELSE IF taken = {} THEN read.owns
+       ELSE IF taken \subseteq r.fbs THEN read.owns \ taken
+       ELSE {}
+
 \* The compile-time refusal `StarvedReading`: a rule ranked ahead of a compose of
-\* several members reads one of them.
+\* several members reads, by any spelling or fallback, one of its members' own
+\* spellings. A fallback member's carrier gives way, so it is not one.
 Refused(i) ==
     \E later, earlier \in Rules(i) :
         /\ later.kind = "compose"
-        /\ Len(later.cands) > 1
+        /\ Len(later.cands) + Cardinality(later.fbs) > 1
         /\ earlier.prio < later.prio
-        /\ Range(earlier.cands) \cap Range(later.cands) # {}
+        /\ (Range(earlier.cands) \cup earlier.fbs) \cap Range(later.cands) # {}
 
 ----------------------------------------------------------------------------
 (* The specified answer, written without reference to the steps below.     *)
@@ -96,11 +115,11 @@ RECURSIVE Greedy(_, _, _, _, _, _)
 Greedy(i, v, g, owned, kept, remaining) ==
     IF remaining = {} THEN [owned |-> owned, kept |-> kept]
     ELSE LET r == Lowest(remaining)
-             read == Reading(r, v, g)
-             takes == read.yields /\ read.owns \cap DOMAIN owned = {}
+             keeps == Keeps(r, Reading(r, v, g), owned)
+             takes == keeps # {}
              after == IF takes
-                        THEN [c \in DOMAIN owned \cup read.owns |->
-                                IF c \in read.owns THEN r.id ELSE owned[c]]
+                        THEN [c \in DOMAIN owned \cup keeps |->
+                                IF c \in keeps THEN r.id ELSE owned[c]]
                         ELSE owned
          IN Greedy(i, v, g, after, IF takes THEN Append(kept, r.id) ELSE kept, remaining \ {r})
 
@@ -152,18 +171,19 @@ Init ==
     /\ fbKept = FALSE
     /\ phase = "dialect"
 
-\* The lowest-priority rule not yet seen: its reading is kept only if nothing it
-\* would own is owned already, and then it owns all of it.
+\* The lowest-priority rule not yet seen: it keeps what `Keeps` leaves it - all of
+\* its reading, or all of it but the fallback members another rule owns - and then
+\* owns that.
 Evaluate ==
     /\ phase = "dialect"
     /\ pending # {}
     /\ LET r == Lowest(pending)
-           read == Reading(r, val, gate)
-           takes == read.yields /\ read.owns \cap DOMAIN owner = {}
+           keeps == Keeps(r, Reading(r, val, gate), owner)
+           takes == keeps # {}
        IN /\ pending' = pending \ {r}
           /\ owner' = IF takes
-                        THEN [c \in DOMAIN owner \cup read.owns |->
-                                IF c \in read.owns THEN r.id ELSE owner[c]]
+                        THEN [c \in DOMAIN owner \cup keeps |->
+                                IF c \in keeps THEN r.id ELSE owner[c]]
                         ELSE owner
           /\ kept' = IF takes THEN Append(kept, r.id) ELSE kept
     /\ UNCHANGED <<inst, val, gate, fbKept, phase>>
@@ -228,9 +248,13 @@ PresentModeCommits ==
             IN /\ (c = NoOwner \/ val[c] # "ok") => r \notin KeptRules
                /\ r \in KeptRules => owner[c] = r.id
 
-\* A kept reading owns everything it read.
+\* A kept reading owns everything it read, except a fallback member's carrier,
+\* which another rule owns; and no reading keeps part of what it read where a
+\* carrier other than such a fallback was taken.
 AllOrNothing ==
-    \A r \in KeptRules : \A c \in Reading(r, val, gate).owns : owner[c] = r.id
+    \A r \in KeptRules : \A c \in Reading(r, val, gate).owns :
+        \/ owner[c] = r.id
+        \/ c \in r.fbs /\ c \in DOMAIN owner
 
 \* A claim's carrier stays the claim's, whatever comes after it.
 ClaimsBlock ==
@@ -244,11 +268,18 @@ FallbackRespectsOwnership ==
         IN /\ owner[c] = FallbackId
            /\ \A r \in KeptRules : c \notin Reading(r, val, gate).owns
 
-\* Where the compiler accepts the instance, a compose whose members parse is kept.
+\* Where the compiler accepts the instance, a compose whose members parse is kept,
+\* unless every member it read was a fallback another rule owns.
 NoComposeStarves ==
     (phase = "done" /\ ~Refused(inst)) =>
         \A r \in Rules(inst) :
-            (r.kind = "compose" /\ Reading(r, val, gate).yields) => r \in KeptRules
+            (r.kind = "compose" /\ Reading(r, val, gate).yields /\ r \notin KeptRules) =>
+                \A c \in Reading(r, val, gate).owns : c \in r.fbs /\ owner[c] # r.id
+
+\* A fallback member is never also a member's own spelling of the same compose: a
+\* direct use is the dialect's own and does not give way.
+ASSUME \A i \in DOMAIN ManifestInstances :
+    \A r \in Rules(i) : r.fbs \cap Range(r.cands) = {} /\ (r.fbs # {} => r.kind = "compose")
 
 \* And the refusal is not vacuous: every refused instance has a span on which, were it
 \* accepted, a compose whose members parse would be dropped.
