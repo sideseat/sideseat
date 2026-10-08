@@ -8,7 +8,7 @@ use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue, any_value};
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use opentelemetry_proto::tonic::trace::v1::{ResourceSpans, ScopeSpans, Span};
 use prost::Message;
-use sideseat_ports::types::{ProjectId, StagedSignal};
+use sideseat_ports::types::{ProjectId, RawRecordRow, StagedSignal};
 
 use super::pipeline_tests::pipeline_over_a_temp_store_with;
 use super::*;
@@ -247,5 +247,66 @@ async fn an_export_settles_only_when_its_record_holds_it() {
             .expect("disposition"),
         StagingDisposition::Pending,
         "matching rows without their record are not a stored export"
+    );
+}
+
+fn record_of(project: &str, raw_id: &str, request: &ExportTraceServiceRequest) -> RawRecordRow {
+    RawRecordRow {
+        project_id: ProjectId::from(project),
+        raw_id: raw_id.to_string(),
+        signal: StagedSignal::Traces,
+        received_at: chrono::Utc::now(),
+        origin: sideseat_ports::types::RawOrigin::Received,
+        version: 1,
+        signal_until: chrono::Utc::now(),
+        hold_until: None,
+        trace_ids: Vec::new(),
+        record: sideseat_domain::raw_payload::wrap(
+            &request.encode_to_vec(),
+            sideseat_domain::raw_payload::RawContent::Protobuf,
+        ),
+    }
+}
+
+/// A failed write's records are queued for collection only for projects whose failure is settled: a project in
+/// doubt may still have its rows land, and a record collected first would leave them naming nothing.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_in_doubt_write_keeps_its_records_out_of_collection() {
+    let (_temp, analytics, _database, pipeline) = pipeline_over_a_temp_store_with(false).await;
+    let request = export();
+    let records = [
+        record_of("settled", "settled-record", &request),
+        record_of("doubt", "doubtful-record", &request),
+        record_of("written", "written-record", &request),
+    ];
+    pipeline
+        .enqueue_records_without_rows(
+            &records,
+            &HashSet::from(["written".to_string()]),
+            &HashSet::from(["doubt".to_string()]),
+        )
+        .await;
+    let queued: Vec<String> = analytics
+        .pending_raw_records(16)
+        .await
+        .expect("pending")
+        .into_iter()
+        .map(|entry| entry.raw_id)
+        .collect();
+    assert_eq!(queued, vec!["settled-record".to_string()]);
+}
+
+/// A record the reconciler restores is indexed under the traces it holds again: reads return no trace ids, and
+/// appended as read it was indexed under none, so a later deletion of one of its traces could not find it.
+#[test]
+fn a_restored_record_is_indexed_under_its_traces() {
+    let mut request = export();
+    request.resource_spans[0].scope_spans[0].spans[1].trace_id = vec![22; 16];
+    let restored =
+        super::raw_lifecycle::restored_version(&record_of("default", "restored", &request));
+    assert_eq!(restored.version, 2);
+    assert_eq!(
+        restored.trace_ids,
+        vec![hex::encode([21u8; 16]), hex::encode([22u8; 16])]
     );
 }

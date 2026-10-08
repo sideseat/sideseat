@@ -42,6 +42,34 @@ pub(super) struct WrittenRecord<'a> {
     pub hold_until: Option<DateTime<Utc>>,
 }
 
+/// The version a reconciler appends to restore a record it deleted under rows that appeared meanwhile: what it
+/// read, one version up, with its trace index rebuilt.
+///
+/// A read returns no trace ids - the record holds the answer - and the delete took the record's trace-index rows
+/// with it. Appended as read, the restored record was indexed under no trace, so a later deletion of one of its
+/// traces, which finds records through that index, left the deleted content in it.
+pub(super) fn restored_version(read: &RawRecordRow) -> RawRecordRow {
+    let mut restored = read.clone();
+    restored.version = read.version.saturating_add(1);
+    restored.trace_ids = match raw_record::record_identities(&read.record) {
+        Ok(identities) => identities
+            .into_iter()
+            .map(|(trace_id, _)| trace_id)
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect(),
+        Err(error) => {
+            tracing::error!(
+                raw_id = %read.raw_id,
+                %error,
+                "A restored raw record is unreadable, so it cannot be indexed under its traces"
+            );
+            Vec::new()
+        }
+    };
+    restored
+}
+
 /// What reconciling one record came to.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Reconciled {
@@ -122,16 +150,21 @@ impl TracePipeline {
     /// retry's own repair re-creates one deleted before they did - a record that is missing is not an exact
     /// redelivery's cover, so the retry writes its rows and repairs. Best effort: the write has already failed,
     /// and a record left behind still goes with its time-to-live.
+    ///
+    /// A project whose write is `in_doubt` is left alone: its rows may still land, and a record collected before
+    /// they do leaves them naming nothing, with no repair to follow - that write never returned. Its record
+    /// waits for the retry, whose write either lands the rows the record holds or settles the question.
     pub(super) async fn enqueue_records_without_rows(
         &self,
         records: &[RawRecordRow],
         committed: &HashSet<String>,
+        in_doubt: &HashSet<String>,
     ) {
         let mut by_project: BTreeMap<&str, Vec<String>> = BTreeMap::new();
-        for record in records
-            .iter()
-            .filter(|record| !committed.contains(record.project_id.as_str()))
-        {
+        for record in records.iter().filter(|record| {
+            let project = record.project_id.as_str();
+            !committed.contains(project) && !in_doubt.contains(project)
+        }) {
             by_project
                 .entry(record.project_id.as_str())
                 .or_default()
@@ -260,8 +293,7 @@ impl TracePipeline {
             .next();
         if let (Some(read), None, true) = (&read, &latest_now, named_now) {
             // Rows appeared after this reconciler's delete: they get back what it read, which holds them.
-            let mut restored = read.clone();
-            restored.version = read.version.saturating_add(1);
+            let restored = restored_version(read);
             self.analytics
                 .append_raw_records(std::slice::from_ref(&restored))
                 .await

@@ -282,21 +282,47 @@ pub async fn insert_batch(
     client: &Client,
     table_name: &str,
     spans: &[NormalizedSpan],
-) -> Result<(), ClickhouseError> {
+) -> Result<(), SpanInsertError> {
     if spans.is_empty() {
         return Ok(());
     }
     let target = dml::span_write_target(Backend::Clickhouse, Some(table_name));
 
-    let mut insert: clickhouse::insert::Insert<SpanRow> = client.insert(target.table()).await?;
-
+    // Opening the insert reads the table's schema and sends no row, so a failure here is settled: nothing of
+    // this write can land.
+    let mut insert: clickhouse::insert::Insert<SpanRow> = client
+        .insert(target.table())
+        .await
+        .map_err(|error| SpanInsertError {
+            error: error.into(),
+            sent: false,
+        })?;
+    let sent = |error: clickhouse::error::Error| SpanInsertError {
+        error: error.into(),
+        sent: true,
+    };
     for span in spans {
         let row = SpanRow::from(span);
-        insert.write(&row).await?;
+        insert.write(&row).await.map_err(sent)?;
     }
-
-    insert.end().await?;
+    insert.end().await.map_err(sent)?;
     Ok(())
+}
+
+/// A span insert that failed, and whether any of it may have reached the server.
+#[derive(Debug)]
+pub struct SpanInsertError {
+    pub error: ClickhouseError,
+    /// False only when the insert failed before a row was sent - the schema read that opens it - which settles
+    /// the write: nothing of it can land.
+    pub sent: bool,
+}
+
+impl SpanInsertError {
+    /// Whether the write may have been applied, or may still be (`ClickhouseError::write_in_doubt`).
+    pub fn in_doubt(&self) -> bool {
+        self.sent && self.error.write_in_doubt()
+    }
 }
 
 #[cfg(test)]

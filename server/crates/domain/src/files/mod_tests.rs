@@ -650,6 +650,99 @@ async fn a_span_committing_between_the_scan_and_the_release_keeps_its_file() {
     );
 }
 
+/// A span that commits during the release keeps its file even when the re-check that would have seen it fails.
+///
+/// The failed re-check used to hand the released hashes on to be reclaimed, so the window the re-check closes
+/// was open whenever it failed. They are restored instead, for the next pass to settle.
+#[tokio::test]
+async fn a_failed_recheck_reclaims_nothing_it_released() {
+    let (temp_dir, database, cache) = setup_test().await;
+    fs::create_dir_all(temp_dir.path().join("files"))
+        .await
+        .unwrap();
+    fs::create_dir_all(temp_dir.path().join("files_temp"))
+        .await
+        .unwrap();
+    let config = FilesConfig {
+        enabled: true,
+        storage: sideseat_core::config::StorageBackend::Filesystem,
+        quota_bytes: 1024 * 1024,
+        filesystem_path: Some(temp_dir.path().join("files").to_string_lossy().to_string()),
+        s3: None,
+    };
+    let app_storage = AppStorage::init_for_test(temp_dir.path().to_path_buf());
+    let service = create_file_service(config, &app_storage, database.clone(), cache)
+        .await
+        .unwrap();
+    let racing = "e".repeat(64);
+    let repo = database.as_ref();
+    service
+        .storage
+        .store(&ProjectId::from("default"), &racing, b"bytes")
+        .await
+        .unwrap();
+    repo.upsert_file(&ProjectId::from("default"), &racing, None, 5, "sha256")
+        .await
+        .unwrap();
+    repo.insert_trace_file("trace1", &ProjectId::from("default"), &racing)
+        .await
+        .unwrap();
+
+    // The scan sees nothing; the re-check, by which time the span has committed, fails.
+    struct FailingRecheck {
+        calls: std::sync::atomic::AtomicUsize,
+    }
+
+    #[async_trait::async_trait]
+    impl sideseat_ports::traits::SurvivorReferences for FailingRecheck {
+        async fn survivor_raw_records(
+            &self,
+            _project_id: &ProjectId,
+            _trace_ids: &[String],
+        ) -> Result<Vec<Vec<u8>>, sideseat_ports::error::DataError> {
+            Ok(Vec::new())
+        }
+
+        async fn file_reference_fields_for_traces(
+            &self,
+            _project_id: &ProjectId,
+            _trace_ids: &[String],
+        ) -> Result<Vec<String>, sideseat_ports::error::DataError> {
+            if self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0 {
+                return Ok(Vec::new());
+            }
+            Err(sideseat_ports::error::DataError::Conflict(
+                "the analytics store is unavailable".to_string(),
+            ))
+        }
+    }
+
+    service
+        .reconcile_trace_survivors(
+            &ProjectId::from("default"),
+            &["trace1".to_string()],
+            &FailingRecheck {
+                calls: std::sync::atomic::AtomicUsize::new(0),
+            },
+        )
+        .await
+        .expect("reconcile");
+
+    assert!(
+        service
+            .file_exists(&ProjectId::from("default"), &racing)
+            .await
+            .unwrap(),
+        "the re-check failed, and a file a span may have committed against was reclaimed anyway"
+    );
+    let file = repo
+        .get_file(&ProjectId::from("default"), &racing)
+        .await
+        .unwrap()
+        .expect("the file row");
+    assert_eq!(file.ref_count, 1, "restored and counted again");
+}
+
 /// A concurrent ingestion's association is not released, because its writer is counted before its span row
 /// exists.
 ///

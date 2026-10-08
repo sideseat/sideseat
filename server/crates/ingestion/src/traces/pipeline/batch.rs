@@ -516,7 +516,7 @@ impl TracePipeline {
             self.release_created_associations(&created_associations)
                 .await;
             // Some may have been stored: a backend that writes projects separately, or one in doubt.
-            self.enqueue_records_without_rows(&raw_rows, &HashSet::new())
+            self.enqueue_records_without_rows(&raw_rows, &HashSet::new(), &HashSet::new())
                 .await;
             return failed();
         }
@@ -567,7 +567,7 @@ impl TracePipeline {
             created_associations = kept;
             self.settle_associations_by_stored_rows(&orphaned, &in_doubt)
                 .await;
-            self.enqueue_records_without_rows(&raw_rows, &committed)
+            self.enqueue_records_without_rows(&raw_rows, &committed, &in_doubt)
                 .await;
             for ((project, _, _), slot) in written.iter().zip(&written_slots) {
                 if !committed.contains(project) {
@@ -677,7 +677,7 @@ impl TracePipeline {
             // write is not proof that nothing landed (`settle_associations_by_stored_rows`).
             self.settle_associations_by_stored_rows(&created_associations, &in_doubt)
                 .await;
-            self.enqueue_records_without_rows(&raw_rows, &committed)
+            self.enqueue_records_without_rows(&raw_rows, &committed, &in_doubt)
                 .await;
         }
 

@@ -103,6 +103,22 @@ mod tests {
         ClickhouseError::Database(clickhouse::error::Error::BadResponse(body.to_string()))
     }
 
+    /// An insert that failed opening - the schema read, before any row was sent - is settled whatever the error:
+    /// nothing of it can land.
+    #[test]
+    fn a_failure_before_any_row_is_sent_is_settled() {
+        let unsent = crate::repositories::span::SpanInsertError {
+            error: ClickhouseError::Database(clickhouse::error::Error::Network("reset".into())),
+            sent: false,
+        };
+        assert!(!unsent.in_doubt());
+        let sent = crate::repositories::span::SpanInsertError {
+            error: ClickhouseError::Database(clickhouse::error::Error::Network("reset".into())),
+            sent: true,
+        };
+        assert!(sent.in_doubt());
+    }
+
     #[test]
     fn only_a_settling_server_answer_settles_a_write() {
         // The server ran the insert to its end and refused it.

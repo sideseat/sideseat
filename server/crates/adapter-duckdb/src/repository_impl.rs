@@ -223,6 +223,7 @@ impl SpanStore for DuckdbRepository {
                 // The caller stopped waiting, not the write: the blocking task still holds the statement and
                 // can commit it after this returns.
                 DuckdbError::Timeout { .. } => DataError::InDoubt {
+                    project: None,
                     source: Box::new(error.into()),
                 },
                 error => error.into(),

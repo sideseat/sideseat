@@ -118,9 +118,11 @@ footprint-storage-distributed: ## Measure and gate stored bytes per signal (Clic
 # RSS gates run against the release server; in-process gates use allocation
 # counters because system allocators may retain freed pages.
 footprint: ## Enforce memory footprint ceilings
-	$(call run-with-disk-guard,scripts/perf/footprint-gates.sh)
-	@# Allocation counters are process-global, so serialize these tests.
-	$(call run-with-disk-guard,cd $(SERVER_DIR) && cargo test --locked --release --test footprint -- --ignored --nocapture --test-threads=1)
+	@# Every gate runs and reports, and the target fails if any did: the resident gates, then the allocation tests, whose
+	@# counters are process-global, so they run one at a time.
+	$(call run-with-disk-guard,status=0; scripts/perf/footprint-gates.sh || status=1; \
+		cd $(SERVER_DIR) && cargo test --locked --release --test footprint -- --ignored --nocapture --test-threads=1 || status=1; \
+		exit $$status)
 
 test-web: ## Run web tests
 	@echo "[test-web] Running web tests..."

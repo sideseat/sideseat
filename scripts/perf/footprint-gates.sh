@@ -306,9 +306,13 @@ done
 
 # A 503 here is `BufferFull` or a rate limit, which is the server protecting itself - a legitimate answer, and
 # not load. Reported as a failure of the *measurement*, because the resident figure taken while the server was
-# refusing describes a server doing less work than the ceiling claims.
+# refusing describes a server doing less work than the ceiling claims. Recorded rather than exited on, so the
+# idle ceiling is still judged and every figure still reported: a run that stops at the first failure hides what
+# else it would have found.
+INGEST_UNMEASURED=""
+THROUGHPUT_OPEN="the ${TARGET_SPANS_PER_SECOND} spans/s throughput target is not reached yet (the write-path slices 5-11), so this gate stays failing until it is"
 if [ -s "$WORK/post-errors" ]; then
-  fail "the server stopped accepting exports, so the samples do not describe steady ingest: $(sort -u "$WORK/post-errors" | head -3)"
+  INGEST_UNMEASURED="the server stopped accepting exports, so the samples do not describe steady ingest: $(sort -u "$WORK/post-errors" | head -3 | tr '\n' ' '); $THROUGHPUT_OPEN"
 fi
 [ "${#SAMPLES[@]}" -gt 0 ] || fail "no samples taken"
 
@@ -348,8 +352,8 @@ esac
 # And a floor of zero is no floor, however it was arrived at. Refused rather than reported, because a gate that
 # admits everything while claiming a threshold is worse than an absent gate.
 [ "$MIN_RATE" -gt 0 ] || fail "the computed rate floor is 0, which enforces nothing (target=$TARGET_SPANS_PER_SECOND fraction=$RATE_FRACTION)"
-if [ "$ACHIEVED" -lt "$MIN_RATE" ]; then
-  fail "achieved ~$ACHIEVED spans/s, below the $MIN_RATE floor for a ceiling stated at $TARGET_SPANS_PER_SECOND spans/s. The resident figure describes a lighter workload than the ceiling claims, so it is not evidence about the ceiling. Raise the load (FOOTPRINT_LOADERS) or lower the floor deliberately (FOOTPRINT_MIN_RATE_FRACTION)."
+if [ -z "$INGEST_UNMEASURED" ] && [ "$ACHIEVED" -lt "$MIN_RATE" ]; then
+  INGEST_UNMEASURED="achieved ~$ACHIEVED spans/s, below the $MIN_RATE floor for a ceiling stated at $TARGET_SPANS_PER_SECOND spans/s. The resident figure describes a lighter workload than the ceiling claims, so it is not evidence about the ceiling; $THROUGHPUT_OPEN"
 fi
 
 # --- verdict ----------------------------------------------------------------
@@ -358,7 +362,10 @@ if [ "$IDLE_RSS" -gt "$IDLE_RSS_CEILING_BYTES" ]; then
   echo "[footprint] FAIL: idle RSS $(mb "$IDLE_RSS") MB exceeds $(mb $IDLE_RSS_CEILING_BYTES) MB" >&2
   FAILURES=$((FAILURES + 1))
 fi
-if [ "$MEDIAN_RSS" -gt "$INGEST_RSS_CEILING_BYTES" ]; then
+if [ -n "$INGEST_UNMEASURED" ]; then
+  echo "[footprint] FAIL: $INGEST_UNMEASURED" >&2
+  FAILURES=$((FAILURES + 1))
+elif [ "$MEDIAN_RSS" -gt "$INGEST_RSS_CEILING_BYTES" ]; then
   echo "[footprint] FAIL: steady ingest median RSS $(mb "$MEDIAN_RSS") MB exceeds $(mb $INGEST_RSS_CEILING_BYTES) MB" >&2
   FAILURES=$((FAILURES + 1))
 fi

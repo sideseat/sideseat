@@ -185,11 +185,14 @@ impl SpanStore for ClickhouseRepository {
         let mut committed = Vec::new();
         for (project_id, spans) in by_project {
             let client = self.0.tenant_client_str(&project_id);
-            if let Err(error) = span::insert_batch(&client, &table, &spans).await {
-                let in_doubt = error.write_in_doubt();
-                let error = DataError::from(error);
+            if let Err(failure) = span::insert_batch(&client, &table, &spans).await {
+                let in_doubt = failure.in_doubt();
+                let error = DataError::from(failure.error);
+                // Only this tenant's insert can be in doubt: the ones before it committed, and the ones after
+                // it were never sent.
                 let error = if in_doubt {
                     DataError::InDoubt {
+                        project: Some(project_id.clone()),
                         source: Box::new(error),
                     }
                 } else {

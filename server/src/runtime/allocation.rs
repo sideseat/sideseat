@@ -211,9 +211,11 @@ mod tests {
         const BLOCK: usize = 8 * 1024 * 1024;
 
         let before = AllocationSnapshot::now();
-        let block: Vec<u8> = vec![0u8; BLOCK];
+        // Through `black_box`: an allocation nothing reads is one the optimiser may remove, and an optimised
+        // build sometimes did, so the counter read zero churn for a vector that was never allocated.
+        let block: Vec<u8> = std::hint::black_box(vec![0u8; BLOCK]);
         let growth = AllocationSnapshot::now().growth_since(&before);
-        drop(block);
+        drop(std::hint::black_box(block));
 
         let after = AllocationSnapshot::now();
         assert!(

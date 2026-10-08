@@ -858,16 +858,13 @@ pub(super) async fn write_to_duckdb(
                 } else {
                     tracing::warn!(%error, attempt, "Failed to write spans to analytics backend");
                 }
-                // Which project's insert failed is not reported, so every project still unwritten is in doubt;
-                // the cost of over-counting is an association kept longer, never one released under live rows.
-                if error.write_in_doubt() {
-                    in_doubt.extend(
-                        remaining
-                            .iter()
-                            .map(project_of)
-                            .filter(|project| !committed.contains(project)),
-                    );
-                }
+                // The project an in-doubt failure names, or every project still unwritten when it names none.
+                let unwritten: Vec<String> = remaining
+                    .iter()
+                    .map(project_of)
+                    .filter(|project| !committed.contains(project))
+                    .collect();
+                in_doubt.extend(error.projects_in_doubt(unwritten.iter().map(String::as_str)));
                 remaining.retain(|span| !committed.contains(&project_of(span)));
             }
         }

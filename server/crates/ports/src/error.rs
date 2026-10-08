@@ -134,6 +134,9 @@ pub enum DataError {
     /// bookkeeping such rows could still need on the strength of a read.
     #[error("Write outcome unknown: {source}")]
     InDoubt {
+        /// The one project whose write is in doubt, for a backend that writes projects separately; `None` when
+        /// the whole write is.
+        project: Option<String>,
         #[source]
         source: Box<DataError>,
     },
@@ -231,6 +234,25 @@ impl DataError {
         }
     }
 
+    /// Which of `unwritten` - the projects a failed write did not commit - may still have rows land: the one
+    /// project an in-doubt error names, or all of them when it names none; nothing when the failure is settled.
+    pub fn projects_in_doubt<'a>(
+        &self,
+        unwritten: impl IntoIterator<Item = &'a str>,
+    ) -> Vec<String> {
+        match self {
+            Self::InDoubt {
+                project: Some(project),
+                ..
+            } => vec![project.clone()],
+            Self::InDoubt { project: None, .. } => {
+                unwritten.into_iter().map(str::to_string).collect()
+            }
+            Self::PartiallyWritten { source, .. } => source.projects_in_doubt(unwritten),
+            _ => Vec::new(),
+        }
+    }
+
     /// Get the backend name that generated this error
     pub fn backend(&self) -> &'static str {
         match self {
@@ -242,7 +264,9 @@ impl DataError {
             Self::Timeout { backend, .. } => backend,
             Self::PoolExhausted { backend } => backend,
             Self::BackendUnavailable { backend, .. } => backend,
-            Self::PartiallyWritten { source, .. } | Self::InDoubt { source } => source.backend(),
+            Self::PartiallyWritten { source, .. } | Self::InDoubt { source, .. } => {
+                source.backend()
+            }
             Self::Config(_) | Self::Io(_) | Self::NotImplemented(_) | Self::Conflict(_) => {
                 "unknown"
             }
@@ -253,6 +277,30 @@ impl DataError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A failed multi-project write is in doubt only for the project whose insert might still land: the ones a
+    /// backend never sent have a settled answer, and marking them in doubt kept their associations for ever.
+    #[test]
+    fn only_the_named_project_of_an_in_doubt_write_is_in_doubt() {
+        let settled = || DataError::Conflict("rejected".to_string());
+        let unwritten = ["a", "b", "c"];
+        let named = DataError::InDoubt {
+            project: Some("b".to_string()),
+            source: Box::new(settled()),
+        };
+        assert_eq!(named.projects_in_doubt(unwritten), vec!["b".to_string()]);
+        let whole = DataError::InDoubt {
+            project: None,
+            source: Box::new(settled()),
+        };
+        assert_eq!(whole.projects_in_doubt(unwritten).len(), 3);
+        let partial = DataError::PartiallyWritten {
+            committed_projects: vec!["z".to_string()],
+            source: Box::new(named),
+        };
+        assert_eq!(partial.projects_in_doubt(unwritten), vec!["b".to_string()]);
+        assert!(settled().projects_in_doubt(unwritten).is_empty());
+    }
 
     #[test]
     fn test_timeout_error_display() {

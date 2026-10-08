@@ -526,11 +526,11 @@ impl FileService {
         // The re-check. Only the released hashes matter, so this compares against them rather than
         // recomputing a whole set difference.
         //
-        // **A failure here must not discard `removed`.** Propagating with `?` dropped the hashes whose
-        // associations had *already* been deleted, so their stored `ref_count` was never recomputed - and the
-        // orphan sweeper selects on zero, so those files became permanently unreclaimable, with no association
-        // left for a retry to rediscover them from. So the failure is reported and the released set is still
-        // returned for reconciliation; the conservative direction, since recomputing a count is idempotent.
+        // **A failed re-check restores every association it released.** Handing them on to be reclaimed, as
+        // this once did, let a span that committed between the scan and the release lose its file. Dropping
+        // them silently instead left their stored `ref_count` above zero with no association to rediscover
+        // them from, which the orphan sweeper never reclaims. Restored as durable, they are counted again and
+        // the next pass, whose scans succeed, releases the ones nothing references.
         let now_referenced = match Self::referenced_hashes(project_id, trace_id, analytics).await {
             Ok(hashes) => hashes,
             Err(e) => {
@@ -539,11 +539,15 @@ impl FileService {
                     project_id = %project_id,
                     trace_id,
                     released = removed.len(),
-                    "Could not re-check survivors after releasing their associations. The released hashes are \
-                     still reconciled, so nothing leaks - but a span that committed during the release cannot \
-                     be compensated on this pass and its file may be reclaimed"
+                    "Could not re-check survivors after releasing their associations; restoring them, so a \
+                     span that committed during the release keeps its file, and leaving them to the next pass"
                 );
-                return Ok(removed);
+                for hash in &removed {
+                    repo.restore_durable_trace_file(project_id, trace_id, hash)
+                        .await?;
+                    repo.sync_ref_count(project_id, hash).await?;
+                }
+                return Ok(Vec::new());
             }
         };
 
