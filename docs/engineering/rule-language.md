@@ -1645,7 +1645,7 @@ One place a call's id may come from.
 ### `IdTemplate`
 
 A synthetic id: literal text with closed placeholders - `{name}` (the call's resolved name) and
-`{stable_hash(input)}` (eight hex digits of FNV-1a over the resolved input's serialisation). The last
+`{stable_hash(input)}` (sixteen hex digits of 64-bit FNV-1a over the resolved input's serialisation). The last
 source of an id, since it always yields; two calls of one tool with different arguments get different
 ids, and the same call re-sent gets the same one.
 

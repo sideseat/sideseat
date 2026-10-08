@@ -3717,7 +3717,7 @@
       ]
     },
     "IdTemplate": {
-      "description": "A synthetic id: literal text with closed placeholders - `{name}` (the call's resolved name) and\n`{stable_hash(input)}` (eight hex digits of FNV-1a over the resolved input's serialisation). The last\nsource of an id, since it always yields; two calls of one tool with different arguments get different\nids, and the same call re-sent gets the same one.",
+      "description": "A synthetic id: literal text with closed placeholders - `{name}` (the call's resolved name) and\n`{stable_hash(input)}` (sixteen hex digits of 64-bit FNV-1a over the resolved input's serialisation). The last\nsource of an id, since it always yields; two calls of one tool with different arguments get different\nids, and the same call re-sent gets the same one.",
       "type": "object",
       "properties": {
         "doc": {

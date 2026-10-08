@@ -12,6 +12,7 @@ mod canonical;
 #[cfg(any(test, feature = "test-support"))]
 mod provider_formats;
 mod python_repr;
+mod stable_hash;
 mod tool_result;
 
 #[cfg(any(test, feature = "test-support"))]
@@ -26,40 +27,9 @@ pub(crate) use python_repr::{
     try_parse_python_constructor_repr, try_parse_python_constructor_repr_sequence,
     try_parse_python_literal,
 };
+pub(crate) use stable_hash::compute_short_hash;
 pub use tool_result::convert_to_tool_result;
 pub(crate) use tool_result::create_inner_content;
-
-/// FNV-1a hash constants (32-bit).
-///
-/// FNV-1a is a simple, non-cryptographic hash that's deterministic across
-/// processes and platforms. Used for generating synthetic IDs.
-const FNV_OFFSET_BASIS: u32 = 2166136261;
-const FNV_PRIME: u32 = 16777619;
-
-/// Compute a stable FNV-1a hash of a byte slice.
-///
-/// This hash is deterministic across process restarts and platforms,
-/// unlike `DefaultHasher` which uses random seeding.
-fn fnv1a_hash(data: &[u8]) -> u32 {
-    let mut hash = FNV_OFFSET_BASIS;
-    for byte in data {
-        hash ^= u32::from(*byte);
-        hash = hash.wrapping_mul(FNV_PRIME);
-    }
-    hash
-}
-
-/// Compute a short hash string (8 hex chars) for a JSON value.
-///
-/// Used for generating synthetic IDs for providers that don't supply them (e.g., Gemini).
-/// This hash is **deterministic across process restarts and platforms**, making it
-/// suitable for correlating tool calls and results across server restarts.
-pub(crate) fn compute_short_hash(value: &JsonValue) -> String {
-    // Serialize to JSON string (deterministic ordering from serde_json)
-    let json_str = serde_json::to_string(value).unwrap_or_default();
-    let hash = fnv1a_hash(json_str.as_bytes());
-    format!("{:08x}", hash)
-}
 
 /// Normalize content to Vec<ContentBlock> format.
 ///

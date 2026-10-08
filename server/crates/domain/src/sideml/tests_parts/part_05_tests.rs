@@ -103,6 +103,31 @@ fn test_gemini_function_call_synthetic_id() {
     );
 }
 
+/// Two calls whose arguments collided under the 32-bit hash the ids were built from get different ids.
+#[test]
+fn test_gemini_function_calls_that_collided_at_32_bits_get_different_ids() {
+    let input = json!({
+        "role": "assistant",
+        "content": [
+            {"functionCall": {"name": "lookup", "args": {"x": "f7e1b3d7"}}},
+            {"functionCall": {"name": "lookup", "args": {"x": "df245afa"}}}
+        ]
+    });
+    let output = normalize(&input);
+    let ids: Vec<String> = output
+        .content
+        .iter()
+        .map(|block| block_to_json(block)["id"].as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(ids.len(), 2);
+    assert_ne!(ids[0], ids[1], "distinct calls share an id: {ids:?}");
+    assert!(
+        ids.iter()
+            .all(|id| id.len() == "gemini_lookup_call_".len() + 16),
+        "{ids:?}"
+    );
+}
+
 #[test]
 fn test_gemini_multiple_function_calls_unique_ids() {
     // Multiple calls to the same function with different args should get unique IDs
