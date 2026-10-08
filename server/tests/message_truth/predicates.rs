@@ -19,8 +19,8 @@ pub(super) fn supports(kind: &str, matcher: &str) -> bool {
             | ("user_media", "digest")
             | ("text", "exact" | "json")
             | ("reasoning", "exact" | "presence" | "signed")
-            | ("tool_call", "semantic")
-            | ("tool_result", "semantic" | "error_message")
+            | ("tool_call", "semantic" | "contains")
+            | ("tool_result", "semantic" | "error_message" | "contains")
     )
 }
 
@@ -74,6 +74,7 @@ pub(super) fn shows(fact: &Fact, block: &Block, call_id: Option<&str>) -> Shows 
         ("reasoning", _) => {
             yes(block.is("assistant", "thinking") && block.text() == Some(fact.text()))
         }
+        ("tool_call", "contains") => provider_call_shows(&fact.value, block),
         ("tool_call", _) => tool_call_shows(&fact.value, block),
         ("tool_result", matcher) => {
             if !block.is_tool_result() {
@@ -114,7 +115,9 @@ pub(super) fn shows(fact: &Fact, block: &Block, call_id: Option<&str>) -> Shows 
             }
             let expected = &fact.value["value"];
             let content = &block.content["content"];
-            yes(if matcher == "error_message" {
+            yes(if matcher == "contains" {
+                holds_every_value(content, expected)
+            } else if matcher == "error_message" {
                 expected
                     .as_str()
                     .is_some_and(|message| rendered_text(content).contains(message))
@@ -124,6 +127,48 @@ pub(super) fn shows(fact: &Fact, block: &Block, call_id: Option<&str>) -> Shows 
         }
         _ => Shows::No,
     }
+}
+
+/// A tool the provider ran: shown under its name, with every value the call searched for somewhere in its
+/// input, however the instrumentation encoded it - a payload re-shaped in an instrumentation's own words is
+/// the same call.
+fn provider_call_shows(value: &Value, block: &Block) -> Shows {
+    if !block.is("assistant", "tool_use") {
+        return Shows::No;
+    }
+    let named = match (
+        block.content.get("name").and_then(Value::as_str),
+        value.get("name").and_then(Value::as_str),
+    ) {
+        (Some(shown), Some(named)) => same_tool(shown, named),
+        _ => false,
+    };
+    if !named || !holds_every_value(&block.content["input"], &value["arguments"]) {
+        return Shows::No;
+    }
+    let expected = value.get("id").and_then(Value::as_str);
+    match block.call_id() {
+        actual if actual == expected => Shows::Yes,
+        Some(actual) => Shows::WithRewrittenId(actual.to_string()),
+        None => Shows::WithRewrittenId(String::new()),
+    }
+}
+
+/// Every string `expected` holds - its leaves, at any depth - appears in what `shown` renders. Empty
+/// expectations hold nothing to find, so they are not evidence of anything and do not match.
+fn holds_every_value(shown: &Value, expected: &Value) -> bool {
+    fn leaves<'a>(value: &'a Value, into: &mut Vec<&'a str>) {
+        match value {
+            Value::String(text) if !text.is_empty() => into.push(text),
+            Value::Array(items) => items.iter().for_each(|item| leaves(item, into)),
+            Value::Object(map) => map.values().for_each(|item| leaves(item, into)),
+            _ => {}
+        }
+    }
+    let mut wanted = Vec::new();
+    leaves(expected, &mut wanted);
+    let rendered = rendered_text(shown);
+    !wanted.is_empty() && wanted.iter().all(|value| rendered.contains(value))
 }
 
 fn tool_call_shows(value: &Value, block: &Block) -> Shows {

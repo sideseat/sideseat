@@ -49,6 +49,7 @@ PROMPTS: dict[str, list[tuple[str, ...]]] = {
     "files": [(content.FILES,)],
     "multi_agent": [(content.MULTI_AGENT,)],
     "mcp_tools": [(content.MCP,)],
+    "server_tools": [(content.SERVER_TOOLS,)],
 }
 
 #: Attachments of the ``files`` scenario's user turn.
@@ -415,7 +416,12 @@ def assemble(
     framework = options.framework
 
     def add_result(
-        conversation: dict[str, Any], call_fact: str, outcome: ToolOutcome | None
+        conversation: dict[str, Any],
+        call_fact: str,
+        outcome: ToolOutcome | None,
+        *,
+        matcher: str | None = None,
+        evidence: str = "script",
     ) -> bool:
         """A tool call's result as a fact, or a gap when the script cannot compute it."""
         value = builder.facts[int(call_fact.split("-")[1]) - 1]["value"]
@@ -431,7 +437,7 @@ def assemble(
             conversation,
             "tool_result",
             "tool",
-            "script",
+            evidence,
             {
                 "call_id": value["id"],
                 "name": value["name"],
@@ -440,7 +446,7 @@ def assemble(
             },
             # A framework renders a raised error in its own words around the message.
             require=_conversation_requirement(
-                "error_message" if outcome.is_error else "semantic"
+                matcher or ("error_message" if outcome.is_error else "semantic")
             ),
         )
         builder.edges.append({"kind": "result_of", "from": result, "to": call_fact})
@@ -580,6 +586,7 @@ def assemble(
         # them, which the script does not know.
         unknowable_text = options.answers_follow_results and results_seen
         call_facts: list[str] = []
+        provider_calls: set[str] = set()
         for part in _joined_text(call.parts):
             if part["type"] == "text":
                 value = {"text": part["text"]}
@@ -641,6 +648,27 @@ def assemble(
                         _UNTEXTED_PENDING,
                         subject=fact,
                     )
+            elif part["type"] == "server_tool_call":
+                # A tool the provider ran inside this response. An instrumentation re-shapes its
+                # payload in its own words, so the call is owed by its name and what it searched for,
+                # and its result by the sources the run found - never by an exact encoding.
+                fact = builder.fact(
+                    conversation,
+                    "tool_call",
+                    "assistant",
+                    "wire",
+                    {key: part[key] for key in ("id", "name", "arguments")},
+                    call=identifier,
+                    require=_model_call_requirement("contains"),
+                )
+                provider_calls.add(fact)
+                add_result(
+                    conversation,
+                    fact,
+                    ToolOutcome(part["result"], is_error=False),
+                    matcher="contains",
+                    evidence="wire",
+                )
             else:
                 fact = builder.fact(
                     conversation,
@@ -656,7 +684,8 @@ def assemble(
         turn_answer: str | None = None
         for fact_id in call_facts:
             fact = builder.facts[int(fact_id.split("-")[1]) - 1]
-            if fact["kind"] != "tool_call":
+            # A provider's own tool brought its result with it.
+            if fact["kind"] != "tool_call" or fact_id in provider_calls:
                 continue
             value = fact["value"]
             if value["name"] in TERMINAL_TOOLS:

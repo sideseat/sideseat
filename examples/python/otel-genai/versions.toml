@@ -1,0 +1,44 @@
+# The historical opentelemetry-util-genai releases this suite is replayed against; see `python -m harness matrix --help`
+# and docs/engineering/framework-versions.md. The application records its model calls with the utilities, so their
+# release history is the window.
+[matrix]
+package = "opentelemetry-util-genai"
+since = "2025-10-05"
+resolved-before = "2026-10-05T00:00:00Z"
+# The utilities publish only beta releases.
+prereleases = true
+probes = ["server_tools", "tool_use"]
+scenarios = ["server_tools", "tool_use"]
+
+# The suite records its calls with the part classes 1.2b0 names (`ServerToolCallPart`, `TextPart`), which no
+# earlier release defines under those names: 1.0b0 and 1.1b0 spell them without the suffix, 0.4b0 adds the
+# server tool call and the `inference` handler the suite uses, and 0.2b0 and 0.3b0 have neither.
+[[exempt]]
+version = "0.2b0"
+reason = "No server tool call part and no `inference` handler: the suite's scenarios cannot be written against it."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.3b0"
+reason = "No server tool call part and no `inference` handler: the suite's scenarios cannot be written against it."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "0.4b0"
+reason = "Its part classes are named without the `Part` suffix 1.2b0 introduced (`ServerToolCall`, `Text`), which the suite imports."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "1.0b0"
+reason = "Its part classes are named without the `Part` suffix 1.2b0 introduced (`ServerToolCall`, `Text`), which the suite imports."
+revisit = "2027-01-05"
+
+[[exempt]]
+version = "1.1b0"
+reason = "Its part classes are named without the `Part` suffix 1.2b0 introduced (`ServerToolCall`, `Text`), which the suite imports."
+revisit = "2027-01-05"
+
+# Each variant is the newest release of one telemetry class in `versions.census.json`.
+[[variant]]
+version = "1.2b0"
+doc = "1.2b0: messages, system instructions and server tool calls as the conventions' parts on the inference span."

@@ -1,0 +1,244 @@
+{
+  "label": "otel-genai/sdk/server_tools",
+  "request_count": 1,
+  "span_count": 2,
+  "trace_count": 1,
+  "session_count": 1,
+  "span_views": {
+    "trace-1/chat gpt-6.1-sol/span-2": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Search the web for the Louvre's opening hours, then answer in one sentence.",
+          "content_digest": "7af2a395c462966b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"ws_9335c41492c0\",\"name\":\"web_search\",\"input\":{\"type\":\"web_search\",\"action\":{\"type\":\"search\",\"queries\":[\"Louvre opening hours\"],\"query\":\"Louvre opening hours\",\"sources\":[{\"type\":\"url\",\"url\":\"https://www.louvre.fr/en/…[267 chars]",
+          "content_digest": "1daf1e8f07b81611",
+          "tool_name": "web_search",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"ws_9335c41492c0\",\"content\":[{\"type\":\"json\",\"data\":{\"type\":\"web_search\",\"status\":\"completed\",\"sources\":[{\"type\":\"url\",\"url\":\"https://www.louvre.fr/en/visit/hours-admission\"}]}}]}",
+          "content_digest": "0c00f202e7b99029",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The Louvre opens at 9 am and closes at 6 pm every day except Tuesday, when it is closed.",
+          "content_digest": "e2394fa59ff5c1db",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    },
+    "trace-1/server-tools/span-1": {
+      "message_count": 0,
+      "role_sequence": [],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": []
+    }
+  },
+  "trace_views": {
+    "trace-1": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Search the web for the Louvre's opening hours, then answer in one sentence.",
+          "content_digest": "7af2a395c462966b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"ws_9335c41492c0\",\"name\":\"web_search\",\"input\":{\"type\":\"web_search\",\"action\":{\"type\":\"search\",\"queries\":[\"Louvre opening hours\"],\"query\":\"Louvre opening hours\",\"sources\":[{\"type\":\"url\",\"url\":\"https://www.louvre.fr/en/…[267 chars]",
+          "content_digest": "1daf1e8f07b81611",
+          "tool_name": "web_search",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"ws_9335c41492c0\",\"content\":[{\"type\":\"json\",\"data\":{\"type\":\"web_search\",\"status\":\"completed\",\"sources\":[{\"type\":\"url\",\"url\":\"https://www.louvre.fr/en/visit/hours-admission\"}]}}]}",
+          "content_digest": "0c00f202e7b99029",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The Louvre opens at 9 am and closes at 6 pm every day except Tuesday, when it is closed.",
+          "content_digest": "e2394fa59ff5c1db",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "session_views": {
+    "otel-genai-server_tools": {
+      "message_count": 5,
+      "role_sequence": [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant"
+      ],
+      "tool_names": [],
+      "tool_definition_count": 0,
+      "messages": [
+        {
+          "index": 0,
+          "role": "system",
+          "entry_type": "text",
+          "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+          "content_digest": "5d227641a000cd8c",
+          "observation_type": "generation"
+        },
+        {
+          "index": 1,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Search the web for the Louvre's opening hours, then answer in one sentence.",
+          "content_digest": "7af2a395c462966b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 2,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"ws_9335c41492c0\",\"name\":\"web_search\",\"input\":{\"type\":\"web_search\",\"action\":{\"type\":\"search\",\"queries\":[\"Louvre opening hours\"],\"query\":\"Louvre opening hours\",\"sources\":[{\"type\":\"url\",\"url\":\"https://www.louvre.fr/en/…[267 chars]",
+          "content_digest": "1daf1e8f07b81611",
+          "tool_name": "web_search",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"ws_9335c41492c0\",\"content\":[{\"type\":\"json\",\"data\":{\"type\":\"web_search\",\"status\":\"completed\",\"sources\":[{\"type\":\"url\",\"url\":\"https://www.louvre.fr/en/visit/hours-admission\"}]}}]}",
+          "content_digest": "0c00f202e7b99029",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "The Louvre opens at 9 am and closes at 6 pm every day except Tuesday, when it is closed.",
+          "content_digest": "e2394fa59ff5c1db",
+          "finish_reason": "Stop",
+          "observation_type": "generation"
+        }
+      ]
+    }
+  },
+  "feed_view": {
+    "message_count": 5,
+    "role_sequence": [
+      "system",
+      "user",
+      "assistant",
+      "tool",
+      "assistant"
+    ],
+    "tool_names": [],
+    "tool_definition_count": 0,
+    "messages": [
+      {
+        "index": 0,
+        "role": "system",
+        "entry_type": "text",
+        "content": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences.",
+        "content_digest": "5d227641a000cd8c",
+        "observation_type": "generation"
+      },
+      {
+        "index": 1,
+        "role": "user",
+        "entry_type": "text",
+        "content": "Search the web for the Louvre's opening hours, then answer in one sentence.",
+        "content_digest": "7af2a395c462966b",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
+        "entry_type": "tool_use",
+        "content": "{\"type\":\"tool_use\",\"id\":\"ws_9335c41492c0\",\"name\":\"web_search\",\"input\":{\"type\":\"web_search\",\"action\":{\"type\":\"search\",\"queries\":[\"Louvre opening hours\"],\"query\":\"Louvre opening hours\",\"sources\":[{\"type\":\"url\",\"url\":\"https://www.louvre.fr/en/…[267 chars]",
+        "content_digest": "1daf1e8f07b81611",
+        "tool_name": "web_search",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"ws_9335c41492c0\",\"content\":[{\"type\":\"json\",\"data\":{\"type\":\"web_search\",\"status\":\"completed\",\"sources\":[{\"type\":\"url\",\"url\":\"https://www.louvre.fr/en/visit/hours-admission\"}]}}]}",
+        "content_digest": "0c00f202e7b99029",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "text",
+        "content": "The Louvre opens at 9 am and closes at 6 pm every day except Tuesday, when it is closed.",
+        "content_digest": "e2394fa59ff5c1db",
+        "finish_reason": "Stop",
+        "observation_type": "generation"
+      }
+    ]
+  }
+}

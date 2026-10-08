@@ -257,6 +257,11 @@ SCENARIO_TOOLS = {
     "error": ("book_flight",),
     "mcp_tools": ("calculate",),
 }
+#: The tools the provider runs itself that each scenario enables; the Responses API is the one that
+#: offers them.
+SCENARIO_HOSTED_TOOLS = {
+    "server_tools": ("web_search",),
+}
 CALCULATOR = {
     "type": "object",
     "properties": {"expression": {"type": "string"}},
@@ -364,7 +369,8 @@ class _OpenAiChat:
 
 
 class _OpenAiResponses(_OpenAiChat):
-    """The Responses API requests, used where a scenario needs reasoning summaries."""
+    """The Responses API requests, used where a scenario needs reasoning summaries or the provider's
+    own tools."""
 
     def user(self, text: str) -> None:
         self.messages.append({"type": "message", "role": "user", "content": text})
@@ -373,6 +379,8 @@ class _OpenAiResponses(_OpenAiChat):
         body: dict[str, Any] = {"model": self.model, "input": self.messages}
         if self.scenario == "reasoning":
             body["reasoning"] = {"effort": "high", "summary": "detailed"}
+        if hosted := SCENARIO_HOSTED_TOOLS.get(self.scenario):
+            body["tools"] = [{"type": tool} for tool in hosted]
         payload = json.dumps(fake_openai.response(body)).encode()
         call = decode(_interaction("/v1/responses", payload, False))
         assert call is not None
@@ -498,7 +506,9 @@ def fake_calls(surface: str, scenario: str) -> list[ModelCall]:
     for group in derive.PROMPTS[scenario]:
         if surface == "fake-gemini":
             session: Any = _Gemini(scenario, fake_gemini.MODEL_VERSION)
-        elif surface == "fake-openai" and scenario == "reasoning":
+        elif surface == "fake-openai" and (
+            scenario == "reasoning" or scenario in SCENARIO_HOSTED_TOOLS
+        ):
             session = _OpenAiResponses(scenario, model)
         elif surface == "fake-openai":
             session = _OpenAiChat(scenario, model)

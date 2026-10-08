@@ -820,6 +820,28 @@
       }
     },
     {
+      "id": "semconv.server_tool_call_part",
+      "doc": "The conventions' call of a tool the provider runs itself - a web search, a code interpreter. Its `server_tool_call` member is the provider's own description of the call under a `type` naming the tool's kind, so it is the call's input as it stands.",
+      "at": "before_provider_formats",
+      "priority": 66,
+      "where": {"all": [
+        {"path": "$.type", "one_of": ["server_tool_call"]},
+        {"path": "$.server_tool_call", "kind": "object"}
+      ]},
+      "tool_use": {"id": "$.id", "name": "$.name", "input": "$.server_tool_call"}
+    },
+    {
+      "id": "semconv.server_tool_call_response_part",
+      "doc": "What a provider-run tool produced, paired to its call by id. The response is the provider's own structure, so it is kept as one structured value rather than read as content blocks.",
+      "at": "before_provider_formats",
+      "priority": 67,
+      "where": {"all": [
+        {"path": "$.type", "one_of": ["server_tool_call_response"]},
+        {"path": "$.server_tool_call_response", "kind": "object"}
+      ]},
+      "tool_result": {"tool_use_id": "$.id", "content": "$.server_tool_call_response", "content_as": "blocks"}
+    },
+    {
       "id": "semconv.text_content_part",
       "at": "provider_formats",
       "priority": 1001,

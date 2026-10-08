@@ -1,0 +1,28 @@
+[project]
+name = "example-otel-genai"
+version = "0.0.0"
+description = "An application recording its own model calls with OpenTelemetry's GenAI utilities, for SideSeat"
+requires-python = ">=3.11"
+dependencies = [
+    "opentelemetry-util-genai==1.2b0",
+    "openai>=3.24.0",
+    "sideseat",
+    "sideseat-example-harness[openai]",
+]
+
+[tool.sideseat-example]
+producer = "otel-genai"
+# No framework to switch on: the application emits through OpenTelemetry's global provider, which
+# both modes install, so the SideSeat SDK is asked for export alone.
+integrations = []
+# The provider-run search, an uploaded file and a compacted conversation are served by the harness's
+# deterministic local OpenAI endpoint, so nothing needs a live model.
+default-model = "fake-openai"
+
+[tool.uv]
+required-version = "==0.12.13"
+package = false
+
+[tool.uv.sources]
+sideseat-example-harness = { path = "../harness", editable = true }
+sideseat = { path = "../../../sdk/python", editable = true }

@@ -1,0 +1,631 @@
+{
+ "format": "sideseat.truth/3",
+ "producer": "otel-genai",
+ "scenario": "multi_turn",
+ "fixtures": [
+  "otel-genai/native/multi_turn",
+  "otel-genai/sdk/multi_turn"
+ ],
+ "source": {
+  "kind": "fake-script",
+  "surface": "fake-openai",
+  "path": "examples/python/harness/harness/fakes/script.py",
+  "sha256": "93c1ff4615b4b5e7d2c323132e4e216afb96b17f425aefe8d88e37293b3dd860"
+ },
+ "generator": "examples/python/harness: python -m harness truth",
+ "topology": "linear",
+ "request_bodies": "modelled",
+ "model_calls": 3,
+ "calls": [
+  {
+   "id": "call-001",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "openai.chat",
+   "streamed": false,
+   "status": 200,
+   "model": null,
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "stop",
+   "finish": "stop",
+   "usage": {
+    "input": 40,
+    "output": 12,
+    "cache_read": null,
+    "cache_write": null,
+    "reasoning": null,
+    "input_includes_cache": true
+   },
+   "outputs": [
+    "fact-002"
+   ]
+  },
+  {
+   "id": "call-002",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "openai.chat",
+   "streamed": false,
+   "status": 200,
+   "model": null,
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "stop",
+   "finish": "stop",
+   "usage": {
+    "input": 40,
+    "output": 12,
+    "cache_read": null,
+    "cache_write": null,
+    "reasoning": null,
+    "input_includes_cache": true
+   },
+   "outputs": [
+    "fact-004"
+   ]
+  },
+  {
+   "id": "call-003",
+   "attempt": 1,
+   "outcome": "success",
+   "conversation": "conv-1",
+   "api": "openai.chat",
+   "streamed": false,
+   "status": 200,
+   "model": null,
+   "response_model": null,
+   "response_id": null,
+   "stop_reason": "stop",
+   "finish": "stop",
+   "usage": {
+    "input": 40,
+    "output": 12,
+    "cache_read": null,
+    "cache_write": null,
+    "reasoning": null,
+    "input_includes_cache": true
+   },
+   "outputs": [
+    "fact-006"
+   ]
+  }
+ ],
+ "conversations": [
+  {
+   "id": "conv-1",
+   "sequence": [
+    "fact-007",
+    "fact-001",
+    "fact-002",
+    "fact-003",
+    "fact-004",
+    "fact-005",
+    "fact-006"
+   ],
+   "final_answers": [
+    "fact-002",
+    "fact-004",
+    "fact-006"
+   ]
+  }
+ ],
+ "facts": [
+  {
+   "id": "fact-001",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-002",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Stay in Alfama, Lisbon's oldest neighbourhood."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-001"
+  },
+  {
+   "id": "fact-003",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "What is one dish I should try there?"
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-004",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Try pastel de nata, the custard tart Lisbon is famous for."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-002"
+  },
+  {
+   "id": "fact-005",
+   "kind": "user_text",
+   "role": "user",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Summarise your two suggestions in one sentence."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "contains"
+   }
+  },
+  {
+   "id": "fact-006",
+   "kind": "text",
+   "role": "assistant",
+   "conversation": "conv-1",
+   "evidence": "script",
+   "value": {
+    "text": "Stay in Alfama and try a pastel de nata."
+   },
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "call": "call-003"
+  },
+  {
+   "id": "fact-007",
+   "kind": "system",
+   "role": "system",
+   "conversation": "conv-1",
+   "evidence": "wire",
+   "value": {
+    "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+   },
+   "require": {
+    "anchor": "conversation",
+    "views": [
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "exact"
+   },
+   "fixtures": [
+    "otel-genai/native/multi_turn",
+    "otel-genai/sdk/multi_turn"
+   ]
+  }
+ ],
+ "edges": [
+  {
+   "kind": "prompt_of",
+   "from": "fact-001",
+   "to": "call-001"
+  },
+  {
+   "kind": "call_order",
+   "before": "call-001",
+   "after": "call-002"
+  },
+  {
+   "kind": "prompt_of",
+   "from": "fact-003",
+   "to": "call-002"
+  },
+  {
+   "kind": "call_order",
+   "before": "call-002",
+   "after": "call-003"
+  },
+  {
+   "kind": "prompt_of",
+   "from": "fact-005",
+   "to": "call-003"
+  }
+ ],
+ "gaps": [
+  {
+   "fact": "system_prompt",
+   "reason": "request_body_unrecorded",
+   "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
+  },
+  {
+   "fact": "request",
+   "reason": "request_modelled",
+   "detail": "a fake model answers the request it receives, and that request was not recorded: the one modelled here declares the scenario's shared tools and schema as the scripts do, so a fact is only as certain as that model of the framework's request"
+  },
+  {
+   "fact": "model_metadata",
+   "reason": "fake_model_echoes_request",
+   "detail": "a fake model echoes the request's model and derives response ids from the request body; neither is recorded, so neither is asserted"
+  }
+ ],
+ "requests": {
+  "otel-genai/native/multi_turn": {
+   "transcript": "server/tests/fixtures/messages/otel-genai/native/multi_turn/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "openai.responses",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new_fact": "fact-007"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    },
+    "call-002": {
+     "api": "openai.responses",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "fact-007"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Stay in Alfama, Lisbon's oldest neighbourhood."
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What is one dish I should try there?"
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    },
+    "call-003": {
+     "api": "openai.responses",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "fact-007"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Stay in Alfama, Lisbon's oldest neighbourhood."
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What is one dish I should try there?"
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Try pastel de nata, the custard tart Lisbon is famous for."
+         },
+         "replay_of": "fact-004"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Summarise your two suggestions in one sentence."
+         },
+         "new_fact": "fact-005"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  },
+  "otel-genai/sdk/multi_turn": {
+   "transcript": "server/tests/fixtures/messages/otel-genai/sdk/multi_turn/model-requests.json",
+   "calls": {
+    "call-001": {
+     "api": "openai.responses",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "new_fact": "fact-007"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "new_fact": "fact-001"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    },
+    "call-002": {
+     "api": "openai.responses",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "fact-007"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Stay in Alfama, Lisbon's oldest neighbourhood."
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What is one dish I should try there?"
+         },
+         "new_fact": "fact-003"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    },
+    "call-003": {
+     "api": "openai.responses",
+     "system": [
+      {
+       "part": {
+        "type": "text",
+        "text": "You are a concise travel assistant. Use the tools for weather and bookings instead of guessing, and answer in at most three sentences."
+       },
+       "replay_of": "fact-007"
+      }
+     ],
+     "messages": [
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in."
+         },
+         "replay_of": "fact-001"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Stay in Alfama, Lisbon's oldest neighbourhood."
+         },
+         "replay_of": "fact-002"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "What is one dish I should try there?"
+         },
+         "replay_of": "fact-003"
+        }
+       ]
+      },
+      {
+       "role": "assistant",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Try pastel de nata, the custard tart Lisbon is famous for."
+         },
+         "replay_of": "fact-004"
+        }
+       ]
+      },
+      {
+       "role": "user",
+       "parts": [
+        {
+         "part": {
+          "type": "text",
+          "text": "Summarise your two suggestions in one sentence."
+         },
+         "new_fact": "fact-005"
+        }
+       ]
+      }
+     ],
+     "tools": []
+    }
+   },
+   "unpaired_requests": []
+  }
+ }
+}

@@ -142,6 +142,23 @@ def tool_call_part(call_id: str | None, name: str, arguments: Any) -> dict[str, 
     }
 
 
+def server_call_part(
+    call_id: str | None, name: str, arguments: Any, result: Any
+) -> dict[str, Any]:
+    """A tool the provider ran itself while answering, with what the run produced.
+
+    Unlike a tool call, it ends nothing: the provider ran it inside this response, which goes on to
+    answer, so the call and its result are both the response's own output.
+    """
+    return {
+        "type": "server_tool_call",
+        "id": call_id,
+        "name": name,
+        "arguments": arguments,
+        "result": result,
+    }
+
+
 def _arguments(value: Any) -> Any:
     """Tool arguments as JSON: a streamed or string-encoded argument object is parsed."""
     if isinstance(value, str):
@@ -646,6 +663,7 @@ def _responses_item(item: dict[str, Any]) -> list[dict[str, Any]]:
         parts = []
         for content in item.get("content") or []:
             if content["type"] == "output_text":
+                # Its citations name sources the search part already holds; the text is the answer.
                 parts.append(text_part(content["text"]))
             elif content["type"] == "refusal":
                 parts.append(text_part(content["refusal"]))
@@ -656,6 +674,19 @@ def _responses_item(item: dict[str, Any]) -> list[dict[str, Any]]:
         return parts
     if kind == "function_call":
         return [tool_call_part(item["call_id"], item["name"], item.get("arguments"))]
+    if kind == "web_search_call":
+        # The provider's own search: what it searched for, and the sources it read.
+        action = item.get("action") or {}
+        query = action.get("query") or " ".join(action.get("queries") or [])
+        sources = [s["url"] for s in action.get("sources") or [] if s.get("url")]
+        return [
+            server_call_part(
+                item.get("id"),
+                "web_search",
+                {"query": query} if query else {},
+                {"sources": sources},
+            )
+        ]
     if kind == "reasoning":
         # Without visible text the item carries only encrypted reasoning: withheld from view, not
         # redacted by a safety system, so it is reported as signed with no text.
@@ -734,6 +765,12 @@ def responses_stream(body: bytes) -> ModelCall:
             content[value.get("content_index", 0)]["text"] += value["delta"]
         elif kind == "response.output_item.done":
             done[value["output_index"]] = value["item"]
+        elif kind.startswith("response.web_search_call.") or kind == (
+            "response.output_text.annotation.added"
+        ):
+            # A provider search's stages, and the citations its answer gains: the done item and the
+            # completed response hold both whole.
+            continue
         elif kind in ("response.completed", "response.incomplete", "response.failed"):
             final = value["response"]
         elif kind.endswith(".done") or kind in (
