@@ -6,6 +6,7 @@
 //! - **query**: List, detail, and aggregate queries (traces, spans, sessions, events, links)
 //! - **span**: Batch insert operations for spans (with embedded events/links)
 
+pub(crate) mod keyed;
 pub mod log;
 pub mod messages;
 pub mod metric;

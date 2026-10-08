@@ -481,8 +481,8 @@ impl StagingService {
                         StagedRecord::Metric {
                             datapoint_id,
                             content_digest,
-                            ..
-                        } => Some((datapoint_id.clone(), content_digest.clone())),
+                            timestamp,
+                        } => Some((datapoint_id.clone(), content_digest.clone(), *timestamp)),
                         _ => None,
                     })
                     .collect::<Vec<_>>();
@@ -498,8 +498,14 @@ impl StagingService {
                         StagedRecord::Log {
                             log_digest,
                             ordinal,
+                            timestamp,
+                            own_instant,
                             ..
-                        } => Some((log_digest.clone(), *ordinal)),
+                        } => Some((
+                            log_digest.clone(),
+                            *ordinal,
+                            own_instant.then_some(*timestamp),
+                        )),
                         _ => None,
                     })
                     .collect::<Vec<_>>();
@@ -533,22 +539,31 @@ impl StagingService {
             StagedRecord::Metric {
                 datapoint_id,
                 content_digest,
-                ..
+                timestamp,
             } => {
                 self.analytics
                     .metrics_match_content(
                         project_id,
-                        &[(datapoint_id.clone(), content_digest.clone())],
+                        &[(datapoint_id.clone(), content_digest.clone(), *timestamp)],
                     )
                     .await
             }
             StagedRecord::Log {
                 log_digest,
                 ordinal,
+                timestamp,
+                own_instant,
                 ..
             } => {
                 self.analytics
-                    .logs_match_content(project_id, &[(log_digest.clone(), *ordinal)])
+                    .logs_match_content(
+                        project_id,
+                        &[(
+                            log_digest.clone(),
+                            *ordinal,
+                            own_instant.then_some(*timestamp),
+                        )],
+                    )
                     .await
             }
         }

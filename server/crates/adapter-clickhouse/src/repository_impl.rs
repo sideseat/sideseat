@@ -317,7 +317,7 @@ impl MetricStore for ClickhouseRepository {
     async fn metrics_match_content(
         &self,
         project_id: &ProjectId,
-        records: &[(String, String)],
+        records: &[(String, String, DateTime<Utc>)],
     ) -> Result<bool, DataError> {
         tenant_query!(
             self,
@@ -400,7 +400,7 @@ impl LogStore for ClickhouseRepository {
     async fn logs_match_content(
         &self,
         project_id: &ProjectId,
-        records: &[(String, u32)],
+        records: &[(String, u32, Option<DateTime<Utc>>)],
     ) -> Result<bool, DataError> {
         tenant_query!(self, project_id, log::matches_content, project_id, records)
     }

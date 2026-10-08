@@ -272,14 +272,8 @@ impl Truths {
 /// `UPDATE_TRUTH_LEDGER=1`. Returns what is wrong, for `message_goldens` to report beside its diffs.
 ///
 /// `delivery` selects which part of the ledger the run owns: the truth comparison's, or the delivery
-/// invariance test's (`view: delivery`). `scope` narrows it to the fixtures a selective run checked
-/// (`MESSAGE_FIXTURES=only:...`); `None` is the whole corpus. Each run compares and rewrites only its own
-/// part, and carries every other entry over untouched.
-pub(crate) fn ledger_problems(
-    observed: &[Violation],
-    delivery: bool,
-    scope: Option<&BTreeSet<String>>,
-) -> Vec<String> {
+/// invariance test's (`view: delivery`). Each run compares and rewrites only its own part.
+pub(crate) fn ledger_problems(observed: &[Violation], delivery: bool) -> Vec<String> {
     let mut ids = std::collections::BTreeSet::new();
     let duplicates: Vec<String> = observed
         .iter()
@@ -292,7 +286,7 @@ pub(crate) fn ledger_problems(
          {duplicates:?}"
     );
     let whole = ledger::load();
-    let owned = |e: &ledger::Entry| owns(e, delivery, scope);
+    let owned = |e: &ledger::Entry| (e.view == ViolationView::Delivery.name()) == delivery;
     let current = ledger::Ledger {
         entries: whole.entries.iter().filter(|e| owned(e)).cloned().collect(),
         ..whole.clone()
@@ -312,46 +306,6 @@ pub(crate) fn ledger_problems(
         return Vec::new();
     }
     ledger::compare(observed, &current)
-}
-
-/// Whether a run owns a ledger entry: its part of the ledger, and a fixture the run checked. A run that
-/// checked only some fixtures has said nothing about the others, so their entries are neither "fixed" nor
-/// rewritten by it.
-fn owns(entry: &ledger::Entry, delivery: bool, scope: Option<&BTreeSet<String>>) -> bool {
-    (entry.view == ViolationView::Delivery.name()) == delivery
-        && scope.is_none_or(|fixtures| fixtures.contains(&entry.fixture))
-}
-
-/// The fixtures a run checked, when it was asked for only some: `None` for the whole corpus.
-pub(crate) fn run_scope<'a>(labels: impl Iterator<Item = &'a String>) -> Option<BTreeSet<String>> {
-    std::env::var("MESSAGE_FIXTURES")
-        .is_ok()
-        .then(|| labels.cloned().collect())
-}
-
-#[test]
-fn a_selective_run_owns_only_the_fixtures_it_checked() {
-    let entry = |fixture: &str, view: &str| ledger::Entry {
-        id: format!("{fixture}:{view}:a:b"),
-        fixture: fixture.to_string(),
-        view: view.to_string(),
-        assertion: "a".to_string(),
-        subject: "b".to_string(),
-        fingerprint: String::new(),
-        reason: String::new(),
-        issue: String::new(),
-        introduced: String::new(),
-    };
-    let checked: BTreeSet<String> = ["google-genai/native/files".to_string()].into();
-    let run = entry("google-genai/native/files", "trace");
-    let other = entry("crewai/native/chat", "trace");
-    let delivery = entry("google-genai/native/files", "delivery");
-    assert!(owns(&run, false, Some(&checked)));
-    assert!(!owns(&other, false, Some(&checked)));
-    assert!(!owns(&delivery, false, Some(&checked)));
-    assert!(owns(&delivery, true, Some(&checked)));
-    // The whole corpus owns every entry of its part, including one whose fixture is gone.
-    assert!(owns(&other, false, None));
 }
 
 #[test]

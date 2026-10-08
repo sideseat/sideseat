@@ -15,6 +15,7 @@ use sideseat_ports::types::{ProjectId, RawOrigin, RawPending, RawRecordRow, Stag
 use sideseat_query_sql::Backend;
 use sideseat_query_sql::analytics;
 use sideseat_query_sql::dml;
+use sideseat_query_sql::keyed::{KEYED_CHUNK, distinct_keys, duckdb_keyed};
 
 use sideseat_query_sql::analytics::QueryValue;
 
@@ -31,10 +32,6 @@ fn duckdb_values(values: &[QueryValue]) -> Vec<&dyn duckdb::ToSql> {
 
 const COLUMNS: &str = "raw_id, signal, EPOCH_US(received_at), origin, version, EPOCH_US(signal_until), \
                        EPOCH_US(hold_until), record";
-
-/// Latest version per `raw_id` among the rows the inner predicate selects.
-const LATEST: &str =
-    "QUALIFY ROW_NUMBER() OVER (PARTITION BY raw_id ORDER BY version DESC, rowid DESC) = 1";
 
 fn append(conn: &Connection, records: &[&RawRecordRow]) -> Result<(), DuckdbError> {
     let mut appender = conn.appender("otel_raw")?;
@@ -58,22 +55,35 @@ fn append(conn: &Connection, records: &[&RawRecordRow]) -> Result<(), DuckdbErro
 
 /// Add the trace-index rows these versions need and the index does not have.
 fn index_traces(conn: &Connection, records: &[&RawRecordRow]) -> Result<(), DuckdbError> {
+    let raw_ids = distinct_keys(records.iter().map(|record| record.raw_id.as_str()));
+    let mut present: HashSet<(String, String, String)> = HashSet::new();
+    for chunk in raw_ids.chunks(KEYED_CHUNK) {
+        let keyed = duckdb_keyed(
+            "otel_raw_traces",
+            "raw_id",
+            "project_id, trace_id, raw_id",
+            chunk.len(),
+        );
+        let mut statement =
+            conn.prepare(&format!("SELECT project_id, trace_id, raw_id FROM {keyed}"))?;
+        let rows = statement.query_map(duckdb::params_from_iter(chunk.iter()), |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })?;
+        for row in rows {
+            present.insert(row?);
+        }
+    }
     let mut wanted = Vec::new();
-    {
-        let mut present = conn.prepare(
-            "SELECT 1 FROM otel_raw_traces WHERE project_id = ? AND trace_id = ? AND raw_id = ? LIMIT 1",
-        )?;
-        let mut seen = HashSet::new();
-        for record in records {
-            for trace_id in &record.trace_ids {
-                let key = (
-                    record.project_id.as_str(),
-                    trace_id.as_str(),
-                    record.raw_id.as_str(),
-                );
-                if seen.insert(key) && !present.exists(params![key.0, key.1, key.2])? {
-                    wanted.push((*record, trace_id));
-                }
+    let mut seen = HashSet::new();
+    for record in records {
+        for trace_id in &record.trace_ids {
+            let key = (
+                record.project_id.to_string(),
+                trace_id.clone(),
+                record.raw_id.clone(),
+            );
+            if !present.contains(&key) && seen.insert(key) {
+                wanted.push((*record, trace_id));
             }
         }
     }
@@ -98,13 +108,19 @@ pub fn insert(conn: &Connection, records: &[RawRecordRow]) -> Result<(), DuckdbE
         return Ok(());
     }
     let mut present = HashSet::new();
-    {
+    let raw_ids = distinct_keys(records.iter().map(|record| record.raw_id.as_str()));
+    for chunk in raw_ids.chunks(KEYED_CHUNK) {
+        let keyed = duckdb_keyed("otel_raw", "raw_id", "project_id, raw_id", chunk.len());
         let mut statement =
-            conn.prepare("SELECT 1 FROM otel_raw WHERE project_id = ? AND raw_id = ? LIMIT 1")?;
-        for record in records {
-            if statement.exists(params![record.project_id.as_str(), record.raw_id.as_str()])? {
-                present.insert((record.project_id.clone(), record.raw_id.clone()));
-            }
+            conn.prepare(&format!("SELECT DISTINCT project_id, raw_id FROM {keyed}"))?;
+        let rows = statement.query_map(duckdb::params_from_iter(chunk.iter()), |row| {
+            Ok((
+                ProjectId::from(row.get::<_, String>(0)?.as_str()),
+                row.get::<_, String>(1)?,
+            ))
+        })?;
+        for row in rows {
+            present.insert(row?);
         }
     }
     let fresh: Vec<&RawRecordRow> = records
@@ -159,17 +175,31 @@ pub fn get(
     if raw_ids.is_empty() {
         return Ok(Vec::new());
     }
-    // Restricted to the requested ids before the latest version is chosen: the choice is per id.
-    let sql = format!(
-        "SELECT {COLUMNS} FROM otel_raw WHERE project_id = ? AND raw_id IN ({}) {LATEST} ORDER BY raw_id",
-        placeholders(raw_ids.len())
-    );
-    let mut statement = conn.prepare(&sql)?;
-    let rows = statement.query_map(
-        duckdb::params_from_iter(text_values(project_id, raw_ids)),
-        |r| row(project_id, r),
-    )?;
-    Ok(rows.collect::<Result<_, _>>()?)
+    // Read by id through its index, then the project kept and the latest version chosen: the choice is per id.
+    // The keys are sorted, so the chunks come back in `raw_id` order too.
+    let keys = distinct_keys(raw_ids.iter().map(String::as_str));
+    let mut records = Vec::with_capacity(keys.len());
+    for chunk in keys.chunks(KEYED_CHUNK) {
+        let keyed = duckdb_keyed("otel_raw", "raw_id", "*", chunk.len());
+        let sql = format!(
+            "SELECT {COLUMNS} FROM (SELECT * FROM {keyed} WHERE project_id = ? \
+             QUALIFY ROW_NUMBER() OVER (PARTITION BY raw_id ORDER BY version DESC, keyed_rowid DESC) = 1) \
+             ORDER BY raw_id"
+        );
+        let values: Vec<duckdb::types::Value> = chunk
+            .iter()
+            .map(|key| duckdb::types::Value::Text((*key).to_string()))
+            .chain(std::iter::once(duckdb::types::Value::Text(
+                project_id.to_string(),
+            )))
+            .collect();
+        let mut statement = conn.prepare(&sql)?;
+        let rows = statement.query_map(duckdb::params_from_iter(values), |r| row(project_id, r))?;
+        for row in rows {
+            records.push(row?);
+        }
+    }
+    Ok(records)
 }
 
 /// One page of latest versions in `(received_at, raw_id)` order: the order a re-derivation replays.
@@ -203,17 +233,29 @@ pub fn delete(
     project_id: &ProjectId,
     raw_ids: &[String],
 ) -> Result<(), DuckdbError> {
+    // Found by id through each table's index and deleted by row id (`keyed`).
+    let keys = distinct_keys(raw_ids.iter().map(String::as_str));
     for table in ["otel_raw", "otel_raw_traces"] {
-        if let Some(statement) = dml::raw::delete_raw_records(
-            dml::MutationTarget::duckdb(table),
-            project_id.as_str(),
-            raw_ids,
-        ) {
-            conn.execute(
-                statement.sql(),
-                duckdb_values(statement.params()).as_slice(),
-            )?;
+        let mut rowids = Vec::new();
+        for chunk in keys.chunks(KEYED_CHUNK) {
+            let keyed = duckdb_keyed(table, "raw_id", "project_id", chunk.len());
+            let values: Vec<duckdb::types::Value> = chunk
+                .iter()
+                .map(|key| duckdb::types::Value::Text((*key).to_string()))
+                .chain(std::iter::once(duckdb::types::Value::Text(
+                    project_id.to_string(),
+                )))
+                .collect();
+            let mut statement = conn.prepare(&format!(
+                "SELECT keyed_rowid FROM {keyed} WHERE project_id = ?"
+            ))?;
+            let rows =
+                statement.query_map(duckdb::params_from_iter(values), |r| r.get::<_, i64>(0))?;
+            for row in rows {
+                rowids.push(row?);
+            }
         }
+        super::keyed::delete_rows(conn, table, &rowids)?;
     }
     Ok(())
 }
@@ -304,14 +346,22 @@ pub fn span_raw_ids(
     project_id: &ProjectId,
     spans: &[(String, String)],
 ) -> Result<HashMap<(String, String), String>, DuckdbError> {
-    let Some(query) = analytics::span_raw_ids(project_id.as_str(), spans, Backend::Duckdb) else {
-        return Ok(HashMap::new());
-    };
-    let mut statement = conn.prepare(query.sql())?;
-    let rows = statement.query_map(duckdb_values(query.params()).as_slice(), |row| {
-        Ok(((row.get(0)?, row.get(1)?), row.get(2)?))
-    })?;
-    rows.collect::<Result<_, _>>().map_err(Into::into)
+    let mut named = HashMap::with_capacity(spans.len());
+    for chunk in spans.chunks(KEYED_CHUNK) {
+        let Some(query) = analytics::span_raw_ids(project_id.as_str(), chunk, Backend::Duckdb)
+        else {
+            continue;
+        };
+        let mut statement = conn.prepare(query.sql())?;
+        let rows = statement.query_map(duckdb_values(query.params()).as_slice(), |row| {
+            Ok(((row.get(0)?, row.get(1)?), row.get(2)?))
+        })?;
+        for row in rows {
+            let (identity, raw_id) = row?;
+            named.insert(identity, raw_id);
+        }
+    }
+    Ok(named)
 }
 
 /// The latest records the surviving winning spans of these traces name.
@@ -323,19 +373,30 @@ pub fn survivor_records(
     if trace_ids.is_empty() {
         return Ok(Vec::new());
     }
-    let sql = format!(
-        "SELECT record FROM otel_raw WHERE project_id = ? AND raw_id IN ( \
-             SELECT DISTINCT raw_id FROM otel_spans \
-             WHERE project_id = ? AND trace_id IN ({}) AND raw_id IS NOT NULL) \
-         {LATEST}",
-        placeholders(trace_ids.len())
-    );
-    let values: Vec<duckdb::types::Value> = [project_id.to_string(), project_id.to_string()]
+    // The traces' rows through the trace index, then their records through the record index (`keyed`).
+    let keys = distinct_keys(trace_ids.iter().map(String::as_str));
+    let mut raw_ids = HashSet::new();
+    for chunk in keys.chunks(KEYED_CHUNK) {
+        let keyed = duckdb_keyed("otel_spans", "trace_id", "project_id, raw_id", chunk.len());
+        let values: Vec<duckdb::types::Value> = chunk
+            .iter()
+            .map(|key| duckdb::types::Value::Text((*key).to_string()))
+            .chain(std::iter::once(duckdb::types::Value::Text(
+                project_id.to_string(),
+            )))
+            .collect();
+        let mut statement = conn.prepare(&format!(
+            "SELECT DISTINCT raw_id FROM {keyed} WHERE project_id = ? AND raw_id IS NOT NULL"
+        ))?;
+        let rows =
+            statement.query_map(duckdb::params_from_iter(values), |r| r.get::<_, String>(0))?;
+        for row in rows {
+            raw_ids.insert(row?);
+        }
+    }
+    let raw_ids: Vec<String> = raw_ids.into_iter().collect();
+    Ok(get(conn, project_id, &raw_ids)?
         .into_iter()
-        .chain(trace_ids.iter().cloned())
-        .map(duckdb::types::Value::Text)
-        .collect();
-    let mut statement = conn.prepare(&sql)?;
-    let rows = statement.query_map(duckdb::params_from_iter(values), |r| r.get(0))?;
-    Ok(rows.collect::<Result<_, _>>()?)
+        .map(|record| record.record)
+        .collect())
 }

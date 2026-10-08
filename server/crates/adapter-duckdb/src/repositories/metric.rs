@@ -34,8 +34,8 @@ pub fn insert_batch(
         // `winning_indices` selects winners against both the batch and stored versions. Removing stored
         // identities and appending replacements in this transaction keeps one physical row per known
         // `datapoint_id`; see `domain::metrics::identity`.
-        let winners = winning_indices(conn, metrics, batch_now)?;
-        replace_existing(conn, metrics, &winners)?;
+        let (winners, stored_rows) = winning_indices(conn, metrics, batch_now)?;
+        replace_existing(conn, metrics, &winners, &stored_rows)?;
         insert_metrics(conn, target.table(), metrics, &winners, batch_now)?;
         Ok(())
     })
@@ -64,14 +64,19 @@ pub fn get_metric(
 pub fn matches_content(
     conn: &Connection,
     project_id: &ProjectId,
-    records: &[(String, String)],
+    records: &[(String, String, chrono::DateTime<chrono::Utc>)],
 ) -> Result<bool, DuckdbError> {
-    let Some(plan) = confirmations::metrics(project_id.as_str(), records, Backend::Duckdb) else {
-        return Ok(true);
-    };
-    let values = metric_values(plan.query.params());
-    let found: i64 = conn.query_row(plan.query.sql(), values.as_slice(), |row| row.get(0))?;
-    Ok(found as u64 == plan.expected)
+    for chunk in records.chunks(sideseat_query_sql::keyed::KEYED_CHUNK) {
+        let Some(plan) = confirmations::metrics(project_id.as_str(), chunk, Backend::Duckdb) else {
+            continue;
+        };
+        let values = metric_values(plan.query.params());
+        let found: i64 = conn.query_row(plan.query.sql(), values.as_slice(), |row| row.get(0))?;
+        if found as u64 != plan.expected {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 pub fn aggregate_metrics(
@@ -194,11 +199,14 @@ fn metric_values(values: &[QueryValue]) -> Vec<&dyn duckdb::ToSql> {
 /// Ties go to the **later occurrence**, which is ClickHouse's rule for an equal version (the most
 /// recently inserted row wins), so a batch carrying one datapoint twice at the same instant resolves the
 /// same way on both backends.
+/// Returned beside the row ids of the stored rows of each identity, which a winning write replaces.
+type StoredRows = std::collections::HashMap<(String, String), Vec<i64>>;
+
 fn winning_indices(
     conn: &Connection,
     metrics: &[NormalizedMetric],
     batch_now: chrono::DateTime<chrono::Utc>,
-) -> Result<Vec<bool>, DuckdbError> {
+) -> Result<(Vec<bool>, StoredRows), DuckdbError> {
     let version = |m: &NormalizedMetric| m.ingested_at.unwrap_or(batch_now);
     let mut keep = vec![true; metrics.len()];
 
@@ -235,25 +243,39 @@ fn winning_indices(
     // column's own resolution, so nothing is lost by the conversion.
     let mut stored: std::collections::HashMap<(String, String), i64> =
         std::collections::HashMap::with_capacity(best.len());
+    let mut stored_rows = StoredRows::with_capacity(best.len());
     let keys: Vec<(&str, &str)> = best.keys().copied().collect();
     const PROBE_CHUNK: usize = 500;
     for chunk in keys.chunks(PROBE_CHUNK) {
-        // Grouped by project so the predicate stays `project_id = ? AND datapoint_id IN (…)`, which is
-        // what the primary key can serve; a flat `OR` over pairs cannot use it.
-        let mut by_project: std::collections::HashMap<&str, Vec<&str>> =
+        // Grouped by project, each group bounded by its datapoints' own instants: an identity's stored rows
+        // carry its instant, so the probe reads only the row groups that hold them.
+        let mut by_project: std::collections::HashMap<&str, (Vec<&str>, i64, i64)> =
             std::collections::HashMap::new();
-        for (project, id) in chunk {
-            by_project.entry(project).or_default().push(id);
+        for key in chunk {
+            let us = metrics[best[key]].timestamp.timestamp_micros();
+            let (ids, low, high) = by_project.entry(key.0).or_insert((Vec::new(), us, us));
+            ids.push(key.1);
+            *low = (*low).min(us);
+            *high = (*high).max(us);
         }
-        for (project, ids) in by_project {
-            let query = dml::metric_winner_probe(project, &ids).expect("non-empty metric probe");
-            let params = query.params().iter().map(string_query_value);
+        for (project, (ids, low, high)) in by_project {
+            let query = dml::metric_winner_probe(project, &ids, (low, high))
+                .expect("non-empty metric probe");
+            let values = metric_values(query.params());
             let mut stmt = conn.prepare(query.sql())?;
-            let rows = stmt.query_map(duckdb::params_from_iter(params), |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            let rows = stmt.query_map(values.as_slice(), |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, i64>(2)?,
+                ))
             })?;
             for row in rows {
-                let (id, version_us) = row?;
+                let (id, version_us, rowid) = row?;
+                stored_rows
+                    .entry((project.to_string(), id.clone()))
+                    .or_default()
+                    .push(rowid);
                 // The table holds at most one row per identity, so a later duplicate would be a bug
                 // elsewhere; take the greatest defensively rather than assuming.
                 stored
@@ -272,7 +294,7 @@ fn winning_indices(
         }
     }
 
-    Ok(keep)
+    Ok((keep, stored_rows))
 }
 
 /// Delete any rows already stored for the datapoints about to be written.
@@ -283,39 +305,26 @@ fn replace_existing(
     conn: &Connection,
     metrics: &[NormalizedMetric],
     keep: &[bool],
+    stored_rows: &StoredRows,
 ) -> Result<(), DuckdbError> {
-    const CHUNK: usize = 500;
-    for (chunk_index, chunk) in metrics.chunks(CHUNK).enumerate() {
-        let offset = chunk_index * CHUNK;
-        let mut by_project: std::collections::HashMap<&str, Vec<&str>> =
-            std::collections::HashMap::new();
-        for (within, m) in chunk.iter().enumerate() {
-            // Only for a row that is actually about to be written. Deleting for a *loser* would remove
-            // the stored winner and put nothing back.
-            if !keep[offset + within] {
-                continue;
-            }
-            // Empty means "identity unknown"; deleting that shared sentinel would remove unrelated rows.
-            if m.datapoint_id.is_empty() {
-                continue;
-            }
-            by_project
-                .entry(m.project_id.as_deref().unwrap_or(""))
-                .or_default()
-                .push(m.datapoint_id.as_str());
+    let mut rowids = Vec::new();
+    for (index, m) in metrics.iter().enumerate() {
+        // Only for a row that is actually about to be written. Deleting for a *loser* would remove the stored
+        // winner and put nothing back. An empty id - identity unknown - was never probed, so has no rows here.
+        if !keep[index] {
+            continue;
         }
-        for (project, mut ids) in by_project {
-            if ids.is_empty() {
-                continue;
-            }
-            ids.sort_unstable();
-            ids.dedup();
-            let query =
-                dml::delete_metric_winners(project, &ids).expect("non-empty metric replacement");
-            let params = query.params().iter().map(string_query_value);
-            conn.execute(query.sql(), duckdb::params_from_iter(params))?;
+        let key = (
+            m.project_id.as_deref().unwrap_or("").to_string(),
+            m.datapoint_id.clone(),
+        );
+        if let Some(rows) = stored_rows.get(&key) {
+            rowids.extend_from_slice(rows);
         }
     }
+    rowids.sort_unstable();
+    rowids.dedup();
+    super::keyed::delete_rows(conn, "otel_metrics", &rowids)?;
     Ok(())
 }
 
@@ -419,15 +428,6 @@ fn insert_metrics(
     Ok(())
 }
 
-fn string_query_value(value: &QueryValue) -> &str {
-    match value {
-        QueryValue::String(value) => value,
-        QueryValue::Int64(_) | QueryValue::Float64(_) => {
-            unreachable!("metric identity statements bind strings only")
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -461,7 +461,8 @@ mod tests {
         (temp_dir, service)
     }
 
-    /// A datapoint at a given version, for the version-resolution tests below.
+    /// A datapoint at a given version, for the version-resolution tests below. Its instant is fixed, as a
+    /// datapoint's is: the instant is part of its identity.
     fn datapoint(
         id: &str,
         value: f64,
@@ -472,7 +473,7 @@ mod tests {
             datapoint_id: id.to_string(),
             metric_name: "cpu".to_string(),
             metric_type: MetricType::Gauge,
-            timestamp: Utc::now(),
+            timestamp: test_now(),
             value_double: Some(value),
             ingested_at,
             ..Default::default()

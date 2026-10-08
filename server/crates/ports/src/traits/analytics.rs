@@ -171,10 +171,12 @@ pub trait MetricStore: Send + Sync {
         to_timestamp: Option<DateTime<Utc>>,
     ) -> Result<HashMap<String, Vec<FilterOptionRow>>, DataError>;
 
+    /// Whether every `(datapoint_id, content_digest, timestamp)` record is stored with that digest. The
+    /// timestamp is the datapoint's own instant, part of its identity, which a store may bound its read by.
     async fn metrics_match_content(
         &self,
         project_id: &ProjectId,
-        records: &[(String, String)],
+        records: &[(String, String, DateTime<Utc>)],
     ) -> Result<bool, DataError>;
 }
 
@@ -200,10 +202,13 @@ pub trait LogStore: Send + Sync {
         to_timestamp: Option<DateTime<Utc>>,
     ) -> Result<HashMap<String, Vec<FilterOptionRow>>, DataError>;
 
+    /// Whether every `(log_digest, ordinal, instant)` record is stored. The instant, when there is one, is the
+    /// record's own - part of its digest - which a store may bound its read by; `None` for a record carrying no
+    /// time of its own, whose stored row may hold another delivery's receipt time.
     async fn logs_match_content(
         &self,
         project_id: &ProjectId,
-        records: &[(String, u32)],
+        records: &[(String, u32, Option<DateTime<Utc>>)],
     ) -> Result<bool, DataError>;
 }
 

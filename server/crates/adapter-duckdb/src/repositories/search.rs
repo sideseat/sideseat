@@ -6,7 +6,13 @@ use sideseat_ports::types::{
 };
 use sideseat_query_sql::{Backend, analytics::QueryValue, search as search_sql};
 
+use std::collections::HashMap;
+
+use sideseat_core::utils::time::micros_to_datetime;
+
+use super::keyed::{self, LogIdentity, SpanIdentity};
 use crate::error::DuckdbError;
+use crate::sql_types::SqlTimestamp;
 
 /// Identities per batched delete. A row-value `IN` list binds three values each, and a statement with tens of
 /// thousands of parameters costs more to plan than it saves.
@@ -76,7 +82,17 @@ struct LogCandidate {
 /// A batch can hold several revisions of one span - a correction and the export it corrects. Writing them one
 /// at a time left the last revision's terms, so only the last revision of each identity is written here: the
 /// batched delete would otherwise leave every revision's vocabulary behind.
-pub fn replace_span_terms(conn: &Connection, spans: &[NormalizedSpan]) -> Result<(), DuckdbError> {
+///
+/// Only a span with a stored revision has terms to replace, and `stored` names the latest such revision - the
+/// only one with terms - by its ingest instant (`keyed::span_revisions`, read before the new rows were appended).
+/// A new span - almost every span - deletes nothing, and a correction's delete reads only the row groups that
+/// revision's terms went to: a delete for every span of every batch read the whole term table, about 35 rows
+/// per span ever stored.
+pub fn replace_span_terms(
+    conn: &Connection,
+    spans: &[NormalizedSpan],
+    stored: &HashMap<SpanIdentity, i64>,
+) -> Result<(), DuckdbError> {
     if spans.is_empty() {
         return Ok(());
     }
@@ -87,7 +103,7 @@ pub fn replace_span_terms(conn: &Connection, spans: &[NormalizedSpan]) -> Result
             span.span_id.as_str(),
         )
     });
-    let identities: Vec<(String, String, String)> = spans
+    let superseded: Vec<SpanIdentity> = spans
         .iter()
         .map(|span| {
             (
@@ -96,15 +112,18 @@ pub fn replace_span_terms(conn: &Connection, spans: &[NormalizedSpan]) -> Result
                 span.span_id.clone(),
             )
         })
+        .filter(|identity| stored.contains_key(identity))
         .collect();
-    for chunk in identities.chunks(DELETE_CHUNK) {
-        if let Some(query) = search_sql::duckdb_span_term_delete(chunk) {
+    for chunk in superseded.chunks(DELETE_CHUNK) {
+        let revisions: Vec<i64> = chunk.iter().map(|identity| stored[identity]).collect();
+        if let Some(query) = search_sql::duckdb_span_term_delete_of_revisions(chunk, &revisions) {
             conn.execute(query.sql(), duckdb_values(query.params()).as_slice())?;
         }
     }
     let mut appender = conn.appender("span_terms")?;
     for span in &spans {
         let project_id = span.project_id.as_deref().unwrap_or_default();
+        let ingested_at = SqlTimestamp(span.ingested_at.unwrap_or(chrono::DateTime::UNIX_EPOCH));
         for field in &span.search.fields {
             // An empty field is still a fact: it says the field was indexed and held nothing, which is what
             // tells a reader the row is indexed rather than waiting for the backfill.
@@ -121,6 +140,7 @@ pub fn replace_span_terms(conn: &Connection, spans: &[NormalizedSpan]) -> Result
                     field.field.as_str(),
                     term.as_str(),
                     field.truncated,
+                    ingested_at,
                 ])?;
             }
         }
@@ -129,8 +149,12 @@ pub fn replace_span_terms(conn: &Connection, spans: &[NormalizedSpan]) -> Result
     Ok(())
 }
 
-/// Replace the term rows of these logs, the same way: one delete for the batch, then the rows appended.
-pub fn replace_log_terms(conn: &Connection, logs: &[NormalizedLog]) -> Result<(), DuckdbError> {
+/// Replace the term rows of these logs, the same way: the stored revisions' terms deleted, then the rows appended.
+pub fn replace_log_terms(
+    conn: &Connection,
+    logs: &[NormalizedLog],
+    stored: &HashMap<LogIdentity, Vec<i64>>,
+) -> Result<(), DuckdbError> {
     if logs.is_empty() {
         return Ok(());
     }
@@ -141,7 +165,7 @@ pub fn replace_log_terms(conn: &Connection, logs: &[NormalizedLog]) -> Result<()
             log.ordinal,
         )
     });
-    let identities: Vec<(String, String, u32)> = logs
+    let superseded: Vec<LogIdentity> = logs
         .iter()
         .map(|log| {
             (
@@ -150,15 +174,21 @@ pub fn replace_log_terms(conn: &Connection, logs: &[NormalizedLog]) -> Result<()
                 log.ordinal,
             )
         })
+        .filter(|identity| stored.contains_key(identity))
         .collect();
-    for chunk in identities.chunks(DELETE_CHUNK) {
-        if let Some(query) = search_sql::duckdb_log_term_delete(chunk) {
+    for chunk in superseded.chunks(DELETE_CHUNK) {
+        let revisions: Vec<i64> = chunk
+            .iter()
+            .flat_map(|identity| stored[identity].iter().copied())
+            .collect();
+        if let Some(query) = search_sql::duckdb_log_term_delete_of_revisions(chunk, &revisions) {
             conn.execute(query.sql(), duckdb_values(query.params()).as_slice())?;
         }
     }
     let mut appender = conn.appender("log_terms")?;
     for log in &logs {
         let project_id = log.project_id.as_deref().unwrap_or_default();
+        let ingested_at = SqlTimestamp(log.ingested_at.unwrap_or(log.timestamp));
         for field in &log.search.fields {
             let terms: &[String] = if field.terms.is_empty() {
                 &EMPTY_TERM
@@ -173,6 +203,7 @@ pub fn replace_log_terms(conn: &Connection, logs: &[NormalizedLog]) -> Result<()
                     field.field.as_str(),
                     term.as_str(),
                     field.truncated,
+                    ingested_at,
                 ])?;
             }
         }
@@ -328,17 +359,30 @@ fn write_span_backfill(
         if !still_current_and_unindexed {
             continue;
         }
-        if let Some(query) = search_sql::duckdb_span_term_delete(&[(
-            project_id.to_string(),
-            trace_id.clone(),
-            span_id.clone(),
-        )]) {
+        // The terms carry the current revision's instant, as a write's do, so a later correction finds them.
+        let identity: SpanIdentity = (project_id.to_string(), trace_id.clone(), span_id.clone());
+        let stored = keyed::span_revisions(conn, std::slice::from_ref(&identity))?;
+        let revisions: Vec<i64> = stored.get(&identity).copied().into_iter().collect();
+        if let Some(query) = search_sql::duckdb_span_term_delete_of_revisions(
+            std::slice::from_ref(&identity),
+            &revisions,
+        ) {
             conn.execute(query.sql(), duckdb_values(query.params()).as_slice())?;
         }
+        let Some(&current_us) = revisions.iter().max() else {
+            continue;
+        };
+        let ingested_at = SqlTimestamp(micros_to_datetime(current_us));
         let mut appender = conn.appender("span_terms")?;
         write_document_fields(&document.document, |field, term, truncated| {
             appender.append_row(params![
-                project_id, trace_id, span_id, field, term, truncated
+                project_id,
+                trace_id,
+                span_id,
+                field,
+                term,
+                truncated,
+                ingested_at
             ])?;
             Ok(())
         })?;
@@ -360,17 +404,32 @@ fn write_log_backfill(
         else {
             panic!("log search backfill received a span identity");
         };
-        if let Some(query) = search_sql::duckdb_log_term_delete(&[(
-            project_id.to_string(),
-            log_digest.clone(),
-            *ordinal,
-        )]) {
+        let identity: LogIdentity = (project_id.to_string(), log_digest.clone(), *ordinal);
+        let rows = keyed::log_rows(conn, std::slice::from_ref(&identity), None)?;
+        let revisions: Vec<i64> = rows
+            .iter()
+            .map(|(_, _, ingested_us)| *ingested_us)
+            .collect();
+        if let Some(query) = search_sql::duckdb_log_term_delete_of_revisions(
+            std::slice::from_ref(&identity),
+            &revisions,
+        ) {
             conn.execute(query.sql(), duckdb_values(query.params()).as_slice())?;
         }
+        let Some(&current_us) = revisions.iter().max() else {
+            continue;
+        };
+        let ingested_at = SqlTimestamp(micros_to_datetime(current_us));
         let mut appender = conn.appender("log_terms")?;
         write_document_fields(&document.document, |field, term, truncated| {
             appender.append_row(params![
-                project_id, log_digest, ordinal, field, term, truncated
+                project_id,
+                log_digest,
+                ordinal,
+                field,
+                term,
+                truncated,
+                ingested_at
             ])?;
             Ok(())
         })?;

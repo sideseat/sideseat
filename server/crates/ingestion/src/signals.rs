@@ -799,6 +799,7 @@ impl Signal for LogSignal {
         crate::logs::extract_logs_batch(request, received_at)
             .into_iter()
             .map(|log| StagedRecord::Log {
+                own_instant: log.time.is_some() || log.observed_time.is_some(),
                 log_digest: log.log_digest,
                 ordinal: log.ordinal,
                 timestamp: log.timestamp,

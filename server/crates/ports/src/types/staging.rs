@@ -54,6 +54,11 @@ pub enum StagedRecord {
         timestamp: DateTime<Utc>,
         trace_id: Option<String>,
         span_id: Option<String>,
+        /// Whether `timestamp` is the record's own instant - its time or observed time, both part of its
+        /// digest - rather than the receipt time a record carrying neither is given, which differs per delivery.
+        /// Only an own instant may bound a read for the stored row.
+        #[serde(default)]
+        own_instant: bool,
     },
 }
 

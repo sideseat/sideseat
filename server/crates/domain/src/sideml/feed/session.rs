@@ -1,5 +1,3 @@
-use std::collections::BTreeSet;
-
 use super::*;
 
 /// Process spans from multiple traces with cross-trace prefix marking.
@@ -267,10 +265,12 @@ pub(super) fn mark_cross_trace_prefix(
 
 /// Group rows by trace_id and sort trace groups chronologically.
 ///
-/// Sort key: (min span_timestamp, min ingested_at, trace_id) - never the order the rows were read in: a
-/// project page reads them newest first and a session read oldest first, and which of two simultaneous
-/// traces strips the other's replay must not depend on which query asked. Traces the clocks cannot tell
-/// apart are then ordered by what they carry ([`order_by_replay`]).
+/// Sort key: (min span_timestamp, min ingested_at, payload bytes, trace_id). Never the order the rows were
+/// read in: a project page reads them newest first and a session read oldest first, and which of two
+/// simultaneous traces strips the other's replay must not depend on which query asked. Where the clocks
+/// agree, the smaller payload goes first, because a conversation only grows: a later request re-sends what
+/// an earlier one said, so of two traces with no time between them the one carrying the other's history is
+/// the later. The trace id settles what is left.
 fn group_and_sort_traces(rows: Vec<MessageSpanRow>) -> Vec<Vec<MessageSpanRow>> {
     let mut by_trace: HashMap<String, Vec<MessageSpanRow>> = HashMap::new();
     for row in rows {
@@ -282,96 +282,25 @@ fn group_and_sort_traces(rows: Vec<MessageSpanRow>) -> Vec<Vec<MessageSpanRow>> 
         .map(|(trace_id, rows)| {
             let min_ts = rows.iter().map(|r| r.span_timestamp).min().unwrap();
             let min_ingest = rows.iter().map(|r| r.ingested_at).min().unwrap();
-            (trace_id, min_ts, min_ingest, rows)
+            let payload: usize = rows
+                .iter()
+                .map(|r| r.messages_json.len() + r.log_messages_json.len())
+                .sum();
+            (trace_id, min_ts, min_ingest, payload, rows)
         })
         .collect();
 
     trace_groups.sort_by(|a, b| {
         a.1.cmp(&b.1)
             .then_with(|| a.2.cmp(&b.2))
+            .then_with(|| a.3.cmp(&b.3))
             .then_with(|| a.0.cmp(&b.0))
     });
 
-    let mut ordered: Vec<Vec<MessageSpanRow>> = Vec::with_capacity(trace_groups.len());
-    let mut tied: Vec<Vec<MessageSpanRow>> = Vec::new();
-    let mut clocks = None;
-    for (_, min_ts, min_ingest, rows) in trace_groups {
-        if clocks != Some((min_ts, min_ingest)) {
-            ordered.extend(order_by_replay(std::mem::take(&mut tied)));
-            clocks = Some((min_ts, min_ingest));
-        }
-        tied.push(rows);
-    }
-    ordered.extend(order_by_replay(tied));
-    ordered
-}
-
-/// Traces with the same clocks, in id order, reordered so that a trace re-sending everything another
-/// carried, and more, follows it.
-///
-/// A later request of a conversation re-sends what the earlier ones said, so carrying another trace's
-/// messages and more is evidence of coming after it; nothing weaker is. Each trace's messages are a set, so
-/// a duplicated row changes nothing. Where neither carries the other, the id order stands.
-fn order_by_replay(traces: Vec<Vec<MessageSpanRow>>) -> Vec<Vec<MessageSpanRow>> {
-    // The comparison is pairwise, so a tie this wide - a bulk import stamped with one instant - keeps the id
-    // order rather than spend quadratic work on clocks that carry no information at all.
-    const WIDEST_TIE: usize = 64;
-    let n = traces.len();
-    if !(2..=WIDEST_TIE).contains(&n) {
-        return traces;
-    }
-    let carried: Vec<BTreeSet<String>> = traces.iter().map(|rows| carried_messages(rows)).collect();
-    let replays = |later: usize, earlier: usize| {
-        !carried[earlier].is_empty()
-            && carried[earlier].len() < carried[later].len()
-            && carried[earlier].is_subset(&carried[later])
-    };
-    let mut waiting_on: Vec<usize> = (0..n)
-        .map(|t| (0..n).filter(|&e| replays(t, e)).count())
-        .collect();
-    // Kahn's algorithm, taking the earliest id whenever several are free: the order is a function of the
-    // traces alone. Proper inclusion is a strict order, so there is no cycle.
-    let mut placed = vec![false; n];
-    let mut order = Vec::with_capacity(n);
-    while order.len() < n {
-        let next = (0..n)
-            .find(|&t| !placed[t] && waiting_on[t] == 0)
-            .expect("proper inclusion has no cycle");
-        placed[next] = true;
-        order.push(next);
-        for (t, waiting) in waiting_on.iter_mut().enumerate() {
-            if !placed[t] && replays(t, next) {
-                *waiting -= 1;
-            }
-        }
-    }
-    let mut slots: Vec<Option<Vec<MessageSpanRow>>> = traces.into_iter().map(Some).collect();
-    order
+    trace_groups
         .into_iter()
-        .map(|t| slots[t].take().expect("each trace is placed once"))
+        .map(|(_, _, _, _, rows)| rows)
         .collect()
-}
-
-/// Every message a trace's rows carry, one canonical string each; a carrier holding a list contributes each
-/// member.
-fn carried_messages(rows: &[MessageSpanRow]) -> BTreeSet<String> {
-    let mut out = BTreeSet::new();
-    for row in rows {
-        let Ok(raw) =
-            serde_json::from_str::<Vec<crate::observations::RawMessage>>(&row.messages_json)
-        else {
-            continue;
-        };
-        for message in raw {
-            match message.content {
-                JsonValue::Array(items) => out.extend(items.iter().map(JsonValue::to_string)),
-                other => {
-                    out.insert(other.to_string());
-                }
-            }
-        }
-    }
-    out
 }
 
 /// Process spans from multiple conversations for a feed.

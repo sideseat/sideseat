@@ -158,16 +158,9 @@ pub fn span_counts_bulk(
     if spans.is_empty() {
         return None;
     }
-    let source = analytics_dialect(backend).span_page_relation();
-    let identities = std::iter::repeat_n("(?, ?)", spans.len())
-        .collect::<Vec<_>>()
-        .join(", ");
-    let mut params = Vec::with_capacity(1 + spans.len() * 2);
+    let (source, mut params) = winning_identities(spans, "event_count, link_count", backend);
     params.push(QueryValue::String(project_id.to_string()));
-    for (trace_id, span_id) in spans {
-        params.push(QueryValue::String(trace_id.clone()));
-        params.push(QueryValue::String(span_id.clone()));
-    }
+    let identities = identity_params(spans, &mut params);
     Some(ParameterizedQuery {
         sql: format!(
             "SELECT trace_id, span_id, event_count, link_count \
@@ -176,6 +169,57 @@ pub fn span_counts_bulk(
         ),
         params,
     })
+}
+
+/// The winning rows of the requested span identities, with `columns` beside the identity.
+///
+/// DuckDB reads the identities' revisions by `span_id` through its index and ranks only those, so the cost is
+/// the identities' revisions rather than the table (`crate::keyed`); ranking every revision of every span and
+/// then filtering, as `span_page_relation` does, read and numbered the whole table. A keyed read binds its span
+/// ids first, so they lead the parameters. ClickHouse merges per sorting key with `FINAL`.
+fn winning_identities(
+    spans: &[(String, String)],
+    columns: &str,
+    backend: Backend,
+) -> (String, Vec<QueryValue>) {
+    match backend {
+        Backend::Duckdb => {
+            let keys =
+                crate::keyed::distinct_keys(spans.iter().map(|(_, span_id)| span_id.as_str()));
+            let params = keys
+                .iter()
+                .map(|key| QueryValue::String((*key).to_string()))
+                .collect();
+            let keyed = crate::keyed::duckdb_keyed(
+                "otel_spans",
+                "span_id",
+                &format!("project_id, trace_id, span_id, ingested_at, {columns}"),
+                keys.len(),
+            );
+            (
+                format!(
+                    "(SELECT * FROM {keyed} QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, \
+                     span_id ORDER BY ingested_at DESC, keyed_rowid DESC) = 1)"
+                ),
+                params,
+            )
+        }
+        Backend::Clickhouse => (
+            analytics_dialect(backend).span_page_relation().to_string(),
+            Vec::new(),
+        ),
+    }
+}
+
+/// `(?, ?), …` for `spans`, their values appended to `params`.
+fn identity_params(spans: &[(String, String)], params: &mut Vec<QueryValue>) -> String {
+    for (trace_id, span_id) in spans {
+        params.push(QueryValue::String(trace_id.clone()));
+        params.push(QueryValue::String(span_id.clone()));
+    }
+    std::iter::repeat_n("(?, ?)", spans.len())
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// Read the raw record each requested span identity's winning row names.
@@ -187,16 +231,9 @@ pub fn span_raw_ids(
     if spans.is_empty() {
         return None;
     }
-    let source = analytics_dialect(backend).span_page_relation();
-    let identities = std::iter::repeat_n("(?, ?)", spans.len())
-        .collect::<Vec<_>>()
-        .join(", ");
-    let mut params = Vec::with_capacity(1 + spans.len() * 2);
+    let (source, mut params) = winning_identities(spans, "raw_id", backend);
     params.push(QueryValue::String(project_id.to_string()));
-    for (trace_id, span_id) in spans {
-        params.push(QueryValue::String(trace_id.clone()));
-        params.push(QueryValue::String(span_id.clone()));
-    }
+    let identities = identity_params(spans, &mut params);
     Some(ParameterizedQuery {
         sql: format!(
             "SELECT trace_id, span_id, raw_id FROM {source} \
@@ -217,6 +254,7 @@ pub fn surviving_trace_ids(
         trace_ids,
         backend,
         "DISTINCT trace_id",
+        "",
         QueryOperation::TracesWithoutSpans,
     )
 }
@@ -238,22 +276,47 @@ pub fn file_reference_fields(
         trace_ids,
         backend,
         projection,
+        ", messages, tool_definitions, metadata",
         QueryOperation::FileReferenceFieldsForTraces,
     )
 }
 
+/// `projection` over the winning rows of these traces. `columns` lists - after a comma - the columns
+/// `projection` reads beyond the identity: DuckDB fetches only those for the keyed rows, and fetching every
+/// column measured three times slower than scanning a small table whole.
 fn trace_identity_read(
     project_id: &str,
     trace_ids: &[String],
     backend: Backend,
     projection: &str,
+    columns: &str,
     _operation: QueryOperation,
 ) -> Option<ParameterizedQuery> {
     if trace_ids.is_empty() {
         return None;
     }
-    let source = analytics_dialect(backend).span_page_relation();
-    let mut params = Vec::with_capacity(1 + trace_ids.len());
+    // DuckDB reads the traces' rows by `trace_id` through its index and ranks only those (`crate::keyed`).
+    let mut params = Vec::with_capacity(1 + trace_ids.len() * 2);
+    let source = match backend {
+        Backend::Duckdb => {
+            let keys = crate::keyed::distinct_keys(trace_ids.iter().map(String::as_str));
+            params.extend(
+                keys.iter()
+                    .map(|key| QueryValue::String((*key).to_string())),
+            );
+            let keyed = crate::keyed::duckdb_keyed(
+                "otel_spans",
+                "trace_id",
+                &format!("project_id, trace_id, span_id, ingested_at{columns}"),
+                keys.len(),
+            );
+            format!(
+                "(SELECT * FROM {keyed} QUALIFY ROW_NUMBER() OVER (PARTITION BY project_id, trace_id, span_id \
+                 ORDER BY ingested_at DESC, keyed_rowid DESC) = 1)"
+            )
+        }
+        Backend::Clickhouse => analytics_dialect(backend).span_page_relation().to_string(),
+    };
     params.push(QueryValue::String(project_id.to_string()));
     params.extend(trace_ids.iter().cloned().map(QueryValue::String));
     Some(ParameterizedQuery {

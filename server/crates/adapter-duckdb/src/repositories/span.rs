@@ -18,8 +18,20 @@ pub fn insert_batch(conn: &Connection, spans: &[NormalizedSpan]) -> Result<(), D
     let target = dml::span_write_target(Backend::Duckdb, None);
 
     in_transaction(conn, |conn| {
+        // Read before the new rows are appended: what is stored before this write is what it supersedes.
+        let identities: Vec<super::keyed::SpanIdentity> = spans
+            .iter()
+            .map(|span| {
+                (
+                    span.project_id.clone().unwrap_or_default(),
+                    span.trace_id.clone(),
+                    span.span_id.clone(),
+                )
+            })
+            .collect();
+        let stored = super::keyed::span_revisions(conn, &identities)?;
         insert_spans(conn, target.table(), spans)?;
-        super::search::replace_span_terms(conn, spans)
+        super::search::replace_span_terms(conn, spans, &stored)
     })
 }
 

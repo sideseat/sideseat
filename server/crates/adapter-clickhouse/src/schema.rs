@@ -617,7 +617,11 @@ CREATE TABLE IF NOT EXISTS otel_metrics_local ON CLUSTER {cluster} (
 
     -- INDEXES
     INDEX idx_metric_name metric_name TYPE bloom_filter GRANULARITY 1,
-    INDEX idx_session_id session_id TYPE bloom_filter GRANULARITY 1
+    INDEX idx_session_id session_id TYPE bloom_filter GRANULARITY 1,
+    -- The datapoint lookups a confirmation makes. The sorting key puts the metric name and time before the
+    -- datapoint, so without this a lookup read every granule of its project; measured over a million points,
+    -- 123 of 123 granules without it and 3 with it, for about a byte per point.
+    INDEX idx_datapoint_id datapoint_id TYPE bloom_filter GRANULARITY 1
 ) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{{shard}}/{db}/otel_metrics', '{{replica}}', ingested_at)
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (project_id, metric_name, toDate(timestamp), timestamp, datapoint_id)
@@ -735,7 +739,11 @@ CREATE TABLE IF NOT EXISTS otel_metrics (
 
     -- INDEXES
     INDEX idx_metric_name metric_name TYPE bloom_filter GRANULARITY 1,
-    INDEX idx_session_id session_id TYPE bloom_filter GRANULARITY 1
+    INDEX idx_session_id session_id TYPE bloom_filter GRANULARITY 1,
+    -- The datapoint lookups a confirmation makes. The sorting key puts the metric name and time before the
+    -- datapoint, so without this a lookup read every granule of its project; measured over a million points,
+    -- 123 of 123 granules without it and 3 with it, for about a byte per point.
+    INDEX idx_datapoint_id datapoint_id TYPE bloom_filter GRANULARITY 1
 ) ENGINE = ReplacingMergeTree(ingested_at)
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (project_id, metric_name, toDate(timestamp), timestamp, datapoint_id)

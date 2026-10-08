@@ -350,7 +350,7 @@ impl MetricStore for DuckdbRepository {
     async fn metrics_match_content(
         &self,
         project_id: &ProjectId,
-        records: &[(String, String)],
+        records: &[(String, String, DateTime<Utc>)],
     ) -> Result<bool, DataError> {
         let db = Arc::clone(&self.0);
         let project_id = project_id.clone();
@@ -429,7 +429,7 @@ impl LogStore for DuckdbRepository {
     async fn logs_match_content(
         &self,
         project_id: &ProjectId,
-        records: &[(String, u32)],
+        records: &[(String, u32, Option<DateTime<Utc>>)],
     ) -> Result<bool, DataError> {
         let db = Arc::clone(&self.0);
         let project_id = project_id.clone();

@@ -39,6 +39,30 @@ impl fmt::Display for UnsupportedSchema {
 
 impl std::error::Error for UnsupportedSchema {}
 
+/// A store at the supported version whose tables, columns or indexes are not the ones this build creates: an
+/// earlier layout of the same version, which this build can neither read nor write correctly.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LayoutMismatch {
+    pub version: i32,
+    /// The first differences, `missing ...` or `unexpected ...`.
+    pub differences: Vec<String>,
+}
+
+impl fmt::Display for LayoutMismatch {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "the store is at schema version {version} but was created with an earlier layout of it ({}); this \
+             build does not upgrade stores. To start fresh, remove the store explicitly - `sideseat system prune` \
+             deletes the embedded data directory. Nothing is deleted automatically.",
+            self.differences.join("; "),
+            version = self.version,
+        )
+    }
+}
+
+impl std::error::Error for LayoutMismatch {}
+
 /// Decide what to do with a store whose recorded version is `found` (`None` when it has no schema).
 pub fn check(found: Option<i32>, supported: i32) -> Result<SchemaCheck, UnsupportedSchema> {
     match found {

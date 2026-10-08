@@ -14,6 +14,7 @@ use sideseat_ports::types::{
     SpanRow, TraceRow, parse_tags,
 };
 use sideseat_query_sql::confirmations;
+use sideseat_query_sql::keyed::KEYED_CHUNK;
 use sideseat_query_sql::{Backend, analytics, dml};
 
 use rows::{
@@ -194,27 +195,27 @@ pub fn get_span_counts_bulk(
 ) -> Result<std::collections::HashMap<(String, String), SpanCounts>, DuckdbError> {
     use std::collections::HashMap;
 
-    let Some(query) = analytics::span_counts_bulk(project_id, spans, Backend::Duckdb) else {
-        return Ok(HashMap::new());
-    };
-
     let mut counts: HashMap<(String, String), SpanCounts> = HashMap::with_capacity(spans.len());
-    let values = duckdb_values(query.params());
-    let mut stmt = conn.prepare(query.sql())?;
-    let mut rows = stmt.query(values.as_slice())?;
-
-    while let Some(row) = rows.next()? {
-        let trace_id: String = row.get(0)?;
-        let span_id: String = row.get(1)?;
-        let event_count: i64 = row.get(2)?;
-        let link_count: i64 = row.get(3)?;
-        counts.insert(
-            (trace_id, span_id),
-            SpanCounts {
-                event_count,
-                link_count,
-            },
-        );
+    for chunk in spans.chunks(KEYED_CHUNK) {
+        let Some(query) = analytics::span_counts_bulk(project_id, chunk, Backend::Duckdb) else {
+            continue;
+        };
+        let values = duckdb_values(query.params());
+        let mut stmt = conn.prepare(query.sql())?;
+        let mut rows = stmt.query(values.as_slice())?;
+        while let Some(row) = rows.next()? {
+            let trace_id: String = row.get(0)?;
+            let span_id: String = row.get(1)?;
+            let event_count: i64 = row.get(2)?;
+            let link_count: i64 = row.get(3)?;
+            counts.insert(
+                (trace_id, span_id),
+                SpanCounts {
+                    event_count,
+                    link_count,
+                },
+            );
+        }
     }
 
     // Add defaults for spans not found in DB
@@ -232,12 +233,17 @@ pub fn spans_match_content(
     project_id: &str,
     records: &[(String, String, String)],
 ) -> Result<bool, DuckdbError> {
-    let Some(plan) = confirmations::spans(project_id, records, Backend::Duckdb) else {
-        return Ok(true);
-    };
-    let values = duckdb_values(plan.query.params());
-    let found: i64 = conn.query_row(plan.query.sql(), values.as_slice(), |row| row.get(0))?;
-    Ok(found as u64 == plan.expected)
+    for chunk in records.chunks(KEYED_CHUNK) {
+        let Some(plan) = confirmations::spans(project_id, chunk, Backend::Duckdb) else {
+            continue;
+        };
+        let values = duckdb_values(plan.query.params());
+        let found: i64 = conn.query_row(plan.query.sql(), values.as_slice(), |row| row.get(0))?;
+        if found as u64 != plan.expected {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 pub fn spans_with_matching_content(
@@ -245,15 +251,21 @@ pub fn spans_with_matching_content(
     project_id: &str,
     records: &[(String, String, String)],
 ) -> Result<HashSet<(String, String, String)>, DuckdbError> {
-    let Some(query) = confirmations::matching_spans(project_id, records, Backend::Duckdb) else {
-        return Ok(HashSet::new());
-    };
-    let values = duckdb_values(query.params());
-    let mut statement = conn.prepare(query.sql())?;
-    let rows = statement.query_map(values.as_slice(), |row| {
-        Ok((row.get(0)?, row.get(1)?, row.get(2)?))
-    })?;
-    Ok(rows.collect::<Result<_, _>>()?)
+    let mut matching = HashSet::new();
+    for chunk in records.chunks(KEYED_CHUNK) {
+        let Some(query) = confirmations::matching_spans(project_id, chunk, Backend::Duckdb) else {
+            continue;
+        };
+        let values = duckdb_values(query.params());
+        let mut statement = conn.prepare(query.sql())?;
+        let rows = statement.query_map(values.as_slice(), |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })?;
+        for row in rows {
+            matching.insert(row?);
+        }
+    }
+    Ok(matching)
 }
 
 // --- Delete operations ---
@@ -267,15 +279,17 @@ pub fn traces_without_spans(
     project_id: &str,
     trace_ids: &[String],
 ) -> Result<Vec<String>, DuckdbError> {
-    let Some(query) = analytics::surviving_trace_ids(project_id, trace_ids, Backend::Duckdb) else {
-        return Ok(Vec::new());
-    };
-    let values = duckdb_values(query.params());
-    let mut stmt = conn.prepare(query.sql())?;
-    let mut rows = stmt.query(values.as_slice())?;
     let mut alive: Vec<String> = Vec::new();
-    while let Some(row) = rows.next()? {
-        alive.push(row.get(0)?);
+    for chunk in trace_ids.chunks(KEYED_CHUNK) {
+        let Some(query) = analytics::surviving_trace_ids(project_id, chunk, Backend::Duckdb) else {
+            continue;
+        };
+        let values = duckdb_values(query.params());
+        let mut stmt = conn.prepare(query.sql())?;
+        let mut rows = stmt.query(values.as_slice())?;
+        while let Some(row) = rows.next()? {
+            alive.push(row.get(0)?);
+        }
     }
     Ok(trace_ids
         .iter()
@@ -294,19 +308,20 @@ pub fn file_reference_fields_for_traces(
     project_id: &str,
     trace_ids: &[String],
 ) -> Result<Vec<String>, DuckdbError> {
-    let Some(query) = analytics::file_reference_fields(project_id, trace_ids, Backend::Duckdb)
-    else {
-        return Ok(Vec::new());
-    };
-    let values = duckdb_values(query.params());
-    let mut stmt = conn.prepare(query.sql())?;
-    let mut rows = stmt.query(values.as_slice())?;
-
     let mut fields = Vec::new();
-    while let Some(row) = rows.next()? {
-        for index in 0..4 {
-            if let Ok(Some(text)) = row.get::<_, Option<String>>(index) {
-                fields.push(text);
+    for chunk in trace_ids.chunks(KEYED_CHUNK) {
+        let Some(query) = analytics::file_reference_fields(project_id, chunk, Backend::Duckdb)
+        else {
+            continue;
+        };
+        let values = duckdb_values(query.params());
+        let mut stmt = conn.prepare(query.sql())?;
+        let mut rows = stmt.query(values.as_slice())?;
+        while let Some(row) = rows.next()? {
+            for index in 0..4 {
+                if let Ok(Some(text)) = row.get::<_, Option<String>>(index) {
+                    fields.push(text);
+                }
             }
         }
     }

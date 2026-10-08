@@ -275,8 +275,7 @@ fn no_delivery_or_framework_release_changes_a_conversation() {
         }
     }
     observed.sort();
-    let scope = super::run_scope(fixtures.iter().map(|(label, _)| label));
-    let problems = super::ledger_problems(&observed, true, scope.as_ref());
+    let problems = super::ledger_problems(&observed, true);
     assert!(
         problems.is_empty(),
         "{} disagreement(s) between delivery variations and the ledger:\n  {}",

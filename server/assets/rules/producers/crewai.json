@@ -513,8 +513,8 @@
       "priority": 1515
     },
     {
-      "id": "crewai.flow_node_output",
-      "doc": "CrewAI runs its agent executor as a Flow (`crewai.experimental.agent_executor.AgentExecutor`), and openinference-instrumentation-crewai 1.1.3 and 1.1.7 trace it: a kickoff span and one CHAIN span per flow method, whose output.value is the label the method hands back to the flow - the route a router picks next (`check_iteration`, `native_tool_calls`) or a state marker (`initialized`). The executor marks itself `suppress_flow_events`, which later releases of the instrumentor honour. The labels steer the flow and say nothing to anyone; the model calls and tool runs beneath them carry the conversation. Claimed only where the span is one of the executor's own methods and the output one of its labels, so a user's Flow keeps what its methods return.",
+      "id": "crewai.flow_output",
+      "doc": "CrewAI runs its agent executor as a Flow (`crewai.experimental.agent_executor.AgentExecutor`), and openinference-instrumentation-crewai 1.1.3 and 1.1.7 trace it: a kickoff span and one CHAIN span per flow method, whose output.value is the label the method hands back to the flow - the route a router picks next (`check_iteration`, `native_tool_calls`) or a state marker (`initialized`, `completed`). The executor marks itself `suppress_flow_events`, which later releases of the instrumentor honour. The labels steer the flow and say nothing to anyone; the model calls and tool runs beneath them carry the conversation. Claimed only when the output is one of the executor's labels, so a user's own Flow that returns its answer from a method keeps it.",
       "where": {
         "all": [
           {
@@ -526,42 +526,16 @@
             "equals": "openinference.instrumentation.crewai"
           },
           {
-            "source": "attr:flow.node.name",
-            "one_of": [
-              "after_parallel_execution",
-              "call_llm_and_parse",
-              "call_llm_native_tools",
-              "check_max_iterations",
-              "check_more_todos",
-              "check_native_todo_completion",
-              "check_todo_completion",
-              "check_todos_available",
-              "continue_iteration",
-              "decide_next_action",
-              "ensure_force_final_answer",
-              "execute_native_tool",
-              "execute_todo_sequential",
-              "execute_todos_parallel",
-              "execute_tool_action",
-              "finalize",
-              "generate_plan",
-              "get_ready_todos_method",
-              "handle_continue_plan",
-              "handle_goal_achieved",
-              "handle_refine_and_continue",
-              "handle_replan",
-              "handle_replan_now",
-              "handle_step_observed_low",
-              "handle_step_observed_medium",
-              "increment_and_continue",
-              "initialize_reasoning",
-              "mark_todo_complete",
-              "observe_step_result",
-              "recover_from_context_length",
-              "recover_from_parser_error",
-              "route_by_answer_type"
-            ],
-            "doc": "The executor's flow methods (its `@start`, `@listen` and `@router` methods in agent_executor.py)."
+            "any": [
+              {
+                "source": "attr:flow.node.type",
+                "exists": true
+              },
+              {
+                "source": "attr:flow_id",
+                "exists": true
+              }
+            ]
           }
         ]
       },
@@ -573,7 +547,7 @@
       "alternatives": [
         {
           "id": "executor_label",
-          "doc": "The labels the executor's methods return in CrewAI 1.15 (`return \"...\"` in agent_executor.py).",
+          "doc": "Every label the executor's methods return in CrewAI 1.15 (`return \"...\"` in agent_executor.py). Anything else is a value a user's Flow returned, and stays available to the readers that show it.",
           "where": {
             "kind": "string",
             "one_of": [
@@ -621,86 +595,6 @@
         }
       ],
       "priority": 1516
-    },
-    {
-      "id": "crewai.flow_kickoff_output",
-      "doc": "The executor flow's kickoff, which reports the label its last method returned (`completed`). A kickoff names no method, so the executor's is told apart by what it was given: it is started with no inputs. Claimed only for one of the executor's labels; a user's Flow started with inputs, or returning anything else, keeps its answer.",
-      "where": {
-        "all": [
-          {
-            "source": "attr:openinference.span.kind",
-            "equals_ignore_case": "chain"
-          },
-          {
-            "source": "scope.name",
-            "equals": "openinference.instrumentation.crewai"
-          },
-          {
-            "source": "attr:flow_id",
-            "exists": true
-          },
-          {
-            "source": "attr:flow_inputs",
-            "equals": ""
-          }
-        ]
-      },
-      "read": {
-        "attribute": "output.value"
-      },
-      "parse": "json_or_string",
-      "emit": "claim",
-      "alternatives": [
-        {
-          "id": "executor_label",
-          "doc": "The labels the executor's methods return in CrewAI 1.15 (`return \"...\"` in agent_executor.py).",
-          "where": {
-            "kind": "string",
-            "one_of": [
-              "agent_finished",
-              "all_todos_complete",
-              "check_iteration",
-              "completed",
-              "context_error",
-              "continue_plan",
-              "continue_reasoning",
-              "continue_reasoning_native",
-              "execute_tool",
-              "force_final_answer",
-              "goal_achieved",
-              "has_todos",
-              "initialized",
-              "medium",
-              "multiple_todos_ready",
-              "native_finished",
-              "native_tool_calls",
-              "native_tool_completed",
-              "needs_replan",
-              "no_todos",
-              "parallel_todos_complete",
-              "parsed",
-              "parser_error",
-              "planning_disabled",
-              "refine_and_continue",
-              "replan_now",
-              "single_todo_ready",
-              "skipped",
-              "step_executed",
-              "step_observed_high",
-              "step_observed_low",
-              "step_observed_medium",
-              "todo_injected",
-              "todo_marked",
-              "todo_not_satisfied",
-              "todo_satisfied",
-              "tool_completed",
-              "tool_result_is_final",
-              "unknown"
-            ]
-          }
-        }
-      ],
-      "priority": 1517
     }
   ]
 }

@@ -169,7 +169,7 @@ impl MetricStore for DedupAnalyticsRepository {
     async fn metrics_match_content(
         &self,
         project_id: &ProjectId,
-        records: &[(String, String)],
+        records: &[(String, String, DateTime<Utc>)],
     ) -> Result<bool, DataError> {
         self.inner.metrics_match_content(project_id, records).await
     }
@@ -209,7 +209,7 @@ impl LogStore for DedupAnalyticsRepository {
     async fn logs_match_content(
         &self,
         project_id: &ProjectId,
-        records: &[(String, u32)],
+        records: &[(String, u32, Option<DateTime<Utc>>)],
     ) -> Result<bool, DataError> {
         self.inner.logs_match_content(project_id, records).await
     }

@@ -256,7 +256,7 @@ pub async fn get_log(
 pub async fn matches_content(
     client: &Client,
     project_id: &ProjectId,
-    records: &[(String, u32)],
+    records: &[(String, u32, Option<chrono::DateTime<chrono::Utc>>)],
 ) -> Result<bool, ClickhouseError> {
     let Some(plan) = confirmations::logs(project_id.as_str(), records, Backend::Clickhouse) else {
         return Ok(true);

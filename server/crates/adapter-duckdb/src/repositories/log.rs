@@ -19,19 +19,39 @@ pub fn insert_batch(conn: &Connection, logs: &[NormalizedLog]) -> Result<(), Duc
     }
     let target = dml::log_write_target(Backend::Duckdb, None);
     in_transaction(conn, |conn| {
-        let mut by_project: HashMap<&str, Vec<(&str, u32)>> = HashMap::new();
-        for log in logs {
-            by_project
-                .entry(log.project_id.as_deref().unwrap_or_default())
-                .or_default()
-                .push((&log.log_digest, log.ordinal));
+        // A redelivery replaces the identity's stored row. Found within the records' own instants and deleted by
+        // row id, so a write reads the row groups of what it replaces rather than the whole table (`keyed`).
+        // A record with a time of its own is stored under it - part of its digest - so its row lies within the
+        // batch's instants; one with neither time nor observed time is stored under a receipt time another
+        // delivery replaces, and is looked up unbounded.
+        let identity = |log: &NormalizedLog| -> super::keyed::LogIdentity {
+            (
+                log.project_id.clone().unwrap_or_default(),
+                log.log_digest.clone(),
+                log.ordinal,
+            )
+        };
+        let own = |log: &&NormalizedLog| log.time.is_some() || log.observed_time.is_some();
+        let bounded: Vec<&NormalizedLog> = logs.iter().filter(own).collect();
+        let unbounded: Vec<super::keyed::LogIdentity> =
+            logs.iter().filter(|log| !own(log)).map(identity).collect();
+        let mut stored_rows = super::keyed::log_rows(
+            conn,
+            &bounded.iter().map(|log| identity(log)).collect::<Vec<_>>(),
+            sideseat_query_sql::confirmations::instant_range(
+                bounded.iter().map(|log| log.timestamp),
+            ),
+        )?;
+        if !unbounded.is_empty() {
+            stored_rows.extend(super::keyed::log_rows(conn, &unbounded, None)?);
         }
-        for (project_id, identities) in by_project {
-            if let Some(statement) = dml::delete_log_winners(project_id, &identities) {
-                let values = query_values(statement.params());
-                conn.execute(statement.sql(), values.as_slice())?;
-            }
+        let mut stored: HashMap<super::keyed::LogIdentity, Vec<i64>> = HashMap::new();
+        let mut rowids = Vec::with_capacity(stored_rows.len());
+        for (rowid, identity, ingested_us) in stored_rows {
+            rowids.push(rowid);
+            stored.entry(identity).or_default().push(ingested_us);
         }
+        super::keyed::delete_rows(conn, target.table(), &rowids)?;
 
         let mut appender = conn.appender(target.table())?;
         for log in logs {
@@ -74,7 +94,7 @@ pub fn insert_batch(conn: &Connection, logs: &[NormalizedLog]) -> Result<(), Duc
         }
         appender.flush()?;
         drop(appender);
-        super::search::replace_log_terms(conn, logs)?;
+        super::search::replace_log_terms(conn, logs, &stored)?;
         Ok(())
     })
 }
@@ -92,14 +112,27 @@ pub fn list_logs(
 pub fn matches_content(
     conn: &Connection,
     project_id: &ProjectId,
-    records: &[(String, u32)],
+    records: &[(String, u32, Option<chrono::DateTime<chrono::Utc>>)],
 ) -> Result<bool, DuckdbError> {
-    let Some(plan) = confirmations::logs(project_id.as_str(), records, Backend::Duckdb) else {
-        return Ok(true);
-    };
-    let values = query_values(plan.query.params());
-    let found: i64 = conn.query_row(plan.query.sql(), values.as_slice(), |row| row.get(0))?;
-    Ok(found as u64 == plan.expected)
+    // Records with an instant of their own are read within their instants; the rest, unbounded, apart.
+    let (bounded, unbounded): (Vec<_>, Vec<_>) = records
+        .iter()
+        .cloned()
+        .partition(|(_, _, instant)| instant.is_some());
+    for chunk in bounded
+        .chunks(sideseat_query_sql::keyed::KEYED_CHUNK)
+        .chain(unbounded.chunks(sideseat_query_sql::keyed::KEYED_CHUNK))
+    {
+        let Some(plan) = confirmations::logs(project_id.as_str(), chunk, Backend::Duckdb) else {
+            continue;
+        };
+        let values = query_values(plan.query.params());
+        let found: i64 = conn.query_row(plan.query.sql(), values.as_slice(), |row| row.get(0))?;
+        if found as u64 != plan.expected {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 pub fn get_log(

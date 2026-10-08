@@ -515,75 +515,36 @@ pub fn delete_project_relation(target: MutationTarget<'_>, project_id: &str) -> 
     )
 }
 
-/// Read stored versions for one project's candidate metric identities.
-pub fn metric_winner_probe(project_id: &str, datapoint_ids: &[&str]) -> Option<DmlStatement> {
+/// Read the stored versions, and row ids, of one project's candidate metric identities, whose instants lie in
+/// `instants` (epoch microseconds, inclusive).
+///
+/// A datapoint's instant is part of its identity, so its stored rows carry the candidate's own `timestamp`, and
+/// bounding the read by the candidates' instants lets DuckDB read only the row groups whose zone maps hold them
+/// (`crate::confirmations::metrics`). The row ids are what the write deletes the replaced rows by.
+pub fn metric_winner_probe(
+    project_id: &str,
+    datapoint_ids: &[&str],
+    (low, high): (i64, i64),
+) -> Option<DmlStatement> {
     if datapoint_ids.is_empty() {
         return None;
     }
-    let placeholders = std::iter::repeat_n("?", datapoint_ids.len())
-        .collect::<Vec<_>>()
-        .join(", ");
-    let mut params = Vec::with_capacity(1 + datapoint_ids.len());
-    params.push(QueryValue::String(project_id.to_string()));
-    params.extend(
-        datapoint_ids
-            .iter()
-            .map(|id| QueryValue::String((*id).to_string())),
-    );
+    let keys = crate::keyed::distinct_keys(datapoint_ids.iter().copied());
+    let mut params = vec![
+        QueryValue::Int64(low),
+        QueryValue::Int64(high),
+        QueryValue::String(project_id.to_string()),
+    ];
+    params.extend(keys.iter().map(|id| QueryValue::String((*id).to_string())));
     Some(DmlStatement {
         operation: QueryOperation::UpsertMetrics,
         sql: format!(
-            "SELECT datapoint_id, epoch_us(ingested_at) FROM otel_metrics \
-             WHERE project_id = ? AND datapoint_id IN ({placeholders})"
-        ),
-        params,
-    })
-}
-
-/// Remove stored metric rows immediately before their winning replacements are appended.
-pub fn delete_metric_winners(project_id: &str, datapoint_ids: &[&str]) -> Option<DmlStatement> {
-    if datapoint_ids.is_empty() {
-        return None;
-    }
-    let placeholders = std::iter::repeat_n("?", datapoint_ids.len())
-        .collect::<Vec<_>>()
-        .join(", ");
-    let mut params = Vec::with_capacity(1 + datapoint_ids.len());
-    params.push(QueryValue::String(project_id.to_string()));
-    params.extend(
-        datapoint_ids
-            .iter()
-            .map(|id| QueryValue::String((*id).to_string())),
-    );
-    Some(DmlStatement {
-        operation: QueryOperation::UpsertMetrics,
-        sql: format!(
-            "DELETE FROM otel_metrics \
-             WHERE project_id = ? AND datapoint_id IN ({placeholders})"
-        ),
-        params,
-    })
-}
-
-/// Remove retried DuckDB log identities immediately before their replacements are appended.
-pub fn delete_log_winners(project_id: &str, identities: &[(&str, u32)]) -> Option<DmlStatement> {
-    if identities.is_empty() {
-        return None;
-    }
-    let placeholders = std::iter::repeat_n("(?, ?)", identities.len())
-        .collect::<Vec<_>>()
-        .join(", ");
-    let mut params = Vec::with_capacity(1 + identities.len() * 2);
-    params.push(QueryValue::String(project_id.to_string()));
-    for (digest, ordinal) in identities {
-        params.push(QueryValue::String((*digest).to_string()));
-        params.push(QueryValue::Int64(i64::from(*ordinal)));
-    }
-    Some(DmlStatement {
-        operation: QueryOperation::UpsertLogs,
-        sql: format!(
-            "DELETE FROM otel_logs \
-             WHERE project_id = ? AND (log_digest, ordinal) IN ({placeholders})"
+            "SELECT datapoint_id, epoch_us(ingested_at), rowid FROM otel_metrics \
+             WHERE \"timestamp\" BETWEEN make_timestamp(?::BIGINT) AND make_timestamp(?::BIGINT) \
+             AND project_id = ? AND datapoint_id IN ({})",
+            std::iter::repeat_n("?", keys.len())
+                .collect::<Vec<_>>()
+                .join(", ")
         ),
         params,
     })

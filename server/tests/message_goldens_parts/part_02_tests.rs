@@ -502,8 +502,7 @@ fn message_goldens() {
     // Asserted in a recording run too: the expectations a recording writes are reviewed by diff, but the
     // truth ledger is not something a recording re-baselines, and a regenerated golden that hides a truth
     // regression must not pass.
-    let scope = message_truth::run_scope(fixtures.iter().map(|(label, _)| label));
-    let truth_problems = message_truth::ledger_problems(&truth_violations, false, scope.as_ref());
+    let truth_problems = message_truth::ledger_problems(&truth_violations, false);
     if update {
         eprintln!("message_goldens: recorded {} fixture(s)", fixtures.len());
     }

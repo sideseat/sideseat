@@ -182,16 +182,19 @@ fn retention_plan_is_parameterized_and_revision_aware() {
 }
 
 #[test]
-fn metric_upsert_statements_share_identity_bind_order() {
-    let ids = ["dp-'one", "dp-two"];
-    let probe = metric_winner_probe("tenant-'quoted", &ids).expect("probe");
-    let delete = delete_metric_winners("tenant-'quoted", &ids).expect("delete");
-    assert_eq!(probe.params(), delete.params());
+fn the_metric_winner_probe_is_bounded_by_the_candidates_instants() {
+    let ids = ["dp-'one", "dp-two", "dp-'one"];
+    let probe = metric_winner_probe("tenant-'quoted", &ids, (10, 20)).expect("probe");
     assert_eq!(probe.sql().matches('?').count(), probe.params().len());
-    assert_eq!(delete.sql().matches('?').count(), delete.params().len());
+    // The two instants, the project, then two distinct datapoints.
+    assert_eq!(probe.params().len(), 5);
+    assert!(
+        probe.sql().contains("\"timestamp\" BETWEEN"),
+        "{}",
+        probe.sql()
+    );
     for value in ["tenant-'quoted", "dp-'one", "dp-two"] {
         assert!(!probe.sql().contains(value));
-        assert!(!delete.sql().contains(value));
     }
 }
 

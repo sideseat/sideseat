@@ -357,7 +357,7 @@ pub async fn get_metric(
 pub async fn matches_content(
     client: &Client,
     project_id: &ProjectId,
-    records: &[(String, String)],
+    records: &[(String, String, chrono::DateTime<chrono::Utc>)],
 ) -> Result<bool, ClickhouseError> {
     let Some(plan) = confirmations::metrics(project_id.as_str(), records, Backend::Clickhouse)
     else {

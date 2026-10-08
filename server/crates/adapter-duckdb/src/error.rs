@@ -11,6 +11,9 @@ pub enum DuckdbError {
     #[error(transparent)]
     UnsupportedSchema(sideseat_core::schema_version::UnsupportedSchema),
 
+    #[error(transparent)]
+    LayoutMismatch(sideseat_core::schema_version::LayoutMismatch),
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
@@ -33,6 +36,12 @@ impl From<DuckdbError> for DataError {
                 source: Some(Box::new(e)),
             },
             DuckdbError::UnsupportedSchema(refusal) => Self::unsupported_schema("duckdb", refusal),
+            DuckdbError::LayoutMismatch(mismatch) => Self::UnsupportedSchema {
+                backend: "duckdb",
+                found: mismatch.version,
+                supported: mismatch.version,
+                detail: mismatch.to_string(),
+            },
             DuckdbError::Io(e) => Self::Io(e),
             DuckdbError::Timeout { timeout_secs } => Self::Timeout {
                 backend: "duckdb",

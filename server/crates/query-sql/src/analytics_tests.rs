@@ -630,7 +630,12 @@ fn bulk_span_counts_use_winning_rows_and_tuple_bindings() {
     for backend in [Backend::Duckdb, Backend::Clickhouse] {
         let query = span_counts_bulk("tenant-'quoted", &spans, backend).expect("counts");
         assert_eq!(query.sql().matches('?').count(), query.params().len());
-        assert_eq!(query.params().len(), 5);
+        // DuckDB binds the span ids it reads through the index first.
+        let keys = match backend {
+            Backend::Duckdb => 2,
+            Backend::Clickhouse => 0,
+        };
+        assert_eq!(query.params().len(), keys + 5);
         assert!(!query.sql().contains("tenant-'quoted"));
         assert!(!query.sql().contains("trace-'a"));
         // The counts are columns, so the only dialect difference left is how the winning row is chosen.

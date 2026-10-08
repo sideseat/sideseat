@@ -10,6 +10,8 @@ pub mod confirmations;
 pub mod display;
 /// Typed tenant-scoped mutations for analytical stores.
 pub mod dml;
+/// DuckDB reads keyed by one identity column, answered from its index.
+pub mod keyed;
 /// Typed OTLP log reads.
 pub mod logs;
 /// Typed message-context and message-feed statements.

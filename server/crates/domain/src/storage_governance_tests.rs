@@ -446,6 +446,7 @@ async fn strict_confirmation_survives_hold_patch_and_byte_identical_retry_for_al
     };
     let metric_row = metric(&harness.project_id, "metric", 102);
     let metric_digest = metric_row.content_digest.clone();
+    let metric_instant = metric_row.timestamp;
     let log = NormalizedLog {
         project_id: Some(harness.project_id.to_string()),
         log_digest: "log-content".to_string(),
@@ -529,7 +530,7 @@ async fn strict_confirmation_survives_hold_patch_and_byte_identical_retry_for_al
             .analytics
             .metrics_match_content(
                 &harness.project_id,
-                &[("metric".to_string(), metric_digest)],
+                &[("metric".to_string(), metric_digest, metric_instant)],
             )
             .await
             .unwrap()
@@ -537,7 +538,10 @@ async fn strict_confirmation_survives_hold_patch_and_byte_identical_retry_for_al
     assert!(
         harness
             .analytics
-            .logs_match_content(&harness.project_id, &[("log-content".to_string(), 0)],)
+            .logs_match_content(
+                &harness.project_id,
+                &[("log-content".to_string(), 0, Some(now))],
+            )
             .await
             .unwrap()
     );

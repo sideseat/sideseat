@@ -137,6 +137,26 @@ the ART index on `span_terms(term)`, which the search does not drive from (its l
 identity and measure no faster with the index than without) - then the term postings themselves, one row per
 term per span.
 
+**An index exists only where a read provably uses it.** DuckDB reads through an ART index only for a scan whose
+one filter is an equality or IN list on the column of a single-column index; it never scans through a compound
+index, and a second predicate in the same scan reads the whole table. The compound indexes on spans, logs,
+metrics and raw records were therefore never read - on a million spans every per-identity read scanned every row
+with them and without - while they held a quarter of the file and every insert maintained them. They are gone;
+what remains is one single-column index per key a read looks rows up by (`otel_spans.span_id` and `trace_id`,
+`otel_raw.raw_id`, `otel_raw_traces.raw_id`, `otel_logs.log_digest`, `otel_metrics.datapoint_id`), plus the
+unique index that makes a second row for a log identity an error. Every read keyed on one of them is written so
+the key is its scan's only filter (`sideseat_query_sql::keyed`), binds at most 512 keys, and stays on the index
+however many rows its keys find (DuckDB's `index_scan_max_count`, raised on the connection), so a long trace or a
+span id a client reuses costs the rows it asks for rather than the table; deletes go by the row ids a keyed read
+found. A correction's term delete is held to the row groups its superseded revision's terms were appended to by
+that revision's `ingested_at`, which the term rows carry - every write replaces the terms of the revision it
+supersedes, so only the latest revision has any - and a span with no stored revision deletes nothing. A store at
+version 2 whose tables, columns or indexes differ from the ones this build creates is refused at startup with the
+reset instruction, as a store at another version is. `keyed_scan_tests` holds each lookup to a small
+multiple of its keys. Measured on the corpus: 1,290 to 919 B per span and 3,329 to 2,768 B per log record; on the
+corpus replicated to a million spans, 4,181 to 3,567 used blocks, and the ingest-time lookups from every row of
+the table to the rows they name (`read_paths` in the DuckDB adapter).
+
 **Metrics are measured on a derived load, and the gate uses it.** 480 captured points cannot measure a store whose block is 256 KB:
 most of the figure is one partly-filled block per column. `scripts/perf/metrics-load.py` derives a deterministic
 load of about a million points from the captured *shapes* - every series keeps its resource, scope, instrument

@@ -190,13 +190,15 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     link_count                 UINTEGER NOT NULL DEFAULT 0
 );
 
--- Indexes for spans (minimal - DuckDB columnar scans are efficient for low-cardinality filters)
-CREATE INDEX IF NOT EXISTS idx_spans_project_trace ON otel_spans(project_id, trace_id);
-CREATE INDEX IF NOT EXISTS idx_spans_project_ts ON otel_spans(project_id, timestamp_start DESC);
-CREATE INDEX IF NOT EXISTS idx_spans_project_ingest ON otel_spans(project_id, ingested_at DESC);
-CREATE INDEX IF NOT EXISTS idx_spans_detail ON otel_spans(project_id, trace_id, span_id);
-CREATE INDEX IF NOT EXISTS idx_spans_project_session ON otel_spans(project_id, session_id);
-CREATE INDEX IF NOT EXISTS idx_spans_project_span ON otel_spans(project_id, span_id);
+-- Indexes exist only where a read provably uses them. DuckDB reads through an ART index only for a scan whose
+-- one filter is an equality or IN list on the column of a single-column index; it never scans through a compound
+-- index, and a second predicate in the same scan reads the whole table. The six compound indexes this table had
+-- were therefore never read - measured on a million spans, every keyed read scanned every row with them and
+-- without - while they took a quarter of the file and every insert maintained them. What remains is one index per
+-- key a read looks rows up by, each read written so the key is its scan's only filter (`sideseat_query_sql::keyed`):
+-- `span_id` for the identity lookups an ingest makes, `trace_id` for reading a trace.
+CREATE INDEX IF NOT EXISTS idx_spans_span ON otel_spans(span_id);
+CREATE INDEX IF NOT EXISTS idx_spans_trace ON otel_spans(trace_id);
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- OTEL metrics table: Main table for all OpenTelemetry metric data points
@@ -343,12 +345,10 @@ CREATE TABLE IF NOT EXISTS otel_metrics (
     logical_bytes          UBIGINT NOT NULL DEFAULT 0
 );
 
--- Indexes for metrics
-CREATE INDEX IF NOT EXISTS idx_metrics_project_ts ON otel_metrics(project_id, timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_metrics_project_name ON otel_metrics(project_id, metric_name);
-CREATE INDEX IF NOT EXISTS idx_metrics_project_name_ts ON otel_metrics(project_id, metric_name, timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_metrics_exemplar_trace ON otel_metrics(project_id, exemplar_trace_id);
-CREATE INDEX IF NOT EXISTS idx_metrics_session ON otel_metrics(project_id, session_id);
+-- No index. A datapoint's instant is part of its identity, so the lookups a write and its confirmation make are
+-- bounded by the datapoints' own `timestamp`, which the row groups' zone maps answer; an index on `datapoint_id`
+-- measured 85 bytes per point, more than half the per-point target. See the span indexes for why no compound
+-- index is kept.
 
 -- OTLP logs. The semantic digest plus per-export ordinal is the record identity; `ingested_at`
 -- versions a correction consistently with the other two analytical signals.
@@ -390,14 +390,12 @@ CREATE TABLE IF NOT EXISTS otel_logs (
     -- read time. Not identity: `log_digest` covers the record, not this.
     messages                  VARCHAR DEFAULT '[]' USING COMPRESSION zstd
 );
+-- The identity's uniqueness, which no scan reads: a write replaces an identity's row, and this makes a second
+-- row for it an error rather than a duplicate. The lookups a write and its confirmation make are bounded by the
+-- records' own `timestamp` - part of the digest - which the zone maps answer; an index on `log_digest` measured
+-- 68 bytes per record. See the span indexes for why no other compound index is kept.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_logs_identity
     ON otel_logs(project_id, log_digest, ordinal);
-CREATE INDEX IF NOT EXISTS idx_logs_project_time
-    ON otel_logs(project_id, timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_logs_trace_span
-    ON otel_logs(project_id, trace_id, span_id);
-CREATE INDEX IF NOT EXISTS idx_logs_service
-    ON otel_logs(project_id, service_name);
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- Raw telemetry: every received export as an SSR1 record, the authority the other tables are derived from.
@@ -415,7 +413,8 @@ CREATE TABLE IF NOT EXISTS otel_raw (
     hold_until   TIMESTAMP,
     record       BLOB NOT NULL USING COMPRESSION zstd
 );
-CREATE INDEX IF NOT EXISTS idx_raw_identity ON otel_raw(project_id, raw_id);
+-- Every read of a record is by id: the repair, the confirmation and the insert that skips one already stored.
+CREATE INDEX IF NOT EXISTS idx_raw_id ON otel_raw(raw_id);
 
 -- Which records hold spans of which trace: how a deletion finds a record no row names any more.
 CREATE TABLE IF NOT EXISTS otel_raw_traces (
@@ -425,7 +424,8 @@ CREATE TABLE IF NOT EXISTS otel_raw_traces (
     signal_until TIMESTAMP NOT NULL,
     hold_until   TIMESTAMP
 );
-CREATE INDEX IF NOT EXISTS idx_raw_traces ON otel_raw_traces(project_id, trace_id);
+-- An insert asks whether a record's trace rows are already there, by record.
+CREATE INDEX IF NOT EXISTS idx_raw_traces_raw ON otel_raw_traces(raw_id);
 
 -- Records whose rows were deleted, expired or repaired, waiting for the reconciler. Each entry has a token so a
 -- reconciler removes exactly the entries it read.
@@ -438,6 +438,9 @@ CREATE TABLE IF NOT EXISTS otel_raw_pending (
 
 -- Current-version search terms. Corrections replace these rows in the same transaction as
 -- appending the new source revision. An empty term is a field marker, not a searchable token.
+-- `ingested_at` is the revision's, the same for every term a write appends, so it costs a run per write and lets
+-- the delete a correction makes read only the row groups that revision's terms were appended to: an index on
+-- span identity would cost a key per term, about 35 per span.
 -- No index on `term`. Search drives from the span rows - its leaves are correlated `EXISTS` subqueries keyed by
 -- span identity - so an ART index on `term` alone cannot serve the lookup, and measured on the fixture corpus it
 -- answers no faster than no index at all while costing 588 bytes per span and an ART insert for each of a span's
@@ -448,7 +451,8 @@ CREATE TABLE IF NOT EXISTS span_terms (
     span_id VARCHAR NOT NULL,
     field VARCHAR NOT NULL,
     term VARCHAR NOT NULL,
-    truncated BOOLEAN NOT NULL
+    truncated BOOLEAN NOT NULL,
+    ingested_at TIMESTAMP NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS log_terms (
@@ -457,7 +461,8 @@ CREATE TABLE IF NOT EXISTS log_terms (
     ordinal UINTEGER NOT NULL,
     field VARCHAR NOT NULL,
     term VARCHAR NOT NULL,
-    truncated BOOLEAN NOT NULL
+    truncated BOOLEAN NOT NULL,
+    ingested_at TIMESTAMP NOT NULL
 );
 
 "#;

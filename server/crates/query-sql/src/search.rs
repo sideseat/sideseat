@@ -54,6 +54,75 @@ pub fn duckdb_log_term_delete(identities: &[(String, String, u32)]) -> Option<Pa
         params,
     ))
 }
+/// Remove the term rows the stored revisions of these span identities wrote.
+///
+/// `revisions_us` are those revisions' ingest instants in epoch microseconds. A revision's terms carry its
+/// instant, and terms are appended in ingest order, so the condition on `ingested_at` lets DuckDB skip every row
+/// group whose range holds none of them: the delete reads the row groups those revisions were written to, not
+/// the whole term table. The instants are written as literals, which is what the row-group check folds.
+pub fn duckdb_span_term_delete_of_revisions(
+    identities: &[(String, String, String)],
+    revisions_us: &[i64],
+) -> Option<ParameterizedQuery> {
+    if identities.is_empty() || revisions_us.is_empty() {
+        return None;
+    }
+    let mut params = Vec::with_capacity(identities.len() * 3);
+    for (project_id, trace_id, span_id) in identities {
+        params.push(QueryValue::String(project_id.clone()));
+        params.push(QueryValue::String(trace_id.clone()));
+        params.push(QueryValue::String(span_id.clone()));
+    }
+    Some(ParameterizedQuery::new(
+        format!(
+            "DELETE FROM span_terms WHERE ingested_at IN ({}) AND (project_id, trace_id, span_id) IN ({})",
+            instants(revisions_us),
+            std::iter::repeat_n("(?, ?, ?)", identities.len())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        params,
+    ))
+}
+
+/// The same for log term rows, keyed by the log identity.
+pub fn duckdb_log_term_delete_of_revisions(
+    identities: &[(String, String, u32)],
+    revisions_us: &[i64],
+) -> Option<ParameterizedQuery> {
+    if identities.is_empty() || revisions_us.is_empty() {
+        return None;
+    }
+    let mut params = Vec::with_capacity(identities.len() * 3);
+    for (project_id, log_digest, ordinal) in identities {
+        params.push(QueryValue::String(project_id.clone()));
+        params.push(QueryValue::String(log_digest.clone()));
+        params.push(QueryValue::Int64(i64::from(*ordinal)));
+    }
+    Some(ParameterizedQuery::new(
+        format!(
+            "DELETE FROM log_terms WHERE ingested_at IN ({}) AND (project_id, log_digest, ordinal) IN ({})",
+            instants(revisions_us),
+            std::iter::repeat_n("(?, ?, ?)", identities.len())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        params,
+    ))
+}
+
+/// Distinct epoch-microsecond instants as DuckDB timestamp literals.
+fn instants(revisions_us: &[i64]) -> String {
+    let mut revisions = revisions_us.to_vec();
+    revisions.sort_unstable();
+    revisions.dedup();
+    revisions
+        .iter()
+        .map(|us| format!("make_timestamp({us})"))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 pub const DUCKDB_SPAN_TERMS_DELETE_TRACE_SQL: &str =
     "DELETE FROM span_terms WHERE project_id = ? AND trace_id = ?";
 pub const DUCKDB_LOG_TERMS_DELETE_TRACE_SQL: &str = "DELETE FROM log_terms WHERE project_id = ? AND EXISTS (\

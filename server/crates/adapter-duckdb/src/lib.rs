@@ -46,6 +46,9 @@ impl Clock for TestClock {
     }
 }
 
+/// Rows an index scan may find before DuckDB reads the whole table instead; see the connection settings.
+const INDEX_SCAN_MAX_COUNT: u64 = 1 << 40;
+
 /// DuckDB analytics service
 ///
 /// Handles database initialization and background tasks.
@@ -86,8 +89,14 @@ fn open_configured(
     // Doubled single quotes, because a path is not a literal until it is escaped and a user's data
     // directory may contain an apostrophe. `SET` takes no bind parameters, so this is the escape.
     let temp_dir_literal = temp_dir.display().to_string().replace('\'', "''");
+    // An index scan is taken only while the rows it finds stay under `index_scan_max_count` (2048 by default) or
+    // a thousandth of the table, and past that DuckDB reads the whole table instead. The keyed reads
+    // (`sideseat_query_sql::keyed`) are the only reads whose scans carry an indexed key alone, and they ask for
+    // rows by identity: a span corrected several times, a long trace, a span id a client reuses across projects.
+    // Their cost must follow what they ask for, so the index is kept however many rows a key finds.
     conn.execute_batch(&format!(
-        "SET autoinstall_known_extensions = false;
+        "SET index_scan_max_count = {INDEX_SCAN_MAX_COUNT};
+         SET autoinstall_known_extensions = false;
          SET autoload_known_extensions = false;
          SET extension_directory = '';
          SET force_compression = 'auto';
@@ -942,6 +951,10 @@ where
         }
     }
 }
+#[cfg(test)]
+mod keyed_scan_tests;
+#[cfg(test)]
+mod read_paths_tests;
 #[cfg(test)]
 #[path = "lib_tests.rs"]
 mod tests;
