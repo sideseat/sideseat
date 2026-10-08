@@ -623,7 +623,7 @@ ordering has to be declared by name instead.
 
 ### `Facts`
 
-A preset plus overrides rather than six booleans spelled out per clause: the presets are the
+A preset plus overrides rather than ten booleans spelled out per clause: the presets are the
 vocabulary the model is stated in, and a clause that writes them all out invites one being wrong in
 a way no reader notices.
 
@@ -636,7 +636,6 @@ a way no reader notices.
 | `history_positions_provide_sequence_order` | true or false |  |
 | `carrier_is_atomic_emission` | true or false |  |
 | `may_restate_prior_observations` | true or false |  |
-| `may_contain_framework_state` | true or false |  |
 | `carrier_holds_span_output` | true or false |  |
 | `carrier_is_detached_request_frame` | true or false |  |
 | `carrier_holds_span_input` | true or false |  |
@@ -645,12 +644,13 @@ a way no reader notices.
 
 ### `CarrierPreset`
 
-The **nine** carrier facts, named by preset with optional per-field overrides.
+The **ten** carrier facts, named by preset with optional per-field overrides.
 
-A preset is a constructor, not a category: `snapshot` and `accumulated_state` differ in one bit, so two
-declarations that read as different kinds of thing can be the same nine facts - and the name does not
-survive compilation. 37 of the 55 shipped clauses override something, and nearly all of those overrides are
-compensating for direction or encoding being bundled into a preset that is otherwise about *reconstruction*.
+A preset is a constructor, not a category: `snapshot` and `accumulated_state` differ in one fact,
+`carrier_holds_span_output`, so two declarations that read as different kinds of thing can be the same ten
+facts - and the name does not survive compilation. Most shipped clauses override something, and nearly all
+of those overrides are compensating for direction or encoding being bundled into a preset that is otherwise
+about *reconstruction*.
 
 The three constructors of a carrier's facts.
 

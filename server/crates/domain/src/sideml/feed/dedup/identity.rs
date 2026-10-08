@@ -670,9 +670,8 @@ fn rank_scope<'a>(
     // detection groups by these very ordinals, so a flag it sets cannot gate the rank that decides
     // whether it fires - the two executions this rank exists to keep (`agent-framework/tool_use` and
     // the five suites beside it) all report their calls through *emission* carriers, and a re-send by
-    // definition arrives through one that `may_restate_prior_observations`. That fact and not
-    // `may_contain_framework_state`: the question here is whether the id could have been *regenerated*,
-    // which is a property of replaying an earlier observation, not of holding a scratchpad.
+    // definition arrives through one that `may_restate_prior_observations`: the question here is whether the
+    // id could have been *regenerated*, which is a property of replaying an earlier observation.
     let id_is_execution_evidence = id_is_execution_evidence(block);
     let response = response_scope(block, shape);
     let lists_shape_once = shape_count.get(&response).copied().unwrap_or(1) <= 1;

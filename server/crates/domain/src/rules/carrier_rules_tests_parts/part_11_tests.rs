@@ -441,7 +441,12 @@ fn framework_attribute_keys() -> std::collections::BTreeMap<String, String> {
         let value: serde_json::Value = serde_json::from_slice(bytes).expect("the asset parses");
         let mut found = Vec::new();
         strings(&value, &mut found);
-        let keys = found.into_iter().filter(|s| is_key(s)).map(str::to_string);
+        // A key written as a selector - `attr:lmnr.span.type` - is the same key.
+        let keys = found
+            .into_iter()
+            .map(|s| s.strip_prefix("attr:").unwrap_or(s))
+            .filter(|s| is_key(s))
+            .map(str::to_string);
         // Shared means a published convention. The vocabulary assets are cross-framework *tables*, but each
         // entry in them is still one framework's spelling - `llm.token_count.prompt` is not semconv because
         // the usage table lists it beside `gen_ai.usage.input_tokens`.

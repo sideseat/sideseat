@@ -47,23 +47,13 @@ pub struct CarrierSemantics {
     /// The carrier may re-state observations that already happened, so what it holds can be a replay
     /// rather than news.
     ///
-    /// **Not the same question as `may_contain_framework_state`; keeping them separate is load-bearing.**
-    /// The conflated form named both and answered neither: dedup reads *this* one (a re-send regenerates
-    /// the provider's call id, so an id from a carrier that may replay is not evidence of a second
-    /// execution), while framework state is a claim about the carrier holding a scratchpad rather than a
-    /// conversation. And `carrier_is_atomic_emission` does **not** exclude it: `gen_ai.tool.message` is one
-    /// atomic emission whose whole purpose is handing a *past* tool result back to a model. Atomicity is
-    /// about occurrence and grouping, not about freshness.
+    /// Dedup reads it: a re-send regenerates the provider's call id, so an id from a carrier that may replay
+    /// is not evidence of a second execution. That a carrier holds a framework's state rather than only a
+    /// conversation is a different claim, and nothing decides on it - what such a carrier's *positions* prove
+    /// is stated by `position_proves_distinct_occurrence`. And `carrier_is_atomic_emission` does **not**
+    /// exclude a replay: `gen_ai.tool.message` is one atomic emission whose whole purpose is handing a *past*
+    /// tool result back to a model. Atomicity is about occurrence and grouping, not about freshness.
     pub may_restate_prior_observations: bool,
-    /// The carrier holds accumulated framework state - a scratchpad, a graph's state dict, a chain's
-    /// aggregate - rather than (only) a conversation.
-    ///
-    /// Separate from `may_restate_prior_observations` because state and replay have different consumers:
-    /// a replay is prior *observations*, which is why their ids cannot be trusted, while state is the
-    /// framework's own bookkeeping, which is why its *positions* prove nothing about multiplicity. A
-    /// carrier can be either without being the other - `gen_ai.tool.message` replays without being state,
-    /// and a freshly-built state dict is state without replaying anything.
-    pub may_contain_framework_state: bool,
     /// The span *produced* what this carrier holds, rather than receiving it.
     ///
     /// Declared per carrier because it cannot be inferred from the others, and because inferring it
@@ -122,7 +112,6 @@ impl CarrierSemantics {
         history_positions_provide_sequence_order: false,
         carrier_is_atomic_emission: true,
         may_restate_prior_observations: false,
-        may_contain_framework_state: false,
         carrier_holds_span_output: true,
         carrier_is_detached_request_frame: false,
     };
@@ -138,7 +127,6 @@ impl CarrierSemantics {
         history_positions_provide_sequence_order: false,
         carrier_is_atomic_emission: false,
         may_restate_prior_observations: true,
-        may_contain_framework_state: false,
         carrier_holds_span_output: false,
         carrier_is_detached_request_frame: false,
     };
@@ -157,7 +145,6 @@ impl CarrierSemantics {
         history_positions_provide_sequence_order: false,
         carrier_is_atomic_emission: false,
         may_restate_prior_observations: true,
-        may_contain_framework_state: true,
         carrier_holds_span_output: true,
         carrier_is_detached_request_frame: false,
     };

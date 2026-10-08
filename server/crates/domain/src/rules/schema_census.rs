@@ -60,10 +60,6 @@ const UNUSED: &[(&str, &str)] = &[
          exception without a new preset; no shipped clause needs this one yet",
     ),
     (
-        "Facts.may_contain_framework_state",
-        "every fact axis stays independently overridable, as `carrier_is_atomic_emission`",
-    ),
-    (
         "Facts.may_restate_prior_observations",
         "every fact axis stays independently overridable, as `carrier_is_atomic_emission`",
     ),

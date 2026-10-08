@@ -214,7 +214,16 @@ impl<'de, T: serde::de::DeserializeOwned, const USABLE: bool> Deserialize<'de>
         if members.get("doc").is_some_and(|doc| !doc.is_string()) {
             return Err(D::Error::custom("`doc` is prose: a string"));
         }
-        let mode = members.get("mode").and_then(JsonValue::as_str);
+        // A mode that is not a string is not an omitted one: it names neither reading.
+        let mode = match members.get("mode") {
+            None => None,
+            Some(JsonValue::String(mode)) => Some(mode.as_str()),
+            Some(_) => {
+                return Err(D::Error::custom(
+                    "`mode` is `present` or `usable`, as a string",
+                ));
+            }
+        };
         match (USABLE, mode) {
             (false, None | Some("present")) | (true, Some("usable")) => {}
             (true, _) => {
@@ -269,7 +278,7 @@ impl<T: schemars::JsonSchema, const USABLE: bool> schemars::JsonSchema for First
             "properties": {
                 "first_of": {"type": "array", "items": one.clone(), "minItems": 2},
                 "mode": mode,
-                "doc": {"type": ["string", "null"]},
+                "doc": {"type": "string"},
             },
             "required": ["first_of"],
             "additionalProperties": false,
@@ -328,6 +337,23 @@ mod tests {
         );
         // A lone source has no alternative, so the two modes coincide and it needs none.
         assert!(parse::<Usable>(serde_json::json!("a")).is_ok());
+    }
+
+    /// The parser refuses exactly what the published schema does: a mode that is not a string names neither
+    /// reading, so it is not an omitted one, and a `doc` is prose, never `null`.
+    #[test]
+    fn a_list_s_mode_and_doc_are_strings() {
+        for value in [
+            serde_json::json!({"first_of": ["a", "b"], "mode": 42}),
+            serde_json::json!({"first_of": ["a", "b"], "mode": null}),
+            serde_json::json!({"first_of": ["a", "b"], "doc": null}),
+        ] {
+            assert!(parse::<Present>(value.clone()).is_err(), "{value}");
+        }
+        assert!(parse::<Usable>(serde_json::json!({"first_of": ["a", "b"], "mode": 42})).is_err());
+        assert!(
+            parse::<Present>(serde_json::json!({"first_of": ["a", "b"], "doc": "why"})).is_ok()
+        );
     }
 }
 

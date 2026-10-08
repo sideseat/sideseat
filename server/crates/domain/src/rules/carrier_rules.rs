@@ -182,9 +182,6 @@ fn resolve_facts(
     if let Some(v) = facts.may_restate_prior_observations {
         semantics.may_restate_prior_observations = v;
     }
-    if let Some(v) = facts.may_contain_framework_state {
-        semantics.may_contain_framework_state = v;
-    }
     if let Some(v) = facts.carrier_holds_span_output {
         semantics.carrier_holds_span_output = v;
     }
