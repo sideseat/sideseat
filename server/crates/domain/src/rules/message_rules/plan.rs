@@ -345,19 +345,21 @@ pub(super) fn possible_targets(rule: &CompiledMessageRule) -> Vec<EmitTarget> {
 /// held to be different arenas, where a shared rank is legal - while the event path ignores the stage
 /// entirely and ran both, leaving ownership to be decided by comparing their ids.
 pub(super) fn share_an_arena(a: &CompiledMessageRule, b: &CompiledMessageRule) -> bool {
-    let axis = |rule: &CompiledMessageRule| {
-        let targets = possible_targets(rule);
-        let message = targets
+    // The message path claims per carrier; the metadata path per carrier **and** axis, so a definition list and
+    // a name list are separate arenas. And the metadata path runs every rule that can emit on it, whatever
+    // stage it declares, so a stage separates two rules on the message axis only.
+    if shares_a_metadata_axis(a, b) {
+        return matches!(
+            (&a.source, &b.source),
+            (CompiledSource::Span(_), CompiledSource::Span(_))
+        );
+    }
+    let message = |rule: &CompiledMessageRule| {
+        possible_targets(rule)
             .iter()
-            .any(|target| matches!(target, EmitTarget::Message | EmitTarget::Claim));
-        let metadata = targets
-            .iter()
-            .any(|target| matches!(target, EmitTarget::ToolDefinitions | EmitTarget::ToolNames));
-        (message, metadata)
+            .any(|target| matches!(target, EmitTarget::Message | EmitTarget::Claim))
     };
-    let (a_message, a_metadata) = axis(a);
-    let (b_message, b_metadata) = axis(b);
-    if !((a_message && b_message) || (a_metadata && b_metadata)) {
+    if !(message(a) && message(b)) {
         return false;
     }
     match (&a.source, &b.source) {
@@ -372,6 +374,17 @@ pub(super) fn share_an_arena(a: &CompiledMessageRule, b: &CompiledMessageRule) -
             one.iter().any(|name| other.contains(name))
         }
     }
+}
+
+/// Whether two rules can both emit on one metadata axis: tool definitions (a `repr` grammar included), or tool
+/// names. The metadata path claims per carrier and axis, so these are the arenas it orders.
+pub(super) fn shares_a_metadata_axis(a: &CompiledMessageRule, b: &CompiledMessageRule) -> bool {
+    let definitions = |rule: &CompiledMessageRule| {
+        rule.tool_repr.is_some() || possible_targets(rule).contains(&EmitTarget::ToolDefinitions)
+    };
+    let names =
+        |rule: &CompiledMessageRule| possible_targets(rule).contains(&EmitTarget::ToolNames);
+    (definitions(a) && definitions(b)) || (names(a) && names(b))
 }
 
 /// Which rules the metadata path needs to evaluate at all.

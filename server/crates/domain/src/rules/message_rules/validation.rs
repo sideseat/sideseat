@@ -519,9 +519,11 @@ pub(super) fn rule_condition(rule: &CompiledMessageRule) -> Condition {
             every_reading_narrowed = false;
         }
     }
+    // `raw_where` is asked of the carrier's raw text before anything is read, so a rule declaring one reads
+    // nothing on a span whose text it refuses - which is a claim narrowed by the payload, like a reading's.
     Condition {
         gate,
-        narrowed: any && every_reading_narrowed,
+        narrowed: (any && every_reading_narrowed) || !rule.raw_where.is_empty(),
     }
 }
 

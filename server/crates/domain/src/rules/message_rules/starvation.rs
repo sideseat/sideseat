@@ -66,6 +66,13 @@ pub(super) fn owned_all_or_nothing(rule: &CompiledMessageRule) -> Vec<Owned> {
             }
         }
     }
+    // A dotted family reads its root and every key below it into one object, owned together.
+    if let Some(family) = &rule.read.family {
+        out.push(Owned {
+            pattern: CarrierPattern::Prefix(family.clone()),
+            except: Vec::new(),
+        });
+    }
     if let Some(family) = &rule.read.indexed_family {
         out.push(Owned {
             pattern: CarrierPattern::Prefix(format!("{family}.")),

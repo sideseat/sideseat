@@ -567,3 +567,55 @@ fn a_provider_asset_s_keys_are_caught_by_the_key_sweeps() {
         "the same spelling anywhere else is a provider asset's value"
     );
 }
+
+/// **Ordering and ownership follow what each path actually runs.** A dotted family owns its keys together, so an
+/// earlier reader of one starves it; the metadata path runs every stage and claims per axis, so two stages'
+/// definition readers contend and a definition reader beside a name reader does not; and a `raw_where` is a
+/// condition on the payload, so two readers it separates take turns.
+#[test]
+fn arenas_and_claims_follow_what_each_path_runs() {
+    use crate::rules::message_rules::MessageCompileError;
+    let compiled = |rules: &str| probe_compile(&format!(r#"{{"id":"t","messages":[{rules}]}}"#));
+    // A family read whole, after a gated reader of one of its keys.
+    assert!(matches!(
+        compiled(
+            r#"{"id":"t.take","where":{"source":"attr:marker","exists":true},"read":{"attribute":"f.a"},
+                "parse":"text","tag_as":"t.taken","emit":"message","priority":1},
+               {"id":"t.family","read":{"family":"f."},"emit":"message","priority":2}"#
+        ),
+        Err(MessageCompileError::StarvedReading { .. })
+    ));
+    // Two definition readers of one carrier at different stages: one rank between them decides, so a shared
+    // priority is refused and an unconditional earlier one leaves the later dead.
+    let definitions = |priority_b: u32| {
+        format!(
+            r#"{{"id":"t.d","read":{{"attribute":"tools"}},"parse":"json","emit":"tool_definitions","priority":1}},
+               {{"id":"t.f","source":{{"span":{{"stage":"fallback"}}}},"read":{{"attribute":"tools"}},"parse":"json",
+                 "emit":"tool_definitions","priority":{priority_b}}}"#
+        )
+    };
+    assert!(
+        compiled(&definitions(1)).is_err(),
+        "a shared priority across stages"
+    );
+    assert!(
+        compiled(&definitions(2)).is_err(),
+        "an unconditional earlier reader leaves the fallback-stage one dead on the metadata path"
+    );
+    // A definition list and a name list are two arenas: one priority is no tie.
+    if let Err(error) = compiled(
+        r#"{"id":"t.d","read":{"attribute":"tools"},"parse":"json","emit":"tool_definitions","priority":1},
+           {"id":"t.n","read":{"attribute":"names"},"parse":"json","emit":"tool_names","priority":1}"#,
+    ) {
+        panic!("definitions and names were put in one arena: {error}");
+    }
+    // Two readers one carrier's raw text separates.
+    if let Err(error) = compiled(
+        r#"{"id":"t.paren","read":{"attribute":"x"},"raw_where":{"starts_with":"("},"parse":"text",
+            "tag_as":"t.paren","emit":"message","priority":1,"wrap":{"role":"user"}},
+           {"id":"t.plain","read":{"attribute":"x"},"raw_where":{"lacks_prefix":"("},"parse":"text",
+            "tag_as":"t.plain","emit":"message","priority":2,"wrap":{"role":"user"}}"#,
+    ) {
+        panic!("raw_where separates them, and they were refused as contenders: {error}");
+    }
+}

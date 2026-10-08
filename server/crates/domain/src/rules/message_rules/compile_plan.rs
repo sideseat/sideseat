@@ -314,7 +314,9 @@ pub fn compile(
             // **inherits** what the dialect stage read, including a carrier it only *claimed*: `fallback`
             // takes those carriers and starts its claim set from them. So the guarantee is enforced at
             // evaluation, not assumed here.
-            if a.source.stage() != b.source.stage() {
+            // On the message axis only: the metadata path runs every rule that can emit on it whatever stage it
+            // declares, and claims in rank order, so two stages reading one carrier for tools do contend.
+            if a.source.stage() != b.source.stage() && !shares_a_metadata_axis(a, b) {
                 continue;
             }
             // A conditional claim is not a dead rule: it yields on spans its condition excludes, and the
