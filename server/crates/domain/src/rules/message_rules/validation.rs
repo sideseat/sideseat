@@ -231,9 +231,7 @@ fn atom_defect(predicate: &ValuePredicate, positive: bool) -> Option<&'static st
             || predicate.starts_with.is_some()
             || predicate.lacks_prefix.is_some()
             // `one_of` needs a value to be one of them, so it cannot hold on an absent member - and the
-            // absent branch returns before consulting it, so it was silently ignored. `none_of` is
-            // deliberately not here: its documented reading accepts absence, which is how a dialect's
-            // unnamed events fall through to the reading that handles them.
+            // absent branch returns before consulting it, so it was silently ignored.
             || !predicate.one_of.is_empty()
             || predicate.equals.is_some()
             || !predicate.only_members.is_empty())
@@ -241,6 +239,15 @@ fn atom_defect(predicate: &ValuePredicate, positive: bool) -> Option<&'static st
         return Some(
             "`exists: false` asserts the member is absent, so no other condition on it \
              can hold",
+        );
+    }
+    // `none_of` is the one condition an absent member satisfies - alone it holds for absence, which is how a
+    // dialect's unnamed events fall through - so beside `exists: false` it states nothing, and the lowering
+    // read the pair as a value both absent and present, which holds for nothing.
+    if predicate.exists == Some(false) && !predicate.none_of.is_empty() {
+        return Some(
+            "`none_of` beside `exists: false` adds nothing - an absent member satisfies it - so write \
+             `exists: false` alone",
         );
     }
     // The root always exists, so asserting its absence can never hold. Judged *before* the

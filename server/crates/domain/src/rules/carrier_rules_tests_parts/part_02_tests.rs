@@ -309,16 +309,25 @@ fn exists_false_beside_a_value_condition_is_refused() {
         );
     }
 
-    // `none_of` is the exception, and it is documented: its reading accepts absence, which is how a
-    // dialect's unnamed events fall through to the reading that handles them.
+    // `none_of` is satisfied by absence - alone it holds for an absent member - so beside `exists: false` it
+    // states nothing, and the pair lowered to "absent and present", which holds for nothing. Refused as the
+    // no-op it is; `exists: false` alone says the same.
     let none_of = with(|p| p.none_of = vec!["a".to_string()]);
     assert!(
         crate::rules::message_rules::predicate_defect(
             &crate::rules::schema::ValueCondition::from_set(&none_of)
         )
-        .is_none(),
-        "`none_of` accepts absence by design and must stay legal beside `exists: false`"
+        .is_some(),
+        "`none_of` beside `exists: false` compiled, and the pair holds for nothing at runtime"
     );
+    // While `none_of` alone still holds for an absent member, which is what the refusal relies on.
+    let alone: ValuePredicate =
+        serde_json::from_value(serde_json::json!({"path": "$.x", "none_of": ["a"]}))
+            .expect("a predicate parses");
+    assert!(crate::rules::message_rules::predicate_holds_for_test(
+        &alone,
+        &serde_json::json!({})
+    ));
 }
 
 /// The **selected** root-level defects are refused, and every satisfiable predicate is still accepted.
