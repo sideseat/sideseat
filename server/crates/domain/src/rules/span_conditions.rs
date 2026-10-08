@@ -36,6 +36,8 @@ pub enum SpanAtom {
     SpanAttrContains { key: String, value: String },
     /// The instrumentation scope is exactly this.
     ScopeNameEquals { name: String },
+    /// The instrumentation scope's name begins with this. Unknown where the span reports no scope.
+    ScopeNameStartsWith { prefix: String },
     /// This resource attribute's value contains this substring.
     ResourceAttrContains { key: String, value: String },
     /// The instrumentation scope's version is a release in `[at_least, below)` of this scheme. Unknown where
@@ -124,6 +126,9 @@ impl SpanAtom {
             Self::ScopeNameEquals { name } => {
                 value_test(subject.scope_name, &|found| found == name)
             }
+            Self::ScopeNameStartsWith { prefix } => value_test(subject.scope_name, &|found| {
+                found.starts_with(prefix.as_str())
+            }),
             Self::ScopeVersionIn {
                 scheme,
                 at_least,
@@ -203,6 +208,10 @@ impl SpanAtom {
                 "starts_with",
                 "an empty prefix, which every attribute key begins with",
             ),
+            Self::ScopeNameStartsWith { prefix } if prefix.is_empty() => defect(
+                "starts_with",
+                "an empty prefix, which every instrumentation scope's name begins with",
+            ),
             Self::SpanAttrContains { value, .. } | Self::ResourceAttrContains { value, .. }
                 if value.is_empty() =>
             {
@@ -256,6 +265,11 @@ impl SpanAtom {
                 Self::SpanNameEquals { name: mine } | Self::SpanNameStartsWith { prefix: mine } => {
                     mine.starts_with(prefix.as_str())
                 }
+                _ => false,
+            },
+            Self::ScopeNameStartsWith { prefix } => match self {
+                Self::ScopeNameEquals { name: mine }
+                | Self::ScopeNameStartsWith { prefix: mine } => mine.starts_with(prefix.as_str()),
                 _ => false,
             },
             Self::SpanAttrEqualsIgnoreAsciiCase { key, value } => match self {
@@ -588,6 +602,9 @@ fn lower_atom(atom: &SpanCondition, readable: Readable) -> Result<SpanExpr, Cond
             Source::AttrKeys => Expr::Atom(SpanAtom::SpanAttrKeyStartsWith {
                 prefix: prefix.clone(),
             }),
+            Source::Scope => Expr::Atom(SpanAtom::ScopeNameStartsWith {
+                prefix: prefix.clone(),
+            }),
             _ => unanswerable("starts_with")?,
         });
     }
@@ -743,7 +760,11 @@ pub fn holds(condition: &SpanExpr, subject: &SpanSubject<'_>) -> bool {
 pub fn is_opaque(condition: &SpanExpr) -> bool {
     match condition {
         Expr::Not(_) => true,
-        Expr::Atom(SpanAtom::ScopeNameEquals { .. } | SpanAtom::ScopeVersionIn { .. }) => true,
+        Expr::Atom(
+            SpanAtom::ScopeNameEquals { .. }
+            | SpanAtom::ScopeNameStartsWith { .. }
+            | SpanAtom::ScopeVersionIn { .. },
+        ) => true,
         Expr::Atom(_) => false,
         Expr::All(group) | Expr::Any(group) => group.children().iter().any(is_opaque),
     }

@@ -37,7 +37,8 @@ pub struct SpanCondition {
     /// The value is one of these texts.
     #[serde(default)]
     pub one_of: Vec<String>,
-    /// The value begins with this text. For `attr_keys`, some key does.
+    /// The value begins with this text. For `attr_keys`, some key does; for `scope.name`, unknown where the span
+    /// reports no scope, so a `not` over it holds only for a scope that is there.
     #[serde(default)]
     pub starts_with: Option<String>,
     /// The value contains this text.

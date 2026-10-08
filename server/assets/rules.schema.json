@@ -557,7 +557,7 @@
           "default": []
         },
         "starts_with": {
-          "description": "The value begins with this text. For `attr_keys`, some key does.",
+          "description": "The value begins with this text. For `attr_keys`, some key does; for `scope.name`, unknown where the span\nreports no scope, so a `not` over it holds only for a scope that is there.",
           "type": [
             "string",
             "null"

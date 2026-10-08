@@ -192,7 +192,11 @@ mod tests {
             ),
             (
                 "a conjunction holding only the scope's negation",
-                serde_json::json!({"all": [name, {"not": scope}]}),
+                serde_json::json!({"all": [name.clone(), {"not": scope}]}),
+            ),
+            (
+                "a scope prefix, which many scopes share",
+                serde_json::json!({"all": [name, {"source": "scope.name", "starts_with": "probe."}]}),
             ),
         ] {
             assert!(

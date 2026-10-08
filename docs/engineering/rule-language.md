@@ -89,7 +89,7 @@ An atom names a `source` and the tests asked of the value it selects:
 | `equals` | is exactly this text | `span_name`, `attr:<key>`, `scope.name` |
 | `equals_ignore_case` | is this text, ignoring ASCII case | `attr:<key>` |
 | `one_of` | is one of these texts | `span_name`, `attr:<key>`, `scope.name` |
-| `starts_with` | begins with this text (for `attr_keys`, some key does) | `span_name`, `attr_keys` |
+| `starts_with` | begins with this text (for `attr_keys`, some key does) | `span_name`, `attr_keys`, `scope.name` |
 | `contains` | contains this text | `attr:<key>`, `resource:<key>` |
 | `contains_ignore_case` | contains this text, ignoring case | `span_name`, `attr:<key>` |
 | `version` | is a release in `[at_least, below)` of the stated `scheme` (`pep440` or `semver`) | `scope.version` |
@@ -699,7 +699,7 @@ the test to make it false instead.
 | `equals` | string | The value is exactly this text. |
 | `equals_ignore_case` | string | The value is this text, ignoring ASCII case. |
 | `one_of` | list of string | The value is one of these texts. |
-| `starts_with` | string | The value begins with this text. For `attr_keys`, some key does. |
+| `starts_with` | string | The value begins with this text. For `attr_keys`, some key does; for `scope.name`, unknown where the span reports no scope, so a `not` over it holds only for a scope that is there. |
 | `contains` | string | The value contains this text. |
 | `contains_ignore_case` | string | The value contains this text, ignoring case (Unicode lower-casing). |
 | `version` | [`VersionRange`](#versionrange) or null | The value is a release inside this half-open range, ordered by the package's scheme. Asked of `scope.version` only, and alone in its atom; a value that is absent or not a version is unknown, never "the latest". The last resort of the language: a shape test says what changed, a version only when. |

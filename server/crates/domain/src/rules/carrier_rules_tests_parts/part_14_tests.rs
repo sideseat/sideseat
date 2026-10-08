@@ -201,3 +201,81 @@ fn a_declaration_the_engine_would_discard_is_refused_after_inlining() {
         }
     }
 }
+
+/// **A scope-name prefix is three-valued.** True or false for a span that reports its instrumentation scope,
+/// and unknown for one that reports none - so a `not` over it, the way an asset says "not one of these
+/// instrumentors", holds only where a scope is there to be some other one.
+#[test]
+fn a_scope_name_prefix_is_unknown_where_no_scope_is_reported() {
+    use super::expr::Truth::{False as F, True as T, Unknown as U};
+    use super::span_conditions::{self, Readable, SpanSubject};
+    let everything = Readable {
+        span_name: true,
+        attributes: true,
+        scope: true,
+        scope_version: true,
+        resource: true,
+    };
+    let lower = |condition: serde_json::Value, readable: Readable| {
+        let parsed: super::schema::SpanWhere =
+            serde_json::from_value(condition).expect("the probe condition parses");
+        span_conditions::lower(&parsed, readable)
+    };
+    let prefix =
+        serde_json::json!({"source": "scope.name", "starts_with": "acme.instrumentation."});
+    let positive = lower(prefix.clone(), everything).expect("a scope prefix lowers");
+    let negated = lower(serde_json::json!({"not": prefix}), everything).expect("and its negation");
+    let attrs = std::collections::HashMap::new();
+    let truth = |condition: &span_conditions::SpanExpr, scope_name: Option<&str>| {
+        let subject = SpanSubject {
+            span_name: "span",
+            attrs: &attrs,
+            scope_name,
+            scope_version: None,
+            resource: None,
+        };
+        condition.eval(&mut |atom| atom.eval(&subject))
+    };
+    for (scope, is, is_not) in [
+        (Some("acme.instrumentation.openai"), T, F),
+        (Some("acme.instrumentation."), T, F),
+        (Some("user.application"), F, T),
+        (Some(""), F, T),
+        (None, U, U),
+    ] {
+        assert_eq!(
+            (truth(&positive, scope), truth(&negated, scope)),
+            (is, is_not),
+            "{scope:?}"
+        );
+    }
+    // A scope that equals a name under the prefix is under it, so the narrower gate implies the wider.
+    let exact = lower(
+        serde_json::json!({"source": "scope.name", "equals": "acme.instrumentation.openai"}),
+        everything,
+    )
+    .expect("an exact scope lowers");
+    assert!(span_conditions::implies(&exact, &positive));
+    assert!(!span_conditions::implies(&positive, &exact));
+    // Refused: a section that cannot see the scope, and an empty prefix, which every scope begins with.
+    assert!(
+        lower(
+            prefix.clone(),
+            Readable {
+                scope: false,
+                ..everything
+            }
+        )
+        .is_err(),
+        "a section without the scope cannot ask about it"
+    );
+    let empty = lower(
+        serde_json::json!({"source": "scope.name", "starts_with": ""}),
+        everything,
+    )
+    .expect("an empty prefix lowers, and its defect is reported by the atom");
+    assert!(
+        empty.atoms().iter().any(|atom| atom.defect().is_some()),
+        "an empty scope prefix is a defect"
+    );
+}
