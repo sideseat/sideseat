@@ -472,29 +472,32 @@ fn try_sideml_passthrough(block: &JsonValue) -> Option<JsonValue> {
 /// Used for tool result content objects to distinguish:
 /// - Provider content blocks: `{"text": "hello"}` → normalize to SideML
 /// - Structured data: `{"temp": 72}` → keep as-is (returns None)
+#[cfg(any(test, feature = "test-support"))]
 fn try_normalize_provider_format(block: &JsonValue) -> Option<JsonValue> {
+    try_normalize_provider_format_in(&crate::rules::ruleset().content_blocks, block)
+}
+
+/// The same over one plan's declared cases, so a tool result's content is normalised by the plan that read it.
+fn try_normalize_provider_format_in(
+    plan: &crate::rules::content_blocks::ContentBlockPlan,
+    block: &JsonValue,
+) -> Option<JsonValue> {
     // Both declared positions, in the same order the full chain uses them. Consulting only the *after* one
     // meant a tool result written as a bare object skipped every `before_provider_formats` case, while the
     // same result inside an array ran the whole chain - so the first such declaration would have behaved
     // differently according to whether the producer wrapped it.
-    crate::rules::ruleset()
-        .content_blocks
-        .normalize(
+    plan.normalize(
+        block,
+        crate::rules::schema::ChainPosition::BeforeProviderFormats,
+    )
+    .or_else(|| plan.normalize(block, crate::rules::schema::ChainPosition::ProviderFormats))
+    .or_else(|| {
+        plan.normalize(
             block,
-            crate::rules::schema::ChainPosition::BeforeProviderFormats,
+            crate::rules::schema::ChainPosition::AfterProviderFormats,
         )
-        .or_else(|| {
-            crate::rules::ruleset()
-                .content_blocks
-                .normalize(block, crate::rules::schema::ChainPosition::ProviderFormats)
-        })
-        .or_else(|| {
-            crate::rules::ruleset().content_blocks.normalize(
-                block,
-                crate::rules::schema::ChainPosition::AfterProviderFormats,
-            )
-        })
-        .or_else(|| try_media_fallback(block))
+    })
+    .or_else(|| try_media_fallback(block))
     // No unknown fallback - returns None if no provider format matches
 }
 
@@ -521,7 +524,16 @@ fn get_block_type(block: &JsonValue) -> Option<&str> {
 ///
 /// Deduplication handles cases where the same data appears in multiple formats,
 /// e.g., Vercel AI SDK sends both raw data and `{type: "json", value: ...}` wrapper.
+#[cfg(any(test, feature = "test-support"))]
 pub(crate) fn normalize_tool_result_content(content: Option<JsonValue>) -> JsonValue {
+    normalize_tool_result_content_in(&crate::rules::ruleset().content_blocks, content)
+}
+
+/// The same over one plan's declared cases: the plan whose tool-result case selected the content.
+pub(crate) fn normalize_tool_result_content_in(
+    plan: &crate::rules::content_blocks::ContentBlockPlan,
+    content: Option<JsonValue>,
+) -> JsonValue {
     match content {
         None => json!(null),
         Some(JsonValue::Array(arr)) => {
@@ -531,7 +543,9 @@ pub(crate) fn normalize_tool_result_content(content: Option<JsonValue>) -> JsonV
             // value, not a message's content block.
             let normalized: Vec<(JsonValue, JsonValue)> = arr
                 .iter()
-                .filter_map(|src| normalize_returned_value_block(src).map(|out| (out, src.clone())))
+                .filter_map(|src| {
+                    normalize_block_in(plan, src, false).map(|out| (out, src.clone()))
+                })
                 .collect();
             if normalized.is_empty() {
                 json!(null)
@@ -544,7 +558,7 @@ pub(crate) fn normalize_tool_result_content(content: Option<JsonValue>) -> JsonV
             // Try to normalize if it matches a known provider content block format
             // E.g., {"text": "hello"} (Bedrock) → {"type": "text", "text": "hello"}
             // Keep structured data as-is: {"temp": 72} → {"temp": 72}
-            try_normalize_provider_format(&obj).unwrap_or(obj)
+            try_normalize_provider_format_in(plan, &obj).unwrap_or(obj)
         }
         Some(other) => {
             // Wrap primitives (bool, number, null) in json block

@@ -37,6 +37,11 @@ pub enum ContentBlockCompileError {
     )]
     SelfSelectingContent { rule: String },
     #[error(
+        "content-block rule `{rule}` maps its tool-result content to a value it recognises itself, so normalising \
+         the content re-enters it with that value for ever"
+    )]
+    SelfRebuildingContent { rule: String },
+    #[error(
         "content-block rule `{rule}` unwraps nothing, so it recognises a block and answers with it unchanged - \
          which is the chain it is already in"
     )]
@@ -176,14 +181,39 @@ impl ContentBlockPlan {
             }
             // A content selector that names the block *itself* re-enters this plan through the tool-result
             // normaliser, with the same value - unbounded recursion, admitted into a DSL whose whole point is
-            // that it cannot loop.
+            // that it cannot loop. Only where the content is normalised: as `blocks` it is wrapped as data and
+            // never offered to the chain again.
+            let renormalised = |spec: &super::schema::ToolResultBlock| {
+                !matches!(spec.content_as, super::schema::ResultContent::Blocks)
+            };
             if let Some(spec) = &rule.tool_result
+                && renormalised(spec)
                 && spec
                     .content
                     .iter()
                     .any(|source| source_path(source).to_string() == "$")
             {
                 return Err(ContentBlockCompileError::SelfSelectingContent {
+                    rule: rule.id.clone(),
+                });
+            }
+            // The same loop through a closed `map`: a literal the case itself recognises is offered back to it
+            // as the content's normalisation, which answers with the same literal. Refused here; a loop through
+            // two cases is bounded at run time by `CONTENT_BLOCK_MAX_DEPTH`.
+            if let Some(spec) = &rule.tool_result
+                && renormalised(spec)
+                && spec.content.iter().any(|source| match source {
+                    ValueSource::Transformed(transformed) => {
+                        transformed.map().is_some_and(|table| {
+                            table
+                                .values()
+                                .any(|value| predicates_hold(value, &rule.require))
+                        })
+                    }
+                    ValueSource::Path(_) => false,
+                })
+            {
+                return Err(ContentBlockCompileError::SelfRebuildingContent {
                     rule: rule.id.clone(),
                 });
             }
@@ -320,6 +350,19 @@ impl ContentBlockPlan {
         //
         // Every other form may fall through, which is equally deliberate: a `text` case whose member holds a
         // structure has not recognised prose, and something later reads that shape properly.
+        //
+        // **Bounded.** An unwrap and a normalised tool result re-enter this chain, and the telemetry decides how
+        // deep: a loop through two cases, or a payload nested past any sense, is a client's to trigger. At the
+        // bound nothing more is answered here, so the block degrades to what the chain's fallbacks make of it -
+        // its raw form - and is reported rather than exhausting the stack.
+        let Some(_depth) = NormalisationDepth::enter() else {
+            tracing::warn!(
+                target: "sideseat::rules",
+                limit = sideseat_core::constants::CONTENT_BLOCK_MAX_DEPTH,
+                "a content block nests past this server's normalisation depth; it is kept as it stands"
+            );
+            return None;
+        };
         for rule in cases
             .iter()
             .filter(|rule| predicates_hold(block, &rule.require))
@@ -571,10 +614,10 @@ fn built(plan: &ContentBlockPlan, block: &JsonValue, rule: &ContentBlockRule) ->
         let selected = member(block, &spec.content, false).map(Cow::into_owned);
         let content = match spec.content_as {
             ResultContent::Normalized => {
-                crate::sideml::content::normalize_tool_result_content(selected)
+                crate::sideml::content::normalize_tool_result_content_in(plan, selected)
             }
             ResultContent::Value => {
-                match crate::sideml::content::normalize_tool_result_content(selected) {
+                match crate::sideml::content::normalize_tool_result_content_in(plan, selected) {
                     JsonValue::Array(blocks) => {
                         crate::sideml::content::create_inner_content(&blocks)
                     }
@@ -653,6 +696,35 @@ fn built(plan: &ContentBlockPlan, block: &JsonValue, rule: &ContentBlockRule) ->
         return media_block(block, spec);
     }
     None
+}
+
+/// How deeply content-block normalisation has re-entered itself on this thread: one level per
+/// `ContentBlockPlan::normalize` call on the stack.
+///
+/// Per thread because the recursion is a synchronous call chain on one thread, so the count is the depth of the
+/// stack it guards and nothing outside that chain reads it.
+struct NormalisationDepth;
+
+thread_local! {
+    static NORMALISATION_DEPTH: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+impl NormalisationDepth {
+    /// One more level, or `None` at the bound.
+    fn enter() -> Option<Self> {
+        NORMALISATION_DEPTH.with(|depth| {
+            (depth.get() < sideseat_core::constants::CONTENT_BLOCK_MAX_DEPTH).then(|| {
+                depth.set(depth.get() + 1);
+                Self
+            })
+        })
+    }
+}
+
+impl Drop for NormalisationDepth {
+    fn drop(&mut self) {
+        NORMALISATION_DEPTH.with(|depth| depth.set(depth.get() - 1));
+    }
 }
 
 /// A media block, or nothing where the case cannot say what the bytes are.

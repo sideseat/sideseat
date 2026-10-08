@@ -216,6 +216,14 @@ pub const AUTH_BODY_LIMIT: usize = 64 * 1024;
 /// evaluation rather than the bytes.
 pub const RULE_WALK_MAX_NODES: usize = 4_096;
 
+/// How deeply content-block normalisation may re-enter itself on one block.
+///
+/// An unwrap and a normalised tool result each normalise what they hold through the same chain, so the
+/// telemetry chooses the depth - and a loop through two declared cases has none. Server policy for the reason
+/// `RULE_WALK_MAX_NODES` is: no shipped shape nests past a handful of levels, and the bound is what keeps a
+/// hostile payload from exhausting the stack.
+pub const CONTENT_BLOCK_MAX_DEPTH: usize = 32;
+
 /// How many observations one rule may produce from one span's carrier.
 ///
 /// A rule reading an array emits one observation per element, so a payload holding a hundred thousand elements

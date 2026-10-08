@@ -3789,6 +3789,7 @@
           "$ref": "#/$defs/FirstUsable_ValueSource"
         },
         "content": {
+          "description": "What the tool returned. Where it is normalised (`content_as` other than `blocks`) it re-enters the chain,\nso a selector naming the block itself (`$`), or a closed `map` to a value this case recognises, is\nrefused: it would re-enter the case for ever. Re-entry through several cases is bounded at run time,\nthe innermost levels kept as they stand.",
           "$ref": "#/$defs/FirstUsable_ValueSource"
         },
         "content_as": {

@@ -218,6 +218,10 @@ pub struct ToolResultBlock {
     /// duplicate tool-span observation.
     #[serde(default)]
     pub name: FirstOf<ValueSource, true>,
+    /// What the tool returned. Where it is normalised (`content_as` other than `blocks`) it re-enters the chain,
+    /// so a selector naming the block itself (`$`), or a closed `map` to a value this case recognises, is
+    /// refused: it would re-enter the case for ever. Re-entry through several cases is bounded at run time,
+    /// the innermost levels kept as they stand.
     #[serde(default)]
     pub content: FirstOf<ValueSource, true>,
     /// How the selected content is shaped.

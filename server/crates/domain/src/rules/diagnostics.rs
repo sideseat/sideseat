@@ -490,6 +490,7 @@ impl SectionDefect for super::content_blocks::ContentBlockCompileError {
             | E::Predicate { rule, .. }
             | E::NoCondition { rule }
             | E::SelfSelectingContent { rule }
+            | E::SelfRebuildingContent { rule }
             | E::UnwrapsNothing { rule }
             | E::UnwrapsWholeBlock { rule }
             | E::EmptyRequiredSelector { rule, .. }

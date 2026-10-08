@@ -1668,7 +1668,7 @@ What a tool returned.
 | `doc` | string | Why this is declared the way it is, for a reader and the explain trace. Read by nothing. |
 | `tool_use_id` | [`FirstUsable_ValueSource`](#firstusable_valuesource) |  |
 | `name` | [`FirstUsable_ValueSource`](#firstusable_valuesource) | Ordered; omitted when no path resolves. A result may carry both the id that pairs it exactly and the human-readable tool name, and keeping the latter can make an aggregate snapshot at least as rich as a duplicate tool-span observation. |
-| `content` | [`FirstUsable_ValueSource`](#firstusable_valuesource) |  |
+| `content` | [`FirstUsable_ValueSource`](#firstusable_valuesource) | What the tool returned. Where it is normalised (`content_as` other than `blocks`) it re-enters the chain, so a selector naming the block itself (`$`), or a closed `map` to a value this case recognises, is refused: it would re-enter the case for ever. Re-entry through several cases is bounded at run time, the innermost levels kept as they stand. |
 | `content_as` | [`ResultContent`](#resultcontent) | How the selected content is shaped. |
 | `is_error` | [`FirstUsable_ValueSource`](#firstusable_valuesource) |  |
 

@@ -231,6 +231,107 @@ fn self_selecting_tool_result_content_is_refused() {
     );
 }
 
+/// The same loop through a closed `map`: a literal the case itself recognises would be offered back to it as the
+/// content's normalisation, for ever. As `blocks` the content is wrapped as data and never re-enters, so there
+/// selecting the whole block is a statement, not a loop.
+#[test]
+fn a_tool_result_content_that_rebuilds_its_own_block_is_refused_and_blocks_content_is_not() {
+    let looping = |content_as: &str| {
+        serde_json::json!({
+            "id": "probe.loop",
+            "at": "after_provider_formats",
+            "priority": 1,
+            "where": {"path": "$.type", "one_of": ["loop"]},
+            "tool_result": {
+                "content": {
+                    "path": "$.payload",
+                    "pipe": [{"map": {"again": {"type": "loop", "payload": "again"}}, "closed": true}]
+                },
+                "content_as": content_as
+            }
+        })
+    };
+    refused(looping("normalized"), "re-enters it");
+    refused(looping("value"), "re-enters it");
+    assert!(compiled(vec![looping("blocks")]).is_ok());
+    let whole = serde_json::json!({
+        "id": "probe.whole",
+        "at": "after_provider_formats",
+        "priority": 1,
+        "where": {"path": "$.type", "one_of": ["tool-result"]},
+        "tool_result": {"content": "$", "content_as": "blocks"}
+    });
+    assert!(
+        compiled(vec![whole]).is_ok(),
+        "the whole block, kept as data, does not loop"
+    );
+}
+
+/// **Normalisation is bounded however the telemetry nests.** A loop through two cases - each mapping its content
+/// to the other's shape, which no single-case check can see - finishes at the depth bound, as does the deepest
+/// nesting of the shipped chain's own wrapper a JSON text can hold. Both run on a thread with a small stack, so
+/// an unbounded recursion fails here rather than passing on a large one.
+#[test]
+fn hostile_nesting_is_normalised_in_bounded_depth() {
+    let case = |id: &str, kind: &str, other: &str, priority: i32| {
+        serde_json::json!({
+            "id": id,
+            "at": "after_provider_formats",
+            "priority": priority,
+            "where": {"path": "$.type", "one_of": [kind]},
+            "tool_result": {
+                "content": {
+                    "path": "$.payload",
+                    "pipe": [{"map": {"x": {"type": other, "payload": "x"}}, "closed": true}]
+                }
+            }
+        })
+    };
+    let plan = plan_from_all(vec![
+        case("probe.ping", "ping", "pong", 1),
+        case("probe.pong", "pong", "ping", 2),
+    ]);
+    // The deepest a JSON text can nest the wrapper the shipped chain unwraps: serde_json refuses deeper.
+    let mut text = r#"{"type":"text","text":"bottom"}"#.to_string();
+    let mut deepest = None;
+    for _ in 0..1_000 {
+        let wrapped = format!(r#"{{"value":{text}}}"#);
+        match serde_json::from_str::<serde_json::Value>(&wrapped) {
+            Ok(value) => {
+                deepest = Some(value);
+                text = wrapped;
+            }
+            Err(_) => break,
+        }
+    }
+    let deepest = deepest.expect("some nesting parses");
+    let answers = std::thread::Builder::new()
+        .stack_size(256 * 1024)
+        .spawn(move || {
+            let started = std::time::Instant::now();
+            let looped = crate::sideml::content::normalize_block_in(
+                &plan,
+                &serde_json::json!({"type": "ping", "payload": "x"}),
+                false,
+            );
+            let nested = crate::sideml::content::normalize_content_block(&deepest);
+            (looped.is_some(), nested.is_some(), started.elapsed())
+        })
+        .expect("the thread starts")
+        .join()
+        .expect("normalisation finishes within a small stack");
+    assert!(answers.0, "the loop answers, bounded");
+    assert!(
+        answers.1,
+        "the nesting degrades to a block rather than to nothing"
+    );
+    assert!(
+        answers.2 < std::time::Duration::from_secs(5),
+        "bounded time: {:?}",
+        answers.2
+    );
+}
+
 #[test]
 fn a_tool_result_keeps_its_declared_name() {
     let plan = plan_from(serde_json::json!({
