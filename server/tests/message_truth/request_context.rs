@@ -63,14 +63,17 @@ pub(super) fn check_composition(recon: &Recon, out: &mut Vec<Violation>) {
         let allowed: BTreeSet<(String, String)> = view
             .thread
             .iter()
-            .chain(&view.owned_calls)
             .cloned()
+            .chain(view.owned_calls.iter().cloned())
             .chain(own)
             .collect();
-        // The thread's order, so composed blocks can be held to it: the order the thread's spans were read in.
+        // The thread's own order, so composed blocks can be held to it. The view's **own** span is left out: its
+        // frame precedes the history and its delta follows it, so ranking it would make every composed block
+        // read as out of order.
         let rank: BTreeMap<(String, String), usize> = view
             .thread
             .iter()
+            .filter(|(_, span)| span != &view.key)
             .enumerate()
             .map(|(at, span)| (span.clone(), at))
             .collect();

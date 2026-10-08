@@ -109,10 +109,10 @@ pub(super) struct View {
     /// The span a span view shows, or the session a session view shows.
     pub key: String,
     pub blocks: Vec<Block>,
-    /// For a span view composed from its thread: the requests of that thread, and the tool spans whose calls
-    /// those requests answered, each as `(trace, span)`. Empty for every other view, which is how a composed
-    /// view is told from a plain one.
-    pub thread: BTreeSet<(String, String)>,
+    /// For a span view composed from its thread: the requests of that thread **in sequence order**, and the tool
+    /// spans whose calls those requests answered. Empty for every other view, which is how a composed view is
+    /// told from a plain one.
+    pub thread: Vec<(String, String)>,
     pub owned_calls: BTreeSet<(String, String)>,
 }
 
@@ -344,7 +344,7 @@ pub(super) fn from_built(
         }
         let (thread, owned_calls) = match scope {
             Scope::RequestSpan { thread, calls, .. } => (thread.clone(), calls.clone()),
-            _ => (BTreeSet::new(), BTreeSet::new()),
+            _ => (Vec::new(), BTreeSet::new()),
         };
         views.push(View {
             kind,

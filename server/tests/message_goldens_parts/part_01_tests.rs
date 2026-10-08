@@ -594,7 +594,10 @@ enum Scope {
     RequestSpan {
         trace_id: String,
         span_id: String,
-        thread: std::collections::BTreeSet<(String, String)>,
+        /// The thread's requests **in sequence order** - span start, then span id, then trace id, as the
+        /// composition orders them - so a check can hold the composed blocks to that order. A set would be
+        /// ordered by id, which is not the thread's order and would read as one.
+        thread: Vec<(String, String)>,
         calls: std::collections::BTreeSet<(String, String)>,
     },
     Trace {
@@ -874,10 +877,24 @@ fn build_golden(label: &str, paths: &[PathBuf], rows: &[(String, MessageSpanRow)
             false => Scope::RequestSpan {
                 trace_id: trace_id.clone(),
                 span_id: span_id.clone(),
-                thread: thread
-                    .iter()
-                    .map(|row| (row.trace_id.clone(), row.span_id.clone()))
-                    .collect(),
+                thread: {
+                    let mut ordered: Vec<(chrono::DateTime<chrono::Utc>, String, String)> = thread
+                        .iter()
+                        .map(|row| {
+                            (
+                                row.span_timestamp,
+                                row.span_id.clone(),
+                                row.trace_id.clone(),
+                            )
+                        })
+                        .collect();
+                    ordered.sort();
+                    ordered.dedup();
+                    ordered
+                        .into_iter()
+                        .map(|(_, span, trace)| (trace, span))
+                        .collect()
+                },
                 calls: tool_rows
                     .iter()
                     .map(|row| (row.trace_id.clone(), row.span_id.clone()))
