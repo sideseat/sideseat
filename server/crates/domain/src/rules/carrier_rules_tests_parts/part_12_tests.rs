@@ -291,6 +291,12 @@ fn declared_producer_vocabulary() -> std::collections::BTreeMap<String, String> 
     ) {
         match value {
             serde_json::Value::String(text) => {
+                // Release provenance in an `observed_in` range - a package name, a capture configuration - which
+                // the matrix names and no payload carries. Only in that position: the same member anywhere else
+                // is counted, and the framework-name sweep still sees a package name in code.
+                if matches!(key, Some("package" | "profile")) && at.contains(".observed_in[") {
+                    return;
+                }
                 if key.is_some_and(|key| NOT_PRODUCER_WORDS.contains(&key))
                     || grammar_at.contains(at)
                 {

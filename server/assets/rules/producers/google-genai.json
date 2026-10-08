@@ -56,6 +56,7 @@
   "messages": [
     {
       "id": "google-genai.tool_call_arguments",
+      "observed_in": [{"package": "opentelemetry-instrumentation-google-genai", "scheme": "pep440", "since": "1.0b1", "doc": "First captured in 1.0b1, which replaced the parameters attribute with the conventions' arguments."}],
       "doc": "A function the client called itself, recorded on its `execute_tool` span. The instrumentation writes each argument as `code.function.parameters.<name>.value` beside its Python type, so the arguments the model sent are those members, not the object; read as written, the call matched no copy of itself on the model span and appeared twice. Arguments in any other shape fall through to the semantic-conventions rule. Releases before 1.1 emit the same spans through OpenTelemetry's shared GenAI handler, under that handler's scope.",
       "where": {
         "source": "scope.name",
@@ -102,6 +103,7 @@
     },
     {
       "id": "google-genai.tool_call_parameters",
+      "observed_in": [{"package": "opentelemetry-instrumentation-google-genai", "scheme": "pep440", "since": "0.6b0", "before": "1.0b1", "doc": "The matrix captures this shape in 0.6b0 and 0.7b1, and from 1.0b1 the call arrives as gen_ai.tool.call.arguments instead."}],
       "doc": "The same call as written by releases before 0.8, which put each argument on the `execute_tool` span itself as `code.function.parameters.<name>.value` instead of in `gen_ai.tool.call.arguments`. The family is read as one object and the `.value` members are the arguments.",
       "where": {
         "source": "scope.name",
@@ -148,6 +150,7 @@
     },
     {
       "id": "google-genai.tool_call_return",
+      "observed_in": [{"package": "opentelemetry-instrumentation-google-genai", "scheme": "pep440", "since": "0.6b0", "before": "1.0b1", "doc": "As tool_call_parameters: 1.0b1 moved the result to gen_ai.tool.call.result."}],
       "doc": "Its result in those releases: `code.function.return.value`, the function's return value as JSON text or a plain string, on the same span. A `tool_result` block named like the semantic-conventions result.",
       "where": {
         "source": "scope.name",

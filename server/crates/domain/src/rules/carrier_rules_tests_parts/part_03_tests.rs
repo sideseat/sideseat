@@ -23,113 +23,7 @@
 ///   run of literals is joined as tokens - so `concat!("lang", "graph")` is `langgraph` even split across lines.
 #[test]
 fn no_production_module_names_a_framework() {
-    /// A shorter name the same producer goes by, tied to the asset it belongs to.
-    ///
-    /// Deriving separator variants of an asset id is not enough, and the gap is the shape the code actually used:
-    /// `vercel-ai` yields `vercel-ai`, `vercel_ai` and `vercelai`, none of which is in `try_vercel_format` - the
-    /// very name this migration removed from production. Each alias names its asset so a renamed or deleted asset
-    /// breaks the list loudly instead of leaving a marker that matches nothing.
-    ///
-    /// Deliberately not derived from an id's segments: that yields `ai`, `agent`, `sdk`, `framework` and `openai`,
-    /// which are words this server is entitled to use. So the aliases are the ones a producer is *actually* known
-    /// by, and `openai-agents` gets none - `openai` is a provider the catalogue prices and a name the connectors
-    /// carry, so as a marker it would say nothing about framework knowledge.
-    const ALIASES: &[(&str, &str)] = &[
-        ("vercel-ai", "vercel"),
-        ("google-adk", "adk"),
-        ("pydantic-ai", "pydantic"),
-        ("azure-ai-foundry", "foundry"),
-        // The CLI the SDK spawns names its spans `claude_code.*`, and the retired extractor was `try_claude_code`.
-        ("claude-agent-sdk", "claude_code"),
-        ("claude-agent-sdk", "claudecode"),
-        // The package is `llama_index`, which no separator variant of the id spells.
-        ("llamaindex", "llama_index"),
-        ("llamaindex", "llama-index"),
-    ];
-
-    // The framework names, derived from the assets and spelled every way a separator can be written - a name is
-    // `google-adk` in an asset id and `google_adk` or `googleadk` in code - plus the aliases above.
-    let sources = crate::rules::schema::embedded_sources();
-    let ids: Vec<String> = sources
-        .keys()
-        // The asset id is the file's **basename**: the assets sit in `producers/`, `conventions/` and
-        // `vocabulary/` subdirectories, and a marker derived from the whole path would be
-        // `conventions/semconv` rather than `semconv`.
-        .map(|path| {
-            path.rsplit('/')
-                .next()
-                .unwrap_or(path)
-                .trim_end_matches(".json")
-                .to_string()
-        })
-        .collect();
-    assert!(ids.len() > 20, "only {} assets were found", ids.len());
-    for named in SHARED_VOCABULARY
-        .iter()
-        .chain(PROVIDERS)
-        .chain(ALIASES.iter().map(|(id, _)| id))
-    {
-        assert!(
-            ids.iter().any(|id| id == named),
-            "an exclusion or alias names `{named}`, which is not an asset"
-        );
-    }
-    // Each exclusion carries a property, or the list is a way to make the sweep quiet about a framework.
-    for shared in SHARED_VOCABULARY {
-        // Located by **basename**, not by a path this test spells out: the assets are grouped into
-        // `producers/`, `conventions/` and `vocabulary/`, and a regrouping must not require editing a sweep.
-        let bytes = sources
-            .iter()
-            .find(|(path, _)| path.rsplit('/').next().unwrap_or(path) == format!("{shared}.json"))
-            .map(|(_, bytes)| bytes)
-            .unwrap_or_else(|| panic!("`{shared}` is excluded but no asset of that name exists"));
-        let file: crate::rules::schema::RuleFile =
-            serde_json::from_slice(bytes).expect("the asset parses");
-        assert!(
-            file.detect.is_empty(),
-            "`{shared}` is excluded as shared vocabulary and declares detection, so it identifies a producer"
-        );
-    }
-    for provider in PROVIDERS {
-        let normalised = provider.replace('-', "_");
-        assert!(
-            !crate::pricing::builtin_provider(&normalised).is_empty(),
-            "`{provider}` is excluded as a provider and the catalogue does not read it as one"
-        );
-    }
-    // A marker set per framework, because an exemption is scoped to the names it allows rather than to a file.
-    let markers: std::collections::BTreeMap<String, Vec<String>> = ids
-        .iter()
-        .filter(|id| !SHARED_VOCABULARY.contains(&id.as_str()) && !PROVIDERS.contains(&id.as_str()))
-        .map(|id| {
-            let mut names: Vec<String> = [id.clone(), id.replace('-', "_"), id.replace('-', "")]
-                .into_iter()
-                .chain(
-                    ALIASES
-                        .iter()
-                        .filter(|(asset, _)| asset == id)
-                        .map(|(_, alias)| alias.to_string()),
-                )
-                .collect();
-            names.sort();
-            names.dedup();
-            (id.clone(), names)
-        })
-        .collect();
-    // An alias no shorter than a name already derived from its own asset is dead weight that reads as protection.
-    for (asset, alias) in ALIASES {
-        let derived = [
-            asset.to_string(),
-            asset.replace('-', "_"),
-            asset.replace('-', ""),
-        ];
-        assert!(
-            !derived
-                .iter()
-                .any(|name| name == alias || alias.contains(name)),
-            "the alias `{alias}` is already covered by a name derived from `{asset}`"
-        );
-    }
+    let markers = framework_markers();
     let every_marker: Vec<(&str, &str)> = markers
         .iter()
         .flat_map(|(id, names)| names.iter().map(move |name| (id.as_str(), name.as_str())))
@@ -308,6 +202,119 @@ fn no_production_module_names_a_framework() {
             }
         }
     }
+}
+
+/// Every framework's names, by asset: the asset id spelled with each separator, and the aliases the producer is
+/// actually known by. The markers `no_production_module_names_a_framework` looks for.
+fn framework_markers() -> std::collections::BTreeMap<String, Vec<String>> {
+    /// A shorter name the same producer goes by, tied to the asset it belongs to.
+    ///
+    /// Deriving separator variants of an asset id is not enough, and the gap is the shape the code actually used:
+    /// `vercel-ai` yields `vercel-ai`, `vercel_ai` and `vercelai`, none of which is in `try_vercel_format` - the
+    /// very name this migration removed from production. Each alias names its asset so a renamed or deleted asset
+    /// breaks the list loudly instead of leaving a marker that matches nothing.
+    ///
+    /// Deliberately not derived from an id's segments: that yields `ai`, `agent`, `sdk`, `framework` and `openai`,
+    /// which are words this server is entitled to use. So the aliases are the ones a producer is *actually* known
+    /// by, and `openai-agents` gets none - `openai` is a provider the catalogue prices and a name the connectors
+    /// carry, so as a marker it would say nothing about framework knowledge.
+    const ALIASES: &[(&str, &str)] = &[
+        ("vercel-ai", "vercel"),
+        ("google-adk", "adk"),
+        ("pydantic-ai", "pydantic"),
+        ("azure-ai-foundry", "foundry"),
+        // The CLI the SDK spawns names its spans `claude_code.*`, and the retired extractor was `try_claude_code`.
+        ("claude-agent-sdk", "claude_code"),
+        ("claude-agent-sdk", "claudecode"),
+        // The package is `llama_index`, which no separator variant of the id spells.
+        ("llamaindex", "llama_index"),
+        ("llamaindex", "llama-index"),
+    ];
+
+    // The framework names, derived from the assets and spelled every way a separator can be written - a name is
+    // `google-adk` in an asset id and `google_adk` or `googleadk` in code - plus the aliases above.
+    let sources = crate::rules::schema::embedded_sources();
+    let ids: Vec<String> = sources
+        .keys()
+        // The asset id is the file's **basename**: the assets sit in `producers/`, `conventions/` and
+        // `vocabulary/` subdirectories, and a marker derived from the whole path would be
+        // `conventions/semconv` rather than `semconv`.
+        .map(|path| {
+            path.rsplit('/')
+                .next()
+                .unwrap_or(path)
+                .trim_end_matches(".json")
+                .to_string()
+        })
+        .collect();
+    assert!(ids.len() > 20, "only {} assets were found", ids.len());
+    for named in SHARED_VOCABULARY
+        .iter()
+        .chain(PROVIDERS)
+        .chain(ALIASES.iter().map(|(id, _)| id))
+    {
+        assert!(
+            ids.iter().any(|id| id == named),
+            "an exclusion or alias names `{named}`, which is not an asset"
+        );
+    }
+    // Each exclusion carries a property, or the list is a way to make the sweep quiet about a framework.
+    for shared in SHARED_VOCABULARY {
+        // Located by **basename**, not by a path this test spells out: the assets are grouped into
+        // `producers/`, `conventions/` and `vocabulary/`, and a regrouping must not require editing a sweep.
+        let bytes = sources
+            .iter()
+            .find(|(path, _)| path.rsplit('/').next().unwrap_or(path) == format!("{shared}.json"))
+            .map(|(_, bytes)| bytes)
+            .unwrap_or_else(|| panic!("`{shared}` is excluded but no asset of that name exists"));
+        let file: crate::rules::schema::RuleFile =
+            serde_json::from_slice(bytes).expect("the asset parses");
+        assert!(
+            file.detect.is_empty(),
+            "`{shared}` is excluded as shared vocabulary and declares detection, so it identifies a producer"
+        );
+    }
+    for provider in PROVIDERS {
+        let normalised = provider.replace('-', "_");
+        assert!(
+            !crate::pricing::builtin_provider(&normalised).is_empty(),
+            "`{provider}` is excluded as a provider and the catalogue does not read it as one"
+        );
+    }
+    // A marker set per framework, because an exemption is scoped to the names it allows rather than to a file.
+    let markers: std::collections::BTreeMap<String, Vec<String>> = ids
+        .iter()
+        .filter(|id| !SHARED_VOCABULARY.contains(&id.as_str()) && !PROVIDERS.contains(&id.as_str()))
+        .map(|id| {
+            let mut names: Vec<String> = [id.clone(), id.replace('-', "_"), id.replace('-', "")]
+                .into_iter()
+                .chain(
+                    ALIASES
+                        .iter()
+                        .filter(|(asset, _)| asset == id)
+                        .map(|(_, alias)| alias.to_string()),
+                )
+                .collect();
+            names.sort();
+            names.dedup();
+            (id.clone(), names)
+        })
+        .collect();
+    // An alias no shorter than a name already derived from its own asset is dead weight that reads as protection.
+    for (asset, alias) in ALIASES {
+        let derived = [
+            asset.to_string(),
+            asset.replace('-', "_"),
+            asset.replace('-', ""),
+        ];
+        assert!(
+            !derived
+                .iter()
+                .any(|name| name == alias || alias.contains(name)),
+            "the alias `{alias}` is already covered by a name derived from `{asset}`"
+        );
+    }
+    markers
 }
 
 /// Every framework marker an *exempt* file may not name is still reported.

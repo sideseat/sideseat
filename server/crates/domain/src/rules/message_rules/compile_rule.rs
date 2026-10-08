@@ -12,6 +12,8 @@ pub(super) fn compile_rule(
 ) -> Result<CompiledMessageRule, MessageCompileError> {
     let MessageRule {
         id,
+        // Detached at parse (`ParsedAssets::observed`): evidence for the coverage join, never an input here.
+        observed_in: _,
         doc,
         source,
         tool_repr,

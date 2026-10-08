@@ -15,6 +15,7 @@ mod content_blocks;
 mod detection;
 mod message_emit;
 mod message_read;
+mod observed;
 mod span_fields;
 
 pub use conditions::*;
@@ -23,6 +24,7 @@ pub use content_blocks::*;
 pub use detection::*;
 pub use message_emit::*;
 pub use message_read::*;
+pub use observed::*;
 pub use span_fields::*;
 
 /// One rule file's parsed contents.

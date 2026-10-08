@@ -598,13 +598,21 @@ fn clause_paths(emission: &sideseat_domain::rules::message_rules::Emission<'_>) 
 }
 
 fn rules_that_emit() -> BTreeSet<String> {
+    rules_that_emit_by_fixture().into_keys().collect()
+}
+
+/// Every message rule and clause path that emitted, with the fixtures it emitted in.
+fn rules_that_emit_by_fixture() -> BTreeMap<String, BTreeSet<String>> {
     use sideseat_domain::rules::MessageContext;
     use sideseat_domain::rules::message_rules::OwnedCarrier;
     use sideseat_ingestion::otlp::extract_attributes;
 
     let plan = &sideseat_domain::rules::ruleset().messages;
-    let mut fired = BTreeSet::new();
-    for (_, paths) in discover_fixtures() {
+    let mut fired: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    for (label, paths) in discover_fixtures() {
+        let mut credit = |id: String| {
+            fired.entry(id).or_default().insert(label.clone());
+        };
         for path in &paths {
             let request = decode_request(path);
             for resource in &request.resource_spans {
@@ -630,8 +638,8 @@ fn rules_that_emit() -> BTreeSet<String> {
                             sideseat_ingestion::traces::extract::MessageSource,
                         > = Vec::new();
                         for emission in plan.run(&ctx) {
-                            fired.insert(emission.rule_id.to_string());
-                            fired.extend(clause_paths(&emission));
+                            credit(emission.rule_id.to_string());
+                            clause_paths(&emission).into_iter().for_each(&mut credit);
                             read.extend(emission.owns.iter().cloned());
                             // Only a *message* is output. A `Claim` enters ownership and produces nothing, so
                             // counting one as the span's answer made the measurement skip the recovery pass
@@ -674,7 +682,7 @@ fn rules_that_emit() -> BTreeSet<String> {
                                 for emission in
                                     plan.fallback(&ctx, &std::collections::HashSet::new())
                                 {
-                                    fired.insert(emission.rule_id.to_string());
+                                    credit(emission.rule_id.to_string());
                                 }
                             } else if generation && !dialect_output.iter().any(|source| {
                                 sideseat_ingestion::traces::extract::messages::carrier_holds_span_output(
@@ -684,14 +692,14 @@ fn rules_that_emit() -> BTreeSet<String> {
                                 )
                             }) {
                                 for emission in plan.fallback(&ctx, &read) {
-                                    fired.insert(emission.rule_id.to_string());
-                                    fired.extend(clause_paths(&emission));
+                                    credit(emission.rule_id.to_string());
+                                    clause_paths(&emission).into_iter().for_each(&mut credit);
                                 }
                             }
                         }
                         for emission in plan.tool_definitions(&ctx) {
-                            fired.insert(emission.rule_id.to_string());
-                            fired.extend(clause_paths(&emission));
+                            credit(emission.rule_id.to_string());
+                            clause_paths(&emission).into_iter().for_each(&mut credit);
                         }
                         for event in &span.events {
                             let event_attrs = extract_attributes(&event.attributes);
@@ -704,8 +712,8 @@ fn rules_that_emit() -> BTreeSet<String> {
                                 is_tool,
                             );
                             for emission in reading.emissions {
-                                fired.insert(emission.rule_id.to_string());
-                                fired.extend(clause_paths(&emission));
+                                credit(emission.rule_id.to_string());
+                                clause_paths(&emission).into_iter().for_each(&mut credit);
                             }
                         }
                     }
@@ -731,8 +739,8 @@ fn rules_that_emit() -> BTreeSet<String> {
                             .filter(|n| !n.is_empty());
                         let reading = plan.from_event(&name, &attrs, "", scope_name, &empty, false);
                         for emission in reading.emissions {
-                            fired.insert(emission.rule_id.to_string());
-                            fired.extend(clause_paths(&emission));
+                            credit(emission.rule_id.to_string());
+                            clause_paths(&emission).into_iter().for_each(&mut credit);
                         }
                     }
                 }

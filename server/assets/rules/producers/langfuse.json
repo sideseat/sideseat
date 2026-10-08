@@ -62,6 +62,7 @@
       "alternatives": [
         {
           "id": "responses_input",
+          "observed_in": [{"package": "langfuse", "scheme": "pep440", "since": "4.13.2", "doc": "The Responses input, first captured in 4.13.2."}],
           "doc": "A Responses request: its items under `input`.",
           "select": "$.input[*]",
           "then_fragment": "langfuse.item",
@@ -73,6 +74,7 @@
         },
         {
           "id": "chat_messages",
+          "observed_in": [{"package": "langfuse", "scheme": "pep440", "since": "4.6.1", "before": "4.13.2", "doc": "Chat-completions input as the matrix captures it through 4.9.0; 4.13.2 records the Responses input instead."}],
           "doc": "A chat request: the message list itself.",
           "select": "$[*]",
           "then_fragment": "langfuse.item"
@@ -109,6 +111,7 @@
     },
     {
       "id": "langfuse.generation_tools",
+      "observed_in": [{"package": "langfuse", "scheme": "pep440", "since": "4.13.2", "doc": "Tool definitions on the generation, first captured in 4.13.2."}],
       "doc": "The tools a Responses request offered.",
       "where": {
         "source": "attr:langfuse.observation.type",

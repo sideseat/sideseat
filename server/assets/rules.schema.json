@@ -737,6 +737,13 @@
         "id": {
           "type": "string"
         },
+        "observed_in": {
+          "description": "The releases this rule was observed firing in. Evidence for the coverage join, read by no answer.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Observation"
+          }
+        },
         "doc": {
           "type": [
             "string",
@@ -941,6 +948,56 @@
       "additionalProperties": false,
       "required": [
         "id"
+      ]
+    },
+    "Observation": {
+      "description": "One release range a clause was observed firing in: positive evidence, never a gate.\n\nWritten on an executable leaf with a stable id - a message rule or reading - where the shape it reads is one\nsome releases write. Read by nothing that decides an answer: the parse\ndetaches every annotation before any section compiles, so a clause behaves alike with or without it. What\nreads it is the coverage join over the captured matrix - each range must be exercised by a fixture inside it,\nand a range no release inside the window falls in has aged out.",
+      "type": "object",
+      "properties": {
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "package": {
+          "description": "The package whose releases the range counts, as the matrix's provenance names it.",
+          "type": "string"
+        },
+        "scheme": {
+          "description": "How that package numbers its releases: declared here, because nothing else says which scheme a\npackage's versions are in.",
+          "$ref": "#/$defs/VersionScheme"
+        },
+        "since": {
+          "description": "The first release observed. Half-open: `since <= v < before`.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "before": {
+          "description": "The first release no longer observed.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "profile": {
+          "description": "The configuration of the release that was observed (`OTEL_SEMCONV_STABILITY_OPT_IN`, an instrumentation\nsetting), as the matrix names it. Absent: any.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "package",
+        "scheme"
       ]
     },
     "MessageSource": {
@@ -2272,6 +2329,13 @@
         "id": {
           "description": "This clause's own name, unique within the rule or fragment that holds it.\n\nRequired, because an emission has to be able to say **which** clause answered. Before this, a rule with\nfour readings reported only the rule's id: a direct shape and a shape reached through a fragment were\nindistinguishable in a diagnostic, and `doc` was being used as a stand-in for an identity.\n\nRequired rather than optional-with-a-derived-fallback, which was considered and is the worst of the\nthree: adding an id later would *change* the clause's identity, a positional edit would change every\nidentity after it, and nothing could safely reference one.",
           "type": "string"
+        },
+        "observed_in": {
+          "description": "The releases this reading was observed firing in, as `MessageRule::observed_in`. Not on a fragment's\ncases, which every rule using the fragment shares.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Observation"
+          }
         },
         "doc": {
           "type": [

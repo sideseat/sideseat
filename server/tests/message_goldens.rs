@@ -46,6 +46,7 @@ include!("message_goldens_parts/part_07_tests.rs");
 include!("message_goldens_parts/part_08_tests.rs");
 include!("message_goldens_parts/part_09_tests.rs");
 include!("message_goldens_parts/part_10_tests.rs");
+include!("message_goldens_parts/part_11_tests.rs");
 
 #[path = "message_truth/mod.rs"]
 mod message_truth;

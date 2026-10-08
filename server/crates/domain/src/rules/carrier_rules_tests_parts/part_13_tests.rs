@@ -202,3 +202,34 @@ fn a_framework_key_in_production_trips_both_sweeps_and_a_grammar_word_does_not()
         "the dotted words the schema enumerates are the two source names, and nothing a producer writes"
     );
 }
+
+/// **A package name in code is still a framework's name.** The producer-word sweep reads an `observed_in`
+/// range's `package` as provenance, and only there; every package an annotation names, written as a literal in a
+/// production module, trips the framework-name sweep's markers.
+#[test]
+fn a_package_an_annotation_names_is_a_framework_name_in_code() {
+    let parsed =
+        ParsedAssets::parse(&crate::rules::schema::embedded_sources()).expect("the assets parse");
+    let packages: std::collections::BTreeSet<&str> = parsed
+        .observed()
+        .iter()
+        .flat_map(|leaf| leaf.ranges.iter().map(|range| range.package.as_str()))
+        .collect();
+    assert!(!packages.is_empty(), "the corpus annotates a clause");
+    let markers = framework_markers();
+    for package in packages {
+        let module = format!("fn probe() -> &'static str {{\n    \"{package}\"\n}}\n");
+        let named = production_names(&module, "server/crates/domain/src/probe.rs")
+            .into_iter()
+            .any(|(_, text)| {
+                markers
+                    .values()
+                    .flatten()
+                    .any(|marker| names_as_a_word(&text, marker))
+            });
+        assert!(
+            named,
+            "`{package}` in a production module is not caught as a framework's name"
+        );
+    }
+}

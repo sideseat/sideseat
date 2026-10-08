@@ -80,6 +80,7 @@
   "messages": [
     {
       "id": "strands.system_prompt_message",
+      "observed_in": [{"package": "strands-agents", "scheme": "pep440", "since": "1.12.0", "before": "1.55.1", "doc": "The census shows 1.55.1 stopped writing system_prompt; every capture before it carries it, 1.57.2 does not."}],
       "doc": "The instruction the agent was given, read as a message. Ranked ahead of every conversation carrier because it frames the request rather than answering it - the retired code emitted it first for the same reason. Blank counts as absent: the attribute is written whether or not there is a prompt.",
       "read": {
         "attribute": "system_prompt"
@@ -96,6 +97,7 @@
     },
     {
       "id": "strands.choice_bundled_tool_result",
+      "observed_in": [{"package": "strands-agents", "scheme": "pep440", "since": "1.12.0", "profile": "default", "doc": "Every default-profile capture carries the bundled result beside the reply; under semconv-latest the result arrives as its own tool message instead."}],
       "doc": "A choice event may carry a bundled tool result beside the model's reply, in the provider's own envelope. Reported as its own observation - and *added* to the event's raw form rather than replacing it, because the reply is wanted too. Tagged as a tool result rather than a tool message, so history filtering does not remove it; the bundle is split at query time, which is what keeps a fix applying to stored data.",
       "source": {
         "event": {

@@ -393,6 +393,10 @@ pub struct Alternative {
     /// three: adding an id later would *change* the clause's identity, a positional edit would change every
     /// identity after it, and nothing could safely reference one.
     pub id: String,
+    /// The releases this reading was observed firing in, as `MessageRule::observed_in`. Not on a fragment's
+    /// cases, which every rule using the fragment shares.
+    #[serde(default)]
+    pub observed_in: Vec<Observation>,
     #[serde(default)]
     pub doc: Option<String>,
     /// An RFC 9535 JSONPath into the parsed value. Absent means the value itself.

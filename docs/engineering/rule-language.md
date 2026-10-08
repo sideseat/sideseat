@@ -531,6 +531,19 @@ release that writes that shape. Record the release as a variant in the suite's `
 fixtures, so the branch is exercised. Where nothing in the payload tells two releases apart, a `version` test on
 the scope's version is the last resort, with its `because`.
 
+A clause that only some releases reach states where it was seen, with `observed_in`: a list of
+`{"package", "scheme", "since", "before", "profile"}` ranges (half-open, at least one bound, versions in the
+package's `scheme`, the matrix `profile` optional). It is evidence and never a gate - the parse detaches every
+range before any section compiles, so a clause behaves alike with or without one. It may be written on a
+message rule or reading, whose firing the goldens attribute through its emissions, and not on a fragment's or a
+selection point's shared cases. The goldens hold each range to the captured matrix: every range
+must be exercised by a capture of a release inside it (`every_observed_range_is_exercised_by_a_capture_inside_it`),
+a clause firing in a capture of its package outside every range it states is reported as an unexplained
+observation, and a clause whose every range holds no release of the last twelve months has aged out and fails
+(`no_observed_clause_has_aged_out`, against a committed window start). `report_clauses_whose_firing_depends_on_the_release`
+(run with `--ignored`) lists the clauses whose firing differs between captured releases: the candidates for a
+range. Each versioned capture directory (`native@<version>[+<profile>]`) must match its `versions.json` record.
+
 ## Testing
 
 - `cargo test --locked -p sideseat-domain --lib` compiles the embedded assets, checks the refusals, and holds
@@ -760,6 +773,7 @@ emits - because that is ownership and policy rather than a transform.
 | Key | Type | What it is |
 | --- | --- | --- |
 | `id` (required) | string |  |
+| `observed_in` | list of [`Observation`](#observation) | The releases this rule was observed firing in. Evidence for the coverage join, read by no answer. |
 | `doc` | string |  |
 | `source` | [`MessageSource`](#messagesource) or null | The *events* this rule applies to. Non-empty makes it an event rule: its reads resolve against the event's own attributes rather than the span's, and its observations are tagged as events. |
 | `read` | [`ReadSpec`](#readspec) | The carrier to read. Absent for a `compose` rule, which has many sources rather than one. |
@@ -782,6 +796,25 @@ emits - because that is ownership and policy rather than a transform.
 | `raw_where` | [`Expr_ValuePredicate`](#expr_valuepredicate) | A condition on the carrier's **raw text**, asked before it is parsed: the carrier is read only where it holds, the text standing as a JSON string. How a reading says an attribute present and empty - or blank - is not evidence of a message: `{"non_empty": true}` skips the empty string, `{"non_blank": true}` the whitespace too, and the two stay distinct because one dialect treats whitespace as absence and another does not. |
 | `require_members` | [`MemberRequirements`](#memberrequirements) or null | What an indexed entry must carry to count as one. |
 | `priority` | integer | Position in the consulted order, lowest first. Unique among the rules that contend with this one. |
+
+### `Observation`
+
+One release range a clause was observed firing in: positive evidence, never a gate.
+
+Written on an executable leaf with a stable id - a message rule or reading - where the shape it reads is one
+some releases write. Read by nothing that decides an answer: the parse
+detaches every annotation before any section compiles, so a clause behaves alike with or without it. What
+reads it is the coverage join over the captured matrix - each range must be exercised by a fixture inside it,
+and a range no release inside the window falls in has aged out.
+
+| Key | Type | What it is |
+| --- | --- | --- |
+| `doc` | string |  |
+| `package` (required) | string | The package whose releases the range counts, as the matrix's provenance names it. |
+| `scheme` (required) | [`VersionScheme`](#versionscheme) | How that package numbers its releases: declared here, because nothing else says which scheme a package's versions are in. |
+| `since` | string | The first release observed. Half-open: `since <= v < before`. |
+| `before` | string | The first release no longer observed. |
+| `profile` | string | The configuration of the release that was observed (`OTEL_SEMCONV_STABILITY_OPT_IN`, an instrumentation setting), as the matrix names it. Absent: any. |
 
 ### `MessageSource`
 
@@ -1150,6 +1183,7 @@ One documented shape of a payload: where to look, what to require, and what to c
 | Key | Type | What it is |
 | --- | --- | --- |
 | `id` (required) | string | This clause's own name, unique within the rule or fragment that holds it. |
+| `observed_in` | list of [`Observation`](#observation) | The releases this reading was observed firing in, as `MessageRule::observed_in`. Not on a fragment's cases, which every rule using the fragment shares. |
 | `doc` | string |  |
 | `select` | string | An RFC 9535 JSONPath into the parsed value. Absent means the value itself. |
 | `each` | true or false | Treat the selected value as a list and read each element. |

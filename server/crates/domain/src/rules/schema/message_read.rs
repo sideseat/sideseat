@@ -19,6 +19,9 @@ use super::*;
 #[serde(deny_unknown_fields)]
 pub struct MessageRule {
     pub id: String,
+    /// The releases this rule was observed firing in. Evidence for the coverage join, read by no answer.
+    #[serde(default)]
+    pub observed_in: Vec<Observation>,
     #[serde(default)]
     pub doc: Option<String>,
     /// The *events* this rule applies to. Non-empty makes it an event rule: its reads resolve against the
