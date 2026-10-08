@@ -552,6 +552,54 @@ fn a_repr_field_respects_identifier_boundaries_and_the_earliest_close() {
         "the description ran to a later field's closing quote: {description:?}"
     );
     assert_eq!(description, "Find records");
+
+    // A field's name written inside another field's string is that string's text, not the field.
+    let quoted = tools(serde_json::json!([
+        "CrewStructuredTool(name=\"real\", description=\"name='fake'\")"
+    ]));
+    assert_eq!(quoted.len(), 1, "{quoted:?}");
+    assert_eq!(
+        quoted[0]["function"]["name"].as_str(),
+        Some("real"),
+        "the name was read out of the description's text"
+    );
+}
+
+/// A field name that is not ASCII is found past a longer identifier ending in it, without slicing the input
+/// inside a character.
+#[test]
+fn a_repr_field_name_that_is_not_ascii_is_found_without_slicing_a_character() {
+    use crate::rules::message_rules::{MessageContext, compile};
+
+    let plan = compile(
+        &ParsedAssets::parse(&std::collections::BTreeMap::from([(
+            "t.json".to_string(),
+            r#"{"id":"t","messages":[{"id":"t.tools","read":{"attribute":"tools"},"parse":"json",
+             "emit":"tool_definitions","priority":1,
+             "tool_repr":{"entries":"$[*]","candidates":["$"],
+               "name_field":"é","description_field":"description",
+               "name_label":"Tool Name:","description_label":"Tool Description:",
+               "arguments_label":"Tool Arguments:","repr_markers":["Tool("],
+               "parameter_members":["args"],"field_terminators":["env_vars"],
+               "type_map":[["str","string"]],"type_default":{"map_to":"string"}}}]}"#
+                .as_bytes()
+                .to_vec(),
+        )]))
+        .expect("the probe assets parse"),
+    )
+    .expect("the probe compiles");
+    let attrs = std::collections::HashMap::from([(
+        "tools".to_string(),
+        serde_json::json!(["Tool(xé='bad', é='real')"]).to_string(),
+    )]);
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    let names: Vec<String> = plan
+        .tool_definitions(&ctx)
+        .iter()
+        .flat_map(|e| e.value.as_array().cloned().unwrap_or_default())
+        .filter_map(|tool| tool["function"]["name"].as_str().map(str::to_string))
+        .collect();
+    assert_eq!(names, ["real"]);
 }
 
 /// A `tool_repr`'s literals must be able to match something, and its type targets must be JSON Schema's.

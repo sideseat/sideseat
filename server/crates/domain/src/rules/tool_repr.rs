@@ -112,6 +112,9 @@ fn at_identifier_boundary(input: &str, at: usize) -> bool {
 }
 
 /// The first index at which `needle` occurs on an identifier boundary.
+///
+/// Stepping past a rejected match by the width of the character there, so a field name that is not ASCII never
+/// slices the input inside a character.
 fn find_field(input: &str, needle: &str) -> Option<usize> {
     let mut from = 0;
     while let Some(offset) = input[from..].find(needle) {
@@ -119,7 +122,39 @@ fn find_field(input: &str, needle: &str) -> Option<usize> {
         if at_identifier_boundary(input, at) {
             return Some(at);
         }
-        from = at + 1;
+        from = at + input[at..].chars().next().map_or(1, char::len_utf8);
+    }
+    None
+}
+
+/// The first index at which `needle` occurs on an identifier boundary **outside every quoted value**.
+///
+/// A constructor's own field is never inside another field's string: `description="name='fake'"` holds the text
+/// `name='fake'`, and reading that as the tool's name took the description's content for the constructor's field.
+/// A backslash escapes the character after it inside a quote, as Python's repr writes one.
+fn find_field_outside_strings(input: &str, needle: &str) -> Option<usize> {
+    let mut quote: Option<char> = None;
+    let mut escaped = false;
+    for (at, ch) in input.char_indices() {
+        match quote {
+            Some(open) => {
+                if escaped {
+                    escaped = false;
+                } else if ch == '\\' {
+                    escaped = true;
+                } else if ch == open {
+                    quote = None;
+                }
+            }
+            None => {
+                if input[at..].starts_with(needle) && at_identifier_boundary(input, at) {
+                    return Some(at);
+                }
+                if ch == '\'' || ch == '"' {
+                    quote = Some(ch);
+                }
+            }
+        }
     }
     None
 }
@@ -128,7 +163,7 @@ fn find_field(input: &str, needle: &str) -> Option<usize> {
 fn repr_field(input: &str, field: &str) -> Option<String> {
     for quote in ['\'', '"'] {
         let prefix = format!("{field}={quote}");
-        if let Some(start) = find_field(input, &prefix) {
+        if let Some(start) = find_field_outside_strings(input, &prefix) {
             let rest = &input[start + prefix.len()..];
             let mut escaped = false;
             for (idx, ch) in rest.char_indices() {
