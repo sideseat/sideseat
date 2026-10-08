@@ -213,3 +213,46 @@ fn a_reply_keeps_the_finish_a_dropped_copy_stated() {
         Some(crate::sideml::types::FinishReason::Stop)
     );
 }
+
+/// A reply takes a finish only from a copy of the same occurrence. The previous turn's identical answer,
+/// replayed as history before this one was produced, is not this reply's lineage, and how it finished
+/// says nothing about how this one did.
+#[test]
+fn a_reply_takes_no_finish_from_an_earlier_turn_it_repeats() {
+    let mut history = make_test_block(
+        "trace1",
+        "generation1",
+        ChatRole::Assistant,
+        "same answer",
+        utc(0),
+    );
+    history.is_history = true;
+    history.finish_reason = Some(crate::sideml::types::FinishReason::Length);
+    let mut output = make_test_block(
+        "trace1",
+        "generation2",
+        ChatRole::Assistant,
+        "same answer",
+        utc(1),
+    );
+    output.uses_span_end = true;
+    let timestamps = HashMap::from([
+        (
+            "generation1".to_string(),
+            SpanTimestamps {
+                span_start: utc(0),
+                span_end: Some(utc(0)),
+            },
+        ),
+        (
+            "generation2".to_string(),
+            SpanTimestamps {
+                span_start: utc(1),
+                span_end: Some(utc(1)),
+            },
+        ),
+    ]);
+    let (survivors, lineage) = process_dedup_with_lineage(vec![history, output], timestamps);
+    assert_eq!(lineage, vec![None, Some(0)]);
+    assert_eq!(survivors[0].finish_reason, None);
+}

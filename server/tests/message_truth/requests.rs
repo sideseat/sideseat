@@ -22,6 +22,9 @@ use super::recon::{Block, Recon, ViewKind};
 use super::truth::{CallRequest, Fact, Occurrence, Requirement, Truth};
 use super::{Violation, ViolationView};
 
+#[cfg(test)]
+mod tests;
+
 /// What a fixture's recorded requests account for in its views.
 #[derive(Default)]
 pub(super) struct Accounted {
@@ -488,13 +491,36 @@ pub(super) fn span_sent(truth: &Truth, matching: &Matching, call: &str) -> Optio
         .and_then(|c| matching.span_of.get(&c.id).copied())
 }
 
+/// Where request part `i` may be shown: after every block an earlier settled part was shown by, and before
+/// every block a later one was. `anchors` holds (part, first block, last block).
+fn merge_window(
+    i: usize,
+    anchors: &[(usize, usize, usize)],
+    blocks: usize,
+) -> std::ops::Range<usize> {
+    let after = anchors
+        .iter()
+        .filter(|&&(e, _, _)| e < i)
+        .map(|&(_, _, last)| last + 1)
+        .max();
+    let before = anchors
+        .iter()
+        .filter(|&&(e, _, _)| e > i)
+        .map(|&(_, first, _)| first)
+        .min();
+    after.unwrap_or(0)..before.unwrap_or(blocks)
+}
+
 /// The consecutive input blocks a merged request part is shown as, if it is: the client joins consecutive
 /// messages of one role with a newline, and an empty one contributes only its newline.
 ///
 /// Exact equality on that join, never a looser comparison, and only where the join is evidenced: several
 /// blocks, or a newline at an end where the span's own payload holds an empty message of that role next to
 /// the part - so an ordinary part still needs a block of its own, and a lost byte is no merge. The blocks
-/// must sit in `window`, between those the request's neighbouring parts were shown by.
+/// must sit in `window`, between those the request's neighbouring parts were shown by. The empty message
+/// that evidences a newline must neighbour the payload message the block itself shows: the n-th block of a
+/// text is bound to the payload's n-th message of that text, never to another message that happens to read
+/// the same.
 fn merged_run(
     item: &Expected,
     blocks: &[&Block],
@@ -507,6 +533,12 @@ fn merged_run(
     const LONGEST: usize = 4;
     let text = item.part.get("text").and_then(Value::as_str)?;
     let free = |j: usize| !assigned_block[j] && !explained[j] && blocks[j].role == item.role;
+    // Which of the span's blocks of the same text this one is, counted from the first.
+    let occurrence = |j: usize| {
+        (0..j)
+            .filter(|&k| blocks[k].text().is_some() && blocks[k].text() == blocks[j].text())
+            .count()
+    };
     let end_of_window = window.end.min(blocks.len());
     (window.start..end_of_window).find_map(|start| {
         let mut joined = String::new();
@@ -528,8 +560,8 @@ fn merged_run(
             }
             joined.push_str(piece);
             let several = end > start;
-            let leading = neighbours.empty_before(head, item.role);
-            let trailing = neighbours.empty_after(piece, item.role);
+            let leading = neighbours.empty_before(head, occurrence(start), item.role);
+            let trailing = neighbours.empty_after(piece, occurrence(end), item.role);
             let candidates = [
                 (joined.clone(), several),
                 (format!("{JOIN}{joined}"), leading),
@@ -617,29 +649,30 @@ impl EmptyNeighbours {
         }
     }
 
-    fn neighbour(&self, text: &str, role: &str, offset: i64) -> bool {
-        self.texts
-            .get(text)
-            .into_iter()
-            .flatten()
-            .any(|(family, index)| {
-                index.checked_add_signed(offset).is_some_and(|other| {
-                    let key = (family.clone(), other);
-                    !self.filled.contains(&key)
-                        && self
-                            .roles
-                            .get(&key)
-                            .is_some_and(|r| shown_role(r, &Value::Null) == role)
-                })
+    /// Whether the `occurrence`-th payload message holding exactly `text`, in payload order, has an empty
+    /// message of `role` at `offset` from it.
+    fn neighbour(&self, text: &str, occurrence: usize, role: &str, offset: i64) -> bool {
+        let mut holders: Vec<&(String, u64)> = self.texts.get(text).into_iter().flatten().collect();
+        holders.sort_unstable();
+        holders.dedup();
+        holders.get(occurrence).is_some_and(|(family, index)| {
+            index.checked_add_signed(offset).is_some_and(|other| {
+                let key = (family.clone(), other);
+                !self.filled.contains(&key)
+                    && self
+                        .roles
+                        .get(&key)
+                        .is_some_and(|r| shown_role(r, &Value::Null) == role)
             })
+        })
     }
 
-    fn empty_before(&self, text: &str, role: &str) -> bool {
-        self.neighbour(text, role, -1)
+    fn empty_before(&self, text: &str, occurrence: usize, role: &str) -> bool {
+        self.neighbour(text, occurrence, role, -1)
     }
 
-    fn empty_after(&self, text: &str, role: &str) -> bool {
-        self.neighbour(text, role, 1)
+    fn empty_after(&self, text: &str, occurrence: usize, role: &str) -> bool {
+        self.neighbour(text, occurrence, role, 1)
     }
 }
 
@@ -705,6 +738,11 @@ pub(super) fn check_requests(
         );
         let mut explained = vec![false; blocks.len()];
         let neighbours = EmptyNeighbours::of_span(recon, span);
+        // Where each settled part was shown, as (part, first block, last block): the exact assignment, and
+        // every merged part as it is recovered, so two merges are held to the request's order between them
+        // as much as a merge and an exact part are.
+        let mut anchors: Vec<(usize, usize, usize)> =
+            pairs.iter().map(|&(e, b)| (e, b, b)).collect();
         for (i, item) in wanted
             .iter()
             .enumerate()
@@ -715,13 +753,7 @@ pub(super) fn check_requests(
             // boundary is not in the payloads, but every part is, so the span must still show each, in
             // order, under the role the request sent them with. Only the boundary is excused.
             // Between the blocks the parts around it were shown by, so a merge keeps the request's order.
-            let after = pairs
-                .iter()
-                .filter(|&&(e, _)| e < i)
-                .map(|&(_, b)| b + 1)
-                .max();
-            let before = pairs.iter().filter(|&&(e, _)| e > i).map(|&(_, b)| b).min();
-            let window = after.unwrap_or(0)..before.unwrap_or(blocks.len());
+            let window = merge_window(i, &anchors, blocks.len());
             if let Some(run) = merged_run(
                 item,
                 &blocks,
@@ -730,6 +762,7 @@ pub(super) fn check_requests(
                 window,
                 &neighbours,
             ) {
+                anchors.push((i, *run.start(), *run.end()));
                 for j in run {
                     explained[j] = true;
                 }
@@ -742,6 +775,22 @@ pub(super) fn check_requests(
                 (
                     "request.order",
                     "shown, but not where the request put it".to_string(),
+                )
+            } else if let Some(run) = merged_run(
+                item,
+                &blocks,
+                &assigned_block,
+                &explained,
+                0..blocks.len(),
+                &neighbours,
+            ) {
+                // Merged, but outside the place the request's other parts leave for it.
+                for j in run {
+                    explained[j] = true;
+                }
+                (
+                    "request.order",
+                    "shown merged, but not where the request put it".to_string(),
                 )
             } else if let Some(j) = (0..blocks.len()).find(|&j| {
                 !assigned_block[j]
@@ -849,84 +898,4 @@ pub(super) fn check_requests(
         }
     }
     accounted
-}
-
-#[test]
-fn a_merged_part_is_shown_only_by_its_exact_join() {
-    let block = |role: &str, text: &str| Block {
-        role: role.to_string(),
-        kind: "text".to_string(),
-        content: json!({ "type": "text", "text": text }),
-        tool_use_id: None,
-        trace: "t".to_string(),
-        span: "s".to_string(),
-        output: false,
-        finish: None,
-        media_sha256: None,
-        digest: text.to_string(),
-        identity: text.to_string(),
-    };
-    let part = |text: &str| {
-        let part = json!({ "type": "text", "text": text });
-        Expected {
-            label: "call-001:m0.0".to_string(),
-            role: "user",
-            fact: as_fact("call-001:m0.0", "user", &part, &BTreeMap::new())
-                .expect("a text part is a fact"),
-            part,
-            message: Some(0),
-            is_fact: false,
-            renders: Vec::new(),
-        }
-    };
-    let shown = [
-        block("user", "Observation: rain"),
-        block("user", "New task: pack"),
-    ];
-    let blocks: Vec<&Block> = shown.iter().collect();
-    let free = [false, false];
-    let mut neighbours = EmptyNeighbours::default();
-    neighbours.record("llm.input_messages.3.message.role", "user".to_string());
-    neighbours.record("llm.input_messages.4.message.role", "user".to_string());
-    neighbours.record(
-        "llm.input_messages.4.message.contents.0.message_content.text",
-        "Observation: rain".to_string(),
-    );
-    let run = |text: &str| merged_run(&part(text), &blocks, &free, &free, 0..2, &neighbours);
-    // Two consecutive messages joined by a newline, and an empty one the payload holds before the first.
-    assert_eq!(run("Observation: rain\nNew task: pack"), Some(0..=1));
-    assert_eq!(run("\nObservation: rain"), Some(0..=0));
-    // A newline the payload gives no empty message for is a lost byte, not a merge.
-    assert_eq!(run("Observation: rain\n"), None);
-    // Outside the window the request's neighbouring parts allow, a match keeps no order and is refused.
-    let late = merged_run(
-        &part("Observation: rain\nNew task: pack"),
-        &blocks,
-        &free,
-        &free,
-        1..2,
-        &neighbours,
-    );
-    assert_eq!(late, None);
-    // A single block is no merge, and a near miss - another separator, other text - is none either.
-    assert_eq!(run("Observation: rain"), None);
-    assert_eq!(run("Observation: rain New task: pack"), None);
-    assert_eq!(run("Observation: rain\nNew task: packs"), None);
-    // Under another role it is not the part the request sent.
-    let assistant = [
-        block("assistant", "Observation: rain"),
-        block("assistant", "New task: pack"),
-    ];
-    let other: Vec<&Block> = assistant.iter().collect();
-    assert_eq!(
-        merged_run(
-            &part("Observation: rain\nNew task: pack"),
-            &other,
-            &free,
-            &free,
-            0..2,
-            &neighbours
-        ),
-        None
-    );
 }

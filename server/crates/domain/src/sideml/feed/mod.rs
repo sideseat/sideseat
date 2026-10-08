@@ -710,6 +710,18 @@ fn reconstruct_trace(
     needs_replay_relation: bool,
     replay_policy: ReplayPolicy,
 ) -> (FeedResult, Vec<BlockEntry>, order_graph::Precedence) {
+    // A trace's answer is a function of its rows, not of the order they were read in. Every tie the
+    // pipeline cannot break from the evidence falls to where an observation was first seen, and a project
+    // page reads rows newest first while a trace read takes them oldest first: the same two simultaneous
+    // requests came back in opposite orders. Sorted here, every later "first seen" is a property of the
+    // rows themselves. Two rows of one span - a retried delivery - keep their relative order.
+    let mut rows = rows;
+    rows.sort_by(|a, b| {
+        a.span_timestamp
+            .cmp(&b.span_timestamp)
+            .then_with(|| a.span_id.cmp(&b.span_id))
+            .then_with(|| a.ingested_at.cmp(&b.ingested_at))
+    });
     // Extract tools from all rows
     let extracted_tools = extract_tools_from_rows(&rows);
 
@@ -797,8 +809,8 @@ fn reconstruct_trace(
 }
 
 #[cfg(test)]
-mod rendering_tests;
-#[cfg(test)]
 mod order_tie_tests;
+#[cfg(test)]
+mod rendering_tests;
 #[cfg(test)]
 mod tests;

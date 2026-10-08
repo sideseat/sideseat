@@ -95,12 +95,23 @@ pub(super) fn adopt_result_id(survivor: &mut BlockEntry, other: &BlockEntry) {
 ///
 /// A whole-conversation carrier that holds what a span received may list a completed reply with how it
 /// finished, while the copy that survives - an enclosing span's re-listing - states none. The finish is the
-/// reply's, whichever copy carried it.
-pub(super) fn adopt_finish(survivor: &mut BlockEntry, other: &BlockEntry) {
-    if survivor.finish_reason.is_none()
-        && survivor.role == crate::sideml::types::ChatRole::Assistant
-        && other.role == crate::sideml::types::ChatRole::Assistant
-    {
-        survivor.finish_reason = other.finish_reason;
+/// reply's, whichever copy carried it - but only a copy of the same occurrence: the lineage says which
+/// observations each survivor is, and the replay of an earlier turn that happened to read the same is not
+/// among them. `stated[observation]` is how that observation's reply finished.
+pub(super) fn adopt_finishes(
+    survivors: &mut [BlockEntry],
+    lineage: &[Option<usize>],
+    stated: &[Option<crate::sideml::types::FinishReason>],
+) {
+    for (finish, survivor) in stated.iter().zip(lineage) {
+        let (Some(finish), Some(survivor)) = (finish, survivor) else {
+            continue;
+        };
+        let survivor = &mut survivors[*survivor];
+        if survivor.finish_reason.is_none()
+            && survivor.role == crate::sideml::types::ChatRole::Assistant
+        {
+            survivor.finish_reason = Some(*finish);
+        }
     }
 }

@@ -58,7 +58,7 @@ use sideseat_ports::types::MessageCategory;
 mod adopt;
 mod identity;
 mod timing;
-use adopt::{adopt_attachment_name, adopt_call_id, adopt_failure, adopt_finish, adopt_result_id};
+use adopt::{adopt_attachment_name, adopt_call_id, adopt_failure, adopt_finishes, adopt_result_id};
 
 pub(super) use identity::*;
 pub use timing::{SpanTimestamps, effective_timestamp};
@@ -684,7 +684,6 @@ fn deduplicate_with_lineage(
                 };
                 adopt_attachment_name(existing, &other);
                 adopt_failure(existing, &other);
-                adopt_finish(existing, &other);
                 adopt_result_id(existing, &other);
                 adopt_call_id(existing, &other);
             })
@@ -795,6 +794,15 @@ pub(super) fn process_dedup_with_lineage_and_ordinals(
                     ContentBlock::ToolUse { .. } | ContentBlock::ToolResult { .. }
                 ),
             )
+        })
+        .collect();
+    // How each reply said it finished, for the survivor it turns out to be a copy of.
+    let stated_finishes: Vec<_> = blocks
+        .iter()
+        .map(|block| {
+            (block.role == crate::sideml::types::ChatRole::Assistant)
+                .then_some(block.finish_reason)
+                .flatten()
         })
         .collect();
 
@@ -950,7 +958,7 @@ pub(super) fn process_dedup_with_lineage_and_ordinals(
     // text was timestamped at span end and whose tool call was timestamped at event time stopped
     // being one response, and a tool result timestamped between them was returned *before the call
     // it answers*. One response, one time.
-    let blocks = paired
+    let mut blocks: Vec<BlockEntry> = paired
         .into_iter()
         .map(|(batch_time, mut block)| {
             // Two fields, one value: what the block sorts at, and what it reports. Equal today, so
@@ -961,6 +969,7 @@ pub(super) fn process_dedup_with_lineage_and_ordinals(
             block
         })
         .collect();
+    adopt_finishes(&mut blocks, &lineage, &stated_finishes);
     (blocks, lineage, repeat_ordinals)
 }
 

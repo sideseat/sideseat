@@ -21,6 +21,10 @@ fn request(span: &str, results: [(&str, &str); 2]) -> MessageSpanRow {
             {"type": "tool_result", "tool_use_id": call, "content": text}
         ]}));
     }
+    row(span, "trace", messages)
+}
+
+fn row(span: &str, trace: &str, messages: Vec<serde_json::Value>) -> MessageSpanRow {
     let raw = [RawMessage {
         source: MessageSource::Attribute {
             key: "gen_ai.input.messages".to_string(),
@@ -30,7 +34,7 @@ fn request(span: &str, results: [(&str, &str); 2]) -> MessageSpanRow {
         rendering: false,
     }];
     MessageSpanRow {
-        trace_id: "trace".to_string(),
+        trace_id: trace.to_string(),
         span_id: span.to_string(),
         parent_span_id: None,
         span_timestamp: at(),
@@ -96,5 +100,26 @@ fn simultaneous_requests_are_ordered_by_span_not_by_arrival() {
     let forward = order(&process_spans(vec![a.clone(), b.clone()], &options));
     let reversed = order(&process_spans(vec![b, a], &options));
     assert!(!forward.is_empty());
+    assert_eq!(forward, reversed);
+}
+
+/// Two model calls at one instant, each sent a question of its own: nothing in the evidence orders them,
+/// so the calls' ids do, and the rows' delivery order does not.
+#[test]
+fn distinct_simultaneous_requests_are_ordered_by_span_not_by_arrival() {
+    let a = row(
+        "span-a",
+        "trace",
+        vec![json!({"role": "user", "content": "What is the weather in Paris?"})],
+    );
+    let b = row(
+        "span-b",
+        "trace",
+        vec![json!({"role": "user", "content": "What is the weather in Rome?"})],
+    );
+    let options = FeedOptions::default();
+    let forward = order(&process_spans(vec![a.clone(), b.clone()], &options));
+    let reversed = order(&process_spans(vec![b, a], &options));
+    assert_eq!(forward.len(), 2);
     assert_eq!(forward, reversed);
 }
