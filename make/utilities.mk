@@ -1,6 +1,6 @@
 ##@ Utilities
 
-.PHONY: push deps-check node-floor download-prices clean-stale clean-docker disk disk-guard clean
+.PHONY: push push-head deps-check node-floor download-prices clean-stale clean-docker disk disk-guard clean
 
 deps-check: ## Report outdated dependencies
 	@./scripts/check/deps.sh
@@ -145,3 +145,7 @@ clean: ## Remove all generated build artifacts
 push: ## Push the current branch through the pre-push gate
 	@GIT_SSH_COMMAND="$${GIT_SSH_COMMAND:-ssh} -o ServerAliveInterval=20 -o ServerAliveCountMax=180" \
 		git push $(if $(ARGS),$(ARGS),origin HEAD)
+
+# In a shared tree the hook would check other agents' work in progress rather than the commit pushed.
+push-head: ## Push HEAD with the pre-push gate run on exactly that commit, from verify-head's clean worktree
+	@./scripts/dev/push-head.sh

@@ -11,7 +11,7 @@ its own location, so it works from any directory.
 | `test/`     | Suites that need containers, SDK toolchains or sample envs  | `make test-postgres` and the other `test-*` targets |
 | `perf/`     | Latency, ingest and read benchmarks, footprint ceilings, storage | `make bench-http`, `make bench-ingest`, `make bench-reads`, `make bench-reads-distributed`, `make footprint`, `make footprint-storage`, `storage-entropy.py` |
 | `fixtures/` | Capturing and reviewing the message golden fixtures         | `make capture`, `make capture-sdk-*`          |
-| `dev/`      | Running SideSeat locally, the build cache, shared-tree commits | `make dev`, `make dev-server`, `make clean-stale`, `commit-paths.sh` |
+| `dev/`      | Running SideSeat locally, the build cache, shared-tree commits | `make dev`, `make dev-server`, `make clean-stale`, `make push-head`, `commit-paths.sh` |
 | `release/`  | Versioning, release cutting, packaging metadata             | `make release`, `make version`                |
 | `ops/`      | Operator tools shipped in the docs: backup and restore      | see the backup-restore reference              |
 | `deploy/`   | The container image and a local distributed compose stack   | `make build-docker`, `scripts/deploy/local/`  |
