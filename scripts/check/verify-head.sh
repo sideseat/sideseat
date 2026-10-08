@@ -2,7 +2,7 @@
 # Check that HEAD itself builds and passes, independent of whatever is uncommitted in this working tree.
 #
 #   scripts/check/verify-head.sh            clippy of every target at HEAD, warnings denied
-#   scripts/check/verify-head.sh --test     plus the repository invariants and the tracked message goldens
+#   scripts/check/verify-head.sh --test     plus every crate's unit tests, the repository invariants and the tracked message goldens
 #
 # A shared working tree holds other people's work in progress, so "it passes here" says nothing about the
 # commit. This builds HEAD in a persistent detached worktree beside the repository, with its own target
@@ -64,6 +64,8 @@ echo "[verify-head] $(git log --oneline -1)"
 # so a commit that only fails lint is caught here rather than at push.
 cargo clippy --locked --workspace --all-targets -- -D warnings
 if [ "${1:-}" = "--test" ]; then
+    # Every crate's unit tests: a change in one crate can break another's, and the server suites below never run them.
+    cargo test --locked -q --workspace --lib
     cargo test --locked -q -p sideseat-server --test repository
     MESSAGE_FIXTURES=tracked cargo test --locked -q -p sideseat-server --test message_goldens
 fi
