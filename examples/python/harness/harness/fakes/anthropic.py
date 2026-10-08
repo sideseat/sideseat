@@ -50,8 +50,18 @@ def request_of(body: dict[str, Any]) -> script.Request:
                     )
                 )
         turns.append(turn)
+    declared = body.get("tools") or []
+    # A client tool has no type, or ``custom``; any other type is a tool the provider runs itself, and
+    # its dated releases (`web_search_20250305`, `web_search_20260318`) are the same search.
     tools = {
-        tool["name"]: tool.get("input_schema") or {} for tool in body.get("tools") or []
+        tool["name"]: tool.get("input_schema") or {}
+        for tool in declared
+        if tool.get("type") in (None, "custom")
+    }
+    hosted = {
+        "web_search" if tool["type"].startswith("web_search") else tool["type"]
+        for tool in declared
+        if tool.get("type") not in (None, "custom")
     }
     output_format = (body.get("output_config") or {}).get("format") or {}
     schema = (
@@ -60,7 +70,58 @@ def request_of(body: dict[str, Any]) -> script.Request:
         else None
     )
     thinking = (body.get("thinking") or {}).get("type") in ("adaptive", "enabled")
-    return script.Request(turns=turns, tools=tools, schema=schema, thinking=thinking)
+    return script.Request(
+        turns=turns,
+        tools=tools,
+        schema=schema,
+        thinking=thinking,
+        hosted_tools=hosted,
+    )
+
+
+def search_blocks(search: script.ServerCall) -> list[dict[str, Any]]:
+    """A search the provider ran: its ``server_tool_use`` and the ``web_search_tool_result`` it found.
+
+    The search is a direct call, as ``web_search_20250305`` makes; a later release that filters
+    results in code execution nests the pair under a ``caller``, which the fake does not model.
+    """
+    call_id = "srvtoolu_" + search.id.removeprefix("ws_")
+    return [
+        {
+            "type": "server_tool_use",
+            "id": call_id,
+            "name": search.tool,
+            "input": {"query": search.query},
+        },
+        {
+            "type": "web_search_tool_result",
+            "tool_use_id": call_id,
+            "content": [
+                {
+                    "type": "web_search_result",
+                    "url": url,
+                    "title": search.query,
+                    "encrypted_content": "enc_" + script.digest(url),
+                }
+                for url in search.sources
+            ],
+        },
+    ]
+
+
+def citations(answer: script.Reply) -> list[dict[str, Any]]:
+    """Where an answer drawn from a search read what it says: one location per source it found."""
+    return [
+        {
+            "type": "web_search_result_location",
+            "url": url,
+            "title": search.query,
+            "encrypted_index": "idx_" + script.digest(url),
+            "cited_text": answer.text[:150],
+        }
+        for search in answer.server_calls
+        for url in search.sources
+    ]
 
 
 def message(body: dict[str, Any]) -> dict[str, Any]:
@@ -70,12 +131,23 @@ def message(body: dict[str, Any]) -> dict[str, Any]:
         blocks.append(
             {"type": "thinking", "thinking": answer.thought, "signature": "fake"}
         )
+    for search in answer.server_calls:
+        blocks.extend(search_blocks(search))
     if answer.text:
-        blocks.append({"type": "text", "text": answer.text})
+        text: dict[str, Any] = {"type": "text", "text": answer.text}
+        if answer.server_calls:
+            text["citations"] = citations(answer)
+        blocks.append(text)
     blocks.extend(
         {"type": "tool_use", "id": call.id, "name": call.name, "input": call.arguments}
         for call in answer.calls
     )
+    usage: dict[str, Any] = {"input_tokens": 40, "output_tokens": 12}
+    if answer.server_calls:
+        usage["server_tool_use"] = {
+            "web_search_requests": len(answer.server_calls),
+            "web_fetch_requests": 0,
+        }
     return {
         "id": "msg_" + script.digest(body),
         "type": "message",
@@ -84,7 +156,7 @@ def message(body: dict[str, Any]) -> dict[str, Any]:
         "content": blocks,
         "stop_reason": "tool_use" if answer.calls else "end_turn",
         "stop_sequence": None,
-        "usage": {"input_tokens": 40, "output_tokens": 12},
+        "usage": usage,
     }
 
 
@@ -100,16 +172,22 @@ def events_of(value: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
     ]
     for index, block in enumerate(value["content"]):
         if block["type"] == "text":
-            opening, deltas = (
-                {"type": "text", "text": ""},
-                [{"type": "text_delta", "text": block["text"]}],
-            )
+            opening = {"type": "text", "text": ""}
+            deltas = [{"type": "text_delta", "text": block["text"]}]
+            # Each citation streams on its own after the text it supports.
+            deltas += [
+                {"type": "citations_delta", "citation": citation}
+                for citation in block.get("citations", [])
+            ]
         elif block["type"] == "thinking":
             opening = {"type": "thinking", "thinking": "", "signature": ""}
             deltas = [
                 {"type": "thinking_delta", "thinking": block["thinking"]},
                 {"type": "signature_delta", "signature": block["signature"]},
             ]
+        elif block["type"] == "web_search_tool_result":
+            # A search's results arrive whole when its block opens.
+            opening, deltas = block, []
         else:
             opening = {**block, "input": {}}
             deltas = [
@@ -141,7 +219,12 @@ def events_of(value: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
             {
                 "type": "message_delta",
                 "delta": {"stop_reason": value["stop_reason"], "stop_sequence": None},
-                "usage": {"output_tokens": 12},
+                # The final usage, without what message_start already reported.
+                "usage": {
+                    key: count
+                    for key, count in value["usage"].items()
+                    if key != "input_tokens"
+                },
             },
         )
     )

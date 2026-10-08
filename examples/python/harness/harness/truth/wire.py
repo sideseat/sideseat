@@ -143,20 +143,29 @@ def tool_call_part(call_id: str | None, name: str, arguments: Any) -> dict[str, 
 
 
 def server_call_part(
-    call_id: str | None, name: str, arguments: Any, result: Any
+    call_id: str | None,
+    name: str,
+    arguments: Any,
+    result: Any,
+    *,
+    is_error: bool = False,
 ) -> dict[str, Any]:
     """A tool the provider ran itself while answering, with what the run produced.
 
     Unlike a tool call, it ends nothing: the provider ran it inside this response, which goes on to
-    answer, so the call and its result are both the response's own output.
+    answer, so the call and its result are both the response's own output. ``result`` is ``None``
+    when the response carries no result for the call.
     """
-    return {
+    part = {
         "type": "server_tool_call",
         "id": call_id,
         "name": name,
         "arguments": arguments,
         "result": result,
     }
+    if is_error:
+        part["is_error"] = True
+    return part
 
 
 def _arguments(value: Any) -> Any:
@@ -325,18 +334,25 @@ class _Block:
     #: The reasoning's signature, as the stream delivered it.
     signature: str = ""
     redacted: bool = False
-    #: The block's initial ``input`` object, used when no argument delta follows it.
+    #: The block's initial ``input`` object, used when no argument delta follows it; for a
+    #: provider-run result, the whole block, which streams complete.
     initial: Any = None
 
     def part(self) -> dict[str, Any]:
         if self.kind == "text":
             return text_part(self.text)
+        if self.kind == "server_result":
+            return _search_result(self.initial)
         if self.kind == "reasoning":
             text = self.text if self.text or not self.redacted else None
             return reasoning_part(
                 text, redacted=self.redacted, signature=self.signature or None
             )
         arguments = self.text if self.text else (self.initial or {})
+        if self.kind == "server_call":
+            return server_call_part(
+                self.call_id, self.name, _arguments(arguments), None
+            )
         return tool_call_part(self.call_id, self.name, arguments)
 
 
@@ -429,7 +445,56 @@ def _anthropic_block(block: dict[str, Any]) -> dict[str, Any]:
         return reasoning_part(None, redacted=True)
     if kind == "tool_use":
         return tool_call_part(block["id"], block["name"], block.get("input"))
+    if kind == "server_tool_use":
+        return server_call_part(block["id"], block["name"], block.get("input"), None)
+    if kind == "web_search_tool_result":
+        return _search_result(block)
     raise DecodeError(f"unknown Anthropic content block: {kind}")
+
+
+def _search_result(block: dict[str, Any]) -> dict[str, Any]:
+    """A ``web_search_tool_result``: the sources the search found, or the error that stopped it.
+
+    Its result is joined to its call by :func:`_provider_runs`; the encrypted page content is opaque
+    state for the provider's next turn, not what the conversation shows.
+    """
+    content = block["content"]
+    if isinstance(content, list):
+        result, is_error = {"sources": [found["url"] for found in content]}, False
+    elif content.get("type") == "web_search_tool_result_error":
+        result, is_error = {"error_code": content["error_code"]}, True
+    else:
+        raise DecodeError(f"unknown web search result: {content.get('type')}")
+    return {
+        "type": "server_tool_result",
+        "id": block["tool_use_id"],
+        "result": result,
+        "is_error": is_error,
+    }
+
+
+def _provider_runs(parts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The parts with each provider-run result joined to its call: Anthropic sends them as two
+    blocks, and the call stands where the provider ran it."""
+    calls = {part["id"]: part for part in parts if part["type"] == "server_tool_call"}
+    joined = []
+    for part in parts:
+        if part["type"] != "server_tool_result":
+            joined.append(part)
+            continue
+        call = calls.get(part["id"])
+        if call is None:
+            raise DecodeError(f"a provider-run result for no call: {part['id']}")
+        call.update(
+            server_call_part(
+                call["id"],
+                call["name"],
+                call["arguments"],
+                part["result"],
+                is_error=part["is_error"],
+            )
+        )
+    return joined
 
 
 def anthropic_message(value: dict[str, Any]) -> ModelCall:
@@ -445,7 +510,7 @@ def anthropic_message(value: dict[str, Any]) -> ModelCall:
         stop_reason=stop,
         finish=_CONVERSE_FINISH.get(stop, stop),
         usage=_anthropic_usage(value.get("usage")),
-        parts=[_anthropic_block(block) for block in value["content"]],
+        parts=_provider_runs([_anthropic_block(block) for block in value["content"]]),
     )
 
 
@@ -505,7 +570,7 @@ def anthropic_stream(events: Iterable[dict[str, Any]]) -> ModelCall:
             call.error = json.dumps(event.get("error"))
         else:
             raise DecodeError(f"unknown Anthropic stream event: {kind}")
-    call.parts = _ordered(blocks)
+    call.parts = _provider_runs(_ordered(blocks))
     return call
 
 
@@ -521,13 +586,15 @@ def _block_of(block: dict[str, Any]) -> _Block:
         )
     if kind == "redacted_thinking":
         return _Block("reasoning", redacted=True)
-    if kind == "tool_use":
+    if kind in ("tool_use", "server_tool_use"):
         return _Block(
-            "tool_call",
+            "tool_call" if kind == "tool_use" else "server_call",
             call_id=block["id"],
             name=block["name"],
             initial=block.get("input"),
         )
+    if kind == "web_search_tool_result":
+        return _Block("server_result", initial=block)
     raise DecodeError(f"unknown Anthropic content block: {kind}")
 
 

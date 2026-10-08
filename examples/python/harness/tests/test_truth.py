@@ -133,6 +133,22 @@ def test_an_unknown_tool_has_no_result_but_a_gap() -> None:
     }
 
 
+def test_a_provider_run_owes_its_result_only_when_the_response_carries_one() -> None:
+    failed = wire.server_call_part(
+        "s1", "web_search", {"query": "q"}, {"error_code": "unavailable"}, is_error=True
+    )
+    pending = wire.server_call_part("s2", "web_search", {"query": "q"}, None)
+    builder = derive.assemble(
+        "p",
+        "server_tools",
+        [model_call(failed, pending, wire.text_part("No results."))],
+    )
+    (result,) = facts_by_kind(builder, "tool_result")
+    assert result["value"]["call_id"] == "s1"
+    assert result["value"]["is_error"] is True
+    assert result["value"]["value"] == {"error_code": "unavailable"}
+
+
 def test_withheld_reasoning_is_owed_by_its_signed_mark() -> None:
     builder = derive.assemble(
         "p",

@@ -662,13 +662,16 @@ def assemble(
                     require=_model_call_requirement("contains"),
                 )
                 provider_calls.add(fact)
-                add_result(
-                    conversation,
-                    fact,
-                    ToolOutcome(part["result"], is_error=False),
-                    matcher="contains",
-                    evidence="wire",
-                )
+                if part["result"] is not None:
+                    add_result(
+                        conversation,
+                        fact,
+                        ToolOutcome(
+                            part["result"], is_error=part.get("is_error", False)
+                        ),
+                        matcher="contains",
+                        evidence="wire",
+                    )
             else:
                 fact = builder.fact(
                     conversation,
