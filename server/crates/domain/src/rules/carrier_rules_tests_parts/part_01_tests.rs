@@ -68,7 +68,19 @@ fn the_rules_reproduce_the_legacy_carrier_table() {
         );
     }
     for attribute in CARRIER_ATTRIBUTES {
-        let legacy = carrier::legacy_declared_semantics(None, Some(attribute));
+        let mut legacy = carrier::legacy_declared_semantics(None, Some(attribute));
+        // The one deliberate departure, stated rather than absorbed into the oracle: the convention's detached
+        // system prompt is what the model was given, so it holds the span's input - which the retired input list
+        // never named. No golden moves with it.
+        if *attribute == "gen_ai.system_instructions"
+            && let Some(legacy) = legacy.as_mut()
+        {
+            assert!(
+                !legacy.carrier_holds_span_input,
+                "the retired list now names it, so the departure is gone"
+            );
+            legacy.carrier_holds_span_input = true;
+        }
         let rules = carrier::declared_semantics(None, Some(attribute));
         assert_eq!(
             legacy, rules,

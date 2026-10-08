@@ -212,14 +212,15 @@ fn resolve_facts(
 /// facts contradict each other and a reader could not say which the engine would act on. Each rule here holds
 /// across all 55 shipped clauses, which is what makes it a statement about the model rather than a preference.
 ///
-/// **One implication is deliberately absent: a detached request frame must hold the span's input.** All three
-/// shipped frames declare `carrier_holds_span_input: false` while their own docs say they are what the model
-/// was given, so the rule is *true of the model and false of the assets*. Correcting the three declarations was
-/// tried and measured: that flag also gates **history detection**, not only ordering, so making the declaration
-/// true changed what gets *filtered* - four fixtures moved, a span view lost two messages, and an assistant's
-/// intro text sorted after its own tool call. The declarations and the ordering consumer have to move together,
-/// which is separate work; enforcing the implication now would refuse the shipped ruleset for a defect that is
-/// real and not yet safely fixable.
+/// **One implication is deliberately absent: a detached request frame must hold the span's input.** The
+/// convention's frame, `gen_ai.system_instructions`, declares it, at no change to any golden. The four producer
+/// frames - the Claude Agent SDK's two, Claude Code's and Strands' - still declare `carrier_holds_span_input:
+/// false` while their own docs say they are what the model was given, so the rule is *true of the model and
+/// false of those assets*. Correcting them was tried and measured: that flag also gates **history detection**,
+/// not only ordering, so making the declaration true changed what gets *filtered* - four fixtures moved, a span
+/// view lost two messages, and an assistant's intro text sorted after its own tool call. Those declarations and
+/// the ordering consumer have to move together, which is separate work; enforcing the implication now would
+/// refuse the shipped ruleset for a defect that is real and not yet safely fixable.
 fn incoherent(
     semantics: &CarrierSemantics,
     ordering_family: &Option<String>,
