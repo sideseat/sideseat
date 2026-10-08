@@ -471,6 +471,11 @@
       "name": "mcp_tools",
       "summary": "Tools served by an MCP server.",
       "core": false
+    },
+    {
+      "name": "server_tools",
+      "summary": "A tool the provider runs itself, such as web search, beside the answer.",
+      "core": false
     }
   ],
   "user_id": "example-user",

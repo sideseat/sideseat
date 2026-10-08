@@ -1,6 +1,7 @@
 """A local OpenAI endpoint: Chat Completions and Responses, streamed or not, on OpenAI and Azure routes.
 
-Answers come from :mod:`harness.fakes.script`. Azure OpenAI's v1 routes (``/openai/v1/...``),
+Answers come from :mod:`harness.fakes.script`. Files upload to ``/v1/files``, so a request can name an
+input file by the id the endpoint gave it; the provider's own web search answers inside the response. Azure OpenAI's v1 routes (``/openai/v1/...``),
 deployment routes (``/openai/deployments/<name>/chat/completions``), and the ``AzureOpenAI``
 client's Responses route (``/openai/responses``) map onto the same handlers.
 
@@ -10,6 +11,8 @@ client's Responses route (``/openai/responses``) map onto the same handlers.
 from __future__ import annotations
 
 import argparse
+import email.parser
+import email.policy
 import json
 import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -197,18 +200,45 @@ def responses_request(body: dict[str, Any]) -> script.Request:
         for tool in body.get("tools") or []
         if tool.get("type") == "function"
     }
+    # The provider's own tools, by type: dated releases (`web_search_2025_08_26`) and the preview
+    # spelling are the same search.
+    hosted = {
+        "web_search" if tool["type"].startswith("web_search") else tool["type"]
+        for tool in body.get("tools") or []
+        if tool.get("type") not in (None, "function")
+    }
     text_format = (body.get("text") or {}).get("format") or {}
     schema = (
         text_format.get("schema") if text_format.get("type") == "json_schema" else None
     )
     reasoning = body.get("reasoning") or {}
     return script.Request(
-        turns=turns, tools=tools, schema=schema, thinking=bool(reasoning.get("summary"))
+        turns=turns,
+        tools=tools,
+        schema=schema,
+        thinking=bool(reasoning.get("summary")),
+        hosted_tools=hosted,
     )
+
+
+def web_search_call(search: script.ServerCall) -> dict[str, Any]:
+    """A ``web_search_call`` output item, as ``ResponseFunctionWebSearch`` types it."""
+    return {
+        "id": search.id,
+        "type": "web_search_call",
+        "status": "completed",
+        "action": {
+            "type": "search",
+            "query": search.query,
+            "queries": [search.query],
+            "sources": [{"type": "url", "url": url} for url in search.sources],
+        },
+    }
 
 
 def response_output(answer: script.Reply, suffix: str) -> list[dict[str, Any]]:
     output: list[dict[str, Any]] = []
+    output.extend(web_search_call(search) for search in answer.server_calls)
     if answer.thought:
         output.append(
             {
@@ -225,7 +255,22 @@ def response_output(answer: script.Reply, suffix: str) -> list[dict[str, Any]]:
                 "role": "assistant",
                 "status": "completed",
                 "content": [
-                    {"type": "output_text", "text": answer.text, "annotations": []}
+                    {
+                        "type": "output_text",
+                        "text": answer.text,
+                        # An answer drawn from a search cites what it read, as the provider's does.
+                        "annotations": [
+                            {
+                                "type": "url_citation",
+                                "start_index": 0,
+                                "end_index": len(answer.text),
+                                "title": search.query,
+                                "url": url,
+                            }
+                            for search in answer.server_calls
+                            for url in search.sources
+                        ],
+                    }
                 ],
             }
         )
@@ -338,11 +383,50 @@ def response_events(body: dict[str, Any]) -> list[dict[str, Any]]:
                     "arguments": item["arguments"],
                 }
             )
+        elif item["type"] == "web_search_call":
+            events.extend(
+                {
+                    "type": f"response.web_search_call.{stage}",
+                    "item_id": item["id"],
+                    "output_index": index,
+                }
+                for stage in ("in_progress", "searching", "completed")
+            )
         events.append(
             {"type": "response.output_item.done", "output_index": index, "item": item}
         )
     events.append({"type": "response.completed", "response": final})
     return [{**event, "sequence_number": number} for number, event in enumerate(events)]
+
+
+# --- Files ------------------------------------------------------------------------------------
+
+
+def uploaded_file(content_type: str, body: bytes) -> dict[str, Any]:
+    """The ``FileObject`` an upload answers with: its id derives from the bytes, so it is stable."""
+    message = email.parser.BytesParser(policy=email.policy.HTTP).parsebytes(
+        f"Content-Type: {content_type}\r\n\r\n".encode() + body
+    )
+    fields: dict[str, Any] = {}
+    filename, size, data = "upload", 0, b""
+    for part in message.iter_parts():
+        name = part.get_param("name", header="content-disposition")
+        payload = part.get_payload(decode=True) or b""
+        if part.get_filename():
+            filename, size, data = part.get_filename(), len(payload), payload
+        elif name:
+            fields[name] = payload.decode()
+    return {
+        "id": f"file-{script.digest(data.hex())}",
+        "object": "file",
+        "bytes": size,
+        "created_at": CREATED,
+        "filename": filename,
+        "purpose": fields.get("purpose", "user_data"),
+        "status": "processed",
+        "expires_at": None,
+        "status_details": None,
+    }
 
 
 # --- Server -----------------------------------------------------------------------------------
@@ -380,8 +464,14 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
         length = int(self.headers.get("Content-Length", "0"))
-        body = json.loads(self.rfile.read(length) or b"{}")
+        raw = self.rfile.read(length)
         path = canonical_path(self.path)
+        if path == "/v1/files":
+            self.send_json(
+                200, uploaded_file(self.headers.get("Content-Type", ""), raw)
+            )
+            return
+        body = json.loads(raw or b"{}")
         if path == "/v1/chat/completions":
             if body.get("stream"):
                 self.send_events(completion_chunks(body), named=False)

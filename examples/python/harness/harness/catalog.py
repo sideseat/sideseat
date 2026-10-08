@@ -55,6 +55,11 @@ CATALOG: dict[str, ScenarioSpec] = {
             core=False,
         ),
         ScenarioSpec("mcp_tools", "Tools served by an MCP server.", core=False),
+        ScenarioSpec(
+            "server_tools",
+            "A tool the provider runs itself, such as web search, beside the answer.",
+            core=False,
+        ),
     )
 }
 

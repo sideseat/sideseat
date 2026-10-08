@@ -54,6 +54,12 @@ MULTI_AGENT = (
 
 MCP = "Use the calculator to compute (17 * 23) + 4, then report the result."
 
+#: Answered with a tool the provider runs itself: the request declares no function, only the
+#: provider's own web search, and the reply holds the search beside the answer.
+SERVER_TOOLS = (
+    "Search the web for the Louvre's opening hours, then answer in one sentence."
+)
+
 
 class TripPlan(BaseModel):
     """A short itinerary."""

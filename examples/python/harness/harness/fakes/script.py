@@ -46,6 +46,8 @@ ANSWERS = {
     "5 and 10 cross (10), 2 returns (2), and 1 and 2 cross again (2).",
     content.FILES: "The image is a photograph; the document is a one-page task description.",
     content.MCP: "The result is 395.",
+    content.SERVER_TOOLS: "The Louvre opens at 9 am and closes at 6 pm every day except Tuesday, "
+    "when it is closed.",
 }
 
 THOUGHTS = {
@@ -71,6 +73,17 @@ class Result:
 
 
 @dataclass
+class ServerCall:
+    """A tool the provider runs itself (its web search), and what the run found."""
+
+    id: str
+    #: The provider's own name for the tool, as the request declares it.
+    tool: str
+    query: str
+    sources: list[str]
+
+
+@dataclass
 class Turn:
     """One message: a user's text, an assistant's text and calls, or tool results."""
 
@@ -88,6 +101,8 @@ class Request:
     #: The JSON schema the answer must match, when the request constrains it.
     schema: dict[str, Any] | None = None
     thinking: bool = False
+    #: The provider-run tools the request enables, by the provider's own type name (``web_search``).
+    hosted_tools: set[str] = field(default_factory=set)
 
 
 @dataclass
@@ -95,6 +110,17 @@ class Reply:
     text: str = ""
     calls: list[Call] = field(default_factory=list)
     thought: str = ""
+    #: Tools the provider ran while answering, held in the same reply as the answer.
+    server_calls: list[ServerCall] = field(default_factory=list)
+
+
+#: What the provider's web search returns for the one question that asks for it.
+SEARCHES = {
+    content.SERVER_TOOLS: (
+        "Louvre opening hours",
+        ["https://www.louvre.fr/en/visit/hours-admission"],
+    ),
+}
 
 
 def reply(request: Request) -> Reply:
@@ -109,6 +135,10 @@ def reply(request: Request) -> Reply:
             for index, (name, arguments) in enumerate(plan[rounds_done])
         ]
         return Reply(calls=calls, thought=thought)
+    if question in SEARCHES and "web_search" in request.hosted_tools:
+        query, sources = SEARCHES[question]
+        search = ServerCall(f"ws_{digest(question)}", "web_search", query, sources)
+        return Reply(text=ANSWERS[question], server_calls=[search], thought=thought)
     if request.schema is not None:
         text = json.dumps(structured(request.schema), separators=(",", ":"))
     elif results:
