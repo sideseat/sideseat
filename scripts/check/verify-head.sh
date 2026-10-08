@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Check that HEAD itself builds and passes, independent of whatever is uncommitted in this working tree.
 #
-#   scripts/check/verify-head.sh            cargo check of every target at HEAD
+#   scripts/check/verify-head.sh            clippy of every target at HEAD, warnings denied
 #   scripts/check/verify-head.sh --test     plus the repository invariants and the tracked message goldens
 #
 # A shared working tree holds other people's work in progress, so "it passes here" says nothing about the
@@ -60,7 +60,9 @@ export CARGO_TARGET_DIR="$checkout/target"
 export CARGO_INCREMENTAL=0
 cd "$checkout"
 echo "[verify-head] $(git log --oneline -1)"
-cargo check --locked --workspace --all-targets
+# Clippy type-checks every target as `cargo check` does and adds the workspace lints that `make check` enforces,
+# so a commit that only fails lint is caught here rather than at push.
+cargo clippy --locked --workspace --all-targets -- -D warnings
 if [ "${1:-}" = "--test" ]; then
     cargo test --locked -q -p sideseat-server --test repository
     MESSAGE_FIXTURES=tracked cargo test --locked -q -p sideseat-server --test message_goldens
