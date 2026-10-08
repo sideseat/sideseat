@@ -354,3 +354,79 @@ fn an_attachment_reads_then_asks_where_then_replaces_for_every_source() {
         assert!(probe_compile(&body).is_err(), "compiled - {attach}");
     }
 }
+
+/// **Starvation is judged in execution order, between rules that can meet, over everything a reading owns.**
+/// The dialect stage runs before the fallback stage whatever the ranks say; two rules whose gates exclude each
+/// other never run on one span; and a single sweep owns every key under its prefix, less its `except`.
+#[test]
+fn starvation_is_judged_in_execution_order_between_rules_that_can_meet() {
+    use crate::rules::message_rules::MessageCompileError;
+    let starved = |rules: &str| {
+        matches!(
+            probe_compile(&format!(r#"{{"id":"t","messages":[{rules}]}}"#)),
+            Err(MessageCompileError::StarvedReading { .. })
+        )
+    };
+    let compiles = |rules: &str| {
+        let body = format!(r#"{{"id":"t","messages":[{rules}]}}"#);
+        if let Err(error) = probe_compile(&body) {
+            panic!("refused ({error}) - {body}");
+        }
+    };
+    let take_x = |rank: u32, extra: &str| {
+        format!(
+            r#"{{"id":"t.take_x","where":{{"source":"attr:marker","exists":true}},"read":{{"attribute":"x"}},
+                "parse":"text","tag_as":"taken","emit":"message","priority":{rank}{extra}}}"#
+        )
+    };
+    let compose_xy = |rank: u32, extra: &str| {
+        format!(
+            r#"{{"id":"t.compose","compose":{{"tag":"joined","members":[{{"as":"a","from":"x","parse":"text"}},
+                {{"as":"b","from":"y","parse":"text"}}]}},"emit":"message","priority":{rank}{extra}}}"#
+        )
+    };
+    let fallback = r#","source":{"span":{"stage":"fallback"}}"#;
+
+    // A fallback rule runs after every dialect rule, so its rank does not make it the taker...
+    compiles(&format!("{},{}", take_x(1, fallback), compose_xy(2, "")));
+    // ...and a dialect rule of a later rank still runs first, and starves a fallback composition.
+    assert!(starved(&format!(
+        "{},{}",
+        compose_xy(1, fallback),
+        take_x(2, "")
+    )));
+
+    // Gates that exclude each other never meet: two scopes.
+    let scope = |name: &str| format!(r#","where":{{"source":"scope.name","equals":"{name}"}}"#);
+    let take_in = |name: &str| {
+        format!(
+            r#"{{"id":"t.take_x","where":{{"source":"scope.name","equals":"{name}"}},"read":{{"attribute":"x"}},
+                "parse":"text","tag_as":"taken","emit":"message","priority":1}}"#
+        )
+    };
+    compiles(&format!(
+        "{},{}",
+        take_in("one"),
+        compose_xy(2, &scope("two"))
+    ));
+    assert!(
+        starved(&format!(
+            "{},{}",
+            take_in("one"),
+            compose_xy(2, &scope("one"))
+        )),
+        "the same scope meets"
+    );
+
+    // A sweep owns the keys under its prefix, so an earlier reader of one starves it - unless it excepts it.
+    let take_name = r#"{"id":"t.take_name","where":{"source":"attr:marker","exists":true},
+        "read":{"attribute":"p.name"},"parse":"text","tag_as":"taken","emit":"message","priority":1}"#;
+    let sweep = |except: &str| {
+        format!(
+            r#"{{"id":"t.sweep","compose":{{"tag":"swept","members":[{{"sweep_prefix":"p."{except}}}]}},
+                "emit":"message","priority":2}}"#
+        )
+    };
+    assert!(starved(&format!("{take_name},{}", sweep(""))));
+    compiles(&format!("{take_name},{}", sweep(r#","except":["name"]"#)));
+}

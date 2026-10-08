@@ -247,6 +247,31 @@ impl SpanAtom {
     /// Conservative by construction: every arm is a containment or an equality that holds whatever the span
     /// carries, and anything not listed answers no - an unproven implication under-refuses, while a wrong one
     /// deletes a working rule at startup.
+    /// Whether no span satisfies both atoms, asked one way round: one fact with two values. The caller asks both
+    /// orders.
+    pub fn excludes(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::SpanNameEquals { name: a }, Self::SpanNameEquals { name: b })
+            | (Self::ScopeNameEquals { name: a }, Self::ScopeNameEquals { name: b }) => a != b,
+            (Self::SpanNameEquals { name }, Self::SpanNameStartsWith { prefix })
+            | (Self::ScopeNameEquals { name }, Self::ScopeNameStartsWith { prefix }) => {
+                !name.starts_with(prefix.as_str())
+            }
+            (Self::SpanNameStartsWith { prefix: a }, Self::SpanNameStartsWith { prefix: b })
+            | (Self::ScopeNameStartsWith { prefix: a }, Self::ScopeNameStartsWith { prefix: b }) => {
+                !a.starts_with(b.as_str()) && !b.starts_with(a.as_str())
+            }
+            (
+                Self::SpanAttrEquals { key, value },
+                Self::SpanAttrEquals {
+                    key: other_key,
+                    value: other_value,
+                },
+            ) => key == other_key && value != other_value,
+            _ => false,
+        }
+    }
+
     pub fn implies(&self, other: &Self) -> bool {
         if self == other {
             return true;
@@ -720,6 +745,25 @@ pub fn implies(narrower: &SpanExpr, wider: &SpanExpr) -> bool {
             },
             _ => false,
         },
+    }
+}
+
+/// Whether no span satisfies both conditions - sound, and deliberately incomplete, like [`implies`].
+///
+/// A conjunction excludes what one of its conjuncts excludes; a disjunction excludes what every disjunct does; a
+/// negation excludes whatever implies the negated condition; and two atoms exclude each other only where one
+/// fact cannot have two values - a span name, an attribute's value, the scope. A missed exclusion answers that
+/// the two may hold together, which is the cautious answer for every caller.
+pub fn disjoint(a: &SpanExpr, b: &SpanExpr) -> bool {
+    match (a, b) {
+        (Expr::All(group), other) | (other, Expr::All(group)) => {
+            group.children().iter().any(|child| disjoint(child, other))
+        }
+        (Expr::Any(group), other) | (other, Expr::Any(group)) => {
+            group.children().iter().all(|child| disjoint(child, other))
+        }
+        (Expr::Not(negated), other) | (other, Expr::Not(negated)) => implies(other, negated),
+        (Expr::Atom(x), Expr::Atom(y)) => x.excludes(y) || y.excludes(x),
     }
 }
 

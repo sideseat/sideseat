@@ -278,15 +278,32 @@ pub fn compile(
             // the dialect stage claimed - and inheritance is exactly what makes cross-stage starvation real: a
             // multi-owner reading at the fallback stage arrives with the dialect's claims already in its claim
             // set, so a dialect rule that took one of its keys drops the whole reading.
-            for owned in owned_all_or_nothing(b) {
-                if let Some(taken) = consumed_carriers(a)
+            //
+            // In **execution** order, which is the stage and then the rank: the dialect stage runs first and the
+            // fallback inherits its claims, so a dialect rule can starve a fallback rule of any rank and never the
+            // reverse. And only where the two can run on one span: gates that exclude each other - two scopes,
+            // two span names - never meet, so neither can take from the other.
+            let fallback_stage = |rule: &CompiledMessageRule| {
+                rule.source.stage() == Some(super::schema::MessageStage::Fallback)
+            };
+            let (taker, starved) = if fallback_stage(a) && !fallback_stage(b) {
+                (b, a)
+            } else {
+                (a, b)
+            };
+            let never_meet = match (&taker.gate, &starved.gate) {
+                (Some(x), Some(y)) => span_conditions::disjoint(x, y),
+                _ => false,
+            };
+            for owned in owned_all_or_nothing(starved).iter().filter(|_| !never_meet) {
+                if let Some(taken) = consumed_carriers(taker)
                     .iter()
-                    .chain(emitted_carriers(a).iter())
-                    .find(|consumed| consumed.pattern.overlaps(&owned))
+                    .chain(emitted_carriers(taker).iter())
+                    .find(|consumed| owned.taken_by(&consumed.pattern))
                 {
                     return Err(MessageCompileError::StarvedReading {
-                        starved: b.rule_id.clone(),
-                        taker: a.rule_id.clone(),
+                        starved: starved.rule_id.clone(),
+                        taker: taker.rule_id.clone(),
                         carrier: taken.pattern.describe(),
                     });
                 }

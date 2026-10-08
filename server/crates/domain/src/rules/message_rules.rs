@@ -547,6 +547,7 @@ mod emit;
 mod plan;
 mod predicates;
 mod reading;
+mod starvation;
 mod validation;
 mod walk;
 
@@ -561,6 +562,7 @@ pub(crate) use predicates::predicate_holds_for_test;
 pub(super) use predicates::predicates_hold;
 use reading::*;
 pub(super) use reading::{parse_value, query};
+use starvation::*;
 pub(super) use validation::predicate_defect;
 use validation::*;
 use walk::*;

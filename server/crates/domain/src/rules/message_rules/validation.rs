@@ -598,62 +598,6 @@ pub(super) fn necessarily_owned(rule: &CompiledMessageRule) -> Option<&str> {
     }
 }
 
-/// The carriers a rule's emission owns **together**, where losing one loses the whole emission.
-///
-/// Empty for an ordinary reading, whose emission owns the one carrier it read - there, a lower-ranked rule
-/// taking that carrier means the two take turns, which is what ranks are for. Non-empty for a reading that is
-/// *all or nothing*, where an emission is accepted only if its whole ownership set is free:
-///
-/// | Reading | Owned together |
-/// | --- | --- |
-/// | `compose` with several members | every spelling of every member - `composed()` selects the **first present** with `find_map` and never retries a backup |
-/// | `indexed_family` | the family's keys: each entry owns its own members, and an aggregate owns every entry |
-/// | `overlay` | the base carrier and the overlay's, which are joined into one observation |
-///
-/// The distinction matters because the *conditional* excuse - "a gated rule and an ungated one take turns, and
-/// the ranks decide" - is sound for a single-carrier reading and false here. A rule that takes one member of a
-/// composed reading does not merely go first: the composed emission is dropped whole, so the carriers the
-/// taker never wanted end up owned by **nobody** and their content disappears from the feed. Silently, and
-/// neither rule looks wrong on its own.
-pub(super) fn owned_all_or_nothing(rule: &CompiledMessageRule) -> Vec<CarrierPattern> {
-    if let Some(set) = &rule.branch_set {
-        // A branch leaf is a rule of its own, and each leaf's reading is all-or-nothing on its own terms.
-        return set
-            .primary
-            .iter()
-            .chain(&set.fallback)
-            .chain(&set.always)
-            .flat_map(owned_all_or_nothing)
-            .collect();
-    }
-    let mut out: Vec<CarrierPattern> = Vec::new();
-    if let Some(compose) = &rule.compose {
-        // Only a *several*-member compose: one member reading several spellings takes exactly one of them, so
-        // there is nothing another rule can take half of.
-        if compose.members.len() > 1 {
-            for member in &compose.members {
-                out.extend(
-                    member
-                        .spec
-                        .from_any_of
-                        .iter()
-                        .map(|key| CarrierPattern::Exact(key.clone())),
-                );
-            }
-        }
-    }
-    if let Some(family) = &rule.read.indexed_family {
-        out.push(CarrierPattern::Prefix(format!("{family}.")));
-    }
-    if let Some(overlay) = &rule.read.overlay {
-        out.push(CarrierPattern::Exact(overlay.from.clone()));
-        if let Some(attribute) = rule.read.attribute() {
-            out.push(CarrierPattern::Exact(attribute.clone()));
-        }
-    }
-    out
-}
-
 /// What narrows a claim on a carrier: the span it runs on, and whether the payload narrows it further.
 ///
 /// Two independent facets, because a rule can have both and they answer different questions. The gate says
