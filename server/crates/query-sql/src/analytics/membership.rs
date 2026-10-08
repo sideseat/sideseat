@@ -558,7 +558,13 @@ pub fn trace_by_id(project_id: &str, trace_id: &str, backend: Backend) -> Parame
              JOIN {source} s ON t.project_id = s.project_id AND t.trace_id = s.trace_id \
              LEFT JOIN gen_totals gt2 ON t.trace_id = gt2.trace_id \
              GROUP BY t.trace_id",
-            duckdb_gen_totals_sql("g.project_id = ? AND g.trace_id = ?"),
+            // One whole trace, so the selection is its own peers.
+            duckdb_token_totals(
+                "g.trace_id",
+                "",
+                "g.project_id = ? AND g.trace_id = ?",
+                TokenPeers::Selected,
+            ),
             duckdb_trace_projection(),
         ),
         Backend::Clickhouse => format!(
@@ -616,8 +622,12 @@ pub fn traces_for_session(
              LEFT JOIN gen_totals gt2 ON t.trace_id = gt2.trace_id \
              GROUP BY t.trace_id \
              ORDER BY MIN(s.timestamp_start) DESC",
-            duckdb_gen_totals_sql(
-                "g.project_id = ? AND g.trace_id IN (SELECT trace_id FROM session_traces)"
+            // Whole traces, so the selection is its own peers.
+            duckdb_token_totals(
+                "g.trace_id",
+                "",
+                "g.project_id = ? AND g.trace_id IN (SELECT trace_id FROM session_traces)",
+                TokenPeers::Selected,
             ),
             duckdb_trace_projection(),
         ),
@@ -717,8 +727,12 @@ pub fn session_by_id(project_id: &str, session_id: &str, backend: Backend) -> Pa
         Backend::Duckdb => format!(
             "WITH session_traces AS ({session_relation}), \
              gen_totals_by_trace AS ({}),",
-            duckdb_gen_totals_sql(
-                "g.project_id = ? AND g.trace_id IN (SELECT trace_id FROM session_traces)"
+            // Whole traces, so the selection is its own peers.
+            duckdb_token_totals(
+                "g.trace_id",
+                "",
+                "g.project_id = ? AND g.trace_id IN (SELECT trace_id FROM session_traces)",
+                TokenPeers::Selected,
             )
         ),
         Backend::Clickhouse => {

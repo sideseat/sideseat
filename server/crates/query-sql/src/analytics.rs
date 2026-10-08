@@ -19,12 +19,14 @@ mod operation;
 mod render;
 mod sessions;
 mod spans;
+pub(crate) mod tokens;
 mod traces;
 
 pub use membership::*;
 pub use operation::*;
 pub use sessions::*;
 pub use spans::*;
+use tokens::{TokenPeers, duckdb_token_totals};
 
 /// Driver-neutral parameter values. Adapters only translate these values into their driver's
 /// binding API; they do not decide SQL shape or parameter order.

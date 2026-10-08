@@ -282,17 +282,55 @@ fn session_projection(backend: Backend) -> String {
 fn duckdb_session_page(params: &ListSessionsParams) -> PageQuery {
     let source = DuckdbAnalyticsDialect.span_page_relation();
     let trace_sessions = canonical_session_relation(Backend::Duckdb);
-    let (where_clause, values) = session_conditions(params, "sp", Backend::Duckdb);
+    let (where_clause, conditions) = session_conditions(params, "sp", Backend::Duckdb);
     let (sort_field, sort_direction) = session_sort(params);
     let offset = params.page.saturating_sub(1) * params.limit;
-    let gen_totals = duckdb_gen_totals_joined_sql(
-        "stg.session_id",
-        "JOIN session_traces stg \
-         ON stg.project_id = g.project_id AND stg.trace_id = g.trace_id",
-        "1 = 1",
-    );
+    // A session's totals are read for every session only when the page is sorted by them; otherwise for the
+    // page's sessions alone, after it is chosen - the token rule ran over every trace of the project to show fifty
+    // rows. Either way the scope is whole traces, so it is its own set of peers.
+    let by_totals = sort_field == "total_cost";
+    // Every span of the page's traces starts within its sessions' earliest and latest start, which
+    // `filtered_sessions` has just read from all of them: the bound lets the reads after the page skip the
+    // table's other row groups by their zone maps, where joining on the trace ids alone read every one.
+    let page_span_bound = |alias: &str| {
+        format!(
+            "{alias}.timestamp_start >= (SELECT MIN(min_ts) FROM filtered_sessions) \
+             AND {alias}.timestamp_start <= (SELECT MAX(max_start) FROM filtered_sessions)"
+        )
+    };
+    let totals = |traces: &str, bound: &str| {
+        duckdb_token_totals(
+            "stg.session_id",
+            &format!(
+                "JOIN {traces} stg ON stg.project_id = g.project_id AND stg.trace_id = g.trace_id"
+            ),
+            bound,
+            TokenPeers::Selected,
+        )
+    };
+    let (totals_before, total_column, totals_join, totals_after) = if by_totals {
+        (
+            format!(
+                "gen_totals AS (\n    {}\n),\n",
+                totals("session_traces", "1 = 1")
+            ),
+            "COALESCE(MAX(gt.total_cost), 0)::DOUBLE AS total_cost,\n        ",
+            "\n    LEFT JOIN gen_totals gt ON gt.session_id = st.session_id",
+            String::new(),
+        )
+    } else {
+        (
+            String::new(),
+            "",
+            "",
+            format!(
+                ",\ngen_totals AS (\n    {}\n)",
+                totals("page_traces", &page_span_bound("g"))
+            ),
+        )
+    };
     let sql = format!(
-        r#"WITH trace_sessions AS ({trace_sessions}),
+        r#"WITH trace_sessions AS ({trace_sessions} WHERE canonical.project_id = ?),
 matching_sessions AS (
     SELECT DISTINCT ts.project_id, ts.session_id
     FROM {source} sp
@@ -306,40 +344,45 @@ session_traces AS (
     JOIN matching_sessions ms
       ON ms.project_id = ts.project_id AND ms.session_id = ts.session_id
 ),
-gen_totals AS (
-    {gen_totals}
-),
-filtered_sessions AS (
+{totals_before}filtered_sessions AS (
     SELECT
         st.project_id,
         st.session_id,
         MIN(sp.timestamp_start) AS min_ts,
         MAX(COALESCE(sp.timestamp_end, sp.timestamp_start)) AS max_ts,
-        COALESCE(MAX(gt.total_cost), 0)::DOUBLE AS total_cost,
-        COUNT(DISTINCT sp.trace_id) AS trace_count,
+        MAX(sp.timestamp_start) AS max_start,
+        {total_column}COUNT(DISTINCT sp.trace_id) AS trace_count,
         COUNT(*) AS span_count,
         COUNT(*) FILTER (WHERE sp.observation_type != 'span') AS observation_count
     FROM session_traces st
     JOIN {source} sp
-      ON sp.project_id = st.project_id AND sp.trace_id = st.trace_id
-    LEFT JOIN gen_totals gt ON gt.session_id = st.session_id
+      ON sp.project_id = st.project_id AND sp.trace_id = st.trace_id{totals_join}
     GROUP BY st.project_id, st.session_id
     ORDER BY {sort_field} {sort_direction}, min_ts {sort_direction}, st.session_id ASC
     LIMIT {limit} OFFSET {offset}
-)
+),
+page_traces AS (
+    SELECT st.project_id, st.session_id, st.trace_id
+    FROM session_traces st
+    JOIN filtered_sessions f
+      ON f.project_id = st.project_id AND f.session_id = st.session_id
+){totals_after}
 SELECT
 {projection}
 FROM filtered_sessions f
-JOIN session_traces st
+JOIN page_traces st
   ON st.project_id = f.project_id AND st.session_id = f.session_id
 JOIN {source} s
-  ON s.project_id = st.project_id AND s.trace_id = st.trace_id
+  ON s.project_id = st.project_id AND s.trace_id = st.trace_id AND {span_bound}
 LEFT JOIN gen_totals gt2 ON gt2.session_id = f.session_id
 GROUP BY f.session_id, f.min_ts, f.{sort_field}
 ORDER BY f.{sort_field} {sort_direction}, f.min_ts {sort_direction}, f.session_id ASC"#,
         limit = params.limit,
         projection = session_projection(Backend::Duckdb),
+        span_bound = page_span_bound("s"),
     );
+    let mut values = vec![QueryValue::String(params.project_id.to_string())];
+    values.extend(conditions);
     PageQuery {
         count: session_count_query(params, Backend::Duckdb),
         rows: ParameterizedQuery {

@@ -837,3 +837,79 @@ fn pressure_candidates_are_winning_held_aware_bounded_and_parameterized() {
         }
     }
 }
+
+/// With no time window every trace condition names traces, never spans: that is what lets the trace page bound
+/// its later reads by its traces' start times and find the token rule's peers among the spans it selected
+/// (`trace_conditions_select_whole_traces`). A new condition on any other span column breaks both, and this.
+#[test]
+fn without_a_window_every_trace_condition_names_traces() {
+    let params = ListTracesParams {
+        project_id: ProjectId::from("p"),
+        session_id: Some("s".to_string()),
+        user_id: Some("u".to_string()),
+        environment: Some(vec!["prod".to_string()]),
+        filters: vec![
+            Filter::StringOptions {
+                column: "session_id".to_string(),
+                operator: OptionsOp::NoneOf,
+                value: vec!["s2".to_string()],
+            },
+            Filter::StringOptions {
+                column: "gen_ai_request_model".to_string(),
+                operator: OptionsOp::AnyOf,
+                value: vec!["m".to_string()],
+            },
+            Filter::String {
+                column: "span_name".to_string(),
+                operator: StringOp::Contains,
+                value: "x".to_string(),
+            },
+            Filter::Number {
+                column: "total_cost".to_string(),
+                operator: NumberOp::Gt,
+                value: 1.0,
+            },
+            Filter::Number {
+                column: "duration_ms".to_string(),
+                operator: NumberOp::Lt,
+                value: 5.0,
+            },
+            Filter::StringOptions {
+                column: "environment".to_string(),
+                operator: OptionsOp::NoneOf,
+                value: vec!["dev".to_string()],
+            },
+        ],
+        ..Default::default()
+    };
+    assert!(traces::trace_conditions_select_whole_traces(&params));
+    for backend in [Backend::Duckdb, Backend::Clickhouse] {
+        let (conditions, _) = traces::trace_conditions(&params, "g", backend);
+        // What is left once every parenthesised group is removed is the top level of the conjunction.
+        let mut depth = 0usize;
+        let mut top = String::new();
+        for c in conditions.chars() {
+            match c {
+                '(' => depth += 1,
+                ')' => depth -= 1,
+                _ if depth == 0 => top.push(c),
+                _ => {}
+            }
+        }
+        for clause in top.split(" AND ") {
+            let clause = clause.trim();
+            assert!(
+                matches!(
+                    clause,
+                    "g.project_id = ?" | "g.trace_id IN" | "g.trace_id NOT IN"
+                ),
+                "{clause:?} is not a condition on whole traces, in {conditions}"
+            );
+        }
+    }
+    let windowed = ListTracesParams {
+        from_timestamp: Some(Utc::now()),
+        ..params
+    };
+    assert!(!traces::trace_conditions_select_whole_traces(&windowed));
+}

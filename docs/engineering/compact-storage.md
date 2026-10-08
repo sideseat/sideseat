@@ -215,6 +215,46 @@ under enforced limits - the 400 MB ceiling with every core at 5,000 spans/s, and
 for the server and its embedded backend, at 10,000 spans/s - and fails if the kernel kills the server or reclaim
 slows it below 90% of the rate.
 
+**Token totals read only the traces a read is about.** Every list, detail and statistic applies one rule to token
+and cost usage: a span counts when it carries usage and is a generation none of whose generation children carries
+any, or is not a generation, its trace holds no generation with usage and its parent carries none. DuckDB checked
+it with three anti-joins over every winning span of the project, whichever traces the read was about, and the
+trace and session lists computed it for every trace and session in scope before choosing the fifty they show. The
+rule only ever compares spans that carry usage, so it is now evaluated over those of the traces the read selects
+(`query-sql/src/analytics/tokens.rs`); the lists read totals for their page alone unless sorted by them; a page's
+spans are bounded by its traces' start times, which lets DuckDB skip row groups by their zone maps; the session
+list's canonical sessions are computed for its project rather than the store, and the statistics' for the traces
+its window touches. Measured at a million spans in one project (`read_paths`, the fastest of runs on a loaded
+host): list traces 347 to 106 ms, list sessions 401 to 139 ms, project statistics 240 to 184 ms, get session 122 to
+57 ms, the traces of a session 125 to 70 ms, get trace 34 to 21 ms, every answer equal to ClickHouse's.
+
+**Open: what would bound the whole-project reads.** Three reads still read every span of the project: the
+unfiltered trace and session lists sort every trace or session by its first start, which takes an aggregate over
+all of their spans, and the statistics read the token rule's peers and the canonical sessions of their window's
+traces from a scan of the table, since nothing indexes a trace's spans by anything a scan can skip on. At two
+million spans, on the same host, the three took 177, 459 and 744 ms - against 103, 137 and 225 ms at one million,
+faster than linear for the two that aggregate sessions, and the session list and the statistics already past the
+ceilings `make bench-reads` holds them to at one million (`scripts/perf/read-ceilings.json`). At ten million a linear
+projection from two puts them at 0.9, 2.3 and 3.7 seconds, and the measured trend is worse than linear. The design
+to take up when a measured read approaches its ceiling:
+
+- *Token totals from a narrow table.* `token_facts` would hold one row per winning revision that carries usage -
+  its identity, parent, generation flag, start, request model and the twelve usage values - kept by the span write
+  as `superseded_at` is. The rule would run over it at read time, where today it runs over the spans. A maintained
+  per-trace partial sum cannot replace it cheaply: a span's contribution depends on its parent, its children and
+  its whole trace, exporters deliver children before their parents, and deciding a parent that arrives last needs
+  its stored children, which only a `parent_span_id` index or a scan of the trace can find.
+- *Per-trace rollups for the lists.* Partial rows a write appends for the traces it touches - span, observation and
+  GenAI-span counts as signed sums, a superseding revision's correction subtracting its predecessor - and the
+  first start, last end, canonical session, first user and environment as (instant, span, value) candidates.
+  A candidate cannot be retracted exactly when the runner-up of the same write is lost, so a revision that does not
+  dominate the one it replaces, and a retention batch that removes part of a trace, mark the trace for a bounded
+  compaction that recomputes it from its spans; reads take marked traces from the spans until then.
+- *What the statistics would need on top.* They are windowed by each span's own start, with trend buckets of any
+  width, so per-trace rows are not enough: partials per trace and hour, the two edge hours read from the spans,
+  distinct users as per-(trace, hour, user) counts so that a correction can subtract one, and the average trace
+  duration over the in-window spans of each trace.
+
 ### The raw record
 
 Raw telemetry is the single authority; everything else is a cache that a re-derivation rebuilds from it. The raw form

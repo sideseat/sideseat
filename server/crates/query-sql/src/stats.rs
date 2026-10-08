@@ -61,7 +61,7 @@ pub fn project_stats(
 fn main_aggregation(params: &StatsParams, backend: Backend) -> ParameterizedQuery {
     let source = winning_spans(backend);
     let (lookup, mut values) = token_lookup(params, backend);
-    let token_condition = token_dedup_condition(backend, &source);
+    let token_condition = token_dedup_condition(backend);
     values.extend(window_values(params, backend));
     values.extend(window_values(params, backend));
 
@@ -129,25 +129,33 @@ fn canonical_session_count(params: &StatsParams, backend: Backend) -> Parameteri
         Backend::Duckdb => "COUNT(DISTINCT c.session_id)",
         Backend::Clickhouse => "count(DISTINCT c.session_id)",
     };
-    let mut values = vec![QueryValue::String(params.project_id.to_string())];
-    values.extend(window_values(params, backend));
+    // A trace's canonical session is still read from all of its spans, but only for the traces the window
+    // touches: on DuckDB it was computed for every trace of the project and then joined to the few active ones.
+    let active_only = match backend {
+        Backend::Duckdb => {
+            "\n      AND (raw.project_id, raw.trace_id) IN (SELECT project_id, trace_id FROM active_traces)"
+        }
+        Backend::Clickhouse => "",
+    };
+    let mut values = window_values(params, backend);
+    values.push(QueryValue::String(params.project_id.to_string()));
 
     ParameterizedQuery::new(
         format!(
-            r#"WITH canonical AS (
-    SELECT raw.project_id, raw.trace_id, {aggregate} AS session_id
-    FROM {source} raw
-    WHERE raw.project_id = ?
-      AND raw.session_id IS NOT NULL
-      AND raw.session_id != ''
-    GROUP BY raw.project_id, raw.trace_id
-),
-active_traces AS (
+            r#"WITH active_traces AS (
     SELECT DISTINCT active.project_id, active.trace_id
     FROM {source} active
     WHERE active.project_id = ?
       AND {from_predicate}
       AND {to_predicate}
+),
+canonical AS (
+    SELECT raw.project_id, raw.trace_id, {aggregate} AS session_id
+    FROM {source} raw
+    WHERE raw.project_id = ?
+      AND raw.session_id IS NOT NULL
+      AND raw.session_id != ''{active_only}
+    GROUP BY raw.project_id, raw.trace_id
 )
 SELECT {count} AS count
 FROM canonical c
@@ -278,7 +286,7 @@ fn model_breakdown(params: &StatsParams, backend: Backend) -> ParameterizedQuery
     let source = winning_spans(backend);
     let (lookup, mut values) = token_lookup(params, backend);
     values.extend(window_values(params, backend));
-    let token_condition = token_dedup_condition(backend, &source);
+    let token_condition = token_dedup_condition(backend);
     let token_sum = match backend {
         Backend::Duckdb => "COALESCE(SUM(gen_ai_usage_total_tokens), 0)",
         Backend::Clickhouse => "sum(gen_ai_usage_total_tokens)",
@@ -344,7 +352,7 @@ fn token_trend(
     values.extend(lookup_values);
     values.extend(window_values(params, backend));
     let lookup_clause = optional_comma_clause(&lookup);
-    let token_condition = token_dedup_condition(backend, &source);
+    let token_condition = token_dedup_condition(backend);
     let sum = match backend {
         Backend::Duckdb => "COALESCE(SUM(gr.total_tokens), 0)::BIGINT",
         Backend::Clickhouse => "sum(gr.total_tokens)",
@@ -482,9 +490,21 @@ fn window_values(params: &StatsParams, backend: Backend) -> Vec<QueryValue> {
     ]
 }
 
+/// The CTE the token rule reads a span's peers from, with its values: on both backends, only the traces the
+/// window touches - the rule needs a span's whole trace, never the whole project.
 fn token_lookup(params: &StatsParams, backend: Backend) -> (String, Vec<QueryValue>) {
     match backend {
-        Backend::Duckdb => (String::new(), Vec::new()),
+        Backend::Duckdb => (
+            format!(
+                "token_peers AS MATERIALIZED ({})",
+                crate::analytics::tokens::duckdb_token_peers(&format!(
+                    "g.project_id = ? AND {} AND {}",
+                    timestamp_predicate("g.timestamp_start", ">=", backend),
+                    timestamp_predicate("g.timestamp_start", "<=", backend),
+                ))
+            ),
+            window_values(params, backend),
+        ),
         Backend::Clickhouse => (
             format!(
                 r#"dedup_lookup AS (
@@ -516,43 +536,9 @@ fn token_lookup(params: &StatsParams, backend: Backend) -> (String, Vec<QueryVal
     }
 }
 
-fn token_dedup_condition(backend: Backend, duck_source: &str) -> String {
+fn token_dedup_condition(backend: Backend) -> String {
     match backend {
-        Backend::Duckdb => format!(
-            r#"(
-    (g.observation_type = 'generation'
-     AND {tokenful}
-     AND NOT EXISTS (
-         SELECT 1 FROM {duck_source} c
-         WHERE c.parent_span_id = g.span_id
-           AND c.trace_id = g.trace_id
-           AND c.project_id = g.project_id
-           AND c.observation_type = 'generation'
-           AND {child_tokenful}
-     ))
-    OR
-    ((g.observation_type IS NULL OR g.observation_type != 'generation')
-     AND {tokenful}
-     AND NOT EXISTS (
-         SELECT 1 FROM {duck_source} gen
-         WHERE gen.trace_id = g.trace_id
-           AND gen.project_id = g.project_id
-           AND gen.observation_type = 'generation'
-           AND {generation_tokenful}
-     )
-     AND NOT EXISTS (
-         SELECT 1 FROM {duck_source} p
-         WHERE p.span_id = g.parent_span_id
-           AND p.trace_id = g.trace_id
-           AND p.project_id = g.project_id
-           AND {parent_tokenful}
-     ))
-)"#,
-            tokenful = tokenful("g"),
-            child_tokenful = tokenful("c"),
-            generation_tokenful = tokenful("gen"),
-            parent_tokenful = tokenful("p"),
-        ),
+        Backend::Duckdb => crate::analytics::tokens::duckdb_counted_span("token_peers"),
         Backend::Clickhouse => format!(
             r#"(
     (g.observation_type = 'generation'
@@ -574,18 +560,9 @@ fn token_dedup_condition(backend: Backend, duck_source: &str) -> String {
          SELECT trace_id, span_id FROM dedup_lookup
      )))
 )"#,
-            tokenful = tokenful("g"),
+            tokenful = crate::analytics::tokens::tokenful("g"),
         ),
     }
-}
-
-fn tokenful(alias: &str) -> String {
-    format!(
-        "(({alias}.gen_ai_usage_input_tokens + {alias}.gen_ai_usage_output_tokens \
-         + {alias}.gen_ai_usage_total_tokens + {alias}.gen_ai_usage_cache_read_tokens \
-         + {alias}.gen_ai_usage_cache_write_tokens + {alias}.gen_ai_usage_reasoning_tokens) > 0 \
-         OR {alias}.gen_ai_cost_total > 0)"
-    )
 }
 
 fn token_sums(backend: Backend) -> String {
@@ -837,8 +814,8 @@ mod tests {
                 .iter()
                 .filter(|value| matches!(value, QueryValue::String(value) if value.contains('T')))
                 .count(),
-            10,
-            "four hourly windows contribute start/end values before the two query-scope timestamps"
+            12,
+            "four hourly windows contribute start/end values, then the token peers' window and the query's"
         );
         assert!(!trend.sql().contains("2024-01-17"));
     }

@@ -1,6 +1,13 @@
 use super::render::*;
 use super::*;
 
+/// Whether [`trace_conditions`] selects whole traces: every condition it renders names traces
+/// (`trace_id IN ...`), except the time window, which names spans. With no window, every span of a selected trace
+/// is selected, so what is read from the selection describes the whole trace.
+pub(super) fn trace_conditions_select_whole_traces(params: &ListTracesParams) -> bool {
+    params.from_timestamp.is_none() && params.to_timestamp.is_none()
+}
+
 pub(super) fn trace_conditions(
     params: &ListTracesParams,
     alias: &str,
@@ -211,7 +218,8 @@ pub(super) fn trace_totals_context(
                 String::new(),
                 format!(
                     "LEFT JOIN ({}) gtf ON gtf.trace_id = n.trace_id",
-                    duckdb_gen_totals_sql(&scope)
+                    // The scope is a time window, which can cut a trace.
+                    duckdb_token_totals("g.trace_id", "", &scope, TokenPeers::OfSelectedTraces)
                 ),
                 values,
             )
@@ -241,83 +249,6 @@ pub(super) fn trace_totals_context(
             )
         }
     }
-}
-
-pub(super) fn duckdb_gen_totals_sql(where_clause: &str) -> String {
-    duckdb_gen_totals_joined_sql("g.trace_id", "", where_clause)
-}
-
-pub(super) fn duckdb_gen_totals_joined_sql(key: &str, join: &str, where_clause: &str) -> String {
-    let source = DuckdbAnalyticsDialect.span_page_relation();
-    let bare_key = key.rsplit('.').next().unwrap_or(key);
-    let join = if join.is_empty() {
-        String::new()
-    } else {
-        format!("\n        {join}")
-    };
-    format!(
-        r#"SELECT
-            {key} AS {bare_key},
-            COALESCE(SUM(gen_ai_usage_input_tokens), 0) AS input_tokens,
-            COALESCE(SUM(gen_ai_usage_output_tokens), 0) AS output_tokens,
-            COALESCE(SUM(gen_ai_usage_total_tokens), 0) AS total_tokens,
-            COALESCE(SUM(gen_ai_usage_cache_read_tokens), 0) AS cache_read_tokens,
-            COALESCE(SUM(gen_ai_usage_cache_write_tokens), 0) AS cache_write_tokens,
-            COALESCE(SUM(gen_ai_usage_reasoning_tokens), 0) AS reasoning_tokens,
-            COALESCE(SUM(gen_ai_cost_input), 0) AS input_cost,
-            COALESCE(SUM(gen_ai_cost_output), 0) AS output_cost,
-            COALESCE(SUM(gen_ai_cost_cache_read), 0) AS cache_read_cost,
-            COALESCE(SUM(gen_ai_cost_cache_write), 0) AS cache_write_cost,
-            COALESCE(SUM(gen_ai_cost_reasoning), 0) AS reasoning_cost,
-            COALESCE(SUM(gen_ai_cost_total), 0) AS total_cost
-        FROM {source} g{join}
-        WHERE {where_clause}
-          AND (
-              (g.observation_type = 'generation'
-               AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens
-                     + g.gen_ai_usage_total_tokens + g.gen_ai_usage_cache_read_tokens
-                     + g.gen_ai_usage_cache_write_tokens + g.gen_ai_usage_reasoning_tokens) > 0
-                    OR g.gen_ai_cost_total > 0)
-               AND NOT EXISTS (
-                   SELECT 1 FROM {source} c
-                   WHERE c.parent_span_id = g.span_id
-                     AND c.trace_id = g.trace_id
-                     AND c.project_id = g.project_id
-                     AND c.observation_type = 'generation'
-                     AND ((c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens
-                           + c.gen_ai_usage_total_tokens + c.gen_ai_usage_cache_read_tokens
-                           + c.gen_ai_usage_cache_write_tokens + c.gen_ai_usage_reasoning_tokens) > 0
-                          OR c.gen_ai_cost_total > 0)
-               ))
-              OR
-              ((g.observation_type IS NULL OR g.observation_type != 'generation')
-               AND ((g.gen_ai_usage_input_tokens + g.gen_ai_usage_output_tokens
-                     + g.gen_ai_usage_total_tokens + g.gen_ai_usage_cache_read_tokens
-                     + g.gen_ai_usage_cache_write_tokens + g.gen_ai_usage_reasoning_tokens) > 0
-                    OR g.gen_ai_cost_total > 0)
-               AND NOT EXISTS (
-                   SELECT 1 FROM {source} gen
-                   WHERE gen.trace_id = g.trace_id
-                     AND gen.project_id = g.project_id
-                     AND gen.observation_type = 'generation'
-                     AND ((gen.gen_ai_usage_input_tokens + gen.gen_ai_usage_output_tokens
-                           + gen.gen_ai_usage_total_tokens + gen.gen_ai_usage_cache_read_tokens
-                           + gen.gen_ai_usage_cache_write_tokens + gen.gen_ai_usage_reasoning_tokens) > 0
-                          OR gen.gen_ai_cost_total > 0)
-               )
-               AND NOT EXISTS (
-                   SELECT 1 FROM {source} p
-                   WHERE p.span_id = g.parent_span_id
-                     AND p.trace_id = g.trace_id
-                     AND p.project_id = g.project_id
-                     AND ((p.gen_ai_usage_input_tokens + p.gen_ai_usage_output_tokens
-                           + p.gen_ai_usage_total_tokens + p.gen_ai_usage_cache_read_tokens
-                           + p.gen_ai_usage_cache_write_tokens + p.gen_ai_usage_reasoning_tokens) > 0
-                          OR p.gen_ai_cost_total > 0)
-               ))
-          )
-        GROUP BY {key}"#
-    )
 }
 
 pub(super) fn clickhouse_dedup_lookup(extra_where: &str) -> String {
@@ -569,11 +500,68 @@ pub(super) fn duckdb_trace_page(params: &ListTracesParams) -> PageQuery {
     } else {
         "HAVING observation_count > 0 OR genai_span_count > 0".to_string()
     };
+    // A total is read for every trace in scope only when the page is sorted by it; otherwise for the page's
+    // traces alone, after it is chosen. Reading it for the whole project first made the token rule run over every
+    // trace of the project to show fifty.
+    let by_totals = matches!(sort_field, "total_cost" | "total_tokens");
+    // With no time window, `filtered_traces` reads every span of each trace it keeps, so all of a page trace's
+    // spans start between its earliest and latest start: a bound the reads after the page use to skip the table's
+    // other row groups by their zone maps, where joining on the trace ids alone read every one. And the token rule
+    // finds its peers among the spans it selected.
+    let whole_traces = trace_conditions_select_whole_traces(params);
+    let span_bound = |alias: &str| {
+        if whole_traces {
+            format!(
+                " AND {alias}.timestamp_start >= (SELECT MIN(min_ts) FROM filtered_traces) \
+                 AND {alias}.timestamp_start <= (SELECT MAX(max_start) FROM filtered_traces)"
+            )
+        } else {
+            String::new()
+        }
+    };
+    let peers = if whole_traces {
+        TokenPeers::Selected
+    } else {
+        TokenPeers::OfSelectedTraces
+    };
+    let (totals_before, total_columns, totals_join, totals_after, row_values) = if by_totals {
+        let mut values = values_g;
+        values.extend(values_sp);
+        (
+            format!(
+                "gen_totals AS (\n    {}\n),\n",
+                duckdb_token_totals("g.trace_id", "", &where_g, peers)
+            ),
+            "COALESCE(MAX(gt.total_cost), 0)::DOUBLE AS total_cost,\n        \
+             COALESCE(MAX(gt.total_tokens), 0) AS total_tokens,\n        ",
+            "\n    LEFT JOIN gen_totals gt ON sp.trace_id = gt.trace_id",
+            String::new(),
+            values,
+        )
+    } else {
+        let mut values = values_sp;
+        values.extend(values_g);
+        (
+            String::new(),
+            "",
+            "",
+            format!(
+                ",\ngen_totals AS (\n    {}\n)",
+                duckdb_token_totals(
+                    "g.trace_id",
+                    "",
+                    &format!(
+                        "{where_g} AND g.trace_id IN (SELECT trace_id FROM filtered_traces){}",
+                        span_bound("g")
+                    ),
+                    peers,
+                )
+            ),
+            values,
+        )
+    };
     let data_sql = format!(
-        r#"WITH gen_totals AS (
-    {gen_totals}
-),
-filtered_traces AS (
+        r#"WITH {totals_before}filtered_traces AS (
     SELECT
         sp.project_id,
         sp.trace_id,
@@ -581,32 +569,28 @@ filtered_traces AS (
         MAX(COALESCE(sp.timestamp_end, sp.timestamp_start)) AS max_ts,
         DATE_DIFF('millisecond', MIN(sp.timestamp_start),
                   MAX(COALESCE(sp.timestamp_end, sp.timestamp_start))) AS duration_ms,
-        COALESCE(MAX(gt.total_cost), 0)::DOUBLE AS total_cost,
-        COALESCE(MAX(gt.total_tokens), 0) AS total_tokens,
-        COUNT(*) FILTER (WHERE sp.observation_type != 'span') AS observation_count,
+        MAX(sp.timestamp_start) AS max_start,
+        {total_columns}COUNT(*) FILTER (WHERE sp.observation_type != 'span') AS observation_count,
         COUNT(*) FILTER (WHERE {genai_sp}) AS genai_span_count
-    FROM {source} sp
-    LEFT JOIN gen_totals gt ON sp.trace_id = gt.trace_id
+    FROM {source} sp{totals_join}
     WHERE {where_sp}
     GROUP BY sp.project_id, sp.trace_id
     {having}
     ORDER BY {sort_field} {sort_direction}, min_ts {sort_direction}, sp.trace_id ASC
     LIMIT {limit} OFFSET {offset}
-)
+){totals_after}
 SELECT
 {projection}
 FROM filtered_traces t
-JOIN {source} s ON t.project_id = s.project_id AND t.trace_id = s.trace_id
+JOIN {source} s ON t.project_id = s.project_id AND t.trace_id = s.trace_id{page_bound}
 LEFT JOIN gen_totals gt2 ON t.trace_id = gt2.trace_id
 GROUP BY t.trace_id, t.min_ts, t.{sort_field}
 ORDER BY t.{sort_field} {sort_direction}, t.min_ts {sort_direction}, t.trace_id ASC"#,
-        gen_totals = duckdb_gen_totals_sql(&where_g),
         genai_sp = crate::display::genai_span_predicate("sp"),
         limit = params.limit,
         projection = duckdb_trace_projection(),
+        page_bound = span_bound("s"),
     );
-    let mut row_values = values_g;
-    row_values.extend(values_sp);
 
     PageQuery {
         count: ParameterizedQuery {

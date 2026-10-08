@@ -1,15 +1,15 @@
 {
-  "api: list traces": 600,
-  "api: get trace": 150,
+  "api: list traces": 300,
+  "api: get trace": 100,
   "api: spans of a trace": 25,
   "api: get span": 25,
   "api: list spans": 200,
   "api: list spans of a trace": 60,
   "api: feed spans": 40,
   "api: span counts": 25,
-  "api: list sessions": 600,
-  "api: get session": 300,
-  "api: traces of a session": 300,
+  "api: list sessions": 350,
+  "api: get session": 150,
+  "api: traces of a session": 200,
   "api: messages of a session": 200,
   "api: trace ids of sessions": 100,
   "api: session ids of traces": 25,
@@ -17,7 +17,7 @@
   "api: span filter options": 40,
   "api: session filter options": 80,
   "api: trace tags": 25,
-  "api: project stats": 1000,
+  "api: project stats": 500,
   "api: messages of a trace": 150,
   "api: project message feed": 800,
   "api: search spans": 1000,
@@ -36,6 +36,6 @@
   "ingest: traces without spans": 25,
   "ingest: file reference fields": 25,
   "ingest: survivor raw records": 40,
-  "api: list sessions, the latest week": 500,
-  "api: list traces, the latest week": 300
+  "api: list sessions, the latest week": 250,
+  "api: list traces, the latest week": 200
 }
