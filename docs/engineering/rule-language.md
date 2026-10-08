@@ -1419,15 +1419,15 @@ A read-time projection decision for one producer-owned span shape.
 
 The row is recognised by a `where` over what a stored row says of its span - its name and its
 instrumentation scope, version included - and the condition must name the scope, so a producer rule cannot
-suppress a broad class of ordinary input-only spans. `only_attribute_source` means every extracted message
-must come from the named attribute; an empty message list never matches.
+suppress a broad class of ordinary input-only spans. `only_attribute_sources` means every extracted message
+must come from one of the named attributes; an empty message list never matches.
 
 | Key | Type | What it is |
 | --- | --- | --- |
 | `id` (required) | string | Stable clause id, reported by diagnostics. |
 | `doc` | string |  |
 | `where` (required) | [`Expr_SpanCondition`](#expr_spancondition) | The rows this applies to: their span name, `scope.name` and `scope.version`. It must require one instrumentation scope. |
-| `only_attribute_source` (required) | string | The attribute every extracted message of the row came from. |
+| `only_attribute_sources` (required) | list of string | The attributes every extracted message of the row came from: each message from one of them. Two or more where a request is split across carriers - its conversation in one, its system instructions in another. An empty list, an empty name and a name listed twice are refused. |
 | `successful_only` (required) | true or false | Only a row whose span succeeded: a failure may have no completed companion, so it stays visible. |
 | `action` (required) | [`MessageProjectionAction`](#messageprojectionaction) |  |
 

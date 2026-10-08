@@ -343,8 +343,8 @@ pub struct CarrierRule {
 ///
 /// The row is recognised by a `where` over what a stored row says of its span - its name and its
 /// instrumentation scope, version included - and the condition must name the scope, so a producer rule cannot
-/// suppress a broad class of ordinary input-only spans. `only_attribute_source` means every extracted message
-/// must come from the named attribute; an empty message list never matches.
+/// suppress a broad class of ordinary input-only spans. `only_attribute_sources` means every extracted message
+/// must come from one of the named attributes; an empty message list never matches.
 #[derive(Debug, Deserialize, Clone)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
@@ -357,8 +357,10 @@ pub struct MessageProjectionRule {
     /// instrumentation scope.
     #[serde(rename = "where")]
     pub condition: SpanWhere,
-    /// The attribute every extracted message of the row came from.
-    pub only_attribute_source: String,
+    /// The attributes every extracted message of the row came from: each message from one of them. Two or
+    /// more where a request is split across carriers - its conversation in one, its system instructions in
+    /// another. An empty list, an empty name and a name listed twice are refused.
+    pub only_attribute_sources: Vec<String>,
     /// Only a row whose span succeeded: a failure may have no completed companion, so it stays visible.
     pub successful_only: bool,
     pub action: MessageProjectionAction,

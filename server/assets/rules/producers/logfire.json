@@ -332,7 +332,9 @@
           {"source": "span_name", "starts_with": "Chat Completion with "}
         ]
       },
-      "only_attribute_source": "gen_ai.input.messages",
+      "only_attribute_sources": [
+        "gen_ai.input.messages"
+      ],
       "successful_only": true,
       "action": "suppress_messages"
     }

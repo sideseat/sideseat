@@ -29,7 +29,7 @@ pub struct MessageProjectionPlan {
 #[derive(Debug)]
 struct CompiledProjection {
     condition: SpanExpr,
-    only_attribute_source: String,
+    only_attribute_sources: Vec<String>,
     successful_only: bool,
     action: MessageProjectionAction,
 }
@@ -51,12 +51,31 @@ impl MessageProjectionPlan {
                         ),
                     ));
                 }
-                if rule.id.is_empty() || rule.only_attribute_source.is_empty() {
+                if rule.id.is_empty()
+                    || rule.only_attribute_sources.is_empty()
+                    || rule.only_attribute_sources.iter().any(String::is_empty)
+                {
                     return Err(ClauseDefect::new(
                         &[&rule.id],
                         Some(&file.id),
                         format!(
-                            "message projection clause `{}` contains an empty identifier or attribute source",
+                            "message projection clause `{}` contains an empty identifier, an empty attribute source \
+                             or no attribute source at all - which no message comes from, so it would match nothing",
+                            rule.id
+                        ),
+                    ));
+                }
+                let mut sources = BTreeSet::new();
+                if !rule
+                    .only_attribute_sources
+                    .iter()
+                    .all(|source| sources.insert(source.as_str()))
+                {
+                    return Err(ClauseDefect::new(
+                        &[&rule.id],
+                        Some(&file.id),
+                        format!(
+                            "message projection clause `{}` names one attribute source twice",
                             rule.id
                         ),
                     ));
@@ -82,7 +101,7 @@ impl MessageProjectionPlan {
                 }
                 rules.push(CompiledProjection {
                     condition,
-                    only_attribute_source: rule.only_attribute_source.clone(),
+                    only_attribute_sources: rule.only_attribute_sources.clone(),
                     successful_only: rule.successful_only,
                     action: rule.action,
                 });
@@ -110,7 +129,8 @@ impl MessageProjectionPlan {
                 && context.messages.iter().all(|message| {
                     matches!(
                         &message.source,
-                        MessageSource::Attribute { key, .. } if key == &rule.only_attribute_source
+                        MessageSource::Attribute { key, .. }
+                            if rule.only_attribute_sources.iter().any(|source| source == key)
                     )
                 });
             span_conditions::holds(&rule.condition, &subject)
@@ -147,6 +167,63 @@ fn version_major(version: &str) -> Option<u64> {
 mod tests {
     use super::*;
 
+    /// A projection names the attributes a row's messages may come from: every message from one of them. A
+    /// row with a message from any other attribute is not this shape, and an empty list, an empty name or a
+    /// repeated one is refused.
+    #[test]
+    fn a_projection_suppresses_a_row_only_when_every_message_comes_from_a_named_attribute() {
+        let compiled = |sources: serde_json::Value| {
+            let file: RuleFile = serde_json::from_value(serde_json::json!({
+                "id": "probe",
+                "message_projections": [{
+                    "id": "probe.projection",
+                    "where": {"source": "scope.name", "equals": "probe.scope"},
+                    "only_attribute_sources": sources,
+                    "successful_only": false,
+                    "action": "suppress_messages"
+                }]
+            }))
+            .expect("the probe asset parses");
+            MessageProjectionPlan::compile(&[file])
+        };
+        let plan = compiled(serde_json::json!(["probe.messages", "probe.instructions"]))
+            .expect("two attribute sources compile");
+        let message = |key: &str| RawMessage {
+            source: MessageSource::Attribute {
+                key: key.to_string(),
+                time: chrono::Utc::now(),
+            },
+            content: serde_json::json!({"role": "user", "content": "q"}),
+            rendering: false,
+        };
+        let suppressed = |messages: &[RawMessage]| {
+            plan.suppresses_messages(&MessageProjectionContext {
+                scope_name: Some("probe.scope"),
+                scope_version: None,
+                span_name: None,
+                successful: true,
+                messages,
+            })
+        };
+        assert!(suppressed(&[message("probe.messages")]));
+        assert!(suppressed(&[
+            message("probe.messages"),
+            message("probe.instructions")
+        ]));
+        assert!(
+            !suppressed(&[message("probe.messages"), message("probe.other")]),
+            "a message from an attribute not named keeps the row"
+        );
+        assert!(!suppressed(&[]), "an empty message list never matches");
+        for sources in [
+            serde_json::json!([]),
+            serde_json::json!([""]),
+            serde_json::json!(["probe.messages", "probe.messages"]),
+        ] {
+            assert!(compiled(sources.clone()).is_err(), "{sources}");
+        }
+    }
+
     /// A scope requirement counts at any depth of conjunction, and only there: a nested `all` holding the scope
     /// test cannot hold without it, while an `any` or a `not` can hold for a row of a scope it never names.
     #[test]
@@ -157,7 +234,7 @@ mod tests {
                 "message_projections": [{
                     "id": "probe.projection",
                     "where": condition,
-                    "only_attribute_source": "probe.messages",
+                    "only_attribute_sources": ["probe.messages"],
                     "successful_only": true,
                     "action": "suppress_messages"
                 }]
