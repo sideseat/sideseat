@@ -35,5 +35,7 @@
   "ingest: raw records named": 25,
   "ingest: traces without spans": 25,
   "ingest: file reference fields": 25,
-  "ingest: survivor raw records": 40
+  "ingest: survivor raw records": 40,
+  "api: list sessions, the latest week": 500,
+  "api: list traces, the latest week": 300
 }

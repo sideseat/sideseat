@@ -3,9 +3,10 @@
 //!
 //! Each replica remaps every identity a read keys on - trace, span, parent, session, raw record, log digest,
 //! datapoint - by hashing it with the replica's number, so lookups stay as selective as in a store that grew
-//! from real traffic, and shifts every instant by the replica's number of hours, so a replica's rows are
-//! appended together with their own time range, the way a store grows. Columns a store does not have are
-//! skipped, and any column not named keeps its value.
+//! from real traffic, and shifts every instant past the time range of the replica before it, so the store grows
+//! the way a store does: each replica appended after the last, its rows later than everything before them, so a
+//! read bounded in time finds them where the zone maps say. Columns a store does not have are skipped, and any
+//! column not named keeps its value.
 
 use crate::DuckdbService;
 
@@ -21,7 +22,7 @@ fn session(column: &str) -> String {
 }
 
 fn shifted(column: &str) -> String {
-    format!("{column} + to_hours(r.k)")
+    format!("{column} + to_hours(r.shift)")
 }
 
 /// The columns each table's replicas rewrite, with what they are rewritten to.
@@ -126,6 +127,19 @@ pub(crate) fn replicate_to(service: &DuckdbService, spans: u64) -> u64 {
             row.get(0)
         })
         .expect("memory limit");
+    // Whole hours past the store's whole time range, so replica k lies entirely after replica k - 1.
+    let width_hours: i64 = service
+        .conn()
+        .query_row(
+            "SELECT ceil(epoch(max(t) - min(t)) / 3600)::BIGINT + 1 FROM (\
+               SELECT timestamp_start AS t FROM otel_spans UNION ALL SELECT ingested_at FROM otel_spans \
+               UNION ALL SELECT \"timestamp\" FROM otel_logs UNION ALL SELECT ingested_at FROM otel_logs \
+               UNION ALL SELECT \"timestamp\" FROM otel_metrics UNION ALL SELECT ingested_at FROM otel_metrics \
+               UNION ALL SELECT received_at FROM otel_raw)",
+            [],
+            |row| row.get(0),
+        )
+        .expect("the store's time range");
     let mut sql = "SET memory_limit = '4GB';\n".to_string();
     for (table, columns) in rewrites() {
         let rewritten = columns
@@ -136,7 +150,7 @@ pub(crate) fn replicate_to(service: &DuckdbService, spans: u64) -> u64 {
             .join(", ");
         sql.push_str(&format!(
             "INSERT INTO {table} SELECT t.* REPLACE ({rewritten}) FROM {table} t, \
-             (SELECT range AS k FROM range(1, {copies})) r ORDER BY r.k;\n"
+             (SELECT range AS k, range * {width_hours} AS shift FROM range(1, {copies})) r ORDER BY r.k;\n"
         ));
     }
     sql.push_str(&format!(

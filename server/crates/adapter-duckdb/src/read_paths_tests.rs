@@ -447,6 +447,41 @@ async fn read_paths() {
             timezone: chrono_tz::UTC,
         })
     );
+    let session_latest_us: i64 = one(
+        &service.conn(),
+        &format!(
+            "SELECT epoch_us(max(timestamp_start)) FROM otel_spans WHERE project_id = '{}'",
+            session_project
+        ),
+    )
+    .unwrap_or_default();
+    let session_latest = chrono::DateTime::from_timestamp_micros(session_latest_us).unwrap_or(now);
+    measure!(
+        rows,
+        &profile,
+        "api: list sessions, the latest week",
+        repo.list_sessions(&ListSessionsParams {
+            project_id: session_project.clone(),
+            page: 1,
+            limit: 50,
+            from_timestamp: Some(session_latest - TimeDelta::days(7)),
+            to_timestamp: Some(session_latest),
+            ..Default::default()
+        })
+    );
+    measure!(
+        rows,
+        &profile,
+        "api: list traces, the latest week",
+        repo.list_traces(&ListTracesParams {
+            project_id: project.clone(),
+            page: 1,
+            limit: 50,
+            from_timestamp: Some(latest - TimeDelta::days(7)),
+            to_timestamp: Some(latest),
+            ..Default::default()
+        })
+    );
     measure!(
         rows,
         &profile,
