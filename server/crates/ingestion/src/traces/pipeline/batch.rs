@@ -522,8 +522,8 @@ impl TracePipeline {
 
         // Captured before the write consumes the spans: the compensating re-check below needs to know
         // exactly what was written, and only those rows may be removed.
-        let written_slots: Vec<usize> = all_db_spans.iter().map(|s| s.batch_slot).collect();
-        let written: Vec<(String, String, String)> = all_db_spans
+        let mut written_slots: Vec<usize> = all_db_spans.iter().map(|s| s.batch_slot).collect();
+        let mut written: Vec<(String, String, String)> = all_db_spans
             .iter()
             .map(|s| {
                 (
@@ -536,7 +536,37 @@ impl TracePipeline {
                 )
             })
             .collect();
-        let db_ok = write_to_duckdb(all_db_spans, self.analytics.as_ref()).await;
+        let committed = write_to_duckdb(all_db_spans, self.analytics.as_ref()).await;
+        let db_ok = !committed.is_empty();
+        // A partial write: some projects' rows committed and the rest did not. The ones that did are carried on
+        // - their rows are readable, so their associations and records stay theirs - while the rest are undone
+        // and their exports refused, so a retry writes them again. "Did not" is the backend's verdict, and a
+        // failed ClickHouse insert can still have landed rows; releasing those associations is safe only because
+        // the refusal makes the exporter retry, and the retry associates and confirms them again.
+        let mut failed_slots: HashSet<usize> = HashSet::new();
+        if db_ok
+            && written
+                .iter()
+                .any(|(project, _, _)| !committed.contains(project))
+        {
+            let (orphaned, kept): (Vec<_>, Vec<_>) = created_associations
+                .drain(..)
+                .partition(|(project, _, _)| !committed.contains(project));
+            created_associations = kept;
+            self.release_created_associations(&orphaned).await;
+            for ((project, _, _), slot) in written.iter().zip(&written_slots) {
+                if !committed.contains(project) {
+                    failed_slots.insert(*slot);
+                }
+            }
+            let keep: Vec<bool> = written
+                .iter()
+                .map(|(project, _, _)| committed.contains(project))
+                .collect();
+            let mut keep_iter = keep.iter();
+            written_slots.retain(|_| *keep_iter.next().unwrap_or(&false));
+            written.retain(|(project, _, _)| committed.contains(project));
+        }
 
         let t_persist_done = std::time::Instant::now();
 
@@ -644,7 +674,14 @@ impl TracePipeline {
             "Pipeline batch completed"
         );
 
-        if db_ok { ledger.outcomes() } else { failed() }
+        if !db_ok {
+            return failed();
+        }
+        let mut outcomes = ledger.outcomes();
+        for slot in failed_slots {
+            outcomes[slot] = IngestOutcome::Failed;
+        }
+        outcomes
     }
 }
 

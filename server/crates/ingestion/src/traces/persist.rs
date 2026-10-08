@@ -34,9 +34,7 @@ use sideseat_core::constants::{
     DEFAULT_PROJECT_ID, FILE_HASH_ALGORITHM, FILES_MAX_CONCURRENT_FINALIZATION,
 };
 use sideseat_core::utils::file_uri::is_valid_file_hash;
-use sideseat_core::utils::retry::{
-    DEFAULT_BASE_DELAY_MS, DEFAULT_MAX_ATTEMPTS, retry_with_backoff_async,
-};
+use sideseat_core::utils::retry::{DEFAULT_BASE_DELAY_MS, DEFAULT_MAX_ATTEMPTS};
 use sideseat_core::utils::time::nanos_to_iso;
 use sideseat_domain::files::{FileService, collect_file_references_in_str};
 use sideseat_messaging::TopicService;
@@ -805,40 +803,65 @@ async fn write_and_record_files(
 /// Each attempt clones spans (insert_spans consumes ownership for spawn_blocking).
 /// With pre-serialized String fields, clone cost is ~microseconds of memcpy, negligible
 /// compared to the DuckDB write which takes milliseconds-to-seconds.
+/// Write spans, and return the projects whose rows committed - all of them, some, or none.
+///
+/// A backend that writes projects separately can commit some before failing another
+/// (`DataError::PartiallyWritten`); a retry then sends only the projects that did not commit, so a committed
+/// project is neither written twice nor reported as failed - its rows are readable, and the caller keeps the
+/// bookkeeping they need. An atomic backend returns every project or none.
 pub(super) async fn write_to_duckdb(
     spans: Vec<NormalizedSpan>,
     repo: &(dyn AnalyticsRepository + Send + Sync),
-) -> bool {
+) -> HashSet<String> {
+    let project_of = |span: &NormalizedSpan| {
+        span.project_id
+            .clone()
+            .unwrap_or_else(|| sideseat_core::constants::DEFAULT_PROJECT_ID.to_string())
+    };
     let span_count = spans.len();
-
-    let result = retry_with_backoff_async(DEFAULT_MAX_ATTEMPTS, DEFAULT_BASE_DELAY_MS, || {
-        repo.insert_spans(spans.clone())
-    })
-    .await;
-
-    match result {
-        Ok(attempts) => {
-            if attempts > 1 {
+    let mut committed: HashSet<String> = HashSet::new();
+    let mut remaining = spans;
+    for attempt in 1..=DEFAULT_MAX_ATTEMPTS {
+        match repo.insert_spans(remaining.clone()).await {
+            Ok(()) => {
+                committed.extend(remaining.iter().map(project_of));
                 tracing::trace!(
                     spans = span_count,
-                    attempts,
-                    "Wrote traces to analytics backend after retry"
+                    attempt,
+                    "Wrote traces to analytics backend"
                 );
-            } else {
-                tracing::trace!(spans = span_count, "Wrote traces to analytics backend");
+                return committed;
             }
-            true
+            Err(sideseat_ports::error::DataError::PartiallyWritten {
+                committed_projects,
+                source,
+            }) => {
+                tracing::warn!(
+                    error = %source,
+                    committed = committed_projects.len(),
+                    attempt,
+                    "Some projects' spans committed before the write failed; retrying the rest"
+                );
+                committed.extend(committed_projects);
+                remaining.retain(|span| !committed.contains(&project_of(span)));
+            }
+            Err(error) => {
+                tracing::warn!(%error, attempt, "Failed to write spans to analytics backend")
+            }
         }
-        Err((e, attempts)) => {
-            tracing::error!(
-                error = %e,
-                spans = span_count,
-                attempts,
-                "Failed to write spans to analytics backend after retries"
-            );
-            false
+        if attempt < DEFAULT_MAX_ATTEMPTS {
+            tokio::time::sleep(std::time::Duration::from_millis(
+                DEFAULT_BASE_DELAY_MS * 2_u64.pow(attempt - 1),
+            ))
+            .await;
         }
     }
+    tracing::error!(
+        spans = remaining.len(),
+        attempts = DEFAULT_MAX_ATTEMPTS,
+        "Failed to write spans to analytics backend after retries"
+    );
+    committed
 }
 
 // ============================================================================

@@ -180,11 +180,23 @@ impl SpanStore for ClickhouseRepository {
                 .or_default()
                 .push(span);
         }
+        // One insert per tenant, so a later tenant can fail after an earlier one committed. The caller is told
+        // which committed: their rows are readable, and undoing their bookkeeping would orphan what they name.
+        let mut committed = Vec::new();
         for (project_id, spans) in by_project {
             let client = self.0.tenant_client_str(&project_id);
-            span::insert_batch(&client, &table, &spans)
-                .await
-                .map_err(DataError::from)?;
+            if let Err(error) = span::insert_batch(&client, &table, &spans).await {
+                let error = DataError::from(error);
+                return Err(if committed.is_empty() {
+                    error
+                } else {
+                    DataError::PartiallyWritten {
+                        committed_projects: committed,
+                        source: Box::new(error),
+                    }
+                });
+            }
+            committed.push(project_id);
         }
         Ok(())
     }

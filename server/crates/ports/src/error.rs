@@ -112,6 +112,19 @@ pub enum DataError {
     /// Conflict error (e.g., limit reached, duplicate entry)
     #[error("Conflict: {0}")]
     Conflict(String),
+
+    /// A write spanning several projects committed some of them before it failed.
+    ///
+    /// A backend that writes projects separately - ClickHouse writes each tenant's rows in its own insert - can
+    /// commit one project and then fail another. Reporting that as a plain failure made the caller undo the
+    /// committed project's bookkeeping too, releasing file associations its readable rows still need. A backend
+    /// that writes the batch atomically never returns this.
+    #[error("Partially written ({} projects committed): {source}", committed_projects.len())]
+    PartiallyWritten {
+        committed_projects: Vec<String>,
+        #[source]
+        source: Box<DataError>,
+    },
 }
 
 impl DataError {
@@ -207,6 +220,7 @@ impl DataError {
             Self::Timeout { backend, .. } => backend,
             Self::PoolExhausted { backend } => backend,
             Self::BackendUnavailable { backend, .. } => backend,
+            Self::PartiallyWritten { source, .. } => source.backend(),
             Self::Config(_) | Self::Io(_) | Self::NotImplemented(_) | Self::Conflict(_) => {
                 "unknown"
             }
