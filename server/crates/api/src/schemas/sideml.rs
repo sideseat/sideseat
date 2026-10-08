@@ -82,9 +82,11 @@ pub enum ContentBlock {
     Json {
         data: Value,
     },
+    /// `signed` is present, and true, where the reasoning carries a signature. The signature itself is not
+    /// served: the raw telemetry keeps it.
     Thinking {
         text: String,
-        signature: Option<String>,
+        signed: Option<bool>,
     },
     RedactedThinking {
         data: String,

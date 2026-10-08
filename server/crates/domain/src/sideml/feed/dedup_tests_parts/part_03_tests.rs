@@ -285,3 +285,37 @@ fn a_reply_takes_no_finish_from_the_request_that_preceded_it() {
     assert_eq!(lineage, vec![None, Some(0)]);
     assert_eq!(survivors[0].finish_reason, None);
 }
+
+/// Two turns of withheld reasoning are two blocks, though both texts are empty: only their signatures, which
+/// no view serialises, tell them apart. Two copies of one turn - a response and the next request re-sending
+/// it - are one. The same holds for visible reasoning thought twice in the same words.
+#[test]
+fn reasoning_is_told_apart_by_its_signature() {
+    let thinking = |span: &str, text: &str, signature: &str, at: i64| {
+        let mut block = make_test_block("t1", span, ChatRole::Assistant, "", utc(at));
+        block.entry_type = "thinking".to_string();
+        block.content = ContentBlock::Thinking {
+            text: text.to_string(),
+            signature: Some(signature.to_string()),
+        };
+        block
+    };
+    for text in ["", "Check the forecast first."] {
+        let mut resent = thinking("s3", text, "sig-a", 300);
+        resent.is_history = true;
+        let blocks = vec![
+            thinking("s1", text, "sig-a", 100),
+            thinking("s2", text, "sig-b", 200),
+            resent,
+        ];
+        let result = process_dedup(blocks, HashMap::new());
+        let signatures: Vec<Option<&str>> = result
+            .iter()
+            .map(|b| match &b.content {
+                ContentBlock::Thinking { signature, .. } => signature.as_deref(),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(signatures, [Some("sig-a"), Some("sig-b")], "text {text:?}");
+    }
+}

@@ -56,6 +56,9 @@ pub(super) fn prove(fact: &Fact, haystack: &Haystack) -> Proof {
         ));
     }
     match fact.kind.as_str() {
+        "reasoning" if fact.require.as_ref().is_some_and(|r| r.matcher == "signed") => {
+            prove_reasoning_part(haystack)
+        }
         "text" | "system" | "user_text" | "reasoning" => prove_text(fact.text(), haystack),
         "tool_call" => prove_tool_call(&fact.value, haystack),
         "tool_result" => prove_tool_result(&fact.value, haystack),
@@ -575,6 +578,44 @@ fn prove_metadata(field: &str, values: &[String], haystack: &Haystack) -> Proof 
 fn names_reasoning(text: &str) -> bool {
     let text = text.to_ascii_lowercase();
     text.contains("reason") || text.contains("think") || text.contains("thought")
+}
+
+/// Withheld reasoning has no text to search for, only its part: present where a payload holds one - a JSON
+/// object typed as reasoning, or one carrying an opaque signature (`signature`, `thoughtSignature`) - or a
+/// flattened attribute types a part as reasoning. Where no payload does, nothing tells a producer that
+/// dropped the part from one that never had it, so the absence is unprovable rather than proven.
+///
+/// A member merely named for reasoning is not a part: `thinking: {type: enabled, budget_tokens}` is a
+/// request's configuration. Nor is any signature: a tool's `(city: str)` is not an opaque token.
+fn prove_reasoning_part(haystack: &Haystack) -> Proof {
+    let opaque = |text: &str| {
+        text.len() >= 32
+            && text
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'/' | b'=' | b'-' | b'_'))
+    };
+    let part = |node: &Value| {
+        node.as_object().is_some_and(|map| {
+            map.iter().any(|(key, value)| {
+                (key == "type" && value.as_str().is_some_and(names_reasoning))
+                    || (key.to_ascii_lowercase().ends_with("signature")
+                        && value.as_str().is_some_and(opaque))
+            })
+        })
+    };
+    for carrier in &haystack.carriers {
+        if let Some(at) = find_node(carrier, part) {
+            return Proof::Present(format!("{at} holds a reasoning part"));
+        }
+        if let Some((at, _)) = carrier
+            .strings
+            .iter()
+            .find(|(at, kind)| at.ends_with(".type") && names_reasoning(kind))
+        {
+            return Proof::Present(format!("{at} types a part as reasoning"));
+        }
+    }
+    Proof::Unprovable("no payload carries a reasoning part".to_string())
 }
 
 /// Reasoning exported as text: the text is somewhere (else it is a missing fact, not a mislabelled one),

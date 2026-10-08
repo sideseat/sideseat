@@ -725,7 +725,7 @@ mod tests {
 /// The **unbounded** ones cannot be: `span_name`, `scope_name`, `scope_version` and `position` are marked
 /// `#[serde(skip)]` and are as long as a producer makes them, so a flat charge left two blocks carrying 40 MiB
 /// span names weighing about a kilobyte between them while retaining 80 MiB - a ceiling that is not a ceiling.
-/// They are measured directly.
+/// They are measured directly, as is a thinking block's signature, which a view states only as `signed`.
 ///
 /// A serialisation failure weighs the entry at the maximum rather than at nothing. `FeedResult` serialises
 /// infallibly today, and a weigher that answered zero on an error would let a value that cannot be measured
@@ -771,7 +771,7 @@ fn weight_of(result: &FeedResult) -> u32 {
             let names = block.span_name.as_ref().map_or(0, String::len)
                 + block.scope_name.as_ref().map_or(0, String::len)
                 + block.scope_version.as_ref().map_or(0, String::len);
-            (names + block.position.approximate_bytes()) as u64
+            (names + block.position.approximate_bytes() + block.content.unserialised_bytes()) as u64
         })
         .sum();
 
@@ -837,6 +837,28 @@ mod weight_tests {
         assert!(
             heavy_weight as u64 >= plain_weight as u64 + 1024 * 1024,
             "a 1 MiB span name must be charged: {plain_weight} vs {heavy_weight}"
+        );
+    }
+
+    /// A thinking block's signature is held for identity and never serialised, so it is measured too.
+    #[test]
+    fn an_unserialised_signature_is_charged() {
+        let thinking = |signature: String| {
+            let mut block = block_with_span_name(None);
+            block.content = crate::sideml::types::ContentBlock::Thinking {
+                text: String::new(),
+                signature: Some(signature),
+            };
+            FeedResult {
+                messages: vec![block],
+                ..FeedResult::default()
+            }
+        };
+        let short = weight_of(&thinking(String::new())) as u64;
+        let long = weight_of(&thinking("s".repeat(1024 * 1024))) as u64;
+        assert!(
+            long >= short + 1024 * 1024,
+            "a 1 MiB signature must be charged: {short} vs {long}"
         );
     }
 

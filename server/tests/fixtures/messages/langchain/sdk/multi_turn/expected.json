@@ -35,9 +35,9 @@
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSvQQKEggSEAEYAjgBQgh0aGlua2luZxIM09KFNAzy5OPkFjxNGgzH4mBj5BVlDc7FcikiMJsI0ipyN2iFRAXSgYgX/b2GeFMcHBerZMEJLtCdqSntnsEkPWUu4so2Ev7f9xSeTirYA8c2jsknwO+z9hC0m6jE6tSlOMJw1S4wCE0FQko0NE9Be/+tKLQvKnyZ4UFb/uF7…[814 chars]",
-          "content_digest": "04eac58f69442e50",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
           "observation_type": "generation"
         },
         {
@@ -82,9 +82,9 @@
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSvQQKEggSEAEYAjgBQgh0aGlua2luZxIM09KFNAzy5OPkFjxNGgzH4mBj5BVlDc7FcikiMJsI0ipyN2iFRAXSgYgX/b2GeFMcHBerZMEJLtCdqSntnsEkPWUu4so2Ev7f9xSeTirYA8c2jsknwO+z9hC0m6jE6tSlOMJw1S4wCE0FQko0NE9Be/+tKLQvKnyZ4UFb/uF7…[814 chars]",
-          "content_digest": "04eac58f69442e50",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
           "observation_type": "generation"
         },
         {
@@ -147,9 +147,9 @@
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSvQQKEggSEAEYAjgBQgh0aGlua2luZxIM09KFNAzy5OPkFjxNGgzH4mBj5BVlDc7FcikiMJsI0ipyN2iFRAXSgYgX/b2GeFMcHBerZMEJLtCdqSntnsEkPWUu4so2Ev7f9xSeTirYA8c2jsknwO+z9hC0m6jE6tSlOMJw1S4wCE0FQko0NE9Be/+tKLQvKnyZ4UFb/uF7…[814 chars]",
-          "content_digest": "04eac58f69442e50",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
           "observation_type": "generation"
         },
         {
@@ -237,9 +237,9 @@
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSvQQKEggSEAEYAjgBQgh0aGlua2luZxIM09KFNAzy5OPkFjxNGgzH4mBj5BVlDc7FcikiMJsI0ipyN2iFRAXSgYgX/b2GeFMcHBerZMEJLtCdqSntnsEkPWUu4so2Ev7f9xSeTirYA8c2jsknwO+z9hC0m6jE6tSlOMJw1S4wCE0FQko0NE9Be/+tKLQvKnyZ4UFb/uF7…[814 chars]",
-          "content_digest": "04eac58f69442e50",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
           "observation_type": "generation"
         },
         {
@@ -320,9 +320,9 @@
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSvQQKEggSEAEYAjgBQgh0aGlua2luZxIM09KFNAzy5OPkFjxNGgzH4mBj5BVlDc7FcikiMJsI0ipyN2iFRAXSgYgX/b2GeFMcHBerZMEJLtCdqSntnsEkPWUu4so2Ev7f9xSeTirYA8c2jsknwO+z9hC0m6jE6tSlOMJw1S4wCE0FQko0NE9Be/+tKLQvKnyZ4UFb/uF7…[814 chars]",
-          "content_digest": "04eac58f69442e50",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
           "observation_type": "generation"
         },
         {
@@ -434,9 +434,9 @@
       {
         "index": 6,
         "role": "assistant",
-        "entry_type": "redacted_thinking",
-        "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSvQQKEggSEAEYAjgBQgh0aGlua2luZxIM09KFNAzy5OPkFjxNGgzH4mBj5BVlDc7FcikiMJsI0ipyN2iFRAXSgYgX/b2GeFMcHBerZMEJLtCdqSntnsEkPWUu4so2Ev7f9xSeTirYA8c2jsknwO+z9hC0m6jE6tSlOMJw1S4wCE0FQko0NE9Be/+tKLQvKnyZ4UFb/uF7…[814 chars]",
-        "content_digest": "04eac58f69442e50",
+        "entry_type": "thinking",
+        "content": "",
+        "content_digest": "3ca100066bbf569b",
         "observation_type": "generation"
       },
       {

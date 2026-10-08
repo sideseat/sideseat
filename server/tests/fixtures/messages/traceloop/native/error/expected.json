@@ -111,9 +111,9 @@
         {
           "index": 4,
           "role": "assistant",
-          "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQS7QQKEggSEAEYAjgBQgh0aGlua2luZxIM3RZoQSgj0RjZt7JkGgxLNTJt6y0GznN8kXYiMAinuQuVQBFyzoqJAP+MSwrZ9GTNK8tvcTfcqprdYTs21M8OfiyewUfTSwvd1zBMwCqIBAV5vrogaNP3j6K8Edtktk/NPKFvhCi9tigugkqtIRkiua9Nv2vffNYL585tYnZ5…[878 chars]",
-          "content_digest": "8e736feb0b9d9213",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -194,9 +194,9 @@
         {
           "index": 4,
           "role": "assistant",
-          "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQS7QQKEggSEAEYAjgBQgh0aGlua2luZxIM3RZoQSgj0RjZt7JkGgxLNTJt6y0GznN8kXYiMAinuQuVQBFyzoqJAP+MSwrZ9GTNK8tvcTfcqprdYTs21M8OfiyewUfTSwvd1zBMwCqIBAV5vrogaNP3j6K8Edtktk/NPKFvhCi9tigugkqtIRkiua9Nv2vffNYL585tYnZ5…[878 chars]",
-          "content_digest": "8e736feb0b9d9213",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -263,9 +263,9 @@
         {
           "index": 4,
           "role": "assistant",
-          "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQS7QQKEggSEAEYAjgBQgh0aGlua2luZxIM3RZoQSgj0RjZt7JkGgxLNTJt6y0GznN8kXYiMAinuQuVQBFyzoqJAP+MSwrZ9GTNK8tvcTfcqprdYTs21M8OfiyewUfTSwvd1zBMwCqIBAV5vrogaNP3j6K8Edtktk/NPKFvhCi9tigugkqtIRkiua9Nv2vffNYL585tYnZ5…[878 chars]",
-          "content_digest": "8e736feb0b9d9213",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -297,9 +297,9 @@
       {
         "index": 0,
         "role": "assistant",
-        "entry_type": "redacted_thinking",
-        "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQS7QQKEggSEAEYAjgBQgh0aGlua2luZxIM3RZoQSgj0RjZt7JkGgxLNTJt6y0GznN8kXYiMAinuQuVQBFyzoqJAP+MSwrZ9GTNK8tvcTfcqprdYTs21M8OfiyewUfTSwvd1zBMwCqIBAV5vrogaNP3j6K8Edtktk/NPKFvhCi9tigugkqtIRkiua9Nv2vffNYL585tYnZ5…[878 chars]",
-        "content_digest": "8e736feb0b9d9213",
+        "entry_type": "thinking",
+        "content": "",
+        "content_digest": "3ca100066bbf569b",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },

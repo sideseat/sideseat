@@ -84,7 +84,6 @@ pub fn normalize_content(content: Option<&JsonValue>) -> JsonValue {
             let blocks: Vec<JsonValue> = spliced
                 .into_iter()
                 .filter_map(normalize_content_block)
-                .map(withheld_thinking_as_redacted)
                 .filter(is_renderable_block)
                 .collect();
             json!(blocks)
@@ -97,7 +96,7 @@ pub fn normalize_content(content: Option<&JsonValue>) -> JsonValue {
             if let Some(members) = crate::rules::ruleset().content_blocks.splice(obj) {
                 return normalize_content(Some(&JsonValue::Array(members.clone())));
             }
-            match normalize_content_block(obj).map(withheld_thinking_as_redacted) {
+            match normalize_content_block(obj) {
                 Some(block) if is_renderable_block(&block) => json!([block]),
                 _ => json!([]),
             }
@@ -118,28 +117,6 @@ fn splice_into<'b>(blocks: impl Iterator<Item = &'b JsonValue>, out: &mut Vec<&'
             Some(members) => splice_into(members.iter(), out),
             None => out.push(block),
         }
-    }
-}
-
-/// A `thinking` block whose text was withheld but whose signature survived, as `redacted_thinking`.
-///
-/// Current Claude models think by default and omit the reasoning text unless the caller asks for a
-/// summary, returning only the signature a later request replays. As a `thinking` block that renders
-/// as an empty reasoning bubble, indistinguishable from a parsing failure. It is hidden reasoning, which
-/// is exactly what `redacted_thinking` means; the signature becomes its opaque payload.
-fn withheld_thinking_as_redacted(block: JsonValue) -> JsonValue {
-    let is_withheld = block.get("type").and_then(JsonValue::as_str) == Some("thinking")
-        && block
-            .get("text")
-            .and_then(JsonValue::as_str)
-            .is_none_or(|text| text.trim().is_empty());
-    let signature = block
-        .get("signature")
-        .and_then(JsonValue::as_str)
-        .filter(|signature| !signature.trim().is_empty());
-    match signature {
-        Some(signature) if is_withheld => json!({"type": "redacted_thinking", "data": signature}),
-        _ => block,
     }
 }
 

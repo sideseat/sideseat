@@ -541,3 +541,111 @@ def test_a_thread_is_named_by_its_instruction_whatever_order_requests_arrive_in(
     assert note_of(native, lead) == note_of(sdk, lead)
     assert note_of(native, helper) == note_of(sdk, helper)
     assert note_of(native, lead) != note_of(native, helper)
+
+
+def test_withheld_reasoning_replays_the_response_its_message_replays(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from harness.truth import request_truth
+
+    monkeypatch.setattr(request_truth, "FIXTURES", tmp_path)
+    monkeypatch.setattr(request_truth, "REPO", tmp_path)
+    fixture = tmp_path / "p" / "native" / "s"
+    fixture.mkdir(parents=True)
+
+    def withheld(signature: str) -> dict:
+        return {
+            "reasoningContent": {"reasoningText": {"text": "", "signature": signature}}
+        }
+
+    def call(identifier: str) -> dict:
+        return {"toolUse": {"toolUseId": identifier, "name": "f", "input": {}}}
+
+    def result(identifier: str) -> dict:
+        return {
+            "role": "user",
+            "content": [
+                {"toolResult": {"toolUseId": identifier, "content": [{"text": "ok"}]}}
+            ],
+        }
+
+    user = {"role": "user", "content": [{"text": "Hi"}]}
+    first = {"role": "assistant", "content": [withheld("s1"), call("t1")]}
+    second = {"role": "assistant", "content": [withheld("s2"), call("t2")]}
+    # Reasoning re-sent alone: no other part says which response it was.
+    alone = {"role": "assistant", "content": [withheld("s3")]}
+    log = tmp_path / "log.jsonl"
+    requests = [
+        [user],
+        [user, first, result("t1")],
+        [user, first, result("t1"), second, result("t2"), alone, user],
+    ]
+    for index, messages in enumerate(requests):
+        transcript.record(
+            "POST",
+            "/model/m/converse",
+            _converse(messages),
+            "application/json",
+            answered_by=index,
+            log=str(log),
+        )
+    (fixture / transcript.FILENAME).write_text(json.dumps(transcript.finish(log)))
+
+    def fact(identifier: str, kind: str, value: dict) -> dict:
+        return {"id": identifier, "kind": kind, "conversation": "c", "value": value}
+
+    reasoning = {"text": "", "signed": True, "redacted": False}
+    truth = {
+        "calls": [
+            {
+                "id": "call-001",
+                "conversation": "c",
+                "outputs": ["fact-002", "fact-003"],
+            },
+            {
+                "id": "call-002",
+                "conversation": "c",
+                "outputs": ["fact-005", "fact-006"],
+            },
+            {"id": "call-003", "conversation": "c", "outputs": []},
+        ],
+        "facts": [
+            fact("fact-001", "user_text", {"text": "Hi"}),
+            fact("fact-002", "reasoning", reasoning),
+            fact("fact-003", "tool_call", {"id": "t1", "name": "f", "arguments": {}}),
+            fact(
+                "fact-004", "tool_result", {"call_id": "t1", "name": "f", "value": "ok"}
+            ),
+            fact("fact-005", "reasoning", reasoning),
+            fact("fact-006", "tool_call", {"id": "t2", "name": "f", "arguments": {}}),
+            fact(
+                "fact-007", "tool_result", {"call_id": "t2", "name": "f", "value": "ok"}
+            ),
+        ],
+        "conversations": [
+            {"id": "c", "sequence": [f"fact-{n:03d}" for n in range(1, 8)]}
+        ],
+        "edges": [],
+    }
+    recorded = request_truth.fixture_requests(
+        truth, "p/native/s", {0: "call-001", 1: "call-002", 2: "call-003"}
+    )
+    assert recorded is not None
+    messages = recorded["calls"]["call-003"]["messages"]
+
+    def lineage(message: int) -> list[dict]:
+        return [
+            {k: v for k, v in part.items() if k != "part"}
+            for part in messages[message]["parts"]
+        ]
+
+    # Each withheld part is the reasoning of the response the rest of its message replays, whatever
+    # its place among the conversation's other withheld reasoning.
+    assert lineage(1) == [{"replay_of": "fact-002"}, {"replay_of": "fact-003"}]
+    assert lineage(3) == [{"replay_of": "fact-005"}, {"replay_of": "fact-006"}]
+    assert list(lineage(5)[0]) == ["lineage_unknown"]
+    assert messages[1]["parts"][0]["part"] == {
+        "type": "reasoning",
+        "text": "",
+        "signed": True,
+    }

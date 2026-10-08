@@ -18,7 +18,7 @@ pub(super) fn supports(kind: &str, matcher: &str) -> bool {
             | ("user_text", "contains" | "exact")
             | ("user_media", "digest")
             | ("text", "exact" | "json")
-            | ("reasoning", "exact" | "presence")
+            | ("reasoning", "exact" | "presence" | "signed")
             | ("tool_call", "semantic")
             | ("tool_result", "semantic" | "error_message")
     )
@@ -52,6 +52,12 @@ pub(super) fn shows(fact: &Fact, block: &Block, call_id: Option<&str>) -> Shows 
         ("text", "json") => yes(block.role == "assistant" && json_answer_matches(fact, block)),
         ("text", _) => yes(block.is("assistant", "text") && block.text() == Some(fact.text())),
         ("reasoning", "presence") => yes(block.is("assistant", "redacted_thinking")),
+        // Reasoning the model signed and withheld the text of: a thinking block with no text that says it
+        // was signed. Owed by its presence, role and place, since there is no text to compare - and never
+        // as `redacted_thinking`, which is the provider's own redaction of a text that existed.
+        ("reasoning", "signed") => yes(block.is("assistant", "thinking")
+            && block.text().is_some_and(|text| text.trim().is_empty())
+            && block.content.get("signed").and_then(Value::as_bool) == Some(true)),
         ("reasoning", _) => {
             yes(block.is("assistant", "thinking") && block.text() == Some(fact.text()))
         }

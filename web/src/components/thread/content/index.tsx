@@ -115,7 +115,13 @@ export function ContentRenderer({ block, markdownEnabled, projectId }: ContentRe
       return <JsonContent data={block.data} />;
 
     case "thinking":
-      return <ThinkingContent text={block.text} markdownEnabled={markdownEnabled} />;
+      return (
+        <ThinkingContent
+          text={block.text}
+          signed={block.signed}
+          markdownEnabled={markdownEnabled}
+        />
+      );
 
     case "redacted_thinking":
       return <RedactedThinkingContent />;
@@ -131,7 +137,7 @@ export { TextContent } from "./text-content";
 export { JsonContent } from "./json-content";
 export { ToolUseContent } from "./tool-use-content";
 export { ToolResultContent } from "./tool-result-content";
-export { ThinkingContent } from "./thinking-content";
+export { ThinkingContent, WITHHELD_REASONING_LABEL } from "./thinking-content";
 export { ToolDefinitionsContent } from "./tool-definitions-content";
 export { MediaContent } from "./media-content";
 export { ContextContent } from "./context-content";

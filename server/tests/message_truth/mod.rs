@@ -11,7 +11,8 @@
 //!    finish and usage (`matching`);
 //! 3. assistant text is exact; 4. tool calls carry their id, name and arguments; 5. each result pairs
 //!    with its call by id and carries its value; 6. visible reasoning is a thinking block, never
-//!    assistant text; 7. prompts, the system prompt and attachments are present (`predicates`, `checks`);
+//!    assistant text, and withheld reasoning a signed thinking block with no text; 7. prompts, the
+//!    system prompt and attachments are present (`predicates`, `checks`);
 //! 8. order follows the truth's edges; 9. a fact is the same block in every view and stays in its
 //!    trace (`checks`);
 //! 10. what still fails is recorded, one entry per violation, in a shrink-only ledger (`ledger`);

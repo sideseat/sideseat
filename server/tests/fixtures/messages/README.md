@@ -76,8 +76,11 @@ The truth comparison runs inside `message_goldens`, on the four views it already
    literal is a rendering defect. An error result contains the tool's message; a success may not be
    flagged as an error.
 6. **Reasoning** the wire returned visibly is a thinking block with its exact text and is never shown as
-   assistant text; signed reasoning with no text is a gap (`reasoning_text_omitted`) until the product
-   decides how to show it.
+   assistant text. Signed reasoning with no text is a thinking block with empty text marked `signed`, never
+   `redacted_thinking`, which is a provider's own redaction, and no view carries the signature itself. The
+   request check owes it on the span sent it, by presence, role and place. The conversation views do not owe
+   it yet: a gap (`reasoning_text_omitted`) withdraws it there until the withheld-reasoning batch proves,
+   per framework, where no payload carries it.
 7. **Prompts, system prompt and attachments** are present: a prompt contained in (or equal to) a user
    text block; an echoed system prompt exactly; an attachment by modality, media type and the SHA-256 of
    its decoded bytes wherever the bytes are kept inline (long data that does not decode is damaged

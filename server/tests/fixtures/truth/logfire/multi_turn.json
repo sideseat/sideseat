@@ -312,7 +312,7 @@
   {
    "fact": "reasoning",
    "reason": "reasoning_text_omitted",
-   "detail": "the provider returned a signed reasoning block with no visible text; whether a reconstruction shows a placeholder for it is a product decision, not a fidelity fact",
+   "detail": "the provider returned an encrypted reasoning item with no text at all; how it is shown waits on SideML slice S1, OpenAI reasoning items (docs/engineering/sideml-provider-review.md)",
    "subject": "fact-003"
   }
  ],

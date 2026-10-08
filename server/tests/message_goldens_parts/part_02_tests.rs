@@ -337,11 +337,18 @@ fn assert_session_partitions_into_traces(
 
 /// Content must not be empty for text-bearing entries: an empty bubble in the UI is
 /// indistinguishable from a parsing failure.
+///
+/// One empty block is not a bubble: reasoning the model signed but withheld the text of, which the view
+/// states as exactly `{type: thinking, text: "", signed: true}` and the UI names as such. It is accepted by
+/// that whole block's digest, so an unsigned empty thinking block, or one with anything else in it, still
+/// fails.
 fn assert_no_empty_text(label: &str, view_name: &str, view: &GoldenView) {
+    let withheld = content_digest(&json!({"type": "thinking", "text": "", "signed": true}));
     for m in &view.messages {
         if matches!(m.entry_type.as_str(), "text" | "thinking") {
             assert!(
-                !m.content.trim().is_empty(),
+                !m.content.trim().is_empty()
+                    || (m.entry_type == "thinking" && m.content_digest == withheld),
                 "{label} / {view_name}: empty {} block at index {}",
                 m.entry_type,
                 m.index

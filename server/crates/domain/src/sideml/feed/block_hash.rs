@@ -59,9 +59,12 @@ pub(in crate::sideml::feed) fn compute_block_hash(block: &ContentBlock) -> u64 {
             is_error.hash(&mut hasher);
             hash_tool_result_content_into(content, &mut hasher);
         }
-        ContentBlock::Thinking { text, .. } => {
+        // The signature is part of a thinking block's identity: two turns can think the same words under
+        // different signatures, and one whose text was withheld has only its signature to be told apart by.
+        ContentBlock::Thinking { text, signature } => {
             "thinking".hash(&mut hasher);
             text.trim().hash(&mut hasher); // Normalize whitespace
+            signature.hash(&mut hasher);
         }
         ContentBlock::RedactedThinking { data } => {
             "redacted_thinking".hash(&mut hasher);

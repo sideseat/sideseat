@@ -11,6 +11,14 @@ fn block_to_json(block: &ContentBlock) -> JsonValue {
     serde_json::to_value(block).unwrap()
 }
 
+/// The signature a thinking block keeps, which no view serialises.
+fn thinking_signature(block: &ContentBlock) -> Option<&str> {
+    match block {
+        ContentBlock::Thinking { signature, .. } => signature.as_deref(),
+        _ => None,
+    }
+}
+
 // === ChatRole Tests ===
 
 #[test]
@@ -207,7 +215,20 @@ fn test_content_block_thinking_serialization() {
     let json = serde_json::to_value(&block).unwrap();
     assert_eq!(json["type"], "thinking");
     assert_eq!(json["text"], "Let me think about this...");
-    assert_eq!(json["signature"], "sig123");
+    // The view says the reasoning is signed; the signature's bytes stay in the raw store.
+    assert_eq!(json["signed"], true);
+    assert!(json.get("signature").is_none());
+    assert!(!json.to_string().contains("sig123"));
+    let unsigned = ContentBlock::Thinking {
+        text: "Hmm.".to_string(),
+        signature: None,
+    };
+    assert!(
+        serde_json::to_value(&unsigned)
+            .unwrap()
+            .get("signed")
+            .is_none()
+    );
 }
 
 #[test]
@@ -460,7 +481,7 @@ fn test_haystack_reasoning_part_is_thinking() {
     let first = block_to_json(&output.content[0]);
     assert_eq!(first["type"], "thinking");
     assert_eq!(first["text"], "Send the two slowest together.");
-    assert_eq!(first["signature"], "sig");
+    assert_eq!(thinking_signature(&output.content[0]), Some("sig"));
 }
 
 /// Regression: a tool message whose content is a number written as text keeps it as the result.
@@ -529,7 +550,7 @@ fn test_thinking_block_normalization() {
         block_to_json(&output.content[0])["text"],
         "Let me analyze..."
     );
-    assert_eq!(block_to_json(&output.content[0])["signature"], "sig_abc");
+    assert_eq!(thinking_signature(&output.content[0]), Some("sig_abc"));
 }
 
 #[test]

@@ -28,10 +28,11 @@ fn whitespace_only_reasoning_is_dropped_in_every_source_shape() {
     }
 }
 
-/// Signature-only reasoning is replay state a multi-turn request needs, so it survives with no
-/// visible text - as hidden reasoning, not a blank thinking bubble.
+/// Signature-only reasoning is replay state a multi-turn request needs, so it survives with no visible text,
+/// as the thinking block it is. It is not `redacted_thinking`: that is a provider's encrypted reasoning, and
+/// calling a signature by its name misrepresents what the model was sent.
 #[test]
-fn signed_thinking_with_withheld_text_is_hidden_reasoning() {
+fn signed_thinking_with_withheld_text_stays_thinking() {
     let content = json!([
         {"type": "thinking", "text": "", "signature": "sig-1"},
         {"type": "text", "text": "Paris."}
@@ -39,7 +40,7 @@ fn signed_thinking_with_withheld_text_is_hidden_reasoning() {
     let out = normalize_content(Some(&content));
     assert_eq!(
         out[0],
-        json!({"type": "redacted_thinking", "data": "sig-1"})
+        json!({"type": "thinking", "text": "", "signature": "sig-1"})
     );
     assert_eq!(out[1]["text"], "Paris.");
 }

@@ -7,6 +7,7 @@ import {
   ThinkingContent,
   ToolDefinitionsContent,
   JsonContent,
+  WITHHELD_REASONING_LABEL,
 } from "./content";
 
 /**
@@ -153,6 +154,7 @@ export function getBlockPreview(block: Block): string {
   }
 
   if (entry_type === "thinking" && content.type === "thinking") {
+    if (content.text.trim() === "" && content.signed) return WITHHELD_REASONING_LABEL;
     return `"${truncate(content.text, 60)}" (${content.text.length} chars)`;
   }
 
@@ -238,7 +240,13 @@ export function renderBlockContent(
   }
 
   if (entry_type === "thinking" && content.type === "thinking") {
-    return <ThinkingContent text={content.text} markdownEnabled={markdownEnabled} />;
+    return (
+      <ThinkingContent
+        text={content.text}
+        signed={content.signed}
+        markdownEnabled={markdownEnabled}
+      />
+    );
   }
 
   if (entry_type === "tool_definitions" && content.type === "tool_definitions") {

@@ -1,7 +1,9 @@
 //! Mutations of what a span shows its call was sent (rubric v3, slice 1).
 
+use serde_json::Value;
+
 use super::mutate::swap_in_views;
-use super::recon::{Recon, ViewKind};
+use super::recon::{Block, Recon, ViewKind};
 use super::truth::{Occurrence, RequestMessage, Truth};
 
 /// The span view of the first call whose request was recorded, with the indices of its input blocks.
@@ -236,4 +238,28 @@ pub(super) fn move_attachment_before_instruction(truth: &mut Truth, recon: &mut 
         }
     }
     false
+}
+
+/// Edits every block a span shows its call was sent that is reasoning the model signed and withheld the
+/// text of. Only re-sent copies: the conversation views do not owe withheld reasoning yet, so a response's
+/// own block is the withheld-reasoning batch's to hold to account.
+pub(super) fn edit_resent_withheld_reasoning(recon: &mut Recon, edit: fn(&mut Block)) -> bool {
+    let mut found = false;
+    let inputs = recon
+        .views
+        .iter_mut()
+        .filter(|view| view.kind == ViewKind::Span)
+        .flat_map(|view| view.blocks.iter_mut())
+        .filter(|block| !block.output);
+    for block in inputs {
+        if block.is("assistant", "thinking")
+            && block.text().is_some_and(|text| text.trim().is_empty())
+            && block.content.get("signed") == Some(&Value::Bool(true))
+        {
+            edit(block);
+            block.refresh();
+            found = true;
+        }
+    }
+    found
 }

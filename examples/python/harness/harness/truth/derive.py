@@ -210,6 +210,19 @@ class Builder:
             self.gaps.append(entry)
 
 
+#: Why signed reasoning with no text is not yet owed in the conversation views. Each names the work that
+#: will owe it, so the gap says what is true today rather than what was undecided once.
+_WITHHELD_PENDING = (
+    "the provider signed this reasoning and withheld its text; views show it as signed thinking with no "
+    "text and the request check owes it on the span sent it, while owing it in every view waits on the "
+    "rubric track's withheld-reasoning batch, which proves per framework where no payload carries it"
+)
+_UNTEXTED_PENDING = (
+    "the provider returned an encrypted reasoning item with no text at all; how it is shown waits on "
+    "SideML slice S1, OpenAI reasoning items (docs/engineering/sideml-provider-review.md)"
+)
+
+
 def _model_call_requirement(match: str = "exact") -> dict[str, Any]:
     return {
         "anchor": "model_call",
@@ -604,9 +617,7 @@ def assemble(
                     builder.gap(
                         "reasoning",
                         "reasoning_text_omitted",
-                        "the provider returned a signed reasoning block with no visible text; "
-                        "whether a reconstruction shows a placeholder for it is a product "
-                        "decision, not a fidelity fact",
+                        _WITHHELD_PENDING if part["text"] == "" else _UNTEXTED_PENDING,
                         subject=fact,
                     )
             else:

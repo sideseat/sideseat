@@ -28,7 +28,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "This is the classic bridge-crossing puzzle with crossing times 1, 2, 5, 10 minutes, where the optimal solution totals 17 minutes. I'm working through the schedule: send 1&2 over, 1 returns, then 5&10 cross together, 2 returns, then 1&2 cros…[5984 chars]",
-          "content_digest": "aeb6c366841733b5",
+          "content_digest": "f2b1260d002800f1",
           "observation_type": "generation"
         },
         {
@@ -73,7 +73,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "This is the classic bridge-crossing puzzle with crossing times 1, 2, 5, 10 minutes, where the optimal solution totals 17 minutes. I'm working through the schedule: send 1&2 over, 1 returns, then 5&10 cross together, 2 returns, then 1&2 cros…[5984 chars]",
-          "content_digest": "aeb6c366841733b5",
+          "content_digest": "f2b1260d002800f1",
           "observation_type": "generation"
         },
         {
@@ -111,7 +111,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "This is the classic bridge-crossing puzzle with crossing times 1, 2, 5, 10 minutes, where the optimal solution totals 17 minutes. I'm working through the schedule: send 1&2 over, 1 returns, then 5&10 cross together, 2 returns, then 1&2 cros…[5984 chars]",
-          "content_digest": "aeb6c366841733b5",
+          "content_digest": "f2b1260d002800f1",
           "observation_type": "generation"
         },
         {
@@ -148,7 +148,7 @@
         "role": "assistant",
         "entry_type": "thinking",
         "content": "This is the classic bridge-crossing puzzle with crossing times 1, 2, 5, 10 minutes, where the optimal solution totals 17 minutes. I'm working through the schedule: send 1&2 over, 1 returns, then 5&10 cross together, 2 returns, then 1&2 cros…[5984 chars]",
-        "content_digest": "aeb6c366841733b5",
+        "content_digest": "f2b1260d002800f1",
         "observation_type": "generation"
       },
       {

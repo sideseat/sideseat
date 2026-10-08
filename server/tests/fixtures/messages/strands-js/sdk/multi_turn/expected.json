@@ -39,9 +39,9 @@
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSzQQKEggSEAEYAjgBQgh0aGlua2luZxIMkoNTUji04PlkpF/eGgwWSOMGaMb/MDENeDUiMO02Mc4WtLGjXNJT6D6zhDECDfJTF/su9FScnpoj0g+ISycpQcP4yUs9jdSz5fENGyroAx6vk1p78EtQJlsqWGk9GbF1PwJI6BQIgHXZN1cQEiWPiw9FzNwZDy0PDK5hrvc+…[834 chars]",
-          "content_digest": "00638979d0232714",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
           "observation_type": "generation"
         },
         {
@@ -156,9 +156,9 @@
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSzQQKEggSEAEYAjgBQgh0aGlua2luZxIMkoNTUji04PlkpF/eGgwWSOMGaMb/MDENeDUiMO02Mc4WtLGjXNJT6D6zhDECDfJTF/su9FScnpoj0g+ISycpQcP4yUs9jdSz5fENGyroAx6vk1p78EtQJlsqWGk9GbF1PwJI6BQIgHXZN1cQEiWPiw9FzNwZDy0PDK5hrvc+…[834 chars]",
-          "content_digest": "00638979d0232714",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
           "observation_type": "generation"
         },
         {
@@ -216,9 +216,9 @@
         {
           "index": 1,
           "role": "assistant",
-          "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSzQQKEggSEAEYAjgBQgh0aGlua2luZxIMkoNTUji04PlkpF/eGgwWSOMGaMb/MDENeDUiMO02Mc4WtLGjXNJT6D6zhDECDfJTF/su9FScnpoj0g+ISycpQcP4yUs9jdSz5fENGyroAx6vk1p78EtQJlsqWGk9GbF1PwJI6BQIgHXZN1cQEiWPiw9FzNwZDy0PDK5hrvc+…[834 chars]",
-          "content_digest": "00638979d0232714",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
           "observation_type": "agent"
         },
         {
@@ -254,9 +254,9 @@
         {
           "index": 1,
           "role": "assistant",
-          "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSzQQKEggSEAEYAjgBQgh0aGlua2luZxIMkoNTUji04PlkpF/eGgwWSOMGaMb/MDENeDUiMO02Mc4WtLGjXNJT6D6zhDECDfJTF/su9FScnpoj0g+ISycpQcP4yUs9jdSz5fENGyroAx6vk1p78EtQJlsqWGk9GbF1PwJI6BQIgHXZN1cQEiWPiw9FzNwZDy0PDK5hrvc+…[834 chars]",
-          "content_digest": "00638979d0232714",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
           "observation_type": "agent"
         },
         {
@@ -448,9 +448,9 @@
         {
           "index": 3,
           "role": "assistant",
-          "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSzQQKEggSEAEYAjgBQgh0aGlua2luZxIMkoNTUji04PlkpF/eGgwWSOMGaMb/MDENeDUiMO02Mc4WtLGjXNJT6D6zhDECDfJTF/su9FScnpoj0g+ISycpQcP4yUs9jdSz5fENGyroAx6vk1p78EtQJlsqWGk9GbF1PwJI6BQIgHXZN1cQEiWPiw9FzNwZDy0PDK5hrvc+…[834 chars]",
-          "content_digest": "00638979d0232714",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
           "observation_type": "generation"
         },
         {
@@ -534,9 +534,9 @@
         {
           "index": 3,
           "role": "assistant",
-          "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSzQQKEggSEAEYAjgBQgh0aGlua2luZxIMkoNTUji04PlkpF/eGgwWSOMGaMb/MDENeDUiMO02Mc4WtLGjXNJT6D6zhDECDfJTF/su9FScnpoj0g+ISycpQcP4yUs9jdSz5fENGyroAx6vk1p78EtQJlsqWGk9GbF1PwJI6BQIgHXZN1cQEiWPiw9FzNwZDy0PDK5hrvc+…[834 chars]",
-          "content_digest": "00638979d0232714",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
           "observation_type": "generation"
         },
         {
@@ -620,9 +620,9 @@
       {
         "index": 3,
         "role": "assistant",
-        "entry_type": "redacted_thinking",
-        "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSzQQKEggSEAEYAjgBQgh0aGlua2luZxIMkoNTUji04PlkpF/eGgwWSOMGaMb/MDENeDUiMO02Mc4WtLGjXNJT6D6zhDECDfJTF/su9FScnpoj0g+ISycpQcP4yUs9jdSz5fENGyroAx6vk1p78EtQJlsqWGk9GbF1PwJI6BQIgHXZN1cQEiWPiw9FzNwZDy0PDK5hrvc+…[834 chars]",
-        "content_digest": "00638979d0232714",
+        "entry_type": "thinking",
+        "content": "",
+        "content_digest": "3ca100066bbf569b",
         "observation_type": "generation"
       },
       {

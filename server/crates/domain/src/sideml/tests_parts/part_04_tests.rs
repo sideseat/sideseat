@@ -522,8 +522,8 @@ fn test_bedrock_reasoning_content_with_signature() {
         "Let me analyze this step by step..."
     );
     assert_eq!(
-        block_to_json(&output.content[0])["signature"],
-        "ErYhCkgICxABGAI..."
+        thinking_signature(&output.content[0]),
+        Some("ErYhCkgICxABGAI...")
     );
 }
 
@@ -572,7 +572,7 @@ fn test_anthropic_thinking_with_thinking_field() {
         block_to_json(&output.content[0])["text"],
         "Let me work through this problem..."
     );
-    assert_eq!(block_to_json(&output.content[0])["signature"], "sig_abc123");
+    assert_eq!(thinking_signature(&output.content[0]), Some("sig_abc123"));
 }
 
 #[test]

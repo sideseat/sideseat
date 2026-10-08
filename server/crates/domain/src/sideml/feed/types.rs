@@ -341,6 +341,12 @@ impl BlockEntry {
         matches!(self.content, ContentBlock::Thinking { .. })
     }
 
+    /// Whether this block is reasoning the model signed and withheld the text of.
+    #[inline]
+    pub fn is_withheld_thinking(&self) -> bool {
+        matches!(&self.content, ContentBlock::Thinking { text, signature: Some(_) } if text.trim().is_empty())
+    }
+
     /// Check if this block contains a Json content block (structured output).
     #[inline]
     pub fn is_json_block(&self) -> bool {

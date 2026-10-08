@@ -402,10 +402,12 @@ pub(super) fn gap_effects(reason: &str) -> Option<GapEffects> {
         needs_absence_proof,
     };
     Some(match reason {
+        // Signed reasoning with no text, not yet owed in the conversation views: the request check owes it
+        // on the span sent it, and the withheld-reasoning batch (rubric track) owes it everywhere once each
+        // framework's absences are proven. An encrypted item with no text at all waits on SideML slice S1.
+        "reasoning_text_omitted" => effects(GapSubject::Fact, true, true, false),
         // The oracle cannot know the value; whatever the reconstruction shows there is unchecked.
-        "reasoning_text_omitted" | "answer_quotes_framework_rendering" => {
-            effects(GapSubject::Fact, true, true, false)
-        }
+        "answer_quotes_framework_rendering" => effects(GapSubject::Fact, true, true, false),
         // Names the call whose result the oracle cannot compute; no result fact exists.
         "tool_not_deterministic" => effects(GapSubject::Fact, false, true, false),
         // A failed attempt owes no output.

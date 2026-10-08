@@ -118,6 +118,22 @@ const CATALOGUE: &[(&str, Expect, Apply)] = &[
             })
         },
     ),
+    // The mislabel the view once made: the signature passed off as a provider's redacted payload.
+    (
+        "show re-sent withheld reasoning as redacted",
+        Expect::Caught,
+        |_, r| {
+            edit_resent_withheld_reasoning(r, |b| {
+                b.kind = "redacted_thinking".into();
+                b.content = json!({"type": "redacted_thinking", "data": "signature"});
+            })
+        },
+    ),
+    (
+        "drop the signed mark from re-sent withheld reasoning",
+        Expect::Caught,
+        |_, r| edit_resent_withheld_reasoning(r, |b| strip(b, "signed")),
+    ),
     ("swap two parts of a response", Expect::Caught, swap_parts),
     ("swap two calls", Expect::Caught, swap_calls),
     (

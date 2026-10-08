@@ -688,6 +688,17 @@ fn no_production_module_spells_a_declared_producer_word() {
             "the engine's own tree for a parsed constructor, which assets select from",
         ),
         (
+            "server/crates/domain/src/rules/content_blocks.rs",
+            "signature",
+            "the normalised thinking block's own member, which a SideML view states as `signed`: the engine \
+             builds it, whatever a producer's asset names the same",
+        ),
+        (
+            "server/crates/domain/src/sideml/content.rs",
+            "signature",
+            "the normalised thinking block's own member, read to keep a block whose text was withheld",
+        ),
+        (
             "server/crates/domain/src/rate_limit.rs",
             "files",
             "SideSeat's own rate-limit bucket for its file API, whatever member of a message a producer's asset \

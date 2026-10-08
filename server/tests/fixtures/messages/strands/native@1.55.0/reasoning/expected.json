@@ -28,7 +28,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "This is the classic bridge and torch puzzle with crossing times 1, 2, 5, 10 minutes, and I recall the optimal solution takes 17 minutes. I'm working out the schedule: send 1 and 2 across together, have 1 return, send 5 and 10 across togethe…[10102 chars]",
-          "content_digest": "6293d57bbe30d7b2",
+          "content_digest": "4d9751e179bb2387",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -121,7 +121,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "This is the classic bridge and torch puzzle with crossing times 1, 2, 5, 10 minutes, and I recall the optimal solution takes 17 minutes. I'm working out the schedule: send 1 and 2 across together, have 1 return, send 5 and 10 across togethe…[10102 chars]",
-          "content_digest": "6293d57bbe30d7b2",
+          "content_digest": "4d9751e179bb2387",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -161,7 +161,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "This is the classic bridge and torch puzzle with crossing times 1, 2, 5, 10 minutes, and I recall the optimal solution takes 17 minutes. I'm working out the schedule: send 1 and 2 across together, have 1 return, send 5 and 10 across togethe…[10102 chars]",
-          "content_digest": "6293d57bbe30d7b2",
+          "content_digest": "4d9751e179bb2387",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -192,7 +192,7 @@
         "role": "assistant",
         "entry_type": "thinking",
         "content": "This is the classic bridge and torch puzzle with crossing times 1, 2, 5, 10 minutes, and I recall the optimal solution takes 17 minutes. I'm working out the schedule: send 1 and 2 across together, have 1 return, send 5 and 10 across togethe…[10102 chars]",
-        "content_digest": "6293d57bbe30d7b2",
+        "content_digest": "4d9751e179bb2387",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },

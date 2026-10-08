@@ -28,7 +28,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "This is the classic bridge-crossing puzzle with crossing times 1, 2, 5, 10 minutes, and the optimal solution is 17 minutes: send 1&2 over, 1 returns, send 5&10 over, 2 returns, then 1&2 cross again. Checking alternative strategies confirms …[9828 chars]",
-          "content_digest": "30d81113e5b884f0",
+          "content_digest": "217c1d86fad53bdd",
           "observation_type": "agent"
         },
         {
@@ -64,7 +64,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "This is the classic bridge-crossing puzzle with crossing times 1, 2, 5, 10 minutes, and the optimal solution is 17 minutes: send 1&2 over, 1 returns, send 5&10 over, 2 returns, then 1&2 cross again. Checking alternative strategies confirms …[9828 chars]",
-          "content_digest": "30d81113e5b884f0",
+          "content_digest": "217c1d86fad53bdd",
           "observation_type": "generation"
         },
         {
@@ -116,7 +116,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "This is the classic bridge-crossing puzzle with crossing times 1, 2, 5, 10 minutes, and the optimal solution is 17 minutes: send 1&2 over, 1 returns, send 5&10 over, 2 returns, then 1&2 cross again. Checking alternative strategies confirms …[9828 chars]",
-          "content_digest": "30d81113e5b884f0",
+          "content_digest": "217c1d86fad53bdd",
           "observation_type": "generation"
         },
         {
@@ -154,7 +154,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "This is the classic bridge-crossing puzzle with crossing times 1, 2, 5, 10 minutes, and the optimal solution is 17 minutes: send 1&2 over, 1 returns, send 5&10 over, 2 returns, then 1&2 cross again. Checking alternative strategies confirms …[9828 chars]",
-          "content_digest": "30d81113e5b884f0",
+          "content_digest": "217c1d86fad53bdd",
           "observation_type": "generation"
         },
         {
@@ -191,7 +191,7 @@
         "role": "assistant",
         "entry_type": "thinking",
         "content": "This is the classic bridge-crossing puzzle with crossing times 1, 2, 5, 10 minutes, and the optimal solution is 17 minutes: send 1&2 over, 1 returns, send 5&10 over, 2 returns, then 1&2 cross again. Checking alternative strategies confirms …[9828 chars]",
-        "content_digest": "30d81113e5b884f0",
+        "content_digest": "217c1d86fad53bdd",
         "observation_type": "generation"
       },
       {

@@ -366,12 +366,70 @@ class _Lineage:
     def outputs(self, call: dict[str, Any]) -> None:
         self.established.update(call["outputs"])
 
+    def withheld(
+        self, siblings: list[dict[str, Any]], count: int
+    ) -> list[dict[str, Any]]:
+        """The lineage of a message's ``count`` withheld reasoning parts, from the rest of the message.
+
+        Withheld reasoning has no text, so its content cannot say which output it re-sends. The message it
+        sits in can: the other parts of an assistant message replay one response, and the k-th withheld
+        part is that response's k-th withheld reasoning. A message whose other parts replay no response, or
+        more than one, leaves the lineage unknown.
+        """
+        replayed = {occurrence.get("replay_of") for occurrence in siblings} - {None}
+        responses = [
+            call for call in self.truth["calls"] if replayed & set(call["outputs"])
+        ]
+        if len(responses) != 1:
+            unknown = {
+                "lineage_unknown": "withheld reasoning in a message that replays no one response"
+            }
+            return [unknown] * count
+        facts = {fact["id"]: fact for fact in self.truth["facts"]}
+        outputs = [
+            fact
+            for fact in responses[0]["outputs"]
+            if fact in self.established and _is_withheld(facts[fact]["value"])
+        ]
+        return [
+            {"replay_of": outputs[k]}
+            if k < len(outputs)
+            else {
+                "lineage_unknown": "more withheld reasoning than its response returned"
+            }
+            for k in range(count)
+        ]
+
+
+def _is_withheld(part: dict[str, Any]) -> bool:
+    """Reasoning the model signed and withheld the text of: a part, or the value of its fact."""
+    return (
+        part.get("text") == "" and bool(part.get("signed")) and not part.get("redacted")
+    )
+
 
 def _occurrences(
     request: ModelRequest, lineage: _Lineage, conversation: str, call: str
 ) -> dict[str, Any]:
     def occurrence(part: dict[str, Any], role: str) -> dict[str, Any]:
         return {"part": part, **lineage.assign(part, role, conversation, call)}
+
+    def parts(message: dict[str, Any]) -> list[dict[str, Any]]:
+        role = message["role"]
+        # Withheld reasoning is linked after the rest of its message, by the response that message replays.
+        known = [
+            None
+            if part["type"] == "reasoning" and _is_withheld(part)
+            else occurrence(part, role)
+            for part in message["parts"]
+        ]
+        withheld = iter(
+            lineage.withheld([o for o in known if o is not None], known.count(None))
+        )
+        return [
+            {"part": part, **next(withheld)} if found is None else found
+            for part, found in zip(message["parts"], known)
+        ]
 
     lineage.in_messages = False
     system = [occurrence(part, "system") for part in request.system]
@@ -380,12 +438,7 @@ def _occurrences(
         "api": request.api,
         "system": system,
         "messages": [
-            {
-                "role": message["role"],
-                "parts": [
-                    occurrence(part, message["role"]) for part in message["parts"]
-                ],
-            }
+            {"role": message["role"], "parts": parts(message)}
             for message in request.messages
         ],
         "tools": request.tools,

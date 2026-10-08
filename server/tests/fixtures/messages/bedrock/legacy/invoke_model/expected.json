@@ -111,7 +111,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "I need to calculate 27 * 453. Let me break this down: 27 * 453 = 27 * (400 + 50 + 3) = 27 * 400 + 27 * 50 + 27 * 3 = 10,800 + 1,350 + 81 = 12,231 Let me verify this another way: 453 × 27 ----- 3171 (453 × 7) 9060 (453 × 20) ------ 12231 Let…[343 chars]",
-          "content_digest": "ed30c2b21cb48879",
+          "content_digest": "78e532a8674bd844",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -158,7 +158,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "I need to divide 891 by 9. Let me work through this step by step. 891 ÷ 9 I can break this down: - 9 × 100 = 900, which is too big - 9 × 90 = 810 - 891 - 810 = 81 - 9 × 9 = 81 So: 90 + 9 = 99 Let me verify: 99 × 9 = 891 99 × 9 = (100 - 1) ×…[276 chars]",
-          "content_digest": "e3361ea7f4ee3a12",
+          "content_digest": "5d2162b27d7b1123",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -382,7 +382,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "I need to calculate 27 * 453. Let me break this down: 27 * 453 = 27 * (400 + 50 + 3) = 27 * 400 + 27 * 50 + 27 * 3 = 10,800 + 1,350 + 81 = 12,231 Let me verify this another way: 453 × 27 ----- 3171 (453 × 7) 9060 (453 × 20) ------ 12231 Let…[343 chars]",
-          "content_digest": "ed30c2b21cb48879",
+          "content_digest": "78e532a8674bd844",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -429,7 +429,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "I need to divide 891 by 9. Let me work through this step by step. 891 ÷ 9 I can break this down: - 9 × 100 = 900, which is too big - 9 × 90 = 810 - 891 - 810 = 81 - 9 × 9 = 81 So: 90 + 9 = 99 Let me verify: 99 × 9 = 891 99 × 9 = (100 - 1) ×…[276 chars]",
-          "content_digest": "e3361ea7f4ee3a12",
+          "content_digest": "5d2162b27d7b1123",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -635,7 +635,7 @@
         "role": "assistant",
         "entry_type": "thinking",
         "content": "I need to divide 891 by 9. Let me work through this step by step. 891 ÷ 9 I can break this down: - 9 × 100 = 900, which is too big - 9 × 90 = 810 - 891 - 810 = 81 - 9 × 9 = 81 So: 90 + 9 = 99 Let me verify: 99 × 9 = 891 99 × 9 = (100 - 1) ×…[276 chars]",
-        "content_digest": "e3361ea7f4ee3a12",
+        "content_digest": "5d2162b27d7b1123",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },
@@ -669,7 +669,7 @@
         "role": "assistant",
         "entry_type": "thinking",
         "content": "I need to calculate 27 * 453. Let me break this down: 27 * 453 = 27 * (400 + 50 + 3) = 27 * 400 + 27 * 50 + 27 * 3 = 10,800 + 1,350 + 81 = 12,231 Let me verify this another way: 453 × 27 ----- 3171 (453 × 7) 9060 (453 × 20) ------ 12231 Let…[343 chars]",
-        "content_digest": "ed30c2b21cb48879",
+        "content_digest": "78e532a8674bd844",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },

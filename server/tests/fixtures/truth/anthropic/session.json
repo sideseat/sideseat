@@ -260,7 +260,7 @@
   {
    "fact": "reasoning",
    "reason": "reasoning_text_omitted",
-   "detail": "the provider returned a signed reasoning block with no visible text; whether a reconstruction shows a placeholder for it is a product decision, not a fidelity fact",
+   "detail": "the provider signed this reasoning and withheld its text; views show it as signed thinking with no text and the request check owes it on the span sent it, while owing it in every view waits on the rubric track's withheld-reasoning batch, which proves per framework where no payload carries it",
    "subject": "fact-004"
   }
  ],

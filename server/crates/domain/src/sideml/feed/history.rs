@@ -356,8 +356,13 @@ pub fn mark_history(
                         generation_marked_users.push(index);
                     }
                 }
-                // Assistant text/thinking = intermediate output (final at root)
-                ChatRole::Assistant if block.is_text() || block.is_thinking() => {
+                // Assistant text/thinking = intermediate output (final at root). Not reasoning whose text
+                // was withheld: the root restates what a response said, a withheld block says nothing it
+                // could restate, and marking it would drop the conversation's only copy.
+                ChatRole::Assistant
+                    if block.is_text()
+                        || (block.is_thinking() && !block.is_withheld_thinking()) =>
+                {
                     block.is_history = true;
                     stats.generation_history += 1;
                 }

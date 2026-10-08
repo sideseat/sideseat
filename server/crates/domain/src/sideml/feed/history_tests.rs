@@ -111,7 +111,7 @@ fn test_intermediate_text_is_not_protected() {
 use std::sync::atomic::{AtomicU32, Ordering};
 static BLOCK_COUNTER: AtomicU32 = AtomicU32::new(0);
 
-fn make_block_with_source(
+pub(super) fn make_block_with_source(
     entry_type: &str,
     observation_type: Option<&str>,
     event_name: Option<&str>,

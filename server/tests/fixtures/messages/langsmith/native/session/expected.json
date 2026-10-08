@@ -92,9 +92,9 @@
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSwwUKEggSEAEYAjgBQgh0aGlua2luZxIMv0qhqSCeqj0ECQciGgxdezQ6bAQIM14b5MsiMIwOWAnzb6xrRQkf3HYMFjw5KSN1gw4k18aB1QH3ODvGi/fZMiPcYQ5yt/NR9bWtPyreBOk5eMilImSAKYyQ9nxoKnNB+qbx1Xzr65nImUVK91gsIu2P9txw7P6YQfnc3Y/D…[990 chars]",
-          "content_digest": "3f0fd9d0fe581b52",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
           "observation_type": "generation"
         },
         {
@@ -196,9 +196,9 @@
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSwwUKEggSEAEYAjgBQgh0aGlua2luZxIMv0qhqSCeqj0ECQciGgxdezQ6bAQIM14b5MsiMIwOWAnzb6xrRQkf3HYMFjw5KSN1gw4k18aB1QH3ODvGi/fZMiPcYQ5yt/NR9bWtPyreBOk5eMilImSAKYyQ9nxoKnNB+qbx1Xzr65nImUVK91gsIu2P9txw7P6YQfnc3Y/D…[990 chars]",
-          "content_digest": "3f0fd9d0fe581b52",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
           "observation_type": "generation"
         },
         {
@@ -270,9 +270,9 @@
         {
           "index": 5,
           "role": "assistant",
-          "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSwwUKEggSEAEYAjgBQgh0aGlua2luZxIMv0qhqSCeqj0ECQciGgxdezQ6bAQIM14b5MsiMIwOWAnzb6xrRQkf3HYMFjw5KSN1gw4k18aB1QH3ODvGi/fZMiPcYQ5yt/NR9bWtPyreBOk5eMilImSAKYyQ9nxoKnNB+qbx1Xzr65nImUVK91gsIu2P9txw7P6YQfnc3Y/D…[990 chars]",
-          "content_digest": "3f0fd9d0fe581b52",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
           "observation_type": "generation"
         },
         {
@@ -319,9 +319,9 @@
       {
         "index": 2,
         "role": "assistant",
-        "entry_type": "redacted_thinking",
-        "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSwwUKEggSEAEYAjgBQgh0aGlua2luZxIMv0qhqSCeqj0ECQciGgxdezQ6bAQIM14b5MsiMIwOWAnzb6xrRQkf3HYMFjw5KSN1gw4k18aB1QH3ODvGi/fZMiPcYQ5yt/NR9bWtPyreBOk5eMilImSAKYyQ9nxoKnNB+qbx1Xzr65nImUVK91gsIu2P9txw7P6YQfnc3Y/D…[990 chars]",
-        "content_digest": "3f0fd9d0fe581b52",
+        "entry_type": "thinking",
+        "content": "",
+        "content_digest": "3ca100066bbf569b",
         "observation_type": "generation"
       },
       {

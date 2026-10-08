@@ -23,8 +23,11 @@ use super::truth::{CallRequest, Fact, Occurrence, Requirement, Truth};
 use super::{Violation, ViolationView};
 
 mod python;
+mod rewrites;
 #[cfg(test)]
 mod tests;
+
+use rewrites::{rewrites, wire_ids};
 
 /// What a fixture's recorded requests account for in its views.
 #[derive(Default)]
@@ -111,6 +114,10 @@ pub(super) fn as_fact(
             }),
             "semantic",
         ),
+        // Withheld: the model signed reasoning whose text the client never had, and sends it back as such.
+        ("reasoning", _) if part["text"] == "" && part["signed"] == true => {
+            ("reasoning", json!({"text": "", "signed": true}), "signed")
+        }
         ("reasoning", _) if part["text"].is_string() => {
             ("reasoning", json!({"text": part["text"]}), "exact")
         }
@@ -161,58 +168,6 @@ fn rewritten(id: &Value, rewrites: &BTreeMap<String, String>) -> Value {
         Some(shown) => Value::String(shown.clone()),
         None => id.clone(),
     }
-}
-
-/// Which id each of the request's call ids appears under on this span's input.
-///
-/// A framework that reissues the provider's ids does so consistently, and the fact checks report that
-/// as `tool_call.id_rewritten` once. Resolving the rewrite here keeps the request assignment from
-/// reporting the same rewrite again as a missing call and a missing result.
-fn rewrites(request: &CallRequest, recon: &Recon, blocks: &[&Block]) -> BTreeMap<String, String> {
-    // Every block of the conversation, not only this span's input: a framework that reissues the ids
-    // shows the call on the span that produced it, which is not the span that was then sent it.
-    let shown_anywhere: Vec<&Block> = recon
-        .views
-        .iter()
-        .filter(|view| view.kind == ViewKind::Trace)
-        .flat_map(|view| view.blocks.iter())
-        .chain(blocks.iter().copied())
-        .collect();
-    let mut out: BTreeMap<String, String> = BTreeMap::new();
-    let mut ambiguous: BTreeSet<String> = BTreeSet::new();
-    for occurrence in request.messages.iter().flat_map(|m| m.parts.iter()) {
-        let part = &occurrence.part;
-        if part.get("type").and_then(Value::as_str) != Some("tool_call") {
-            continue;
-        }
-        let Some(wire) = part["id"].as_str().filter(|id| !id.is_empty()) else {
-            continue;
-        };
-        let Some(fact) = as_fact("rewrite", "assistant", part, &BTreeMap::new()) else {
-            continue;
-        };
-        let shown: BTreeSet<&str> = shown_anywhere
-            .iter()
-            .filter(|block| {
-                block.role == "assistant" && !matches!(shows(&fact, block, None), Shows::No)
-            })
-            .filter_map(|block| block.call_id())
-            .filter(|shown| *shown != wire && !shown.is_empty())
-            .collect();
-        match shown.into_iter().collect::<Vec<_>>().as_slice() {
-            [one] => {
-                out.insert(wire.to_string(), (*one).to_string());
-            }
-            [] => {}
-            // Two different ids for one call: which one it was reissued as is unknowable, so neither
-            // is assumed and the strict comparison stands.
-            _ => {
-                ambiguous.insert(wire.to_string());
-            }
-        }
-    }
-    out.retain(|wire, _| !ambiguous.contains(wire));
-    out
 }
 
 fn expected(
@@ -419,6 +374,7 @@ pub(super) fn sequenced_inputs(
     matching: &Matching,
 ) -> Option<(usize, Vec<usize>)> {
     let recorded = truth.requests.get(&recon.fixture)?;
+    let issued = wire_ids(truth, recorded);
     for (call, request) in &recorded.calls {
         let Some(&generation) = matching.span_of.get(call) else {
             continue;
@@ -442,7 +398,7 @@ pub(super) fn sequenced_inputs(
             .iter()
             .map(|&i| &recon.views[view].blocks[i])
             .collect();
-        let wanted = expected(call, request, &rewrites(request, recon, &blocks));
+        let wanted = expected(call, request, &rewrites(request, recon, &blocks, &issued));
         let pairs = assignment(&wanted, &blocks);
         let shown: Vec<usize> = pairs
             .iter()
@@ -767,6 +723,7 @@ pub(super) fn check_requests(
     let Some(recorded) = truth.requests.get(&recon.fixture) else {
         return accounted;
     };
+    let issued = wire_ids(truth, recorded);
     // Every view's blocks, so content a request carried is accounted for wherever the reconstruction
     // shows it. Which span should show it is the assignment's business, below.
     let everywhere: Vec<&Block> = recon.views.iter().flat_map(|v| v.blocks.iter()).collect();
@@ -798,7 +755,7 @@ pub(super) fn check_requests(
             continue;
         };
         let blocks: Vec<&Block> = view.blocks.iter().filter(|b| !b.output).collect();
-        let wanted = expected(call, request, &rewrites(request, recon, &blocks));
+        let wanted = expected(call, request, &rewrites(request, recon, &blocks, &issued));
         let pairs = assignment(&wanted, &blocks);
         let mut assigned_expected: Vec<bool> = (0..wanted.len())
             .map(|i| pairs.iter().any(|&(e, _)| e == i))

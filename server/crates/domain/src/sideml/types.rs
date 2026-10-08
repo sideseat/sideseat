@@ -176,6 +176,14 @@ pub struct CacheControl {
     pub cache_type: String,
 }
 
+/// A thinking block's signature as the view states it: that there is one.
+fn serialize_signed<S: serde::Serializer>(
+    _signature: &Option<String>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    serializer.serialize_bool(true)
+}
+
 /// Unified content block types for multimodal messages.
 ///
 /// Uses custom deserialization to preserve unknown content block types.
@@ -288,10 +296,20 @@ pub enum ContentBlock {
     /// Structured JSON output (output_json, json_object)
     Json { data: JsonValue },
 
-    /// Thinking/reasoning content (Claude extended thinking, o1 reasoning)
+    /// Thinking/reasoning content (Claude extended thinking, o1 reasoning).
+    ///
+    /// A view says only *that* the reasoning is signed (`"signed": true`): the signature is an opaque token a
+    /// later request replays, of no use to someone reading the conversation, and the raw store keeps it for
+    /// anyone who needs to replay one. It stays here, unserialized, because it is the reasoning's identity -
+    /// two blocks with the same text and different signatures are two turns of thinking, and one whose text
+    /// was withheld has nothing else to be told apart by.
     Thinking {
         text: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(
+            rename = "signed",
+            skip_serializing_if = "Option::is_none",
+            serialize_with = "serialize_signed"
+        )]
         signature: Option<String>,
     },
 
@@ -480,6 +498,19 @@ impl<'de> Deserialize<'de> for ContentBlock {
 }
 
 impl ContentBlock {
+    /// Bytes the block holds that its serialisation does not show: a thinking block's signature, kept for
+    /// identity and stated in a view only as `signed`. A cache that weighs a block by its serialisation must
+    /// add these, since a signature is as long as the provider makes it.
+    pub fn unserialised_bytes(&self) -> usize {
+        match self {
+            Self::Thinking {
+                signature: Some(signature),
+                ..
+            } => signature.len(),
+            _ => 0,
+        }
+    }
+
     /// Get the type name of this content block.
     pub fn block_type(&self) -> &'static str {
         match self {

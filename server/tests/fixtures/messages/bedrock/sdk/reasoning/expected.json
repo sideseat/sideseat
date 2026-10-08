@@ -28,7 +28,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "This is the classic bridge and torch puzzle with crossing times of 1, 2, 5, and 10 minutes, and I recall the optimal solution takes 17 minutes. I'm working out the sequence: send 1 and 2 across together, have 1 return, send 5 and 10 across …[5648 chars]",
-          "content_digest": "334ebe853a23fb62",
+          "content_digest": "6d14340e77eaf39c",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -75,7 +75,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "This is the classic bridge and torch puzzle with crossing times of 1, 2, 5, and 10 minutes, and I recall the optimal solution takes 17 minutes. I'm working out the sequence: send 1 and 2 across together, have 1 return, send 5 and 10 across …[5648 chars]",
-          "content_digest": "334ebe853a23fb62",
+          "content_digest": "6d14340e77eaf39c",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -115,7 +115,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "This is the classic bridge and torch puzzle with crossing times of 1, 2, 5, and 10 minutes, and I recall the optimal solution takes 17 minutes. I'm working out the sequence: send 1 and 2 across together, have 1 return, send 5 and 10 across …[5648 chars]",
-          "content_digest": "334ebe853a23fb62",
+          "content_digest": "6d14340e77eaf39c",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -146,7 +146,7 @@
         "role": "assistant",
         "entry_type": "thinking",
         "content": "This is the classic bridge and torch puzzle with crossing times of 1, 2, 5, and 10 minutes, and I recall the optimal solution takes 17 minutes. I'm working out the sequence: send 1 and 2 across together, have 1 return, send 5 and 10 across …[5648 chars]",
-        "content_digest": "334ebe853a23fb62",
+        "content_digest": "6d14340e77eaf39c",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },

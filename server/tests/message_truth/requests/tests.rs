@@ -309,3 +309,52 @@ fn a_python_rendering_is_shown_only_by_the_value_it_renders_byte_for_byte() {
     other.tool_use_id = Some("call-2".to_string());
     assert!(!matches(&sent_result("{'city': 'Paris'}"), &other));
 }
+
+fn shown_call(id: &str) -> Block {
+    let content =
+        json!({"type": "tool_use", "id": id, "name": "book_flight", "input": {"to": "Oslo"}});
+    Block {
+        role: "assistant".to_string(),
+        kind: "tool_use".to_string(),
+        digest: content.to_string(),
+        identity: content.to_string(),
+        content,
+        tool_use_id: Some(id.to_string()),
+        trace: "t".to_string(),
+        span: "s".to_string(),
+        output: false,
+        finish: None,
+        media_sha256: None,
+    }
+}
+
+/// Two calls with one name and the same arguments - a retry - each shown under its own id are not each other
+/// rewritten: that reading swapped their results and reported both out of order. A call shown under an id
+/// the provider never issued is still a rewrite.
+#[test]
+fn a_call_shown_under_another_call_s_id_is_not_a_reissue() {
+    let call = |id: &str| json!({"part": {"type": "tool_call", "id": id, "name": "book_flight", "arguments": {"to": "Oslo"}}});
+    let request: CallRequest = serde_json::from_value(json!({
+        "api": "bedrock.converse", "system": [], "tools": [],
+        "messages": [{"role": "assistant", "parts": [call("id-a")]}, {"role": "assistant", "parts": [call("id-b")]}],
+    }))
+    .expect("a request");
+    let both = [shown_call("id-a"), shown_call("id-b")];
+    let shown: Vec<&Block> = both.iter().collect();
+    let issued: BTreeSet<&str> = ["id-a", "id-b"].into();
+    assert_eq!(
+        super::rewrites::rewrite_map(&request, &shown, &issued),
+        BTreeMap::new()
+    );
+    let unaware = super::rewrites::rewrite_map(&request, &shown, &BTreeSet::new());
+    assert_eq!(
+        unaware.get("id-a").map(String::as_str),
+        Some("id-b"),
+        "without the issued ids they swap"
+    );
+
+    let reissued = [shown_call("framework-1")];
+    let shown: Vec<&Block> = reissued.iter().collect();
+    let map = super::rewrites::rewrite_map(&request, &shown, &issued);
+    assert_eq!(map.get("id-a").map(String::as_str), Some("framework-1"));
+}

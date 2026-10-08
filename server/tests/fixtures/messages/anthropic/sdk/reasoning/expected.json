@@ -37,7 +37,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "This is the classic bridge crossing puzzle, with the optimal answer being 17 minutes: send the two fastest across first, return the fastest, send the two slowest across together, return the second-fastest, then send the two fastest across a…[298 chars]",
-          "content_digest": "5da22e759a1b5ad4",
+          "content_digest": "9331cce2eaa5a2c9",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -93,7 +93,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "This is the classic bridge crossing puzzle, with the optimal answer being 17 minutes: send the two fastest across first, return the fastest, send the two slowest across together, return the second-fastest, then send the two fastest across a…[298 chars]",
-          "content_digest": "5da22e759a1b5ad4",
+          "content_digest": "9331cce2eaa5a2c9",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -142,7 +142,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "This is the classic bridge crossing puzzle, with the optimal answer being 17 minutes: send the two fastest across first, return the fastest, send the two slowest across together, return the second-fastest, then send the two fastest across a…[298 chars]",
-          "content_digest": "5da22e759a1b5ad4",
+          "content_digest": "9331cce2eaa5a2c9",
           "finish_reason": "Stop",
           "observation_type": "generation"
         },
@@ -174,7 +174,7 @@
         "role": "assistant",
         "entry_type": "thinking",
         "content": "This is the classic bridge crossing puzzle, with the optimal answer being 17 minutes: send the two fastest across first, return the fastest, send the two slowest across together, return the second-fastest, then send the two fastest across a…[298 chars]",
-        "content_digest": "5da22e759a1b5ad4",
+        "content_digest": "9331cce2eaa5a2c9",
         "finish_reason": "Stop",
         "observation_type": "generation"
       },

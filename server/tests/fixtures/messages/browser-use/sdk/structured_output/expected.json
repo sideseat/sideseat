@@ -56,9 +56,9 @@
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSowgKEggSEAEYAjgBQgh0aGlua2luZxIMaIMWAOGJf2uT3fHDGgzN/tJgzUKek4fac0QiMIwEdRGqYsqJdxu0Qu22v+1f4FIwYpNZvb1cSjbUrLkIK3DHPAgXS8wTgnJSawIY6iq+BwivoOOzj/awavg2q0KhfOqf2sWcq2GER8KtHOZSO/UgfOeBj4RlSqMWrC8JRaQY…[1462 chars]",
-          "content_digest": "2827cf0eb02bf6af",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
           "observation_type": "generation"
         },
         {
@@ -212,9 +212,9 @@
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSowgKEggSEAEYAjgBQgh0aGlua2luZxIMaIMWAOGJf2uT3fHDGgzN/tJgzUKek4fac0QiMIwEdRGqYsqJdxu0Qu22v+1f4FIwYpNZvb1cSjbUrLkIK3DHPAgXS8wTgnJSawIY6iq+BwivoOOzj/awavg2q0KhfOqf2sWcq2GER8KtHOZSO/UgfOeBj4RlSqMWrC8JRaQY…[1462 chars]",
-          "content_digest": "2827cf0eb02bf6af",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
           "observation_type": "generation"
         },
         {
@@ -319,9 +319,9 @@
         {
           "index": 2,
           "role": "assistant",
-          "entry_type": "redacted_thinking",
-          "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSowgKEggSEAEYAjgBQgh0aGlua2luZxIMaIMWAOGJf2uT3fHDGgzN/tJgzUKek4fac0QiMIwEdRGqYsqJdxu0Qu22v+1f4FIwYpNZvb1cSjbUrLkIK3DHPAgXS8wTgnJSawIY6iq+BwivoOOzj/awavg2q0KhfOqf2sWcq2GER8KtHOZSO/UgfOeBj4RlSqMWrC8JRaQY…[1462 chars]",
-          "content_digest": "2827cf0eb02bf6af",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
           "observation_type": "generation"
         },
         {
@@ -478,9 +478,9 @@
       {
         "index": 8,
         "role": "assistant",
-        "entry_type": "redacted_thinking",
-        "content": "{\"type\":\"redacted_thinking\",\"data\":\"CAQSowgKEggSEAEYAjgBQgh0aGlua2luZxIMaIMWAOGJf2uT3fHDGgzN/tJgzUKek4fac0QiMIwEdRGqYsqJdxu0Qu22v+1f4FIwYpNZvb1cSjbUrLkIK3DHPAgXS8wTgnJSawIY6iq+BwivoOOzj/awavg2q0KhfOqf2sWcq2GER8KtHOZSO/UgfOeBj4RlSqMWrC8JRaQY…[1462 chars]",
-        "content_digest": "2827cf0eb02bf6af",
+        "entry_type": "thinking",
+        "content": "",
+        "content_digest": "3ca100066bbf569b",
         "observation_type": "generation"
       },
       {

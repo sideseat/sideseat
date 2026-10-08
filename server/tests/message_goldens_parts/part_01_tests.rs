@@ -264,6 +264,19 @@ fn content_digest(value: &serde_json::Value) -> String {
     format!("{:016x}", hasher.finish())
 }
 
+/// A block's identity for the invariants. The view says only that reasoning was signed, yet two reasoning
+/// blocks with one text and different signatures are two turns: the pipeline's identity keeps the signature
+/// for that reason, and so must the duplicate check, or it would accuse two withheld turns of being one.
+fn identity_digest(content: &sideseat_domain::sideml::ContentBlock, view_digest: &str) -> String {
+    match content {
+        sideseat_domain::sideml::ContentBlock::Thinking {
+            signature: Some(signature),
+            ..
+        } => content_digest(&json!([view_digest, signature])),
+        _ => view_digest.to_string(),
+    }
+}
+
 /// Remove producer-generated values that are embedded in span names but are not conversation
 /// semantics. The raw span name is still asserted by its own ingestion tests; this representation
 /// exists only to compare two independent executions of the same framework sample.
@@ -506,7 +519,7 @@ fn build_view(rows: Vec<MessageSpanRow>, view: View<'_>) -> (GoldenView, Vec<Inv
                 content: m.content.clone(),
                 full_content: serde_json::to_string(&block.content)
                     .expect("content block is serializable"),
-                content_digest: m.content_digest.clone(),
+                content_digest: identity_digest(&block.content, &m.content_digest),
                 occurrence_ordinal: block.occurrence_ordinal,
                 tool_use_id: block.tool_use_id.clone(),
                 carrier: match (&block.event_name, &block.source_attribute) {

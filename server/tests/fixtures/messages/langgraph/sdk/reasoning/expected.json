@@ -28,7 +28,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "This is the classic bridge crossing puzzle with crossing times of 1, 2, 5, and 10 minutes, which solves optimally in 17 minutes. I'm working out the sequence: send the two fastest across first, send the fastest back for the torch, then send…[8418 chars]",
-          "content_digest": "f32defdb694e83d5",
+          "content_digest": "cef4f5911c8cc5fd",
           "observation_type": "generation"
         },
         {
@@ -82,7 +82,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "This is the classic bridge crossing puzzle with crossing times of 1, 2, 5, and 10 minutes, which solves optimally in 17 minutes. I'm working out the sequence: send the two fastest across first, send the fastest back for the torch, then send…[8418 chars]",
-          "content_digest": "f32defdb694e83d5",
+          "content_digest": "cef4f5911c8cc5fd",
           "observation_type": "chain"
         },
         {
@@ -127,7 +127,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "This is the classic bridge crossing puzzle with crossing times of 1, 2, 5, and 10 minutes, which solves optimally in 17 minutes. I'm working out the sequence: send the two fastest across first, send the fastest back for the torch, then send…[8418 chars]",
-          "content_digest": "f32defdb694e83d5",
+          "content_digest": "cef4f5911c8cc5fd",
           "observation_type": "generation"
         },
         {
@@ -165,7 +165,7 @@
           "role": "assistant",
           "entry_type": "thinking",
           "content": "This is the classic bridge crossing puzzle with crossing times of 1, 2, 5, and 10 minutes, which solves optimally in 17 minutes. I'm working out the sequence: send the two fastest across first, send the fastest back for the torch, then send…[8418 chars]",
-          "content_digest": "f32defdb694e83d5",
+          "content_digest": "cef4f5911c8cc5fd",
           "observation_type": "generation"
         },
         {
@@ -194,7 +194,7 @@
         "role": "assistant",
         "entry_type": "thinking",
         "content": "This is the classic bridge crossing puzzle with crossing times of 1, 2, 5, and 10 minutes, which solves optimally in 17 minutes. I'm working out the sequence: send the two fastest across first, send the fastest back for the torch, then send…[8418 chars]",
-        "content_digest": "f32defdb694e83d5",
+        "content_digest": "cef4f5911c8cc5fd",
         "observation_type": "generation"
       },
       {

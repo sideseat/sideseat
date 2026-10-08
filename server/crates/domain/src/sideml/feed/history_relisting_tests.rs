@@ -186,3 +186,55 @@ fn a_finish_reason_marks_output_only_on_what_the_span_produced() {
         "a finished reply is the call's output"
     );
 }
+
+/// An event-based framework's model call under an agent span: the call's assistant text is intermediate, since
+/// the agent span restates it, but reasoning whose text was withheld is the conversation's only copy.
+#[test]
+fn withheld_reasoning_is_not_intermediate_output() {
+    use super::tests::make_block_with_source;
+    let assistant = || {
+        make_block_with_source(
+            "text",
+            Some("generation"),
+            None,
+            "attribute",
+            MessageCategory::GenAIAssistantMessage,
+            ChatRole::Assistant,
+        )
+    };
+    let mut blocks = vec![
+        make_block_with_source(
+            "text",
+            Some("agent"),
+            None,
+            "attribute",
+            MessageCategory::GenAIUserMessage,
+            ChatRole::User,
+        ),
+        make_block_with_source(
+            "text",
+            Some("generation"),
+            Some("gen_ai.user.message"),
+            "event",
+            MessageCategory::GenAIUserMessage,
+            ChatRole::User,
+        ),
+        assistant(),
+        assistant(),
+    ];
+    blocks[3].content = ContentBlock::Thinking {
+        text: String::new(),
+        signature: Some("sig".to_string()),
+    };
+    let agent_span = blocks[0].span_id.clone();
+    for block in &mut blocks[1..] {
+        block.parent_span_id = Some(agent_span.clone());
+        block.span_path = vec![agent_span.clone(), block.span_id.clone()];
+    }
+    mark_history(&mut blocks, &std::collections::HashMap::new());
+    assert!(
+        blocks[2].is_history,
+        "the call's text is restated by the agent span"
+    );
+    assert!(!blocks[3].is_history, "the withheld reasoning is kept");
+}

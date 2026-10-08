@@ -585,3 +585,47 @@ fn metadata_is_absent_only_where_no_payload_states_it() {
         Proof::Absent
     );
 }
+
+fn withheld_fact() -> Fact {
+    serde_json::from_value(serde_json::json!({
+        "id": "fact-001", "kind": "reasoning", "role": "assistant", "conversation": "conv-1",
+        "evidence": "wire", "value": {"text": "", "signed": true},
+        "require": {"anchor": "model_call", "views": ["span"], "cardinality": "exactly_once", "match": "signed"}
+    }))
+    .expect("a fact")
+}
+
+#[test]
+fn withheld_reasoning_is_present_where_a_payload_holds_its_part() {
+    const SIGNATURE: &str = "EqQBCkgIBhABGAIiQKmvNk3zF7Yh0w2xQ5kVd9pLr8c3Tg1uB4oWnXeZsA6y";
+    let fact = withheld_fact();
+    let typed = serde_json::json!([{"type": "thinking", "thinking": "", "signature": SIGNATURE}]);
+    assert!(present(prove(
+        &fact,
+        &attribute(string(&typed.to_string()))
+    )));
+    let signed = serde_json::json!({"reasoningContent": {"reasoningText": {"text": "", "signature": SIGNATURE}}});
+    assert!(present(prove(
+        &fact,
+        &attribute(string(&signed.to_string()))
+    )));
+    let flattened = span(|s| {
+        s.attributes.push(kv(
+            "gen_ai.output.messages.0.parts.0.type",
+            string("reasoning"),
+        ));
+    });
+    assert!(present(prove(&fact, &flattened)));
+
+    // Configuration named for reasoning, and a signature that is no token, are not a part: with nothing else,
+    // whether the producer dropped one cannot be told, and absence is never assumed.
+    let configured = serde_json::json!({
+        "thinking": {"type": "enabled", "budget_tokens": 1024},
+        "tools": [{"name": "get_weather", "signature": "(city: str, days: int) -> dict"}],
+        "text": TEXT,
+    });
+    assert_eq!(
+        prove(&fact, &attribute(string(&configured.to_string()))),
+        Proof::Unprovable("no payload carries a reasoning part".to_string())
+    );
+}
