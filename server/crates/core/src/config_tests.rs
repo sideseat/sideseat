@@ -118,6 +118,7 @@ fn test_file_config_merge() {
             }),
             auth: None,
             staging_redrive_cap: None,
+            max_inflight_bytes: Some(8_388_608),
         }),
         pricing: Some(PricingFileConfig {
             sync_hours: Some(4),
@@ -152,6 +153,7 @@ fn test_file_config_merge() {
             }),
             auth: None,
             staging_redrive_cap: None,
+            max_inflight_bytes: Some(33_554_432),
         }),
         pricing: Some(PricingFileConfig {
             sync_hours: Some(8),
@@ -180,6 +182,7 @@ fn test_file_config_merge() {
     assert_eq!(otel.grpc.as_ref().unwrap().port, Some(4317));
     assert_eq!(otel.retention.as_ref().unwrap().max_age_minutes, Some(60));
     assert_eq!(otel.retention.as_ref().unwrap().max_spans, Some(1_000_000));
+    assert_eq!(otel.max_inflight_bytes, Some(33_554_432));
 
     assert_eq!(base.pricing.as_ref().unwrap().sync_hours, Some(8));
     assert_eq!(base.debug, Some(true));
@@ -196,6 +199,10 @@ fn test_app_config_defaults() {
     assert!(!config.debug);
     assert_eq!(config.files.storage, StorageBackend::Filesystem);
     assert_eq!(config.database.queue, QueueBackendType::Memory);
+    assert_eq!(
+        config.otel.max_inflight_bytes,
+        crate::constants::DEFAULT_OTEL_MAX_INFLIGHT_BYTES
+    );
 }
 
 #[test]
@@ -239,6 +246,7 @@ fn test_app_config_cli_override() {
         otel_retention_max_age: Some(120),
         otel_retention_max_spans: Some(1_000_000),
         otel_auth_required: None,
+        otel_max_inflight_bytes: Some(4_194_304),
         pricing_sync_hours: Some(12),
         no_update_check: true,
         files_enabled: Some(false),
@@ -279,6 +287,7 @@ fn test_app_config_cli_override() {
     assert_eq!(config.otel.grpc_port, 4318);
     assert_eq!(config.otel.retention.max_age_minutes, Some(120));
     assert_eq!(config.otel.retention.max_spans, Some(1_000_000));
+    assert_eq!(config.otel.max_inflight_bytes, 4_194_304);
     assert_eq!(config.pricing.sync_hours, 12);
     assert!(!config.files.enabled);
     assert_eq!(config.files.quota_bytes, 500_000_000);

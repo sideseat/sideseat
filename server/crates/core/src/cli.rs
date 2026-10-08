@@ -14,11 +14,11 @@ use super::constants::{
     ENV_FILES_ENABLED, ENV_FILES_QUOTA_BYTES, ENV_FILES_S3_BUCKET, ENV_FILES_S3_ENDPOINT,
     ENV_FILES_S3_PREFIX, ENV_FILES_S3_REGION, ENV_FILES_STORAGE, ENV_HOST, ENV_MCP_ENABLED,
     ENV_NO_UPDATE_CHECK, ENV_OTEL_AUTH_REQUIRED, ENV_OTEL_GRPC_ENABLED, ENV_OTEL_GRPC_PORT,
-    ENV_OTEL_RETENTION_MAX_AGE_MINUTES, ENV_OTEL_RETENTION_MAX_SPANS, ENV_PORT, ENV_POSTGRES_URL,
-    ENV_PRICING_SYNC_HOURS, ENV_QUEUE_BACKEND, ENV_RATE_LIMIT_API_RPM, ENV_RATE_LIMIT_AUTH_RPM,
-    ENV_RATE_LIMIT_BYPASS_HEADER, ENV_RATE_LIMIT_ENABLED, ENV_RATE_LIMIT_FILES_RPM,
-    ENV_RATE_LIMIT_INGESTION_RPM, ENV_RATE_LIMIT_PER_IP, ENV_REDPANDA_BROKERS, ENV_SECRETS_BACKEND,
-    ENV_TRANSACTIONAL_BACKEND,
+    ENV_OTEL_MAX_INFLIGHT_BYTES, ENV_OTEL_RETENTION_MAX_AGE_MINUTES, ENV_OTEL_RETENTION_MAX_SPANS,
+    ENV_PORT, ENV_POSTGRES_URL, ENV_PRICING_SYNC_HOURS, ENV_QUEUE_BACKEND, ENV_RATE_LIMIT_API_RPM,
+    ENV_RATE_LIMIT_AUTH_RPM, ENV_RATE_LIMIT_BYPASS_HEADER, ENV_RATE_LIMIT_ENABLED,
+    ENV_RATE_LIMIT_FILES_RPM, ENV_RATE_LIMIT_INGESTION_RPM, ENV_RATE_LIMIT_PER_IP,
+    ENV_REDPANDA_BROKERS, ENV_SECRETS_BACKEND, ENV_TRANSACTIONAL_BACKEND,
 };
 
 #[derive(Parser)]
@@ -67,6 +67,10 @@ struct Cli {
     /// Require API key for OTEL ingestion
     #[arg(long, global = true, env = ENV_OTEL_AUTH_REQUIRED)]
     otel_auth_required: Option<bool>,
+
+    /// OTLP body bytes in flight at once, across HTTP and gRPC
+    #[arg(long, global = true, env = ENV_OTEL_MAX_INFLIGHT_BYTES)]
+    otel_max_inflight_bytes: Option<u64>,
 
     /// Pricing sync interval in hours (0 = disabled)
     #[arg(long, global = true, env = ENV_PRICING_SYNC_HOURS)]
@@ -315,6 +319,7 @@ pub struct CliConfig {
     pub(crate) otel_retention_max_age: Option<u64>,
     pub(crate) otel_retention_max_spans: Option<u64>,
     pub(crate) otel_auth_required: Option<bool>,
+    pub(crate) otel_max_inflight_bytes: Option<u64>,
     pub(crate) pricing_sync_hours: Option<u64>,
     pub(crate) no_update_check: bool,
     pub(crate) files_enabled: Option<bool>,
@@ -360,6 +365,7 @@ pub fn parse() -> (CliConfig, Option<Commands>) {
         otel_retention_max_age: cli.otel_retention_max_age,
         otel_retention_max_spans: cli.otel_retention_max_spans,
         otel_auth_required: cli.otel_auth_required,
+        otel_max_inflight_bytes: cli.otel_max_inflight_bytes,
         pricing_sync_hours: cli.pricing_sync_hours,
         no_update_check: cli.no_update_check,
         files_enabled: cli.files_enabled,

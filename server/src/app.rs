@@ -274,6 +274,12 @@ impl CoreApp {
 
         app.start_background_tasks().await?;
         let api_key_secret = app.secrets.get_api_key_secret().await?;
+        // One budget of OTLP bytes in flight for both transports: a client cannot double it by splitting its
+        // exports between HTTP and gRPC.
+        let ingest_admission =
+            Arc::new(sideseat_api::routes::otlp_collector::IngestAdmission::new(
+                app.config.otel.max_inflight_bytes,
+            ));
 
         if app.config.otel.grpc_enabled {
             // Reject invalid proxy ranges before either transport starts.
@@ -332,6 +338,7 @@ impl CoreApp {
                             ingestion_rpm: app.config.rate_limit.ingestion_rpm,
                         }
                     }),
+                    admission: Arc::clone(&ingest_admission),
                 },
             )?;
             let shutdown_rx = app.shutdown.subscribe();
@@ -377,6 +384,7 @@ impl CoreApp {
             api_key_secret,
             clock: app.clock.clone(),
             shutdown_rx: app.shutdown.subscribe(),
+            ingest_admission,
         });
         server.start().await?;
         shutdown.shutdown().await;

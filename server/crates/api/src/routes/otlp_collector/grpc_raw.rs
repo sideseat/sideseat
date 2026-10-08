@@ -27,6 +27,10 @@ use tonic::codegen::{BoxFuture, Service, StdError, empty_body, http};
 use tonic::server::{Grpc, NamedService, UnaryService};
 use tonic::{Request, Response, Status};
 
+use futures::StreamExt;
+
+use super::admission::IngestAdmission;
+
 /// A decoded message together with the bytes it was decoded from.
 #[derive(Debug, Clone)]
 pub struct Received<T> {
@@ -136,14 +140,16 @@ pub struct RawExport<H> {
     inner: Arc<H>,
     max_decoding_message_size: Option<usize>,
     max_encoding_message_size: Option<usize>,
+    admission: Arc<IngestAdmission>,
 }
 
 impl<H> RawExport<H> {
-    pub fn new(handler: H, max_message_size: usize) -> Self {
+    pub fn new(handler: H, max_message_size: usize, admission: Arc<IngestAdmission>) -> Self {
         Self {
             inner: Arc::new(handler),
             max_decoding_message_size: Some(max_message_size),
             max_encoding_message_size: Some(max_message_size),
+            admission,
         }
     }
 }
@@ -154,8 +160,40 @@ impl<H> Clone for RawExport<H> {
             inner: Arc::clone(&self.inner),
             max_decoding_message_size: self.max_decoding_message_size,
             max_encoding_message_size: self.max_encoding_message_size,
+            admission: Arc::clone(&self.admission),
         }
     }
+}
+
+/// The export's message length, from the first five bytes of its body - the gRPC frame's flag and length - read
+/// before the message itself, with the body that remains, those bytes first.
+async fn frame_length<B>(body: B) -> (usize, axum::body::Body)
+where
+    B: tonic::codegen::Body<Data = Bytes> + Send + 'static,
+    B::Error: Into<StdError> + Send + 'static,
+{
+    let mut data = axum::body::Body::new(body).into_data_stream();
+    let mut prefix = prost::bytes::BytesMut::new();
+    let mut failure = None;
+    while prefix.len() < 5 {
+        match data.next().await {
+            Some(Ok(chunk)) => prefix.extend_from_slice(&chunk),
+            Some(Err(error)) => {
+                failure = Some(error);
+                break;
+            }
+            None => break,
+        }
+    }
+    let length = if prefix.len() >= 5 {
+        u32::from_be_bytes([prefix[1], prefix[2], prefix[3], prefix[4]]) as usize + 5
+    } else {
+        prefix.len()
+    };
+    let read = futures::stream::once(async move { Ok(prefix.freeze()) })
+        .chain(futures::stream::iter(failure.map(Err)))
+        .chain(data);
+    (length, axum::body::Body::from_stream(read))
 }
 
 impl<H: RawExportHandler> NamedService for RawExport<H> {
@@ -177,7 +215,7 @@ impl<H: RawExportHandler> UnaryService<Received<H::Request>> for ExportSvc<H> {
 impl<H, B> Service<http::Request<B>> for RawExport<H>
 where
     H: RawExportHandler,
-    B: tonic::codegen::Body + Send + 'static,
+    B: tonic::codegen::Body<Data = Bytes> + Send + 'static,
     B::Error: Into<StdError> + Send + 'static,
 {
     type Response = http::Response<tonic::body::BoxBody>;
@@ -205,14 +243,28 @@ where
             });
         }
         let inner = Arc::clone(&self.inner);
+        let admission = Arc::clone(&self.admission);
         let (max_decoding, max_encoding) = (
             self.max_decoding_message_size,
             self.max_encoding_message_size,
         );
         Box::pin(async move {
+            // Admitted on the frame's declared length, before its message is read (`admission`).
+            let (parts, body) = req.into_parts();
+            let (length, body) = frame_length(body).await;
+            let Some(admitted) = admission.try_admit(length) else {
+                return Ok(Status::unavailable(
+                    "OTLP ingest is holding as many bytes as it may; retry",
+                )
+                .into_http());
+            };
             let mut grpc = Grpc::new(RawCodec::<H::Response, H::Request>::default())
                 .apply_max_message_size_config(max_decoding, max_encoding);
-            Ok(grpc.unary(ExportSvc(inner), req).await)
+            let response = grpc
+                .unary(ExportSvc(inner), http::Request::from_parts(parts, body))
+                .await;
+            drop(admitted);
+            Ok(response)
         })
     }
 }
@@ -285,6 +337,7 @@ mod tests {
             inner: Arc::clone(&spy),
             max_decoding_message_size: Some(1 << 20),
             max_encoding_message_size: Some(1 << 20),
+            admission: Arc::new(super::super::admission::IngestAdmission::new(1 << 20)),
         };
         let request = http::Request::builder()
             .uri(Spy::PATH)
@@ -312,10 +365,61 @@ mod tests {
         );
     }
 
+    /// An export the in-flight budget cannot hold is answered UNAVAILABLE on its frame's declared length,
+    /// before its message is read or decoded, and the handler never sees it; once the budget frees, it is served.
+    #[tokio::test]
+    async fn an_export_over_the_budget_is_unavailable_before_its_message_is_read() {
+        let payload = export().encode_to_vec();
+        let admission = Arc::new(super::super::admission::IngestAdmission::new(
+            (payload.len() + 5) as u64,
+        ));
+        let spy = Arc::new(Spy(Mutex::new(None)));
+        let mut service = RawExport {
+            inner: Arc::clone(&spy),
+            max_decoding_message_size: Some(1 << 20),
+            max_encoding_message_size: Some(1 << 20),
+            admission: Arc::clone(&admission),
+        };
+        let request = || {
+            http::Request::builder()
+                .uri(Spy::PATH)
+                .header(http::header::CONTENT_TYPE, "application/grpc")
+                .body(axum::body::Body::from(frame(&payload)))
+                .expect("a well-formed request")
+        };
+        let held = admission.try_admit(1).expect("another export in flight");
+        let response = service
+            .call(request())
+            .await
+            .expect("the call is infallible");
+        assert_eq!(
+            response
+                .headers()
+                .get(Status::GRPC_STATUS)
+                .and_then(|value| value.to_str().ok()),
+            Some("14"),
+            "over the budget answers UNAVAILABLE"
+        );
+        assert!(spy.0.lock().expect("spy").is_none(), "the handler ran");
+
+        drop(held);
+        let response = service
+            .call(request())
+            .await
+            .expect("the call is infallible");
+        assert_eq!(response.status(), http::StatusCode::OK);
+        assert!(spy.0.lock().expect("spy").is_some(), "served once it fits");
+        assert_eq!(admission.in_flight(), 0, "released once answered");
+    }
+
     /// Another service's path is unimplemented, as the generated server answers it.
     #[tokio::test]
     async fn another_path_is_unimplemented() {
-        let mut service = RawExport::new(Spy(Mutex::new(None)), 1 << 20);
+        let mut service = RawExport::new(
+            Spy(Mutex::new(None)),
+            1 << 20,
+            Arc::new(super::super::admission::IngestAdmission::new(1 << 20)),
+        );
         let request = http::Request::builder()
             .uri("/opentelemetry.proto.collector.logs.v1.LogsService/Export")
             .body(axum::body::Body::empty())

@@ -15,6 +15,7 @@ use opentelemetry_proto::tonic::collector::{
     trace::v1::{ExportTraceServiceRequest, ExportTraceServiceResponse},
 };
 
+use super::admission::IngestAdmission;
 use super::grpc_raw::{RawExport, RawExportHandler, Received};
 use crate::extractors::is_valid_project_id;
 use sideseat_core::config::OtelConfig;
@@ -66,12 +67,15 @@ pub struct GrpcIngestAuth {
 ///
 /// Authentication and rate limiting travel together as transport-entry guards. Adding another ingest gate
 /// extends this structure rather than threading an independent parameter through every service.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct GrpcIngestGuards {
     /// Set exactly when `otel.auth.required` is on.
     pub auth: Option<GrpcIngestAuth>,
     /// Set when rate limiting is on.
     pub limit: Option<GrpcIngestLimit>,
+    /// The bytes in flight, shared with the HTTP routes and taken from a frame's length before its message is
+    /// read (`admission`).
+    pub admission: Arc<IngestAdmission>,
 }
 
 /// The per-project ingestion limit, applied to gRPC exactly as the HTTP middleware applies it.
@@ -247,6 +251,7 @@ impl OtlpGrpcServer {
                     Arc::clone(&self.storage_governance),
                 ),
                 OTLP_BODY_LIMIT,
+                Arc::clone(&self.guards.admission),
             ))
             .add_service(RawExport::new(
                 OtlpMetricsService::new(
@@ -259,18 +264,20 @@ impl OtlpGrpcServer {
                     Arc::clone(&self.storage_governance),
                 ),
                 OTLP_BODY_LIMIT,
+                Arc::clone(&self.guards.admission),
             ))
             .add_service(RawExport::new(
                 OtlpLogsService::new(
                     self.log_signal,
                     Arc::clone(&self.database),
                     debug_path,
-                    self.guards,
+                    self.guards.clone(),
                     self.clock,
                     self.staging,
                     self.storage_governance,
                 ),
                 OTLP_BODY_LIMIT,
+                Arc::clone(&self.guards.admission),
             ))
             .serve_with_shutdown(addr, async move {
                 let _ = shutdown_rx.wait_for(|&v| v).await;

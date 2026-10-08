@@ -42,4 +42,6 @@ pub struct ApiDependencies {
     pub api_key_secret: Vec<u8>,
     pub clock: Arc<dyn Clock>,
     pub shutdown_rx: watch::Receiver<bool>,
+    /// The OTLP bytes in flight, one budget for HTTP and gRPC.
+    pub ingest_admission: Arc<crate::routes::otlp_collector::IngestAdmission>,
 }

@@ -241,6 +241,7 @@ pub struct OtelFileConfig {
     pub retention: Option<RetentionFileConfig>,
     pub auth: Option<OtelAuthFileConfig>,
     pub staging_redrive_cap: Option<u32>,
+    pub max_inflight_bytes: Option<u64>,
 }
 
 /// Pricing configuration section (from JSON config file)
@@ -565,6 +566,14 @@ impl FileConfig {
                     "Merging otel.staging_redrive_cap"
                 );
                 current.staging_redrive_cap = otel.staging_redrive_cap;
+            }
+
+            if otel.max_inflight_bytes.is_some() {
+                tracing::trace!(
+                    max_inflight_bytes = ?otel.max_inflight_bytes,
+                    "Merging otel.max_inflight_bytes"
+                );
+                current.max_inflight_bytes = otel.max_inflight_bytes;
             }
         }
 

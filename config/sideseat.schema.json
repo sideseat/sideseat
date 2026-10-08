@@ -120,6 +120,12 @@
           "default": 5,
           "minimum": 1
         },
+        "max_inflight_bytes": {
+          "type": "integer",
+          "description": "OTLP body bytes the server reads, decodes and persists at once, across HTTP and gRPC. An export the budget cannot hold is answered 503 with Retry-After (gRPC UNAVAILABLE) before its body is read; one larger than the whole budget is admitted alone.",
+          "default": 16777216,
+          "minimum": 1
+        },
         "auth": {
           "type": "object",
           "description": "Authentication for OTLP ingestion",

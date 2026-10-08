@@ -1,5 +1,6 @@
 //! OpenTelemetry Protocol (OTLP) HTTP and gRPC endpoints
 
+mod admission;
 mod encoding;
 mod grpc;
 mod grpc_raw;
@@ -7,6 +8,7 @@ mod logs;
 mod metrics;
 mod traces;
 
+pub use admission::IngestAdmission;
 pub use grpc::{GrpcIngestAuth, GrpcIngestGuards, GrpcIngestLimit, IngestStores, OtlpGrpcServer};
 
 use std::path::PathBuf;
@@ -74,6 +76,7 @@ pub fn routes(
     staging: Arc<StagingService>,
     storage_governance: Arc<StorageGovernanceService>,
     trace_pipeline: Option<Arc<sideseat_ingestion::traces::TracePipeline>>,
+    admission: Arc<IngestAdmission>,
 ) -> Router {
     // Use stream topic for traces (at-least-once delivery)
     let trace_topic = Arc::new(
@@ -103,4 +106,9 @@ pub fn routes(
         .route("/metrics", post(metrics::export))
         .route("/logs", post(logs::export))
         .with_state(state)
+        // Innermost, so authentication and rate limits refuse an export before it holds any of the budget.
+        .layer(axum::middleware::from_fn_with_state(
+            admission,
+            admission::admit_http,
+        ))
 }

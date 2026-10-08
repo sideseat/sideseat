@@ -103,6 +103,10 @@ impl AppConfig {
         let staging_redrive_cap = file_otel
             .staging_redrive_cap
             .unwrap_or(DEFAULT_OTEL_STAGING_REDRIVE_CAP);
+        let otel_max_inflight_bytes = cli
+            .otel_max_inflight_bytes
+            .or(file_otel.max_inflight_bytes)
+            .unwrap_or(DEFAULT_OTEL_MAX_INFLIGHT_BYTES);
 
         // debug: CLI/env flag takes precedence, then file config, default false
         let debug = cli.debug || file_config.debug.unwrap_or(false);
@@ -474,6 +478,7 @@ impl AppConfig {
                 retention,
                 staging_redrive_cap,
                 auth_required: otel_auth_required,
+                max_inflight_bytes: otel_max_inflight_bytes,
             },
             pricing: PricingConfig {
                 sync_hours: pricing_sync_hours,
@@ -508,6 +513,7 @@ impl AppConfig {
             retention_max_spans = ?config.otel.retention.max_spans,
             staging_redrive_cap = config.otel.staging_redrive_cap,
             otel_auth_required = config.otel.auth_required,
+            otel_max_inflight_bytes = config.otel.max_inflight_bytes,
             pricing_sync_hours = config.pricing.sync_hours,
             files_enabled = config.files.enabled,
             files_storage = %config.files.storage,
@@ -549,6 +555,11 @@ impl AppConfig {
         if self.otel.staging_redrive_cap == 0 {
             return Err(ConfigError::Invalid(
                 "otel.staging_redrive_cap must be greater than 0".to_string(),
+            ));
+        }
+        if self.otel.max_inflight_bytes == 0 {
+            return Err(ConfigError::Invalid(
+                "otel.max_inflight_bytes must be greater than 0".to_string(),
             ));
         }
 

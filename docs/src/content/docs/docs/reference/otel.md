@@ -111,6 +111,19 @@ All OTel settings are under the `otel` key in your config file:
 
 See [Config Manager](/docs/reference/config/) for the full configuration reference.
 
+### Ingest admission
+
+The server holds at most `otel.max_inflight_bytes` of OTLP export bodies at once - 16 MiB by default - across
+HTTP and gRPC, from the moment it starts reading an export until it has answered it. An export that would take it
+past the budget is answered before any of its body is read: HTTP `503 Service Unavailable` with a `Retry-After`
+header, gRPC `UNAVAILABLE`. OpenTelemetry exporters treat both as retryable and send the export again, so a burst
+of clients is slowed rather than dropped, and the memory the server spends on exports does not grow with the
+number of clients sending them. An export larger than the whole budget is accepted when nothing else is in flight,
+so any export within the 64 MB body limit is eventually taken.
+
+Raise the budget on a host with memory to spare and many concurrent exporters; lower it to keep a small host
+inside its memory.
+
 ## Sending Traces
 
 ### Python with OpenTelemetry SDK

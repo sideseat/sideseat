@@ -46,7 +46,8 @@ Example project config:
     },
     "auth": {
       "required": false
-    }
+    },
+    "max_inflight_bytes": 16777216
   },
   "pricing": {
     "sync_hours": 24
@@ -96,6 +97,7 @@ Common environment variables:
 | `SIDESEAT_OTEL_RETENTION_MAX_AGE_MINUTES` | Retention max age (minutes) |
 | `SIDESEAT_OTEL_RETENTION_MAX_SPANS` | Retention max spans |
 | `SIDESEAT_OTEL_AUTH_REQUIRED` | Require auth for OTLP ingestion |
+| `SIDESEAT_OTEL_MAX_INFLIGHT_BYTES` | OTLP body bytes in flight at once (default `16777216`) |
 | `SIDESEAT_PRICING_SYNC_HOURS` | Pricing sync interval |
 | `SIDESEAT_NO_UPDATE_CHECK` | Disable update checks |
 | `SIDESEAT_DATA_DIR` | Override data directory |
@@ -126,6 +128,7 @@ For the full list of CLI flags and env vars, see the [CLI Reference](/docs/refer
 | `retention.max_age_minutes` | number | Retention max age in minutes (null = no limit) |
 | `retention.max_spans` | number | Retention max spans (null = no limit) |
 | `auth.required` | boolean | Require auth for OTLP ingestion |
+| `max_inflight_bytes` | number | OTLP body bytes the server reads, decodes and stores at once, across HTTP and gRPC (default 16 MiB). An export over it is answered `503` with `Retry-After` (gRPC `UNAVAILABLE`) before its body is read; one larger than the whole budget is accepted only while nothing else is in flight |
 
 ### Pricing
 
