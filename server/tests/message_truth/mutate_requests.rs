@@ -263,3 +263,73 @@ pub(super) fn edit_resent_withheld_reasoning(recon: &mut Recon, edit: fn(&mut Bl
     }
     found
 }
+
+/// The first composed span view of a fixture, with the index of a block it composed rather than carried itself.
+fn composed_block(recon: &Recon) -> Option<(usize, usize)> {
+    recon
+        .views
+        .iter()
+        .enumerate()
+        .filter(|(_, v)| v.kind == ViewKind::Span && !v.thread.is_empty())
+        .find_map(|(view, v)| {
+            let block = v.blocks.iter().position(|b| b.span != v.key)?;
+            Some((view, block))
+        })
+}
+
+/// A composed block whose origin is a span the thread has no claim on: the right content from the wrong
+/// occurrence, which content identity alone would accept.
+pub(super) fn forge_composed_provenance(_truth: &mut Truth, recon: &mut Recon) -> bool {
+    let Some((view, block)) = composed_block(recon) else {
+        return false;
+    };
+    recon.views[view].blocks[block].span = "0000000000000000".to_string();
+    true
+}
+
+/// A composed block kept with its own span, but claiming a carrier that span never wrote - the same content, and
+/// no occurrence behind it.
+pub(super) fn forge_composed_carrier(_truth: &mut Truth, recon: &mut Recon) -> bool {
+    let Some((view, block)) = composed_block(recon) else {
+        return false;
+    };
+    recon.views[view].blocks[block].carrier = "acme.invented".to_string();
+    true
+}
+
+/// A block only another thread carried, shown by this request: the isolation failure a subagent's thread and its
+/// parent's would otherwise hide, since both are one session.
+///
+/// The other thread is **made** where the fixture has only one, by declaring a span the target's thread does not
+/// hold to be a thread of its own. That is the situation a second agent produces, and building it here is what
+/// lets the check be exercised by every fixture that composes at all rather than only by a multi-agent capture.
+pub(super) fn leak_another_threads_block(_truth: &mut Truth, recon: &mut Recon) -> bool {
+    let Some(target) = recon
+        .views
+        .iter()
+        .position(|v| v.kind == ViewKind::Span && !v.thread.is_empty())
+    else {
+        return false;
+    };
+    // A span whose own view shows something and which this thread does not hold.
+    let other = recon
+        .views
+        .iter()
+        .filter(|v| v.kind == ViewKind::Span)
+        .find_map(|v| {
+            let block = v.blocks.iter().find(|b| b.span == v.key)?;
+            let origin = (block.trace.clone(), block.span.clone());
+            (!recon.views[target].thread.contains(&origin)).then(|| (origin, block.clone()))
+        });
+    let Some((origin, block)) = other else {
+        return false;
+    };
+    // That span is another thread's request, and its block is shown here.
+    let mut theirs = recon.views[target].clone();
+    theirs.key = origin.1.clone();
+    theirs.thread = std::iter::once(origin).collect();
+    theirs.blocks = vec![block.clone()];
+    recon.views.push(theirs);
+    recon.views[target].blocks.insert(0, block);
+    true
+}

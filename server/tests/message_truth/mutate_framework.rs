@@ -98,6 +98,8 @@ pub(super) fn restate_prompt(truth: &mut Truth, recon: &mut Recon, copies: usize
                 media_sha256: None,
                 digest: String::new(),
                 identity: String::new(),
+                carrier: String::new(),
+                position: String::new(),
             };
             block.refresh();
             view.blocks.insert(position, block);

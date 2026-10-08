@@ -443,6 +443,24 @@ const CATALOGUE: &[(&str, Expect, Apply)] = &[
         Expect::Only(&["gap.unused"]),
         |t, r| restate_prompt(t, r, 0),
     ),
+    (
+        "compose a block from a span the thread has no claim on",
+        Expect::Only(&["request.provenance"]),
+        forge_composed_provenance,
+    ),
+    (
+        "compose a block from a carrier its span never wrote",
+        Expect::Only(&["request.provenance"]),
+        forge_composed_carrier,
+    ),
+    // `Caught`, not `Only`: a block another thread carried is also a second copy of something this request was
+    // sent, and the rubric says both. Pinning one of the two would be pinning which of two true statements it
+    // makes first; what matters is that `request.thread_leak` is among them, which the family gate below checks.
+    (
+        "show a block only another thread carried",
+        Expect::Caught,
+        leak_another_threads_block,
+    ),
 ];
 
 #[test]

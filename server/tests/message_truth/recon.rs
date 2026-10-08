@@ -5,7 +5,7 @@
 //! mutation catalogue edits this model directly, which is what lets it simulate a parser defect without
 //! hand-editing a captured fixture.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use serde_json::Value;
@@ -31,6 +31,11 @@ pub(super) struct Block {
     pub digest: String,
     /// The digest with the block's side-channel call id: two blocks are copies only if both agree.
     pub identity: String,
+    /// The event or attribute the block was read from, and where it sat in that carrier's payload: together with
+    /// the span, the *occurrence* a block is. What a composed request's provenance is checked against - content
+    /// identity alone would accept the right text from the wrong occurrence.
+    pub carrier: String,
+    pub position: String,
 }
 
 impl Block {
@@ -104,6 +109,11 @@ pub(super) struct View {
     /// The span a span view shows, or the session a session view shows.
     pub key: String,
     pub blocks: Vec<Block>,
+    /// For a span view composed from its thread: the requests of that thread, and the tool spans whose calls
+    /// those requests answered, each as `(trace, span)`. Empty for every other view, which is how a composed
+    /// view is told from a plain one.
+    pub thread: BTreeSet<(String, String)>,
+    pub owned_calls: BTreeSet<(String, String)>,
 }
 
 /// What a span reports about the model call it may have recorded, beside its messages.
@@ -275,6 +285,8 @@ pub(super) fn from_built(
                     finish: row.finish,
                     digest: String::new(),
                     identity: String::new(),
+                    carrier: row.carrier.clone(),
+                    position: row.position.clone(),
                 };
                 block.refresh();
                 block
@@ -330,7 +342,17 @@ pub(super) fn from_built(
                 raw: replayed.raw.take(),
             });
         }
-        views.push(View { kind, key, blocks });
+        let (thread, owned_calls) = match scope {
+            Scope::RequestSpan { thread, calls, .. } => (thread.clone(), calls.clone()),
+            _ => (BTreeSet::new(), BTreeSet::new()),
+        };
+        views.push(View {
+            kind,
+            key,
+            blocks,
+            thread,
+            owned_calls,
+        });
     }
     let session_of_trace = built
         .traces_of_session

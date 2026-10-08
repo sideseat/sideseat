@@ -15,6 +15,8 @@ fn block(role: &str, text: &str) -> Block {
         media_sha256: None,
         digest: text.to_string(),
         identity: text.to_string(),
+        carrier: String::new(),
+        position: String::new(),
     }
 }
 
@@ -268,6 +270,8 @@ fn shown_result(value: Value) -> Block {
         kind: "tool_result".to_string(),
         digest: content.to_string(),
         identity: content.to_string(),
+        carrier: String::new(),
+        position: String::new(),
         content,
         tool_use_id: Some("call-1".to_string()),
         trace: "t".to_string(),
@@ -318,6 +322,8 @@ fn shown_call(id: &str) -> Block {
         kind: "tool_use".to_string(),
         digest: content.to_string(),
         identity: content.to_string(),
+        carrier: String::new(),
+        position: String::new(),
         content,
         tool_use_id: Some(id.to_string()),
         trace: "t".to_string(),

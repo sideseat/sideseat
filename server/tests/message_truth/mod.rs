@@ -36,6 +36,7 @@ mod mutations;
 mod order;
 mod predicates;
 mod recon;
+mod request_context;
 mod requests;
 mod truth;
 
@@ -166,6 +167,8 @@ pub(crate) const ASSERTION_FAMILIES: &[&str] = &[
     "request.duplicated",
     "request.order",
     "request.role",
+    "request.provenance",
+    "request.thread_leak",
 ];
 
 /// The delivery variations `invariance` checks, by assertion.
@@ -213,6 +216,7 @@ fn check(truth: &Truth, recon: &Recon) -> Vec<Violation> {
     let matching = matching::match_calls(truth, recon, &mut out);
     matching::check_metadata(truth, recon, &matching, &mut out);
     let accounted = requests::check_requests(truth, recon, &matching, &mut out);
+    request_context::check_composition(recon, &mut out);
     let context = checks::Context::new(truth, recon, &matching, accounted);
     checks::check_placement(&context, &mut out);
     for violation in &mut out {

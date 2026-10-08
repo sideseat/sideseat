@@ -42,6 +42,17 @@ const FIRED_ONLY_BY_MUTATIONS: &[(&str, &str)] = &[
          blocks in two views, and a truth patch cannot change the views",
     ),
     (
+        "request.provenance",
+        "a truth patch cannot change what a view composes, and these fire on the composition itself: a block \
+         whose origin span or carrier the thread never offered. A synthetic capture declaring a thread would \
+         hold the shape, which is the remaining adversarial work for request-context",
+    ),
+    (
+        "request.thread_leak",
+        "as `request.provenance`: two threads of one session are a property of the capture, and the leak is a \
+         property of the composition over it",
+    ),
+    (
         "order.inputs_before_next",
         "the same LangGraph matcher artefact; the pipeline orders a result before the response that \
          consumed it in every capture and hand-written shape, and a truth patch cannot move a block",

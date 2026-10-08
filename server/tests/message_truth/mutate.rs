@@ -531,6 +531,8 @@ pub(super) fn failed_span(truth: &mut Truth, recon: &mut Recon, speaks: bool) ->
             media_sha256: None,
             digest: String::new(),
             identity: String::new(),
+            carrier: String::new(),
+            position: String::new(),
         };
         block.refresh();
         blocks.push(block);
@@ -539,6 +541,8 @@ pub(super) fn failed_span(truth: &mut Truth, recon: &mut Recon, speaks: bool) ->
         kind: ViewKind::Span,
         key: span,
         blocks,
+        thread: Default::default(),
+        owned_calls: Default::default(),
     });
     true
 }
@@ -635,6 +639,8 @@ pub(super) fn extra_content(_: &mut Truth, recon: &mut Recon) -> bool {
                 media_sha256: None,
                 digest: String::new(),
                 identity: String::new(),
+                carrier: String::new(),
+                position: String::new(),
             };
             block.refresh();
             view.blocks.insert(1, block);
@@ -704,6 +710,8 @@ fn text_block(role: &str, text: &str, trace: &str, span: &str, output: bool) -> 
         media_sha256: None,
         digest: String::new(),
         identity: String::new(),
+        carrier: String::new(),
+        position: String::new(),
     };
     block.refresh();
     block
@@ -801,6 +809,8 @@ pub(super) fn unexpected_generation(_: &mut Truth, recon: &mut Recon) -> bool {
     recon.views.push(super::recon::View {
         kind: ViewKind::Span,
         key: span,
+        thread: Default::default(),
+        owned_calls: Default::default(),
         blocks: vec![block],
     });
     true

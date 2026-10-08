@@ -1,9 +1,10 @@
 # Request context: showing what a delta-exporting call was sent
 
 Design note, proposed by the rubric track and revised after a Codex review against every captured
-`claude_code.llm_request` span. The domain half is implemented: the `request_threads` grammar and the
-`carrier_holds_request_delta` fact in `domain::rules`, the composition in `sideml::feed::request_context`. The derived
-thread key, the reads and the span route come next, then the rubric's checks.
+`claude_code.llm_request` span. **Implemented**, except the rubric's own checks (the last section): the
+`request_threads` grammar and the `carrier_holds_request_delta` fact in `domain::rules`, the composition in
+`sideml::feed::request_context`, the derived thread key and its two keyed reads in the stores, and the span route and
+the goldens harness that read through them. 109 ledger entries are fixed and none added.
 
 ## The problem
 
