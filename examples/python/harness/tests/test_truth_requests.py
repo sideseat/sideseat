@@ -151,6 +151,34 @@ def test_a_responses_attachment_without_its_bytes_is_a_reference() -> None:
         ("file", None, "file_id", "file-doc"),
         ("file", None, "url", "https://x/z.pdf"),
     ]
+    # The SDK sends the member it does not use as null.
+    nulls = {
+        "input": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_image",
+                        "image_url": "https://x/y.jpg",
+                        "file_id": None,
+                    },
+                    {
+                        "type": "input_file",
+                        "file_url": "https://x/z.pdf",
+                        "file_id": None,
+                    },
+                    {"type": "input_file", "file_id": "file-doc", "file_data": None},
+                ],
+            }
+        ]
+    }
+    request = decode_request("POST", "/v1/responses", json.dumps(nulls).encode())
+    assert request is not None
+    assert [(p["source"], p["reference"]) for p in request.messages[0]["parts"]] == [
+        ("url", "https://x/y.jpg"),
+        ("url", "https://x/z.pdf"),
+        ("file_id", "file-doc"),
+    ]
     empty = {
         "input": [{"role": "user", "content": [{"type": "input_file", "file_id": ""}]}]
     }

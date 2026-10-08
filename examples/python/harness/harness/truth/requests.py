@@ -278,10 +278,10 @@ def anthropic_request(value: dict[str, Any], model: str | None) -> ModelRequest:
 _DATA_URL = re.compile(r"data:(?P<mime>[^;,]+)?(?:;[^,]*)?;base64,(?P<data>.*)", re.S)
 
 
-def _data_url(url: str, modality: str) -> dict[str, Any]:
-    match = _DATA_URL.fullmatch(url)
+def _data_url(url: Any, modality: str) -> dict[str, Any]:
+    match = _DATA_URL.fullmatch(url) if isinstance(url, str) else None
     if not match:
-        raise DecodeError(f"{modality} is not an inline data URL: {url[:40]!r}")
+        raise DecodeError(f"{modality} is not an inline data URL: {str(url)[:40]!r}")
     return _media(modality, match["mime"], match["data"])
 
 
@@ -345,19 +345,23 @@ def _responses_content(content: Any) -> list[dict[str, Any]]:
         kind = block.get("type")
         if kind in ("input_text", "output_text", "text"):
             parts.append(_text(block["text"]))
-        elif kind == "input_image" and "file_id" in block:
-            parts.append(_reference("image", "file_id", block["file_id"]))
-        elif kind == "input_image" and not block["image_url"].startswith("data:"):
-            parts.append(_reference("image", "url", block["image_url"]))
         elif kind == "input_image":
-            parts.append(_data_url(block["image_url"], "image"))
-        elif kind == "input_file" and "file_data" not in block:
+            # An image by the id an upload gave it, by its URL, or inline as a data URL. The SDK
+            # sends an absent member as null.
+            url = block.get("image_url")
+            if block.get("file_id") is not None:
+                parts.append(_reference("image", "file_id", block["file_id"]))
+            elif isinstance(url, str) and not url.startswith("data:"):
+                parts.append(_reference("image", "url", url))
+            else:
+                parts.append(_data_url(url, "image"))
+        elif kind == "input_file" and block.get("file_data") is None:
             # A file named by the id an upload gave it, or by where it is: the request does not say
             # what kind of file it is.
-            if "file_id" in block:
+            if block.get("file_id") is not None:
                 parts.append(_reference("file", "file_id", block["file_id"]))
             else:
-                parts.append(_reference("file", "url", block["file_url"]))
+                parts.append(_reference("file", "url", block.get("file_url")))
         elif kind == "input_file":
             part = _data_url(block["file_data"], "document")
             if block.get("filename") is not None:

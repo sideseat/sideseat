@@ -290,6 +290,30 @@ fn an_attachment_sent_by_reference_is_found_by_the_place_it_names() {
         prove(&fact, &attribute(string("an image the user linked"))),
         Proof::Absent
     );
+    // Another place on the same host, or a longer id that begins with this one, is not this attachment.
+    assert_eq!(
+        prove(
+            &fact,
+            &attribute(string("https://upload.example.com/commons/other.jpg"))
+        ),
+        Proof::Absent
+    );
+    let file = fact_of_reference("file-1234567890");
+    assert_eq!(
+        prove(&file, &attribute(string("file-12345678901"))),
+        Proof::Absent
+    );
+    assert!(present(prove(
+        &file,
+        &attribute(string("UriPart(file_id='file-1234567890')"))
+    )));
+}
+
+fn fact_of_reference(reference: &str) -> Fact {
+    fact(
+        "user_media",
+        serde_json::json!({"modality": "file", "media_type": null, "source": "file_id", "reference": reference}),
+    )
 }
 
 /// A script's attachment written inside other text - a Java `toString()` naming its base64 - is never
