@@ -256,3 +256,32 @@ fn a_reply_takes_no_finish_from_an_earlier_turn_it_repeats() {
     assert_eq!(lineage, vec![None, Some(0)]);
     assert_eq!(survivors[0].finish_reason, None);
 }
+
+/// What a span was sent precedes what it produced, even where the span starts and ends at one instant. The
+/// earlier `OK`, sent with `length`, is history on the same span that answers `OK` again: it is not that
+/// answer's lineage, and lends it no finish.
+#[test]
+fn a_reply_takes_no_finish_from_the_request_that_preceded_it() {
+    let t = utc(1);
+    let mut sent = make_test_block("trace1", "generation", ChatRole::Assistant, "OK", t);
+    sent.is_history = true;
+    sent.finish_reason = Some(crate::sideml::types::FinishReason::Length);
+    sent.source_type = "attribute".to_string();
+    sent.source_attribute = Some("gen_ai.input.messages".to_string());
+    let mut reply = make_test_block("trace1", "generation", ChatRole::Assistant, "OK", t);
+    reply.uses_span_end = true;
+    reply.source_type = "attribute".to_string();
+    reply.source_attribute = Some("gen_ai.output.messages".to_string());
+    reply.message_index = 1;
+    let timestamps = HashMap::from([(
+        "generation".to_string(),
+        SpanTimestamps {
+            span_start: t,
+            span_end: Some(t),
+        },
+    )]);
+    let (survivors, lineage) = process_dedup_with_lineage(vec![sent, reply], timestamps);
+    assert_eq!(survivors.len(), 1);
+    assert_eq!(lineage, vec![None, Some(0)]);
+    assert_eq!(survivors[0].finish_reason, None);
+}

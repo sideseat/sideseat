@@ -676,14 +676,16 @@ fn an_overlapping_generation_span_is_ordered_without_a_manufactured_cycle() {
     use super::order_graph::{CYCLES_BROKEN_IN_TESTS, Constraints};
 
     // One generation span whose input side re-lists two assistant messages it also produced, so both
-    // become units on both sides.
+    // become units on both sides. The re-listing is a carrier with no declared direction: one declared to
+    // hold what the span was sent precedes what it produced, so its copies are earlier occurrences and
+    // never the produced units (`a_reply_takes_no_finish_from_the_request_that_preceded_it`).
     // The two produced messages come from **different** emission carriers, so contraction leaves them as
     // two units: two blocks of one `gen_ai.choice` are one emission and would contract into a single unit,
     // where the product's self-pair is skipped and there is no cycle to make.
     let replayed = json!([
-        {"source": {"attribute": {"key": "gen_ai.prompt", "time": fixed_time()}},
+        {"source": {"attribute": {"key": "app.conversation", "time": fixed_time()}},
          "content": {"role": "assistant", "content": "first answer"}},
-        {"source": {"attribute": {"key": "gen_ai.prompt", "time": fixed_time()}},
+        {"source": {"attribute": {"key": "app.conversation", "time": fixed_time()}},
          "content": {"role": "assistant", "content": "second answer"}},
         {"source": {"event": {"name": "gen_ai.choice", "time": fixed_time()}},
          "content": {"role": "assistant", "content": "first answer"}},

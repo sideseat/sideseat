@@ -146,3 +146,31 @@ fn simultaneous_traces_are_ordered_whatever_order_their_rows_arrive_in() {
     assert_eq!(forward.len(), 2);
     assert_eq!(forward, reversed);
 }
+
+/// Of two traces at one instant, the one re-sending the other's messages follows it - and delivering the
+/// earlier one's row twice, as a retried export does, changes nothing.
+#[test]
+fn a_simultaneous_trace_that_replays_another_follows_it() {
+    let question = json!({"role": "user", "content": "What is the weather in Paris?"});
+    let answer = json!({"role": "assistant", "content": "Sunny."});
+    let follow_up = json!({"role": "user", "content": "And tomorrow?"});
+    let mut first = row("span-z", "trace-z", vec![question.clone()]);
+    let mut second = row("span-a", "trace-a", vec![question, answer, follow_up]);
+    first.session_id = Some("session".to_string());
+    second.session_id = Some("session".to_string());
+    let options = FeedOptions::default();
+    let once = order(&process_spans(
+        vec![second.clone(), first.clone()],
+        &options,
+    ));
+    let twice = order(&process_spans(
+        vec![first.clone(), second.clone(), first.clone()],
+        &options,
+    ));
+    assert_eq!(once, twice);
+    assert!(
+        once.first()
+            .is_some_and(|block| block.starts_with("span-z:")),
+        "the trace whose messages the other re-sends comes first: {once:?}"
+    );
+}
