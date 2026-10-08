@@ -181,45 +181,6 @@ pub(super) fn compile_rule(
             ));
         }
     }
-    // **Two declarations must not write the same output member.** A wrap builds its object by inserting in a
-    // fixed order - role, literal members, pre-content attachments, the content, post-content attachments -
-    // and every insert *overwrites*. So `{"role": "user", "members": {"role": "assistant"},
-    // "content_as": "role"}` compiled and produced a message whose role is its content, with the two
-    // declarations before it silently discarded. Attachments could overwrite literals, the content and each
-    // other, and `compose.trailing` could overwrite a named or swept member.
-    //
-    // Refused rather than ordered, because the order is not the point: two declarations writing one name is
-    // a rule that states two things about one member, and only one of them is true. If replacement is ever
-    // wanted it needs a name of its own, not an insertion order a reader has to know.
-    if let Some(wrap) = wrap {
-        let mut names: Vec<String> = Vec::new();
-        if wrap.role.is_some() || wrap.role_from.is_some() {
-            names.push("role".to_string());
-        }
-        names.extend(wrap.members.keys().cloned());
-        // The content member is written unless a tool-call list replaces it, which is stated at that branch.
-        if wrap.tool_calls_from.is_none() {
-            names.push(
-                wrap.content_as
-                    .clone()
-                    .unwrap_or_else(|| "content".to_string()),
-            );
-        }
-        names.extend(wrap.attach.iter().map(|a| a.as_member.clone()));
-        if wrap.tool_calls_from.is_some() {
-            names.push("tool_calls".to_string());
-        }
-        if wrap.tool_call_from.is_some() {
-            names.push("tool_call".to_string());
-        }
-        let mut seen: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
-        if names.iter().any(|name| !seen.insert(name.as_str())) {
-            return Err(inexpressible(
-                "two declarations of one envelope write the same output member, so one of them is silently \
-                     discarded - a rule stating two things about one member states one thing that is false",
-            ));
-        }
-    }
     // The same question for a compose: its `trailing` literals are inserted after the members, so a trailing
     // name that a member also writes overwrites it. A **sweep** member's names are only known at read time, so
     // the sweep has to exclude every fixed output name - which is a declaration it can make (`except`) and
@@ -379,24 +340,6 @@ pub(super) fn compile_rule(
         {
             return Err(inexpressible(
                 "a section option reads another attribute of the span, so its source is `attr:<key>`",
-            ));
-        }
-    }
-    // **An aggregate wraps the array once, so a per-reading envelope beside it is dead.** The runtime built
-    // one observation from the entries and discarded every reading's envelope *and* the rule's - while the
-    // indexed-family aggregate applies the rule's envelope once, so identical syntax meant different things by
-    // read form. The rule's envelope now applies to the assembled array in both, and a per-reading envelope is
-    // refused: "construct each, then aggregate" is a different operation and nothing declares it.
-    if *aggregate_into_array == Some(true) {
-        let declares_wrap = |readings: &[Alternative]| {
-            readings.iter().any(|reading| {
-                reading.wrap.is_some() || reading.extra_cases.iter().any(|c| c.wrap.is_some())
-            })
-        };
-        if declares_wrap(alternatives) || declares_wrap(also) || declares_wrap(fallback) {
-            return Err(inexpressible(
-                "an aggregate builds one observation from every reading, so a per-reading envelope would be \
-                     discarded - declare the envelope on the rule, which wraps the assembled array",
             ));
         }
     }
@@ -644,18 +587,6 @@ pub(super) fn compile_rule(
         return Err(inexpressible(
             "`overlay`, `numeric_members` and `entry_value` describe an indexed family's entries and \
                  are read only for one",
-        ));
-    }
-    if aggregate
-        && alternatives
-            .iter()
-            .chain(also)
-            .chain(fallback)
-            .any(|a| a.emit.is_some())
-    {
-        return Err(inexpressible(
-            "an aggregate is one observation, so its target is the rule's; a per-reading `emit` beside \
-                 `aggregate_into_array` would be ignored",
         ));
     }
     // `only_plain_data` answers "is this already a message" and returns the value untouched when it is, so

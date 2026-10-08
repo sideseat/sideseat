@@ -42,33 +42,20 @@ pub(super) fn inline_fragments(
                              `extra_cases` on it would be ignored",
                 });
             }
-            // **Traversal slots that the pipeline order makes dead.** Each of these compiled and did nothing,
-            // which is the same defect as a construction branch accepting a sibling it returns before:
-            //
-            // | Declared | What happens |
-            // | --- | --- |
-            // | a lift `from: element` with no `descend` | the element *is* the candidate, so every member is already there |
-            // | `else_element` with no `then_present_any_of` | it names the fallback for a coalesce that is not there |
-            // A lift **from the element** copies members that sit beside the value being emitted, which is
-            // only a different value when something was descended into: without `descend` the element *is* the
-            // candidate, so every member is already there and the lift is a no-op.
-            if spec.descend.is_none()
-                && spec
-                    .lift
-                    .iter()
-                    .any(|lift| lift.from == super::schema::LiftSource::Element)
+            if let Some((rule, detail)) = std::iter::once(spec)
+                .chain(&fragment_cases)
+                .find_map(|case| traversal_defect(case).map(|detail| (case.id.clone(), detail)))
             {
-                return Err(MessageCompileError::Inexpressible {
-                    rule: spec.id.clone(),
-                    detail: "lifts from the element with no `descend`, where the element is already the value \
-                             being emitted - so every member is there and the lift copies nothing",
-                });
+                return Err(MessageCompileError::Inexpressible { rule, detail });
             }
-            if spec.else_element && spec.then_present_any_of.is_empty() {
+            // A selection point with cases hands each candidate to them, and the case that answers builds the
+            // value and chooses its target - so an envelope or a target on the selection point is never read.
+            if !fragment_cases.is_empty() && (spec.wrap.is_some() || spec.emit.is_some()) {
                 return Err(MessageCompileError::Inexpressible {
                     rule: spec.id.clone(),
-                    detail: "declares `else_element` with no `then_select` - it names the fallback \
-                             for a coalesce that is not there",
+                    detail: "a selection point with fragment or extra cases hands each candidate to them, \
+                             and the case builds the value and chooses its target - so a `wrap` or `emit` \
+                             here would be ignored; declare it on the cases",
                 });
             }
             Ok(CompiledReading {
@@ -77,6 +64,41 @@ pub(super) fn inline_fragments(
             })
         })
         .collect()
+}
+
+/// Why a reading's traversal slots cannot do what they say: each of these compiled and did nothing, the same
+/// defect as a construction branch accepting a sibling it returns before. Asked of a reading and of every case
+/// inlined into it, since a case is a reading too.
+///
+/// | Declared | What happens |
+/// | --- | --- |
+/// | a lift `from: element` with no `descend` | the element *is* the candidate, so every member is already there |
+/// | `else_element` with no `then_select` | it names the fallback for a coalesce that is not there |
+/// | `parse` beside `descend` or `then_select` | `parse` admits only string elements, which have no members to descend into or select |
+fn traversal_defect(spec: &Alternative) -> Option<&'static str> {
+    if spec.descend.is_none()
+        && spec
+            .lift
+            .iter()
+            .any(|lift| lift.from == super::schema::LiftSource::Element)
+    {
+        return Some(
+            "lifts from the element with no `descend`, where the element is already the value being emitted - \
+             so every member is there and the lift copies nothing",
+        );
+    }
+    if spec.else_element && spec.then_present_any_of.is_empty() {
+        return Some(
+            "declares `else_element` with no `then_select` - it names the fallback for a coalesce that is not there",
+        );
+    }
+    if spec.parse.is_some() && (spec.descend.is_some() || !spec.then_present_any_of.is_empty()) {
+        return Some(
+            "parses its elements and also descends or selects inside them - `parse` admits only string \
+             elements, which have no members, so the reading could never produce anything",
+        );
+    }
+    None
 }
 
 /// The readings of every node of a bounded walk.

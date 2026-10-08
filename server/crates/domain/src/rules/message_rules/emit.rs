@@ -47,18 +47,25 @@ pub(super) fn emit_rule<'p>(
         // branch non-empty, so the fallback did not run - and the message path then filtered the tool
         // definition out, so the span reported **no message at all** and the tool call's arguments were lost.
         //
-        // So a fallback leaf runs when nothing of *its* kind was produced. That is what the declaration says:
-        // read this instead, if the primaries found none of what you are asking for.
+        // So a fallback leaf supplies each kind the primaries produced none of. That is what the declaration
+        // says: read this instead, if the primaries found none of what you are asking for. Per *emission*, not
+        // per leaf: a leaf reading a conversation and the tools it was offered, beside a primary that found
+        // only the tools, still owes the conversation - and skipping the whole leaf lost it.
         let produced: std::collections::BTreeSet<EmitTarget> =
             out.iter().map(|emission| emission.target).collect();
         for sub in &set.fallback {
+            // Not read at all where every kind it can supply is already there: nothing it found would be kept.
             if possible_targets(sub)
                 .into_iter()
-                .any(|target| produced.contains(&target))
+                .all(|target| produced.contains(&target))
             {
                 continue;
             }
-            out.extend(from(sub));
+            out.extend(
+                from(sub)
+                    .into_iter()
+                    .filter(|emission| !produced.contains(&emission.target)),
+            );
         }
         for sub in &set.always {
             out.extend(from(sub));

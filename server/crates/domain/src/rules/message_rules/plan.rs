@@ -153,7 +153,9 @@ impl MessagePlan {
                 .iter()
                 .any(|name| name == event_name)
         }) {
-            if is_tool_span && !rule.reads_tool_spans {
+            // A branch parent states no permission of its own, so the leaves are asked - and `emit_rule` then
+            // keeps a forbidden leaf's metadata alone, exactly as on a span.
+            if is_tool_span && !reads_tool_spans_anywhere(rule) {
                 continue;
             }
             // A rule whose condition fails says nothing about the event, so it must not suppress the raw

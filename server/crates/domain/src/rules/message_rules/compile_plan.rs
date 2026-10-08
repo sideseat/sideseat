@@ -127,6 +127,17 @@ pub fn compile(
                     .flat_map(wrap_attachments)
                     .find_map(attach_defect)
             })
+            .or_else(|| {
+                wraps(rule)
+                    .into_iter()
+                    .any(writes_one_member_twice)
+                    .then_some(
+                        "two declarations of one envelope write the same output member, so one of them is \
+                         silently discarded - a rule stating two things about one member states one thing \
+                         that is false",
+                    )
+            })
+            .or_else(|| aggregate_defect(rule))
         {
             return Err(MessageCompileError::Inexpressible {
                 rule: rule.rule_id.clone(),
@@ -149,6 +160,16 @@ pub fn compile(
                 rule: rule.rule_id.clone(),
                 detail: "names an event no asset recognises, so it would never run - declare it in a \
                          `message_events` list",
+            });
+        }
+        // An event's reading returns messages and claims. Tool definitions and names are read by
+        // `tool_definitions`, over the span's own attributes, so an event rule targeting them would read the
+        // wrong map and never report its event's tools.
+        if !rule.source.event_names().is_empty() && can_emit_metadata(rule) {
+            return Err(MessageCompileError::Inexpressible {
+                rule: rule.rule_id.clone(),
+                detail: "an event rule targets tool definitions or names, which are read from the span's \
+                         attributes and never from an event's",
             });
         }
     }
@@ -423,6 +444,68 @@ pub(super) fn wrap_role_defect(
                  would silently mean something other than it says",
             );
         }
+    }
+    None
+}
+
+/// Whether two declarations of one envelope write the same output member.
+///
+/// A wrap builds its object by inserting in a fixed order - role, literal members, pre-content attachments, the
+/// content, post-content attachments - and every insert *overwrites*. So `{"role": "user", "members": {"role":
+/// "assistant"}, "content_as": "role"}` produced a message whose role is its content, with the two declarations
+/// before it silently discarded. Refused rather than ordered, because the order is not the point: two
+/// declarations writing one name is a rule that states two things about one member, and only one of them is
+/// true. Asked of **every** envelope a rule holds once fragments are inlined - a reading's, a fragment case's,
+/// an extra case's - since each builds its object the same way.
+pub(super) fn writes_one_member_twice(wrap: &WrapSpec) -> bool {
+    let mut names: Vec<&str> = Vec::new();
+    if wrap.role.is_some() || wrap.role_from.is_some() {
+        names.push("role");
+    }
+    names.extend(wrap.members.keys().map(String::as_str));
+    // The content member is written unless a tool-call list replaces it, which is stated at that branch.
+    if wrap.tool_calls_from.is_none() {
+        names.push(wrap.content_as.as_deref().unwrap_or("content"));
+    }
+    names.extend(wrap.attach.iter().map(|a| a.as_member.as_str()));
+    if wrap.tool_calls_from.is_some() {
+        names.push("tool_calls");
+    }
+    if wrap.tool_call_from.is_some() {
+        names.push("tool_call");
+    }
+    let mut seen: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+    names.iter().any(|name| !seen.insert(name))
+}
+
+/// Why an aggregate rule holds a declaration it would discard.
+///
+/// An aggregate builds **one** observation from every reading and wraps the assembled array once with the
+/// rule's envelope, so an envelope or a target on any reading - its own, a fragment case's, an extra case's -
+/// would be dropped: "construct each, then aggregate" is a different operation and nothing declares it. Asked
+/// after inlining, because a fragment's cases are not visible before.
+pub(super) fn aggregate_defect(rule: &CompiledMessageRule) -> Option<&'static str> {
+    if !rule.aggregate_into_array {
+        return None;
+    }
+    let specs = || {
+        rule.alternatives
+            .iter()
+            .chain(&rule.also)
+            .chain(&rule.fallback)
+            .flat_map(|reading| std::iter::once(&reading.spec).chain(&reading.fragment_cases))
+    };
+    if specs().any(|spec| spec.wrap.is_some()) {
+        return Some(
+            "an aggregate builds one observation from every reading, so a per-reading envelope would be \
+             discarded - declare the envelope on the rule, which wraps the assembled array",
+        );
+    }
+    if specs().any(|spec| spec.emit.is_some()) {
+        return Some(
+            "an aggregate is one observation, so its target is the rule's; a per-reading `emit` beside \
+             `aggregate_into_array` would be ignored",
+        );
     }
     None
 }

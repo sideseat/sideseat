@@ -866,9 +866,9 @@ There is deliberately **no `event` form**. One existed, was accepted by this sch
 unconditionally by the compiler as unimplemented - so the format advertised four read forms and could
 execute three. An author reading the schema as the format's reference was being told something untrue,
 which is worse than the missing capability: a span's *events* are routed to `MessagePlan::from_event`,
-where `when_event` selects the rule and the event's attributes are read exactly as a span's are. If a rule
-ever needs to read one event while running over a span, that is a new construct to design rather than a
-field to un-refuse.
+where `source.event.names` selects the rule and the event's attributes are read exactly as a span's are.
+If a rule ever needs to read one event while running over a span, that is a new construct to design rather
+than a field to un-refuse.
 
 | Key | Type | What it is |
 | --- | --- | --- |
@@ -1251,15 +1251,16 @@ The member-name pattern of [`Alternative::collect_members`].
 
 Several readings of one span with a local order between them.
 
-Evaluated as: every `primary`; then, only if those produced nothing, every
-`fallback_if_primary_empty`; then every `always`, whatever happened. Nesting is refused - a branch set
-inside a branch set would be a control structure rather than a declaration.
+Evaluated as: every `primary`; then every `fallback_if_primary_empty`, for each kind of output - a
+conversation, tool definitions, tool names - the primaries produced none of; then every `always`, whatever
+happened. Nesting is refused - a branch set inside a branch set would be a control structure rather than a
+declaration.
 
 | Key | Type | What it is |
 | --- | --- | --- |
 | `doc` | string |  |
 | `primary` (required) | list of [`MessageRule`](#messagerule) | The readings that normally supply the conversation. |
-| `fallback_if_primary_empty` | list of [`MessageRule`](#messagerule) | Read only when every `primary` reading came up empty. |
+| `fallback_if_primary_empty` | list of [`MessageRule`](#messagerule) | Read for each kind of output no `primary` reading produced, and kept for those kinds only: a primary that found the tools leaves a fallback's conversation standing, and its tools not. |
 | `always` | list of [`MessageRule`](#messagerule) | Read whatever the others did. |
 
 ### `ElementsSpec`

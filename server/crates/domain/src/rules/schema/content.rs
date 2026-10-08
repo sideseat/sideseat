@@ -408,9 +408,10 @@ pub struct DerivedCase {
 
 /// Several readings of one span with a local order between them.
 ///
-/// Evaluated as: every `primary`; then, only if those produced nothing, every
-/// `fallback_if_primary_empty`; then every `always`, whatever happened. Nesting is refused - a branch set
-/// inside a branch set would be a control structure rather than a declaration.
+/// Evaluated as: every `primary`; then every `fallback_if_primary_empty`, for each kind of output - a
+/// conversation, tool definitions, tool names - the primaries produced none of; then every `always`, whatever
+/// happened. Nesting is refused - a branch set inside a branch set would be a control structure rather than a
+/// declaration.
 #[derive(Debug, Deserialize, Clone)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
@@ -419,7 +420,8 @@ pub struct BranchSet {
     pub doc: Option<String>,
     /// The readings that normally supply the conversation.
     pub primary: Vec<MessageRule>,
-    /// Read only when every `primary` reading came up empty.
+    /// Read for each kind of output no `primary` reading produced, and kept for those kinds only: a primary
+    /// that found the tools leaves a fallback's conversation standing, and its tools not.
     #[serde(default)]
     pub fallback_if_primary_empty: Vec<MessageRule>,
     /// Read whatever the others did.

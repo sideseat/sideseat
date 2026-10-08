@@ -194,9 +194,9 @@ pub struct MessageRule {
 /// unconditionally by the compiler as unimplemented - so the format advertised four read forms and could
 /// execute three. An author reading the schema as the format's reference was being told something untrue,
 /// which is worse than the missing capability: a span's *events* are routed to `MessagePlan::from_event`,
-/// where `when_event` selects the rule and the event's attributes are read exactly as a span's are. If a rule
-/// ever needs to read one event while running over a span, that is a new construct to design rather than a
-/// field to un-refuse.
+/// where `source.event.names` selects the rule and the event's attributes are read exactly as a span's are.
+/// If a rule ever needs to read one event while running over a span, that is a new construct to design rather
+/// than a field to un-refuse.
 #[derive(Debug, Deserialize, Clone, Default)]
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]

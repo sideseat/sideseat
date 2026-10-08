@@ -1092,7 +1092,7 @@
       ]
     },
     "ReadSpec": {
-      "description": "The carrier a message rule reads: exactly one form, checked at compile time.\n\nOptional fields rather than a tagged enum, for the same reason the carrier match spec uses them: an\nexternally-tagged enum needs `{\"attribute\": {\"attribute\": \"k\"}}` in JSON, which is the shape nobody writes\nand serde rejects silently at the file level. Requiring exactly one is the check that makes this equivalent\nwhile staying readable.\n\nThere is deliberately **no `event` form**. One existed, was accepted by this schema, and was refused\nunconditionally by the compiler as unimplemented - so the format advertised four read forms and could\nexecute three. An author reading the schema as the format's reference was being told something untrue,\nwhich is worse than the missing capability: a span's *events* are routed to `MessagePlan::from_event`,\nwhere `when_event` selects the rule and the event's attributes are read exactly as a span's are. If a rule\never needs to read one event while running over a span, that is a new construct to design rather than a\nfield to un-refuse.",
+      "description": "The carrier a message rule reads: exactly one form, checked at compile time.\n\nOptional fields rather than a tagged enum, for the same reason the carrier match spec uses them: an\nexternally-tagged enum needs `{\"attribute\": {\"attribute\": \"k\"}}` in JSON, which is the shape nobody writes\nand serde rejects silently at the file level. Requiring exactly one is the check that makes this equivalent\nwhile staying readable.\n\nThere is deliberately **no `event` form**. One existed, was accepted by this schema, and was refused\nunconditionally by the compiler as unimplemented - so the format advertised four read forms and could\nexecute three. An author reading the schema as the format's reference was being told something untrue,\nwhich is worse than the missing capability: a span's *events* are routed to `MessagePlan::from_event`,\nwhere `source.event.names` selects the rule and the event's attributes are read exactly as a span's are.\nIf a rule ever needs to read one event while running over a span, that is a new construct to design rather\nthan a field to un-refuse.",
       "type": "object",
       "properties": {
         "doc": {
@@ -2581,7 +2581,7 @@
       ]
     },
     "BranchSet": {
-      "description": "Several readings of one span with a local order between them.\n\nEvaluated as: every `primary`; then, only if those produced nothing, every\n`fallback_if_primary_empty`; then every `always`, whatever happened. Nesting is refused - a branch set\ninside a branch set would be a control structure rather than a declaration.",
+      "description": "Several readings of one span with a local order between them.\n\nEvaluated as: every `primary`; then every `fallback_if_primary_empty`, for each kind of output - a\nconversation, tool definitions, tool names - the primaries produced none of; then every `always`, whatever\nhappened. Nesting is refused - a branch set inside a branch set would be a control structure rather than a\ndeclaration.",
       "type": "object",
       "properties": {
         "doc": {
@@ -2599,7 +2599,7 @@
           }
         },
         "fallback_if_primary_empty": {
-          "description": "Read only when every `primary` reading came up empty.",
+          "description": "Read for each kind of output no `primary` reading produced, and kept for those kinds only: a primary\nthat found the tools leaves a fallback's conversation standing, and its tools not.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/MessageRule"
