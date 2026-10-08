@@ -3202,7 +3202,7 @@
           "type": "string"
         },
         "name_from": {
-          "description": "Where a record states its event name: `event_name`, the log record's own field, or `attr:<key>`, a\nrecord attribute, which is how producers that predate the field wrote it. Of several, the first that\nholds a non-empty name decides.",
+          "description": "Where a record states its event name: `event_name`, the log record's own field; `attr:<key>`, a record\nattribute, which is how producers that predate the field wrote it; or `body:<member>`, a member of the\nrecord's body, for a producer whose logging writes one structured event per record and names the kind\ninside it. Of several, the first that holds a non-empty name decides.",
           "$ref": "#/$defs/FirstUsable_SourceName"
         },
         "payload": {

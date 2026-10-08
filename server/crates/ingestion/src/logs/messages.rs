@@ -50,26 +50,31 @@ pub fn log_event_payload(
 ) -> Option<(String, std::collections::HashMap<String, String>)> {
     let attributes = extract_attributes(&record.attributes);
     let event_name = (!record.event_name.is_empty()).then_some(record.event_name.as_str());
-    let declared = sideseat_domain::rules::ruleset()
-        .log_events
-        .recognise(event_name, |key| attributes.get(key).map(String::as_str))?;
+    // The body's members, read once: a declaration may name the event from one of them, and `body_members`
+    // then reads the rest of them as the event's attributes. Both shapes, as that payload reads them.
+    let body = body_members(record);
+    let declared = sideseat_domain::rules::ruleset().log_events.recognise(
+        event_name,
+        |key| attributes.get(key).map(String::as_str),
+        |member| body.get(member).map(String::as_str),
+    )?;
     let payload = match declared.payload {
-        LogEventPayload::BodyMembers => {
-            match record.body.as_ref().and_then(|body| body.value.as_ref()) {
-                Some(any_value::Value::KvlistValue(members)) => {
-                    structured_attributes(&members.values)
-                }
-                // The same map as JSON text: a Python `logging` record's body is its message string, so a
-                // producer that logs an event through `logging` serialises the members into it.
-                Some(any_value::Value::StringValue(text)) => json_members(text),
-                // A body that is not a map has no members, which reads as an event with no attributes - what
-                // the same event emitted on a span with none would read as.
-                _ => Default::default(),
-            }
-        }
+        LogEventPayload::BodyMembers => body,
         LogEventPayload::Attributes => structured_attributes(&record.attributes),
     };
     Some((declared.name.clone(), payload))
+}
+
+/// The record's body as the members an event's attributes would be: a map as it stands, or text that parses as
+/// a JSON object - a Python `logging` record's body is its message string, so a producer that logs an event
+/// through `logging` serialises the members into it. A body that is neither has no members, which reads as an
+/// event with no attributes, exactly as the same event emitted on a span with none would.
+fn body_members(record: &LogRecord) -> std::collections::HashMap<String, String> {
+    match record.body.as_ref().and_then(|body| body.value.as_ref()) {
+        Some(any_value::Value::KvlistValue(members)) => structured_attributes(&members.values),
+        Some(any_value::Value::StringValue(text)) => json_members(text),
+        _ => Default::default(),
+    }
 }
 
 /// The members of a JSON object written as text, each as the string an attribute of that value would be.

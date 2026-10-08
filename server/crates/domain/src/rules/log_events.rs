@@ -17,27 +17,46 @@ pub enum LogEventNameSource {
     EventName,
     /// A record attribute, which is where producers that predate the field put the name.
     Attribute(String),
+    /// A member of the record's **body**, for a producer whose logging writes one structured event per record
+    /// and names the kind inside it. Read from a body that is a map, or text that parses as a JSON object -
+    /// the same two shapes `payload: body_members` reads, so a record names its event where it carries it.
+    BodyMember(String),
 }
 
 impl LogEventNameSource {
     const EVENT_NAME: &'static str = "event_name";
     const ATTRIBUTE_PREFIX: &'static str = "attr:";
+    const BODY_PREFIX: &'static str = "body:";
 
     fn parse(spelling: &str) -> Result<Self, String> {
         if spelling == Self::EVENT_NAME {
             return Ok(Self::EventName);
         }
-        match spelling.strip_prefix(Self::ATTRIBUTE_PREFIX) {
-            Some(key) if !key.is_empty() => Ok(Self::Attribute(key.to_string())),
-            Some(_) => Err(format!(
-                "`{spelling}` names an attribute with an empty key, which no record carries"
-            )),
-            None => Err(format!(
-                "`{spelling}` is not a name source - expected `{}` or `{}<key>`",
-                Self::EVENT_NAME,
-                Self::ATTRIBUTE_PREFIX
-            )),
+        for (prefix, build) in [
+            (
+                Self::ATTRIBUTE_PREFIX,
+                (|key: &str| Self::Attribute(key.to_string())) as fn(&str) -> Self,
+            ),
+            (Self::BODY_PREFIX, |key: &str| {
+                Self::BodyMember(key.to_string())
+            }),
+        ] {
+            match spelling.strip_prefix(prefix) {
+                Some(key) if !key.is_empty() => return Ok(build(key)),
+                Some(_) => {
+                    return Err(format!(
+                        "`{spelling}` names a member with an empty key, which no record carries"
+                    ));
+                }
+                None => {}
+            }
         }
+        Err(format!(
+            "`{spelling}` is not a name source - expected `{}`, `{}<key>` or `{}<member>`",
+            Self::EVENT_NAME,
+            Self::ATTRIBUTE_PREFIX,
+            Self::BODY_PREFIX
+        ))
     }
 }
 
@@ -170,6 +189,7 @@ impl LogEventPlan {
         &self,
         event_name: Option<&'a str>,
         attribute: impl Fn(&str) -> Option<&'a str>,
+        body_member: impl Fn(&str) -> Option<&'a str>,
     ) -> Option<&DeclaredLogEvent> {
         self.events.iter().find(|event| {
             event
@@ -179,6 +199,7 @@ impl LogEventPlan {
                     match source {
                         LogEventNameSource::EventName => event_name,
                         LogEventNameSource::Attribute(key) => attribute(key),
+                        LogEventNameSource::BodyMember(member) => body_member(member),
                     }
                     .filter(|name| !name.is_empty())
                 })
@@ -301,24 +322,69 @@ mod tests {
 
         let legacy = |key: &str| (key == "legacy.name").then_some("test.user.message");
         assert_eq!(
-            plan.recognise(None, legacy)
+            plan.recognise(None, legacy, |_| None)
                 .map(|event| event.name.as_str()),
             Some("test.user.message"),
             "a record without the field is named by its attribute"
         );
         assert_eq!(
-            plan.recognise(Some(""), legacy)
+            plan.recognise(Some(""), legacy, |_| None)
                 .map(|event| event.name.as_str()),
             Some("test.user.message"),
             "an empty field is absent, not a name"
         );
         assert_eq!(
-            plan.recognise(Some("inference.details"), legacy)
+            plan.recognise(Some("inference.details"), legacy, |_| None)
                 .map(|event| (event.name.as_str(), event.payload)),
             Some(("inference.details", LogEventPayload::Attributes)),
             "the field outranks the attribute when both are present"
         );
-        assert!(plan.recognise(Some("app.audit"), |_| None).is_none());
-        assert!(plan.recognise(None, |_| None).is_none());
+        assert!(
+            plan.recognise(Some("app.audit"), |_| None, |_| None)
+                .is_none()
+        );
+        assert!(plan.recognise(None, |_| None, |_| None).is_none());
+    }
+
+    /// **A record may name its event from a body member.** A producer whose logging writes one structured event
+    /// per record names the kind inside it, where neither the record's field nor an attribute carries it.
+    #[test]
+    fn a_record_may_be_named_by_a_body_member() {
+        let plan = compile(&with_message_event(json!([{
+            "id": "test.log.body",
+            "name": "test.user.message",
+            "name_from": "body:kind",
+            "payload": "body_members"
+        }])))
+        .expect("a body-member name source compiles");
+        let body = |member: &str| (member == "kind").then_some("test.user.message");
+        assert_eq!(
+            plan.recognise(None, |_| None, body)
+                .map(|event| event.name.as_str()),
+            Some("test.user.message")
+        );
+        assert!(
+            plan.recognise(Some("test.user.message"), |_| None, |_| None)
+                .is_none(),
+            "the declaration reads the body alone, so the record's own field does not name it"
+        );
+        assert!(
+            plan.recognise(None, |_| None, |member| (member == "kind").then_some(""))
+                .is_none(),
+            "an empty member is absent, not a name"
+        );
+        // An empty member key names nothing a record carries, exactly as an empty attribute key does.
+        for spelling in ["body:", "body"] {
+            assert!(
+                compile(&with_message_event(json!([{
+                    "id": "test.log.body",
+                    "name": "test.user.message",
+                    "name_from": spelling,
+                    "payload": "body_members"
+                }])))
+                .is_err(),
+                "`{spelling}` must be refused"
+            );
+        }
     }
 }

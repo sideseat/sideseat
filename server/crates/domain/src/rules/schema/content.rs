@@ -686,9 +686,10 @@ pub struct LogEvent {
     pub id: String,
     /// The event name, which must also be declared in `message_events`.
     pub name: String,
-    /// Where a record states its event name: `event_name`, the log record's own field, or `attr:<key>`, a
-    /// record attribute, which is how producers that predate the field wrote it. Of several, the first that
-    /// holds a non-empty name decides.
+    /// Where a record states its event name: `event_name`, the log record's own field; `attr:<key>`, a record
+    /// attribute, which is how producers that predate the field wrote it; or `body:<member>`, a member of the
+    /// record's body, for a producer whose logging writes one structured event per record and names the kind
+    /// inside it. Of several, the first that holds a non-empty name decides.
     pub name_from: FirstOf<SourceName, true>,
     /// Where the event's attributes are on the record.
     pub payload: LogEventPayload,

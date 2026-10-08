@@ -1534,7 +1534,7 @@ declared there - a log event no reading recognises would be stored and never ans
 | --- | --- | --- |
 | `id` (required) | string | This declaration's identity, required like every other clause's. |
 | `name` (required) | string | The event name, which must also be declared in `message_events`. |
-| `name_from` (required) | [`FirstUsable_SourceName`](#firstusable_sourcename) | Where a record states its event name: `event_name`, the log record's own field, or `attr:<key>`, a record attribute, which is how producers that predate the field wrote it. Of several, the first that holds a non-empty name decides. |
+| `name_from` (required) | [`FirstUsable_SourceName`](#firstusable_sourcename) | Where a record states its event name: `event_name`, the log record's own field; `attr:<key>`, a record attribute, which is how producers that predate the field wrote it; or `body:<member>`, a member of the record's body, for a producer whose logging writes one structured event per record and names the kind inside it. Of several, the first that holds a non-empty name decides. |
 | `payload` (required) | [`LogEventPayload`](#logeventpayload) | Where the event's attributes are on the record. |
 | `doc` | string |  |
 
