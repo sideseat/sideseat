@@ -46,6 +46,18 @@ class Variant:
 
 
 @dataclass(frozen=True)
+class Unreachable:
+    """A client or code path of the framework that no run can reach, so no capture proves its telemetry."""
+
+    package: str
+    #: The newest release it was shown unreachable in.
+    through: str
+    what: str
+    reason: str
+    revisit: str
+
+
+@dataclass(frozen=True)
 class Matrix:
     suite: Path
     #: The distribution whose release history defines the support window.
@@ -73,6 +85,9 @@ class Matrix:
     #: Releases whose model traffic differs from the suite's cassettes (another API, an extra call), each
     #: with the reason: they replay cassettes of their own, recorded live with ``--live``.
     recordings: dict[str, str] = field(default_factory=dict)
+    #: Code paths of the framework no capture can exercise, each with the reason and the date by which to
+    #: check again whether a later release made it reachable; ``--check`` fails once that date has passed.
+    unreachable: tuple["Unreachable", ...] = ()
     #: ``python`` (a uv project under ``examples/python``) or ``javascript`` (a suite of the npm project).
     language: str = "python"
     #: Hosts a scenario may reach besides the local proxy and recorder, each declared in ``versions.toml``
@@ -122,7 +137,13 @@ def load(suite: Path) -> Matrix | None:
 
 def parse(text: str, suite: Path) -> Matrix:
     document = tomllib.loads(text)
-    unknown = set(document) - {"matrix", "variant", "exempt", "recording"}
+    unknown = set(document) - {
+        "matrix",
+        "variant",
+        "exempt",
+        "recording",
+        "unreachable",
+    }
     if unknown:
         raise MatrixError(f"unknown tables {sorted(unknown)}")
     table = dict(document.get("matrix") or {})
@@ -248,6 +269,14 @@ def parse(text: str, suite: Path) -> Matrix:
         if entry["version"] in exemptions:
             raise MatrixError(f"{entry['version']} is both exempt and recorded")
         recordings[entry["version"]] = entry["reason"].strip()
+    unreachable = []
+    for entry in document.get("unreachable", []):
+        keys = {"package", "through", "what", "reason", "revisit"}
+        if set(entry) != keys or not all(str(entry[k]).strip() for k in keys):
+            raise MatrixError(
+                "[[unreachable]] needs exactly package, through, what, reason and revisit"
+            )
+        unreachable.append(Unreachable(**{k: str(entry[k]).strip() for k in keys}))
     if sum(v.current for v in variants) > 1:
         raise MatrixError("at most one variant is the current release")
     names = [v.name for v in variants]
@@ -269,6 +298,7 @@ def parse(text: str, suite: Path) -> Matrix:
         variants=tuple(variants),
         exemptions=exemptions,
         recordings=recordings,
+        unreachable=tuple(unreachable),
         language=language,
         allow_hosts=tuple(table.get("allow-hosts", ())),
         timeout=float(table.get("timeout", 600)),

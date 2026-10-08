@@ -115,7 +115,7 @@
       "role": "tool-call",
       "outranks_a_tag": true,
       "means": "assistant",
-      "doc": "A turn that renders the model's own tool calls as text, which the model is sent back as an assistant turn: Smolagents' `Calling tools` bookkeeping, which it converts to `assistant` before every request."
+      "doc": "A turn that renders the model's own tool calls as text, which the model is sent back as an assistant turn: Smolagents' `Calling tools` bookkeeping, which LiteLLMModel converts to `assistant` before every request. Its AmazonBedrockModel would send it as `user`, but in smolagents 1.26.0 that client raises KeyError: 'tool_calls' on every Converse response (smolagents/models.py:2054), so no run reaches a tool-call turn through it; the suite's versions.toml revisits it."
     },
     {
       "id": "role-authority.tool-response",

@@ -14,7 +14,7 @@ from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
 from opentelemetry.proto.common.v1.common_pb2 import AnyValue, KeyValue
 
 from harness.matrix import census, go, gradle, npm
-from harness.matrix.cli import check, matrices
+from harness.matrix.cli import check, matrices, unreachable_due
 from harness.matrix.shape import digest, shape, skeleton
 from harness.matrix.spec import MatrixError, parse
 from harness.proxy import ModelProxy
@@ -114,6 +114,27 @@ def test_a_recorded_release_replays_its_own_cassettes(tmp_path: Path) -> None:
     exempt = '\n[[exempt]]\nversion = "1.3.0"\nreason = "x"\nrevisit = "2027-01-01"\n'
     with pytest.raises(MatrixError, match="both"):
         parse(recorded + exempt, tmp_path)
+
+
+def test_an_unreachable_client_is_revisited_when_its_date_comes(tmp_path: Path) -> None:
+    gap = (
+        '\n[[unreachable]]\npackage = "acme"\nthrough = "1.4.0"\nwhat = "AcmeModel"\n'
+        'reason = "raises on every response"\nrevisit = "2027-01-05"\n'
+    )
+
+    matrix = parse(MINIMAL + gap, tmp_path)
+
+    assert [u.what for u in matrix.unreachable] == ["AcmeModel"]
+    assert unreachable_due(matrix, today="2027-01-04") == []
+    (due,) = unreachable_due(matrix, today="2027-01-05")
+    assert "AcmeModel in acme was unreachable through 1.4.0" in due
+    # A newer release installed is a reason to look before the date: the client may work now.
+    same = {"acme": {"1.4.0", "1.3.9"}}
+    assert unreachable_due(matrix, today="2027-01-04", in_use=same) == []
+    (early,) = unreachable_due(matrix, today="2027-01-04", in_use={"acme": {"1.10.0"}})
+    assert "acme 1.10.0 is installed now" in early
+    with pytest.raises(MatrixError, match="unreachable"):
+        parse(MINIMAL + gap.replace('through = "1.4.0"\n', ""), tmp_path)
 
 
 def test_a_typescript_suite_pins_npm_versions(tmp_path: Path) -> None:

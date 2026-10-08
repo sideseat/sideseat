@@ -182,6 +182,12 @@ describes those captures, not every release of the framework.
 
 {/* END framework-limitations */}
 
+Some code paths no capture can exercise, so no sample proves their telemetry. Smolagents'
+`AmazonBedrockModel` sends every turn as a user turn, including the tool-call turns the `LiteLLMModel`
+captures send as assistant turns, but in smolagents 1.26.0 it raises `KeyError: 'tool_calls'` on every
+Bedrock Converse response (`smolagents/models.py:2054`), so no run gets that far. The reconstruction
+follows the captured `LiteLLMModel`, and the suite's version matrix revisits the Bedrock client.
+
 ## What SDK parity proves
 
 Each language pair emits the same canonical conversation:

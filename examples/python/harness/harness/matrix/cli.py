@@ -19,8 +19,10 @@ versioned mode in ``<producer>/versions.json``. Regenerate the expectations afte
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import sys
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -262,6 +264,69 @@ def support_rows(producer: str) -> list[str]:
     return rows
 
 
+def _release(version: str) -> tuple[int, ...]:
+    """A release number as integers, for ordering; a non-numeric part ends it."""
+    parts = []
+    for part in version.split("."):
+        digits = "".join(c for c in part if c.isdigit())
+        if not digits:
+            break
+        parts.append(int(digits))
+    return tuple(parts)
+
+
+def releases_in_use(producer: str, matrix: Matrix, package: str) -> set[str]:
+    """The releases of ``package`` this suite installs: its lockfile and every recorded variant's environment."""
+    found: set[str] = set()
+    lock = matrix.suite / "uv.lock"
+    if lock.exists():
+        packages = tomllib.loads(lock.read_text()).get("package", [])
+        found |= {
+            p["version"]
+            for p in packages
+            if p.get("name") == package and "version" in p
+        }
+    path = capture.FIXTURES / producer / PROVENANCE
+    if path.exists():
+        for mode in json.loads(path.read_text()).get("modes", {}).values():
+            if package in mode.get("installed", {}):
+                found.add(mode["installed"][package])
+    return found
+
+
+def unreachable_due(
+    matrix: Matrix,
+    today: str | None = None,
+    in_use: dict[str, set[str]] | None = None,
+) -> list[str]:
+    """The unreachable code paths to try again: their revisit date has come, or the suite now installs a
+    release of the package newer than the one they were shown unreachable in."""
+    today = today or datetime.date.today().isoformat()
+    in_use = in_use or {}
+    due = []
+    for gap in matrix.unreachable:
+        newer = sorted(
+            (
+                v
+                for v in in_use.get(gap.package, set())
+                if _release(v) > _release(gap.through)
+            ),
+            key=_release,
+        )
+        if gap.revisit <= today or newer:
+            why = (
+                f"{gap.package} {newer[-1]} is installed now"
+                if newer
+                else "its revisit date has come"
+            )
+            due.append(
+                f"{gap.what} in {gap.package} was unreachable through {gap.through} ({gap.reason}); "
+                f"{why}: check whether it is reachable and capture it, then remove the entry or move "
+                "its revisit date"
+            )
+    return due
+
+
 def check(producer: str, matrix: Matrix) -> list[str]:
     """Offline: the census covers the window, and each variant's committed probe still has its shape."""
     problems = []
@@ -279,6 +344,11 @@ def check(producer: str, matrix: Matrix) -> list[str]:
             f"{producer}: the census was taken for another window or probe; retake it"
         )
     problems += [f"{producer}: {p}" for p in census.coverage(matrix, document)]
+    in_use = {
+        g.package: releases_in_use(producer, matrix, g.package)
+        for g in matrix.unreachable
+    }
+    problems += [f"{producer}: {p}" for p in unreachable_due(matrix, in_use=in_use)]
     by_release = {(e["version"], e["profile"]): e for e in document["releases"]}
     for variant in matrix.variants:
         entry = by_release.get((variant.version, variant.profile)) or {}
