@@ -166,3 +166,39 @@ fn a_rendering_that_cannot_take_effect_is_refused() {
         assert!(refused(&rule), "{why}: {rule}");
     }
 }
+
+/// **The key sweeps still see a framework's key.** The grammar's own enumerated words (`scope.name`,
+/// `scope.version`) are exempt from both, and nothing else is: a key one framework's asset declares, written in a
+/// production module, trips each sweep, while the grammar words beside it do not.
+#[test]
+fn a_framework_key_in_production_trips_both_sweeps_and_a_grammar_word_does_not() {
+    let telemetry = producer_key_inventory();
+    let exclusive: Vec<(&String, &String)> = telemetry.iter().collect();
+    let attribute = framework_attribute_keys();
+    let key = attribute
+        .keys()
+        .find(|key| telemetry.contains_key(*key))
+        .expect("a key both inventories hold");
+    let module = format!(
+        "fn read(attrs: &Attrs) {{\n    let a = attrs.get(\"{key}\");\n    let b = \"scope.version\";\n    let c = \"scope.name\";\n}}\n"
+    );
+    let telemetry_hits =
+        telemetry_key_offenders("server/crates/domain/src/probe.rs", &module, &exclusive);
+    let attribute_hits =
+        attribute_key_offenders("server/crates/domain/src/probe.rs", &module, &attribute);
+    for hits in [&telemetry_hits, &attribute_hits] {
+        assert_eq!(
+            hits.len(),
+            1,
+            "exactly the framework key is reported: {hits:?}"
+        );
+        assert!(hits[0].contains(key.as_str()), "{hits:?}");
+    }
+    let grammar = schema_grammar_words();
+    let dotted: Vec<&String> = grammar.iter().filter(|word| word.contains('.')).collect();
+    assert_eq!(
+        dotted,
+        ["scope.name", "scope.version"],
+        "the dotted words the schema enumerates are the two source names, and nothing a producer writes"
+    );
+}

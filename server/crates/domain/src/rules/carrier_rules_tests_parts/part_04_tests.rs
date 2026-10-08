@@ -167,17 +167,7 @@ fn no_production_module_carries_a_framework_telemetry_key() {
             exempt_used.insert(name);
             return;
         }
-        for (number, text) in production_names(source, &relative) {
-            // A whole string literal, which is what a key is written as. `production_names` yields a literal
-            // with its quotes, so this is an exact comparison rather than a search.
-            let literal = text.trim_matches('"');
-            if literal.len() == text.len() {
-                continue;
-            }
-            if let Some((key, asset)) = exclusive.iter().find(|(key, _)| *key == literal) {
-                offenders.push(format!("  {relative}:{number}: \"{key}\" is {asset}'s"));
-            }
-        }
+        offenders.extend(telemetry_key_offenders(&relative, source, &exclusive));
     });
     for (file, _) in EXEMPT {
         assert!(
@@ -232,12 +222,10 @@ fn collect_telemetry_keys(
             if text.starts_with('$') {
                 return;
             }
-            // A condition's `source` is a selector: `attr:<key>` and `resource:<key>` name a key, while
-            // `scope.name` and `scope.version` are the grammar's own names for the instrumentation scope.
-            if under == Some("source")
-                && !text.starts_with("attr:")
-                && !text.starts_with("resource:")
-            {
+            // A word the schema itself enumerates - a source name such as `scope.version` - is the grammar's,
+            // wherever an asset writes it. Only enumerated values: any other string, under any member, is
+            // still taken as a producer's.
+            if schema_grammar_words().contains(text.as_str()) {
                 return;
             }
             // A text source names its attribute through an **encoded selector**, `attr:<key>`. Stored as
@@ -818,4 +806,58 @@ fn the_diagrams_name_things_that_exist() {
         missing.len(),
         missing.join("\n  ")
     );
+}
+
+/// The lines of one production module that carry a framework's telemetry key as a whole string literal.
+fn telemetry_key_offenders(
+    relative: &str,
+    source: &str,
+    exclusive: &[(&String, &String)],
+) -> Vec<String> {
+    let mut offenders = Vec::new();
+    for (number, text) in production_names(source, relative) {
+        // A whole string literal, which is what a key is written as. `production_names` yields a literal with
+        // its quotes, so this is an exact comparison rather than a search.
+        let literal = text.trim_matches('"');
+        if literal.len() == text.len() {
+            continue;
+        }
+        if let Some((key, asset)) = exclusive.iter().find(|(key, _)| *key == literal) {
+            offenders.push(format!("  {relative}:{number}: \"{key}\" is {asset}'s"));
+        }
+    }
+    offenders
+}
+
+/// The words the schema itself enumerates (`enum` values and `const`s): the grammar's closed vocabulary, such as
+/// the source names `scope.name` and `scope.version`. Read from the committed schema, so a word is grammar only
+/// because the engine's own types offer it.
+fn schema_grammar_words() -> &'static std::collections::BTreeSet<String> {
+    static WORDS: std::sync::OnceLock<std::collections::BTreeSet<String>> =
+        std::sync::OnceLock::new();
+    WORDS.get_or_init(|| {
+        fn walk(node: &serde_json::Value, out: &mut std::collections::BTreeSet<String>) {
+            match node {
+                serde_json::Value::Object(object) => {
+                    if let Some(serde_json::Value::Array(values)) = object.get("enum") {
+                        out.extend(values.iter().filter_map(|v| v.as_str().map(str::to_string)));
+                    }
+                    if let Some(serde_json::Value::String(constant)) = object.get("const") {
+                        out.insert(constant.clone());
+                    }
+                    object.values().for_each(|inner| walk(inner, out));
+                }
+                serde_json::Value::Array(items) => items.iter().for_each(|inner| walk(inner, out)),
+                _ => {}
+            }
+        }
+        let schema: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(repository_root().join("server/assets/rules.schema.json"))
+                .expect("the schema is committed"),
+        )
+        .expect("the schema is JSON");
+        let mut words = std::collections::BTreeSet::new();
+        walk(&schema, &mut words);
+        words
+    })
 }

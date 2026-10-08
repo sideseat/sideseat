@@ -375,6 +375,34 @@ fn a_chat_completions_request_restores_the_file_part_the_family_dropped() {
 /// declares is the provider's identity, which the pricing catalogue may name.
 #[test]
 fn no_production_module_spells_a_framework_attribute_key() {
+    let framework_keys = framework_attribute_keys();
+    let repository = repository_root();
+    let mut offenders = Vec::new();
+    let mut checked = 0_usize;
+    walk_production_rust_sources(&mut |path, source| {
+        let relative = path
+            .strip_prefix(&repository)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        if relative.contains("_tests.rs") || relative.ends_with("/tests.rs") {
+            return;
+        }
+        checked += 1;
+        offenders.extend(attribute_key_offenders(&relative, source, &framework_keys));
+    });
+    assert!(checked > 50, "the sweep checked only {checked} files");
+    assert!(
+        offenders.is_empty(),
+        "production Rust spells attribute keys that only a framework's asset declares. Move the reading into \
+         the asset, or into a shared vocabulary asset if it is not one framework's:\n{}",
+        offenders.join("\n")
+    );
+}
+
+/// Every attribute key only a framework's own asset declares, with the asset: the inventory
+/// `no_production_module_spells_a_framework_attribute_key` holds production Rust to.
+fn framework_attribute_keys() -> std::collections::BTreeMap<String, String> {
     fn strings<'a>(value: &'a serde_json::Value, out: &mut Vec<&'a str>) {
         match value {
             serde_json::Value::String(s) => out.push(s),
@@ -434,33 +462,10 @@ fn no_production_module_spells_a_framework_attribute_key() {
         "gen_ai.conversation.id",
     ];
     shared.extend(PUBLISHED.iter().map(|key| key.to_string()));
-    // The grammar's own dotted words - the enumerated values the schema offers, such as the source names
-    // `scope.name` and `scope.version` - are this engine's vocabulary wherever an asset writes them, not a key a
-    // framework emits.
-    fn grammar_words(node: &serde_json::Value, out: &mut std::collections::BTreeSet<String>) {
-        match node {
-            serde_json::Value::Object(object) => {
-                if let Some(serde_json::Value::Array(values)) = object.get("enum") {
-                    out.extend(values.iter().filter_map(|v| v.as_str().map(str::to_string)));
-                }
-                if let Some(serde_json::Value::String(constant)) = object.get("const") {
-                    out.insert(constant.clone());
-                }
-                object.values().for_each(|inner| grammar_words(inner, out));
-            }
-            serde_json::Value::Array(items) => {
-                items.iter().for_each(|inner| grammar_words(inner, out))
-            }
-            _ => {}
-        }
-    }
-    let schema: serde_json::Value = serde_json::from_str(
-        &std::fs::read_to_string(repository_root().join("server/assets/rules.schema.json"))
-            .expect("the schema is committed"),
-    )
-    .expect("the schema is JSON");
-    let mut grammar = std::collections::BTreeSet::new();
-    grammar_words(&schema, &mut grammar);
+    // The grammar's own words - the values the schema enumerates, such as the source names `scope.name` and
+    // `scope.version` - are this engine's vocabulary wherever an asset writes them, not a key a framework
+    // emits. Only enumerated values: any other string an asset writes is still counted.
+    let grammar = schema_grammar_words();
     framework_keys.retain(|key, _| !shared.contains(key) && !grammar.contains(key));
     assert!(
         framework_keys.len() > 100,
@@ -468,34 +473,23 @@ fn no_production_module_spells_a_framework_attribute_key() {
         framework_keys.len()
     );
 
-    let repository = repository_root();
-    let mut offenders = Vec::new();
-    let mut checked = 0_usize;
-    walk_production_rust_sources(&mut |path, source| {
-        let relative = path
-            .strip_prefix(&repository)
-            .unwrap_or(path)
-            .to_string_lossy()
-            .replace('\\', "/");
-        if relative.contains("_tests.rs") || relative.ends_with("/tests.rs") {
-            return;
-        }
-        checked += 1;
-        for (line, text) in production_names(source, &relative) {
-            if let Some(asset) = framework_keys.get(literal_text(&text)) {
-                offenders.push(format!(
-                    "  {relative}:{line}: {text} <- declared by `{asset}`"
-                ));
-            }
-        }
-    });
-    assert!(checked > 50, "the sweep checked only {checked} files");
-    assert!(
-        offenders.is_empty(),
-        "production Rust spells attribute keys that only a framework's asset declares. Move the reading into \
-         the asset, or into a shared vocabulary asset if it is not one framework's:\n{}",
-        offenders.join("\n")
-    );
+    framework_keys
+}
+
+/// The lines of one production module that spell a framework's attribute key.
+fn attribute_key_offenders(
+    relative: &str,
+    source: &str,
+    framework_keys: &std::collections::BTreeMap<String, String>,
+) -> Vec<String> {
+    production_names(source, relative)
+        .into_iter()
+        .filter_map(|(line, text)| {
+            framework_keys
+                .get(literal_text(&text))
+                .map(|asset| format!("  {relative}:{line}: {text} <- declared by `{asset}`"))
+        })
+        .collect()
 }
 
 /// **A step a section does not run cannot be written.** `pipe` is one vocabulary across span fields, attachments,
