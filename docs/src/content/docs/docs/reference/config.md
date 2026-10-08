@@ -178,8 +178,8 @@ For the full list of CLI flags and env vars, see the [CLI Reference](/docs/refer
 | `clickhouse.password` | string | Password |
 | `clickhouse.timeout_secs` | number | Query timeout (seconds) |
 | `clickhouse.compression` | boolean | Enable compression |
-| `clickhouse.async_insert` | boolean | Server-side insert batching (default false; the pipeline already batches, and durability requires waiting, which then pays ClickHouse's flush timer) |
-| `clickhouse.wait_for_async_insert` | boolean | Wait for insert completion (default true; false makes an OTLP 200 rest on a server-side buffer) |
+| `clickhouse.async_insert` | boolean | Server-side insert batching (default false; the pipeline already batches, and durability requires waiting, which then pays ClickHouse's flush timer). SideSeat sets `async_insert` and `wait_for_async_insert` on every query, so a server profile cannot change either |
+| `clickhouse.wait_for_async_insert` | boolean | Wait for insert completion (default true; false is refused at startup when `async_insert` is on, because an OTLP 200 would rest on a server-side buffer) |
 | `clickhouse.cluster` | string | Cluster name for sharding |
 | `clickhouse.distributed` | boolean | Enable distributed tables |
 | `redis.url` | string | Redis connection URL |

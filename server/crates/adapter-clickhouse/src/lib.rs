@@ -339,18 +339,15 @@ impl ClickhouseService {
             );
         }
 
-        // Configure async inserts for high-throughput ingestion
-        // This enables server-side batching - inserts are buffered and flushed periodically
-        if config.async_insert {
-            client = client.with_option("async_insert", "1");
-            // wait_for_async_insert: 0 = fire-and-forget (max throughput), 1 = wait for flush
-            let wait_value = if config.wait_for_async_insert {
-                "1"
-            } else {
-                "0"
-            };
-            client = client.with_option("wait_for_async_insert", wait_value);
-        }
+        // Both async-insert settings are pinned on every query, never inherited from the server.
+        //
+        // A server profile decides them otherwise - ClickHouse 26 turns `async_insert` on by default - and a
+        // profile with `wait_for_async_insert = 0` returns from an INSERT while the rows are still only in the
+        // server's buffer, which this process would answer 200 for. The wait is pinned on: configuration refuses
+        // async inserts without it, because an acknowledgement must not rest on a buffer a restart discards.
+        client = client
+            .with_option("async_insert", if config.async_insert { "1" } else { "0" })
+            .with_option("wait_for_async_insert", "1");
 
         let service = Self {
             client,
