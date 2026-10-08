@@ -83,19 +83,33 @@ fn find_base64_piece(bytes: &[u8], haystack: &Haystack) -> Option<String> {
 
 /// An attachment sent without its bytes is present wherever the place it names is: a payload string that is
 /// the reference, or holds it as a token of its own. A longer id or URL that merely begins with it names
-/// another place, and a shared host or prefix proves nothing, so a reference is never partly present.
+/// another place - `photo.jpg` is not `photo.jpg.backup`, `photo.jpg/other.jpg` or `photo.jpg?revision=2` -
+/// and a shared host or prefix proves nothing, so a reference is never partly present. A separator that
+/// ends the text, or is followed by none of an identifier's characters, ends the token: a sentence may close
+/// on a URL.
 pub(super) fn prove_reference(reference: &str, haystack: &Haystack) -> Proof {
     if reference.chars().count() < MIN_ID {
         return Proof::Unprovable(format!(
             "{reference:?} is too short to tell apart from other content"
         ));
     }
-    let continues = |c: char| c.is_alphanumeric() || matches!(c, '-' | '_');
+    let identifier = |c: char| c.is_alphanumeric() || matches!(c, '-' | '_');
+    let separator = |c: char| {
+        matches!(
+            c,
+            '.' | '/' | '?' | '#' | '&' | '=' | '%' | '+' | '~' | ':' | '@'
+        )
+    };
     let holds = |text: &str| {
         text.match_indices(reference).any(|(at, _)| {
             let before = text[..at].chars().next_back();
-            let after = text[at + reference.len()..].chars().next();
-            !before.is_some_and(continues) && !after.is_some_and(continues)
+            let mut after = text[at + reference.len()..].chars();
+            let continues = match after.next() {
+                Some(c) if identifier(c) => true,
+                Some(c) if separator(c) => after.next().is_some_and(identifier),
+                _ => false,
+            };
+            !before.is_some_and(identifier) && !continues
         })
     };
     match haystack.carriers.iter().find_map(|carrier| {

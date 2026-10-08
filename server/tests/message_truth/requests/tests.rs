@@ -470,3 +470,41 @@ fn a_provider_run_call_is_shown_only_by_the_whole_values_it_searched_for() {
     assert!(!shown(json!({"query": "Louvre opening hours tomorrow"})));
     assert!(!shown(json!({})));
 }
+
+#[test]
+fn a_provider_run_that_found_nothing_is_answered_by_the_result_paired_to_it() {
+    let fact = |call_id: &str| Fact {
+        id: "fact-002".to_string(),
+        kind: "tool_result".to_string(),
+        role: "tool".to_string(),
+        conversation: String::new(),
+        evidence: "wire".into(),
+        value: json!({"call_id": call_id, "name": "web_search", "value": {"sources": []}, "is_error": false}),
+        require: requirement("contains"),
+        call: None,
+        fixtures: None,
+        seal: None,
+    };
+    let result = |call_id: &str| {
+        let content = json!({"type": "tool_result", "tool_use_id": call_id, "content": [{"type": "web_search", "status": "completed"}]});
+        Block {
+            role: "tool".to_string(),
+            kind: "tool_result".to_string(),
+            content: content.clone(),
+            tool_use_id: None,
+            trace: "t".to_string(),
+            span: "s".to_string(),
+            output: true,
+            finish: None,
+            media_sha256: None,
+            digest: content.to_string(),
+            identity: content.to_string(),
+            carrier: String::new(),
+            position: String::new(),
+        }
+    };
+    assert_eq!(shows(&fact("ws_1"), &result("ws_1"), None), Shows::Yes);
+    assert_eq!(shows(&fact("ws_1"), &result("ws_2"), None), Shows::No);
+    // With no id to pair by, an empty expectation is no evidence at all.
+    assert_eq!(shows(&fact(""), &result(""), None), Shows::No);
+}

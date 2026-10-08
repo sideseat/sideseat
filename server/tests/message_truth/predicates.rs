@@ -121,7 +121,10 @@ pub(super) fn shows(fact: &Fact, block: &Block, call_id: Option<&str>) -> Shows 
             let expected = &fact.value["value"];
             let content = &block.content["content"];
             yes(if matcher == "contains" {
+                // A run that found nothing has nothing to find in its result: the block answering the
+                // call by its id is shown by that pairing alone. Without an id there is no pairing.
                 holds_every_value(content, expected)
+                    || (!expected_id.is_empty() && holds_nothing(expected))
             } else if matcher == "error_message" {
                 expected
                     .as_str()
@@ -159,19 +162,28 @@ fn provider_call_shows(value: &Value, block: &Block) -> Shows {
     }
 }
 
+/// The non-empty strings `value` holds at any depth.
+fn leaves<'a>(value: &'a Value, into: &mut Vec<&'a str>) {
+    match value {
+        Value::String(text) if !text.is_empty() => into.push(text),
+        Value::Array(items) => items.iter().for_each(|item| leaves(item, into)),
+        Value::Object(map) => map.values().for_each(|item| leaves(item, into)),
+        _ => {}
+    }
+}
+
+/// Whether an expected value holds no string to look for: a provider run that found no sources.
+fn holds_nothing(expected: &Value) -> bool {
+    let mut wanted = Vec::new();
+    leaves(expected, &mut wanted);
+    wanted.is_empty()
+}
+
 /// Every string `expected` holds - its leaves, at any depth - is a whole string somewhere in `shown`, at any
 /// depth, a JSON document written as a string read as the document. A leaf is found whole, never inside a
 /// longer string: a search for "Louvre opening hours" is not shown by one for "Louvre opening hours tomorrow".
 /// Empty expectations hold nothing to find, so they are not evidence of anything and do not match.
 fn holds_every_value(shown: &Value, expected: &Value) -> bool {
-    fn leaves<'a>(value: &'a Value, into: &mut Vec<&'a str>) {
-        match value {
-            Value::String(text) if !text.is_empty() => into.push(text),
-            Value::Array(items) => items.iter().for_each(|item| leaves(item, into)),
-            Value::Object(map) => map.values().for_each(|item| leaves(item, into)),
-            _ => {}
-        }
-    }
     fn held(value: &Value, into: &mut BTreeSet<String>) {
         match value {
             Value::String(text) => {

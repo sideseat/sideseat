@@ -307,6 +307,18 @@ fn an_attachment_sent_by_reference_is_found_by_the_place_it_names() {
         &file,
         &attribute(string("UriPart(file_id='file-1234567890')"))
     )));
+    // A URL that goes on past the reference is another place; one a sentence closes on is this one.
+    for other in [".backup", "/other.jpg", "?revision=2", "#part"] {
+        assert_eq!(
+            prove(&fact, &attribute(string(&format!("{url}{other}")))),
+            Proof::Absent,
+            "{url}{other}"
+        );
+    }
+    assert!(present(prove(
+        &fact,
+        &attribute(string(&format!("The user linked {url}.")))
+    )));
 }
 
 fn fact_of_reference(reference: &str) -> Fact {
