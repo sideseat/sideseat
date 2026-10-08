@@ -2957,6 +2957,11 @@
    "path": [
     "messages",
     {
+     "id": "openinference.output_reading"
+    },
+    "branch_set",
+    "fallback_if_primary_empty",
+    {
      "id": "openinference.output_messages"
     },
     "read",
@@ -2977,6 +2982,11 @@
    "asset": "assets/rules/producers/openinference.json",
    "path": [
     "messages",
+    {
+     "id": "openinference.output_reading"
+    },
+    "branch_set",
+    "fallback_if_primary_empty",
     {
      "id": "openinference.output_messages"
     },

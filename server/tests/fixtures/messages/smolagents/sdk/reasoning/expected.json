@@ -35,10 +35,11 @@
       ]
     },
     "trace-1/LiteLLMModel.generate/span-4": {
-      "message_count": 4,
+      "message_count": 5,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant",
         "assistant"
       ],
@@ -66,13 +67,21 @@
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "This is the classic bridge crossing puzzle with the optimal 17-minute solution: send 1&2 across, send 1 back, send 5&10 across, send 2 back, then send 1&2 across again. I'll give 17 minutes as the final answer.",
+          "content_digest": "c836fc6d19f64b7e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
           "entry_type": "text",
           "content": "This is the classic bridge crossing puzzle with the optimal 17-minute solution: send 1&2 across, send 1 back, send 5&10 across, send 2 back, then send 1&2 across again. I'll give 17 minutes as the final answer.",
           "content_digest": "284c02b92b8b0093",
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_WFVXb2wRXrKGe1lUSjDt85\",\"name\":\"final_answer\",\"input\":{\"answer\":\"The fastest total crossing time is 17 minutes.\\n\\nSchedule (travellers are named by their crossing times, 1, 2, 5 and 10):\\n1. The 1 and the 2…[993 chars]",
@@ -106,10 +115,11 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 5,
+      "message_count": 6,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant",
         "assistant",
         "tool"
@@ -138,13 +148,21 @@
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "This is the classic bridge crossing puzzle with the optimal 17-minute solution: send 1&2 across, send 1 back, send 5&10 across, send 2 back, then send 1&2 across again. I'll give 17 minutes as the final answer.",
+          "content_digest": "c836fc6d19f64b7e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
           "entry_type": "text",
           "content": "This is the classic bridge crossing puzzle with the optimal 17-minute solution: send 1&2 across, send 1 back, send 5&10 across, send 2 back, then send 1&2 across again. I'll give 17 minutes as the final answer.",
           "content_digest": "284c02b92b8b0093",
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_WFVXb2wRXrKGe1lUSjDt85\",\"name\":\"final_answer\",\"input\":{\"answer\":\"The fastest total crossing time is 17 minutes.\\n\\nSchedule (travellers are named by their crossing times, 1, 2, 5 and 10):\\n1. The 1 and the 2…[993 chars]",
@@ -153,7 +171,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "The fastest total crossing time is 17 minutes. Schedule (travellers are named by their crossing times, 1, 2, 5 and 10): 1. The 1 and the 2 cross together. This takes 2 minutes, for a running total of 2. 2. The 1 returns with the torch. This…[878 chars]",
@@ -166,10 +184,11 @@
   },
   "session_views": {
     "smolagents-reasoning": {
-      "message_count": 5,
+      "message_count": 6,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant",
         "assistant",
         "tool"
@@ -198,13 +217,21 @@
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "This is the classic bridge crossing puzzle with the optimal 17-minute solution: send 1&2 across, send 1 back, send 5&10 across, send 2 back, then send 1&2 across again. I'll give 17 minutes as the final answer.",
+          "content_digest": "c836fc6d19f64b7e",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
           "entry_type": "text",
           "content": "This is the classic bridge crossing puzzle with the optimal 17-minute solution: send 1&2 across, send 1 back, send 5&10 across, send 2 back, then send 1&2 across again. I'll give 17 minutes as the final answer.",
           "content_digest": "284c02b92b8b0093",
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_WFVXb2wRXrKGe1lUSjDt85\",\"name\":\"final_answer\",\"input\":{\"answer\":\"The fastest total crossing time is 17 minutes.\\n\\nSchedule (travellers are named by their crossing times, 1, 2, 5 and 10):\\n1. The 1 and the 2…[993 chars]",
@@ -213,7 +240,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "The fastest total crossing time is 17 minutes. Schedule (travellers are named by their crossing times, 1, 2, 5 and 10): 1. The 1 and the 2 cross together. This takes 2 minutes, for a running total of 2. 2. The 1 returns with the torch. This…[878 chars]",
@@ -225,11 +252,12 @@
     }
   },
   "feed_view": {
-    "message_count": 5,
+    "message_count": 6,
     "role_sequence": [
       "tool",
       "system",
       "user",
+      "assistant",
       "assistant",
       "assistant"
     ],
@@ -266,13 +294,21 @@
       {
         "index": 3,
         "role": "assistant",
+        "entry_type": "thinking",
+        "content": "This is the classic bridge crossing puzzle with the optimal 17-minute solution: send 1&2 across, send 1 back, send 5&10 across, send 2 back, then send 1&2 across again. I'll give 17 minutes as the final answer.",
+        "content_digest": "c836fc6d19f64b7e",
+        "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "assistant",
         "entry_type": "text",
         "content": "This is the classic bridge crossing puzzle with the optimal 17-minute solution: send 1&2 across, send 1 back, send 5&10 across, send 2 back, then send 1&2 across again. I'll give 17 minutes as the final answer.",
         "content_digest": "284c02b92b8b0093",
         "observation_type": "generation"
       },
       {
-        "index": 4,
+        "index": 5,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_WFVXb2wRXrKGe1lUSjDt85\",\"name\":\"final_answer\",\"input\":{\"answer\":\"The fastest total crossing time is 17 minutes.\\n\\nSchedule (travellers are named by their crossing times, 1, 2, 5 and 10):\\n1. The 1 and the 2…[993 chars]",

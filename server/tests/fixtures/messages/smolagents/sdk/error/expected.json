@@ -35,12 +35,13 @@
       ]
     },
     "trace-1/LiteLLMModel.generate/span-10": {
-      "message_count": 5,
+      "message_count": 6,
       "role_sequence": [
         "system",
         "user",
         "user",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [
@@ -83,6 +84,14 @@
         },
         {
           "index": 4,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_mvLCUimyQfoor1TvoWHssK\",\"name\":\"final_answer\",\"input\":{\"answer\":\"I couldn't book your London to Oslo flight for 2026-11-14. The booking system is offline, and I got the same error with \\\"London/Oslo\\\" and wi…[408 chars]",
@@ -133,11 +142,12 @@
       ]
     },
     "trace-1/LiteLLMModel.generate/span-7": {
-      "message_count": 4,
+      "message_count": 5,
       "role_sequence": [
         "system",
         "user",
         "user",
+        "assistant",
         "assistant"
       ],
       "tool_names": [
@@ -172,6 +182,14 @@
         },
         {
           "index": 3,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_JZP5mpzWIaVrELSZPKOJU4\",\"name\":\"book_flight\",\"input\":{\"origin\":\"LHR\",\"destination\":\"OSL\",\"date\":\"2026-11-14\"}}",
@@ -303,14 +321,16 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 8,
+      "message_count": 10,
       "role_sequence": [
         "system",
         "user",
         "assistant",
         "tool",
         "assistant",
+        "assistant",
         "tool",
+        "assistant",
         "assistant",
         "tool"
       ],
@@ -358,6 +378,14 @@
         {
           "index": 4,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_JZP5mpzWIaVrELSZPKOJU4\",\"name\":\"book_flight\",\"input\":{\"origin\":\"LHR\",\"destination\":\"OSL\",\"date\":\"2026-11-14\"}}",
           "content_digest": "270cd42ff51f5265",
@@ -365,7 +393,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "harness.content.BookingUnavailable: No seats from LHR to OSL on 2026-11-14: the booking system is offline.",
@@ -375,7 +403,15 @@
           "observation_type": "tool"
         },
         {
-          "index": 6,
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_mvLCUimyQfoor1TvoWHssK\",\"name\":\"final_answer\",\"input\":{\"answer\":\"I couldn't book your London to Oslo flight for 2026-11-14. The booking system is offline, and I got the same error with \\\"London/Oslo\\\" and wi…[408 chars]",
@@ -384,7 +420,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 7,
+          "index": 9,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "I couldn't book your London to Oslo flight for 2026-11-14. The booking system is offline, and I got the same error with \"London/Oslo\" and with the airport codes LHR/OSL. I haven't tried other dates, since you asked for this one. Please try …[305 chars]",
@@ -397,14 +433,16 @@
   },
   "session_views": {
     "smolagents-error": {
-      "message_count": 8,
+      "message_count": 10,
       "role_sequence": [
         "system",
         "user",
         "assistant",
         "tool",
         "assistant",
+        "assistant",
         "tool",
+        "assistant",
         "assistant",
         "tool"
       ],
@@ -452,6 +490,14 @@
         {
           "index": 4,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_JZP5mpzWIaVrELSZPKOJU4\",\"name\":\"book_flight\",\"input\":{\"origin\":\"LHR\",\"destination\":\"OSL\",\"date\":\"2026-11-14\"}}",
           "content_digest": "270cd42ff51f5265",
@@ -459,7 +505,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "harness.content.BookingUnavailable: No seats from LHR to OSL on 2026-11-14: the booking system is offline.",
@@ -469,7 +515,15 @@
           "observation_type": "tool"
         },
         {
-          "index": 6,
+          "index": 7,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 8,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_mvLCUimyQfoor1TvoWHssK\",\"name\":\"final_answer\",\"input\":{\"answer\":\"I couldn't book your London to Oslo flight for 2026-11-14. The booking system is offline, and I got the same error with \\\"London/Oslo\\\" and wi…[408 chars]",
@@ -478,7 +532,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 7,
+          "index": 9,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "I couldn't book your London to Oslo flight for 2026-11-14. The booking system is offline, and I got the same error with \"London/Oslo\" and with the airport codes LHR/OSL. I haven't tried other dates, since you asked for this one. Please try …[305 chars]",
@@ -490,11 +544,13 @@
     }
   },
   "feed_view": {
-    "message_count": 8,
+    "message_count": 10,
     "role_sequence": [
       "tool",
       "assistant",
+      "assistant",
       "tool",
+      "assistant",
       "assistant",
       "tool",
       "system",
@@ -519,6 +575,14 @@
       {
         "index": 1,
         "role": "assistant",
+        "entry_type": "thinking",
+        "content": "",
+        "content_digest": "3ca100066bbf569b",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_mvLCUimyQfoor1TvoWHssK\",\"name\":\"final_answer\",\"input\":{\"answer\":\"I couldn't book your London to Oslo flight for 2026-11-14. The booking system is offline, and I got the same error with \\\"London/Oslo\\\" and wi…[408 chars]",
         "content_digest": "59e8485aaad45bc6",
@@ -526,7 +590,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 2,
+        "index": 3,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "harness.content.BookingUnavailable: No seats from LHR to OSL on 2026-11-14: the booking system is offline.",
@@ -536,7 +600,15 @@
         "observation_type": "tool"
       },
       {
-        "index": 3,
+        "index": 4,
+        "role": "assistant",
+        "entry_type": "thinking",
+        "content": "",
+        "content_digest": "3ca100066bbf569b",
+        "observation_type": "generation"
+      },
+      {
+        "index": 5,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_JZP5mpzWIaVrELSZPKOJU4\",\"name\":\"book_flight\",\"input\":{\"origin\":\"LHR\",\"destination\":\"OSL\",\"date\":\"2026-11-14\"}}",
@@ -545,7 +617,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 4,
+        "index": 6,
         "role": "tool",
         "entry_type": "tool_result",
         "content": "harness.content.BookingUnavailable: No seats from London to Oslo on 2026-11-14: the booking system is offline.",
@@ -555,7 +627,7 @@
         "observation_type": "tool"
       },
       {
-        "index": 5,
+        "index": 7,
         "role": "system",
         "entry_type": "text",
         "content": "You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can. To do so, you have been given access to some tools. The tool call you write is an action: after the tool is executed, yo…[3472 chars]",
@@ -563,7 +635,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 6,
+        "index": 8,
         "role": "user",
         "entry_type": "text",
         "content": "New task: Book me a flight from London to Oslo on 2026-11-14.",
@@ -571,7 +643,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 7,
+        "index": 9,
         "role": "assistant",
         "entry_type": "tool_use",
         "content": "{\"type\":\"tool_use\",\"id\":\"tooluse_u9zL60LC34rxhkCRhkfTRV\",\"name\":\"book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",

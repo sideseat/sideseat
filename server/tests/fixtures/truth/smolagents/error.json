@@ -198,7 +198,17 @@
     "signed": true,
     "redacted": false
    },
-   "require": null,
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "signed"
+   },
    "call": "call-002",
    "seal": "c63eeaaac8554e96cf1cb46a1234fc8d023a89d99a7d638d8178d02e8a747fe5"
   },
@@ -264,7 +274,17 @@
     "signed": true,
     "redacted": false
    },
-   "require": null,
+   "require": {
+    "anchor": "model_call",
+    "views": [
+     "span",
+     "trace",
+     "session",
+     "feed"
+    ],
+    "cardinality": "exactly_once",
+    "match": "signed"
+   },
    "call": "call-003",
    "seal": "7b5f14653f3c46ce215013752987f113e307b186f563f9ddb4ceb55776f433cf"
   },
@@ -379,18 +399,6 @@
    "fact": "system_prompt",
    "reason": "request_body_unrecorded",
    "detail": "cassettes keep a digest of each request, not its body; the system prompt is asserted only where a response echoes it"
-  },
-  {
-   "fact": "reasoning",
-   "reason": "reasoning_text_omitted",
-   "detail": "pending a prepend form of the member-parse overlay: the reasoning and its signature are only in output.value.raw's LiteLLM repr, and an overlay can only replace the flattened content, which holds the answer",
-   "subject": "fact-004"
-  },
-  {
-   "fact": "reasoning",
-   "reason": "reasoning_text_omitted",
-   "detail": "pending a prepend form of the member-parse overlay: the reasoning and its signature are only in output.value.raw's LiteLLM repr, and an overlay can only replace the flattened content, which holds the answer",
-   "subject": "fact-007"
   }
  ],
  "requests": {

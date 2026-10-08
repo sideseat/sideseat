@@ -14,12 +14,33 @@
         "carrier_holds_span_input": true,
         "carrier_holds_expandable_message_array": true
       }
+    },
+    {
+      "id": "pydantic-ai.tool_response",
+      "doc": "A 1.x tool span's own result. One emission - a tool is called once.",
+      "match": {
+        "attribute": "tool_response"
+      },
+      "facts": {
+        "preset": "emission"
+      }
+    },
+    {
+      "id": "pydantic-ai.tool_arguments",
+      "doc": "The arguments that tool span was handed: the same pair, differing only in direction.",
+      "match": {
+        "attribute": "tool_arguments"
+      },
+      "facts": {
+        "preset": "emission",
+        "carrier_holds_span_output": false
+      }
     }
   ],
   "messages": [
     {
       "id": "pydantic-ai.tool_arguments",
-      "doc": "The arguments a tool was called with. A bare payload rather than a message, so the role it represents is declared beside the carrier. Parsed with a string fallback: these values are not always JSON, and dropping an unparseable one would lose the call.",
+      "doc": "The arguments a tool was called with, as a `tool_use` block carrying the tool's name and the call's id from the conventions' attributes beside it, as the conventions' own reading builds one. Parsed with a string fallback: these values are not always JSON, and dropping an unparseable one would lose the call. It reads the tool's own span, which is where these attributes are written.",
       "read": {
         "attribute": "tool_arguments"
       },
@@ -27,12 +48,37 @@
       "emit": "message",
       "priority": 1100,
       "wrap": {
-        "role": "tool_call"
-      }
+        "role": "assistant",
+        "block": {
+          "type": "tool_use",
+          "content_as": "input",
+          "attach": [
+            {
+              "from": "gen_ai.tool.name",
+              "as": "name",
+              "default": ""
+            },
+            {
+              "from": "gen_ai.tool.call.id",
+              "as": "id"
+            }
+          ]
+        }
+      },
+      "reads_tool_spans": true,
+      "observed_in": [
+        {
+          "package": "pydantic-ai-slim",
+          "scheme": "pep440",
+          "since": "1.1.0",
+          "before": "2.0.0",
+          "doc": "Every 1.x capture names its tool span `running tool` and writes the call's arguments and result as `tool_arguments` and `tool_response` beside the conventions' tool name and call id; 2.0.0 writes `gen_ai.tool.call.arguments` and `gen_ai.tool.call.result` instead."
+        }
+      ]
     },
     {
       "id": "pydantic-ai.tool_response",
-      "doc": "What the tool returned, under the same reading.",
+      "doc": "What the tool returned, as a `tool_result` block carrying the call's id, under the same reading.",
       "read": {
         "attribute": "tool_response"
       },
@@ -40,8 +86,31 @@
       "emit": "message",
       "priority": 1110,
       "wrap": {
-        "role": "tool"
-      }
+        "role": "tool",
+        "block": {
+          "type": "tool_result",
+          "attach": [
+            {
+              "from": "gen_ai.tool.name",
+              "as": "name"
+            },
+            {
+              "from": "gen_ai.tool.call.id",
+              "as": "tool_use_id"
+            }
+          ]
+        }
+      },
+      "reads_tool_spans": true,
+      "observed_in": [
+        {
+          "package": "pydantic-ai-slim",
+          "scheme": "pep440",
+          "since": "1.1.0",
+          "before": "2.0.0",
+          "doc": "Every 1.x capture names its tool span `running tool` and writes the call's arguments and result as `tool_arguments` and `tool_response` beside the conventions' tool name and call id; 2.0.0 writes `gen_ai.tool.call.arguments` and `gen_ai.tool.call.result` instead."
+        }
+      ]
     }
   ],
   "content_blocks": [

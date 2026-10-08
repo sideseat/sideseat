@@ -835,14 +835,6 @@ fn no_declared_rule_is_dead_across_the_corpus() {
             "openinference.tools",
             "the dialect is captured; no fixture states its tools under this key",
         ),
-        (
-            "pydantic-ai.tool_arguments",
-            "Pydantic AI 2.50 emits gen_ai.tool.call.arguments instead of this legacy key",
-        ),
-        (
-            "pydantic-ai.tool_response",
-            "Pydantic AI 2.50 emits gen_ai.tool.call.result instead of this legacy key",
-        ),
     ];
 
     let declared = declared_rule_ids();

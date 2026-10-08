@@ -446,9 +446,8 @@ pub(super) fn gap_effects(reason: &str) -> Option<GapEffects> {
         needs_absence_proof,
     };
     Some(match reason {
-        // Reasoning not yet owed, with the work it waits on named in the reason: an encrypted item with no
-        // text at all (SideML slice S1), or withheld reasoning only an operator not yet in the rule
-        // language can read (a suite's `pending`). Otherwise withheld reasoning is owed, by its signed mark.
+        // An encrypted reasoning item with no text at all, not yet owed: how it is shown waits on SideML
+        // slice S1. Withheld reasoning with an empty text is owed, by its signed mark.
         "reasoning_text_omitted" => effects(GapSubject::Fact, true, true, false),
         // The oracle cannot know the value; whatever the reconstruction shows there is unchecked.
         "answer_quotes_framework_rendering" => effects(GapSubject::Fact, true, true, false),

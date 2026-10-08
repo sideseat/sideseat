@@ -307,10 +307,6 @@ class Framework:
     #: some scenarios' - or, by scenario, some releases' (``modes = {streaming = ["native@1.0b1"]}``) -
     #: telemetry leaves it out.
     unexported: dict[str, Any] = field(default_factory=dict)
-    #: What the rubric cannot yet hold the framework to, by the same vocabulary as ``unexported``, with a
-    #: reason naming the work it waits on. Withdrawn without a proof (``reasoning_text_omitted``), so it is
-    #: a debt, and only ``withheld_reasoning`` may be pending.
-    pending: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def of(cls, table: dict[str, Any] | None) -> "Framework":
@@ -328,7 +324,6 @@ class Framework:
                 for scenario, actions in table.get("initial_actions", {}).items()
             },
             unexported=dict(table.get("unexported", {})),
-            pending=dict(table.get("pending", {})),
             text_answer_action=dict(table.get("text_answer_action", {})),
         )
 
@@ -768,14 +763,10 @@ def _unexported(builder: Builder, framework: Framework) -> None:
     unknown = set(framework.unexported) - UNEXPORTED
     if unknown:
         raise ValueError(f"unknown unexported content {sorted(unknown)}")
-    if set(framework.pending) - {"withheld_reasoning"}:
-        raise ValueError(f"unknown pending content {sorted(framework.pending)}")
 
-    def declared(
-        content: str, table: dict[str, Any] | None = None
-    ) -> tuple[str, list[str]] | None:
+    def declared(content: str) -> tuple[str, list[str]] | None:
         """The reason and the capture modes it holds for (all when none are named)."""
-        entry = (framework.unexported if table is None else table).get(content)
+        entry = framework.unexported.get(content)
         if isinstance(entry, dict):
             if "scenarios" in entry and builder.scenario not in entry["scenarios"]:
                 return None
@@ -824,15 +815,6 @@ def _unexported(builder: Builder, framework: Framework) -> None:
             if fact["kind"] == "reasoning" and _withheld(fact["value"]):
                 fact["require"] = None
                 gap("reasoning", "not_exported", detail, fact["id"])
-    if detail := declared("withheld_reasoning", framework.pending):
-        for fact in builder.facts:
-            if (
-                fact["kind"] == "reasoning"
-                and _withheld(fact["value"])
-                and fact["require"] is not None
-            ):
-                fact["require"] = None
-                gap("reasoning", "reasoning_text_omitted", detail, fact["id"])
     if detail := declared("reasoning_output"):
         # Only a call a later call of its conversation follows: the claim is that the next request's
         # history re-sends what the call's own output left out, and nothing re-sends the last call's.

@@ -369,27 +369,9 @@ def test_an_unexported_reasoning_signature_keeps_the_step_asserted() -> None:
     ] == [("reasoning", "signature_not_exported", withheld["id"])]
 
 
-def test_pending_withheld_reasoning_and_an_output_off_its_span_are_declared() -> None:
-    """`pending` withdraws withheld reasoning with its reason and no proof; `reasoning_output` keeps it
-    owed by the conversation views, with an `output_not_exported` gap the rubric proves on its span."""
-    calls = [model_call(wire.reasoning_part("", signed=True), wire.text_part("Hi."))]
-    pending = derive.assemble(
-        "p",
-        "chat",
-        calls,
-        options=derive.Options(
-            framework=derive.Framework.of(
-                {"pending": {"withheld_reasoning": "waits on an operator"}}
-            )
-        ),
-    )
-    (withheld,) = facts_by_kind(pending, "reasoning")
-    assert withheld["require"] is None
-    assert [
-        (g["reason"], g["detail"])
-        for g in pending.gaps
-        if g.get("subject") == withheld["id"]
-    ] == [("reasoning_text_omitted", "waits on an operator")]
+def test_an_output_off_its_span_is_declared_for_a_call_a_later_one_follows() -> None:
+    """`reasoning_output` keeps withheld reasoning owed by the conversation views, with an
+    `output_not_exported` gap the rubric proves on its span."""
     # Only a call a later one follows: nothing re-sends the last call's reasoning.
     off_span = derive.assemble(
         "p",
@@ -418,15 +400,6 @@ def test_pending_withheld_reasoning_and_an_output_off_its_span_are_declared() ->
         first["id"]: ["output_not_exported"],
         last["id"]: ["not_exported"],
     }
-    with pytest.raises(ValueError, match="unknown pending content"):
-        derive.assemble(
-            "p",
-            "chat",
-            calls,
-            options=derive.Options(
-                framework=derive.Framework.of({"pending": {"media": "x"}})
-            ),
-        )
 
 
 PLANNER = derive.Framework.of(

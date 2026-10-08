@@ -524,6 +524,28 @@
       ],
       "successful_only": true,
       "action": "suppress_messages"
+    },
+    {
+      "id": "logfire.openai.streaming_responses_wrapper",
+      "doc": "A streamed Responses API call is two records: a lifetime span that carries only the request, in its instructions and input messages, and the completed `streaming response` log beside it, which carries the same request with the response. The lifetime span is retained as raw telemetry but omitted from the SideML conversation, so the request is shown once, on the record of the call that answered it, and the call is not shown as a second, incomplete turn. A call that is not streamed records its response on the one span, which therefore holds more than its request and is not matched; an error stays visible, since it may have no completed companion.",
+      "where": {
+        "all": [
+          {
+            "source": "scope.name",
+            "equals": "logfire.openai"
+          },
+          {
+            "source": "span_name",
+            "starts_with": "Responses API with "
+          }
+        ]
+      },
+      "only_attribute_sources": [
+        "gen_ai.input.messages",
+        "gen_ai.system_instructions"
+      ],
+      "successful_only": true,
+      "action": "suppress_messages"
     }
   ],
   "message_members": [

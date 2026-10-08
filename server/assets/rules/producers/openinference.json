@@ -203,63 +203,130 @@
       "priority": 184
     },
     {
-      "id": "openinference.output_messages",
-      "doc": "What the span produced.",
-      "read": {
-        "indexed_family": "llm.output_messages",
-        "entry_member": "message",
-        "overlay": {
-          "doc": "The same loss on the way out: the flattened family drops blocks it has no name for, such as reasoning, and indexes what remains from where it sat - so an answer that followed its reasoning arrives as `contents.1` with nothing at `contents.0`. The dialect's serialised generation on the same span keeps every block in order. Matched by position, one generation per output message, and only for an entry whose content arrived flattened.",
-          "from": "output.value",
-          "parse": "json",
-          "select": "$.generations",
-          "unwrap_single_element_list": true,
-          "witness": {
-            "path": "$[*].message.id",
-            "kind": "array",
-            "doc": "A generation's message carries its class path as an array."
-          },
-          "when_member_prefix": "contents.",
-          "content_from": {
-            "first_of": [
-              "$.message.kwargs.content",
-              "$.message.content"
-            ]
-          },
-          "where": {
-            "kind": "array"
-          },
-          "as_member": "content"
-        }
-      },
-      "require_members": {
-        "all_of": [
+      "id": "openinference.output_reading",
+      "doc": "What the span produced: the flattened output family, with the richer copy beside it overlaid. smolagents' copy is a different serialisation from every other instrumentor's, so its spans read the family through their own overlay, and every other span through the generic one.",
+      "priority": 185,
+      "branch_set": {
+        "doc": "Primary: smolagents' spans, whose copy is LiteLLM's repr. Fallback: every span the primary did not read, with the generic copy.",
+        "primary": [
           {
-            "name": "role"
+            "id": "openinference.output_messages_smolagents",
+            "doc": "What a smolagents span produced. The flattened family drops reasoning, and so does the generation serialised in `output.value` beside it, which keeps LiteLLM's whole response only as the Python repr in its `raw` member: the one copy of the reasoning, signature included, under the message's `thinking_blocks`. Read as the family is, with those blocks ahead of the answer where a choice holds them.",
+            "where": {
+              "source": "scope.name",
+              "equals": "openinference.instrumentation.smolagents"
+            },
+            "read": {
+              "indexed_family": "llm.output_messages",
+              "entry_member": "message",
+              "overlay": {
+                "doc": "LiteLLM's response, one choice per output message. Its reasoning blocks go before the flattened content, which is kept: the family lost the reasoning, not the answer.",
+                "from": "output.value",
+                "parse": "json",
+                "decode": {
+                  "select": "$.raw",
+                  "parse": "python_constructor_repr"
+                },
+                "select": "$.choices",
+                "witness": {
+                  "path": "$[*].message",
+                  "exists": true,
+                  "doc": "A choice carries its message."
+                },
+                "when_member_prefix": "contents.",
+                "prepend_from": "$.message.thinking_blocks"
+              }
+            },
+            "require_members": {
+              "all_of": [
+                {
+                  "name": "role"
+                }
+              ],
+              "any_of": [
+                {
+                  "name": "content"
+                },
+                {
+                  "name": "contents",
+                  "presence": "nested"
+                },
+                {
+                  "name": "tool_calls",
+                  "presence": "nested"
+                },
+                {
+                  "name": "tool_call_id"
+                },
+                {
+                  "name": "function_call",
+                  "presence": "nested"
+                }
+              ]
+            }
           }
         ],
-        "any_of": [
+        "fallback_if_primary_empty": [
           {
-            "name": "content"
-          },
-          {
-            "name": "contents",
-            "presence": "nested"
-          },
-          {
-            "name": "tool_calls",
-            "presence": "nested"
-          },
-          {
-            "name": "tool_call_id"
-          },
-          {
-            "name": "function_call",
-            "presence": "nested"
+            "id": "openinference.output_messages",
+            "doc": "What the span produced, as the flattened family states it, with the generation serialised beside it overlaid where the family lost blocks.",
+            "read": {
+              "indexed_family": "llm.output_messages",
+              "entry_member": "message",
+              "overlay": {
+                "doc": "The same loss on the way out: the flattened family drops blocks it has no name for, such as reasoning, and indexes what remains from where it sat - so an answer that followed its reasoning arrives as `contents.1` with nothing at `contents.0`. The dialect's serialised generation on the same span keeps every block in order. Matched by position, one generation per output message, and only for an entry whose content arrived flattened.",
+                "from": "output.value",
+                "parse": "json",
+                "select": "$.generations",
+                "unwrap_single_element_list": true,
+                "witness": {
+                  "path": "$[*].message.id",
+                  "kind": "array",
+                  "doc": "A generation's message carries its class path as an array."
+                },
+                "when_member_prefix": "contents.",
+                "content_from": {
+                  "first_of": [
+                    "$.message.kwargs.content",
+                    "$.message.content"
+                  ]
+                },
+                "where": {
+                  "kind": "array"
+                },
+                "as_member": "content"
+              }
+            },
+            "require_members": {
+              "all_of": [
+                {
+                  "name": "role"
+                }
+              ],
+              "any_of": [
+                {
+                  "name": "content"
+                },
+                {
+                  "name": "contents",
+                  "presence": "nested"
+                },
+                {
+                  "name": "tool_calls",
+                  "presence": "nested"
+                },
+                {
+                  "name": "tool_call_id"
+                },
+                {
+                  "name": "function_call",
+                  "presence": "nested"
+                }
+              ]
+            }
           }
         ]
-      },
-      "priority": 185
+      }
     },
     {
       "id": "openinference.tool_output_with_id",
