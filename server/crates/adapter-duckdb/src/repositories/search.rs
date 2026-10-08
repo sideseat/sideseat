@@ -104,25 +104,33 @@ pub fn replace_span_terms(
             .unwrap_or(chrono::DateTime::UNIX_EPOCH)
             .timestamp_micros()
     };
-    // The batch's own winner per identity: the latest instant, and of equal instants the later span, which is
-    // what the rows' `rowid` order makes the winner on read.
-    let mut winners: HashMap<SpanIdentity, &NormalizedSpan> = HashMap::new();
-    for span in spans {
-        let identity = (
+    let identity_of = |span: &NormalizedSpan| -> SpanIdentity {
+        (
             span.project_id.clone().unwrap_or_default(),
             span.trace_id.clone(),
             span.span_id.clone(),
-        );
-        match winners.get(&identity) {
-            Some(previous) if instant(previous) > instant(span) => {}
+        )
+    };
+    // The batch's own winner per identity: the latest instant, and of equal instants the later span, which is
+    // what the rows' `rowid` order makes the winner on read.
+    let mut winners: HashMap<SpanIdentity, usize> = HashMap::new();
+    for (index, span) in spans.iter().enumerate() {
+        match winners.get(&identity_of(span)) {
+            Some(&previous) if instant(&spans[previous]) > instant(span) => {}
             _ => {
-                winners.insert(identity, span);
+                winners.insert(identity_of(span), index);
             }
         }
     }
+    // In batch order, not the map's: a hash map's order differs from one process to the next, and the term
+    // table's bytes must not.
     let mut superseded: Vec<(SpanIdentity, i64)> = Vec::new();
     let mut writing: Vec<&NormalizedSpan> = Vec::new();
-    for (identity, span) in winners {
+    for (index, span) in spans.iter().enumerate() {
+        let identity = identity_of(span);
+        if winners.get(&identity) != Some(&index) {
+            continue;
+        }
         match stored.get(&identity) {
             Some(&stored_us) if instant(span) < stored_us => {}
             Some(&stored_us) => {

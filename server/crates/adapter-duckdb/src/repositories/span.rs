@@ -231,6 +231,33 @@ mod tests {
         );
     }
 
+    /// Term rows are appended in the batch's order. Appended in a hash map's order, which differs from one
+    /// process to the next, the same batch stored different bytes each time it was written.
+    #[tokio::test]
+    async fn a_batchs_terms_are_appended_in_its_order() {
+        let (_temp_dir, analytics) = create_test_service().await;
+        let spans: Vec<NormalizedSpan> = (0..40)
+            .map(|index| NormalizedSpan {
+                span_id: format!("span-{index:02}"),
+                ..revision(&["term"])
+            })
+            .collect();
+        analytics
+            .write(|conn| insert_batch(conn, &spans))
+            .expect("batch");
+        let conn = analytics.conn();
+        let mut statement = conn
+            .prepare("SELECT span_id FROM span_terms ORDER BY rowid")
+            .expect("prepare");
+        let appended: Vec<String> = statement
+            .query_map([], |row| row.get(0))
+            .expect("query")
+            .collect::<Result<_, _>>()
+            .expect("rows");
+        let expected: Vec<String> = spans.iter().map(|span| span.span_id.clone()).collect();
+        assert_eq!(appended, expected);
+    }
+
     #[tokio::test]
     async fn test_insert_empty_batch() {
         let (_temp_dir, analytics) = create_test_service().await;
