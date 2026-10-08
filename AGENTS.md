@@ -291,6 +291,9 @@ The container-free aggregate does not substitute for live backend parity.
   often shared (documented counts, schemas, READMEs), and restoring it whole reverts other agents' work. Never
   use `git checkout -- <path>`, which restores from the index, and never move HEAD (`git reset`, `--amend`,
   rebase): another agent's commit can land in between and be lost. Fix a bad commit forward.
+  A second worktree builds into its own `CARGO_TARGET_DIR`, never a shared one: cargo names a workspace
+  member's artifacts by its path relative to the workspace root, so two worktrees on one target overwrite each
+  other's crates with their own sources and both see them as fresh.
   Before reporting a commit as green, run `make verify-head` (`ARGS=--test` for the goldens): a green run in
   the shared tree includes everyone else's uncommitted work and says nothing about HEAD.
 - Remove dead code instead of suppressing warnings.
