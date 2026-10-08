@@ -619,3 +619,59 @@ fn arenas_and_claims_follow_what_each_path_runs() {
         panic!("raw_where separates them, and they were refused as contenders: {error}");
     }
 }
+
+/// **A declaration means what its schema says, wherever it sits.** Two carrier clauses on one attribute family
+/// with different facts are as ambiguous as two on one attribute; two branch leaves each own their clause ids; and
+/// a `tool_repr` reading a `first_of` carrier reads the spelling the span carries.
+#[test]
+fn families_leaves_and_first_of_carriers_mean_what_they_say() {
+    use crate::rules::message_rules::MessageContext;
+    // Two family clauses with different facts: nothing orders them.
+    let carriers = |second: &str| {
+        let body = format!(
+            r#"{{"id":"t","carriers":[
+                {{"id":"t.one","match":{{"attribute_family":"f"}},"facts":{{"preset":"emission"}}}},
+                {{"id":"t.two","match":{second},"facts":{{"preset":"snapshot"}}}}]}}"#
+        );
+        super::carrier_rules::compile(&probe_assets(&body))
+    };
+    assert!(
+        carriers(r#"{"attribute_family":"f"}"#).is_err(),
+        "two clauses on one family"
+    );
+    assert!(
+        carriers(r#"{"attribute":"f"}"#).is_ok(),
+        "an exact key inside a family is more specific, which orders them"
+    );
+    // Two leaves, each with an alternative named `payload`.
+    let leaf = |id: &str, key: &str| {
+        format!(
+            r#"{{"id":"{id}","read":{{"attribute":"{key}"}},"parse":"json","emit":"message",
+                "alternatives":[{{"id":"payload","select":"$.m","where":{{"path":"$.role"}}}}]}}"#
+        )
+    };
+    let branches = format!(
+        r#"{{"id":"t","messages":[{{"id":"t.b","priority":1,"branch_set":{{"primary":[{},{}]}}}}]}}"#,
+        leaf("t.l1", "x"),
+        leaf("t.l2", "y")
+    );
+    if let Err(error) = probe_compile(&branches) {
+        panic!("each leaf owns its clause ids, and two `payload`s were refused: {error}");
+    }
+    // A repr grammar over a carrier written in two spellings.
+    let plan = probe_compile(
+        r#"{"id":"t","messages":[{"id":"t.tools","read":{"attribute":{"first_of":["tools.new","tools.old"]}},
+            "parse":"json","emit":"tool_definitions","priority":1,
+            "tool_repr":{"entries":"$[*]","candidates":["$"],"name_field":"name","description_field":"description",
+              "name_label":"Tool Name:","description_label":"Tool Description:","arguments_label":"Tool Arguments:",
+              "repr_markers":["name="],"parameter_members":["parameters"],"field_terminators":[","],
+              "type_map":[["str","string"]],"type_default":{"map_to":"string"}}}]}"#,
+    )
+    .expect("the probe compiles");
+    let attrs = probe_attrs(&[("tools.old", r#"["Tool(name='a', description='one')"]"#)]);
+    let ctx = MessageContext::for_span("span", &attrs, false);
+    assert!(
+        !plan.tool_definitions(&ctx).is_empty(),
+        "the spelling the span carries is read"
+    );
+}

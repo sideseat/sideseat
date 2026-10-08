@@ -505,6 +505,21 @@ impl MatchSpec {
                 // Either can extend the other, and some key beginning with the longer satisfies both.
                 a.starts_with(b) || b.starts_with(a)
             }
+            // A family is its root and every key below it.
+            (Some(PrimaryKey::Attribute(a)), Some(PrimaryKey::AttributeFamily(root)))
+            | (Some(PrimaryKey::AttributeFamily(root)), Some(PrimaryKey::Attribute(a))) => {
+                in_family(a, root)
+            }
+            // The root itself, where the prefix begins it; or a key below the root, where the prefix is one.
+            (Some(PrimaryKey::AttributePrefix(p)), Some(PrimaryKey::AttributeFamily(root)))
+            | (Some(PrimaryKey::AttributeFamily(root)), Some(PrimaryKey::AttributePrefix(p))) => {
+                root.starts_with(p)
+                    || p.strip_prefix(root)
+                        .is_some_and(|rest| rest.starts_with('.'))
+            }
+            (Some(PrimaryKey::AttributeFamily(a)), Some(PrimaryKey::AttributeFamily(b))) => {
+                in_family(a, b) || in_family(b, a)
+            }
             _ => false,
         };
         if !carriers_overlap {

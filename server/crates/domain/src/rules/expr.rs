@@ -204,7 +204,8 @@ impl<A: schemars::JsonSchema> schemars::JsonSchema for Expr<A> {
     fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
         let me = generator.subschema_for::<Self>();
         let atom = generator.subschema_for::<A>();
-        let doc = serde_json::json!({"type": ["string", "null"]});
+        // What the parser accepts, exactly: `doc` is prose, never `null`, and a group holds two or more.
+        let doc = serde_json::json!({"type": "string"});
         let group = |key: &str, body: serde_json::Value| {
             serde_json::json!({
                 "type": "object",
@@ -214,7 +215,7 @@ impl<A: schemars::JsonSchema> schemars::JsonSchema for Expr<A> {
             })
         };
         let me = serde_json::to_value(me).expect("a schema serialises");
-        let list = serde_json::json!({"type": "array", "items": me.clone()});
+        let list = serde_json::json!({"type": "array", "items": me.clone(), "minItems": 2});
         schemars::Schema::try_from(serde_json::json!({
             "oneOf": [
                 serde_json::to_value(atom).expect("a schema serialises"),

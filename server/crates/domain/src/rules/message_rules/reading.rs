@@ -714,29 +714,34 @@ pub(super) fn gates_allow(rule: &CompiledMessageRule, ctx: &MessageContext<'_>) 
     })
 }
 
+/// Every carrier this rule names that the span carries, in declared order: the one it reads - its attribute, or
+/// the first present of its spellings - and each of `each`.
+///
+/// Not only the first, unlike an ordinary read: a framework may write the same tools under several keys at
+/// different richness, and each is its own observation - so all of them are read and the best copy per name
+/// wins downstream, rather than the richest being hidden behind whichever key was declared first. A
+/// `first_of` is one carrier in several spellings, so it contributes the one the span carries.
+pub(super) fn carrier_texts<'p, 's>(
+    rule: &'p CompiledMessageRule,
+    ctx: &MessageContext<'s>,
+) -> Vec<(&'p str, &'s str)> {
+    resolve_attribute(&rule.read, ctx.span_attrs)
+        .into_iter()
+        .chain(
+            rule.read
+                .each
+                .iter()
+                .map(String::as_str)
+                .filter_map(|key| ctx.span_attrs.get(key).map(|raw| (key, raw.as_str()))),
+        )
+        .collect()
+}
+
 /// The attribute a rule reads and its raw value: the named one, or the first of its alternatives the
 /// span carries.
 ///
 /// Returns the key *found*, not the key asked for, because that key becomes the carrier tag and two
 /// spellings of one payload must stay distinguishable.
-/// Every carrier this rule names that the span carries, in declared order.
-///
-/// Not the first, unlike an ordinary read: a framework may write the same tools under several keys at
-/// different richness, and each is its own observation - so all of them are read and the best copy per
-/// name wins downstream, rather than the richest being hidden behind whichever key was declared first.
-pub(super) fn carrier_texts<'p, 's>(
-    rule: &'p CompiledMessageRule,
-    ctx: &MessageContext<'s>,
-) -> Vec<(&'p str, &'s str)> {
-    rule.read
-        .attribute()
-        .map(String::as_str)
-        .into_iter()
-        .chain(rule.read.each.iter().map(String::as_str))
-        .filter_map(|key| ctx.span_attrs.get(key).map(|raw| (key, raw.as_str())))
-        .collect()
-}
-
 pub(super) fn resolve_attribute<'p, 's>(
     read: &'p ReadSpec,
     attrs: &'s HashMap<String, String>,

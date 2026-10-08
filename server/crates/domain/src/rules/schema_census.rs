@@ -500,6 +500,15 @@ fn the_validator_refuses_what_the_parser_refuses() {
         serde_json::json!({"id": "t", "carriers": [{"id": "c", "match": {"attribute": "a"}, "facts": {"preset": "emission"}, "typo": 1}]}),
         serde_json::json!({"carriers": []}),
         serde_json::json!({"id": "t", "messages": "not a list"}),
+        // A boolean group holds two or more, and `doc` is prose, never `null`: what the parser refuses, the
+        // editor schema refuses too, so an editor-valid asset parses.
+        serde_json::json!({"id": "t", "detect": [{"id": "d", "label": "L", "priority": 1,
+            "where": {"all": [{"source": "span_name", "equals": "x"}]}}]}),
+        serde_json::json!({"id": "t", "detect": [{"id": "d", "label": "L", "priority": 1,
+            "where": {"any": []}}]}),
+        serde_json::json!({"id": "t", "detect": [{"id": "d", "label": "L", "priority": 1,
+            "where": {"doc": null, "all": [{"source": "span_name", "equals": "x"},
+                                           {"source": "span_name", "equals": "y"}]}}]}),
     ] {
         assert!(
             serde_json::from_value::<RuleFile>(probe.clone()).is_err(),
@@ -518,6 +527,23 @@ fn the_validator_refuses_what_the_parser_refuses() {
             "the schema must refuse what serde refuses: {probe}"
         );
     }
+    // And the group probes are refused for the group: the same rule with two children and a prose `doc` is
+    // accepted by both.
+    let control = serde_json::json!({"id": "t", "detect": [{"id": "d", "label": "L", "priority": 1,
+        "where": {"doc": "why", "all": [{"source": "span_name", "equals": "x"},
+                                         {"source": "span_name", "equals": "y"}]}}]});
+    assert!(serde_json::from_value::<RuleFile>(control.clone()).is_ok());
+    assert!(
+        validator
+            .check(
+                &schema,
+                Some("RuleFile"),
+                &control,
+                "control",
+                &mut Coverage::default()
+            )
+            .is_ok()
+    );
 }
 
 #[test]

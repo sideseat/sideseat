@@ -303,6 +303,13 @@ impl RuleFile {
                     out.push(route.id.clone());
                 }
             }
+        }
+        // A branch leaf is a rule of its own, emitting under its own id, so its clauses are an id space of their
+        // own: two leaves may each name an alternative `payload`, and their paths are still distinct.
+        fn namespaces(rule: &MessageRule, out: &mut Vec<(String, Vec<String>)>) {
+            let mut ids = Vec::new();
+            from_message(rule, &mut ids);
+            out.push((rule.id.clone(), ids));
             if let Some(branches) = &rule.branch_set {
                 for leaf in branches
                     .primary
@@ -310,17 +317,14 @@ impl RuleFile {
                     .chain(&branches.fallback_if_primary_empty)
                     .chain(&branches.always)
                 {
-                    // A branch leaf is a rule of its own, so its clauses belong to *its* id space.
-                    from_message(leaf, out);
+                    namespaces(leaf, out);
                 }
             }
         }
 
         let mut out: Vec<(String, Vec<String>)> = Vec::new();
         for rule in &self.messages {
-            let mut ids = Vec::new();
-            from_message(rule, &mut ids);
-            out.push((rule.id.clone(), ids));
+            namespaces(rule, &mut out);
         }
         out.push((
             "message_projections".to_string(),

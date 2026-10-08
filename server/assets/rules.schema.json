@@ -448,13 +448,11 @@
               "type": "array",
               "items": {
                 "$ref": "#/$defs/Expr_SpanCondition"
-              }
+              },
+              "minItems": 2
             },
             "doc": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             }
           },
           "required": [
@@ -469,13 +467,11 @@
               "type": "array",
               "items": {
                 "$ref": "#/$defs/Expr_SpanCondition"
-              }
+              },
+              "minItems": 2
             },
             "doc": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             }
           },
           "required": [
@@ -490,10 +486,7 @@
               "$ref": "#/$defs/Expr_SpanCondition"
             },
             "doc": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             }
           },
           "required": [
@@ -1233,13 +1226,11 @@
               "type": "array",
               "items": {
                 "$ref": "#/$defs/Expr_ValuePredicate"
-              }
+              },
+              "minItems": 2
             },
             "doc": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             }
           },
           "required": [
@@ -1254,13 +1245,11 @@
               "type": "array",
               "items": {
                 "$ref": "#/$defs/Expr_ValuePredicate"
-              }
+              },
+              "minItems": 2
             },
             "doc": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             }
           },
           "required": [
@@ -1275,10 +1264,7 @@
               "$ref": "#/$defs/Expr_ValuePredicate"
             },
             "doc": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "string"
             }
           },
           "required": [
