@@ -396,6 +396,17 @@ def responses_request(value: dict[str, Any], model: str | None) -> ModelRequest:
 # --- Gemini -----------------------------------------------------------------------------------------
 
 
+#: The modalities a MIME type's top level names as itself; everything else - a PDF, a spreadsheet, plain
+#: text - is a document, as every other API's decoder here calls it.
+_GEMINI_MEDIA_MODALITIES = ("image", "audio", "video")
+
+
+def _gemini_modality(mime: str) -> str:
+    """The modality of inline data, from its MIME type: Gemini names no modality of its own."""
+    top = mime.split("/")[0]
+    return top if top in _GEMINI_MEDIA_MODALITIES else "document"
+
+
 def _gemini_part(part: dict[str, Any]) -> dict[str, Any]:
     if "text" in part:
         if part.get("thought"):
@@ -403,8 +414,9 @@ def _gemini_part(part: dict[str, Any]) -> dict[str, Any]:
         return _text(part["text"])
     if "inlineData" in part:
         data = part["inlineData"]
-        mime = data.get("mimeType") or ""
-        return _media(mime.split("/")[0] or "file", mime, data["data"])
+        # The REST field is `mimeType`; Google's Python client sends its own `mime_type` spelling.
+        mime = data.get("mimeType") or data.get("mime_type") or ""
+        return _media(_gemini_modality(mime), mime, data["data"])
     if "functionCall" in part:
         call = part["functionCall"]
         return _call(call.get("id"), call.get("name"), call.get("args", {}))

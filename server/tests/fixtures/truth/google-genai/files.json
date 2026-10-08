@@ -225,8 +225,8 @@
         {
          "part": {
           "type": "media",
-          "modality": "file",
-          "media_type": "",
+          "modality": "image",
+          "media_type": "image/jpeg",
           "size": 163966,
           "sha256": "f78ee523f0b06377fd02117287eb8837b342efa9dd8dd4f0a20111e758521f0a"
          },
@@ -235,8 +235,8 @@
         {
          "part": {
           "type": "media",
-          "modality": "file",
-          "media_type": "",
+          "modality": "document",
+          "media_type": "application/pdf",
           "size": 13207,
           "sha256": "f65fdaa928f06d024c68c2538805845378efcb51b09abd084728750169541936"
          },
@@ -278,8 +278,8 @@
         {
          "part": {
           "type": "media",
-          "modality": "file",
-          "media_type": "",
+          "modality": "image",
+          "media_type": "image/jpeg",
           "size": 163966,
           "sha256": "f78ee523f0b06377fd02117287eb8837b342efa9dd8dd4f0a20111e758521f0a"
          },
@@ -288,8 +288,8 @@
         {
          "part": {
           "type": "media",
-          "modality": "file",
-          "media_type": "",
+          "modality": "document",
+          "media_type": "application/pdf",
           "size": 13207,
           "sha256": "f65fdaa928f06d024c68c2538805845378efcb51b09abd084728750169541936"
          },

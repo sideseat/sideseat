@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from harness import fakes, transcript
+from harness.truth import derive
 from harness.truth.requests import decode_request
 from harness.truth.wire import DecodeError
 
@@ -121,6 +122,93 @@ def test_responses_and_gemini_requests_decode() -> None:
     )
     assert request is not None
     assert request.tools == ["f"] and request.messages[1]["parts"][0]["id"] is None
+
+
+def test_gemini_inline_data_names_the_modality_every_other_api_does() -> None:
+    """A PDF is a document, as Converse, Messages and Chat Completions call it - not `application`."""
+    pdf = b"%PDF-1.3 fake"
+    gemini = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": [
+                    {
+                        "inlineData": {
+                            "mimeType": "image/png",
+                            "data": base64.b64encode(PNG).decode(),
+                        }
+                    },
+                    {
+                        "inlineData": {
+                            "mime_type": "application/pdf",
+                            "data": base64.b64encode(pdf).decode(),
+                        }
+                    },
+                ],
+            }
+        ],
+    }
+    request = decode_request(
+        "POST", "/v1beta/models/gemini-x:generateContent", json.dumps(gemini).encode()
+    )
+    assert request is not None
+    image, document = request.messages[0]["parts"]
+    assert image["modality"] == "image"
+    assert document["modality"] == "document"
+    assert document["media_type"] == "application/pdf"
+    assert document["sha256"] == hashlib.sha256(pdf).hexdigest()
+
+
+@pytest.mark.parametrize(
+    "fixture",
+    [
+        "google-genai/native/files",
+        "vertex-ai/native/files",
+        "adk-go/native/files",
+        "genkit-go/native/files",
+    ],
+)
+def test_captured_gemini_media_decode_as_the_request_bytes_and_the_script_say(
+    fixture: str,
+) -> None:
+    """Each inline attachment a captured request sent decodes to the MIME type its bytes were sent under,
+    and to the modality and type of the script's asset with those bytes - the fact the conversation states.
+
+    Google's Python client spells the member `mime_type`, the Go clients `mimeType`; the decoder read only
+    the second, and named a PDF's modality after its MIME type's top level (`application`) where every other
+    API's decoder, and the conversation's own fact, call it a document.
+    """
+    path = (
+        derive.REPO / "server/tests/fixtures/messages" / fixture / "model-requests.json"
+    )
+    assets = {fact["sha256"]: fact for fact in derive.media_facts()}
+    seen = 0
+    for interaction in json.loads(path.read_text())["interactions"]:
+        body = base64.b64decode(interaction["body"])
+        sent = [
+            part["inlineData"]
+            for content in json.loads(body)["contents"]
+            for part in content["parts"]
+            if "inlineData" in part
+        ]
+        request = decode_request(interaction["method"], interaction["path"], body)
+        assert request is not None
+        decoded = [
+            part
+            for message in request.messages
+            for part in message["parts"]
+            if part["type"] == "media"
+        ]
+        assert len(decoded) == len(sent)
+        for wire, part in zip(sent, decoded, strict=True):
+            assert part["media_type"] == (wire.get("mimeType") or wire.get("mime_type"))
+            asset = assets[part["sha256"]]
+            assert (part["modality"], part["media_type"]) == (
+                asset["modality"],
+                asset["media_type"],
+            )
+            seen += 1
+    assert seen >= 2
 
 
 @pytest.mark.parametrize(
