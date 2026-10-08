@@ -203,7 +203,7 @@ fn a_repair_is_the_union_two_versions_up() {
         .unwrap();
     latest.version = 1_000;
     let written = HashSet::from([key(1, 2)]);
-    assert!(!draft.covers(&latest, &written).unwrap());
+    assert!(!draft.covers(&latest, &written));
 
     let repair = draft
         .repair_row(&request, Some(&latest), &written, at, None)
@@ -214,7 +214,7 @@ fn a_repair_is_the_union_two_versions_up() {
         record_identities(&repair.record).unwrap(),
         HashSet::from([key(1, 1), key(1, 2)])
     );
-    assert!(draft.covers(&repair, &written).unwrap());
+    assert!(draft.covers(&repair, &written));
 
     let whole = draft
         .repair_row(

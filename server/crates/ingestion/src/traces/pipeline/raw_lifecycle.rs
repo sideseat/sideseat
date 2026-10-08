@@ -86,7 +86,7 @@ impl TracePipeline {
             for item in items {
                 let current = latest.get(item.draft.raw_id());
                 if let Some(current) = current
-                    && item.draft.covers(current, &item.written)?
+                    && item.draft.covers(current, &item.written)
                 {
                     continue;
                 }
@@ -112,6 +112,46 @@ impl TracePipeline {
             }
         }
         Ok(())
+    }
+
+    /// Queue for the reconciler the records a failed write stored for projects whose rows did not commit.
+    ///
+    /// Records are written before their rows, so a write that fails leaves records no row names, and only the
+    /// reconciler collects those: span retention never finds a record without spans. Collecting is safe against
+    /// the retry that follows. The reconciler restores a record whose rows appear after its delete, and the
+    /// retry's own repair re-creates one deleted before they did - a record that is missing is not an exact
+    /// redelivery's cover, so the retry writes its rows and repairs. Best effort: the write has already failed,
+    /// and a record left behind still goes with its time-to-live.
+    pub(super) async fn enqueue_records_without_rows(
+        &self,
+        records: &[RawRecordRow],
+        committed: &HashSet<String>,
+    ) {
+        let mut by_project: BTreeMap<&str, Vec<String>> = BTreeMap::new();
+        for record in records
+            .iter()
+            .filter(|record| !committed.contains(record.project_id.as_str()))
+        {
+            by_project
+                .entry(record.project_id.as_str())
+                .or_default()
+                .push(record.raw_id.clone());
+        }
+        for (project, raw_ids) in by_project {
+            if let Err(error) = self
+                .analytics
+                .enqueue_raw_records(&ProjectId::from(project), &raw_ids)
+                .await
+            {
+                tracing::error!(
+                    %error,
+                    project_id = project,
+                    records = raw_ids.len(),
+                    "Could not queue a failed write's raw records for collection; they stay until their \
+                     time-to-live"
+                );
+            }
+        }
     }
 
     /// Reconcile the reconciler's queue in the background until shutdown.

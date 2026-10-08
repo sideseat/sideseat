@@ -190,7 +190,10 @@ atomic across the record, the rows and the tombstones:
   sees its own effect;
 - an ingest whose rows the latest record does not hold appends the union of the two, at least two versions above what
   it read, so a concurrent reconciler's rewrite of an older version cannot win over it whatever the writers' clocks
-  say;
+  say, and supersedes a latest version that no longer decodes as if it held nothing;
+- an ingest whose span write fails enqueues the records it stored before the rows: no row may name them, and one
+  fenced before a deletion that landed meanwhile holds content the deletion removed, which only the reconciler
+  takes out;
 - a legal hold stops both: the records and the index carry `hold_until` exactly as the span rows do, retention and
   deletion skip a held row, and the reconciler leaves a held record queued.
 

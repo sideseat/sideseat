@@ -470,6 +470,11 @@ impl TracePipeline {
             if all_db_spans.is_empty() {
                 return ledger.outcomes();
             }
+            // An export left with nothing to write stores no record, exactly as it would alone: what is stored
+            // must not depend on which exports shared a batch. One with something left keeps its exact spans in
+            // its record (see `RawDraft::row`).
+            let writing: HashSet<usize> = all_db_spans.iter().map(|s| s.batch_slot).collect();
+            kept_by_draft.retain(|slot, _| writing.contains(slot));
         }
         sideseat_domain::search::index_spans(&mut all_db_spans);
 
@@ -509,6 +514,9 @@ impl TracePipeline {
         if let Err(error) = self.analytics.insert_raw_records(&raw_rows).await {
             tracing::error!(%error, "Could not store the batch's raw records; refusing the batch");
             self.release_created_associations(&created_associations)
+                .await;
+            // Some may have been stored: a backend that writes projects separately, or one in doubt.
+            self.enqueue_records_without_rows(&raw_rows, &HashSet::new())
                 .await;
             return failed();
         }
@@ -558,6 +566,8 @@ impl TracePipeline {
                 .partition(|(project, _, _)| !committed.contains(project));
             created_associations = kept;
             self.settle_associations_by_stored_rows(&orphaned, &in_doubt)
+                .await;
+            self.enqueue_records_without_rows(&raw_rows, &committed)
                 .await;
             for ((project, _, _), slot) in written.iter().zip(&written_slots) {
                 if !committed.contains(project) {
@@ -666,6 +676,8 @@ impl TracePipeline {
             // the retry succeeds. Settled by what is stored rather than released outright, because a failed
             // write is not proof that nothing landed (`settle_associations_by_stored_rows`).
             self.settle_associations_by_stored_rows(&created_associations, &in_doubt)
+                .await;
+            self.enqueue_records_without_rows(&raw_rows, &committed)
                 .await;
         }
 

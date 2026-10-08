@@ -15,13 +15,17 @@ use super::*;
 use crate::staging::StagingDisposition;
 
 fn export() -> ExportTraceServiceRequest {
+    export_of(21)
+}
+
+fn export_of(trace: u8) -> ExportTraceServiceRequest {
     ExportTraceServiceRequest {
         resource_spans: vec![ResourceSpans {
             resource: Some(Resource::default()),
             scope_spans: vec![ScopeSpans {
                 spans: (1..=3u8)
                     .map(|span| Span {
-                        trace_id: vec![21; 16],
+                        trace_id: vec![trace; 16],
                         span_id: vec![span; 8],
                         name: "step".into(),
                         start_time_unix_nano: 1_700_000_000_000_000_000 + u64::from(span),
@@ -110,6 +114,74 @@ async fn a_reencoded_exact_redelivery_is_covered_by_the_record_it_matches() {
         .await
         .expect("records");
     assert_eq!(records.len(), 1, "an exact redelivery keeps no second copy");
+}
+
+/// The same re-encoded redelivery, batched with a fresh export, keeps no second copy either: an export left with
+/// nothing to write stores no record, whether or not another export in its batch writes.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_batched_reencoded_exact_redelivery_keeps_no_second_copy() {
+    let (_temp, analytics, _database, pipeline) = pipeline_over_a_temp_store_with(false).await;
+    let stored = export();
+    assert_eq!(
+        pipeline.ingest_now(&stored, &protobuf(&stored)).await,
+        IngestOutcome::Stored
+    );
+    let fresh = export_of(22);
+    assert_eq!(
+        pipeline
+            .run_batch(
+                &[stored.clone(), fresh.clone()],
+                &[json(&stored), protobuf(&fresh)]
+            )
+            .await,
+        vec![IngestOutcome::Stored, IngestOutcome::Stored]
+    );
+
+    let records = analytics
+        .raw_records_page(&ProjectId::from("default"), None, 64)
+        .await
+        .expect("records");
+    assert_eq!(
+        records.len(),
+        2,
+        "the first export's record and the fresh one's, and nothing for the redelivery"
+    );
+    assert_eq!(covered(analytics.as_ref(), &stored).await, 3);
+    assert_eq!(covered(analytics.as_ref(), &fresh).await, 3);
+}
+
+/// A record that no longer decodes is superseded by the next delivery of the same body, instead of standing
+/// for ever: every retry presents the same raw id, so its insert is skipped, and the repair used to trust a
+/// received body without reading it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_unreadable_record_is_superseded_by_a_redelivery() {
+    let (_temp, analytics, _database, pipeline) = pipeline_over_a_temp_store_with(false).await;
+    let request = export();
+    let received = protobuf(&request);
+    pipeline.ingest_now(&request, &received).await;
+    let project = ProjectId::from("default");
+    let mut corrupt = analytics
+        .raw_records_page(&project, None, 64)
+        .await
+        .expect("records")
+        .remove(0);
+    corrupt.version += 1;
+    corrupt.record = b"not a raw record".to_vec();
+    analytics
+        .append_raw_records(std::slice::from_ref(&corrupt))
+        .await
+        .expect("corrupt the latest version");
+    assert_eq!(covered(analytics.as_ref(), &request).await, 0);
+
+    assert_eq!(
+        pipeline.ingest_now(&request, &received).await,
+        IngestOutcome::Stored
+    );
+    assert_eq!(
+        covered(analytics.as_ref(), &request).await,
+        3,
+        "a readable version holds the export again"
+    );
 }
 
 /// Rows whose record was lost are written again by the next delivery, which re-creates the record: the export

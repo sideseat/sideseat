@@ -25,9 +25,9 @@
 (*                deletion of rows enqueues the record; the reconciler     *)
 (*                rewrites it without the tombstoned spans.                *)
 (*   Collected  - once settled, a record no row names is gone. Retention   *)
-(*                enqueues like deletion; a reconciler that deleted the    *)
-(*                record re-checks the rows and restores what it read if   *)
-(*                any appeared.                                            *)
+(*                enqueues like deletion, and so does a failed write; a    *)
+(*                reconciler that deleted the record re-checks the rows    *)
+(*                and restores what it read if any appeared.               *)
 (*   HeldIntact - under a legal hold no record content is lost: deletion   *)
 (*                and retention are refused, the reconciler waits, and an  *)
 (*                ingest's repair only adds.                              *)
@@ -135,6 +135,18 @@ Write(i) ==
     /\ iwritten' = [iwritten EXCEPT ![i] = ikept[i]]
     /\ ipc' = [ipc EXCEPT ![i] = "check"]
     /\ UNCHANGED <<store, seq, tomb, hold, heldOnce, frozen, enq, cleared, ikept,
+                   rpc, rrec, rhad, rlive, rtaken, backup>>
+
+\* The span write fails. A backend can have stored its rows all the same - a ClickHouse insert whose view
+\* throws after the block is written, one whose answer was lost - or none of them, and the caller cannot tell
+\* which. The record it stored before them may now be named by nothing, so it is queued for the reconciler;
+\* the export is refused and delivered again, from the fences. No repair runs: the write did not return.
+Fail(i) ==
+    /\ ipc[i] = "write"
+    /\ \E landed \in {{}, ikept[i]} : rows' = rows \cup landed
+    /\ Enqueue
+    /\ ipc' = [ipc EXCEPT ![i] = "fence"]
+    /\ UNCHANGED <<store, seq, tomb, hold, heldOnce, frozen, cleared, ikept, iwritten,
                    rpc, rrec, rhad, rlive, rtaken, backup>>
 
 \* The repair: absent or not covering, append the union two versions up. Exactly two: a repair further up
@@ -284,7 +296,7 @@ RClear(r) ==
                    rrec, rhad, rlive, rtaken, backup>>
 
 Next ==
-    \/ \E i \in Ingests : Fence(i) \/ Insert(i) \/ Write(i) \/ Check(i)
+    \/ \E i \in Ingests : Fence(i) \/ Insert(i) \/ Write(i) \/ Fail(i) \/ Check(i)
     \/ \E s \in Spans : Delete(s) \/ Expire(s)
     \/ Sweep \/ SetHold \/ ReleaseHold \/ Backup \/ Restore
     \/ \E r \in Reconcilers : RRead(r) \/ RAct(r) \/ RRecheck(r) \/ RClear(r)

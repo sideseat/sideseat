@@ -178,7 +178,18 @@ impl RawDraft {
     ) -> Result<RawRecordRow, String> {
         let mut union = keep.clone();
         if let Some(latest) = latest {
-            union.extend(record_identities(&latest.record)?);
+            // An unreadable latest version holds nothing anyone can read back, so the repair supersedes it with
+            // what this ingest carries rather than failing on it - failing would leave it in place for ever,
+            // since every retry presents the same raw id and finds the same bytes.
+            match record_identities(&latest.record) {
+                Ok(held) => union.extend(held),
+                Err(error) => tracing::error!(
+                    raw_id = %latest.raw_id,
+                    version = latest.version,
+                    %error,
+                    "The latest raw record is unreadable; superseding it with this ingest's version"
+                ),
+            }
         }
         let mut row = self.row(request, &union, at, hold_until)?;
         let floor = latest.map_or(0, |latest| latest.version.saturating_add(2));
@@ -187,16 +198,20 @@ impl RawDraft {
     }
 
     /// Whether `latest` holds every span of `written`, decoding it only when it could not.
+    ///
+    /// The received body holds every span it carried, so a version identical to this draft's own encoding
+    /// needs no decoding. Anything else is decoded - a version another draft encoded with different media
+    /// inline, a filtered one - and one that does not decode holds nothing, so the repair replaces it.
     pub(in crate::traces) fn covers(
         &self,
         latest: &RawRecordRow,
         written: &HashSet<SpanKey>,
-    ) -> Result<bool, String> {
-        if latest.origin == RawOrigin::Received {
-            return Ok(true);
+    ) -> bool {
+        if latest.origin == RawOrigin::Received && latest.record == self.encoded.record {
+            return true;
         }
-        let held = record_identities(&latest.record)?;
-        Ok(written.iter().all(|key| held.contains(key)))
+        record_identities(&latest.record)
+            .is_ok_and(|held| written.iter().all(|key| held.contains(key)))
     }
 
     /// The received export without the spans outside `keep`, as protobuf, media cut out as in the first version.

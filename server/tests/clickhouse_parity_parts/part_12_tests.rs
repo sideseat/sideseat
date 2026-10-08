@@ -1,39 +1,17 @@
-/// A ClickHouse insert that fails after its rows landed does not cost those rows their media.
-///
-/// A failing materialized view fails the insert after ClickHouse has written the source block, so the span is
-/// readable although the write reported failure. If the batch released the export's file associations on the
-/// strength of that failure, and the exporter never retried, the readable span would name a file the sweeper
-/// then reclaims. The batch settles them by what is stored instead.
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn a_failed_insert_that_landed_keeps_its_media() {
-    use base64::Engine;
-    use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
-    use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue, any_value};
-    use opentelemetry_proto::tonic::trace::v1::{ResourceSpans, ScopeSpans, Span};
+/// A trace pipeline writing to `clickhouse`, with file storage on: SQLite for the transactional side and a
+/// filesystem blob store, both under `temp`.
+struct FilePipeline {
+    _temp: tempfile::TempDir,
+    pipeline: sideseat_ingestion::traces::TracePipeline,
+    transactional: Arc<dyn sideseat_ports::traits::TransactionalRepository + Send + Sync>,
+    files: Arc<sideseat_domain::files::FileService>,
+    blobs: Arc<dyn sideseat_ports::blobs::FileStorage>,
+}
+
+async fn file_pipeline(clickhouse: &Arc<dyn AnalyticsRepository + Send + Sync>) -> FilePipeline {
     use sideseat_core::config::{
         CacheBackendType, CacheConfig, EvictionPolicy, FilesConfig, RetentionConfig, StorageBackend,
     };
-
-    let Ok(url) = std::env::var(URL_ENV) else {
-        eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
-        return;
-    };
-    let database = "sideseat_parity_landed_failure";
-    let clickhouse: Arc<dyn AnalyticsRepository + Send + Sync> =
-        Arc::new(clickhouse_backend(&url, database).await);
-    // The source block is written, then the view throws: rows land and the insert fails.
-    let raw = raw_client(&url, database);
-    raw.query("CREATE TABLE landed_failure_sink (x UInt8) ENGINE = Null")
-        .execute()
-        .await
-        .expect("fault sink");
-    raw.query(
-        "CREATE MATERIALIZED VIEW landed_failure_view TO landed_failure_sink AS \
-         SELECT throwIf(1, 'injected failure after the rows landed') AS x FROM otel_spans",
-    )
-    .execute()
-    .await
-    .expect("fault view");
 
     let temp = tempfile::TempDir::new().expect("temp dir");
     let storage = AppStorage::init_for_test(temp.path().to_path_buf());
@@ -80,7 +58,7 @@ async fn a_failed_insert_that_landed_keeps_its_media() {
         .expect("file service"),
     );
     let pipeline = sideseat_ingestion::traces::TracePipeline::new(
-        Arc::clone(&clickhouse),
+        Arc::clone(clickhouse),
         Arc::new(sideseat_domain::pricing::PricingService::init_for_test().expect("pricing")),
         Arc::new(sideseat_messaging::TopicService::new(
             sideseat_adapter_topics::memory_backend(),
@@ -89,15 +67,32 @@ async fn a_failed_insert_that_landed_keeps_its_media() {
         Arc::new(sideseat_ingestion::staging::StagingService::new(
             Arc::clone(&blobs),
             Arc::clone(&transactional),
-            Arc::clone(&clickhouse),
+            Arc::clone(clickhouse),
             clock,
             RetentionConfig::default(),
             5,
         )),
     );
 
-    // An export whose attachment is extracted into the file store. Dated now: a span older than the table's
-    // retention is dropped as it is inserted, and would never land at all.
+    FilePipeline {
+        _temp: temp,
+        pipeline,
+        transactional,
+        files,
+        blobs,
+    }
+}
+
+/// One span of trace `[trace; 16]`, dated now, whose input carries an attachment the file store extracts. Dated
+/// now because a span older than the table's retention is dropped as it is inserted, and would never land.
+fn export_with_attachment(
+    trace: u8,
+) -> opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest {
+    use base64::Engine;
+    use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
+    use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue, any_value};
+    use opentelemetry_proto::tonic::trace::v1::{ResourceSpans, ScopeSpans, Span};
+
     let start = u64::try_from(
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -107,11 +102,11 @@ async fn a_failed_insert_that_landed_keeps_its_media() {
     .expect("nanoseconds");
     let picture = base64::engine::general_purpose::STANDARD
         .encode((0..4096u32).map(|i| (i % 251) as u8).collect::<Vec<_>>());
-    let export = ExportTraceServiceRequest {
+    ExportTraceServiceRequest {
         resource_spans: vec![ResourceSpans {
             scope_spans: vec![ScopeSpans {
                 spans: vec![Span {
-                    trace_id: vec![31; 16],
+                    trace_id: vec![trace; 16],
                     span_id: vec![1; 8],
                     name: "generation".into(),
                     start_time_unix_nano: start,
@@ -130,7 +125,46 @@ async fn a_failed_insert_that_landed_keeps_its_media() {
             }],
             ..Default::default()
         }],
+    }
+}
+
+/// A ClickHouse insert that fails after its rows landed does not cost those rows their media.
+///
+/// A failing materialized view fails the insert after ClickHouse has written the source block, so the span is
+/// readable although the write reported failure. If the batch released the export's file associations on the
+/// strength of that failure, and the exporter never retried, the readable span would name a file the sweeper
+/// then reclaims. The batch settles them by what is stored instead.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_failed_insert_that_landed_keeps_its_media() {
+    let Ok(url) = std::env::var(URL_ENV) else {
+        eprintln!("clickhouse parity: skipped - set {URL_ENV} (or run `make test-clickhouse`)");
+        return;
     };
+    let database = "sideseat_parity_landed_failure";
+    let clickhouse: Arc<dyn AnalyticsRepository + Send + Sync> =
+        Arc::new(clickhouse_backend(&url, database).await);
+    // The source block is written, then the view throws: rows land and the insert fails.
+    let raw = raw_client(&url, database);
+    raw.query("CREATE TABLE landed_failure_sink (x UInt8) ENGINE = Null")
+        .execute()
+        .await
+        .expect("fault sink");
+    raw.query(
+        "CREATE MATERIALIZED VIEW landed_failure_view TO landed_failure_sink AS \
+         SELECT throwIf(1, 'injected failure after the rows landed') AS x FROM otel_spans",
+    )
+    .execute()
+    .await
+    .expect("fault view");
+
+    let FilePipeline {
+        _temp,
+        pipeline,
+        transactional,
+        files,
+        blobs,
+    } = file_pipeline(&clickhouse).await;
+    let export = export_with_attachment(31);
 
     // The client never retries: this one answer is all there will be.
     let outcomes = pipeline
