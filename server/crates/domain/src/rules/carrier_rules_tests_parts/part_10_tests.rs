@@ -774,6 +774,15 @@ fn every_carrier_refusal_fires() {
             |e| matches!(e, CompileError::IncoherentFacts { .. }),
         ),
         (
+            "a detached request frame that does not hold the span's input",
+            serde_json::json!([clause(
+                "a",
+                serde_json::json!({}),
+                serde_json::json!({"preset": "snapshot", "carrier_is_detached_request_frame": true})
+            )]),
+            |e| matches!(e, CompileError::IncoherentFacts { .. }),
+        ),
+        (
             "an observation type that is not one",
             serde_json::json!([{
                 "id": "a", "doc": "d",

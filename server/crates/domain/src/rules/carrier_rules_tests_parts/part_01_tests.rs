@@ -69,11 +69,11 @@ fn the_rules_reproduce_the_legacy_carrier_table() {
     }
     for attribute in CARRIER_ATTRIBUTES {
         let mut legacy = carrier::legacy_declared_semantics(None, Some(attribute));
-        // The one deliberate departure, stated rather than absorbed into the oracle: the convention's detached
-        // system prompt is what the model was given, so it holds the span's input - which the retired input list
-        // never named. No golden moves with it.
-        if *attribute == "gen_ai.system_instructions"
-            && let Some(legacy) = legacy.as_mut()
+        // The one deliberate departure, stated rather than absorbed into the oracle: a detached request frame is
+        // what the model was given, so it holds the span's input - which the retired input list never named for
+        // any of them. No golden moves with it.
+        if let Some(legacy) = legacy.as_mut()
+            && legacy.carrier_is_detached_request_frame
         {
             assert!(
                 !legacy.carrier_holds_span_input,

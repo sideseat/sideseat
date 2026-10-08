@@ -208,19 +208,13 @@ fn resolve_facts(
 
 /// A combination of facts the model cannot mean.
 ///
-/// The eight overrides are applied independently, so any vector at all compiled - including ones where the
-/// facts contradict each other and a reader could not say which the engine would act on. Each rule here holds
-/// across all 55 shipped clauses, which is what makes it a statement about the model rather than a preference.
+/// The overrides are applied independently, so any vector at all compiled - including ones where the facts
+/// contradict each other and a reader could not say which the engine would act on. Each rule here holds across
+/// every shipped clause, which is what makes it a statement about the model rather than a preference.
 ///
-/// **One implication is deliberately absent: a detached request frame must hold the span's input.** The
-/// convention's frame, `gen_ai.system_instructions`, declares it, at no change to any golden. The four producer
-/// frames - the Claude Agent SDK's two, Claude Code's and Strands' - still declare `carrier_holds_span_input:
-/// false` while their own docs say they are what the model was given, so the rule is *true of the model and
-/// false of those assets*. Correcting them was tried and measured: that flag also gates **history detection**,
-/// not only ordering, so making the declaration true changed what gets *filtered* - four fixtures moved, a span
-/// view lost two messages, and an assistant's intro text sorted after its own tool call. Those declarations and
-/// the ordering consumer have to move together, which is separate work; enforcing the implication now would
-/// refuse the shipped ruleset for a defect that is real and not yet safely fixable.
+/// A detached request frame holds the span's input: it is what the model was given, so it is on the input side
+/// by definition. Every shipped frame declares it, and making it true of the four producer frames moved no golden
+/// and no truth answer.
 fn incoherent(
     semantics: &CarrierSemantics,
     ordering_family: &Option<String>,
@@ -235,6 +229,12 @@ fn incoherent(
     // was wrong: `gen_ai.tool.message` is one atomic emission whose entire purpose is handing a *past*
     // tool result back to a model, so under that rule such a carrier could never be recognised as
     // replayable input. Atomicity describes occurrence and grouping; replay describes freshness.
+    if semantics.carrier_is_detached_request_frame && !semantics.carrier_holds_span_input {
+        return Some(
+            "is a detached request frame and does not hold the span's input - a frame is what the model was \
+             given, so it is the input by definition",
+        );
+    }
     if semantics.carrier_is_detached_request_frame && semantics.carrier_holds_span_output {
         return Some(
             "is a detached request frame and holds the span's output - a frame precedes what the request saw, \
