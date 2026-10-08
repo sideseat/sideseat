@@ -686,6 +686,12 @@ fn no_production_module_spells_a_declared_producer_word() {
             "__python_args",
             "the engine's own tree for a parsed constructor, which assets select from",
         ),
+        (
+            "server/crates/domain/src/rate_limit.rs",
+            "files",
+            "SideSeat's own rate-limit bucket for its file API, whatever member of a message a producer's asset \
+             names the same",
+        ),
     ];
     let listed = |site: &(String, String)| {
         ENTITLED

@@ -33,11 +33,13 @@
       ]
     },
     "trace-1/AwsBedrockAnthropicClaude.invoke/span-3": {
-      "message_count": 3,
+      "message_count": 5,
       "role_sequence": [
         "system",
         "user",
-        "assistant"
+        "assistant",
+        "user",
+        "user"
       ],
       "tool_names": [],
       "tool_definition_count": 0,
@@ -64,6 +66,23 @@
           "entry_type": "text",
           "content": "**Image:** A curving black path winds through a sunny park with green lawns, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The document is mostly …[367 chars]",
           "content_digest": "3b78b3fb38f1cdec",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "image",
+          "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
+          "content_digest": "f66271bc4504cd52",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXy…[17704 chars]",
+          "content_digest": "d3b2efa81a0d83fc",
+          "tool_name": "task",
           "observation_type": "generation"
         }
       ]
@@ -78,9 +97,11 @@
   },
   "trace_views": {
     "trace-1": {
-      "message_count": 3,
+      "message_count": 5,
       "role_sequence": [
         "system",
+        "user",
+        "user",
         "user",
         "assistant"
       ],
@@ -105,6 +126,23 @@
         },
         {
           "index": 2,
+          "role": "user",
+          "entry_type": "image",
+          "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
+          "content_digest": "f66271bc4504cd52",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXy…[17704 chars]",
+          "content_digest": "d3b2efa81a0d83fc",
+          "tool_name": "task",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "**Image:** A curving black path winds through a sunny park with green lawns, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The document is mostly …[367 chars]",
@@ -116,9 +154,11 @@
   },
   "session_views": {
     "agno-files": {
-      "message_count": 3,
+      "message_count": 5,
       "role_sequence": [
         "system",
+        "user",
+        "user",
         "user",
         "assistant"
       ],
@@ -143,6 +183,23 @@
         },
         {
           "index": 2,
+          "role": "user",
+          "entry_type": "image",
+          "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
+          "content_digest": "f66271bc4504cd52",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "user",
+          "entry_type": "document",
+          "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXy…[17704 chars]",
+          "content_digest": "d3b2efa81a0d83fc",
+          "tool_name": "task",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
           "role": "assistant",
           "entry_type": "text",
           "content": "**Image:** A curving black path winds through a sunny park with green lawns, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The document is mostly …[367 chars]",
@@ -153,9 +210,11 @@
     }
   },
   "feed_view": {
-    "message_count": 3,
+    "message_count": 5,
     "role_sequence": [
       "system",
+      "user",
+      "user",
       "assistant",
       "user"
     ],
@@ -172,6 +231,23 @@
       },
       {
         "index": 1,
+        "role": "user",
+        "entry_type": "image",
+        "content": "{\"type\":\"image\",\"media_type\":\"image/jpeg\",\"source\":\"base64\",\"data\":\"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgo…[218694 chars]",
+        "content_digest": "f66271bc4504cd52",
+        "observation_type": "generation"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "entry_type": "document",
+        "content": "{\"type\":\"document\",\"media_type\":\"application/pdf\",\"name\":\"task\",\"source\":\"base64\",\"data\":\"JVBERi0xLjMKJcTl8uXrp/Og0MTGCjMgMCBvYmoKPDwgL0ZpbHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aCAyMDUgPj4Kc3RyZWFtCngBlVC9CsIwGNz7FOd/opgmaZLaVXFxEwIO1qnoIFSofX8wXy…[17704 chars]",
+        "content_digest": "d3b2efa81a0d83fc",
+        "tool_name": "task",
+        "observation_type": "generation"
+      },
+      {
+        "index": 3,
         "role": "assistant",
         "entry_type": "text",
         "content": "**Image:** A curving black path winds through a sunny park with green lawns, a low stone retaining wall, bare and evergreen trees, and brick apartment buildings in the background under a clear blue sky. **Document:** The document is mostly …[367 chars]",
@@ -179,7 +255,7 @@
         "observation_type": "generation"
       },
       {
-        "index": 2,
+        "index": 4,
         "role": "user",
         "entry_type": "text",
         "content": "Describe the image in one sentence, then summarise the document in one sentence.",

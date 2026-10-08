@@ -26,6 +26,56 @@
   ],
   "messages": [
     {
+      "id": "agno.input_attachments",
+      "doc": "The attachments a turn carried. Agno's OpenInference instrumentation flattens a message's text into `llm.input_messages` and leaves its `images` and `files` out, while `input.value` holds Agno's own messages whole - the text, and beside it each attachment with its bytes. Only the attachments are read from it, each list as the content of a turn of the message's role, so the text keeps coming from the flattened family and nothing is read twice.",
+      "where": {
+        "all": [
+          {
+            "source": "attr:openinference.span.kind",
+            "equals_ignore_case": "llm"
+          },
+          {
+            "source": "scope.name",
+            "equals": "openinference.instrumentation.agno"
+          }
+        ]
+      },
+      "read": {
+        "attribute": "input.value"
+      },
+      "parse": "json",
+      "emit": "message",
+      "also": [
+        {
+          "id": "images",
+          "doc": "A message's images: `{format, content}`, the bytes base64 under `content`.",
+          "select": "$.messages[*]",
+          "where": {
+            "path": "$.images",
+            "non_empty": true
+          },
+          "wrap": {
+            "role_from": "$.role",
+            "content_from": "$.images"
+          }
+        },
+        {
+          "id": "files",
+          "doc": "A message's files: `{mime_type, name, content}`.",
+          "select": "$.messages[*]",
+          "where": {
+            "path": "$.files",
+            "non_empty": true
+          },
+          "wrap": {
+            "role_from": "$.role",
+            "content_from": "$.files"
+          }
+        }
+      ],
+      "priority": 2019
+    },
+    {
       "id": "agno.llm_output_messages",
       "doc": "A model call's response as Agno's instrumentor wrote it before it emitted `llm.output_messages`: the `output.value` of the LLM span holds the turns the call produced, as `{\"messages\": [...]}` or as the bare list. Read only where the indexed output family is absent, since later releases write both and the family is the richer copy.",
       "where": {
@@ -146,6 +196,95 @@
       "emit": "message",
       "priority": 2022,
       "reads_tool_spans": true
+    }
+  ],
+  "content_blocks": [
+    {
+      "id": "agno.image",
+      "doc": "An Agno image: its bytes base64 under `content` beside a bare format name, which is the subtype under `image/`. Agno's media carry an id and no `type`, which is what tells them from a provider's block.",
+      "at": "before_provider_formats",
+      "priority": 120,
+      "where": {
+        "all": [
+          {
+            "path": "$.id",
+            "kind": "string"
+          },
+          {
+            "path": "$.type",
+            "exists": false
+          },
+          {
+            "path": "$.content",
+            "kind": "string"
+          },
+          {
+            "path": "$.format",
+            "one_of": [
+              "jpeg",
+              "jpg",
+              "png",
+              "gif",
+              "webp"
+            ]
+          },
+          {
+            "path": "$.mime_type",
+            "exists": false
+          }
+        ]
+      },
+      "media": {
+        "kind": "image",
+        "data": "$.content",
+        "media_type": {
+          "path": "$.format",
+          "pipe": [
+            {
+              "prepend": "image/"
+            }
+          ]
+        },
+        "missing_media_type": "null",
+        "source": {
+          "reference_or": "base64"
+        }
+      }
+    },
+    {
+      "id": "agno.file",
+      "doc": "An Agno file: its bytes base64 under `content`, its media type and its name beside them. The media type decides the block's kind.",
+      "at": "before_provider_formats",
+      "priority": 121,
+      "where": {
+        "all": [
+          {
+            "path": "$.id",
+            "kind": "string"
+          },
+          {
+            "path": "$.type",
+            "exists": false
+          },
+          {
+            "path": "$.content",
+            "kind": "string"
+          },
+          {
+            "path": "$.mime_type",
+            "kind": "string"
+          }
+        ]
+      },
+      "media": {
+        "data": "$.content",
+        "media_type": "$.mime_type",
+        "missing_media_type": "null",
+        "name": "$.name",
+        "source": {
+          "reference_or": "base64"
+        }
+      }
     }
   ]
 }
