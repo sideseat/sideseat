@@ -59,8 +59,11 @@ clickhouse = { workspace = true }
 
 # Footprint gates require a stable allocator. Supported targets use jemalloc;
 # Windows uses its system allocator and reports that distinction at runtime.
+# `tikv-jemalloc-sys` directly, for `mallctl`: the purge policy is read back from
+# the allocator rather than assumed (`runtime::allocation`).
 [target.'cfg(not(target_os = "windows"))'.dependencies]
 tikv-jemallocator = "0.7.0"
+tikv-jemalloc-sys = "0.7.1"
 
 [dev-dependencies]
 sideseat-domain = { path = "crates/domain", features = ["test-support"] }

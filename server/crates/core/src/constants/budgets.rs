@@ -7,26 +7,40 @@
 // Footprint ceilings
 //
 // Enforced by `server/tests/footprint.rs` (the two in-process gates) and
-// `scripts/perf/footprint-gates.sh` (the two that need a running server). They live
-// here, in one place, because two of the four are read from a shell script and
-// a ceiling with two spellings is a ceiling that drifts;
-// `the_footprint_script_enforces_the_declared_ceilings` compares the script's
-// text against these values.
+// `scripts/perf/footprint-gates.sh` (the two that need a running server, and
+// the enforced-limit runs behind them). They live here, in one place, because
+// the script reads them as literals and a ceiling with two spellings is a
+// ceiling that drifts; `the_footprint_script_enforces_the_declared_ceilings`
+// compares the script's text against these values.
 //
-// All four are stated against the *pinned* allocator
-// (`runtime/allocation.rs`). An absolute megabyte figure is only comparable
-// within one allocator, so a build without it reports the numbers and skips
-// the resident gates rather than passing on a figure it cannot interpret.
+// The two process ceilings are on the memory the OS charges - `phys_footprint`
+// on macOS, the cgroup's `memory.current` on Linux - not on RSS, which also
+// counts freed pages the kernel reclaims at will. They are stated against the
+// *pinned* allocator and its purge policy (`runtime/allocation.rs`): an
+// absolute megabyte figure is only comparable within one allocator, so a build
+// without it reports the numbers and skips the memory gates rather than
+// passing on a figure it cannot interpret.
 // ---------------------------------------------------------------------------
 
-/// Resident bytes after startup, quiesced.
-pub const FOOTPRINT_IDLE_RSS_MAX_BYTES: u64 = 100 * 1024 * 1024;
+/// Memory the OS charges the server after startup, quiesced.
+pub const FOOTPRINT_IDLE_MEMORY_MAX_BYTES: u64 = 100 * 1024 * 1024;
 
-/// Resident bytes under steady ingest, taken as the median over the sampling window.
-pub const FOOTPRINT_INGEST_RSS_MAX_BYTES: u64 = 400 * 1024 * 1024;
+/// Memory the OS charges the server under steady ingest, the median over the sampling window; and, as an enforced
+/// container limit, the memory it must survive at [`FOOTPRINT_INGEST_SPANS_PER_SECOND`].
+pub const FOOTPRINT_INGEST_MEMORY_MAX_BYTES: u64 = 400 * 1024 * 1024;
 
 /// Spans per second the steady-ingest ceiling above is stated at.
 pub const FOOTPRINT_INGEST_SPANS_PER_SECOND: u64 = 5_000;
+
+/// Memory of the host the product is stated for, the server and its embedded backend together: an Ampere A1
+/// instance. Enforced as a container limit by `footprint-gates.sh container`.
+pub const TARGET_HOST_MEMORY_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+
+/// Cores of that host.
+pub const TARGET_HOST_CORES: u64 = 1;
+
+/// Spans per second that host sustains.
+pub const TARGET_HOST_SPANS_PER_SECOND: u64 = 10_000;
 
 /// How much *live allocated* memory a long session read may leave behind once its answer and its memo are
 /// dropped.
@@ -112,7 +126,7 @@ pub const STREAM_MAX_REMEMBERED_CONSUMERS: usize = 64;
 // ignores the budget makes the budget false.
 // ---------------------------------------------------------------------------
 
-/// Bytes DuckDB may use, as a share of [`FOOTPRINT_INGEST_RSS_MAX_BYTES`].
+/// Bytes DuckDB may use, as a share of [`FOOTPRINT_INGEST_MEMORY_MAX_BYTES`].
 ///
 /// Half, not all of it: the rest of the process - the decode, the pipeline, the queue and the reconstruction
 /// cache - has to fit inside the same ceiling, and those are the parts this repository's own benchmarks
@@ -129,7 +143,7 @@ pub const STREAM_MAX_REMEMBERED_CONSUMERS: usize = 64;
 /// way it should go is a measurement rather than an argument - `make bench-http` plus a large-corpus read. If
 /// it proves too tight the fix is a configuration key, not a bigger constant, since the value depends on the
 /// corpus.
-pub const DUCKDB_MEMORY_LIMIT_BYTES: u64 = FOOTPRINT_INGEST_RSS_MAX_BYTES / 2;
+pub const DUCKDB_MEMORY_LIMIT_BYTES: u64 = FOOTPRINT_INGEST_MEMORY_MAX_BYTES / 2;
 
 /// Threads DuckDB may run one query on, at most; fewer when the host has fewer cores.
 ///

@@ -188,9 +188,9 @@ pub const ENV_OTEL_MAX_INFLIGHT_BYTES: &str = "SIDESEAT_OTEL_MAX_INFLIGHT_BYTES"
 pub const DEFAULT_OTEL_MAX_INFLIGHT_BYTES: u64 = 16 * 1024 * 1024;
 const _: () = assert!(
     DEFAULT_OTEL_MAX_INFLIGHT_BYTES * 6
-        <= FOOTPRINT_INGEST_RSS_MAX_BYTES
+        <= FOOTPRINT_INGEST_MEMORY_MAX_BYTES
             - DUCKDB_MEMORY_LIMIT_BYTES
-            - FOOTPRINT_IDLE_RSS_MAX_BYTES
+            - FOOTPRINT_IDLE_MEMORY_MAX_BYTES
 );
 
 // =============================================================================

@@ -124,12 +124,14 @@ footprint-storage: ## Measure and gate stored bytes per signal (embedded)
 footprint-storage-distributed: ## Measure and gate stored bytes per signal (ClickHouse, in containers)
 	$(call run-with-disk-guard,uv run --locked --script scripts/perf/storage-footprint.py distributed --gate --metrics-load)
 
-# RSS gates run against the release server; in-process gates use allocation
-# counters because system allocators may retain freed pages.
-footprint: ## Enforce memory footprint ceilings
-	@# Every gate runs and reports, and the target fails if any did: the resident gates, then the allocation tests, whose
-	@# counters are process-global, so they run one at a time.
+# The process gates run against the release server and measure the memory the OS charges; the same load then
+# runs in the Linux image under enforced limits (Docker; on macOS, Colima). In-process gates use allocation
+# counters because allocators may retain freed pages.
+footprint: ## Enforce memory footprint ceilings, locally and under enforced container limits
+	@# Every gate runs and reports, and the target fails if any did: the process gates, the enforced limits, then the
+	@# allocation tests, whose counters are process-global, so they run one at a time.
 	$(call run-with-disk-guard,status=0; scripts/perf/footprint-gates.sh || status=1; \
+		scripts/perf/footprint-gates.sh container || status=1; \
 		cd $(SERVER_DIR) && cargo test --locked --release --test footprint -- --ignored --nocapture --test-threads=1 || status=1; \
 		exit $$status)
 

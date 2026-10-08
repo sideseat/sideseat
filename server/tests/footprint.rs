@@ -25,11 +25,14 @@
 //! flag, because a serialised gate that also does not interleave its *output* is easier to read.
 
 use sideseat_core::constants::{
-    FOOTPRINT_IDLE_RSS_MAX_BYTES, FOOTPRINT_INGEST_RSS_MAX_BYTES, FOOTPRINT_QUEUED_SPAN_MAX_RATIO,
-    FOOTPRINT_SESSION_READ_GROWTH_MAX_BYTES, FOOTPRINT_SESSION_READ_TURNS,
+    FOOTPRINT_IDLE_MEMORY_MAX_BYTES, FOOTPRINT_INGEST_MEMORY_MAX_BYTES,
+    FOOTPRINT_INGEST_SPANS_PER_SECOND, FOOTPRINT_QUEUED_SPAN_MAX_RATIO,
+    FOOTPRINT_SESSION_READ_GROWTH_MAX_BYTES, FOOTPRINT_SESSION_READ_TURNS, TARGET_HOST_CORES,
+    TARGET_HOST_MEMORY_BYTES, TARGET_HOST_SPANS_PER_SECOND,
 };
 use sideseat_server::runtime::allocation::{
-    ALLOCATOR_NAME, AllocationSnapshot, RESIDENT_CEILINGS_APPLY, describe_footprint, resident_bytes,
+    ALLOCATOR_NAME, AllocationSnapshot, MALLOC_CONF, PurgePolicy, RESIDENT_CEILINGS_APPLY,
+    describe_footprint, purge_policy_in_force, resident_bytes,
 };
 
 const MIB: f64 = 1_048_576.0;
@@ -383,8 +386,8 @@ fn search_term_write_amplification_preserves_the_recall_floor() {
 
 /// The shell script enforces the ceilings this crate declares.
 ///
-/// The two resident ceilings are read by a bash script and declared in Rust, so without this they are two
-/// numbers that agree today. Same reason `every_script_that_locates_the_repository_root_finds_it` exists: a
+/// The two memory ceilings, the rate the ingest one is stated at and the target host's limits are read by a bash
+/// script and declared in Rust, so without this they are numbers that agree today. Same reason `every_script_that_locates_the_repository_root_finds_it` exists: a
 /// gate whose threshold has a second spelling is a gate that silently loosens.
 #[test]
 fn the_footprint_script_enforces_the_declared_ceilings() {
@@ -394,8 +397,15 @@ fn the_footprint_script_enforces_the_declared_ceilings() {
     .expect("scripts/perf/footprint-gates.sh is the other half of the footprint gate");
 
     for (name, declared) in [
-        ("IDLE_RSS_CEILING_BYTES", FOOTPRINT_IDLE_RSS_MAX_BYTES),
-        ("INGEST_RSS_CEILING_BYTES", FOOTPRINT_INGEST_RSS_MAX_BYTES),
+        ("IDLE_MEMORY_CEILING_BYTES", FOOTPRINT_IDLE_MEMORY_MAX_BYTES),
+        (
+            "INGEST_MEMORY_CEILING_BYTES",
+            FOOTPRINT_INGEST_MEMORY_MAX_BYTES,
+        ),
+        ("INGEST_SPANS_PER_SECOND", FOOTPRINT_INGEST_SPANS_PER_SECOND),
+        ("TARGET_HOST_MEMORY_BYTES", TARGET_HOST_MEMORY_BYTES),
+        ("TARGET_HOST_CORES", TARGET_HOST_CORES),
+        ("TARGET_HOST_SPANS_PER_SECOND", TARGET_HOST_SPANS_PER_SECOND),
     ] {
         // The assignment is matched with its `=` and end of line, so a substring of a longer name or a
         // mention in a comment cannot satisfy it.
@@ -444,6 +454,30 @@ fn the_gates_run_under_the_allocator_they_claim() {
             "FOOTPRINT: resident ceilings do not apply under allocator {ALLOCATOR_NAME}; the \
              live-allocation gates still do"
         );
+    }
+}
+
+/// The purge policy the server binary states is the one jemalloc runs with.
+///
+/// This binary links the server library the way the `sideseat` binary does, so it sees the same
+/// `_rjem_malloc_conf` definition. Read back through `mallctl` rather than trusted: a definition the linker
+/// dropped, or a symbol renamed by a `tikv-jemalloc-sys` feature, leaves jemalloc on its defaults - a ten-second
+/// decay without background purging - while the memory ceilings are stated with retained pages purged.
+#[test]
+fn the_allocator_purges_on_the_policy_it_states() {
+    let stated = PurgePolicy {
+        dirty_decay_ms: 1000,
+        muzzy_decay_ms: 0,
+        background_thread: cfg!(all(target_os = "linux", target_env = "gnu")),
+    };
+    if RESIDENT_CEILINGS_APPLY {
+        assert_eq!(
+            purge_policy_in_force(),
+            Some(stated),
+            "jemalloc is not running with the stated options `{MALLOC_CONF}`"
+        );
+    } else {
+        eprintln!("FOOTPRINT: allocator {ALLOCATOR_NAME} states no purge policy");
     }
 }
 

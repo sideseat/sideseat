@@ -5704,6 +5704,7 @@ dependencies = [
  "sideseat-query-sql",
  "sqlx",
  "tempfile",
+ "tikv-jemalloc-sys",
  "tikv-jemallocator",
  "tokio",
  "tonic",

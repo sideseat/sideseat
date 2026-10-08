@@ -197,6 +197,24 @@ partly-filled block per column; the captured corpus stays as the correctness fix
 reasoning signatures, 15.3 MB unique per project out of 74.6 MB. However well everything else is stored, traces
 including media are bounded at about 4.8x and logs at about 3.7x, which is why the gate counts media separately.
 
+**Memory is the figure the OS charges, and an enforced limit is the final word.** The two process ceilings - 100 MB
+idle, 400 MB at 5,000 spans/s - were judged on RSS, which on macOS also counts pages an allocator has freed and
+marked reusable: under steady ingest RSS climbed to 560 MB while `phys_footprint`, what macOS charges the process,
+stayed between 215 and 325 MB, and `vmmap` put the difference in the system allocator's zones, which DuckDB and the
+other C libraries use (317 MB reclaimable at one sample, against about 70 MB held by jemalloc). The gates
+(`scripts/perf/footprint-gates.sh`) now measure the charged figure: `phys_footprint` on macOS, and on Linux the
+`memory.current` of a cgroup that holds the server alone, minus nothing - page cache and kernel memory included.
+RSS is reported beside it, ungated, so a regression in retained pages stays visible. On Linux a page jemalloc has
+freed and not purged is charged to the cgroup, so the binary states its purge policy instead of leaving retained
+pages for the kernel to find (`runtime/allocation.rs`: purged within a second, no lazy `MADV_FREE` stage, and
+jemalloc's own background thread on Linux), and `the_allocator_purges_on_the_policy_it_states` reads it back from
+the allocator. On macOS, at a matched 2,000 spans/s, the policy moved neither the charged median (261-288 MB,
+against 262-275 MB on jemalloc's defaults, three runs each) nor CPU per span beyond the noise. A charged figure
+still describes a process that was never refused memory, so `footprint-gates.sh container` runs the Linux image
+under enforced limits - the 400 MB ceiling with every core at 5,000 spans/s, and the target host, one core and 2 GB
+for the server and its embedded backend, at 10,000 spans/s - and fails if the kernel kills the server or reclaim
+slows it below 90% of the rate.
+
 ### The raw record
 
 Raw telemetry is the single authority; everything else is a cache that a re-derivation rebuilds from it. The raw form

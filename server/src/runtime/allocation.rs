@@ -4,6 +4,9 @@
 //! frees them. RSS remains useful operational context and is reported separately. Counting in this wrapper,
 //! rather than reading allocator-specific statistics, keeps live-byte measurements comparable across
 //! supported platforms and allocator backends.
+//!
+//! The process ceilings (`scripts/perf/footprint-gates.sh`) are on the memory the OS charges instead, which
+//! counts retained pages, so this module also states when jemalloc returns them: [`MALLOC_CONF`].
 
 #![allow(unsafe_code)]
 // `GlobalAlloc` is an unsafe trait. Every pointer operation is delegated unchanged to the backend; this
@@ -103,6 +106,92 @@ unsafe impl<A: GlobalAlloc> GlobalAlloc for CountingAllocator<A> {
 #[global_allocator]
 static GLOBAL: CountingAllocator<PinnedBackend> = CountingAllocator::new(PINNED_BACKEND);
 
+/// When jemalloc hands freed pages back to the kernel, stated here rather than left to its defaults.
+///
+/// The memory ceilings are on what the OS charges the process, and a page jemalloc has freed but not purged is
+/// charged: to `phys_footprint` on macOS, and to the cgroup's `memory.current` on Linux, where a container limit
+/// is enforced against it. By default jemalloc purges a freed page ten seconds after it becomes dirty, and only
+/// when the arena that owns it is next used, so an arena whose threads have gone quiet keeps its pages for as long
+/// as they stay quiet - which the kernel then counts against the limit rather than reclaiming.
+///
+/// - `dirty_decay_ms:1000` purges within a second.
+/// - `muzzy_decay_ms:0` skips the lazy `MADV_FREE` stage, whose pages a cgroup also charges until memory
+///   pressure reclaims them, so a purged page is released with `MADV_DONTNEED` at once.
+/// - `background_thread:true` purges on schedule from jemalloc's own thread, off the request path, instead of on
+///   the next allocation in that arena. jemalloc supports it only on Linux; elsewhere its boot fails with the
+///   option set, so other platforms decay on allocation activity.
+///
+/// The prefixed symbol name is `tikv-jemalloc-sys`'s: it reads `_rjem_malloc_conf` before `main`, and
+/// `the_allocator_purges_on_the_policy_it_states` reads the options back to show this definition is the one in
+/// force.
+#[cfg(all(target_os = "linux", target_env = "gnu"))]
+const MALLOC_CONF_C: &[u8] = b"background_thread:true,dirty_decay_ms:1000,muzzy_decay_ms:0\0";
+#[cfg(not(all(target_os = "linux", target_env = "gnu")))]
+const MALLOC_CONF_C: &[u8] = b"dirty_decay_ms:1000,muzzy_decay_ms:0\0";
+
+/// The purge policy above as jemalloc reads it, for a gate's report.
+pub const MALLOC_CONF: &str = match MALLOC_CONF_C.split_last() {
+    Some((0, conf)) => match std::str::from_utf8(conf) {
+        Ok(conf) => conf,
+        Err(_) => panic!("the jemalloc options are ASCII"),
+    },
+    _ => panic!("the jemalloc options are NUL-terminated"),
+};
+
+// jemalloc declares `const char *malloc_conf`, so this is one pointer to a NUL-terminated string; the type is the
+// one `tikv-jemalloc-sys` declares for the same symbol.
+#[cfg(not(target_os = "windows"))]
+#[unsafe(export_name = "_rjem_malloc_conf")]
+#[used]
+static JEMALLOC_CONF: Option<&'static std::ffi::c_char> =
+    Some(unsafe { &*MALLOC_CONF_C.as_ptr().cast::<std::ffi::c_char>() });
+
+/// The purge options the allocator is running with, read back from it rather than from [`MALLOC_CONF`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PurgePolicy {
+    /// Milliseconds a freed page stays dirty before it is purged; `-1` never purges.
+    pub dirty_decay_ms: i64,
+    /// Milliseconds a lazily freed (`MADV_FREE`) page stays so before it is purged; `0` skips that stage.
+    pub muzzy_decay_ms: i64,
+    /// Whether jemalloc's own threads purge on schedule.
+    pub background_thread: bool,
+}
+
+/// What jemalloc reports for its purge options, or `None` where it is not the allocator or did not answer.
+///
+/// Read through `mallctl`, so a definition of `_rjem_malloc_conf` that the linker dropped, or a renamed symbol,
+/// shows as the defaults instead of passing for the stated policy.
+pub fn purge_policy_in_force() -> Option<PurgePolicy> {
+    #[cfg(not(target_os = "windows"))]
+    {
+        fn read<T: Copy + Default>(name: &std::ffi::CStr) -> Option<T> {
+            let mut value = T::default();
+            let mut len = std::mem::size_of::<T>();
+            // SAFETY: `name` is NUL-terminated, and `value` is a `T` of the size passed in `len`, which is the
+            // size jemalloc documents for each option read below; nothing is written (`newp` is null).
+            let status = unsafe {
+                tikv_jemalloc_sys::mallctl(
+                    name.as_ptr(),
+                    (&raw mut value).cast(),
+                    &raw mut len,
+                    std::ptr::null_mut(),
+                    0,
+                )
+            };
+            (status == 0 && len == std::mem::size_of::<T>()).then_some(value)
+        }
+        Some(PurgePolicy {
+            dirty_decay_ms: read::<isize>(c"opt.dirty_decay_ms")? as i64,
+            muzzy_decay_ms: read::<isize>(c"opt.muzzy_decay_ms")? as i64,
+            background_thread: read::<bool>(c"opt.background_thread")?,
+        })
+    }
+    #[cfg(target_os = "windows")]
+    {
+        None
+    }
+}
+
 /// A reading of the counters, for comparing two moments.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AllocationSnapshot {
@@ -182,17 +271,25 @@ pub fn resident_bytes() -> Option<u64> {
     }
 }
 
-/// One line naming the allocator, the live bytes and the resident bytes, for a gate's report.
+/// One line naming the allocator and its purge policy, the live bytes and the resident bytes, for a gate's
+/// report.
 pub fn describe_footprint() -> String {
     let live = AllocationSnapshot::now().live();
+    let policy = match purge_policy_in_force() {
+        Some(p) => format!(
+            " (dirty_decay_ms {}, muzzy_decay_ms {}, background_thread {})",
+            p.dirty_decay_ms, p.muzzy_decay_ms, p.background_thread
+        ),
+        None => String::new(),
+    };
     match resident_bytes() {
         Some(rss) => format!(
-            "allocator {ALLOCATOR_NAME}: live {:.1} MB, resident {:.1} MB",
+            "allocator {ALLOCATOR_NAME}{policy}: live {:.1} MB, resident {:.1} MB",
             live as f64 / 1_048_576.0,
             rss as f64 / 1_048_576.0
         ),
         None => format!(
-            "allocator {ALLOCATOR_NAME}: live {:.1} MB, resident unavailable on this platform",
+            "allocator {ALLOCATOR_NAME}{policy}: live {:.1} MB, resident unavailable on this platform",
             live as f64 / 1_048_576.0
         ),
     }

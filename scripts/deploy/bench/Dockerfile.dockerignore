@@ -2,6 +2,8 @@
 # (`sdk/rust`) and nothing else from the SDKs, examples, docs or the web app.
 target/
 .git/
+# A developer's local store and its secrets file, which the root `.dockerignore` excludes and this one replaces.
+.sideseat/
 **/node_modules/
 **/.venv/
 web/
