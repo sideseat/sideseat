@@ -783,7 +783,7 @@ pub(super) fn process_dedup_with_lineage_and_ordinals(
         return (blocks, Vec::new(), Vec::new());
     }
 
-    let input_occurrences: Vec<(DateTime<Utc>, bool, bool)> = blocks
+    let input_occurrences: Vec<(DateTime<Utc>, bool, bool, Option<String>)> = blocks
         .iter()
         .map(|block| {
             (
@@ -793,6 +793,8 @@ pub(super) fn process_dedup_with_lineage_and_ordinals(
                     &block.content,
                     ContentBlock::ToolUse { .. } | ContentBlock::ToolResult { .. }
                 ),
+                // What a span was sent, for "a request precedes its own response" below.
+                block.is_input_source().then(|| block.span_id.clone()),
             )
         })
         .collect();
@@ -808,12 +810,13 @@ pub(super) fn process_dedup_with_lineage_and_ordinals(
 
     // Deduplicate by identity (keeps highest quality version)
     let (deduped, input_keys, survivor_keys) = deduplicate_with_lineage(blocks);
-    let survivor_occurrences: Vec<(DateTime<Utc>, bool)> = deduped
+    let survivor_occurrences: Vec<(DateTime<Utc>, bool, Option<String>)> = deduped
         .iter()
         .map(|block| {
             (
                 effective_timestamp(block, &span_timestamps),
                 block.is_history,
+                block.is_output_source().then(|| block.span_id.clone()),
             )
         })
         .collect();
@@ -916,25 +919,28 @@ pub(super) fn process_dedup_with_lineage_and_ordinals(
     let lineage: Vec<Option<usize>> = input_keys
         .iter()
         .zip(input_occurrences)
-        .map(|(key, (input_time, input_is_history, input_is_plain))| {
-            let (dedup_index, final_index) = key
-                .as_ref()
-                .and_then(|key| survivor_of_key.get(key))
-                .copied()?;
-            let (survivor_time, survivor_is_history) = survivor_occurrences[dedup_index];
-            // A history observation before a newly produced survivor cannot be a copy of that future
-            // occurrence. This happens when consecutive turns have byte-identical answers: mapping
-            // the previous turn's replay onto the current output makes dataflow point both ways.
-            if input_is_plain
-                && input_is_history
-                && !survivor_is_history
-                && input_time < survivor_time
-            {
-                None
-            } else {
-                Some(final_index)
-            }
-        })
+        .map(
+            |(key, (input_time, input_is_history, input_is_plain, sent_to))| {
+                let (dedup_index, final_index) = key
+                    .as_ref()
+                    .and_then(|key| survivor_of_key.get(key))
+                    .copied()?;
+                let (survivor_time, survivor_is_history, produced_by) =
+                    &survivor_occurrences[dedup_index];
+                // A history observation before a newly produced survivor cannot be a copy of that future
+                // occurrence. This happens when consecutive turns have byte-identical answers: mapping
+                // the previous turn's replay onto the current output makes dataflow point both ways.
+                // Before is causal as well as clocked: what a span was sent precedes what it produced, even
+                // where a span's start and end are one instant.
+                let precedes =
+                    input_time < *survivor_time || (sent_to.is_some() && sent_to == *produced_by);
+                if input_is_plain && input_is_history && !*survivor_is_history && precedes {
+                    None
+                } else {
+                    Some(final_index)
+                }
+            },
+        )
         .collect();
     let mut repeat_ordinals = vec![0; survivor_keys.len()];
     for (dedup_index, key) in survivor_keys.iter().enumerate() {
