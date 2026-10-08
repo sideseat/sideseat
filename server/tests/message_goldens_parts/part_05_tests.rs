@@ -679,10 +679,14 @@ fn rules_that_emit_by_fixture() -> BTreeMap<String, BTreeSet<String>> {
                                 );
                             let generation = observation == ObservationType::Generation;
                             if read.is_empty() {
+                                // Clause paths too, as the recovery pass below credits them: the clause gate
+                                // asks which readings answered, and a fallback alternative exercised only where
+                                // no dialect read the span is one of them.
                                 for emission in
                                     plan.fallback(&ctx, &std::collections::HashSet::new())
                                 {
                                     credit(emission.rule_id.to_string());
+                                    clause_paths(&emission).into_iter().for_each(&mut credit);
                                 }
                             } else if generation && !dialect_output.iter().any(|source| {
                                 sideseat_ingestion::traces::extract::messages::carrier_holds_span_output(
