@@ -172,8 +172,17 @@ took 2.2 and 2.6 seconds. Each row now carries `superseded_at`, the `ingested_at
 follow (`sideseat_query_sql::winners`). It answers "the winner as of a watermark" as well, which a traversal pins,
 and it costs no measurable bytes: the column is `NULL` on all but the corrected rows. Measured at a million spans
 (`read_paths` in the DuckDB adapter): list traces 228 ms, get trace 57 ms, list spans 71 ms, the feed 16 ms, the
-project message feed 100 ms, list sessions 137 ms and project stats 346 ms, each within the memory limit; span
-search still exceeded it, on its term lookups rather than its winners.
+project message feed 100 ms, list sessions 137 ms and project stats 346 ms, each within the memory limit.
+
+**A search reads a record's field state from the record and only its terms from the term table.** Each of a
+span's six fields was answered by three correlated subqueries over `span_terms` - the term present, the field
+truncated, the field indexed at all - and DuckDB carried every candidate's identity into each, which at a million
+spans exceeded the memory limit; an empty field wrote an empty term only so the third could find it, 12% of the
+term rows. The record now carries `search_fields` and `search_truncated`, a bit per field, written with it and by
+the backfill, and the terms a search names are one aggregate over the term rows that hold them, joined to the
+candidates. Measured: span search on the corpus 223 to 20 ms, and at a million spans 81 ms within the limit;
+`span_terms` 281 to 255 B/span, and the trace signal 829 to 784 B/span on the storage gate, the two columns
+adding nothing measurable to `otel_spans`.
 
 **Metrics are measured on a derived load, and the gate uses it.** 480 captured points cannot measure a store whose block is 256 KB:
 most of the figure is one partly-filled block per column. `scripts/perf/metrics-load.py` derives a deterministic

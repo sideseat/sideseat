@@ -8,7 +8,7 @@ use duckdb::params;
 use crate::error::DuckdbError;
 use crate::in_transaction;
 use crate::sql_types::{SqlOptTimestamp, SqlTimestamp, SqlVec};
-use sideseat_ports::types::NormalizedSpan;
+use sideseat_ports::types::{NormalizedSpan, SearchSignal};
 use sideseat_query_sql::{Backend, dml};
 
 pub fn insert_batch(conn: &Connection, spans: &[NormalizedSpan]) -> Result<(), DuckdbError> {
@@ -50,6 +50,8 @@ fn insert_spans(
     let mut appender = conn.appender(table)?;
 
     for (span, superseded_us) in spans.iter().zip(superseded_us) {
+        let (search_fields, search_truncated) =
+            sideseat_query_sql::search::duckdb_document_bits(SearchSignal::Spans, &span.search);
         let tags = SqlVec(&span.tags);
         let stop_sequences = SqlVec(&span.gen_ai_stop_sequences);
         let finish_reasons = SqlVec(&span.gen_ai_finish_reasons);
@@ -152,6 +154,8 @@ fn insert_spans(
             span.event_count,
             span.link_count,
             SqlOptTimestamp(superseded_us.and_then(chrono::DateTime::from_timestamp_micros)),
+            search_fields,
+            search_truncated,
         ])?;
     }
 

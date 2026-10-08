@@ -330,7 +330,7 @@ async fn a_correction_deletes_only_where_its_revision_wrote() {
         .write(|conn| {
             conn.execute_batch(&format!(
                 "INSERT INTO span_terms SELECT 'p', lpad(to_hex(i // 35), 32, '0'), lpad(to_hex(i), 16, '0'), \
-                 'prompt', 'term' || (i % 997)::VARCHAR, false, \
+                 'prompt', 'term' || (i % 997)::VARCHAR, \
                  make_timestamp({start_us} + (i // {PER_WRITE}) * 1000000) FROM range({TERMS}) r(i) ORDER BY i"
             ))
             .map_err(Into::into)

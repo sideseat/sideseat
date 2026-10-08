@@ -35,9 +35,6 @@ fn last_per_identity<'a, T, K: Eq + std::hash::Hash>(
         .collect()
 }
 
-/// The single empty term an indexed-but-empty field writes.
-const EMPTY_TERM: [String; 1] = [String::new()];
-
 struct SpanCandidate {
     trace_id: String,
     span_id: String,
@@ -151,22 +148,16 @@ pub fn replace_span_terms(
     for span in &spans {
         let project_id = span.project_id.as_deref().unwrap_or_default();
         let ingested_at = SqlTimestamp(span.ingested_at.unwrap_or(chrono::DateTime::UNIX_EPOCH));
+        // Only terms: which fields the span indexed, an empty one too, and which it truncated, its row says
+        // (`search_fields`, `search_truncated`).
         for field in &span.search.fields {
-            // An empty field is still a fact: it says the field was indexed and held nothing, which is what
-            // tells a reader the row is indexed rather than waiting for the backfill.
-            let terms: &[String] = if field.terms.is_empty() {
-                &EMPTY_TERM
-            } else {
-                &field.terms
-            };
-            for term in terms {
+            for term in &field.terms {
                 appender.append_row(params![
                     project_id,
                     span.trace_id.as_str(),
                     span.span_id.as_str(),
                     field.field.as_str(),
                     term.as_str(),
-                    field.truncated,
                     ingested_at,
                 ])?;
             }
@@ -217,19 +208,13 @@ pub fn replace_log_terms(
         let project_id = log.project_id.as_deref().unwrap_or_default();
         let ingested_at = SqlTimestamp(log.ingested_at.unwrap_or(log.timestamp));
         for field in &log.search.fields {
-            let terms: &[String] = if field.terms.is_empty() {
-                &EMPTY_TERM
-            } else {
-                &field.terms
-            };
-            for term in terms {
+            for term in &field.terms {
                 appender.append_row(params![
                     project_id,
                     log.log_digest.as_str(),
                     log.ordinal,
                     field.field.as_str(),
                     term.as_str(),
-                    field.truncated,
                     ingested_at,
                 ])?;
             }
@@ -371,52 +356,54 @@ fn write_span_backfill(
             .as_deref()
             .expect("span search backfill requires its observed content digest");
         let still_current_and_unindexed: bool = conn.query_row(
-            search_sql::DUCKDB_SPAN_BACKFILL_CAS_SQL,
-            params![
-                project_id,
-                trace_id,
-                span_id,
-                expected_content_digest,
-                project_id,
-                trace_id,
-                span_id
-            ],
+            &search_sql::duckdb_span_backfill_cas_sql(),
+            params![project_id, trace_id, span_id, expected_content_digest],
             |row| row.get(0),
         )?;
         if !still_current_and_unindexed {
             continue;
         }
-        // The terms carry the current revision's instant, as a write's do, so a later correction finds them.
+        // The terms carry the winner's instant, as a write's do, so a later correction finds them.
         let identity: SpanIdentity = (project_id.to_string(), trace_id.clone(), span_id.clone());
-        let stored = keyed::winner_instants(&keyed::span_revisions(
-            conn,
-            std::slice::from_ref(&identity),
-        )?);
-        let revisions: Vec<i64> = stored.get(&identity).copied().into_iter().collect();
+        let revisions = keyed::span_revisions(conn, std::slice::from_ref(&identity))?;
+        let Some(winner) = revisions
+            .get(&identity)
+            .and_then(|stored| {
+                stored
+                    .iter()
+                    .find(|revision| revision.superseded_us.is_none())
+            })
+            .copied()
+        else {
+            continue;
+        };
         if let Some(query) = search_sql::duckdb_span_term_delete_of_revisions(
             std::slice::from_ref(&identity),
-            &revisions,
+            &[winner.ingested_us],
         ) {
             conn.execute(query.sql(), duckdb_values(query.params()).as_slice())?;
         }
-        let Some(&current_us) = revisions.iter().max() else {
-            continue;
-        };
-        let ingested_at = SqlTimestamp(micros_to_datetime(current_us));
+        let ingested_at = SqlTimestamp(micros_to_datetime(winner.ingested_us));
         let mut appender = conn.appender("span_terms")?;
-        write_document_fields(&document.document, |field, term, truncated| {
+        write_document_terms(&document.document, |field, term| {
             appender.append_row(params![
                 project_id,
                 trace_id,
                 span_id,
                 field,
                 term,
-                truncated,
                 ingested_at
             ])?;
             Ok(())
         })?;
         appender.flush()?;
+        drop(appender);
+        set_search_bits(
+            conn,
+            SearchSignal::Spans,
+            winner.rowid,
+            search_sql::duckdb_document_bits(SearchSignal::Spans, &document.document),
+        )?;
     }
     Ok(())
 }
@@ -446,41 +433,62 @@ fn write_log_backfill(
         ) {
             conn.execute(query.sql(), duckdb_values(query.params()).as_slice())?;
         }
-        let Some(&current_us) = revisions.iter().max() else {
+        // A log identity has one stored row: a redelivery replaces it.
+        let Some(&(rowid, _, current_us)) =
+            rows.iter().max_by_key(|(_, _, ingested_us)| *ingested_us)
+        else {
             continue;
         };
         let ingested_at = SqlTimestamp(micros_to_datetime(current_us));
         let mut appender = conn.appender("log_terms")?;
-        write_document_fields(&document.document, |field, term, truncated| {
+        write_document_terms(&document.document, |field, term| {
             appender.append_row(params![
                 project_id,
                 log_digest,
                 ordinal,
                 field,
                 term,
-                truncated,
                 ingested_at
             ])?;
             Ok(())
         })?;
         appender.flush()?;
+        drop(appender);
+        set_search_bits(
+            conn,
+            SearchSignal::Logs,
+            rowid,
+            search_sql::duckdb_document_bits(SearchSignal::Logs, &document.document),
+        )?;
     }
     Ok(())
 }
 
-fn write_document_fields(
+/// Every term of a document, by field. Which fields it indexed - an empty one too - and which it truncated, the
+/// record's own row says (`set_search_bits`, and the writers' `search_fields`).
+fn write_document_terms(
     document: &SearchDocument,
-    mut write: impl FnMut(&str, &str, bool) -> Result<(), DuckdbError>,
+    mut write: impl FnMut(&str, &str) -> Result<(), DuckdbError>,
 ) -> Result<(), DuckdbError> {
     for field in &document.fields {
-        if field.terms.is_empty() {
-            write(field.field.as_str(), "", field.truncated)?;
-        } else {
-            for term in &field.terms {
-                write(field.field.as_str(), term, field.truncated)?;
-            }
+        for term in &field.terms {
+            write(field.field.as_str(), term)?;
         }
     }
+    Ok(())
+}
+
+/// Record on a backfilled row which fields it now indexes and which it truncated.
+fn set_search_bits(
+    conn: &Connection,
+    signal: SearchSignal,
+    rowid: i64,
+    (fields, truncated): (u8, u8),
+) -> Result<(), DuckdbError> {
+    conn.execute(
+        search_sql::duckdb_search_bits_update(signal),
+        params![fields, truncated, rowid],
+    )?;
     Ok(())
 }
 
@@ -676,3 +684,7 @@ fn duckdb_values(values: &[QueryValue]) -> Vec<&dyn duckdb::ToSql> {
         })
         .collect()
 }
+
+#[cfg(test)]
+#[path = "search_tests.rs"]
+mod tests;

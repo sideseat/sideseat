@@ -2,7 +2,7 @@
   "embedded": {
     "traces": {
       "target": 480,
-      "regression": 822
+      "regression": 800
     },
     "logs": {
       "target": 300,

@@ -136,13 +136,71 @@ pub const DUCKDB_LOG_TERMS_DELETE_SPAN_SQL: &str = "DELETE FROM log_terms WHERE 
 pub const DUCKDB_SPAN_TERMS_DELETE_PROJECT_SQL: &str =
     "DELETE FROM span_terms WHERE project_id = ?";
 pub const DUCKDB_LOG_TERMS_DELETE_PROJECT_SQL: &str = "DELETE FROM log_terms WHERE project_id = ?";
-pub const DUCKDB_SPAN_BACKFILL_CAS_SQL: &str = "SELECT EXISTS (\
-     SELECT 1 FROM (\
-       SELECT content_digest FROM otel_spans \
-       WHERE project_id = ? AND trace_id = ? AND span_id = ? AND superseded_at IS NULL\
-     ) r WHERE content_digest = ? \
-     AND (SELECT COUNT(DISTINCT field) FROM span_terms t \
-          WHERE t.project_id = ? AND t.trace_id = ? AND t.span_id = ?) < 6)";
+/// Whether a span's winner is still the revision a backfill read, by its content digest, and still not indexed
+/// in every field: project, trace, span, digest.
+pub fn duckdb_span_backfill_cas_sql() -> String {
+    format!(
+        "SELECT EXISTS (SELECT 1 FROM otel_spans \
+         WHERE project_id = ? AND trace_id = ? AND span_id = ? AND superseded_at IS NULL \
+         AND content_digest = ? AND search_fields != {})",
+        duckdb_every_field(SearchSignal::Spans)
+    )
+}
+
+/// Set a backfilled DuckDB record's `search_fields` and `search_truncated`, by row id: binds the two, then the
+/// row id.
+pub fn duckdb_search_bits_update(signal: SearchSignal) -> &'static str {
+    match signal {
+        SearchSignal::Spans => {
+            "UPDATE otel_spans SET search_fields = ?, search_truncated = ? WHERE rowid = ?"
+        }
+        SearchSignal::Logs => {
+            "UPDATE otel_logs SET search_fields = ?, search_truncated = ? WHERE rowid = ?"
+        }
+    }
+}
+
+/// The bit `field` holds in a DuckDB record's `search_fields` and `search_truncated`: its place among the fields
+/// its signal searches. A field the signal does not search has none.
+pub fn duckdb_field_bit(signal: SearchSignal, field: SearchField) -> u8 {
+    Shape::new(signal, Backend::Duckdb)
+        .fields()
+        .iter()
+        .position(|searched| *searched == field)
+        .map_or(0, |position| 1 << position)
+}
+
+/// `search_fields` with every field of `signal` indexed.
+pub fn duckdb_every_field(signal: SearchSignal) -> u8 {
+    let fields = Shape::new(signal, Backend::Duckdb).fields().len();
+    u8::try_from((1_u16 << fields) - 1).expect("a signal searches at most eight fields")
+}
+
+/// A document's `search_fields` and `search_truncated`: the fields it indexed - every field it carries, empty
+/// ones included, since an empty field is indexed and holds nothing - and those whose terms it cut short. A
+/// document that was not indexed has neither, which is what sends its record to the backfill.
+pub fn duckdb_document_bits(
+    signal: SearchSignal,
+    document: &sideseat_ports::types::SearchDocument,
+) -> (u8, u8) {
+    if !document.indexed {
+        return (0, 0);
+    }
+    document
+        .fields
+        .iter()
+        .fold((0, 0), |(fields, truncated), field| {
+            let bit = duckdb_field_bit(signal, field.field);
+            (
+                fields | bit,
+                if field.truncated {
+                    truncated | bit
+                } else {
+                    truncated
+                },
+            )
+        })
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SearchCandidatePlan {
@@ -153,6 +211,7 @@ pub fn candidates(request: &SearchQuery, backend: Backend) -> SearchCandidatePla
     let shape = Shape::new(request.signal, backend);
     let lowered = lower(&request.expression, shape);
     let mut params = vec![QueryValue::String(request.project_id.to_string())];
+    let (hits, from) = shape.term_matches(request, &mut params);
     params.extend(lowered.params);
 
     let mut predicates = Vec::new();
@@ -169,9 +228,9 @@ pub fn candidates(request: &SearchQuery, backend: Backend) -> SearchCandidatePla
         Backend::Clickhouse => format!("toInt16(({}))", lowered.sql),
     };
     let sql = format!(
-        "WITH winners AS ({winners}), scored AS (\
+        "WITH winners AS ({winners}){hits}, scored AS (\
          SELECT {projection}, {timestamp} AS timestamp_us, {state} AS match_state, \
-         {indexed} AS search_indexed FROM winners r {predicate}) \
+         {indexed} AS search_indexed FROM {from} {predicate}) \
          SELECT * FROM scored WHERE match_state != 0 ORDER BY {order} LIMIT {fetch}",
         winners = shape.winners(),
         projection = shape.candidate_projection(),
@@ -265,6 +324,7 @@ pub fn arrivals(
     let shape = Shape::new(request.signal, backend);
     let lowered = lower(&request.expression, shape);
     let mut params = vec![QueryValue::String(request.project_id.to_string())];
+    let (hits, from) = shape.term_matches(request, &mut params);
     params.extend(lowered.params);
     let mut predicates = Vec::new();
     push_time_predicates(request, shape, &mut predicates, &mut params);
@@ -278,9 +338,9 @@ pub fn arrivals(
     };
     ParameterizedQuery::new(
         format!(
-            "WITH winners AS ({winners}), scored AS (\
+            "WITH winners AS ({winners}){hits}, scored AS (\
              SELECT {identity}, {timestamp} AS timestamp_us, ({state}) AS match_state, \
-             {ingested} AS ingested_at_us FROM winners r WHERE {predicate}) \
+             {ingested} AS ingested_at_us FROM {from} WHERE {predicate}) \
              SELECT {count} FROM scored WHERE match_state != 0",
             winners = shape.winners(),
             identity = shape.identity_projection(),
@@ -360,36 +420,59 @@ fn field_leaf(shape: Shape, field: SearchField, terms: &[String], phrase: bool) 
     }
 }
 
+/// DuckDB answers a term's presence from the term table and the field's state from the record's own row: which
+/// fields it indexed and which it truncated (`search_fields`, `search_truncated`). Asking the term table for those
+/// too joined every record against every term row of the field - at a million spans, more than the memory limit.
 fn duckdb_field_leaf(shape: Shape, field: SearchField, terms: &[String], phrase: bool) -> Lowered {
-    let key = shape.term_key_predicate();
-    let present = terms
-        .iter()
-        .map(|_| {
-            format!(
-                "EXISTS (SELECT 1 FROM {table} t WHERE {key} AND t.field = '{field}' AND t.term = ?)",
-                table = shape.term_table(),
-                field = field.as_str(),
-            )
-        })
-        .collect::<Vec<_>>()
-        .join(" AND ");
-    let truncated = format!(
-        "EXISTS (SELECT 1 FROM {table} t WHERE {key} AND t.field = '{field}' AND t.truncated)",
-        table = shape.term_table(),
-        field = field.as_str(),
+    let present = format!(
+        "list_has_all(coalesce(h.pairs, []::VARCHAR[]), [{}])",
+        std::iter::repeat_n("?", terms.len())
+            .collect::<Vec<_>>()
+            .join(", ")
     );
-    let field_indexed = format!(
-        "EXISTS (SELECT 1 FROM {table} t WHERE {key} AND t.field = '{field}')",
-        table = shape.term_table(),
-        field = field.as_str(),
-    );
+    let bit = duckdb_field_bit(shape.signal, field);
+    let truncated = format!("(r.search_truncated & {bit}) != 0");
+    let field_indexed = format!("(r.search_fields & {bit}) != 0");
     let positive = if phrase { 1 } else { 2 };
     Lowered {
         sql: format!(
             "CASE WHEN ({present}) THEN {positive} WHEN {truncated} THEN 1 \
              WHEN NOT ({field_indexed}) THEN 1 ELSE 0 END"
         ),
-        params: terms.iter().cloned().map(QueryValue::String).collect(),
+        params: terms
+            .iter()
+            .map(|term| QueryValue::String(term_pair(field, term)))
+            .collect(),
+    }
+}
+
+/// A term as DuckDB's term matches name it: `field:term`. Terms are runs of alphanumerics (`tokenize`), so the
+/// separator cannot occur in one.
+fn term_pair(field: SearchField, term: &str) -> String {
+    format!("{}:{term}", field.as_str())
+}
+
+/// Every term the expression's leaves name, in first-use order, each once.
+fn expression_terms<'a>(expression: &'a SearchExpr, terms: &mut Vec<&'a str>) {
+    match expression {
+        SearchExpr::MatchAll => {}
+        SearchExpr::Term { term, .. } => {
+            if !terms.contains(&term.as_str()) {
+                terms.push(term);
+            }
+        }
+        SearchExpr::Phrase { terms: phrase, .. } => {
+            for term in phrase {
+                if !terms.contains(&term.as_str()) {
+                    terms.push(term);
+                }
+            }
+        }
+        SearchExpr::And(left, right) | SearchExpr::Or(left, right) => {
+            expression_terms(left, terms);
+            expression_terms(right, terms);
+        }
+        SearchExpr::Not(inner) => expression_terms(inner, terms),
     }
 }
 
@@ -612,6 +695,46 @@ impl Shape {
         }
     }
 
+    /// The relation a search scores, and the common table it needs before it. ClickHouse reads its token columns
+    /// from the record. DuckDB joins the records to their term matches: one aggregate over the term rows that hold
+    /// any of the expression's terms, each matching record with the `field:term` pairs it holds. Asked per
+    /// record and field instead, as correlated `EXISTS`, every subquery carried every candidate's identity - at a
+    /// million spans, more than the memory limit.
+    fn term_matches(self, request: &SearchQuery, params: &mut Vec<QueryValue>) -> (String, String) {
+        let mut terms = Vec::new();
+        expression_terms(&request.expression, &mut terms);
+        if self.backend == Backend::Clickhouse || terms.is_empty() {
+            return (String::new(), "winners r".to_string());
+        }
+        let (key, join) = match self.signal {
+            SearchSignal::Spans => (
+                "t.trace_id AS trace_id, t.span_id AS span_id",
+                "h.trace_id = r.trace_id AND h.span_id = r.span_id",
+            ),
+            SearchSignal::Logs => (
+                "t.log_digest AS log_digest, t.ordinal AS ordinal",
+                "h.log_digest = r.log_digest AND h.ordinal = r.ordinal",
+            ),
+        };
+        params.push(QueryValue::String(request.project_id.to_string()));
+        params.extend(
+            terms
+                .iter()
+                .map(|term| QueryValue::String((*term).to_string())),
+        );
+        (
+            format!(
+                ", hits AS (SELECT {key}, list(DISTINCT t.field || ':' || t.term) AS pairs \
+                 FROM {table} t WHERE t.project_id = ? AND t.term IN ({placeholders}) GROUP BY ALL)",
+                table = self.term_table(),
+                placeholders = std::iter::repeat_n("?", terms.len())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            ),
+            format!("winners r LEFT JOIN hits h ON {join}"),
+        )
+    }
+
     fn term_table(self) -> &'static str {
         match self.signal {
             SearchSignal::Spans => "span_terms",
@@ -619,33 +742,10 @@ impl Shape {
         }
     }
 
-    fn term_key_predicate(self) -> &'static str {
-        match self.signal {
-            SearchSignal::Spans => {
-                "t.project_id = r.project_id AND t.trace_id = r.trace_id AND t.span_id = r.span_id"
-            }
-            SearchSignal::Logs => {
-                "t.project_id = r.project_id AND t.log_digest = r.log_digest AND t.ordinal = r.ordinal"
-            }
-        }
-    }
-
     fn unindexed_predicate(self) -> String {
         match self.backend {
             Backend::Clickhouse => "r.search_indexed = 0".to_string(),
-            Backend::Duckdb => self
-                .fields()
-                .iter()
-                .map(|field| {
-                    format!(
-                        "NOT EXISTS (SELECT 1 FROM {table} t WHERE {key} AND t.field = '{field}')",
-                        table = self.term_table(),
-                        key = self.term_key_predicate(),
-                        field = field.as_str(),
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join(" OR "),
+            Backend::Duckdb => format!("r.search_fields != {}", duckdb_every_field(self.signal)),
         }
     }
 
@@ -653,8 +753,8 @@ impl Shape {
         match self.backend {
             Backend::Clickhouse => "r.search_indexed".to_string(),
             Backend::Duckdb => format!(
-                "CASE WHEN ({}) THEN 0 ELSE 1 END",
-                self.unindexed_predicate()
+                "CASE WHEN r.search_fields = {} THEN 1 ELSE 0 END",
+                duckdb_every_field(self.signal)
             ),
         }
     }
@@ -698,6 +798,42 @@ mod tests {
             from_timestamp: Some(Utc.timestamp_micros(1).single().unwrap()),
             to_timestamp: Some(Utc.timestamp_micros(100).single().unwrap()),
         }
+    }
+
+    /// A document's bits name every field it carries, an empty one included, and only the truncated ones as
+    /// truncated; a document never indexed has none, so its record waits for the backfill.
+    #[test]
+    fn document_bits_name_the_indexed_and_the_truncated_fields() {
+        use sideseat_ports::types::{SearchDocument, SearchFieldTerms};
+        let field = |field, terms: &[&str], truncated| SearchFieldTerms {
+            field,
+            terms: terms.iter().map(|term| term.to_string()).collect(),
+            truncated,
+            text: String::new(),
+        };
+        let document = SearchDocument {
+            indexed: true,
+            fields: vec![
+                field(SearchField::Prompt, &["a"], true),
+                field(SearchField::Error, &[], false),
+                field(SearchField::SpanName, &["b"], false),
+            ],
+        };
+        assert_eq!(
+            duckdb_document_bits(SearchSignal::Spans, &document),
+            (0b11_0001, 0b00_0001)
+        );
+        let unindexed = SearchDocument {
+            indexed: false,
+            ..document
+        };
+        assert_eq!(
+            duckdb_document_bits(SearchSignal::Spans, &unindexed),
+            (0, 0)
+        );
+        assert_eq!(duckdb_every_field(SearchSignal::Spans), 63);
+        assert_eq!(duckdb_every_field(SearchSignal::Logs), 15);
+        assert_eq!(duckdb_field_bit(SearchSignal::Logs, SearchField::Prompt), 0);
     }
 
     #[test]
@@ -763,7 +899,7 @@ mod tests {
         assert!(
             indexing_complete(&query, Backend::Duckdb)
                 .sql()
-                .contains("NOT EXISTS (SELECT 1 FROM span_terms")
+                .contains("r.search_fields != 63")
         );
         assert!(
             indexing_complete(&query, Backend::Clickhouse)
@@ -775,7 +911,7 @@ mod tests {
     #[test]
     fn backfill_pages_only_unindexed_current_rows_in_identity_order() {
         let duckdb = backfill_sources("p", SearchSignal::Spans, 256, Backend::Duckdb);
-        assert!(duckdb.sql().contains("FROM span_terms"));
+        assert!(duckdb.sql().contains("r.search_fields != 63"));
         assert!(duckdb.sql().contains("ORDER BY trace_id, span_id"));
         assert!(duckdb.sql().contains("LIMIT ?"));
 

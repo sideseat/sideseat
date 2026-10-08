@@ -6,7 +6,7 @@ use duckdb::{Connection, params};
 use sideseat_core::utils::json::json_to_opt_string;
 use sideseat_core::utils::time::micros_to_datetime;
 use sideseat_ports::traits::FilterOptionRow;
-use sideseat_ports::types::{ListLogsParams, LogRow, NormalizedLog, ProjectId};
+use sideseat_ports::types::{ListLogsParams, LogRow, NormalizedLog, ProjectId, SearchSignal};
 use sideseat_query_sql::analytics::{ParameterizedQuery, QueryValue};
 use sideseat_query_sql::{Backend, confirmations, dml, logs as log_sql};
 
@@ -49,6 +49,8 @@ pub fn insert_batch(conn: &Connection, logs: &[NormalizedLog]) -> Result<(), Duc
 
         let mut appender = conn.appender(target.table())?;
         for log in logs {
+            let (search_fields, search_truncated) =
+                sideseat_query_sql::search::duckdb_document_bits(SearchSignal::Logs, &log.search);
             appender.append_row(params![
                 log.project_id.as_deref().unwrap_or_default(),
                 log.log_digest.as_str(),
@@ -84,6 +86,8 @@ pub fn insert_batch(conn: &Connection, logs: &[NormalizedLog]) -> Result<(), Duc
                 SqlOptTimestamp(log.hold_until),
                 i64::try_from(log.logical_bytes).unwrap_or(i64::MAX),
                 log.messages.as_deref().unwrap_or("[]"),
+                search_fields,
+                search_truncated,
             ])?;
         }
         appender.flush()?;

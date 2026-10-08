@@ -138,7 +138,7 @@ mod tests {
         ensure_schema(&conn, &TestClock).unwrap();
         conn.execute_batch(
             "DROP TABLE log_terms; CREATE TABLE log_terms (log_digest VARCHAR NOT NULL, project_id VARCHAR NOT NULL, \
-             ordinal UINTEGER NOT NULL, field VARCHAR NOT NULL, term VARCHAR NOT NULL, truncated BOOLEAN NOT NULL, \
+             ordinal UINTEGER NOT NULL, field VARCHAR NOT NULL, term VARCHAR NOT NULL, \
              ingested_at TIMESTAMP NOT NULL);",
         )
         .unwrap();

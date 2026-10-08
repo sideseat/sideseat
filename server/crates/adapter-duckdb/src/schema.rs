@@ -189,7 +189,12 @@ CREATE TABLE IF NOT EXISTS otel_spans (
     link_count                 UINTEGER NOT NULL DEFAULT 0,
     -- The ingest instant of the revision that follows this one, NULL while this is the identity's winner: what
     -- makes a winner a condition on the row rather than a window over the table (sideseat_query_sql::winners).
-    superseded_at              TIMESTAMP
+    superseded_at              TIMESTAMP,
+    -- The search fields this revision indexed and those whose terms were cut short, one bit per field
+    -- (sideseat_query_sql::search::duckdb_field_bit): a search reads a record's field state here and only its
+    -- terms from span_terms. No bit set means not indexed yet, which the backfill picks up.
+    search_fields              UTINYINT NOT NULL DEFAULT 0,
+    search_truncated           UTINYINT NOT NULL DEFAULT 0
 );
 
 -- Indexes exist only where a read provably uses them. DuckDB reads through an ART index only for a scan whose
@@ -390,7 +395,10 @@ CREATE TABLE IF NOT EXISTS otel_logs (
     logical_bytes             UBIGINT NOT NULL DEFAULT 0,
     -- Raw messages a declared log event carries, derived at ingest and joined to the span it names at
     -- read time. Not identity: `log_digest` covers the record, not this.
-    messages                  VARCHAR DEFAULT '[]' USING COMPRESSION zstd
+    messages                  VARCHAR DEFAULT '[]' USING COMPRESSION zstd,
+    -- The search fields this record indexed and those it truncated, as on otel_spans.
+    search_fields             UTINYINT NOT NULL DEFAULT 0,
+    search_truncated          UTINYINT NOT NULL DEFAULT 0
 );
 -- The identity's uniqueness, which no scan reads: a write replaces an identity's row, and this makes a second
 -- row for it an error rather than a duplicate. The lookups a write and its confirmation make are bounded by the
@@ -453,7 +461,6 @@ CREATE TABLE IF NOT EXISTS span_terms (
     span_id VARCHAR NOT NULL,
     field VARCHAR NOT NULL,
     term VARCHAR NOT NULL,
-    truncated BOOLEAN NOT NULL,
     ingested_at TIMESTAMP NOT NULL
 );
 
@@ -463,7 +470,6 @@ CREATE TABLE IF NOT EXISTS log_terms (
     ordinal UINTEGER NOT NULL,
     field VARCHAR NOT NULL,
     term VARCHAR NOT NULL,
-    truncated BOOLEAN NOT NULL,
     ingested_at TIMESTAMP NOT NULL
 );
 
