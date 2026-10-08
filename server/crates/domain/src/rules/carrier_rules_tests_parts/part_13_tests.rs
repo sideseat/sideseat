@@ -55,7 +55,7 @@ fn a_reading_marks_its_renderings_and_nothing_else() {
         ]
     );
 
-    // An indexed family: the entries the condition holds for, asked of the entry `entry_where` sees.
+    // An indexed family: the entries the condition holds for, asked of each assembled entry.
     let family = plan(
         r#"{"id":"t.f","read":{"indexed_family":"msgs","entry_member":"message",
             "rendering":{"path":"$.role","one_of":["tool-response"]}},"emit":"message","priority":1}"#,
@@ -232,4 +232,41 @@ fn a_package_an_annotation_names_is_a_framework_name_in_code() {
             "`{package}` in a production module is not caught as a framework's name"
         );
     }
+}
+
+/// **A defect in a prose-reporting section names where it is.** The sections that refused with a bare string -
+/// message events, event roles, role authority, event categories, synthetic call ids, provider aliases, log
+/// events and message projections - now name the clauses and the asset, so the diagnostic locates the
+/// declaration rather than leaving a reader to search the corpus for the words.
+#[test]
+fn a_prose_section_defect_names_its_clause_and_asset() {
+    let sources = std::collections::BTreeMap::from([(
+        "producers/probe.json".to_string(),
+        br#"{"id": "probe", "message_events": [{"id": "probe.event", "name": "probe.message"}],
+             "event_roles": [{"id": "probe.role", "name": "probe.message", "role": "narrator"}]}"#
+            .to_vec(),
+    )]);
+    let error =
+        crate::rules::Ruleset::build(&ParsedAssets::parse(&sources).expect("the probe parses"))
+            .err()
+            .expect("a role that is not a role is refused");
+    let diagnostic = error
+        .diagnostics
+        .iter()
+        .find(|d| d.section.key() == "event_roles")
+        .expect("the event-role section reports");
+    assert!(
+        diagnostic
+            .locations
+            .iter()
+            .any(|location| location.clause.as_deref() == Some("probe.role")),
+        "the clause is named: {diagnostic}"
+    );
+    assert!(
+        diagnostic
+            .locations
+            .iter()
+            .any(|location| location.asset_path.as_deref() == Some("producers/probe.json")),
+        "and the asset that declares it: {diagnostic}"
+    );
 }

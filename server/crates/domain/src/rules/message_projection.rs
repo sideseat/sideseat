@@ -7,6 +7,7 @@ use std::collections::{BTreeSet, HashMap};
 
 use crate::observations::{MessageSource, RawMessage};
 
+use super::diagnostics::ClauseDefect;
 use super::schema::{MessageProjectionAction, RuleFile};
 use super::span_conditions::{self, Readable, SpanAtom, SpanExpr, SpanSubject};
 
@@ -34,33 +35,49 @@ struct CompiledProjection {
 }
 
 impl MessageProjectionPlan {
-    pub fn compile(files: &[RuleFile]) -> Result<Self, String> {
+    pub fn compile(files: &[RuleFile]) -> Result<Self, super::diagnostics::ClauseDefect> {
         let mut ids = BTreeSet::new();
         let mut rules = Vec::new();
 
         for file in files {
             for rule in &file.message_projections {
                 if !ids.insert(rule.id.as_str()) {
-                    return Err(format!(
-                        "message projection clause id `{}` is declared more than once",
-                        rule.id
+                    return Err(ClauseDefect::new(
+                        &[&rule.id],
+                        Some(&file.id),
+                        format!(
+                            "message projection clause id `{}` is declared more than once",
+                            rule.id
+                        ),
                     ));
                 }
                 if rule.id.is_empty() || rule.only_attribute_source.is_empty() {
-                    return Err(format!(
-                        "message projection clause `{}` contains an empty identifier or attribute source",
-                        rule.id
+                    return Err(ClauseDefect::new(
+                        &[&rule.id],
+                        Some(&file.id),
+                        format!(
+                            "message projection clause `{}` contains an empty identifier or attribute source",
+                            rule.id
+                        ),
                     ));
                 }
                 let condition = span_conditions::lower(&rule.condition, Readable::PROJECTION)
                     .map_err(|defect| {
-                        format!("message projection clause `{}`: {defect}", rule.id)
+                        ClauseDefect::new(
+                            &[&rule.id],
+                            Some(&file.id),
+                            format!("message projection clause `{}`: {defect}", rule.id),
+                        )
                     })?;
                 if !requires_a_scope(&condition) {
-                    return Err(format!(
-                        "message projection clause `{}` does not require one instrumentation scope, so it could \
+                    return Err(ClauseDefect::new(
+                        &[&rule.id],
+                        Some(&file.id),
+                        format!(
+                            "message projection clause `{}` does not require one instrumentation scope, so it could \
                          suppress ordinary rows of every producer",
-                        rule.id
+                            rule.id
+                        ),
                     ));
                 }
                 rules.push(CompiledProjection {

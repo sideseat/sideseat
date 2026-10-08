@@ -141,6 +141,11 @@ pub(crate) trait SectionDefect: fmt::Display {
     fn asset_paths(&self) -> Vec<&str> {
         Vec::new()
     }
+
+    /// Asset ids the error names directly, which the collector resolves to their paths.
+    fn asset_ids(&self) -> Vec<&str> {
+        Vec::new()
+    }
 }
 
 /// Collects section results, keeping every defect.
@@ -195,7 +200,17 @@ impl<'a> Collector<'a> {
                 });
             }
         }
-        for named in error.asset_paths() {
+        let by_id: Vec<&str> = error
+            .asset_ids()
+            .into_iter()
+            .filter_map(|id| {
+                self.assets
+                    .iter()
+                    .find(|(_, file)| file.id == id)
+                    .map(|(path, _)| path)
+            })
+            .collect();
+        for named in error.asset_paths().into_iter().chain(by_id) {
             if locations
                 .iter()
                 .any(|location| location.asset_path.as_deref() == Some(named))
@@ -258,13 +273,48 @@ impl SectionDefect for String {
     }
 }
 
+/// A defect in a section that reports in prose: the reason, and the clauses and asset it is about, so the
+/// diagnostic names where it is rather than leaving a reader to search the corpus for the words.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("{reason}")]
+pub struct ClauseDefect {
+    pub clauses: Vec<String>,
+    /// The asset's id, where the defect is about a declaration with no id of its own.
+    pub asset: Option<String>,
+    pub reason: String,
+}
+
+impl ClauseDefect {
+    pub fn new(clauses: &[&str], asset: Option<&str>, reason: String) -> Self {
+        Self {
+            clauses: clauses.iter().map(|clause| clause.to_string()).collect(),
+            asset: asset.map(str::to_string),
+            reason,
+        }
+    }
+
+    /// Whether the reason says this, for a test asserting which refusal it is.
+    pub fn contains(&self, text: &str) -> bool {
+        self.reason.contains(text)
+    }
+}
+
+impl SectionDefect for ClauseDefect {
+    fn clauses(&self) -> Vec<&str> {
+        self.clauses.iter().map(String::as_str).collect()
+    }
+
+    fn asset_ids(&self) -> Vec<&str> {
+        self.asset.iter().map(String::as_str).collect()
+    }
+}
+
 impl SectionDefect for super::carrier_rules::CompileError {
     fn clauses(&self) -> Vec<&str> {
         use super::carrier_rules::CompileError as E;
         match self {
             E::IncoherentFacts { clause, .. }
             | E::UnknownObservationType { clause, .. }
-            | E::UnknownPreset { clause, .. }
             | E::NoPrimaryKey { clause }
             | E::DuplicateClauseId { clause }
             | E::EmptyLiteral { clause } => vec![clause],

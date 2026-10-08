@@ -241,17 +241,8 @@ pub struct ReadSpec {
     pub family: Option<String>,
     /// A predicate applied to each fully assembled indexed entry.
     ///
-    /// `require_members` decides whether the flattened carrier contains enough physical members to form an
-    /// entry. This is the semantic counterpart: it sees the resulting object and can keep only entries whose
-    /// values mean something to this reading. One OpenInference integration, for example, writes framework
-    /// bookkeeping beside actual conversation roles in the same family.
-    ///
-    /// Optional rather than an empty default so an explicitly empty predicate can be refused as a dead
-    /// declaration. Absent means every entry that satisfies `require_members` is read.
-    #[serde(default, rename = "entry_where")]
-    pub entry_require: ValueCondition,
     /// The indexed entries that are a **rendering**: turns the producer re-sent as text, which another carrier
-    /// holds losslessly. Asked of the same value as `entry_where`. A rendering stays on the span that sent it
+    /// holds losslessly. Asked of each assembled entry. A rendering stays on the span that sent it
     /// and is left out of the trace and session views, where the call and result it renders already are.
     /// Absent: no entry is.
     #[serde(default)]

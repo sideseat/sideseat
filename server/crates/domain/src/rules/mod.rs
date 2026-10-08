@@ -24,6 +24,7 @@ pub mod classify;
 pub mod content_blocks;
 pub mod detect_rules;
 pub mod diagnostics;
+use diagnostics::ClauseDefect;
 pub mod expr;
 pub mod finish_reasons;
 pub mod log_events;
@@ -451,15 +452,16 @@ impl DeclaredEventRole {
 /// registry follows, and the reason both are compiled rather than collected.
 pub(super) fn compile_message_events(
     files: &[schema::RuleFile],
-) -> Result<std::collections::BTreeMap<String, DeclaredMessageEvent>, String> {
+) -> Result<std::collections::BTreeMap<String, DeclaredMessageEvent>, ClauseDefect> {
     let mut out: std::collections::BTreeMap<String, DeclaredMessageEvent> =
         std::collections::BTreeMap::new();
     for file in files {
         for event in &file.message_events {
             if event.name.is_empty() {
-                return Err(format!(
-                    "`{}` declares a message event with no name",
-                    file.id
+                return Err(ClauseDefect::new(
+                    &[],
+                    Some(&file.id),
+                    format!("`{}` declares a message event with no name", file.id),
                 ));
             }
             let raw = event.raw.unwrap_or_default();
@@ -481,10 +483,14 @@ pub(super) fn compile_message_events(
                         .expect("a non-empty witness list stays non-empty");
                 }
                 Some(existing) => {
-                    return Err(format!(
-                        "message event `{}` is declared with two different raw forms ({:?} by {}, {raw:?} by \
+                    return Err(ClauseDefect::new(
+                        &[&event.id],
+                        Some(&file.id),
+                        format!(
+                            "message event `{}` is declared with two different raw forms ({:?} by {}, {raw:?} by \
                          `{}`) - which applies would depend on load order",
-                        event.name, existing.raw, existing.witnesses, event.id
+                            event.name, existing.raw, existing.witnesses, event.id
+                        ),
                     ));
                 }
             }
@@ -496,7 +502,7 @@ pub(super) fn compile_message_events(
 pub(super) fn compile_event_roles(
     files: &[schema::RuleFile],
     tagged: &std::collections::BTreeSet<String>,
-) -> Result<std::collections::BTreeMap<String, DeclaredEventRole>, String> {
+) -> Result<std::collections::BTreeMap<String, DeclaredEventRole>, ClauseDefect> {
     use crate::sideml::ChatRole;
     /// The roles a source name may declare. Ours, not any producer's - so a misspelling is a build defect
     /// rather than a silent fall back to deriving the role from the content.
@@ -519,13 +525,21 @@ pub(super) fn compile_event_roles(
     for file in files {
         for event in &file.event_roles {
             if event.name.is_empty() {
-                return Err(format!("`{}` declares an event role with no name", file.id));
+                return Err(ClauseDefect::new(
+                    &[],
+                    Some(&file.id),
+                    format!("`{}` declares an event role with no name", file.id),
+                ));
             }
             if !occurring.contains(event.name.as_str()) {
-                return Err(format!(
-                    "event role `{}` in `{}` names something no asset produces - it is neither a \
+                return Err(ClauseDefect::new(
+                    &[&event.id],
+                    Some(&file.id),
+                    format!(
+                        "event role `{}` in `{}` names something no asset produces - it is neither a \
                      `message_events` entry nor any rule's `tag_as`, so it could never answer",
-                    event.name, file.id
+                        event.name, file.id
+                    ),
                 ));
             }
             for role in [&event.role, &event.role_in_tool_span]
@@ -533,11 +547,15 @@ pub(super) fn compile_event_roles(
                 .flatten()
             {
                 if !ROLES.contains(&role.as_str()) {
-                    return Err(format!(
-                        "event `{}` in `{}` declares role `{role}`, which is not one of: {}",
-                        event.name,
-                        file.id,
-                        ROLES.join(", ")
+                    return Err(ClauseDefect::new(
+                        &[&event.id],
+                        Some(&file.id),
+                        format!(
+                            "event `{}` in `{}` declares role `{role}`, which is not one of: {}",
+                            event.name,
+                            file.id,
+                            ROLES.join(", ")
+                        ),
                     ));
                 }
             }
@@ -548,9 +566,13 @@ pub(super) fn compile_event_roles(
             // already says, and it was legal: one shipped declaration spelled it while seven omitted it for the
             // same fact.
             if event.role_in_tool_span.is_some() && event.role_in_tool_span == event.role {
-                return Err(format!(
-                    "event role `{}` in `{}` declares `role_in_tool_span` equal to its `role` - omit it, since                      absence already means the same role on both kinds of span",
-                    event.name, file.id
+                return Err(ClauseDefect::new(
+                    &[&event.id],
+                    Some(&file.id),
+                    format!(
+                        "event role `{}` in `{}` declares `role_in_tool_span` equal to its `role` - omit it, since                      absence already means the same role on both kinds of span",
+                        event.name, file.id
+                    ),
                 ));
             }
             let declared = DeclaredEventRole {
@@ -568,10 +590,14 @@ pub(super) fn compile_event_roles(
                 && declared.in_tool_span.is_none()
                 && declared.direction.is_none()
             {
-                return Err(format!(
-                    "event role `{}` in `{}` names no role and no direction, so it states nothing - leave the \
+                return Err(ClauseDefect::new(
+                    &[&event.id],
+                    Some(&file.id),
+                    format!(
+                        "event role `{}` in `{}` names no role and no direction, so it states nothing - leave the \
                      entry out to leave the role to the content",
-                    event.name, file.id
+                        event.name, file.id
+                    ),
                 ));
             }
             match out.get(&event.name) {
@@ -599,18 +625,22 @@ pub(super) fn compile_event_roles(
                     entry.direction = entry.direction.or(declared.direction);
                 }
                 Some(existing) => {
-                    return Err(format!(
-                        "source name `{}` is declared {:?}/{:?}/{:?} in `{}` and {:?}/{:?}/{:?} in `{}` - \
+                    return Err(ClauseDefect::new(
+                        &[&event.id],
+                        Some(&file.id),
+                        format!(
+                            "source name `{}` is declared {:?}/{:?}/{:?} in `{}` and {:?}/{:?}/{:?} in `{}` - \
                          which applies would depend on load order",
-                        event.name,
-                        existing.role,
-                        existing.in_tool_span,
-                        existing.direction,
-                        existing.asset,
-                        declared.role,
-                        declared.in_tool_span,
-                        declared.direction,
-                        declared.asset
+                            event.name,
+                            existing.role,
+                            existing.in_tool_span,
+                            existing.direction,
+                            existing.asset,
+                            declared.role,
+                            declared.in_tool_span,
+                            declared.direction,
+                            declared.asset
+                        ),
                     ));
                 }
             }
@@ -692,41 +722,58 @@ pub(super) fn declared_role_meanings(
 /// tagged-attribute path, and its job is folding spellings, not granting authority.
 pub(super) fn compile_role_authority(
     files: &[schema::RuleFile],
-) -> Result<RoleAuthorityPlan, String> {
+) -> Result<RoleAuthorityPlan, ClauseDefect> {
     let mut plan = RoleAuthorityPlan::default();
     let mut by_role: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
     for file in files {
         for entry in &file.role_authority {
             if entry.role.is_empty() {
-                return Err(format!(
-                    "`{}` declares a role authority with no role",
-                    file.id
+                return Err(ClauseDefect::new(
+                    &[],
+                    Some(&file.id),
+                    format!("`{}` declares a role authority with no role", file.id),
                 ));
             }
             if entry.role != entry.role.to_lowercase() {
-                return Err(format!(
-                    "role authority `{}` in `{}` declares `{}`, which is matched case-insensitively - declare it                      in lower case, or two spellings of one entry read as two",
-                    entry.id, file.id, entry.role
+                return Err(ClauseDefect::new(
+                    &[&entry.id],
+                    Some(&file.id),
+                    format!(
+                        "role authority `{}` in `{}` declares `{}`, which is matched case-insensitively - declare it                      in lower case, or two spellings of one entry read as two",
+                        entry.id, file.id, entry.role
+                    ),
                 ));
             }
             if !entry.survives_event_derivation && !entry.outranks_a_tag && entry.means.is_none() {
-                return Err(format!(
-                    "role authority `{}` in `{}` grants no authority and gives no meaning, so it states nothing \
+                return Err(ClauseDefect::new(
+                    &[&entry.id],
+                    Some(&file.id),
+                    format!(
+                        "role authority `{}` in `{}` grants no authority and gives no meaning, so it states nothing \
                      - leave the entry out",
-                    entry.id, file.id
+                        entry.id, file.id
+                    ),
                 ));
             }
             if entry.means.is_some() && crate::sideml::ChatRole::canonical(&entry.role).is_some() {
-                return Err(format!(
-                    "role authority `{}` in `{}` gives `{}` a meaning, and it is a canonical role, which means \
+                return Err(ClauseDefect::new(
+                    &[&entry.id],
+                    Some(&file.id),
+                    format!(
+                        "role authority `{}` in `{}` gives `{}` a meaning, and it is a canonical role, which means \
                      itself - leave `means` out",
-                    entry.id, file.id, entry.role
+                        entry.id, file.id, entry.role
+                    ),
                 ));
             }
             if let Some(first) = by_role.get(&entry.role) {
-                return Err(format!(
-                    "role `{}` is declared twice, by `{first}` and `{}` - which applies would depend on load                      order",
-                    entry.role, entry.id
+                return Err(ClauseDefect::new(
+                    &[first, &entry.id],
+                    Some(&file.id),
+                    format!(
+                        "role `{}` is declared twice, by `{first}` and `{}` - which applies would depend on load                      order",
+                        entry.role, entry.id
+                    ),
                 ));
             }
             by_role.insert(entry.role.clone(), entry.id.clone());
@@ -747,14 +794,18 @@ pub(super) fn compile_role_authority(
 /// The declared event categories in priority order, refusing an empty word and a shared priority.
 pub(super) fn compile_event_categories(
     files: &[schema::RuleFile],
-) -> Result<Vec<(Vec<String>, schema::EventCategory)>, String> {
+) -> Result<Vec<(Vec<String>, schema::EventCategory)>, ClauseDefect> {
     let mut ranked: Vec<(i32, String, Vec<String>, schema::EventCategory)> = Vec::new();
     for file in files {
         for entry in &file.event_categories {
             if entry.contains.is_empty() || entry.contains.iter().any(String::is_empty) {
-                return Err(format!(
-                    "event category `{}` in `{}` names no word, or an empty one, which every name contains",
-                    entry.id, file.id
+                return Err(ClauseDefect::new(
+                    &[&entry.id],
+                    Some(&file.id),
+                    format!(
+                        "event category `{}` in `{}` names no word, or an empty one, which every name contains",
+                        entry.id, file.id
+                    ),
                 ));
             }
             ranked.push((
@@ -768,9 +819,13 @@ pub(super) fn compile_event_categories(
     if let Some((first, second)) =
         precedence::shared_priority(&ranked, |(priority, ..)| *priority, |_, _| true)
     {
-        return Err(format!(
-            "event categories `{}` and `{}` share priority {}, so which answers depends on load order",
-            first.1, second.1, first.0
+        return Err(ClauseDefect::new(
+            &[&first.1, &second.1],
+            None,
+            format!(
+                "event categories `{}` and `{}` share priority {}, so which answers depends on load order",
+                first.1, second.1, first.0
+            ),
         ));
     }
     ranked.sort_by_key(|(priority, ..)| *priority);
@@ -783,7 +838,7 @@ pub(super) fn compile_event_categories(
 /// The separators of the declared synthetic call ids, refusing a template outside the closed form.
 pub(super) fn compile_synthetic_call_ids(
     files: &[schema::RuleFile],
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<String>, ClauseDefect> {
     let mut out: Vec<String> = Vec::new();
     for file in files {
         for entry in &file.synthetic_call_ids {
@@ -793,16 +848,20 @@ pub(super) fn compile_synthetic_call_ids(
                 .and_then(|rest| rest.strip_suffix("{index}"))
                 .filter(|separator| !separator.is_empty() && !separator.contains(['{', '}']))
                 .ok_or_else(|| {
-                    format!(
+                    ClauseDefect::new(&[&entry.id], Some(&file.id), format!(
                         "synthetic call id `{}` in `{}` declares `{}`, which is not `{{name}}<separator>{{index}}` \
                          with a non-empty separator",
                         entry.id, file.id, entry.template
-                    )
+                    ))
                 })?;
             if out.iter().any(|seen| seen == separator) {
-                return Err(format!(
-                    "synthetic call id `{}` in `{}` restates a separator another declaration states",
-                    entry.id, file.id
+                return Err(ClauseDefect::new(
+                    &[&entry.id],
+                    Some(&file.id),
+                    format!(
+                        "synthetic call id `{}` in `{}` restates a separator another declaration states",
+                        entry.id, file.id
+                    ),
                 ));
             }
             out.push(separator.to_string());
@@ -818,52 +877,72 @@ pub(super) fn compile_synthetic_call_ids(
 /// other compile functions have.
 pub(super) fn compile_provider_aliases(
     files: &[schema::RuleFile],
-) -> Result<std::collections::BTreeMap<String, String>, String> {
+) -> Result<std::collections::BTreeMap<String, String>, ClauseDefect> {
     let mut out: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
     for file in files {
         for alias in &file.provider_aliases {
             if alias.system.is_empty() || alias.provider.is_empty() {
-                return Err(format!(
-                    "provider alias in `{}` names an empty system or provider",
-                    file.id
+                return Err(ClauseDefect::new(
+                    &[],
+                    Some(&file.id),
+                    format!(
+                        "provider alias in `{}` names an empty system or provider",
+                        file.id
+                    ),
                 ));
             }
             // The value is matched **after** normalisation, so a key normalisation would never produce can never
             // be reached.
             let normalised = alias.system.to_lowercase().replace(['-', ' '], "_");
             if normalised != alias.system {
-                return Err(format!(
-                    "provider alias `{}` in `{}` is not in the form the lookup normalises to (`{normalised}`), \
+                return Err(ClauseDefect::new(
+                    &[],
+                    Some(&file.id),
+                    format!(
+                        "provider alias `{}` in `{}` is not in the form the lookup normalises to (`{normalised}`), \
                      so it would never be reached",
-                    alias.system, file.id
+                        alias.system, file.id
+                    ),
                 ));
             }
             // A key the catalogue's own table already answers is shadowed by that table - the ordering makes it
             // harmless and this makes it visible.
             let shadowed = crate::pricing::builtin_provider(&normalised);
             if !shadowed.is_empty() {
-                return Err(format!(
-                    "provider alias `{}` in `{}` names a value the catalogue already reads as provider \
+                return Err(ClauseDefect::new(
+                    &[],
+                    Some(&file.id),
+                    format!(
+                        "provider alias `{}` in `{}` names a value the catalogue already reads as provider \
                      `{shadowed}`, so the declaration could never take effect",
-                    alias.system, file.id
+                        alias.system, file.id
+                    ),
                 ));
             }
             // And the provider it names has to be one the catalogue knows, or the alias resolves to a name
             // nothing prices - which looks like a priced call and is not.
             if crate::pricing::builtin_provider(&alias.provider) != alias.provider {
-                return Err(format!(
-                    "provider alias `{}` in `{}` names provider `{}`, which the catalogue does not read as a \
+                return Err(ClauseDefect::new(
+                    &[],
+                    Some(&file.id),
+                    format!(
+                        "provider alias `{}` in `{}` names provider `{}`, which the catalogue does not read as a \
                      provider of its own",
-                    alias.system, file.id, alias.provider
+                        alias.system, file.id, alias.provider
+                    ),
                 ));
             }
             if let Some(first) = out.insert(alias.system.clone(), alias.provider.clone())
                 && first != alias.provider
             {
-                return Err(format!(
-                    "`{}` is declared as provider `{first}` and as `{}`, so which one prices a call would \
+                return Err(ClauseDefect::new(
+                    &[],
+                    Some(&file.id),
+                    format!(
+                        "`{}` is declared as provider `{first}` and as `{}`, so which one prices a call would \
                      depend on load order",
-                    alias.system, alias.provider
+                        alias.system, alias.provider
+                    ),
                 ));
             }
         }

@@ -274,7 +274,7 @@
       "additionalProperties": false
     },
     "Facts": {
-      "description": "The **nine** carrier facts, named by preset with optional per-field overrides.\n\nA preset is a constructor, not a category: `snapshot` and `accumulated_state` differ in one bit, so two\ndeclarations that read as different kinds of thing can be the same nine facts - and the name does not\nsurvive compilation. 37 of the 55 shipped clauses override something, and nearly all of those overrides are\ncompensating for direction or encoding being bundled into a preset that is otherwise about *reconstruction*.\n\nA preset plus overrides rather than six booleans spelled out per clause: the presets are the\nvocabulary the model is stated in, and a clause that writes them all out invites one being wrong in\na way no reader notices.",
+      "description": "A preset plus overrides rather than six booleans spelled out per clause: the presets are the\nvocabulary the model is stated in, and a clause that writes them all out invites one being wrong in\na way no reader notices.",
       "type": "object",
       "properties": {
         "doc": {
@@ -286,8 +286,8 @@
           "default": null
         },
         "preset": {
-          "description": "`emission`, `snapshot` or `accumulated_state`.",
-          "type": "string"
+          "description": "The constructor the facts start from; the named overrides below change one fact each.",
+          "$ref": "#/$defs/CarrierPreset"
         },
         "position_proves_distinct_occurrence": {
           "type": [
@@ -369,6 +369,26 @@
       "additionalProperties": false,
       "required": [
         "preset"
+      ]
+    },
+    "CarrierPreset": {
+      "description": "The **nine** carrier facts, named by preset with optional per-field overrides.\n\nA preset is a constructor, not a category: `snapshot` and `accumulated_state` differ in one bit, so two\ndeclarations that read as different kinds of thing can be the same nine facts - and the name does not\nsurvive compilation. 37 of the 55 shipped clauses override something, and nearly all of those overrides are\ncompensating for direction or encoding being bundled into a preset that is otherwise about *reconstruction*.\n\nThe three constructors of a carrier's facts.\n\nA closed set, so a misspelt preset is refused when the asset parses rather than reaching a compiler that\nhas to remember to.",
+      "oneOf": [
+        {
+          "description": "One occurrence of the span's output per position.",
+          "type": "string",
+          "const": "emission"
+        },
+        {
+          "description": "A conversation re-listed in order, positions in sequence.",
+          "type": "string",
+          "const": "snapshot"
+        },
+        {
+          "description": "Framework state that restates earlier observations.",
+          "type": "string",
+          "const": "accumulated_state"
+        }
       ]
     },
     "DetectRule": {
@@ -1118,12 +1138,8 @@
           ],
           "default": null
         },
-        "entry_where": {
-          "description": "A predicate applied to each fully assembled indexed entry.\n\n`require_members` decides whether the flattened carrier contains enough physical members to form an\nentry. This is the semantic counterpart: it sees the resulting object and can keep only entries whose\nvalues mean something to this reading. One OpenInference integration, for example, writes framework\nbookkeeping beside actual conversation roles in the same family.\n\nOptional rather than an empty default so an explicitly empty predicate can be refused as a dead\ndeclaration. Absent means every entry that satisfies `require_members` is read.",
-          "$ref": "#/$defs/Expr_ValuePredicate"
-        },
         "rendering": {
-          "description": "The indexed entries that are a **rendering**: turns the producer re-sent as text, which another carrier\nholds losslessly. Asked of the same value as `entry_where`. A rendering stays on the span that sent it\nand is left out of the trace and session views, where the call and result it renders already are.\nAbsent: no entry is.",
+          "description": "A predicate applied to each fully assembled indexed entry.\n\nThe indexed entries that are a **rendering**: turns the producer re-sent as text, which another carrier\nholds losslessly. Asked of each assembled entry. A rendering stays on the span that sent it\nand is left out of the trace and session views, where the call and result it renders already are.\nAbsent: no entry is.",
           "anyOf": [
             {
               "$ref": "#/$defs/Expr_ValuePredicate"

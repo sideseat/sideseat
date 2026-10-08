@@ -95,10 +95,6 @@ pub enum CompileError {
         clause: String,
         declared: String,
     },
-    UnknownPreset {
-        clause: String,
-        preset: String,
-    },
     NoPrimaryKey {
         clause: String,
     },
@@ -128,10 +124,6 @@ impl std::fmt::Display for CompileError {
                 f,
                 "carrier clause `{clause}` is qualified by observation type `{declared}`, which is not one \
                  this server classifies - so the clause could never match"
-            ),
-            Self::UnknownPreset { clause, preset } => write!(
-                f,
-                "clause `{clause}` names preset `{preset}`, which the engine does not define"
             ),
             Self::NoPrimaryKey { clause } => write!(
                 f,
@@ -169,16 +161,11 @@ fn resolve_facts(
     facts: &Facts,
     ordering_family: &Option<String>,
 ) -> Result<CarrierSemantics, CompileError> {
-    let mut semantics = match facts.preset.as_str() {
-        "emission" => CarrierSemantics::EMISSION,
-        "snapshot" => CarrierSemantics::SNAPSHOT,
-        "accumulated_state" => CarrierSemantics::ACCUMULATED_STATE,
-        other => {
-            return Err(CompileError::UnknownPreset {
-                clause: clause_id.to_string(),
-                preset: other.to_string(),
-            });
-        }
+    use super::schema::CarrierPreset;
+    let mut semantics = match facts.preset {
+        CarrierPreset::Emission => CarrierSemantics::EMISSION,
+        CarrierPreset::Snapshot => CarrierSemantics::SNAPSHOT,
+        CarrierPreset::AccumulatedState => CarrierSemantics::ACCUMULATED_STATE,
     };
     if let Some(v) = facts.position_proves_distinct_occurrence {
         semantics.position_proves_distinct_occurrence = v;

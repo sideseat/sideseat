@@ -45,12 +45,6 @@ const UNUSED: &[(&str, &str)] = &[
     ),
     ("LengthUnit=chars", "as `bytes`"),
     (
-        "ReadSpec.entry_where",
-        "the indexed family's entry filter; its only user, a producer's exclusion of the pseudo-roles it \
-         re-sends tool turns under, became a `rendering` - whether the option stays is the grammar's \
-         closure decision",
-    ),
-    (
         "VersionRange.below",
         "a range is half-open at both ends by grammar; the one shipped range is open above, and a range that \
          closes needs no new spelling",

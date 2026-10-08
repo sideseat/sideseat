@@ -319,7 +319,6 @@ pub(super) fn predicate_sets(rule: &CompiledMessageRule) -> Vec<&ValueCondition>
         out.push(&overlay.witness);
         out.push(&overlay.require);
     }
-    out.push(&rule.read.entry_require);
     out.extend(rule.read.rendering.as_ref());
     for reading in rule
         .alternatives
@@ -749,13 +748,11 @@ pub(super) fn consumed_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
         // Conditional where members are required: an entry lacking them contributes nothing, so a second rule
         // reading one of the family's keys is live on a span whose entries this rule rejects.
         let pattern = CarrierPattern::Prefix(format!("{family}."));
-        out.push(
-            if rule.require_members.is_some() || !rule.read.entry_require.is_empty() {
-                only_sometimes(pattern)
-            } else {
-                always(pattern)
-            },
-        );
+        out.push(if rule.require_members.is_some() {
+            only_sometimes(pattern)
+        } else {
+            always(pattern)
+        });
     }
     if let Some(family) = rule.read.family.as_deref() {
         out.push(always(CarrierPattern::Prefix(family.to_string())));
@@ -877,19 +874,17 @@ pub(super) fn emitted_patterns(rule: &CompiledMessageRule) -> Vec<Consumed> {
         // One tag per index, and per sub-level where there is one - a prefix covers them all. Emitted only
         // for entries that satisfy the required members, which is why the condition mirrors the read side.
         let pattern = CarrierPattern::Prefix(format!("{family}."));
-        out.push(
-            if rule.require_members.is_some() || !rule.read.entry_require.is_empty() {
-                Consumed {
-                    pattern,
-                    condition: Condition {
-                        gate: None,
-                        narrowed: true,
-                    },
-                }
-            } else {
-                always(pattern)
-            },
-        );
+        out.push(if rule.require_members.is_some() {
+            Consumed {
+                pattern,
+                condition: Condition {
+                    gate: None,
+                    narrowed: true,
+                },
+            }
+        } else {
+            always(pattern)
+        });
     }
     out
 }

@@ -6,6 +6,7 @@
 
 use std::collections::BTreeMap;
 
+use super::diagnostics::ClauseDefect;
 use super::expr;
 use super::schema::{LogEventPayload, RuleFile};
 
@@ -67,39 +68,56 @@ impl LogEventPlan {
     pub fn compile(
         files: &[RuleFile],
         message_events: &BTreeMap<String, super::DeclaredMessageEvent>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, super::diagnostics::ClauseDefect> {
         let mut by_name: BTreeMap<String, DeclaredLogEvent> = BTreeMap::new();
         for file in files {
             for event in &file.log_events {
                 if event.name.is_empty() {
-                    return Err(format!(
-                        "`{}`: log event `{}` has no name",
-                        file.id, event.id
+                    return Err(ClauseDefect::new(
+                        &[&event.id],
+                        Some(&file.id),
+                        format!("`{}`: log event `{}` has no name", file.id, event.id),
                     ));
                 }
                 if !message_events.contains_key(&event.name) {
-                    return Err(format!(
-                        "`{}`: log event `{}` names `{}`, which no asset declares in `message_events` - \
+                    return Err(ClauseDefect::new(
+                        &[&event.id],
+                        Some(&file.id),
+                        format!(
+                            "`{}`: log event `{}` names `{}`, which no asset declares in `message_events` - \
                          nothing would read it once recognised",
-                        file.id, event.id, event.name
+                            file.id, event.id, event.name
+                        ),
                     ));
                 }
                 if event.name_from.is_empty() {
-                    return Err(format!(
-                        "`{}`: log event `{}` declares no `name_from`, so no record could be recognised as it",
-                        file.id, event.id
+                    return Err(ClauseDefect::new(
+                        &[&event.id],
+                        Some(&file.id),
+                        format!(
+                            "`{}`: log event `{}` declares no `name_from`, so no record could be recognised as it",
+                            file.id, event.id
+                        ),
                     ));
                 }
                 let mut name_from = Vec::with_capacity(event.name_from.len());
                 for spelling in &event.name_from {
                     let spelling = &spelling.0;
                     let source = LogEventNameSource::parse(spelling).map_err(|error| {
-                        format!("`{}`: log event `{}`: {error}", file.id, event.id)
+                        ClauseDefect::new(
+                            &[&event.id],
+                            Some(&file.id),
+                            format!("`{}`: log event `{}`: {error}", file.id, event.id),
+                        )
                     })?;
                     if name_from.contains(&source) {
-                        return Err(format!(
-                            "`{}`: log event `{}` lists `{spelling}` twice in `name_from`",
-                            file.id, event.id
+                        return Err(ClauseDefect::new(
+                            &[&event.id],
+                            Some(&file.id),
+                            format!(
+                                "`{}`: log event `{}` lists `{spelling}` twice in `name_from`",
+                                file.id, event.id
+                            ),
                         ));
                     }
                     name_from.push(source);
@@ -126,10 +144,14 @@ impl LogEventPlan {
                             .expect("a non-empty witness list stays non-empty");
                     }
                     Some(existing) => {
-                        return Err(format!(
-                            "log event `{}` is declared twice with different shapes (by {} and `{}`) - which \
+                        return Err(ClauseDefect::new(
+                            &[&event.id],
+                            Some(&file.id),
+                            format!(
+                                "log event `{}` is declared twice with different shapes (by {} and `{}`) - which \
                              applies would depend on load order",
-                            event.name, existing.witnesses, event.id
+                                event.name, existing.witnesses, event.id
+                            ),
                         ));
                     }
                 }
@@ -190,7 +212,9 @@ mod tests {
         }))]
     }
 
-    fn compile(files: &[RuleFile]) -> Result<LogEventPlan, String> {
+    fn compile(
+        files: &[RuleFile],
+    ) -> Result<LogEventPlan, super::super::diagnostics::ClauseDefect> {
         let events = super::super::compile_message_events(files)?;
         LogEventPlan::compile(files, &events)
     }

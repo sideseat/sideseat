@@ -646,11 +646,6 @@ fn no_production_module_spells_a_declared_producer_word() {
             "the OTLP span record's own member",
         ),
         (
-            "server/crates/domain/src/rules/tool_shapes.rs",
-            "format",
-            "a JSON Schema keyword, copied into a converted schema",
-        ),
-        (
             "server/crates/domain/src/rules/message_rules/build.rs",
             "capture",
             "the engine's own section subject, which a `skip_when` predicate reads",

@@ -790,15 +790,6 @@ fn every_carrier_refusal_fires() {
             |e| matches!(e, CompileError::EmptyLiteral { .. }),
         ),
         (
-            "a preset nothing declares",
-            serde_json::json!([clause(
-                "a",
-                serde_json::json!({}),
-                serde_json::json!({"preset": "not_a_preset"})
-            )]),
-            |e| matches!(e, CompileError::UnknownPreset { .. }),
-        ),
-        (
             "two clauses sharing an id",
             serde_json::json!([
                 clause("a", serde_json::json!({}), serde_json::json!({"preset": "emission"})),

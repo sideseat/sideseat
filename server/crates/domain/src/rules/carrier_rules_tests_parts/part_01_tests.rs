@@ -477,11 +477,8 @@ fn an_unknown_preset_is_refused() {
     }"#;
     let sources = std::collections::BTreeMap::from([("t.json".to_string(), bad.to_vec())]);
     assert!(
-        matches!(
-            compile(&ParsedAssets::parse(&sources).expect("the probe assets parse")),
-            Err(CompileError::UnknownPreset { .. })
-        ),
-        "a preset the engine does not define must fail the build, not default to something"
+        ParsedAssets::parse(&sources).is_err(),
+        "a preset the engine does not define must fail the parse, not default to something"
     );
 }
 

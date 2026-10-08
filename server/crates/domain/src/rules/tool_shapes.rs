@@ -206,7 +206,7 @@ fn first<'v>(subject: &'v JsonValue, paths: &[super::schema::JsonPath]) -> Optio
 
 /// A map from argument name to its facts, as a JSON Schema object.
 ///
-/// **Every supported constraint is kept.** A converter that dropped `required` said an argument was optional
+/// **Every constraint is kept.** A converter that dropped `required` said an argument was optional
 /// where the producer said it was not, and one that dropped `default` and `enum` threw away what the model is
 /// allowed to send. `required` belongs at the schema level, which is where JSON Schema puts it.
 ///
@@ -218,14 +218,19 @@ pub fn argument_map_to_json_schema(map: &JsonValue) -> JsonValue {
     let mut properties = serde_json::Map::new();
     let mut required = Vec::new();
     for (name, facts) in members {
-        let mut property = serde_json::Map::new();
-        // Copied by name, so a constraint this code has never heard of survives - the alternative is a schema
-        // that silently permits what the producer forbade.
-        for constraint in ["type", "description", "default", "enum", "format", "items"] {
-            if let Some(found) = facts.get(constraint) {
-                property.insert(constraint.to_string(), found.clone());
-            }
-        }
+        // Every fact but `required`, which JSON Schema states at the object's level: a constraint this code has
+        // never heard of survives - `minimum`, `pattern`, `maxItems` - where a list of known names dropped it and
+        // left a schema that permits what the producer forbade.
+        let property: serde_json::Map<String, JsonValue> = facts
+            .as_object()
+            .map(|facts| {
+                facts
+                    .iter()
+                    .filter(|(name, _)| name.as_str() != "required")
+                    .map(|(name, value)| (name.clone(), value.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
         properties.insert(name.clone(), JsonValue::Object(property));
         if facts
             .get("required")

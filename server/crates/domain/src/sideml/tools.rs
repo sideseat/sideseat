@@ -788,6 +788,18 @@ mod tests {
         );
         // `required` is not copied into the property: it is not a JSON Schema keyword there.
         assert!(query.get("required").is_none());
+        // And a constraint the converter has never heard of survives: the comment promised it, and a list of known
+        // names dropped `minimum` and `pattern`.
+        let bounded = crate::rules::tool_shapes::argument_map_to_json_schema(&json!({
+            "count": {"type": "integer", "minimum": 1, "maximum": 10},
+            "code": {"type": "string", "pattern": "^[A-Z]{3}$"}
+        }));
+        assert_eq!(bounded["properties"]["count"]["minimum"], json!(1));
+        assert_eq!(bounded["properties"]["count"]["maximum"], json!(10));
+        assert_eq!(
+            bounded["properties"]["code"]["pattern"],
+            json!("^[A-Z]{3}$")
+        );
         // An argument with only a type is unremarkable and stays that way.
         assert_eq!(schema["properties"]["limit"], json!({"type": "integer"}));
     }

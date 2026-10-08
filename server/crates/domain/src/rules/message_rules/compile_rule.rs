@@ -307,7 +307,7 @@ pub(super) fn compile_rule(
     if read.indexed_family.is_some() && !raw_where.is_empty() {
         return Err(inexpressible(
             "an indexed family assembles each entry from several keys, so there is no raw string for \
-                 `raw_where` to ask about - use `require_members` or `entry_where`",
+                 `raw_where` to ask about - use `require_members`",
         ));
     }
     // A wrap is meaningful on an *aggregated* family: the entries become one array, and one array needs an
@@ -602,12 +602,6 @@ pub(super) fn compile_rule(
     if require_members.is_some() && read.indexed_family.is_none() {
         return Err(inexpressible(
             "`require_members` is checked per indexed entry and means nothing without \
-                 `indexed_family`",
-        ));
-    }
-    if !read.entry_require.is_empty() && read.indexed_family.is_none() {
-        return Err(inexpressible(
-            "`entry_where` is checked against each assembled indexed entry and means nothing without \
                  `indexed_family`",
         ));
     }

@@ -193,9 +193,8 @@ the value itself) and the tests asked of what it selects:
 Every test of one atom is asked of one selected value, so `{"path": "$.items[*]", "starts_with": "a", "one_of":
 [...]}` needs a single item satisfying both. A test of the wrong kind for the value (a string test on a number) is
 unknown, and `"exists": false` beside it makes it false. Where the subject is not the value being read, the field
-says so: `parent_where` (the value a selection came out of), `entry_where` (an assembled indexed entry),
-`skip_where` (a section dropped where it holds), `raw_where` (a carrier's text, as a JSON string, before it is
-parsed).
+says so: `parent_where` (the value a selection came out of), `skip_where` (a section dropped where it holds),
+`raw_where` (a carrier's text, as a JSON string, before it is parsed).
 
 ## Transforms
 
@@ -334,7 +333,7 @@ A section body, a selected value and an attached attribute are the producer's by
 Some producers re-send the turns of a tool loop as text in every request - the call written out as prose, the
 result quoted back - while the call and the result are also on record losslessly, in the model's output and on
 the tool's own span. A reading marks those messages with `rendering`, a value condition asked of the same value
-as its `where` (on an indexed family's read, of each entry, as `entry_where` is). A rendering is shown on the span
+as its `where` (on an indexed family's read, of each assembled entry). A rendering is shown on the span
 that sent it, because it is what was sent, and is left out of the trace and session views, which already hold the
 call and its result; nothing else about it changes - it is owned, ordered and counted on its span as any message
 is. A fragment case's own `rendering` adds to its selection point's. `rendering` is refused on a reading that
@@ -624,13 +623,6 @@ ordering has to be declared by name instead.
 
 ### `Facts`
 
-The **nine** carrier facts, named by preset with optional per-field overrides.
-
-A preset is a constructor, not a category: `snapshot` and `accumulated_state` differ in one bit, so two
-declarations that read as different kinds of thing can be the same nine facts - and the name does not
-survive compilation. 37 of the 55 shipped clauses override something, and nearly all of those overrides are
-compensating for direction or encoding being bundled into a preset that is otherwise about *reconstruction*.
-
 A preset plus overrides rather than six booleans spelled out per clause: the presets are the
 vocabulary the model is stated in, and a clause that writes them all out invites one being wrong in
 a way no reader notices.
@@ -638,7 +630,7 @@ a way no reader notices.
 | Key | Type | What it is |
 | --- | --- | --- |
 | `doc` | string | Why this is declared the way it is, for a reader and the explain trace. Read by nothing. |
-| `preset` (required) | string | `emission`, `snapshot` or `accumulated_state`. |
+| `preset` (required) | [`CarrierPreset`](#carrierpreset) | The constructor the facts start from; the named overrides below change one fact each. |
 | `position_proves_distinct_occurrence` | true or false |  |
 | `position_provides_sequence_order` | true or false |  |
 | `history_positions_provide_sequence_order` | true or false |  |
@@ -650,6 +642,24 @@ a way no reader notices.
 | `carrier_holds_span_input` | true or false |  |
 | `carrier_holds_expandable_message_array` | true or false |  |
 | `carrier_replays_across_traces` | true or false |  |
+
+### `CarrierPreset`
+
+The **nine** carrier facts, named by preset with optional per-field overrides.
+
+A preset is a constructor, not a category: `snapshot` and `accumulated_state` differ in one bit, so two
+declarations that read as different kinds of thing can be the same nine facts - and the name does not
+survive compilation. 37 of the 55 shipped clauses override something, and nearly all of those overrides are
+compensating for direction or encoding being bundled into a preset that is otherwise about *reconstruction*.
+
+The three constructors of a carrier's facts.
+
+A closed set, so a misspelt preset is refused when the asset parses rather than reaching a compiler that
+has to remember to.
+
+- `"emission"`: One occurrence of the span's output per position.
+- `"snapshot"`: A conversation re-listed in order, positions in sequence.
+- `"accumulated_state"`: Framework state that restates earlier observations.
 
 ### `DetectRule`
 
@@ -867,8 +877,7 @@ field to un-refuse.
 | `every` | list of string | **Every** one of these keys the span carries is read, each as its own observation. |
 | `indexed_family` | string | An *indexed attribute family*: `<prefix>.0.role`, `<prefix>.0.content`, `<prefix>.1.role`, ... |
 | `family` | string | A dotted attribute *family* read as one object: every key under the prefix (which ends in `.`), named by what follows it - `code.function.parameters.city.value = "Paris"` is `{"city.value": "Paris"}` - with each value read as the JSON it spells or as its text. |
-| `entry_where` | [`Expr_ValuePredicate`](#expr_valuepredicate) | A predicate applied to each fully assembled indexed entry. |
-| `rendering` | [`Expr_ValuePredicate`](#expr_valuepredicate) or null | The indexed entries that are a **rendering**: turns the producer re-sent as text, which another carrier holds losslessly. Asked of the same value as `entry_where`. A rendering stays on the span that sent it and is left out of the trace and session views, where the call and result it renders already are. Absent: no entry is. |
+| `rendering` | [`Expr_ValuePredicate`](#expr_valuepredicate) or null | A predicate applied to each fully assembled indexed entry. |
 | `entry_member` | string | A sub-level of each indexed entry whose members are read at the top of the object. |
 | `numeric_members` | list of string | Entry members to read as a number where the text is one. |
 | `entry_value` | string | Read one *value* out of each indexed entry, rather than the entry's assembled members. |

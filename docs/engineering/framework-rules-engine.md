@@ -205,8 +205,8 @@ value itself) and the tests asked of what it selects: `exists`, `kind`, `non_emp
 `identifier_like`, `starts_with`, `lacks_prefix`, `one_of`, `none_of`, `equals`, `only_members`. Every test of
 an atom is asked of one selected value, so `{path: "$.items[*]", starts_with: "a", one_of: [...]}` needs a single
 item satisfying both. Where the subject differs the field says so: `parent_where` (the value a selection came
-out of), `witness` (an overlay's counterpart list), `entry_where` (an assembled indexed entry), `skip_where` (a
-section dropped where it holds), `raw_where` (a carrier's text, as a JSON string, before parsing).
+out of), `witness` (an overlay's counterpart list), `skip_where` (a section dropped where it holds), `raw_where`
+(a carrier's text, as a JSON string, before parsing).
 
 ### Sources and fallbacks
 

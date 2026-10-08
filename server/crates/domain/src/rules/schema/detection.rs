@@ -647,6 +647,22 @@ pub enum ParametersEncoding {
 /// survive compilation. 37 of the 55 shipped clauses override something, and nearly all of those overrides are
 /// compensating for direction or encoding being bundled into a preset that is otherwise about *reconstruction*.
 ///
+/// The three constructors of a carrier's facts.
+///
+/// A closed set, so a misspelt preset is refused when the asset parses rather than reaching a compiler that
+/// has to remember to.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+#[serde(rename_all = "snake_case")]
+pub enum CarrierPreset {
+    /// One occurrence of the span's output per position.
+    Emission,
+    /// A conversation re-listed in order, positions in sequence.
+    Snapshot,
+    /// Framework state that restates earlier observations.
+    AccumulatedState,
+}
+
 /// A preset plus overrides rather than six booleans spelled out per clause: the presets are the
 /// vocabulary the model is stated in, and a clause that writes them all out invites one being wrong in
 /// a way no reader notices.
@@ -657,8 +673,8 @@ pub struct Facts {
     /// Why this is declared the way it is, for a reader and the explain trace. Read by nothing.
     #[serde(default)]
     pub doc: Option<String>,
-    /// `emission`, `snapshot` or `accumulated_state`.
-    pub preset: String,
+    /// The constructor the facts start from; the named overrides below change one fact each.
+    pub preset: CarrierPreset,
     #[serde(default)]
     pub position_proves_distinct_occurrence: Option<bool>,
     #[serde(default)]
