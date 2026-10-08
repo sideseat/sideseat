@@ -289,7 +289,8 @@ The container-free aggregate does not substitute for live backend parity.
   never lags HEAD). It commits whole files, so check `git diff -- <file>` first: if another agent's hunks are in
   a file you name, commit only yours from a private index with `git add -p` instead. Undo your own change with `git checkout -p HEAD -- <path>`, choosing only your hunks: a file is
   often shared (documented counts, schemas, READMEs), and restoring it whole reverts other agents' work. Never
-  use `git checkout -- <path>`, which restores from the index.
+  use `git checkout -- <path>`, which restores from the index, and never move HEAD (`git reset`, `--amend`,
+  rebase): another agent's commit can land in between and be lost. Fix a bad commit forward.
   Before reporting a commit as green, run `make verify-head` (`ARGS=--test` for the goldens): a green run in
   the shared tree includes everyone else's uncommitted work and says nothing about HEAD.
 - Remove dead code instead of suppressing warnings.
