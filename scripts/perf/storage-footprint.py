@@ -64,6 +64,11 @@ CEILING = ROOT / "scripts/perf/storage-footprint-ceiling.json"
 # The exact fixture set the gate measures, with each file's SHA-256. Pinned so a growing corpus cannot move the
 # figure: a deliberate change rewrites this file (`--update-manifest`) and re-measures in the same commit.
 MANIFEST = ROOT / "scripts/perf/storage-footprint-corpus.json"
+# Metric points the derived load carries (`scripts/perf/metrics-load.json`), which the metric ceilings are
+# stated on: 480 captured points cannot measure a store whose block is 256 KB.
+METRIC_LOAD_POINTS = json.loads((ROOT / "scripts/perf/metrics-load.json").read_text())[
+    "points"
+]
 # Layers that are media objects. Everything else, content-body copies included, is telemetry encoding.
 MEDIA_LAYERS = ("blobs:files",)
 SIGNALS = ("traces", "logs", "metrics")
@@ -849,6 +854,20 @@ def gate(result: dict, only: str | None = None) -> int:
     if only:
         ceilings = {only: ceilings[only]}
     failures = []
+    # The ceilings were taken on one invocation: the whole pinned corpus with the derived metric load. DuckDB
+    # cannot attribute its residue - indexes, block tails, metadata - to a table, so the report spreads it over
+    # the signals by rows: measuring a different set of rows charges every signal a different share, and the
+    # figures are not the ones any ceiling was taken on. Measured on one corpus, the 480 captured points in place
+    # of the load read 784 -> 867 B/span, 2,570 -> 2,717 B/log and 138 -> 552 B/point, which looks like three
+    # regressions and is one wrong command. Such a run reports its figures and is refused rather than compared.
+    metric_points = result["signals"]["metrics"]["items"]
+    if metric_points < METRIC_LOAD_POINTS:
+        failures.append(
+            f"gating needs the whole corpus with the derived metric load, at least {METRIC_LOAD_POINTS:,} "
+            f"points; this run measured {metric_points:,}, so each signal's share of the store's residue is "
+            f"not the one the ceilings were taken on and no figure here is comparable with one. Run "
+            f"`make footprint-storage`, or drop --gate to measure a subset."
+        )
     for s, limits in ceilings.items():
         figure = result["signals"][s]["stored_excluding_media_per_item"]
         if not result["signals"][s]["exports"] or figure is None:
