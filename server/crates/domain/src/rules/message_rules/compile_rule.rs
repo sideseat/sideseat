@@ -552,6 +552,14 @@ pub(super) fn compile_rule(
                  ignored",
         ));
     }
+    // Each entry is its own observation, tagged by the entry's own key; only the aggregate's one observation
+    // could take another name.
+    if read.indexed_family.is_some() && *aggregate_into_array != Some(true) && tag_as.is_some() {
+        return Err(inexpressible(
+            "an indexed family tags each entry by the entry's own key, so `tag_as` would be ignored - it \
+             names an aggregate's one observation",
+        ));
+    }
     if read.entry_member.is_some() && read.indexed_family.is_none() {
         return Err(inexpressible(
             "`entry_member` is a sub-level of an indexed entry and means nothing without \

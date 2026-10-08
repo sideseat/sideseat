@@ -548,6 +548,14 @@ impl CarrierPattern {
         }
     }
 
+    /// Whether this pattern names the key.
+    fn covers(&self, key: &str) -> bool {
+        match self {
+            Self::Exact(name) => name == key,
+            Self::Prefix(prefix) => key.starts_with(prefix.as_str()),
+        }
+    }
+
     fn describe(&self) -> String {
         match self {
             Self::Exact(name) => name.clone(),

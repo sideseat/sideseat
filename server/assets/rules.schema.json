@@ -3094,7 +3094,7 @@
           "default": null
         },
         "where": {
-          "description": "The rows this applies to: their span name, `scope.name` and `scope.version`. It must require one\ninstrumentation scope.",
+          "description": "The rows this applies to: their span name, `scope.name` and `scope.version`. It must name an\ninstrumentation scope the row has to carry: in a conjunction at any depth, or in every branch of a\ndisjunction.",
           "$ref": "#/$defs/Expr_SpanCondition"
         },
         "only_attribute_sources": {

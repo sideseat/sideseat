@@ -141,15 +141,17 @@ impl MessageProjectionPlan {
     }
 }
 
-/// Whether the condition cannot hold without naming one instrumentation scope: the scope test itself, or a
-/// conjunction - at any depth - with one among its members. A disjunction or a negation does not qualify: each
-/// can hold for a row of a scope it never names.
+/// Whether the condition cannot hold without naming an instrumentation scope: the scope test itself, a
+/// conjunction - at any depth - with one among its members, or a disjunction every branch of which does. A
+/// negation does not qualify, nor does a disjunction with a branch that names none: each can hold for a row of
+/// a scope it never names.
 fn requires_a_scope(condition: &SpanExpr) -> bool {
     use super::expr::Expr;
     match condition {
         Expr::Atom(atom) => matches!(atom, SpanAtom::ScopeNameEquals { .. }),
         Expr::All(group) => group.children().iter().any(requires_a_scope),
-        Expr::Any(_) | Expr::Not(_) => false,
+        Expr::Any(group) => group.children().iter().all(requires_a_scope),
+        Expr::Not(_) => false,
     }
 }
 
@@ -250,6 +252,13 @@ mod tests {
             (
                 "a conjunction holding it",
                 serde_json::json!({"all": [scope.clone(), name.clone()]}),
+            ),
+            (
+                "a disjunction every branch of which names the scope",
+                serde_json::json!({"any": [
+                    {"all": [scope.clone(), name.clone()]},
+                    {"all": [scope.clone(), other.clone()]}
+                ]}),
             ),
             (
                 "a conjunction nested in a conjunction",

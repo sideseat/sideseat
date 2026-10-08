@@ -1434,7 +1434,7 @@ must come from one of the named attributes; an empty message list never matches.
 | --- | --- | --- |
 | `id` (required) | string | Stable clause id, reported by diagnostics. |
 | `doc` | string |  |
-| `where` (required) | [`Expr_SpanCondition`](#expr_spancondition) | The rows this applies to: their span name, `scope.name` and `scope.version`. It must require one instrumentation scope. |
+| `where` (required) | [`Expr_SpanCondition`](#expr_spancondition) | The rows this applies to: their span name, `scope.name` and `scope.version`. It must name an instrumentation scope the row has to carry: in a conjunction at any depth, or in every branch of a disjunction. |
 | `only_attribute_sources` (required) | list of string | The attributes every extracted message of the row came from: each message from one of them. Two or more where a request is split across carriers - its conversation in one, its system instructions in another. An empty list, an empty name and a name listed twice are refused. |
 | `successful_only` (required) | true or false | Only a row whose span succeeded: a failure may have no completed companion, so it stays visible. |
 | `action` (required) | [`MessageProjectionAction`](#messageprojectionaction) |  |

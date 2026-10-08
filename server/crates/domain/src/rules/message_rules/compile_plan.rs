@@ -295,10 +295,12 @@ pub fn compile(
                 (Some(x), Some(y)) => span_conditions::disjoint(x, y),
                 _ => false,
             };
+            // What the taker **read**: ownership at run time is over `owns`, which never holds a tag, so a tag
+            // named like a carrier the other reads takes nothing from it - that collision is an identity
+            // question, asked below.
             for owned in owned_all_or_nothing(starved).iter().filter(|_| !never_meet) {
                 if let Some(taken) = consumed_carriers(taker)
                     .iter()
-                    .chain(emitted_carriers(taker).iter())
                     .find(|consumed| owned.taken_by(&consumed.pattern))
                 {
                     return Err(MessageCompileError::StarvedReading {
@@ -367,6 +369,10 @@ pub fn compile(
                     })
                     .collect::<Vec<_>>()
             };
+            // The cross comparisons are about **identity**, not ownership: a tag names a carrier, and a tag
+            // spelled like a carrier another rule reads lends the other carrier's semantics - its facts, its
+            // place in ordering and dedup - to an emission that did not come from it. Ownership never sees a
+            // tag, so these are the only place that collision is caught.
             let conflict = [
                 (a_reads.clone(), b_reads.clone(), "both read"),
                 (emitted_tags(a), emitted_tags(b), "both emit"),
@@ -504,6 +510,15 @@ pub(super) fn writes_one_member_twice(wrap: &WrapSpec) -> bool {
 /// would be dropped: "construct each, then aggregate" is a different operation and nothing declares it. Asked
 /// after inlining, because a fragment's cases are not visible before.
 pub(super) fn aggregate_defect(rule: &CompiledMessageRule) -> Option<&'static str> {
+    // A branch leaf is a rule of its own, with its own aggregate.
+    if let Some(set) = &rule.branch_set {
+        return set
+            .primary
+            .iter()
+            .chain(&set.fallback)
+            .chain(&set.always)
+            .find_map(aggregate_defect);
+    }
     if !rule.aggregate_into_array {
         return None;
     }

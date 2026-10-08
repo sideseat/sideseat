@@ -738,3 +738,63 @@ fn whether_an_attribute_parses_as_json_is_three_valued() {
         "an encoding the grammar does not offer"
     );
 }
+
+/// **Ownership is over what a rule read, and each refusal asks the rule it is about.** A tag takes no carrier, so a
+/// gated rule tagging `a` starves no compose that reads `a`; an indexed family's entries carry their own keys, so
+/// a `tag_as` beside them is refused; an aggregate branch leaf meets the aggregate's refusals; and a replacing
+/// event whose branch leaf finds its carrier unreadable keeps the raw form.
+#[test]
+fn ownership_and_refusals_follow_the_rule_that_reads() {
+    use crate::rules::message_rules::MessageCompileError;
+    let compiled = |rules: &str| probe_compile(&format!(r#"{{"id":"t","messages":[{rules}]}}"#));
+    // A gated rule reading `x` and tagging `a`, beside a compose reading the physical `a` and `b`.
+    if let Err(error) = compiled(
+        r#"{"id":"t.x","where":{"source":"attr:marker","exists":true},"read":{"attribute":"x"},"parse":"text",
+            "tag_as":"a","emit":"message","priority":1,"wrap":{"role":"user"}},
+           {"id":"t.c","compose":{"tag":"joined","members":[{"as":"m_a","from":"a","parse":"text"},
+             {"as":"m_b","from":"b","parse":"text"}]},"emit":"message","priority":2}"#,
+    ) {
+        assert!(
+            !matches!(error, MessageCompileError::StarvedReading { .. }),
+            "a tag took a carrier it never read: {error}"
+        );
+        panic!("refused: {error}");
+    }
+    // An indexed family's entries, renamed.
+    assert!(
+        compiled(
+            r#"{"id":"t.f","read":{"indexed_family":"msgs"},"tag_as":"t.renamed","emit":"message","priority":1}"#
+        )
+        .is_err()
+    );
+    // An aggregate inside a branch, with a per-reading envelope it would discard.
+    assert!(
+        compiled(
+            r#"{"id":"t.b","priority":1,"branch_set":{"primary":[{"id":"t.leaf","read":{"attribute":"x"},
+                "parse":"json","emit":"message","aggregate_into_array":true,
+                "alternatives":[{"id":"a","select":"$.m","each":true,"wrap":{"role":"user"}}]}]}}"#
+        )
+        .is_err()
+    );
+    // A replacing event whose only reading is a branch leaf, and whose carrier is there and unreadable.
+    let plan = probe_compile(
+        r#"{"id":"t","message_events":[{"id":"t.e","name":"acme.container","raw":"replace"}],
+            "messages":[{"id":"t.branch","source":{"event":{"names":["acme.container"]}},"priority":1,
+              "branch_set":{"primary":[{"id":"t.leaf","read":{"attribute":"payload"},"parse":"json",
+                "emit":"message"}]}}]}"#,
+    )
+    .expect("the probe compiles");
+    let unreadable = probe_attrs(&[("payload", "{")]);
+    let reading = plan.from_event(
+        "acme.container",
+        &unreadable,
+        "span",
+        None,
+        &std::collections::HashMap::new(),
+        false,
+    );
+    assert!(
+        reading.unhandled_container && !reading.replaces_raw,
+        "the leaf's carrier was there and unreadable, so the raw form is the only evidence left"
+    );
+}

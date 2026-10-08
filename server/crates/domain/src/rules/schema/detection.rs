@@ -353,8 +353,9 @@ pub struct MessageProjectionRule {
     pub id: String,
     #[serde(default)]
     pub doc: Option<String>,
-    /// The rows this applies to: their span name, `scope.name` and `scope.version`. It must require one
-    /// instrumentation scope.
+    /// The rows this applies to: their span name, `scope.name` and `scope.version`. It must name an
+    /// instrumentation scope the row has to carry: in a conjunction at any depth, or in every branch of a
+    /// disjunction.
     #[serde(rename = "where")]
     pub condition: SpanWhere,
     /// The attributes every extracted message of the row came from: each message from one of them. Two or
