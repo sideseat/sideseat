@@ -1725,24 +1725,6 @@
   },
   {
    "kind": "message",
-   "clause": "openinference.tool_output_with_id",
-   "when": {
-    "attr_exists": [
-     "tool.id"
-    ],
-    "attr_equals_ignore_case": [
-     {
-      "key": "openinference.span.kind",
-      "value": "tool"
-     }
-    ]
-   },
-   "instrumentation_scope": {
-    "name": "openinference.instrumentation.generic"
-   }
-  },
-  {
-   "kind": "message",
    "clause": "openinference.tool_output_literal",
    "when": {
     "attr_equals_ignore_case": [

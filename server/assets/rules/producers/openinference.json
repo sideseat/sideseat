@@ -263,7 +263,7 @@
     },
     {
       "id": "openinference.tool_output_with_id",
-      "doc": "The return value of a generic OpenInference TOOL span that identifies itself with the convention's tool.id attribute. The dedicated generic scope distinguishes direct OITracer use from framework instrumentors that own another result carrier.",
+      "doc": "The return value of a TOOL span written through the OpenInference tracer API directly: under the generic scope, or under the application's own tracer name - which is what `OITracer(trace.get_tracer(name))` writes. An instrumentor's TOOL span (`openinference.instrumentation.*`, `com.arize.*`, `@arizeai/*`) is not read here, because its framework may carry the result elsewhere and owns that decision in its own asset. The convention's tool.id is attached where the span states one; without it, query-time correlation links the result to the oldest unclaimed call of the same name.",
       "where": {
         "all": [
           {
@@ -279,8 +279,34 @@
             ]
           },
           {
-            "source": "scope.name",
-            "equals": "openinference.instrumentation.generic"
+            "any": [
+              {
+                "source": "scope.name",
+                "equals": "openinference.instrumentation.generic"
+              },
+              {
+                "all": [
+                  {
+                    "not": {
+                      "source": "scope.name",
+                      "starts_with": "openinference.instrumentation."
+                    }
+                  },
+                  {
+                    "not": {
+                      "source": "scope.name",
+                      "starts_with": "com.arize."
+                    }
+                  },
+                  {
+                    "not": {
+                      "source": "scope.name",
+                      "starts_with": "@arizeai/"
+                    }
+                  }
+                ]
+              }
+            ]
           }
         ]
       },

@@ -328,6 +328,10 @@ fn detection_by_priority_changes_only_the_stated_overlaps() {
 /// asked by the retired evaluator; each clause's current `where` is asked by the grammar, with the sources its
 /// section is given. The generated-span half is `every_where_answers_as_the_predicate_it_replaced` in the
 /// domain crate.
+///
+/// One record left the frozen file after it was frozen, because its condition changed on purpose rather than
+/// moved: `openinference.tool_output_with_id` read TOOL spans under the generic scope only, and now also reads
+/// those an application's own tracer writes. What that reads is held by the goldens and the truth ledger.
 #[test]
 fn every_where_answers_as_the_predicate_it_replaced_over_the_corpus() {
     use sideseat_domain::rules::retired_span_predicates::{

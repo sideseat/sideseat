@@ -134,11 +134,23 @@
       ]
     },
     "trace-1/get_weather/span-5": {
-      "message_count": 0,
-      "role_sequence": [],
+      "message_count": 1,
+      "role_sequence": [
+        "tool"
+      ],
       "tool_names": [],
       "tool_definition_count": 1,
-      "messages": []
+      "messages": [
+        {
+          "index": 0,
+          "role": "tool",
+          "entry_type": "tool_result",
+          "content": "{\"type\":\"tool_result\",\"name\":\"get_weather\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "e0c527fd3bdedb76",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
+        }
+      ]
     },
     "trace-1/multi-agent/span-1": {
       "message_count": 0,
@@ -274,9 +286,10 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_mfC4ee8OdpnWTTd4FpSDYp\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
-          "content_digest": "02f84e9ea24b71f9",
-          "observation_type": "generation"
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_mfC4ee8OdpnWTTd4FpSDYp\",\"name\":\"get_weather\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "2b4193fd6bc9481c",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
         },
         {
           "index": 4,
@@ -358,9 +371,10 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_mfC4ee8OdpnWTTd4FpSDYp\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
-          "content_digest": "02f84e9ea24b71f9",
-          "observation_type": "generation"
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_mfC4ee8OdpnWTTd4FpSDYp\",\"name\":\"get_weather\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "2b4193fd6bc9481c",
+          "tool_name": "get_weather",
+          "observation_type": "tool"
         },
         {
           "index": 4,
@@ -403,8 +417,8 @@
       "system",
       "assistant",
       "user",
-      "tool",
       "assistant",
+      "tool",
       "system",
       "assistant",
       "user"
@@ -438,19 +452,20 @@
       },
       {
         "index": 3,
-        "role": "tool",
-        "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_mfC4ee8OdpnWTTd4FpSDYp\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
-        "content_digest": "02f84e9ea24b71f9",
-        "observation_type": "generation"
-      },
-      {
-        "index": 4,
         "role": "assistant",
         "entry_type": "text",
         "content": "Barcelona's forecast for the next two days is rain on day 1 with a high of 21°C, then sun on day 2 with a high of 22°C. **Packing list:** Pack for mild weather with one wet day and one sunny day. Bring layers like a light sweater or long-sl…[741 chars]",
         "content_digest": "e49922b66c32dba5",
         "observation_type": "generation"
+      },
+      {
+        "index": 4,
+        "role": "tool",
+        "entry_type": "tool_result",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_mfC4ee8OdpnWTTd4FpSDYp\",\"name\":\"get_weather\",\"content\":{\"city\":\"Barcelona\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+        "content_digest": "2b4193fd6bc9481c",
+        "tool_name": "get_weather",
+        "observation_type": "tool"
       },
       {
         "index": 5,
