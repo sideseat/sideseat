@@ -122,13 +122,14 @@ impl MessageProjectionPlan {
 }
 
 /// Whether the condition cannot hold without naming one instrumentation scope: the scope test itself, or a
-/// conjunction with one among its members.
+/// conjunction - at any depth - with one among its members. A disjunction or a negation does not qualify: each
+/// can hold for a row of a scope it never names.
 fn requires_a_scope(condition: &SpanExpr) -> bool {
     use super::expr::Expr;
-    let is_scope = |expr: &SpanExpr| matches!(expr, Expr::Atom(SpanAtom::ScopeNameEquals { .. }));
     match condition {
-        Expr::All(group) => group.children().iter().any(is_scope),
-        other => is_scope(other),
+        Expr::Atom(atom) => matches!(atom, SpanAtom::ScopeNameEquals { .. }),
+        Expr::All(group) => group.children().iter().any(requires_a_scope),
+        Expr::Any(_) | Expr::Not(_) => false,
     }
 }
 
@@ -145,6 +146,61 @@ fn version_major(version: &str) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A scope requirement counts at any depth of conjunction, and only there: a nested `all` holding the scope
+    /// test cannot hold without it, while an `any` or a `not` can hold for a row of a scope it never names.
+    #[test]
+    fn a_projection_requires_its_scope_through_nested_conjunctions_only() {
+        let compiled = |condition: serde_json::Value| {
+            let file: RuleFile = serde_json::from_value(serde_json::json!({
+                "id": "probe",
+                "message_projections": [{
+                    "id": "probe.projection",
+                    "where": condition,
+                    "only_attribute_source": "probe.messages",
+                    "successful_only": true,
+                    "action": "suppress_messages"
+                }]
+            }))
+            .expect("the probe asset parses");
+            MessageProjectionPlan::compile(&[file])
+        };
+        let scope = serde_json::json!({"source": "scope.name", "equals": "probe.scope"});
+        let name = serde_json::json!({"source": "span_name", "starts_with": "probe "});
+        let other = serde_json::json!({"source": "span_name", "starts_with": "other "});
+        for (why, condition) in [
+            ("the scope alone", scope.clone()),
+            (
+                "a conjunction holding it",
+                serde_json::json!({"all": [scope.clone(), name.clone()]}),
+            ),
+            (
+                "a conjunction nested in a conjunction",
+                serde_json::json!({"all": [other, {"all": [scope.clone(), name.clone()]}]}),
+            ),
+        ] {
+            assert!(
+                compiled(condition).is_ok(),
+                "{why}: refused, and it names its scope"
+            );
+        }
+        for (why, condition) in [
+            ("a span name alone", name.clone()),
+            (
+                "a disjunction with the scope in one branch",
+                serde_json::json!({"any": [scope.clone(), name.clone()]}),
+            ),
+            (
+                "a conjunction holding only the scope's negation",
+                serde_json::json!({"all": [name, {"not": scope}]}),
+            ),
+        ] {
+            assert!(
+                compiled(condition).is_err(),
+                "{why}: accepted without a scope"
+            );
+        }
+    }
 
     /// `scope.version` against the major-number dimension it replaced, over the versions a scope reports: equal
     /// on every release, and different, deliberately, where the old reading was not a version comparison - text

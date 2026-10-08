@@ -394,12 +394,20 @@ fn the_selected_root_level_predicate_defects_are_refused() {
             json!({"all": [{"kind": "string"}], "any": [{"not_null": false}]}),
         ),
         (
-            "an any set holding identifier-like and its negation",
-            json!({"any": [{"identifier_like": true}, {"identifier_like": false}]}),
+            "an all set holding identifier-like and its negation",
+            json!({"all": [{"identifier_like": true}, {"identifier_like": false}]}),
+        ),
+        (
+            "an all set holding non-empty and its negation",
+            json!({"all": [{"non_empty": true}, {"non_empty": false}]}),
         ),
         (
             "a required prefix that begins with the forbidden one",
             json!({"all": [{"path": "$.v", "starts_with": "ab", "lacks_prefix": "a"}]}),
+        ),
+        (
+            "every allowed value forbidden",
+            json!({"all": [{"path": "$.v", "one_of": ["a"], "none_of": ["a", "b"]}]}),
         ),
     ];
     for (why, value) in refused {
@@ -462,6 +470,33 @@ fn the_selected_root_level_predicate_defects_are_refused() {
         (
             "a forbidden set wider than the required one",
             json!({"any": [{"one_of": ["a"]}, {"none_of": ["a", "b"]}]}),
+        ),
+        // Partial tests are unknown outside their kinds, so their pair under `any` filters on those kinds.
+        (
+            "identifier-like or not: a test on strings, unknown for a number",
+            json!({"any": [{"identifier_like": true}, {"identifier_like": false}]}),
+        ),
+        (
+            "non-empty or not: a test on strings, arrays and objects, unknown for a number",
+            json!({"any": [{"non_empty": true}, {"non_empty": false}]}),
+        ),
+        (
+            "a partial overlap of the two sets - `b` satisfies both",
+            json!({"all": [{"path": "$.v", "one_of": ["a", "b"], "none_of": ["a"]}]}),
+        ),
+        // An `any` member on a member path is a disjunct the root analysis cannot see: `{"x": 1}` holds.
+        (
+            "a root kind beside an any whose other member is on a member path",
+            json!({"all": [{"kind": "object"}], "any": [{"kind": "string"}, {"path": "$.x", "exists": true}]}),
+        ),
+        (
+            "a non-null root kind beside an any whose other member is on a member path",
+            json!({"all": [{"kind": "object"}], "any": [{"not_null": false}, {"path": "$.x"}]}),
+        ),
+        // `lacks_prefix` holds of every value that is not a string, as the reference documents.
+        (
+            "a forbidden prefix on an object",
+            json!({"all": [{"kind": "object", "lacks_prefix": "x"}]}),
         ),
         // Accepted, and stated as such: a singular *member* path contradiction is outside what this proves.
         (

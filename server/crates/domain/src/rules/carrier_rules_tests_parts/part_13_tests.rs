@@ -270,3 +270,51 @@ fn a_prose_section_defect_names_its_clause_and_asset() {
         "and the asset that declares it: {diagnostic}"
     );
 }
+
+/// **A contradiction is a defect only where it is asserted.** Under a `not` it is a condition - one that holds
+/// wherever the negated predicate answers false - so a condition of any shape has each atom judged at its
+/// polarity. An ignored condition, and a root tested for presence alone, stay defects at either polarity: the
+/// first is ignored under a `not` too, and the second is a tautology negated or not.
+#[test]
+fn a_predicate_is_judged_at_the_polarity_it_sits_at() {
+    use crate::rules::message_rules::predicate_defect;
+    use crate::rules::schema::ValueCondition;
+    let defect = |value: serde_json::Value| {
+        let condition: ValueCondition =
+            serde_json::from_value(value.clone()).expect("the probe condition parses");
+        predicate_defect(&condition)
+    };
+    let contradiction = serde_json::json!({"path": "$.x", "kind": "null", "not_null": true});
+    assert!(
+        defect(contradiction.clone()).is_some(),
+        "asserted, it holds for nothing"
+    );
+    for (why, value) in [
+        (
+            "negated, it holds whenever the member exists",
+            serde_json::json!({"not": contradiction.clone()}),
+        ),
+        (
+            "and the same inside a conjunction under the negation",
+            serde_json::json!({"not": {"all": [contradiction.clone(), {"path": "$.y"}]}}),
+        ),
+    ] {
+        assert!(defect(value.clone()).is_none(), "{why}: refused - {value}");
+    }
+    for (why, value) in [
+        (
+            "two negations assert it again",
+            serde_json::json!({"not": {"not": contradiction.clone()}}),
+        ),
+        (
+            "a root tested for presence alone, negated",
+            serde_json::json!({"not": {"path": "$"}}),
+        ),
+        (
+            "a condition beside `exists: false`, ignored under a negation too",
+            serde_json::json!({"not": {"path": "$.v", "exists": false, "kind": "string"}}),
+        ),
+    ] {
+        assert!(defect(value.clone()).is_some(), "{why}: accepted - {value}");
+    }
+}
