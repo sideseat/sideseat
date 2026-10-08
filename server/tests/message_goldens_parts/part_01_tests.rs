@@ -9,8 +9,9 @@ use serde_json::json;
 use sideseat_api::routes::otel::messages::scope_feed_to_trace;
 use sideseat_domain::pricing::PricingService;
 use sideseat_domain::sideml::feed::{
-    FeedOptions, extract_tools_from_rows, legacy_and_neutral_order, presented_and_unconstrained,
-    process_feed, process_span, process_spans, shadow_resolved_order,
+    FeedOptions, RequestContextRows, calls_a_thread_answers, extract_tools_from_rows,
+    legacy_and_neutral_order, presented_and_unconstrained, process_feed, process_request_span,
+    process_span, process_spans, shadow_resolved_order,
 };
 use sideseat_ingestion::traces::extract::ExtractionMode;
 use sideseat_ports::types::{MessageSpanRow, ObservationType, ProjectId};
@@ -96,7 +97,8 @@ fn message_row(span: &sideseat_ports::types::NormalizedSpan) -> MessageSpanRow {
         reasoning_tokens: 0,
         cost_input: 0.0,
         cost_output: 0.0,
-        request_thread: String::new(),
+        // The derived key the ingest wrote: what makes a composed request's thread findable at read time.
+        request_thread: span.request_thread.clone(),
     }
 }
 
@@ -435,6 +437,13 @@ struct InvariantRow {
 enum View<'a> {
     /// `/spans/{trace}/{span}/messages` - rows for one span.
     Span,
+    /// The same endpoint, for a span whose producer exports each request as what it added: the route composes
+    /// such a span's view from its thread, so the harness must too, or the fixtures would check a view no
+    /// request returns.
+    RequestSpan {
+        thread: &'a [MessageSpanRow],
+        calls: &'a [MessageSpanRow],
+    },
     /// `/sessions/{id}/messages` - rows for one session.
     Session,
     /// `/traces/{id}/messages` - when the trace belongs to a session the endpoint loads the
@@ -482,6 +491,24 @@ fn build_view(rows: Vec<MessageSpanRow>, view: View<'_>) -> (GoldenView, Vec<Inv
             &FeedOptions::new().with_session_of_trace((*session_of_trace).clone()),
         ),
         View::Span => process_span(rows, &options),
+        View::RequestSpan { thread, calls } => {
+            let (call_ids, _) = calls_a_thread_answers(thread);
+            // The store answers with the tool spans of the thread's traces whose call id a delta names; here the
+            // ids are matched against the stored messages, which is the same set for a fixture.
+            let answered: Vec<MessageSpanRow> = calls
+                .iter()
+                .filter(|row| call_ids.iter().any(|id| row.messages_json.contains(id)))
+                .cloned()
+                .collect();
+            process_request_span(
+                RequestContextRows {
+                    target: rows,
+                    thread: thread.to_vec(),
+                    calls: answered,
+                },
+                &options,
+            )
+        }
         _ => process_spans(rows, &options),
     };
 
@@ -560,6 +587,15 @@ enum Scope {
     Span {
         trace_id: String,
         span_id: String,
+    },
+    /// A span whose view is composed from its thread: the blocks of its thread's earlier requests, and of the
+    /// tool spans whose calls those requests' deltas answer, are part of what the call was sent - so they belong
+    /// to this scope, each kept with the span it came from. Every other span is not a member of it.
+    RequestSpan {
+        trace_id: String,
+        span_id: String,
+        thread: std::collections::BTreeSet<(String, String)>,
+        calls: std::collections::BTreeSet<(String, String)>,
     },
     Trace {
         trace_id: String,
@@ -743,6 +779,21 @@ fn build_golden(label: &str, paths: &[PathBuf], rows: &[(String, MessageSpanRow)
             .insert(trace_id.clone());
     }
 
+    // The rows of each derived thread, and every tool span's rows: what a composed request's two reads return.
+    let mut by_thread: BTreeMap<String, Vec<MessageSpanRow>> = BTreeMap::new();
+    let mut tool_rows: Vec<MessageSpanRow> = Vec::new();
+    for (_, row) in rows {
+        if !row.request_thread.is_empty() {
+            by_thread
+                .entry(row.request_thread.clone())
+                .or_default()
+                .push(row.clone());
+        }
+        if row.observation_type.as_deref() == Some("tool") {
+            tool_rows.push(row.clone());
+        }
+    }
+
     let mut span_numbers = BTreeMap::new();
     let mut spans_by_trace: BTreeMap<String, Vec<StableSpanOrderKey>> = BTreeMap::new();
     for ((trace_id, span_id), (name, span_rows)) in &by_span {
@@ -797,16 +848,43 @@ fn build_golden(label: &str, paths: &[PathBuf], rows: &[(String, MessageSpanRow)
                 .map(String::as_str)
                 .unwrap_or("trace-?")
         );
-        // The span query filters by span_id alone and applies no content filter.
-        let (view, inv) = build_view(sorted_by_timestamp(span_rows.clone()), View::Span);
-        invariants.push((
-            format!("span {key}"),
-            Scope::Span {
+        // The span query filters by span_id alone and applies no content filter. A span the ingest gave a thread
+        // key is composed from that thread, as the route composes it: the thread's rows are every row carrying the
+        // same key, and the calls are offered from the tool spans of those rows' traces.
+        let thread_key = span_rows
+            .iter()
+            .map(|row| row.request_thread.as_str())
+            .find(|thread| !thread.is_empty())
+            .unwrap_or_default()
+            .to_string();
+        let thread = by_thread.get(&thread_key).cloned().unwrap_or_default();
+        let view_kind = match thread_key.is_empty() {
+            true => View::Span,
+            false => View::RequestSpan {
+                thread: &thread,
+                calls: &tool_rows,
+            },
+        };
+        let (view, inv) = build_view(sorted_by_timestamp(span_rows.clone()), view_kind);
+        let scope = match thread_key.is_empty() {
+            true => Scope::Span {
                 trace_id: trace_id.clone(),
                 span_id: span_id.clone(),
             },
-            inv,
-        ));
+            false => Scope::RequestSpan {
+                trace_id: trace_id.clone(),
+                span_id: span_id.clone(),
+                thread: thread
+                    .iter()
+                    .map(|row| (row.trace_id.clone(), row.span_id.clone()))
+                    .collect(),
+                calls: tool_rows
+                    .iter()
+                    .map(|row| (row.trace_id.clone(), row.span_id.clone()))
+                    .collect(),
+            },
+        };
+        invariants.push((format!("span {key}"), scope, inv));
         span_views.insert(key, view);
     }
 

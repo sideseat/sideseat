@@ -194,7 +194,7 @@ use dedup::{
 use history::{mark_history, mark_span_history};
 
 // Re-exports for public API
-pub use request_context::RequestContextRows;
+pub use request_context::{RequestContextRows, calls_a_thread_answers};
 pub use types::{BlockEntry, ExtractedTools, FeedMetadata, FeedOptions, FeedResult};
 
 // The dedup tie-break hook, for the test that varies which copy survives.

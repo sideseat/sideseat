@@ -527,3 +527,103 @@ fn composing_a_long_thread() {
     measure(5_000, false);
     measure(1_000, true);
 }
+
+/// **A thread longer than one view may read is composed from what fits, and says so.** The budget keeps the
+/// newest requests, which is what the view is mostly made of, and the target's own rows are never dropped.
+#[test]
+fn a_thread_past_the_read_budget_is_composed_from_what_fits() {
+    let rows: Vec<MessageSpanRow> = (0..6)
+        .map(|n| {
+            let second = n * 10;
+            request(
+                &format!("r{n}"),
+                second,
+                &[
+                    user(&format!("q{n}"), second),
+                    reply(&format!("a{n}"), second + 1),
+                ],
+            )
+        })
+        .collect();
+    let target = rows.last().expect("a thread").clone();
+    let whole = compose(RequestContextRows {
+        target: vec![target.clone()],
+        thread: rows.clone(),
+        calls: Vec::new(),
+    });
+    assert_eq!(whole.metadata.composed_from_requests, 5);
+    assert!(!whole.metadata.composition_truncated);
+    assert_eq!(shown(&whole).len(), 12, "six requests, two blocks each");
+
+    // A budget of three rows' worth: the three newest requests compose, and the answer says it is cut.
+    let budget = rows.iter().map(|row| row.messages_json.len()).take(3).sum();
+    let cut = compose_within(
+        RequestContextRows {
+            target: vec![target],
+            thread: rows,
+            calls: Vec::new(),
+        },
+        budget,
+    );
+    assert!(
+        cut.metadata.composition_truncated,
+        "the budget fired and is reported"
+    );
+    assert_eq!(cut.metadata.composed_from_requests, 2);
+    assert_eq!(
+        shown(&cut),
+        [
+            "user: q3",
+            "assistant: a3",
+            "user: q4",
+            "assistant: a4",
+            "user: q5",
+            "assistant: a5"
+        ],
+        "the newest requests that fit, and the target's own payload"
+    );
+}
+
+/// **A resumed process's restated items are never normalised.** The raw pass drops them by their stored bytes,
+/// per carrier, before anything becomes a message - and its answer is the same as the role rule's.
+#[test]
+fn a_restating_delta_is_skipped_before_normalisation() {
+    let rows: Vec<MessageSpanRow> = (0..4)
+        .map(|n| {
+            let second = n * 10;
+            let mut messages: Vec<RawMessage> = Vec::new();
+            for k in 0..=n {
+                messages.push(user(&format!("q{k}"), second));
+            }
+            for k in 0..=n {
+                messages.push(reminder(&format!("env{k}"), second));
+            }
+            messages.push(reply(&format!("a{n}"), second + 1));
+            request(&format!("r{n}"), second, &messages)
+        })
+        .collect();
+    let target = rows.last().expect("a thread").clone();
+    let view = compose(RequestContextRows {
+        target: vec![target],
+        thread: rows,
+        calls: Vec::new(),
+    });
+    assert_eq!(
+        shown(&view),
+        [
+            "user: q0",
+            "system: env0",
+            "assistant: a0",
+            "user: q1",
+            "system: env1",
+            "assistant: a1",
+            "user: q2",
+            "system: env2",
+            "assistant: a2",
+            "user: q3",
+            "system: env3",
+            "assistant: a3",
+        ],
+        "each turn once, in thread order"
+    );
+}

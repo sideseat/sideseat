@@ -35,6 +35,7 @@ pub(in crate::sideml::feed) fn compute_metadata(
         total_cost,
         replay_matching_complete,
         composed_from_requests: 0,
+        composition_truncated: false,
     }
 }
 

@@ -246,7 +246,11 @@ pub(super) fn from_built(
     let mut generations = Vec::new();
     for (label, scope, rows) in &built.invariants {
         let (kind, key) = match scope {
-            Scope::Span { span_id, .. } => (ViewKind::Span, span_id.clone()),
+            // A composed request is a span view: the same endpoint, the same question of it - what was this call
+            // sent - and the composition is how it answers.
+            Scope::Span { span_id, .. } | Scope::RequestSpan { span_id, .. } => {
+                (ViewKind::Span, span_id.clone())
+            }
             Scope::Trace { trace_id } => (ViewKind::Trace, trace_id.clone()),
             Scope::Session => (
                 ViewKind::Session,
@@ -276,7 +280,12 @@ pub(super) fn from_built(
                 block
             })
             .collect();
-        if let Scope::Span { trace_id, span_id } = scope
+        // Both span scopes: a composed request is a generation like any other - the composition changes what its
+        // view shows it was *sent*, not that it produced a response.
+        if let Scope::Span { trace_id, span_id }
+        | Scope::RequestSpan {
+            trace_id, span_id, ..
+        } = scope
             && let Some(replayed) = spans.get_mut(&format!("{trace_id}/{span_id}"))
         {
             let span = &replayed.span;

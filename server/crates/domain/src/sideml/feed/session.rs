@@ -119,6 +119,7 @@ pub(super) fn process_multi_trace_spans(
             // history, and saying so is the point.
             replay_matching_complete,
             composed_from_requests: 0,
+            composition_truncated: false,
         },
     }
 }
@@ -474,6 +475,7 @@ pub fn process_feed(rows: Vec<MessageSpanRow>, options: &FeedOptions) -> FeedRes
                 total_cost,
                 replay_matching_complete,
                 composed_from_requests: 0,
+                composition_truncated: false,
             },
         },
         options.role.as_deref(),

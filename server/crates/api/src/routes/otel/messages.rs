@@ -14,10 +14,11 @@ use super::types::{BlockDto, MessagesMetadataDto, MessagesResponseDto, SpanEnvel
 use crate::auth::{SessionRead, SpanRead, TraceRead};
 use crate::types::{ApiError, parse_timestamp_param};
 use sideseat_domain::sideml::{
-    BlockEntry, ExtractedTools, FeedMetadata, FeedOptions, FeedResult, apply_time_window,
-    extract_tools_from_rows, process_span_cached, process_spans_cached,
+    BlockEntry, ExtractedTools, FeedMetadata, FeedOptions, FeedResult, RequestContextRows,
+    apply_time_window, calls_a_thread_answers, extract_tools_from_rows, process_request_span,
+    process_span_cached, process_spans_cached,
 };
-use sideseat_ports::types::MessageQueryParams;
+use sideseat_ports::types::{MessageQueryParams, MessageSpanRow, RequestContextParams};
 
 #[derive(Debug, Deserialize)]
 pub struct MessagesQuery {
@@ -97,9 +98,78 @@ pub async fn get_span_messages(
     // Process through feed pipeline
     let envelopes: Vec<SpanEnvelopeDto> =
         result.rows.iter().map(SpanEnvelopeDto::from_row).collect();
+    // A span whose producer exports each request as what it added shows less than the call was sent, so its view
+    // is composed from the thread the ingest derived for it. Two more keyed reads, and only for such a span:
+    // every other span takes the path it always did.
+    if let Some(thread) = result
+        .rows
+        .first()
+        .map(|row| row.request_thread.clone())
+        .filter(|thread| !thread.is_empty())
+    {
+        let composed =
+            compose_request(repo, project_id, &result.rows, thread, to_timestamp).await?;
+        let processed = feed_arc_after_window(Arc::new(composed), from_timestamp, to_timestamp);
+        return stream_messages_response(processed, None, envelopes, state.clock.now());
+    }
     let reconstructed = process_span_cached(&state.reconstruction, result.rows, &options);
     let processed = feed_arc_after_window(reconstructed, from_timestamp, to_timestamp);
     stream_messages_response(processed, None, envelopes, state.clock.now())
+}
+
+/// One request span's view, composed from its thread.
+///
+/// Two reads beside the span's own, both keyed: its thread's earlier requests, and the tool spans holding the
+/// calls those requests' deltas answer. The ids are read from the thread's stored messages, so the store is asked
+/// once for them rather than per composed block.
+async fn compose_request(
+    repo: &dyn sideseat_ports::traits::AnalyticsRepository,
+    project_id: &sideseat_ports::types::ProjectId,
+    target: &[MessageSpanRow],
+    thread: String,
+    to_timestamp: Option<DateTime<Utc>>,
+) -> Result<FeedResult, ApiError> {
+    let before_us = target
+        .iter()
+        .map(|row| row.span_timestamp.timestamp_micros())
+        .min()
+        .unwrap_or_default();
+    let thread_rows = repo
+        .get_request_context(&RequestContextParams {
+            project_id: project_id.clone(),
+            thread: thread.clone(),
+            before_us,
+            call_ids: Vec::new(),
+            call_trace_ids: Vec::new(),
+            ingested_before_us: to_timestamp.map(|at| at.timestamp_micros()),
+        })
+        .await
+        .map_err(ApiError::from_data)?;
+    let (call_ids, call_trace_ids) = calls_a_thread_answers(&thread_rows.thread);
+    let calls = match call_ids.is_empty() {
+        true => Vec::new(),
+        false => {
+            repo.get_request_context(&RequestContextParams {
+                project_id: project_id.clone(),
+                thread,
+                before_us,
+                call_ids,
+                call_trace_ids,
+                ingested_before_us: to_timestamp.map(|at| at.timestamp_micros()),
+            })
+            .await
+            .map_err(ApiError::from_data)?
+            .calls
+        }
+    };
+    Ok(process_request_span(
+        RequestContextRows {
+            target: target.to_vec(),
+            thread: thread_rows.thread,
+            calls,
+        },
+        &FeedOptions::new(),
+    ))
 }
 
 /// GET /traces/{trace_id}/messages - Get conversation messages for a trace

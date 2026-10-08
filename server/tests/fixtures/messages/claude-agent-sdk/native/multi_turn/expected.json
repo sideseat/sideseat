@@ -177,11 +177,14 @@
       ]
     },
     "trace-1/claude_code.llm_request/span-5": {
-      "message_count": 6,
+      "message_count": 9,
       "role_sequence": [
         "system",
         "system",
         "system",
+        "user",
+        "system",
+        "assistant",
         "user",
         "system",
         "assistant"
@@ -217,12 +220,36 @@
           "index": 3,
           "role": "user",
           "entry_type": "text",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk - Is a git repository: false - Additional working directories:…[601 chars]",
+          "content_digest": "e8ceb5ffd529f512",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has winding streets, fado music, and great viewpoints, and it's within easy reach of the main sights on foot or by tram. If you'd prefer somewhere more central with lots of restaurants a…[289 chars]",
+          "content_digest": "e0669f4edb0e5d29",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "text",
           "content": "What is one dish I should try there?",
           "content_digest": "fa205a3ea90d1fdf",
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 7,
           "role": "system",
           "entry_type": "text",
           "content": "<total_tokens>15000000 tokens left</total_tokens>",
@@ -230,7 +257,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 8,
           "role": "assistant",
           "entry_type": "text",
           "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod, thin fried potatoes, eggs, and onions. For something sweeter, grab a **pastel de nata** afterward.",
@@ -240,11 +267,17 @@
       ]
     },
     "trace-1/claude_code.llm_request/span-7": {
-      "message_count": 6,
+      "message_count": 12,
       "role_sequence": [
         "system",
         "system",
         "system",
+        "user",
+        "system",
+        "assistant",
+        "user",
+        "system",
+        "assistant",
         "user",
         "system",
         "assistant"
@@ -280,12 +313,36 @@
           "index": 3,
           "role": "user",
           "entry_type": "text",
-          "content": "Summarise your two suggestions in one sentence.",
-          "content_digest": "3a58af4870fae288",
+          "content": "I am planning a weekend in Lisbon. Name one neighbourhood to stay in.",
+          "content_digest": "c366c7539466c187",
           "observation_type": "generation"
         },
         {
           "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk - Is a git repository: false - Additional working directories:…[601 chars]",
+          "content_digest": "e8ceb5ffd529f512",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Stay in **Alfama**, Lisbon's oldest neighbourhood. It has winding streets, fado music, and great viewpoints, and it's within easy reach of the main sights on foot or by tram. If you'd prefer somewhere more central with lots of restaurants a…[289 chars]",
+          "content_digest": "e0669f4edb0e5d29",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
+          "role": "user",
+          "entry_type": "text",
+          "content": "What is one dish I should try there?",
+          "content_digest": "fa205a3ea90d1fdf",
+          "observation_type": "generation"
+        },
+        {
+          "index": 7,
           "role": "system",
           "entry_type": "text",
           "content": "<total_tokens>15000000 tokens left</total_tokens>",
@@ -293,7 +350,31 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 8,
+          "role": "assistant",
+          "entry_type": "text",
+          "content": "Try **bacalhau à Brás**, a classic Lisbon dish of shredded salt cod, thin fried potatoes, eggs, and onions. For something sweeter, grab a **pastel de nata** afterward.",
+          "content_digest": "51f660778922913f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 9,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Summarise your two suggestions in one sentence.",
+          "content_digest": "3a58af4870fae288",
+          "observation_type": "generation"
+        },
+        {
+          "index": 10,
+          "role": "system",
+          "entry_type": "text",
+          "content": "<total_tokens>15000000 tokens left</total_tokens>",
+          "content_digest": "99ca247fd35d4e1b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 11,
           "role": "assistant",
           "entry_type": "text",
           "content": "Stay in historic Alfama for its winding streets, fado, and viewpoints, and try bacalhau à Brás (salt cod with potatoes and eggs) for a classic Lisbon meal.",

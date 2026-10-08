@@ -327,6 +327,7 @@ fn digest_with(rows: &[MessageSpanRow], session_of_trace: &HashMap<String, Strin
             row.response_model.as_deref(),
             row.response_id.as_deref(),
             row.finish_reasons.as_deref(),
+            Some(row.request_thread.as_str()),
         ] {
             match field {
                 // Length-prefixed, so `("ab", "c")` and `("a", "bc")` are different inputs.

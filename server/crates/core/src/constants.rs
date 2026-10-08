@@ -224,6 +224,16 @@ pub const RULE_WALK_MAX_NODES: usize = 4_096;
 /// hostile payload from exhausting the stack.
 pub const CONTENT_BLOCK_MAX_DEPTH: usize = 32;
 
+/// How many bytes of its thread's stored messages one composed request view may read.
+///
+/// A request a producer exports as a delta is composed from its thread's earlier requests, and the rows read are
+/// the answer's own bytes - except for a client that resumes a process and restates the whole history in every
+/// delta, which stores the history once per request and so Θ(n²) bytes for a thread of n. Past this, the view is
+/// composed from the most recent requests that fit and says so, which is a smaller answer honestly reported
+/// rather than a read that grows without bound. A live session fits about 45,000 requests, a resumed one about
+/// 600; no capture approaches either.
+pub const REQUEST_THREAD_MAX_BYTES: usize = 64 * 1024 * 1024;
+
 /// How many observations one rule may produce from one span's carrier.
 ///
 /// A rule reading an array emits one observation per element, so a payload holding a hundred thousand elements

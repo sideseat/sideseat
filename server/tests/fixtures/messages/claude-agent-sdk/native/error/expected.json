@@ -69,11 +69,14 @@
       ]
     },
     "trace-1/claude_code.llm_request/span-11": {
-      "message_count": 6,
+      "message_count": 9,
       "role_sequence": [
         "system",
         "system",
         "system",
+        "user",
+        "system",
+        "assistant",
         "tool",
         "system",
         "assistant"
@@ -107,6 +110,31 @@
         },
         {
           "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Book me a flight from London to Oslo on 2026-11-14.",
+          "content_digest": "1b969baf99595bc8",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk - Is a git repository: false - Additional working directories:…[601 chars]",
+          "content_digest": "e8ceb5ffd529f512",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01EN4jKHfwzNcZArBLoqDwUz\",\"name\":\"mcp__travel__book_flight\",\"input\":{\"origin\":\"London\",\"destination\":\"Oslo\",\"date\":\"2026-11-14\"}}",
+          "content_digest": "41aabd764c681b70",
+          "tool_name": "mcp__travel__book_flight",
+          "observation_type": "tool"
+        },
+        {
+          "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "No seats from London to Oslo on 2026-11-14: the booking system is offline.",
@@ -114,7 +142,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 7,
           "role": "system",
           "entry_type": "text",
           "content": "<total_tokens>14999077 tokens left</total_tokens>",
@@ -122,7 +150,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 8,
           "role": "assistant",
           "entry_type": "text",
           "content": "I couldn't book the flight from London to Oslo on 2026-11-14 because the booking system is offline. Nothing was reserved. I can try again later, or you can give me another date to try.",

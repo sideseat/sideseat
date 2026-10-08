@@ -114,10 +114,13 @@
       ]
     },
     "trace-1/claude_code.llm_request/span-6": {
-      "message_count": 5,
+      "message_count": 8,
       "role_sequence": [
         "system",
         "system",
+        "user",
+        "system",
+        "assistant",
         "tool",
         "system",
         "assistant"
@@ -143,6 +146,31 @@
         },
         {
           "index": 2,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Run the shell command `cat bookings/london-oslo.txt` to read my flight booking, then tell me in one sentence what happened.",
+          "content_digest": "84cb0e4fa0e9c7dd",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/tmp/sideseat-cli/claude-code/error - Is a git repository: false - Platform: darwin - Shell: unknown - OS Version: Darwin 25.6.0 You are …[455 chars]",
+          "content_digest": "07f5b35f9cb39eca",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_014fyFv8gXzVWKaftQ16z3he\",\"name\":\"Bash\",\"input\":{\"command\":\"cat bookings/london-oslo.txt\",\"description\":\"Read the flight booking file\"}}",
+          "content_digest": "c2f17707369b1b0e",
+          "tool_name": "Bash",
+          "observation_type": "tool"
+        },
+        {
+          "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "Exit code 1 cat: bookings/london-oslo.txt: No such file or directory",
@@ -150,7 +178,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 6,
           "role": "system",
           "entry_type": "text",
           "content": "<total_tokens>14996600 tokens left</total_tokens>",
@@ -158,7 +186,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 7,
           "role": "assistant",
           "entry_type": "text",
           "content": "The command failed because `bookings/london-oslo.txt` doesn't exist in `/private/tmp/sideseat-cli/claude-code/error`, so I couldn't read your booking.",

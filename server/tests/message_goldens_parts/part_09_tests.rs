@@ -224,3 +224,30 @@ fn the_declared_content_chain_matches_the_readers_it_replaced_over_the_corpus() 
             .join("\n")
     );
 }
+
+/// Every block of a composed request's view belongs to it: the request itself, its thread's earlier requests, or a
+/// tool span whose call one of those requests answered.
+///
+/// A composed view holds what the call was *sent*, which is more than the span's own payload - so the span-scope
+/// check cannot apply, and this is what replaces it rather than an exemption. Checkable at all because a composed
+/// block keeps the span it came from, which is also the provenance the rubric reads.
+fn assert_composed_scope(label: &str, view_name: &str, scope: &Scope, rows: &[InvariantRow]) {
+    let Scope::RequestSpan {
+        trace_id,
+        span_id,
+        thread,
+        calls,
+    } = scope
+    else {
+        panic!("{label} / {view_name}: not a composed request scope");
+    };
+    for r in rows {
+        let own = (&r.trace_id, &r.span_id) == (trace_id, span_id);
+        let origin = (r.trace_id.clone(), r.span_id.clone());
+        assert!(
+            own || thread.contains(&origin) || calls.contains(&origin),
+            "{label} / {view_name}: a block from {origin:?} - neither this request, nor its thread, nor a tool \
+             span it owns - leaked into a composed span view"
+        );
+    }
+}

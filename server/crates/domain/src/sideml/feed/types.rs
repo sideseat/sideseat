@@ -543,6 +543,11 @@ pub struct FeedMetadata {
     /// spans export what each request added - zero where the view is the span's own payload alone.
     #[serde(skip_serializing_if = "is_zero")]
     pub composed_from_requests: usize,
+    /// The thread was longer than one view may read, so the composition starts at the oldest request that fit
+    /// rather than at the thread's first. What it shows is what those requests sent; what it does not show is
+    /// said here rather than left for a reader to assume.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub composition_truncated: bool,
 }
 
 impl Default for FeedMetadata {
@@ -555,6 +560,7 @@ impl Default for FeedMetadata {
             // Complete until something says otherwise: an empty answer hid nothing.
             replay_matching_complete: true,
             composed_from_requests: 0,
+            composition_truncated: false,
         }
     }
 }

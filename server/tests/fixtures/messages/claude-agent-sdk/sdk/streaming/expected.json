@@ -60,11 +60,14 @@
       ]
     },
     "trace-1/claude_code.llm_request/span-11": {
-      "message_count": 6,
+      "message_count": 9,
       "role_sequence": [
         "system",
         "system",
         "system",
+        "user",
+        "system",
+        "assistant",
         "tool",
         "system",
         "assistant"
@@ -98,6 +101,31 @@
         },
         {
           "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Check the weather in Rome for the next day and tell me what to wear.",
+          "content_digest": "3801edeb34a2cb29",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk - Is a git repository: false - Additional working directories:…[601 chars]",
+          "content_digest": "e8ceb5ffd529f512",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01QA2enyimqTmYTcqNio3mfp\",\"name\":\"mcp__travel__get_weather\",\"input\":{\"city\":\"Rome\",\"days\":1}}",
+          "content_digest": "1b3292b5b8b33db7",
+          "tool_name": "mcp__travel__get_weather",
+          "observation_type": "tool"
+        },
+        {
+          "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "[{\"type\":\"text\",\"text\":\"{\\\"city\\\": \\\"Rome\\\", \\\"forecast\\\": [{\\\"day\\\": 1, \\\"condition\\\": \\\"sunny\\\", \\\"high_c\\\": 21}]}\"}]",
@@ -105,7 +133,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 7,
           "role": "system",
           "entry_type": "text",
           "content": "<total_tokens>14999122 tokens left</total_tokens>",
@@ -113,7 +141,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 8,
           "role": "assistant",
           "entry_type": "text",
           "content": "Rome will be sunny with a high of 21°C tomorrow. Wear light, breathable layers like a t-shirt or light shirt with trousers or jeans. Bring a light jacket or sweater for the cooler morning and evening, plus sunglasses and comfortable walking…[247 chars]",

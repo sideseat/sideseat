@@ -36,6 +36,32 @@ use super::*;
 use crate::sideml::carrier::semantics_for_context;
 use crate::sideml::types::ChatRole;
 
+/// The call ids a thread's deltas return results for, and the traces its requests sit in - what a store needs in
+/// order to find the calls the composition will ask for.
+///
+/// Read from the thread's rows, because the store must be asked before the composition runs. Through SideML, not
+/// through the stored JSON: which member of a producer's payload holds a result's call id is the rules' knowledge,
+/// and `tool_use_id` on a normalised block is the answer they already give.
+pub fn calls_a_thread_answers(thread: &[MessageSpanRow]) -> (Vec<String>, Vec<String>) {
+    let mut ids: Vec<String> = Vec::new();
+    let mut traces: Vec<String> = Vec::new();
+    for row in thread {
+        if !traces.contains(&row.trace_id) {
+            traces.push(row.trace_id.clone());
+        }
+        for block in read_lightly(row, None) {
+            if block.is_tool_result()
+                && let Some(id) = block.tool_use_id
+                && !id.is_empty()
+                && !ids.contains(&id)
+            {
+                ids.push(id);
+            }
+        }
+    }
+    (ids, traces)
+}
+
 /// The rows a request span's view is composed from.
 #[derive(Debug, Default, Clone)]
 pub struct RequestContextRows {
@@ -54,6 +80,10 @@ struct Request {
     started: DateTime<Utc>,
     failed: bool,
     blocks: Vec<BlockEntry>,
+    /// What this request's delta restates of the history **before** it, as raw stored items: the count per carrier
+    /// that `restated` found, where it found a restatement at all. Settled before normalisation, so a resumed
+    /// process's restated items are never normalised.
+    restated: Option<HashMap<String, usize>>,
 }
 
 /// What a block contributes to a request's composition.
@@ -89,33 +119,146 @@ fn identity(block: &BlockEntry) -> u64 {
     hasher.finish()
 }
 
-/// Group rows by span, one request each.
+/// The rows of the thread, one request each, in sequence order.
 ///
 /// Read **lightly**: parsed and flattened, which is where a block's content and role are settled, without the
 /// ordering, history and deduplication passes a span view runs - a delta, an output and a call are each in their
 /// carrier's own order, and those passes cost more than the parse on a long delta. One row per span, the first: a
 /// span exported twice is one request.
-fn requests_of(rows: Vec<MessageSpanRow>) -> Vec<Request> {
-    let mut by_span: BTreeMap<(String, String), MessageSpanRow> = BTreeMap::new();
+///
+/// And **without normalising what a delta restates**. A client that resumes a process restates the whole history
+/// in every delta, so a thread of *n* stores its history *n* times; normalising all of it costs Θ(n²) for an
+/// answer of *n*. So each request's stored items are compared with the thread's earlier ones as the bytes they
+/// are, per carrier, before anything is parsed into a message - and where the comparison says this request
+/// restates, the restated items are dropped unparsed and the count stands as the alignment for that request.
+/// Where it does not, nothing is dropped and the role-level rule decides, as it does for every other producer.
+fn requests_of(rows: Vec<MessageSpanRow>, keep_bytes: usize) -> (Vec<Request>, bool) {
+    let mut by_span: BTreeMap<(DateTime<Utc>, String, String), MessageSpanRow> = BTreeMap::new();
     for row in rows {
         by_span
-            .entry((row.trace_id.clone(), row.span_id.clone()))
+            .entry((
+                row.span_timestamp,
+                row.span_id.clone(),
+                row.trace_id.clone(),
+            ))
             .or_insert(row);
     }
-    by_span
-        .into_iter()
-        .map(|((trace_id, span_id), row)| Request {
-            span_id,
-            trace_id,
+    // Newest first for the budget - a view's own request and its nearest predecessors are what it is mostly made
+    // of - then back into sequence order for the fold.
+    let mut kept: Vec<MessageSpanRow> = Vec::new();
+    let mut bytes = 0usize;
+    let mut truncated = false;
+    for (_, row) in by_span.into_iter().rev() {
+        bytes = bytes.saturating_add(row.messages_json.len());
+        if bytes > keep_bytes && !kept.is_empty() {
+            truncated = true;
+            break;
+        }
+        kept.push(row);
+    }
+    kept.reverse();
+
+    let mut requests: Vec<Request> = Vec::with_capacity(kept.len());
+    let mut seen: HashMap<String, Vec<u64>> = HashMap::new();
+    for row in &kept {
+        let items = raw_items(row);
+        let restated = restates(&items, &seen).then(|| {
+            let mut counts: HashMap<String, usize> = HashMap::new();
+            for carrier in seen.keys() {
+                counts.insert(carrier.clone(), seen[carrier].len());
+            }
+            counts
+        });
+        for (carrier, identity) in &items {
+            seen.entry(carrier.clone()).or_default().push(*identity);
+        }
+        requests.push(Request {
+            span_id: row.span_id.clone(),
+            trace_id: row.trace_id.clone(),
             started: row.span_timestamp,
             failed: row.status_code.as_deref() == Some(status::ERROR),
-            blocks: read_lightly(std::slice::from_ref(&row)),
+            blocks: read_lightly(row, restated.as_ref()),
+            restated,
+        });
+    }
+    (requests, truncated)
+}
+
+/// One request's stored items as `(carrier, identity)`, in stored order, without normalising any of them.
+///
+/// The carrier is the key or event name the producer wrote; the identity is a hash of the stored content. Both are
+/// what a restatement is: a resumed process re-sends the same bytes under the same carrier.
+fn raw_items(row: &MessageSpanRow) -> Vec<(String, u64)> {
+    use std::hash::{Hash, Hasher};
+    serde_json::from_str::<Vec<RawMessage>>(&row.messages_json)
+        .unwrap_or_default()
+        .iter()
+        .map(|message| {
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            message.content.to_string().hash(&mut hasher);
+            (carrier_of(message), hasher.finish())
         })
         .collect()
 }
 
-fn read_lightly(rows: &[MessageSpanRow]) -> Vec<BlockEntry> {
-    flatten_to_blocks(parse_span_rows(rows), &build_span_hierarchy(rows))
+fn carrier_of(message: &RawMessage) -> String {
+    match &message.source {
+        MessageSource::Event { name, .. } => name.clone(),
+        MessageSource::Attribute { key, .. } => key.clone(),
+    }
+}
+
+/// Whether these stored items restate the thread's earlier ones: for every carrier they carry, their items of that
+/// carrier begin with all of the earlier ones. All or nothing, and per carrier, for the same reasons the
+/// role-level rule is - a resumed process restates its turns and its reminders in separate carriers, and a
+/// partially matching delta is a request that repeated something, not one that restated the history.
+fn restates(items: &[(String, u64)], seen: &HashMap<String, Vec<u64>>) -> bool {
+    if seen.is_empty() {
+        return false;
+    }
+    let mut per_carrier: HashMap<&str, Vec<u64>> = HashMap::new();
+    for (carrier, identity) in items {
+        per_carrier
+            .entry(carrier.as_str())
+            .or_default()
+            .push(*identity);
+    }
+    // Every carrier the history holds must be restated too: a delta that drops one of them has not restated the
+    // history, it has sent something else.
+    seen.keys()
+        .all(|carrier| per_carrier.contains_key(carrier.as_str()))
+        && per_carrier.iter().all(|(carrier, ours)| {
+            let earlier = seen.get(*carrier).map(Vec::as_slice).unwrap_or_default();
+            ours.starts_with(earlier)
+        })
+}
+
+/// One request's blocks, with the items a restatement accounts for left unparsed.
+fn read_lightly(
+    row: &MessageSpanRow,
+    restated: Option<&HashMap<String, usize>>,
+) -> Vec<BlockEntry> {
+    let rows = match restated {
+        None => std::borrow::Cow::Borrowed(std::slice::from_ref(row)),
+        Some(counts) => {
+            let mut dropped: HashMap<String, usize> = HashMap::new();
+            let kept: Vec<RawMessage> = serde_json::from_str::<Vec<RawMessage>>(&row.messages_json)
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|message| {
+                    let carrier = carrier_of(message);
+                    let budget = counts.get(&carrier).copied().unwrap_or(0);
+                    let seen = dropped.entry(carrier).or_insert(0);
+                    *seen += 1;
+                    *seen > budget
+                })
+                .collect();
+            let mut row = row.clone();
+            row.messages_json = serde_json::to_string(&kept).unwrap_or_else(|_| "[]".to_string());
+            std::borrow::Cow::Owned(vec![row])
+        }
+    };
+    flatten_to_blocks(parse_span_rows(&rows), &build_span_hierarchy(&rows))
 }
 
 /// The composed history: its blocks once each, in thread order, and per role the identities of its blocks of that
@@ -184,49 +327,61 @@ impl History {
 
 /// The span view of a request, with what its thread's earlier requests sent before it.
 pub(super) fn compose(rows: RequestContextRows) -> FeedResult {
+    compose_within(rows, sideseat_core::constants::REQUEST_THREAD_MAX_BYTES)
+}
+
+/// The same, with the thread's read budget named, so a test can fire it without a thread of millions of bytes.
+fn compose_within(rows: RequestContextRows, budget: usize) -> FeedResult {
     // The thread in sequence order: span start, then span id, never arrival. The target's own rows stand for it,
     // whatever copy of it the thread rows hold, and it is the last request read: anything after it had not been
-    // sent when it was.
+    // sent when it was. Its own rows are never dropped by the budget, which bounds the predecessors.
     let target_rows = rows.target;
-    let Some(target) = requests_of(target_rows.clone()).pop() else {
+    let Some(target_id) = target_rows
+        .first()
+        .map(|row| (row.trace_id.clone(), row.span_id.clone()))
+    else {
         return FeedResult::default();
     };
-    let at = |request: &Request| {
-        (
-            request.started,
-            request.span_id.clone(),
-            request.trace_id.clone(),
-        )
-    };
-    let mut thread: Vec<Request> = requests_of(rows.thread)
+    let own = process_span_unfiltered(target_rows.clone());
+    let mut thread_rows: Vec<MessageSpanRow> = rows
+        .thread
         .into_iter()
-        .filter(|request| at(request) < at(&target))
+        .filter(|row| (row.trace_id.clone(), row.span_id.clone()) != target_id)
         .collect();
-    thread.sort_by_key(at);
-    let own = process_span_unfiltered(target_rows);
+    thread_rows.extend(target_rows);
+    let (mut thread, truncated) = requests_of(thread_rows, budget);
+    let target_at = thread
+        .iter()
+        .position(|request| (request.trace_id.clone(), request.span_id.clone()) == target_id);
+    let Some(target_at) = target_at else {
+        // The budget cannot drop the target, so this is a thread whose rows do not hold it.
+        return own;
+    };
+    thread.truncate(target_at + 1);
+    let target = thread.pop().expect("the target is in the thread");
 
     // A break composes nothing past it: two requests at one sequence position whose content differs leave their
     // order unknown, and a failed request is an attempt whose place nothing here can establish.
-    let tied = thread
+    let positions: Vec<(DateTime<Utc>, &[BlockEntry])> = thread
         .iter()
-        .chain(std::iter::once(&target))
-        .collect::<Vec<_>>()
-        .windows(2)
-        .any(|pair| {
-            pair[0].started == pair[1].started
-                && pair[0]
-                    .blocks
-                    .iter()
-                    .map(identity)
-                    .ne(pair[1].blocks.iter().map(identity))
-        });
+        .map(|request| (request.started, request.blocks.as_slice()))
+        .chain(std::iter::once((target.started, target.blocks.as_slice())))
+        .collect();
+    let tied = positions.windows(2).any(|pair| {
+        pair[0].0 == pair[1].0
+            && pair[0]
+                .1
+                .iter()
+                .map(identity)
+                .ne(pair[1].1.iter().map(identity))
+    });
     if thread.is_empty() || tied || thread.iter().any(|request| request.failed) {
         return own;
     }
 
     // Every call the offered tool spans hold, by the id a result names: the earliest span that started holding it.
     let mut calls: HashMap<String, (DateTime<Utc>, String, BlockEntry)> = HashMap::new();
-    for request in requests_of(rows.calls) {
+    for request in requests_of(rows.calls, usize::MAX).0 {
         for block in request.blocks {
             let Some(id) = block.tool_use_id.clone().filter(|_| block.is_tool_use()) else {
                 continue;
@@ -241,12 +396,18 @@ pub(super) fn compose(rows: RequestContextRows) -> FeedResult {
     }
 
     let mut history = History::default();
-    let requests = thread
+    // The target is read by the full span pipeline - its own view is what the request shows - and the raw pass
+    // already decided what it restates, since its rows were read with the thread's.
+    let requests: Vec<(&[BlockEntry], bool)> = thread
         .iter()
-        .map(|request| request.blocks.as_slice())
-        .chain(std::iter::once(own.messages.as_slice()));
-    let count = thread.len() + 1;
-    for (index, view) in requests.enumerate() {
+        .map(|request| (request.blocks.as_slice(), request.restated.is_some()))
+        .chain(std::iter::once((
+            own.messages.as_slice(),
+            target.restated.is_some(),
+        )))
+        .collect();
+    let count = requests.len();
+    for (index, (view, aligned)) in requests.into_iter().enumerate() {
         let delta: Vec<&BlockEntry> = view
             .iter()
             .filter(|block| part_of(block) == Part::Delta)
@@ -267,7 +428,14 @@ pub(super) fn compose(rows: RequestContextRows) -> FeedResult {
                 history.push(call.clone());
             }
         }
-        let appended: Vec<BlockEntry> = history.new_items(&delta).into_iter().cloned().collect();
+        // Where the raw pass found a restatement it has already dropped what was restated, and its answer stands:
+        // asking the role rule again would compare the *remainder* with the history and could drop a turn this
+        // request really added - a question asked twice, whose second asking survives the raw pass precisely
+        // because the pass counts occurrences.
+        let appended: Vec<BlockEntry> = match aligned {
+            true => delta.into_iter().cloned().collect(),
+            false => history.new_items(&delta).into_iter().cloned().collect(),
+        };
         for block in appended {
             history.push(block);
         }
@@ -299,6 +467,7 @@ pub(super) fn compose(rows: RequestContextRows) -> FeedResult {
     let metadata = FeedMetadata {
         block_count: messages.len(),
         composed_from_requests,
+        composition_truncated: truncated,
         ..own.metadata
     };
     FeedResult {

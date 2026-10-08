@@ -114,11 +114,14 @@
       ]
     },
     "trace-1/claude_code.llm_request/span-7": {
-      "message_count": 6,
+      "message_count": 9,
       "role_sequence": [
         "system",
         "system",
         "system",
+        "user",
+        "system",
+        "assistant",
         "tool",
         "system",
         "assistant"
@@ -152,6 +155,31 @@
         },
         {
           "index": 3,
+          "role": "user",
+          "entry_type": "text",
+          "content": "Use the calculator to compute (17 * 23) + 4, then report the result.",
+          "content_digest": "94524de89ab3c69f",
+          "observation_type": "generation"
+        },
+        {
+          "index": 4,
+          "role": "system",
+          "entry_type": "text",
+          "content": "# Environment You have been invoked in the following environment: - Primary working directory: /private/var/folders/n_/kvwhfj054zx3zjmwj941d53c0000gr/T/sideseat-claude-agent-sdk-js - Is a git repository: false - Platform: darwin - Shell: zs…[493 chars]",
+          "content_digest": "253729459322c449",
+          "observation_type": "generation"
+        },
+        {
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "tool_use",
+          "content": "{\"type\":\"tool_use\",\"id\":\"toolu_bdrk_01AQqwb5MjhFDnjQbRLc5rND\",\"name\":\"mcp__calculator__calculate\",\"input\":{\"expression\":\"(17 * 23) + 4\"}}",
+          "content_digest": "3be9071c7946f004",
+          "tool_name": "mcp__calculator__calculate",
+          "observation_type": "tool"
+        },
+        {
+          "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "{\"result\":395}",
@@ -159,7 +187,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 7,
           "role": "system",
           "entry_type": "text",
           "content": "<total_tokens>14999148 tokens left</total_tokens>",
@@ -167,7 +195,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 8,
           "role": "assistant",
           "entry_type": "text",
           "content": "(17 × 23) + 4 = **395**.",

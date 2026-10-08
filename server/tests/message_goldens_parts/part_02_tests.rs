@@ -271,6 +271,7 @@ fn assert_scope(label: &str, view_name: &str, scope: &Scope, rows: &[InvariantRo
                 );
             }
         }
+        Scope::RequestSpan { .. } => assert_composed_scope(label, view_name, scope, rows),
         Scope::Trace { trace_id } => {
             for r in rows {
                 assert_eq!(
