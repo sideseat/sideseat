@@ -683,3 +683,40 @@ fn the_declared_provider_formats_match_the_readers_they_replace() {
         )
     );
 }
+
+/// A Responses API reasoning item: its reasoning text where the provider returns it, else its summary, and
+/// signed where the encrypted reasoning a later request replays is there. One whose summary is empty and
+/// whose reasoning is only encrypted is reasoning with no text, signed - not dropped, and not redacted.
+#[test]
+fn a_responses_reasoning_item_is_signed_reasoning_with_its_visible_text() {
+    // As the view serves it: the normalised block, read as a SideML block and written back.
+    let read = |item: JsonValue| {
+        let block = normalize_content_block(&item).expect("a reasoning item is read");
+        let block: crate::sideml::ContentBlock =
+            serde_json::from_value(block).expect("a SideML block");
+        serde_json::to_value(block).expect("serialisable")
+    };
+    let withheld = read(json!({
+        "type": "reasoning", "id": "rs_1", "summary": [], "encrypted_content": "gAAAA-opaque"
+    }));
+    assert_eq!(withheld["type"], "thinking");
+    assert_eq!(withheld["text"], "");
+    assert_eq!(withheld["signed"], true);
+    let summarised = read(json!({
+        "type": "reasoning",
+        "summary": [
+            {"type": "summary_text", "text": "First."},
+            {"type": "summary_text", "text": "Then."}
+        ]
+    }));
+    assert_eq!(summarised["text"], "First.\n\nThen.");
+    assert!(summarised.get("signed").is_none());
+    let reasoned = read(json!({
+        "type": "reasoning",
+        "summary": [{"type": "summary_text", "text": "A summary."}],
+        "content": [{"type": "reasoning_text", "text": "The reasoning itself."}],
+        "encrypted_content": "gAAAA-opaque"
+    }));
+    assert_eq!(reasoned["text"], "The reasoning itself.");
+    assert_eq!(reasoned["signed"], true);
+}

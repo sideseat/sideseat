@@ -78,12 +78,14 @@
       "messages": []
     },
     "trace-1/Responses API with 'us.openai.gpt-5.6-luna'/span-12": {
-      "message_count": 7,
+      "message_count": 9,
       "role_sequence": [
         "system",
         "user",
         "assistant",
+        "assistant",
         "tool",
+        "assistant",
         "assistant",
         "tool",
         "assistant"
@@ -110,6 +112,14 @@
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_bba135355c155eedbf2f98c7fed08616\",\"name\":\"retrieve_user_preference\",\"input\":{\"preference_type\":\"favorite_number\"}}",
           "content_digest": "e665e5a9c45d6759",
@@ -117,7 +127,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "7",
@@ -125,7 +135,15 @@
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 5,
+          "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 6,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_5ea33b13c1f058cf99a1e724661cccae\",\"name\":\"execute_python_code\",\"input\":{\"code\":\"favorite_number = 7\\nsquared = favorite_number ** 2\\nassert squared == 49\\nprint(squared)\"}}",
@@ -134,7 +152,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "49",
@@ -142,7 +160,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 6,
+          "index": 8,
           "role": "assistant",
           "entry_type": "text",
           "content": "Your favorite number is **7**. Squared, it is **49**.",
@@ -189,10 +207,11 @@
       ]
     },
     "trace-1/Responses API with 'us.openai.gpt-5.6-luna'/span-9": {
-      "message_count": 5,
+      "message_count": 6,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant",
         "tool",
         "assistant"
@@ -219,6 +238,14 @@
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_bba135355c155eedbf2f98c7fed08616\",\"name\":\"retrieve_user_preference\",\"input\":{\"preference_type\":\"favorite_number\"}}",
           "content_digest": "e665e5a9c45d6759",
@@ -226,7 +253,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "7",
@@ -234,7 +261,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 5,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_5ea33b13c1f058cf99a1e724661cccae\",\"name\":\"execute_python_code\",\"input\":{\"code\":\"favorite_number = 7\\nsquared = favorite_number ** 2\\nassert squared == 49\\nprint(squared)\"}}",

@@ -151,10 +151,11 @@
       "messages": []
     },
     "trace-1/Responses API with 'us.openai.gpt-5.6-luna'/span-11": {
-      "message_count": 10,
+      "message_count": 11,
       "role_sequence": [
         "system",
         "user",
+        "assistant",
         "assistant",
         "assistant",
         "assistant",
@@ -186,6 +187,14 @@
         {
           "index": 2,
           "role": "assistant",
+          "entry_type": "thinking",
+          "content": "",
+          "content_digest": "3ca100066bbf569b",
+          "observation_type": "generation"
+        },
+        {
+          "index": 3,
+          "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_b927172290845e3f82cdd316c2f64df1\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A joyful playful golden retriever puppy bounding through a sunny spring park, bright green grass, colorful wildflowers, a red frisbee…[354 chars]",
           "content_digest": "a4636d3b98170db8",
@@ -193,7 +202,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 3,
+          "index": 4,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_cd488973791e5791b0a0df6b09b83697\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A majestic adult German shepherd posed in a dramatic studio portrait, rich charcoal and tan fur, dignified expression, deep charcoal …[370 chars]",
@@ -202,7 +211,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 4,
+          "index": 5,
           "role": "assistant",
           "entry_type": "tool_use",
           "content": "{\"type\":\"tool_use\",\"id\":\"call_917368052e0a580e855a2d3aa0b20d2b\",\"name\":\"generate_image\",\"input\":{\"prompt\":\"A fluffy Siberian husky joyfully playing in fresh powder snow during a gentle winter snowfall, snow-covered pine forest, cool blue tw…[362 chars]",
@@ -211,7 +220,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 5,
+          "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "An error occurred while running the tool. Please try again. Error: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
@@ -219,7 +228,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 6,
+          "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "An error occurred while running the tool. Please try again. Error: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
@@ -227,7 +236,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 7,
+          "index": 8,
           "role": "tool",
           "entry_type": "tool_result",
           "content": "An error occurred while running the tool. Please try again. Error: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY` environment variable.",
@@ -235,7 +244,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 8,
+          "index": 9,
           "role": "assistant",
           "entry_type": "text",
           "content": "Unable to generate the images because image-generation credentials are unavailable.",
@@ -243,7 +252,7 @@
           "observation_type": "generation"
         },
         {
-          "index": 9,
+          "index": 10,
           "role": "assistant",
           "entry_type": "text",
           "content": "[Scrubbed due to 'credential']",

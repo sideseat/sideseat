@@ -377,10 +377,10 @@
         {
          "part": {
           "type": "reasoning",
-          "text": null,
+          "text": "",
           "signed": true
          },
-         "lineage_unknown": "model-side content no call's output matches"
+         "lineage_unknown": "withheld reasoning in a message that replays no one response"
         }
        ]
       },
@@ -441,10 +441,10 @@
         {
          "part": {
           "type": "reasoning",
-          "text": null,
+          "text": "",
           "signed": true
          },
-         "lineage_unknown": "model-side content no call's output matches"
+         "lineage_unknown": "withheld reasoning in a message that replays no one response"
         }
        ]
       },
@@ -562,10 +562,10 @@
         {
          "part": {
           "type": "reasoning",
-          "text": null,
+          "text": "",
           "signed": true
          },
-         "lineage_unknown": "model-side content no call's output matches"
+         "lineage_unknown": "withheld reasoning in a message that replays no one response"
         }
        ]
       },
@@ -626,10 +626,10 @@
         {
          "part": {
           "type": "reasoning",
-          "text": null,
+          "text": "",
           "signed": true
          },
-         "lineage_unknown": "model-side content no call's output matches"
+         "lineage_unknown": "withheld reasoning in a message that replays no one response"
         }
        ]
       },

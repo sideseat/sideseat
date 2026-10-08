@@ -264,6 +264,37 @@
       "json": {
         "data": "$.json"
       }
+    },
+    {
+      "id": "openai.reasoning_item",
+      "at": "provider_formats",
+      "priority": 1920,
+      "doc": "A Responses API reasoning item, as a conversation re-sends it or a response returns it: the model's reasoning text where the provider returns it (`content`, `reasoning_text` parts), else its summary (`summary`, `summary_text` parts), and the encrypted reasoning a later request replays (`encrypted_content`), which makes it signed. An item whose summary is empty and whose reasoning is only encrypted is reasoning with no text, signed: the model was given it, and a reader should see that it was.",
+      "where": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "reasoning"
+            ]
+          },
+          {
+            "path": "$.summary",
+            "kind": "array",
+            "doc": "The API requires a summary list, empty or not, on every reasoning item; the conventions' reasoning part has none, and is read by their own case."
+          }
+        ]
+      },
+      "thinking": {
+        "text": {
+          "first_of": [
+            {"path": "$.content[?@.type == 'reasoning_text'].text", "pipe": [{"join": "\n\n"}]},
+            {"path": "$.summary[?@.type == 'summary_text'].text", "pipe": [{"join": "\n\n"}]}
+          ],
+          "mode": "usable"
+        },
+        "signature": "$.encrypted_content"
+      }
     }
   ]
 }

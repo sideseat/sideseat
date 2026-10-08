@@ -281,7 +281,7 @@
   ],
   "fragments": {
     "item": {
-      "doc": "One element of what a generation recorded: an OpenAI chat message, or an OpenAI Responses item. Langfuse records the provider's shapes verbatim, and a Responses conversation interleaves messages with call and result items that carry no role. Ordered cases: the first that recognises the element wins; an encrypted reasoning item matches nothing, because it holds nothing a reader can see.",
+      "doc": "One element of what a generation recorded: an OpenAI chat message, or an OpenAI Responses item. Langfuse records the provider's shapes verbatim, and a Responses conversation interleaves messages with call and result items that carry no role. Ordered cases: the first that recognises the element wins.",
       "cases": [
         {
           "id": "function_call",
@@ -330,6 +330,20 @@
                 "as": "tool_call_id"
               }
             ]
+          }
+        },
+        {
+          "id": "reasoning",
+          "doc": "A Responses reasoning item: the model's own, so the assistant's, read as one reasoning block. A conversation re-sends it so the model can continue from it, encrypted when its text is withheld.",
+          "where": {
+            "path": "$.type",
+            "one_of": [
+              "reasoning"
+            ]
+          },
+          "wrap": {
+            "role": "assistant",
+            "content_from": "$"
           }
         },
         {
