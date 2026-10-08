@@ -8,7 +8,7 @@
 # The same two commands on a real A1 host confirm the figure there; nothing in the image depends on the
 # machine that built it.
 
-FROM rust:1.95-bookworm AS build
+FROM rust:1.98-bookworm AS build
 # librdkafka is built from source (`cmake-build`).
 RUN apt-get update && apt-get install -y --no-install-recommends cmake && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
