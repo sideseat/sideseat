@@ -398,3 +398,58 @@ def test_request_only_copies_are_facts_each_and_history_is_a_replay(
         for call in ("call-001", "call-002")
     ]
     assert systems == ["fact-004", "fact-005"]
+
+
+def test_a_thread_is_named_by_its_instruction_whatever_order_requests_arrive_in(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from harness.truth import request_truth
+
+    monkeypatch.setattr(request_truth, "FIXTURES", tmp_path)
+    monkeypatch.setattr(request_truth, "REPO", tmp_path)
+    note = {"role": "user", "content": [{"text": "Hand your report back when done."}]}
+    lead, helper = "You lead the work.", "You help the lead."
+
+    def record(fixture: str, systems: list[str]) -> None:
+        directory = tmp_path / fixture
+        directory.mkdir(parents=True)
+        log = directory / "log.jsonl"
+        for index, system in enumerate(systems):
+            transcript.record(
+                "POST",
+                "/model/m/converse",
+                _converse([note], system=system),
+                "application/json",
+                answered_by=index,
+                log=str(log),
+            )
+        (directory / transcript.FILENAME).write_text(json.dumps(transcript.finish(log)))
+
+    # Two concurrent subagents' first requests, which the two runs received in opposite orders.
+    record("p/native/s", [lead, helper])
+    record("p/sdk/s", [helper, lead])
+    truth = {
+        "calls": [
+            {"id": "call-001", "conversation": "c", "outputs": []},
+            {"id": "call-002", "conversation": "c", "outputs": []},
+        ],
+        "facts": [],
+        "conversations": [{"id": "c", "sequence": []}],
+        "edges": [],
+    }
+    calls = {0: "call-001", 1: "call-002"}
+    native = request_truth.fixture_requests(truth, "p/native/s", calls)
+    sdk = request_truth.fixture_requests(truth, "p/sdk/s", calls)
+    assert native is not None and sdk is not None
+
+    def note_of(recorded: dict, instruction: str) -> str:
+        for request in recorded["calls"].values():
+            if request["system"][0]["part"]["text"] == instruction:
+                (part,) = request["messages"][0]["parts"]
+                return part.get("new_fact") or part["replay_of"]
+        raise AssertionError(instruction)
+
+    # Each thread's note is one fact, the same in both runs, and the two threads' notes are two.
+    assert note_of(native, lead) == note_of(sdk, lead)
+    assert note_of(native, helper) == note_of(sdk, helper)
+    assert note_of(native, lead) != note_of(native, helper)

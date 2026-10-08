@@ -385,6 +385,27 @@ fn a_text_is_truncated_only_where_a_payload_ends_on_its_prefix() {
     );
     // Held whole somewhere: nothing was cut.
     assert!(super::truncated_at(TEXT, &attribute(string(TEXT))).is_none());
+    // Split across two exported strings, the rest in the second: all of it is carried.
+    let rest: String = TEXT.chars().skip(40).collect();
+    let split = span(|s| {
+        s.attributes = vec![kv("first", string(&cut)), kv("second", string(&rest))];
+    });
+    assert!(super::truncated_at(TEXT, &split).is_none());
+}
+
+#[test]
+fn a_text_is_merged_only_where_one_carrier_holds_its_two_parts_whole() {
+    let (first, rest) = TEXT.split_at(33);
+    let parts = |a: &str, b: &str| {
+        span(|s| {
+            s.attributes = vec![kv("message.0", string(a)), kv("message.1", string(b))];
+        })
+    };
+    assert!(super::merged_from(TEXT, &parts(first, rest)).is_some());
+    // The second part only inside a longer string: a quotation, not a message.
+    assert!(super::merged_from(TEXT, &parts(first, &format!("{rest} And more."))).is_none());
+    // Held whole: nothing was merged.
+    assert!(super::merged_from(TEXT, &parts(TEXT, rest)).is_none());
 }
 
 fn fact_with_text(text: &str) -> Fact {

@@ -186,6 +186,7 @@ def build(target: Target) -> dict[str, Any]:
         )
         is not None
     }
+    document_.pop(request_truth.THREADS, None)
     if requests:
         document_["requests"] = requests
     return document_

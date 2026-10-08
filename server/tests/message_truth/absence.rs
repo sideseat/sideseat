@@ -124,6 +124,36 @@ fn prove_text(text: &str, haystack: &Haystack) -> Proof {
     Proof::Absent
 }
 
+/// Where a payload holds a text only as two separate strings that together are the text: the producer
+/// exported the messages before its client merged them into the one the model was sent.
+///
+/// Both pieces must be whole strings of one carrier and nothing may hold the text whole, so a quotation
+/// inside a longer string is not taken for one. The merged message is in no payload: no reconstruction can
+/// show the boundary the model saw, and it is that producer's limitation, documented as one.
+pub(super) fn merged_from(text: &str, haystack: &Haystack) -> Option<String> {
+    let needle = collapse_whitespace(text);
+    if needle.chars().count() < 2 * MIN_TEXT || !haystack.undecoded.is_empty() {
+        return None;
+    }
+    if haystack
+        .carriers
+        .iter()
+        .any(|c| find_string(c, &needle).is_some())
+    {
+        return None;
+    }
+    haystack.carriers.iter().find_map(|carrier| {
+        let whole: BTreeSet<&str> = carrier.strings.iter().map(|(_, s)| s.as_str()).collect();
+        carrier.strings.iter().find_map(|(at, first)| {
+            let rest = needle.strip_prefix(first.as_str())?.trim_start();
+            (first.chars().count() >= MIN_TEXT
+                && rest.chars().count() >= MIN_TEXT
+                && whole.contains(rest))
+            .then(|| format!("{at} holds its first part, and the same carrier the rest"))
+        })
+    })
+}
+
 /// Where a payload holds a text only cut short: some string ends with a prefix of it, at least `FRAGMENT`
 /// characters long, and nothing holds it whole.
 ///
@@ -143,6 +173,17 @@ pub(super) fn truncated_at(text: &str, haystack: &Haystack) -> Option<String> {
     {
         return None;
     }
+    // The rest of the text after a cut must be nowhere either: a producer that splits one message across two
+    // exported strings carries all of it, which is no truncation.
+    let rest_is_absent = |cut: usize| {
+        let rest = needle[cut..].trim();
+        let head: String = rest.chars().take(FRAGMENT).collect();
+        head.chars().count() >= MIN_TEXT
+            && !haystack
+                .carriers
+                .iter()
+                .any(|c| find_string(c, &head).is_some())
+    };
     haystack.carriers.iter().find_map(|carrier| {
         carrier.strings.iter().find_map(|(at, held)| {
             // The longest suffix of the held string that is a proper prefix of the text: each place the
@@ -153,7 +194,8 @@ pub(super) fn truncated_at(text: &str, haystack: &Haystack) -> Option<String> {
                 .match_indices(tail)
                 .map(|(start, _)| start + tail.len())
                 .filter(|&n| n < needle.len() && held.ends_with(&needle[..n]))
-                .max()?;
+                .max()
+                .filter(|&n| rest_is_absent(n))?;
             Some(format!("{at} holds its first {cut} bytes and ends there"))
         })
     })
@@ -614,6 +656,10 @@ pub(super) fn request_limitations(
                         Proof::Partial(_) if truncated_at(fact.text(), &haystack).is_some() => {
                             "sent to the model and exported only cut short, as a preview: no payload \
                              holds it whole"
+                        }
+                        Proof::Partial(_) if merged_from(fact.text(), &haystack).is_some() => {
+                            "sent to the model as one message and exported as the separate messages its \
+                             client merged: no payload holds the merged one"
                         }
                         _ => continue,
                     };

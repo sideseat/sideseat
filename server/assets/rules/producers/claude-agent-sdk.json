@@ -47,13 +47,13 @@
     },
     {
       "id": "claude-agent-sdk.system_reminders",
-      "doc": "The client's environment block: a system turn the client appends after the conversation's newest input. Each span reports the one its own request carried, so it is an emission of that request's input, never a re-listing of an earlier one: two requests sending the same reminder sent two. Not a detached frame, because it follows the inputs of its request rather than preceding them.",
+      "doc": "The client's environment block: a system turn the client appends after the conversation's newest input. A snapshot, because a resumed process reports the reminders of the turns before it beside its own, so a later reminder may restate an earlier one; but within one value each position is a reminder of its own, as `system_reminders_count` states, so two identical ones are two. Not a detached frame, because it follows the inputs of its request rather than preceding them.",
       "match": {
         "attribute": "system_reminders"
       },
       "facts": {
-        "preset": "emission",
-        "carrier_holds_span_output": false,
+        "preset": "snapshot",
+        "position_proves_distinct_occurrence": true,
         "carrier_holds_span_input": true
       }
     },

@@ -417,6 +417,7 @@ pub(super) fn without_unexported_facts(truth: &Truth, recon: &Recon) -> Truth {
             // Exported only cut short, as a preview: no reconstruction can show it whole either.
             Proof::Partial(_) => {
                 super::absence::truncated_at(fact.text(), haystack(recon)).is_some()
+                    || super::absence::merged_from(fact.text(), haystack(recon)).is_some()
             }
             _ => false,
         })
@@ -594,8 +595,16 @@ pub(super) fn check_requests(
                     // beside the absent parts.
                     Proof::Partial(_)
                         if !shown_elsewhere
-                            && super::absence::truncated_at(sent_fact.text(), haystack(recon))
-                                .is_some() =>
+                            && (super::absence::truncated_at(
+                                sent_fact.text(),
+                                haystack(recon),
+                            )
+                            .is_some()
+                                || super::absence::merged_from(
+                                    sent_fact.text(),
+                                    haystack(recon),
+                                )
+                                .is_some()) =>
                     {
                         continue;
                     }

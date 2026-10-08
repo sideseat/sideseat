@@ -385,28 +385,39 @@ fn regressions(
         .collect()
 }
 
-/// Whether the base recorded the entry's subject as not shown at all, in the same fixture and view.
+/// The facts an entry is about: its subject, or both ends of an order entry (`fact-009 before fact-003`).
+fn entry_facts(entry: &ledger::Entry) -> Vec<&str> {
+    entry.subject.split(" before ").collect()
+}
+
+/// Whether an entry is the same defect as one the base recorded, changing form 1:1 as its content starts
+/// to be shown.
 ///
-/// A fact the base could not find is now shown, and what is wrong with it changed form - shown in a later
-/// trace too, twice, or out of place. That is the same defect closer to fixed, not a new one: the base's
-/// `missing` entry leaves as this one arrives. An order entry names two facts (`fact-009 before fact-003`)
-/// and is about whichever of them the base did not show.
-fn was_missing_at_base(base: &[ledger::Entry], entry: &ledger::Entry) -> bool {
-    let subjects: Vec<&str> = entry
-        .subject
-        .split(" before ")
-        .map(|s| s.split_once('@').map_or(s, |(fact, _)| fact))
-        .collect();
-    base.iter().any(|e| {
-        e.fixture == entry.fixture
-            && e.view == entry.view
-            && e.assertion.ends_with(".missing")
-            && subjects.iter().any(|s| {
-                e.subject
-                    .split_once('@')
-                    .map_or(e.subject.as_str(), |(f, _)| f)
-                    == *s
-            })
+/// Only where all of these hold: the base recorded `<kind>.missing` for one of the entry's facts, with the
+/// same subject - trace scope included - in the same fixture and view; that base entry is gone now; and the
+/// number of entries about that fact in that view has not grown. Anything else - another fact, another
+/// view, the base entry still there, a second entry for the fact - is a new defect.
+fn was_missing_at_base(
+    base: &[ledger::Entry],
+    current: &[ledger::Entry],
+    entry: &ledger::Entry,
+) -> bool {
+    let count = |entries: &[ledger::Entry], fact: &str| {
+        entries
+            .iter()
+            .filter(|e| e.fixture == entry.fixture && e.view == entry.view)
+            .filter(|e| entry_facts(e).contains(&fact))
+            .count()
+    };
+    entry_facts(entry).into_iter().any(|fact| {
+        let missing = base.iter().find(|e| {
+            e.fixture == entry.fixture
+                && e.view == entry.view
+                && e.assertion.ends_with(".missing")
+                && e.subject == fact
+        });
+        missing.is_some_and(|m| current.iter().all(|e| e.id != m.id))
+            && count(current, fact) <= count(base, fact)
     })
 }
 
@@ -590,13 +601,14 @@ fn truth_violation_ledger_only_shrinks_against_main() {
             })
             .clone()
     };
+    let current_entries = ledger::load().entries;
     let added = regressions(
-        &ledger::load().entries,
+        &current_entries,
         &before,
         |family| registry.contains(&format!("\"{family}\"")),
         |fixture| fixtures_at_base.contains(fixture),
         |entry| {
-            if was_missing_at_base(&base_entries, entry) {
+            if was_missing_at_base(&base_entries, &current_entries, entry) {
                 return false;
             }
             if entry.view == ViolationView::Request.name() {
@@ -675,30 +687,52 @@ fn a_defect_changing_form_from_missing_is_not_a_new_one() {
         introduced: String::new(),
     };
     let base = [
-        entry("trace", "system.missing", "fact-010@trace-2"),
+        entry("trace", "system.missing", "fact-010"),
+        entry("trace", "system.missing", "fact-012"),
         entry("request", "request.missing", "call-002:m1.0"),
     ];
-    assert!(was_missing_at_base(
-        &base,
-        &entry("trace", "system.leaked", "fact-010")
-    ));
-    assert!(was_missing_at_base(
-        &base,
-        &entry("trace", "order.sequence", "fact-010 before fact-003")
-    ));
-    assert!(was_missing_at_base(
-        &base,
-        &entry("request", "request.order", "call-002:m1.0")
-    ));
-    // Another view, another fact, or a fact the base showed: a regression still.
+    let leaked = entry("trace", "system.leaked", "fact-010");
+    let ordered = entry("trace", "order.sequence", "fact-010 before fact-003");
+    let moved = entry("request", "request.order", "call-002:m1.0");
+    // The fact is shown now, its missing entry is gone, and one entry replaces it: a change of form.
+    let now = [base[1].clone(), base[2].clone(), leaked.clone()];
+    assert!(was_missing_at_base(&base, &now, &leaked));
+    let now = [base[1].clone(), base[2].clone(), ordered.clone()];
+    assert!(was_missing_at_base(&base, &now, &ordered));
+    let now = [base[0].clone(), base[1].clone(), moved.clone()];
+    assert!(was_missing_at_base(&base, &now, &moved));
+    // A second entry for the same fact grows its count: refused.
+    let now = [
+        base[1].clone(),
+        base[2].clone(),
+        leaked.clone(),
+        ordered.clone(),
+    ];
+    assert!(!was_missing_at_base(&base, &now, &leaked));
+    // A different fact, or the same fact in another view: refused.
+    let other = entry("trace", "system.leaked", "fact-011");
     assert!(!was_missing_at_base(
         &base,
-        &entry("session", "system.leaked", "fact-010")
+        &[base[1].clone(), other.clone()],
+        &other
     ));
+    let elsewhere = entry("session", "system.leaked", "fact-010");
     assert!(!was_missing_at_base(
         &base,
-        &entry("trace", "system.leaked", "fact-011")
+        &[elsewhere.clone()],
+        &elsewhere
     ));
+    // The base's missing entry is still there: the new entry is a second defect, refused.
+    let now = [
+        base[0].clone(),
+        base[1].clone(),
+        base[2].clone(),
+        leaked.clone(),
+    ];
+    assert!(!was_missing_at_base(&base, &now, &leaked));
+    // A per-trace obligation keeps its scope: `fact-010@trace-2` missing admits nothing about `fact-010`.
+    let scoped = [entry("trace", "system.missing", "fact-010@trace-2")];
+    assert!(!was_missing_at_base(&scoped, &[leaked.clone()], &leaked));
 }
 
 /// Prints one fixture's views and violations, for triaging a ledger entry:
