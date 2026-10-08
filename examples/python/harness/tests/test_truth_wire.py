@@ -778,6 +778,69 @@ def test_responses_stream_reassembles_deltas_and_matches_the_completed_response(
     assert call.finish == "tool_use"
 
 
+def _search_item(**action: Any) -> dict[str, Any]:
+    return {
+        "id": "ws_1",
+        "type": "web_search_call",
+        "status": "completed",
+        "action": {"type": "search", **action},
+    }
+
+
+def test_a_responses_web_search_owes_every_query_it_ran_and_every_source() -> None:
+    searched = _search_item(
+        query="louvre hours",
+        queries=["louvre hours", "louvre tuesday"],
+        sources=[
+            {"type": "url", "url": "https://a"},
+            {"type": "url", "url": "https://b"},
+        ],
+    )
+    body = {**responses_body(), "output": [searched]}
+    call = decode(
+        item("/openai/v1/responses", json.dumps(body).encode(), "application/json")
+    )
+    assert call is not None
+    assert call.parts == [
+        wire.server_call_part(
+            "ws_1",
+            "web_search",
+            {"query": "louvre hours", "queries": ["louvre hours", "louvre tuesday"]},
+            {"sources": ["https://a", "https://b"]},
+        )
+    ]
+    # Opening a page is a call too: what it opened is what it asked for.
+    opened = {**searched, "action": {"type": "open_page", "url": "https://a"}}
+    body = {**responses_body(), "output": [opened]}
+    call = decode(
+        item("/openai/v1/responses", json.dumps(body).encode(), "application/json")
+    )
+    assert call is not None and call.parts[0]["arguments"] == {"url": "https://a"}
+
+
+def test_a_streamed_web_search_is_what_its_done_item_says() -> None:
+    # The provider adds the item before it has searched; no delta fills it in, the done item does.
+    started = {"id": "ws_1", "type": "web_search_call", "status": "in_progress"}
+    finished = _search_item(
+        query="louvre hours", sources=[{"type": "url", "url": "https://a"}]
+    )
+    final = {**responses_body(), "output": [finished]}
+    events = [
+        {"type": "response.created", "response": {**final, "output": []}},
+        {"type": "response.output_item.added", "output_index": 0, "item": started},
+        {"type": "response.web_search_call.in_progress", "output_index": 0},
+        {"type": "response.output_item.done", "output_index": 0, "item": finished},
+        {"type": "response.completed", "response": final},
+    ]
+    call = decode(item("/openai/v1/responses", sse(events), "text/event-stream"))
+    assert call is not None
+    assert call.parts == [
+        wire.server_call_part(
+            "ws_1", "web_search", {"query": "louvre hours"}, {"sources": ["https://a"]}
+        )
+    ]
+
+
 def test_responses_stream_whose_deltas_disagree_with_the_snapshot_is_an_error() -> None:
     with pytest.raises(DecodeError, match="disagree"):
         decode(

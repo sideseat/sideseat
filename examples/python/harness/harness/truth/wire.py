@@ -742,16 +742,18 @@ def _responses_item(item: dict[str, Any]) -> list[dict[str, Any]]:
     if kind == "function_call":
         return [tool_call_part(item["call_id"], item["name"], item.get("arguments"))]
     if kind == "web_search_call":
-        # The provider's own search: what it searched for, and the sources it read.
+        # The provider's own search: what its action asked for - a search's query and every query it
+        # ran, a page it opened, a pattern it looked for - and the sources it read.
         action = item.get("action") or {}
-        query = action.get("query") or " ".join(action.get("queries") or [])
+        arguments = {
+            key: value
+            for key, value in action.items()
+            if key not in ("type", "sources") and value
+        }
         sources = [s["url"] for s in action.get("sources") or [] if s.get("url")]
         return [
             server_call_part(
-                item.get("id"),
-                "web_search",
-                {"query": query} if query else {},
-                {"sources": sources},
+                item.get("id"), "web_search", arguments, {"sources": sources}
             )
         ]
     if kind == "reasoning":
@@ -788,6 +790,10 @@ def responses(value: dict[str, Any]) -> ModelCall:
         parts=parts,
         system_echo=value.get("instructions") or None,
     )
+
+
+#: The output items a stream builds from deltas; every other item arrives whole when it is done.
+_DELTA_ITEMS = frozenset({"message", "function_call", "reasoning"})
 
 
 def responses_stream(body: bytes) -> ModelCall:
@@ -832,6 +838,9 @@ def responses_stream(body: bytes) -> ModelCall:
             content[value.get("content_index", 0)]["text"] += value["delta"]
         elif kind == "response.output_item.done":
             done[value["output_index"]] = value["item"]
+            if value["item"]["type"] not in _DELTA_ITEMS:
+                # No delta builds a provider-run item: it is complete only when it is done.
+                items[value["output_index"]] = dict(value["item"])
         elif kind.startswith("response.web_search_call.") or kind == (
             "response.output_text.annotation.added"
         ):

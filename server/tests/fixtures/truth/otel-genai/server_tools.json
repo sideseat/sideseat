@@ -91,7 +91,10 @@
     "id": "ws_9335c41492c0",
     "name": "web_search",
     "arguments": {
-     "query": "Louvre opening hours"
+     "query": "Louvre opening hours",
+     "queries": [
+      "Louvre opening hours"
+     ]
     }
    },
    "require": {

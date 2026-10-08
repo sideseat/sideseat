@@ -424,3 +424,49 @@ fn an_attachment_sent_by_reference_is_shown_only_as_that_reference() {
         &shown_media("file", "file_id", "file-0987654321")
     ));
 }
+
+#[test]
+fn a_provider_run_call_is_shown_only_by_the_whole_values_it_searched_for() {
+    let fact = Fact {
+        id: "fact-001".to_string(),
+        kind: "tool_call".to_string(),
+        role: "assistant".to_string(),
+        conversation: String::new(),
+        evidence: "wire".into(),
+        value: json!({"id": "ws_1", "name": "web_search", "arguments": {"query": "Louvre opening hours"}}),
+        require: requirement("contains"),
+        call: None,
+        fixtures: None,
+        seal: None,
+    };
+    let call = |input: Value| {
+        let content =
+            json!({"type": "tool_use", "id": "ws_1", "name": "web_search", "input": input});
+        Block {
+            role: "assistant".to_string(),
+            kind: "tool_use".to_string(),
+            content: content.clone(),
+            tool_use_id: None,
+            trace: "t".to_string(),
+            span: "s".to_string(),
+            output: true,
+            finish: None,
+            media_sha256: None,
+            digest: content.to_string(),
+            identity: content.to_string(),
+            carrier: String::new(),
+            position: String::new(),
+        }
+    };
+    let shown = |input: Value| shows(&fact, &call(input), None) == Shows::Yes;
+    // Re-shaped in an instrumentation's own words, or written as a JSON document, it is the same search.
+    assert!(shown(
+        json!({"type": "web_search", "action": {"query": "Louvre opening hours"}})
+    ));
+    assert!(shown(
+        json!({"action": "{\"query\": \"Louvre opening hours\"}"})
+    ));
+    // A longer query is another search.
+    assert!(!shown(json!({"query": "Louvre opening hours tomorrow"})));
+    assert!(!shown(json!({})));
+}

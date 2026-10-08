@@ -4,6 +4,8 @@
 //! and whitespace-collapsed, so a comparison against it would bless a defect past the cut or one that
 //! only changes spacing.
 
+use std::collections::BTreeSet;
+
 use serde_json::Value;
 
 use super::recon::Block;
@@ -157,8 +159,10 @@ fn provider_call_shows(value: &Value, block: &Block) -> Shows {
     }
 }
 
-/// Every string `expected` holds - its leaves, at any depth - appears in what `shown` renders. Empty
-/// expectations hold nothing to find, so they are not evidence of anything and do not match.
+/// Every string `expected` holds - its leaves, at any depth - is a whole string somewhere in `shown`, at any
+/// depth, a JSON document written as a string read as the document. A leaf is found whole, never inside a
+/// longer string: a search for "Louvre opening hours" is not shown by one for "Louvre opening hours tomorrow".
+/// Empty expectations hold nothing to find, so they are not evidence of anything and do not match.
 fn holds_every_value(shown: &Value, expected: &Value) -> bool {
     fn leaves<'a>(value: &'a Value, into: &mut Vec<&'a str>) {
         match value {
@@ -168,10 +172,26 @@ fn holds_every_value(shown: &Value, expected: &Value) -> bool {
             _ => {}
         }
     }
+    fn held(value: &Value, into: &mut BTreeSet<String>) {
+        match value {
+            Value::String(text) => {
+                if let Ok(document @ (Value::Object(_) | Value::Array(_))) =
+                    serde_json::from_str::<Value>(text)
+                {
+                    held(&document, into);
+                }
+                into.insert(text.clone());
+            }
+            Value::Array(items) => items.iter().for_each(|item| held(item, into)),
+            Value::Object(map) => map.values().for_each(|item| held(item, into)),
+            _ => {}
+        }
+    }
     let mut wanted = Vec::new();
     leaves(expected, &mut wanted);
-    let rendered = rendered_text(shown);
-    !wanted.is_empty() && wanted.iter().all(|value| rendered.contains(value))
+    let mut strings = BTreeSet::new();
+    held(shown, &mut strings);
+    !wanted.is_empty() && wanted.iter().all(|value| strings.contains(*value))
 }
 
 fn tool_call_shows(value: &Value, block: &Block) -> Shows {
