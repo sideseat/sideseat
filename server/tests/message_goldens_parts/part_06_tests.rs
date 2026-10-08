@@ -364,23 +364,26 @@ fn no_declared_subdivision_is_dead_across_the_corpus() {
     /// Every clause path a rule declares: its section routes, element passes and derived cases, each reading
     /// (alternatives, `also` and fallbacks), and every case a reading hands its candidates to, a fragment's or
     /// its own. A branch leaf emits under its **own** id, so its clauses live in its own path space.
+    /// Every clause path with the kind of clause it names, and whether it sits in a branch leaf.
     fn paths_of(
         rule: &MessageRule,
         prefix: &str,
+        in_leaf: bool,
         fragments: &BTreeMap<String, Vec<Alternative>>,
-        out: &mut Vec<String>,
+        out: &mut Vec<(String, &'static str, bool)>,
     ) {
+        let mut push = |path: String, kind: &'static str| out.push((path, kind, in_leaf));
         if let Some(sections) = &rule.sections {
             for route in &sections.routes {
-                out.push(format!("{prefix}/{}", route.id));
+                push(format!("{prefix}/{}", route.id), "section route");
             }
         }
         if let Some(elements) = &rule.elements {
             for pass in &elements.passes {
-                out.push(format!("{prefix}/{}", pass.id));
+                push(format!("{prefix}/{}", pass.id), "element pass");
                 if let Some(group) = &pass.group {
                     for case in &group.by {
-                        out.push(format!("{prefix}/{}/{}", pass.id, case.id));
+                        push(format!("{prefix}/{}/{}", pass.id, case.id), "derived case");
                     }
                 }
             }
@@ -391,14 +394,14 @@ fn no_declared_subdivision_is_dead_across_the_corpus() {
             .chain(&rule.also)
             .chain(&rule.fallback)
         {
-            out.push(format!("{prefix}/{}", reading.id));
+            push(format!("{prefix}/{}", reading.id), "reading");
             let shared = reading.then_fragment.as_ref().map(|name| {
                 fragments
                     .get(name)
                     .expect("a referenced fragment is declared")
             });
             for case in shared.into_iter().flatten().chain(&reading.extra_cases) {
-                out.push(format!("{prefix}/{}/{}", reading.id, case.id));
+                push(format!("{prefix}/{}/{}", reading.id, case.id), "case");
             }
         }
         if let Some(set) = &rule.branch_set {
@@ -408,7 +411,7 @@ fn no_declared_subdivision_is_dead_across_the_corpus() {
                 .chain(&set.fallback_if_primary_empty)
                 .chain(&set.always)
             {
-                paths_of(leaf, &leaf.id, fragments, out);
+                paths_of(leaf, &leaf.id, true, fragments, out);
             }
         }
     }
@@ -425,23 +428,37 @@ fn no_declared_subdivision_is_dead_across_the_corpus() {
                 .map(|(name, fragment)| (format!("{}.{name}", file.id), fragment.cases.clone()))
         })
         .collect();
-    let mut declared: Vec<String> = Vec::new();
+    let mut walked: Vec<(String, &'static str, bool)> = Vec::new();
     for file in &files {
         for rule in &file.messages {
-            paths_of(rule, &rule.id, &fragments, &mut declared);
+            paths_of(rule, &rule.id, false, &fragments, &mut walked);
         }
     }
+    // Not vacuous, kind by kind: a walk that stopped covering one kind of clause - or stopped descending into
+    // branch leaves - finds none of it and fails here, however many of the others it still finds.
+    let mut kinds: BTreeMap<&str, usize> = BTreeMap::new();
+    for (_, kind, in_leaf) in &walked {
+        *kinds.entry(kind).or_default() += 1;
+        if *in_leaf {
+            *kinds.entry("branch leaf clause").or_default() += 1;
+        }
+    }
+    for kind in [
+        "section route",
+        "element pass",
+        "derived case",
+        "reading",
+        "case",
+        "branch leaf clause",
+    ] {
+        assert!(
+            kinds.get(kind).copied().unwrap_or(0) > 0,
+            "the walk found no {kind}: {kinds:?}"
+        );
+    }
+    let mut declared: Vec<String> = walked.into_iter().map(|(path, _, _)| path).collect();
     declared.sort();
     declared.dedup();
-    // Nine today: five section routes, two element passes, two derived cases. Asserted so the gate cannot
-    // pass by finding nothing - which is how a walk that stopped covering a nesting would look.
-    // Not vacuous: each kind of clause is found, so a walk that stopped covering one would fail here.
-    let routes_and_passes = 9;
-    assert!(
-        declared.len() > routes_and_passes + 200,
-        "only {} clauses were declared; the walk may have stopped covering a nesting: {declared:?}",
-        declared.len()
-    );
 
     let fired = rules_that_emit();
     // A clause is reached where an emission names it or a clause inside it: a selection point that hands its
