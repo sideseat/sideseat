@@ -70,16 +70,16 @@
           "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{'city': 'Tokyo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}",
-          "content_digest": "3d7c8cfea7dd8233",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "a787d190362d38a8",
           "observation_type": "generation"
         },
         {
           "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{'city': 'Paris', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}",
-          "content_digest": "c70a9a19a12a8816",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_CB5KDLDAq13BBc0a4fBQJ2\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "942f9fee199e520b",
           "observation_type": "generation"
         },
         {
@@ -231,16 +231,16 @@
           "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{'city': 'Tokyo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}",
-          "content_digest": "3d7c8cfea7dd8233",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "a787d190362d38a8",
           "observation_type": "span"
         },
         {
           "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{'city': 'Paris', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}",
-          "content_digest": "c70a9a19a12a8816",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_CB5KDLDAq13BBc0a4fBQJ2\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "942f9fee199e520b",
           "observation_type": "span"
         },
         {
@@ -325,16 +325,16 @@
           "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{'city': 'Tokyo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}",
-          "content_digest": "3d7c8cfea7dd8233",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "a787d190362d38a8",
           "observation_type": "span"
         },
         {
           "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{'city': 'Paris', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}",
-          "content_digest": "c70a9a19a12a8816",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_CB5KDLDAq13BBc0a4fBQJ2\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "942f9fee199e520b",
           "observation_type": "span"
         },
         {
@@ -403,8 +403,8 @@
           "index": 0,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{'city': 'Paris', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}",
-          "content_digest": "c70a9a19a12a8816",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_CB5KDLDAq13BBc0a4fBQJ2\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "942f9fee199e520b",
           "observation_type": "tool"
         }
       ]
@@ -421,8 +421,8 @@
           "index": 0,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{'city': 'Tokyo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}",
-          "content_digest": "3d7c8cfea7dd8233",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "a787d190362d38a8",
           "observation_type": "tool"
         }
       ]
@@ -553,16 +553,16 @@
           "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{'city': 'Tokyo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}",
-          "content_digest": "3d7c8cfea7dd8233",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "a787d190362d38a8",
           "observation_type": "tool"
         },
         {
           "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{'city': 'Paris', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}",
-          "content_digest": "c70a9a19a12a8816",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_CB5KDLDAq13BBc0a4fBQJ2\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "942f9fee199e520b",
           "observation_type": "tool"
         },
         {
@@ -671,16 +671,16 @@
           "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{'city': 'Tokyo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}",
-          "content_digest": "3d7c8cfea7dd8233",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "a787d190362d38a8",
           "observation_type": "tool"
         },
         {
           "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{'city': 'Paris', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}",
-          "content_digest": "c70a9a19a12a8816",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_CB5KDLDAq13BBc0a4fBQJ2\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "942f9fee199e520b",
           "observation_type": "tool"
         },
         {
@@ -761,16 +761,16 @@
         "index": 3,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{'city': 'Paris', 'forecast': [{'day': 1, 'condition': 'sunny', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}",
-        "content_digest": "c70a9a19a12a8816",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_CB5KDLDAq13BBc0a4fBQJ2\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+        "content_digest": "942f9fee199e520b",
         "observation_type": "tool"
       },
       {
         "index": 4,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{'city': 'Tokyo', 'forecast': [{'day': 1, 'condition': 'rain', 'high_c': 21}, {'day': 2, 'condition': 'sunny', 'high_c': 22}]}",
-        "content_digest": "3d7c8cfea7dd8233",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_PxpqWUjGntfgsL2foGTAJo\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+        "content_digest": "a787d190362d38a8",
         "observation_type": "tool"
       },
       {

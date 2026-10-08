@@ -13,6 +13,16 @@
         "preset": "snapshot",
         "carrier_is_detached_request_frame": true
       }
+    },
+    {
+      "id": "strands.tool_span_result",
+      "doc": "What a tool span says its tool returned, read from its choice event: one emission it produced.",
+      "match": {
+        "event": "strands.tool_span_result"
+      },
+      "facts": {
+        "preset": "emission"
+      }
     }
   ],
   "detect": [
@@ -123,6 +133,80 @@
       },
       "emit": "message",
       "priority": 20
+    },
+    {
+      "id": "strands.tool_span_python_result",
+      "doc": "What a tool span says its tool returned. Strands 1.12 records a dict result on the tool span's choice event as the one text part `[{\"text\": \"{'city': ...}\"}]`, Python's `str()` of it, which the model was handed. Read as the value it renders, so the result shows as the value the tool returned, as every later release writes it; a text that is not a Python literal of a dict or a list is left to the event's own reading.",
+      "source": {
+        "event": {
+          "names": [
+            "gen_ai.choice"
+          ]
+        }
+      },
+      "where": {
+        "all": [
+          {
+            "source": "scope.name",
+            "equals": "strands.telemetry.tracer"
+          },
+          {
+            "source": "span_name",
+            "starts_with": "execute_tool "
+          }
+        ]
+      },
+      "read": {
+        "attribute": "message"
+      },
+      "parse": "json",
+      "tag_as": "strands.tool_span_result",
+      "emit": "message",
+      "alternatives": [
+        {
+          "id": "python_text",
+          "doc": "One text part holding the literal; anything else is not this shape. Wrapped as the tool message it is, whose content is read as the value its text renders, as a tool message's content always is.",
+          "select": "$[0].text",
+          "parent_where": {
+            "path": "$[1]",
+            "exists": false
+          },
+          "where": {
+            "any": [
+              {
+                "starts_with": "{'"
+              },
+              {
+                "starts_with": "[{'"
+              },
+              {
+                "starts_with": "['"
+              }
+            ]
+          },
+          "wrap": {
+            "role": "tool",
+            "attach": [
+              {
+                "from": "id",
+                "as": "tool_call_id"
+              },
+              {
+                "from": "gen_ai.tool.name",
+                "as": "name",
+                "or_span_name": [
+                  {
+                    "strip_prefix": "execute_tool "
+                  },
+                  "trim"
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "reads_tool_spans": true,
+      "priority": 25
     }
   ],
   "content_blocks": [
@@ -241,6 +325,209 @@
           "pipe": [{"map": {"error": true}, "closed": true}]
         },
         "doc": "Its tool result. A failure is stated as a status rather than a flag."
+      }
+    },
+    {
+      "id": "strands.tool_call_response_json_block",
+      "doc": "Strands for TypeScript writes, under the conventions' `response`, the Bedrock content blocks it hands back to the model, and a tool that returned structured data returns one `json` block: `[{\"json\": {...}}]`. The value inside is the result, as the conventions' reading takes a list of text parts for the text it holds; read whole, the block rendered as the wrapper around the value.",
+      "at": "before_provider_formats",
+      "priority": 63,
+      "where": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "tool_call_response"
+            ]
+          },
+          {
+            "path": "$.response[0].json",
+            "exists": true
+          },
+          {
+            "path": "$.response[1]",
+            "exists": false
+          }
+        ]
+      },
+      "tool_result": {
+        "tool_use_id": "$.id",
+        "content": "$.response[0].json",
+        "content_as": "value"
+      }
+    },
+    {
+      "id": "strands.tool_call_response_python_text",
+      "doc": "Strands 1.12 with the latest conventions writes a tool's dict result as the one text part `[{\"text\": \"{'city': ...}\"}]`, Python's `str()` of it. The text is read as the value it renders, so the result shows as the value the tool returned, as every later release writes it.",
+      "at": "before_provider_formats",
+      "priority": 55,
+      "where": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "tool_call_response"
+            ]
+          },
+          {
+            "any": [
+              {
+                "path": "$.response[0].text",
+                "starts_with": "{'"
+              },
+              {
+                "path": "$.response[0].text",
+                "starts_with": "[{'"
+              },
+              {
+                "path": "$.response[0].text",
+                "starts_with": "['"
+              }
+            ],
+            "doc": "Python's `str()` of a dict or a list of them: what Strands 1.12 hands back to the model for a tool that returned one. A JSON text, which later releases write, is left to the readings that already decode it."
+          },
+          {
+            "path": "$.response[1]",
+            "exists": false
+          }
+        ]
+      },
+      "tool_result": {
+        "tool_use_id": "$.id",
+        "content": {
+          "first_of": [
+            {
+              "path": "$.response[0].text",
+              "pipe": [
+                {
+                  "parse": "python_literal"
+                }
+              ]
+            },
+            "$.response"
+          ],
+          "mode": "usable"
+        },
+        "content_as": "value"
+      }
+    },
+    {
+      "id": "strands.tool_call_result_python_text",
+      "doc": "The same part as its tool span writes it in Strands 1.12, under `result` where the model's request has `response`.",
+      "at": "before_provider_formats",
+      "priority": 57,
+      "where": {
+        "all": [
+          {
+            "path": "$.type",
+            "one_of": [
+              "tool_call_response"
+            ]
+          },
+          {
+            "any": [
+              {
+                "path": "$.result[0].text",
+                "starts_with": "{'"
+              },
+              {
+                "path": "$.result[0].text",
+                "starts_with": "[{'"
+              },
+              {
+                "path": "$.result[0].text",
+                "starts_with": "['"
+              }
+            ],
+            "doc": "Python's `str()` of a dict or a list of them: what Strands 1.12 hands back to the model for a tool that returned one. A JSON text, which later releases write, is left to the readings that already decode it."
+          },
+          {
+            "path": "$.result[1]",
+            "exists": false
+          },
+          {
+            "path": "$.response",
+            "exists": false
+          }
+        ]
+      },
+      "tool_result": {
+        "tool_use_id": "$.id",
+        "content": {
+          "first_of": [
+            {
+              "path": "$.result[0].text",
+              "pipe": [
+                {
+                  "parse": "python_literal"
+                }
+              ]
+            },
+            "$.result"
+          ],
+          "mode": "usable"
+        },
+        "content_as": "value"
+      }
+    },
+    {
+      "id": "strands.tool_result_python_text",
+      "doc": "The same result in the Bedrock block Strands 1.12 records the conversation with: `{\"toolResult\": {\"content\": [{\"text\": \"{'city': ...}\"}]}}`.",
+      "at": "before_provider_formats",
+      "priority": 56,
+      "where": {
+        "all": [
+          {
+            "any": [
+              {
+                "path": "$.toolResult.content[0].text",
+                "starts_with": "{'"
+              },
+              {
+                "path": "$.toolResult.content[0].text",
+                "starts_with": "[{'"
+              },
+              {
+                "path": "$.toolResult.content[0].text",
+                "starts_with": "['"
+              }
+            ],
+            "doc": "Python's `str()` of a dict or a list of them: what Strands 1.12 hands back to the model for a tool that returned one. A JSON text, which later releases write, is left to the readings that already decode it."
+          },
+          {
+            "path": "$.toolResult.content[1]",
+            "exists": false
+          }
+        ]
+      },
+      "tool_result": {
+        "tool_use_id": "$.toolResult.toolUseId",
+        "content": {
+          "first_of": [
+            {
+              "path": "$.toolResult.content[0].text",
+              "pipe": [
+                {
+                  "parse": "python_literal"
+                }
+              ]
+            },
+            "$.toolResult.content"
+          ],
+          "mode": "usable"
+        },
+        "content_as": "value",
+        "is_error": {
+          "path": "$.toolResult.status",
+          "pipe": [
+            {
+              "map": {
+                "error": true
+              },
+              "closed": true
+            }
+          ]
+        }
       }
     }
   ]

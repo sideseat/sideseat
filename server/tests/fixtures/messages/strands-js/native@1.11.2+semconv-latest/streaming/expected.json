@@ -66,8 +66,8 @@
           "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_7WWrRJPkviXLB6WmJefqxf\",\"content\":[{\"type\":\"json\",\"data\":[{\"json\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}]}]}",
-          "content_digest": "a5e52e59080f56ee",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_7WWrRJPkviXLB6WmJefqxf\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "16bf0bfef7fd1b47",
           "observation_type": "generation"
         },
         {
@@ -119,8 +119,8 @@
           "index": 2,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_7WWrRJPkviXLB6WmJefqxf\",\"content\":[{\"type\":\"json\",\"data\":[{\"json\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}]}]}",
-          "content_digest": "a5e52e59080f56ee",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_7WWrRJPkviXLB6WmJefqxf\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "16bf0bfef7fd1b47",
           "observation_type": "agent"
         }
       ]
@@ -147,8 +147,8 @@
           "index": 1,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_7WWrRJPkviXLB6WmJefqxf\",\"content\":[{\"type\":\"json\",\"data\":[{\"json\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}]}]}",
-          "content_digest": "a5e52e59080f56ee",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_7WWrRJPkviXLB6WmJefqxf\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "16bf0bfef7fd1b47",
           "observation_type": "tool"
         }
       ]
@@ -245,8 +245,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_7WWrRJPkviXLB6WmJefqxf\",\"content\":[{\"type\":\"json\",\"data\":[{\"json\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}]}]}",
-          "content_digest": "a5e52e59080f56ee",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_7WWrRJPkviXLB6WmJefqxf\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "16bf0bfef7fd1b47",
           "observation_type": "tool"
         },
         {
@@ -306,8 +306,8 @@
           "index": 3,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_7WWrRJPkviXLB6WmJefqxf\",\"content\":[{\"type\":\"json\",\"data\":[{\"json\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}]}]}",
-          "content_digest": "a5e52e59080f56ee",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_7WWrRJPkviXLB6WmJefqxf\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+          "content_digest": "16bf0bfef7fd1b47",
           "observation_type": "tool"
         },
         {
@@ -349,8 +349,8 @@
         "index": 1,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_7WWrRJPkviXLB6WmJefqxf\",\"content\":[{\"type\":\"json\",\"data\":[{\"json\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}]}]}",
-        "content_digest": "a5e52e59080f56ee",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_7WWrRJPkviXLB6WmJefqxf\",\"content\":{\"city\":\"Rome\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21}]}}",
+        "content_digest": "16bf0bfef7fd1b47",
         "observation_type": "tool"
       },
       {

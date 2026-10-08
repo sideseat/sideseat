@@ -128,16 +128,16 @@
           "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_47kO8B3wJoTg456RNsrex1\",\"content\":[{\"type\":\"json\",\"data\":[{\"json\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}]}",
-          "content_digest": "e1868a08ca14ec8f",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_47kO8B3wJoTg456RNsrex1\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "4a5070d909d490ea",
           "observation_type": "generation"
         },
         {
           "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gStb8XB1LefwoVPIVNf02t\",\"content\":[{\"type\":\"json\",\"data\":[{\"json\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}]}",
-          "content_digest": "0301e330e7eace66",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gStb8XB1LefwoVPIVNf02t\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "839f841cac384f70",
           "observation_type": "generation"
         },
         {
@@ -231,16 +231,16 @@
           "index": 5,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_47kO8B3wJoTg456RNsrex1\",\"content\":[{\"type\":\"json\",\"data\":[{\"json\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}]}",
-          "content_digest": "e1868a08ca14ec8f",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_47kO8B3wJoTg456RNsrex1\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "4a5070d909d490ea",
           "observation_type": "agent"
         },
         {
           "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gStb8XB1LefwoVPIVNf02t\",\"content\":[{\"type\":\"json\",\"data\":[{\"json\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}]}",
-          "content_digest": "0301e330e7eace66",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gStb8XB1LefwoVPIVNf02t\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "839f841cac384f70",
           "observation_type": "agent"
         },
         {
@@ -346,8 +346,8 @@
           "index": 1,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_47kO8B3wJoTg456RNsrex1\",\"content\":[{\"type\":\"json\",\"data\":[{\"json\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}]}",
-          "content_digest": "e1868a08ca14ec8f",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_47kO8B3wJoTg456RNsrex1\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "4a5070d909d490ea",
           "observation_type": "tool"
         }
       ]
@@ -374,8 +374,8 @@
           "index": 1,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gStb8XB1LefwoVPIVNf02t\",\"content\":[{\"type\":\"json\",\"data\":[{\"json\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}]}",
-          "content_digest": "0301e330e7eace66",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gStb8XB1LefwoVPIVNf02t\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "839f841cac384f70",
           "observation_type": "tool"
         }
       ]
@@ -506,16 +506,16 @@
           "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_47kO8B3wJoTg456RNsrex1\",\"content\":[{\"type\":\"json\",\"data\":[{\"json\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}]}",
-          "content_digest": "e1868a08ca14ec8f",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_47kO8B3wJoTg456RNsrex1\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "4a5070d909d490ea",
           "observation_type": "tool"
         },
         {
           "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gStb8XB1LefwoVPIVNf02t\",\"content\":[{\"type\":\"json\",\"data\":[{\"json\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}]}",
-          "content_digest": "0301e330e7eace66",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gStb8XB1LefwoVPIVNf02t\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "839f841cac384f70",
           "observation_type": "tool"
         },
         {
@@ -624,16 +624,16 @@
           "index": 6,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_47kO8B3wJoTg456RNsrex1\",\"content\":[{\"type\":\"json\",\"data\":[{\"json\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}]}",
-          "content_digest": "e1868a08ca14ec8f",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_47kO8B3wJoTg456RNsrex1\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "4a5070d909d490ea",
           "observation_type": "tool"
         },
         {
           "index": 7,
           "role": "tool",
           "entry_type": "tool_result",
-          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gStb8XB1LefwoVPIVNf02t\",\"content\":[{\"type\":\"json\",\"data\":[{\"json\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}]}",
-          "content_digest": "0301e330e7eace66",
+          "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gStb8XB1LefwoVPIVNf02t\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+          "content_digest": "839f841cac384f70",
           "observation_type": "tool"
         },
         {
@@ -698,8 +698,8 @@
         "index": 1,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gStb8XB1LefwoVPIVNf02t\",\"content\":[{\"type\":\"json\",\"data\":[{\"json\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}]}",
-        "content_digest": "0301e330e7eace66",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_gStb8XB1LefwoVPIVNf02t\",\"content\":{\"city\":\"Tokyo\",\"forecast\":[{\"day\":1,\"condition\":\"rain\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+        "content_digest": "839f841cac384f70",
         "observation_type": "tool"
       },
       {
@@ -722,8 +722,8 @@
         "index": 4,
         "role": "tool",
         "entry_type": "tool_result",
-        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_47kO8B3wJoTg456RNsrex1\",\"content\":[{\"type\":\"json\",\"data\":[{\"json\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}]}]}",
-        "content_digest": "e1868a08ca14ec8f",
+        "content": "{\"type\":\"tool_result\",\"tool_use_id\":\"tooluse_47kO8B3wJoTg456RNsrex1\",\"content\":{\"city\":\"Paris\",\"forecast\":[{\"day\":1,\"condition\":\"sunny\",\"high_c\":21},{\"day\":2,\"condition\":\"sunny\",\"high_c\":22}]}}",
+        "content_digest": "4a5070d909d490ea",
         "observation_type": "tool"
       },
       {
